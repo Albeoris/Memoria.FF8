@@ -251,6 +251,10 @@ internal sealed partial class Ff7Scene : IDisposable
                 {
                     EnsureMixedBattle(startedBattle);
                 }
+                else if (envelope.Mappings.Length > 0)
+                {
+                    RefreshMappedFieldCombat(Session);
+                }
                 RememberReportCheckpoint();
                 UpdateAudio();
                 if (IsShopMenuPresentation || Session.Battle is not null)

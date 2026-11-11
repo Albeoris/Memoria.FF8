@@ -21,6 +21,8 @@ public sealed record Ff7BattleActionState(Ff7BattleQueuedCommand Command, long S
     public Ff7BattleGrenadeState? Grenade { get; init; }
     public bool GrenadeStarted { get; init; }
     public Ff7BattleGuestLimitState? GuestLimit { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public byte? GuestAttackTargetCue { get; init; }
     public Ff7BattleBeatRushState? BeatRushEffect { get; init; }
     public Ff7BattleBigShotState? BigShot { get; init; }
     public Ff7BattleSmokeShotState? SmokeShot { get; init; }
@@ -514,6 +516,10 @@ public sealed partial class Ff7BattleSession
         if (snapshot.TerminalFrames is < 0 or > 49 || snapshot.Messages is { } messages && (messages.Pending is null || messages.Pending.Length > 64 || messages.Pending.Any(entry => entry?.Text is null || entry.Delay > 1 || entry.Remaining > 67)) || snapshot.Action is { } action && (action.Command is null || action.StartedAt < 0 || action.StartedAt > snapshot.Tick || snapshot.Actors.All(actor => actor.Actor.Slot != action.Command.ActorSlot)))
         {
             throw new InvalidDataException("FFVII battle snapshot has an invalid presentation or action cursor.");
+        }
+        if (snapshot.Action is { GuestAttackTargetCue: byte cue } guest && (cue != 4 || guest.Applied || guest.GuestLimit is not null || !guest.Command.GuestAttack || guest.Command.GuestAbility != 0 || guest.Command.CommandId != (byte)Ff7BattleCommand.Attack))
+        {
+            throw new InvalidDataException("FFVII battle snapshot has an unowned guest Attack target cue.");
         }
         snapshot.Queue.Validate();
         ValidateGuestVitalsSnapshot(snapshot);

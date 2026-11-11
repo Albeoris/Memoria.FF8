@@ -3,6 +3,7 @@
     <TargetFramework>net10.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Memoria.FF7.Runtime.Tests" />
     <ProjectReference Include="../Memoria.FF7.Events/Memoria.FF7.Events.csproj" />
     <ProjectReference Include="../Memoria.FF7.Resources/Memoria.FF7.Resources.csproj" />
   </ItemGroup>

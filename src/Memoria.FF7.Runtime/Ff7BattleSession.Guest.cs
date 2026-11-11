@@ -9,15 +9,23 @@ public sealed record Ff7BattleGuestInvocation(long RequestId, int FormationId, l
     public ushort GuestAbility { get; init; }
     public byte? GuestCommand { get; init; }
 }
-public sealed record Ff7BattleGuestAttackTarget(int Slot, SceneBattleEnemy? Native, Ff7BattleAiActor Actor, Ff7BattlePlacement Placement, ushort CollisionRadius);
+public sealed record Ff7BattleGuestAttackTarget(int Slot, SceneBattleEnemy? Native, Ff7BattleAiActor Actor, Ff7BattlePlacement Placement, ushort CollisionRadius)
+{
+    public int JointCount { get; init; }
+}
 public sealed record Ff7BattleGuestPhysicalHit(Ff7BattleDamageActor Source, Ff7BattleDamageAction Attack, ushort Elements)
 {
     public Ff7BattleGuestPreparedContact? PreparedContact { get; init; }
     public Ff7BattleGuestItemEffect? ItemEffect { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public byte? ElementPercent { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public Ff7BattleAttack? StatusRecord { get; init; }
 }
 public sealed record Ff7BattleGuestPreparedContact(Ff7BattleGuestInvocation Invocation, Ff7BattleActionVitals SourceBefore, Ff7BattleActionVitals TargetBefore, Ff7BattleActionReceipt Receipt);
 public sealed record Ff7BattleGuestAttackUpdate(Ff7BattleGuestPhysicalHit? Hit, bool Completed)
 {
+    public byte? AttackTargetCue { get; init; }
     public int? LimitPresentedContact { get; init; }
     public byte? LimitTargetCue { get; init; }
 }
@@ -153,7 +161,7 @@ public sealed partial class Ff7BattleSession
             Ff7BattleActionVitals sourceVitals = new(source.Actor.HitPoints, source.Actor.MaxHitPoints, source.Actor.MagicPoints, source.Actor.MaxMagicPoints, source.Actor.Statuses);
             Ff7BattleActionVitals targetVitals = new(target.Actor.HitPoints, target.Actor.MaxHitPoints, target.Actor.MagicPoints, target.Actor.MaxMagicPoints, target.Actor.Statuses, invocation.TargetSlot >= 4 ? ~Enemy(invocation.TargetSlot).NativeStatusMask : 0);
             ValidateGuestMagic(command.GuestAbility, hit);
-            Ff7BattleDamageAction attack = hit.Attack with { Affinity = invocation.TargetSlot >= 4 ? Ff7NativeBattleDamage.ResolveEnemyAffinity(Enemy(invocation.TargetSlot), hit.Elements) : hit.Attack.Affinity };
+            Ff7BattleDamageAction attack = ProjectGuestOutgoingAttack(invocation.TargetSlot, hit);
             Ff7BattleActionReceipt receipt = Ff7NativeBattleActionResolver.Resolve(hit.Source, sourceVitals, Stats(target), targetVitals, attack, null, random, sameActor: command.ActorSlot == invocation.TargetSlot);
             magic.PrepareMagic(hit with { Attack = attack, PreparedContact = new(invocation, sourceVitals, targetVitals, receipt) });
         }
@@ -201,6 +209,27 @@ public sealed partial class Ff7BattleSession
             ApplyGuestHit(active.Command, invocation.TargetSlot, hit);
             active = active with { Applied = true };
         }
+        if (update.AttackTargetCue is byte cue)
+        {
+            if (cue != 4 || active.Command.GuestAbility != 0 || active.Command.CommandId != (byte)Ff7BattleCommand.Attack || active.GuestAttackTargetCue is not null)
+            {
+                throw new InvalidDataException("The guest Attack target cue has no matching physical action.");
+            }
+            active = active with { GuestAttackTargetCue = cue };
+        }
+        if (active.GuestAttackTargetCue is not null && active.Applied)
+        {
+            if (state.LastHit is not { } contact || contact.Tick < active.StartedAt || contact.Source != invocation.ActorSlot || contact.Target != invocation.TargetSlot)
+            {
+                throw new InvalidDataException("The guest Attack target cue has no matching physical contact.");
+            }
+            Ff7BattleAiActor target = Actor(invocation.TargetSlot).Actor;
+            if (!contact.Damage.Missed)
+            {
+                AdmitImpactModel(new(invocation.ActorSlot, invocation.TargetSlot, -1, -1, -1) { ModelAction = target.HurtAction, PostActionKnockedOut = (target.Statuses & 1) != 0 });
+            }
+            active = active with { GuestAttackTargetCue = null };
+        }
         if (update.Completed)
         {
             if (!active.Applied || guest.Invocation is not null)
@@ -236,14 +265,14 @@ public sealed partial class Ff7BattleSession
             PublishGuestItem(command, source, target, hit);
             return;
         }
-        Ff7BattleDamageAction attack = hit.Attack with { Affinity = targetSlot >= 4 ? Ff7NativeBattleDamage.ResolveEnemyAffinity(Enemy(targetSlot), hit.Elements) : hit.Attack.Affinity };
+        Ff7BattleDamageAction attack = ProjectGuestOutgoingAttack(targetSlot, hit);
         if (command.GuestAbility != 0)
         {
             ValidateGuestMagic(command.GuestAbility, hit);
             Ff7BattleGuestPreparedContact prepared = hit.PreparedContact ?? throw new InvalidDataException("Guest magic lost its prepared native numeric receipt.");
             Ff7BattleActionVitals currentSource = new(source.Actor.HitPoints, source.Actor.MaxHitPoints, source.Actor.MagicPoints, source.Actor.MaxMagicPoints, source.Actor.Statuses);
             Ff7BattleActionVitals currentTarget = new(target.Actor.HitPoints, target.Actor.MaxHitPoints, target.Actor.MagicPoints, target.Actor.MaxMagicPoints, target.Actor.Statuses, targetSlot >= 4 ? ~Enemy(targetSlot).NativeStatusMask : 0);
-            if (prepared.Invocation != GuestInvocation(command, state.Action!.StartedAt) || prepared.SourceBefore.Mp != currentSource.Mp || prepared.SourceBefore.MaxMp != currentSource.MaxMp || (targetSlot != command.ActorSlot && prepared.TargetBefore.MaxHp != currentTarget.MaxHp) || prepared.TargetBefore.MaxMp != currentTarget.MaxMp || prepared.TargetBefore.StatusImmunities != currentTarget.StatusImmunities || (currentTarget.Statuses & ~Ff7GuestBattleStatuses.SupportedHost) != 0)
+            if (prepared.Invocation != GuestInvocation(command, state.Action!.StartedAt) || prepared.SourceBefore.Mp != currentSource.Mp || prepared.SourceBefore.MaxMp != currentSource.MaxMp || (targetSlot != command.ActorSlot && prepared.TargetBefore.MaxHp != currentTarget.MaxHp) || prepared.TargetBefore.MaxMp != currentTarget.MaxMp || prepared.TargetBefore.StatusImmunities != currentTarget.StatusImmunities)
             {
                 throw new InvalidDataException("Guest magic numeric receipt no longer matches its host action and vitals.");
             }
@@ -255,7 +284,8 @@ public sealed partial class Ff7BattleSession
             }
             return;
         }
-        if (hit.PreparedContact is not null || attack is not { Formula: 0x11, UsePhysicalStats: true, HasStatusOperation: false, TargetsMagicPoints: false, Healing: false })
+        bool hasStatuses = hit.StatusRecord is not null;
+        if (hit.PreparedContact is not null || attack is not { Formula: 0x11, UsePhysicalStats: true, TargetsMagicPoints: false, Healing: false } || attack.HasStatusOperation != hasStatuses || attack.AddsStatuses != hasStatuses)
         {
             throw new NotSupportedException("The current guest contact requires one ordinary physical HP attack.");
         }
@@ -263,7 +293,7 @@ public sealed partial class Ff7BattleSession
         Replace(source);
         Ff7BattleActionVitals sourceVitals = new(source.Actor.HitPoints, source.Actor.MaxHitPoints, source.Actor.MagicPoints, source.Actor.MaxMagicPoints, source.Actor.Statuses);
         Ff7BattleActionVitals targetVitals = new(target.Actor.HitPoints, target.Actor.MaxHitPoints, target.Actor.MagicPoints, target.Actor.MaxMagicPoints, target.Actor.Statuses, targetSlot >= 4 ? ~Enemy(targetSlot).NativeStatusMask : 0);
-        Ff7BattleActionReceipt result = Ff7NativeBattleActionResolver.Resolve(hit.Source with { BackRow = (source.Actor.Conditions & 0x40) != 0 }, sourceVitals, Stats(target), targetVitals, attack, null, random);
+        Ff7BattleActionReceipt result = Ff7NativeBattleActionResolver.ResolveGuestContact(hit.Source with { BackRow = (source.Actor.Conditions & 0x40) != 0 }, sourceVitals, Stats(target), targetVitals, attack, hit.StatusRecord, random);
         PublishHit(command, target, attack, result);
         if (!result.Damage.Missed)
         {
@@ -275,18 +305,28 @@ public sealed partial class Ff7BattleSession
         => new(RequestId, Formation.FormationId, startedAt, command.ActorSlot, BitOperations.TrailingZeroCount(command.TargetMask)) { GuestAbility = command.GuestAbility, GuestCommand = command.CommandId switch { (byte)Ff7BattleCommand.Item => command.CommandId, (byte)Ff7BattleCommand.Limit => 5, _ => null } };
 
     private static bool SupportsGuestAbility(IFf7BattleGuestAttack guest, ushort ability, Ff7BattleGuestAttackTarget target)
-        => ability == 0 ? guest.Supports(target) : ability is 1 or 4 or 7 or 21 && (target.Actor.Statuses & ~Ff7GuestBattleStatuses.SupportedHost) == 0 && guest is IFf7BattleGuestMagic magic && magic.MagicStock(ability) > 0 && magic.SupportsMagic(ability, target);
+        => ability == 0 ? guest.Supports(target) : ability is 1 or 4 or 7 or 21 && guest is IFf7BattleGuestMagic magic && magic.MagicStock(ability) > 0 && magic.SupportsMagic(ability, target);
+
+    private Ff7BattleDamageAction ProjectGuestOutgoingAttack(int targetSlot, Ff7BattleGuestPhysicalHit hit)
+    {
+        Ff7BattleDamageAffinity affinity = targetSlot >= 4 ? Ff7NativeBattleDamage.ResolveEnemyAffinity(Enemy(targetSlot), hit.Elements) : hit.Attack.Affinity;
+        return hit.Attack with { Affinity = affinity, GuestElementPercent = hit.ElementPercent };
+    }
 
     private static void ValidateGuestMagic(ushort ability, Ff7BattleGuestPhysicalHit hit)
     {
-        if (!(ability is 1 or 4 or 7 && hit.Elements == (ability == 1 ? 1 : ability == 4 ? 2 : 4) && hit.Attack is { Formula: 0x22, Power: 8, Accuracy: 100, UsePhysicalStats: false, HasStatusOperation: false, TargetsMagicPoints: false, Healing: false } || ability == 21 && hit.Elements == 0x200 && hit.Attack is { Formula: 0x25, Power: 5, Accuracy: 255, UsePhysicalStats: false, HasStatusOperation: false, TargetsMagicPoints: false, Healing: true }))
+        if (hit.ElementPercent is not null || hit.StatusRecord is not null || !(ability is 1 or 4 or 7 && hit.Elements == (ability == 1 ? 1 : ability == 4 ? 2 : 4) && hit.Attack is { Formula: 0x22, Power: 8, Accuracy: 100, UsePhysicalStats: false, HasStatusOperation: false, TargetsMagicPoints: false, Healing: false } || ability == 21 && hit.Elements == 0x200 && hit.Attack is { Formula: 0x25, Power: 5, Accuracy: 255, UsePhysicalStats: false, HasStatusOperation: false, TargetsMagicPoints: false, Healing: true }))
         {
             throw new NotSupportedException("The guest magic profile requires the explicitly calibrated FFVIII Fire action.");
         }
     }
 
     private Ff7BattleGuestAttackTarget DescribeGuestTarget(int slot)
-        => new(slot, slot >= 4 ? Enemy(slot) : null, Actor(slot).Actor, VisualPlacement(slot), animations!.CollisionRadius(ActorModel(slot)));
+    {
+        Ff7BattleAnimationResources resources = animations ?? throw new InvalidOperationException("Guest targeting requires the original host model geometry.");
+        string model = ActorModel(slot);
+        return new(slot, slot >= 4 ? Enemy(slot) : null, Actor(slot).Actor, VisualPlacement(slot), resources.CollisionRadius(model)) { JointCount = resources.BoneCount(model) };
+    }
 
     public Vector3 GuestEffectTargetAnchor(int slot)
     {
@@ -295,6 +335,15 @@ public sealed partial class Ff7BattleSession
             throw new InvalidDataException("Guest effect geometry requires a physical host actor occurrence.");
         }
         return ImpactAnchor(slot);
+    }
+
+    public Vector3 GuestEffectTargetBone(int slot, int joint)
+    {
+        if (slot is < 0 or 3 or > 9 || animations is null || !state.Actors.Any(actor => actor.Actor.Slot == slot) || (uint)joint >= animations.BoneCount(ActorModel(slot)))
+        {
+            throw new InvalidDataException("Guest effect bone geometry requires a physical host actor and joint.");
+        }
+        return BonePosition(slot, joint);
     }
 
     private IFf7BattleGuestAttack RequireGuestAttack(Ff7BattleQueuedCommand command)

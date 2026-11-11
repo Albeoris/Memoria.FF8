@@ -31,13 +31,13 @@ internal sealed class CrossoverMixedBattle : IDisposable
             GameplaySaveComponentDocument document = CrossoverSaveAdapter.ReadFf8(source);
             NativeCharacterVitals installed = game.ReadNewGameCharacterVitals();
             NativeCharacterVitals origin = document.Characters.Restore(installed);
-            CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.ReadSquall(origin, assets);
+            CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.Read(origin, assets, binding.OriginCharacter);
             CrossoverGunbladeHostSnapshot? savedAttack = null;
             CrossoverGuestHostActionsSnapshot? savedActions = null;
             if (source.MixedBattlePayload is { Length: > 0 } payload)
             {
                 CrossoverMixedBattleSnapshot saved = JsonSerializer.Deserialize<CrossoverMixedBattleSnapshot>(payload) ?? throw new InvalidDataException("The saved mixed encounter is empty.");
-                if (saved.Version != 1 || saved.Roster.HostRequestId != host.RequestId || saved.Roster.HostFormationId != host.Formation.FormationId || saved.Vitals != host.GuestVitals)
+                if (saved.Version != 1 || saved.Roster.HostRequestId != host.RequestId || saved.Roster.HostFormationId != host.Formation.FormationId || saved.Vitals != host.GuestVitals || saved.Vitals.OriginCharacter != binding.OriginCharacter || saved.Vitals.StoryCharacter != binding.StoryCharacter)
                 {
                     throw new InvalidDataException("The saved mixed encounter does not match its native host.");
                 }
@@ -54,9 +54,9 @@ internal sealed class CrossoverMixedBattle : IDisposable
             }
             host.BindGuestVitals(vitals);
             NativeGlobalRandomState random = document.Progression?.Clocks.GlobalRandom ?? throw new NotSupportedException("Mixed combat requires the suspended FFVIII global RNG owner.");
-            Attack = new(roster, kit, assets, game, random, () => host.Data.Cameras[0], _ => 128, savedAttack);
+            Attack = new(roster, kit, assets, game, random, () => host.RenderCameraOutput, _ => 128, savedAttack, host.GuestEffectTargetAnchor, host.GuestEffectTargetBone);
             Attack.PrepareStanding(host.VisualPlacement(roster.Guest.HostSlot));
-            ushort? limitOptions = document.Limits.Options ?? game.ReadNewGameLimitProgress().Options978;
+            ushort? limitOptions = kit.CharacterId == 0 ? document.Limits.Options ?? game.ReadNewGameLimitProgress().Options978 : null;
             NativeBattleUiRandomState limitUiRandom = (document.Progression?.Clocks.Playtime ?? NativePlaytimeState.FromColdProcess()).CreateBattleUiRandom();
             Actions = new(roster, kit, origin, document.Progression?.Clocks.CrtRandom, Attack, host, game, assets, savedActions, document.Economy, originLimitOptions: limitOptions, originLimitUiRandom: limitUiRandom);
             host.BindGuestAttack(Actions);
@@ -78,7 +78,8 @@ internal sealed class CrossoverMixedBattle : IDisposable
         CrossoverGuestHostActionsSnapshot actions = Actions.Capture();
         CrossoverGuestMagicSettlement? magic = Actions.UsedMagic ? new(roster, actions.Stock, Actions.OriginCrtRandom, Actions.CurrentCrtRandom, actions.CommittedSpells!.Value, Actions.LegacyBattleMaskContinuation) : null;
         CrossoverGuestItemSettlement? items = actions.Items is { Ledger.IsEmpty: false } inventory ? new(roster.EncounterId, inventory, Actions.OriginCrtRandom, Actions.CurrentCrtRandom) : null;
-        return CrossoverBattleVitalsSettlement.PrepareResult(source with { MixedBattlePayload = Capture() }, installation, game.ReadNewGameCharacterVitals(), presentation: Attack.Capture(), magic: magic, items: items);
+        CrossoverGuestCrtSettlement? crt = magic is null && items is null && actions.CrtRandom != (actions.OriginCrtRandom ?? NativeCrtRandomState.FromColdProcess()) ? new(actions.OriginCrtRandom, actions.CrtRandom) : null;
+        return CrossoverBattleVitalsSettlement.PrepareResult(source with { MixedBattlePayload = Capture() }, installation, game.ReadNewGameCharacterVitals(), presentation: Attack.Capture(), magic: magic, items: items, crt: crt);
     }
 
     public void Dispose()

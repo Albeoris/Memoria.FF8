@@ -185,7 +185,7 @@ public sealed record CombinedSessionSave
             throw new NotSupportedException("The appearance mapping requires a supported character identity and explicit rig profile.");
         }
         ValidateCharacterNameOverrides();
-        if (MixedCombat is { } mixed && (mixed.StoryCharacter is < 0 or > 8 || mixed.OriginCharacter != 0 || mixed.RulesVersion != 1 || Ff8Payload is not { Length: > 0 }))
+        if (MixedCombat is { } mixed && (mixed.StoryCharacter is < 0 or > 8 || mixed.OriginCharacter is < 0 or > 10 || mixed.RulesVersion != 1 || Ff8Payload is not { Length: > 0 }))
         {
             throw new InvalidDataException("Mixed combat requires an explicit supported origin character and suspended save.");
         }

@@ -20,18 +20,23 @@ internal sealed record CrossoverGunbladeHostPlacement(Ff7BattlePosition Anchor, 
 
     public (NativeBattleVector Target, short Yaw, short TargetScale, int Distance) ResolveContact(Ff7BattlePlacement target, ushort collisionRadius)
     {
-        if (!Matrix4x4.Invert(Matrix, out Matrix4x4 hostToOrigin))
-        {
-            throw new InvalidDataException("The guest model has a singular origin-to-host placement.");
-        }
         NativeBattleVector source = new(0, 0, 2200);
-        Vector3 mappedTarget = Vector3.Transform(target.Position, hostToOrigin);
-        NativeBattleVector nativeTarget = new(checked((short)MathF.Round(mappedTarget.X)), 0, checked((short)MathF.Round(mappedTarget.Z)));
+        NativeBattleVector nativeTarget = ResolvePosition(target.Position) with { Y = 0 };
         short yaw = checked((short)NativeWorldScriptedPathMath.NativeAngle(source.X - nativeTarget.X, source.Z - nativeTarget.Z));
         //50D300 uses 2000 * modelScale38 / 4096 as the native contact clearance.
         short scale = checked((short)MathF.Round(collisionRadius / OriginToHostScale * 4096 / 2000));
         int distance = NativeBattleActionGeometryRules.ContactDistance(NativeBattleActionGeometryRules.DistanceScale(source, nativeTarget), 4096, scale);
         return (nativeTarget, yaw, scale, distance);
+    }
+
+    public NativeBattleVector ResolvePosition(Vector3 position)
+    {
+        if (!Matrix4x4.Invert(Matrix, out Matrix4x4 hostToOrigin))
+        {
+            throw new InvalidDataException("The guest model has a singular origin-to-host placement.");
+        }
+        Vector3 native = Vector3.Transform(position, hostToOrigin);
+        return new(checked((short)MathF.Round(native.X)), checked((short)MathF.Round(native.Y)), checked((short)MathF.Round(native.Z)));
     }
 }
 
@@ -42,25 +47,38 @@ internal sealed record CrossoverGunbladeHostSnapshot(Guid EncounterId, Ff7Battle
     public long? ReactionTick { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleEffectTextureState? IdleTextures { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleVector? EffectTarget { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public CrossoverPhysicalHostEffectsState? PhysicalEffects { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int TargetJointCount { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public byte PreviousParticleBone { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ushort? SourceSavedStatuses { get; init; }
 }
 
-/// <summary>First guest Attack profile. It delegates the encounter and all HP changes to FFVII.</summary>
-internal sealed class CrossoverGunbladeHostAttack : IFf7BattleGuestAttack
+/// <summary>Runs the selected FFVIII actor's native Attack presentation in the FFVII host.</summary>
+internal sealed partial class CrossoverGunbladeHostAttack : IFf7BattleGuestAttack
 {
     private static readonly NativeBattleVector Origin = new(0, 0, 2200);
     private readonly CrossoverBattleRoster roster;
     private CrossoverFf8BattleKit kit;
     private readonly BattleModel body;
-    private readonly BattleModel weapon;
+    private readonly BattleModel? weapon;
+    private readonly GameAssets game;
     private readonly NativeBattleGraphicsResource resource;
     private readonly ImmutableArray<byte> sequences;
     private readonly uint publicationDuration;
     private readonly NativeBattleGraphicsRules graphicsRules;
     private readonly Func<Vector3, byte> readHostPan;
     private readonly Func<SceneCameraPlacement> readHostCamera;
+    private readonly Func<int, Vector3>? readHostImpactAnchor;
+    private readonly Func<int, int, Vector3>? readHostTargetBone;
     private CrossoverGunbladeHostSnapshot state;
 
-    public CrossoverGunbladeHostAttack(CrossoverBattleRoster roster, CrossoverFf8BattleKit kit, BattleAssets assets, GameAssets game, NativeGlobalRandomState globalRandom, Func<SceneCameraPlacement> readHostCamera, Func<Vector3, byte> readHostPan, CrossoverGunbladeHostSnapshot? snapshot = null)
+    public CrossoverGunbladeHostAttack(CrossoverBattleRoster roster, CrossoverFf8BattleKit kit, BattleAssets assets, GameAssets game, NativeGlobalRandomState globalRandom, Func<SceneCameraPlacement> readHostCamera, Func<Vector3, byte> readHostPan, CrossoverGunbladeHostSnapshot? snapshot = null, Func<int, Vector3>? readHostImpactAnchor = null, Func<int, int, Vector3>? readHostTargetBone = null)
     {
         roster.Validate();
         if (kit.OpeningCombatUnavailableReason() is { } reason)
@@ -69,19 +87,42 @@ internal sealed class CrossoverGunbladeHostAttack : IFf7BattleGuestAttack
         }
         this.roster = roster;
         this.kit = kit;
+        this.game = game;
         this.readHostCamera = readHostCamera;
         this.readHostPan = readHostPan;
-        body = assets.LoadPlayer(0);
-        weapon = assets.ResolveWeaponModel(0, kit.Weapon, body) ?? throw new InvalidDataException("The guest Squall resource has no original weapon model.");
-        resource = assets.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = 0, WeaponId = kit.Weapon });
+        this.readHostImpactAnchor = readHostImpactAnchor;
+        this.readHostTargetBone = readHostTargetBone;
+        if (roster.Guest.Combat.NativeId != kit.CharacterId)
+        {
+            throw new InvalidDataException("The guest Attack kit does not belong to the bound combat actor.");
+        }
+        body = assets.LoadPlayer(kit.CharacterId);
+        weapon = assets.ResolvePlayerRenderWeapon(kit.CharacterId, kit.Weapon, body);
+        resource = assets.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = kit.CharacterId, WeaponId = kit.Weapon });
         sequences = game.ReadNativeBattleCommandSequences();
         graphicsRules = game.ReadNativeBattleGraphicsRules();
-        publicationDuration = graphicsRules.UiPublicationDuration ?? throw new NotSupportedException("The original guest trigger requires its executable UI publication period.");
+        publicationDuration = NativeGunbladeAttack.HasTrigger(kit.CharacterId) ? graphicsRules.UiPublicationDuration ?? throw new NotSupportedException("The original guest trigger requires its executable UI publication period.") : 0;
         state = snapshot ?? new(roster.EncounterId, null, 0, 0, false, false, null, null, globalRandom, NativeBattleAuxiliaryState.Clear(), null, null, 0);
         state = state with { OriginGlobalRandom = state.OriginGlobalRandom ?? globalRandom, IdleTextures = state.IdleTextures is { } savedTextures ? NativeBattleEffectComponentStorage.Restore(savedTextures) : null };
         if (state.EncounterId != roster.EncounterId || state.Invocation is { } active && (active.RequestId != roster.HostRequestId || active.FormationId != roster.HostFormationId || active.ActorSlot != ActorSlot || state.Presentation is null || state.Placement is null || state.HostTick < active.StartedAt))
         {
             throw new InvalidDataException("Saved guest Attack state contradicts its host encounter or pending native presentation.");
+        }
+        if (state.Invocation is null && (state.EffectTarget is not null || state.PhysicalEffects is not null) || state.PhysicalEffects is not null && state.EffectTarget is null)
+        {
+            throw new InvalidDataException("Saved physical effects contradict the selected guest action occurrence.");
+        }
+        if (state.Invocation is { } pending && state.EffectTarget is null && state.Placement is { } savedPlacement && readHostImpactAnchor is not null)
+        {
+            state = state with { EffectTarget = savedPlacement.ResolvePosition(readHostImpactAnchor(pending.TargetSlot)) };
+        }
+        if (state.Presentation is { Model: { } savedModel } savedPresentation)
+        {
+            if (savedModel.Index != ActorSlot || savedModel.ModelId4 != kit.CharacterId || savedModel.FileSelector128 is byte savedWeapon && savedWeapon != resource.LinkedFileSelector128 || savedModel.FileSelector129 is byte savedBody && savedBody != resource.BodyFileSelector129)
+            {
+                throw new InvalidDataException("Saved guest Attack model contradicts its selected character or equipment.");
+            }
+            state = state with { Presentation = savedPresentation with { Model = savedModel with { FileSelector128 = resource.LinkedFileSelector128, FileSelector129 = resource.BodyFileSelector129 } } };
         }
     }
 
@@ -91,19 +132,27 @@ internal sealed class CrossoverGunbladeHostAttack : IFf7BattleGuestAttack
     public long HostTick => state.HostTick;
     public bool ContactPublished => Invocation is not null && state.Presentation?.ContactPublished == true;
     public bool TriggerWindowOpen => Invocation is not null && state.Presentation?.TriggerWindowOpen == true;
-    public CrossoverFf8BattleActorVisual? Visual => state.Placement is { } placement && state.Presentation is { } presentation ? new(body, weapon, presentation.Model, placement.Matrix) { BodyTextures = state.IdleTextures is null ? null : presentation.Model.BodyTextureSlots, Textures = state.IdleTextures } : null;
-    public CrossoverGunbladeHostSnapshot Capture() => state with { IdleTextures = state.IdleTextures is { } textures ? NativeBattleEffectComponentStorage.Capture(textures) : null };
+    public CrossoverFf8BattleActorVisual? Visual => state.Placement is { } placement && state.Presentation is { } presentation ? new(body, weapon, presentation.Model, placement.Matrix) { BodyTextures = state.IdleTextures is null ? null : presentation.Model.BodyTextureSlots, Textures = state.IdleTextures, DetachedWeapon = state.PhysicalEffects?.WeaponMatrix } : null;
+    public CrossoverGunbladeHostSnapshot Capture() => state with
+    {
+        IdleTextures = state.IdleTextures is { } textures ? NativeBattleEffectComponentStorage.Capture(textures) : null,
+        PhysicalEffects = state.PhysicalEffects is { } effects ? CapturePhysicalEffects(effects) : null
+    };
     public void ReprojectKit(CrossoverFf8BattleKit current)
     {
-        if (current.RecordRow != kit.RecordRow || current.Weapon != kit.Weapon || current.Attack is not { AttackType: 10, Power: 20, Element: 0, Statuses0: 0, Statuses1: 0 } || current.Stats.Hit != 255)
+        if (current.CharacterId != kit.CharacterId || current.RecordRow != kit.RecordRow || current.Weapon != kit.Weapon || current.Attack.AttackType != kit.Attack.AttackType)
         {
-            throw new NotSupportedException("The updated guest kit requires an unsupported native physical action profile.");
+            throw new InvalidDataException("The updated guest kit contradicts the loaded character or weapon.");
+        }
+        if (current.OpeningCombatUnavailableReason() is { } reason)
+        {
+            throw new NotSupportedException(reason);
         }
         kit = current;
     }
     public void ResumeStandingFromCast(NativeBattleGraphicsModel model, long hostTick, long subticks, bool halfSubtick, bool completed = true)
     {
-        if (state.Invocation is not null || state.Presentation is null || model.Index != ActorSlot || hostTick < state.HostTick)
+        if (state.Invocation is not null || state.Presentation is null || model.Index != ActorSlot || model.ModelId4 != kit.CharacterId || hostTick < state.HostTick)
         {
             throw new InvalidDataException("The native casting source cannot replace an active Gunblade owner.");
         }
@@ -111,7 +160,9 @@ internal sealed class CrossoverGunbladeHostAttack : IFf7BattleGuestAttack
     }
     public bool LastTriggerSound { get; private set; }
     public ImmutableArray<NativeBattleAuxiliaryEmission> LastAuxiliaryEmissions { get; private set; } = [];
+    public ImmutableArray<NativeBattleModuleSound> LastModuleSounds { get; private set; } = [];
     public NativeBattleSequenceParticle? LastContactEffect { get; private set; }
+    public NativeCrtRandomState? AttackCrtRandom { get; set; }
 
     public void PrepareStanding(Ff7BattlePlacement source)
     {
@@ -120,10 +171,7 @@ internal sealed class CrossoverGunbladeHostAttack : IFf7BattleGuestAttack
             return;
         }
         NativeGlobalRandomState random = state.GlobalRandom;
-        NativeBattleGraphicsModel model = new(ActorSlot, 0) { Transform = new(Origin, Origin, 0, 0, 4096), SequenceState = new() { Locals = NativeBattleSequenceState.ColdProcessLocals() }, LinkedTransform = new(default, default) };
-        model = NativeBattleGraphicsModels.CompleteLoad(model, 0, 0, ref random);
-        model = NativeBattleGraphicsModels.SelectSequence(model, 1);
-        model = NativeBattleSequenceMachine.Advance(model, resource, new(0, 0)).Model;
+        NativeBattleGraphicsModel model = LoadStanding(ref random);
         model = model with { Rotation14 = checked((short)source.Yaw), Flags2 = (ushort)(model.Flags2!.Value & ~4) };
         model = model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, resource.PoseSource!) };
         state = state with { Placement = new(Ff7BattlePosition.FromVector(source.Position), source.Yaw), Presentation = new(model, NativeBattleUiServices.Initialize(), null) { ReturnedToStanding = true }, GlobalRandom = random };
@@ -138,7 +186,7 @@ internal sealed class CrossoverGunbladeHostAttack : IFf7BattleGuestAttack
         NativeBattleGraphicsPresentationStep clock = NativeBattleGraphicsPresentationClock.Advance(state.Subticks, state.HalfSubtick, TimeSpan.FromTicks(HostTime(hostTick) - HostTime(state.HostTick)));
         NativeBattleGraphicsModel model = presentation.Model;
         ushort saved = Ff7GuestBattleStatuses.ToOrigin(statuses);
-        uint transient = ((statuses & 4) != 0 ? 1u : 0u) | ((statuses & 0x100) != 0 ? 2u : 0u) | ((statuses & 0x200) != 0 ? 4u : 0u);
+        uint transient = Ff7GuestBattleStatuses.ToOriginBattle(statuses);
         uint previousFlags = model.Flags8!.Value;
         uint flags = graphicsRules.Project(saved, transient);
         model = model with { Flags8 = flags };
@@ -175,7 +223,7 @@ internal sealed class CrossoverGunbladeHostAttack : IFf7BattleGuestAttack
         {
             textures = textures.Drain505D20(NativeBattleEffectMemory.FromColdProcess().Arena).State;
         }
-        state = state with { HostTick = hostTick, Subticks = clock.Subticks, HalfSubtick = clock.HalfSubtick, ReactionTick = reactionTick, Presentation = presentation with { Model = model }, IdleTextures = textures };
+        state = state with { HostTick = hostTick, Subticks = clock.Subticks, HalfSubtick = clock.HalfSubtick, ReactionTick = reactionTick, Presentation = presentation with { Model = model }, IdleTextures = textures, SourceSavedStatuses = saved };
 
         void CopyTexture(byte selector, int variant)
         {
@@ -191,11 +239,11 @@ internal sealed class CrossoverGunbladeHostAttack : IFf7BattleGuestAttack
     {
         if (state.Invocation is not null)
         {
-            state = state with { Invocation = null, PendingPress = false, Cancelled = true };
+            state = state with { Invocation = null, PendingPress = false, Cancelled = true, PhysicalEffects = null, EffectTarget = null };
         }
     }
 
-    public bool Supports(Ff7BattleGuestAttackTarget target) => target.Native is not null && target.CollisionRadius > 0
+    public bool Supports(Ff7BattleGuestAttackTarget target) => target.Native is not null && target.CollisionRadius > 0 && (kit.CharacterId != 8 || target.JointCount is > 1 and <= 256)
         && roster.Participants.Any(actor => actor.HostSlot == target.Slot && actor.Combat.Origin == SessionGame.Ff7 && actor.Combat.Kind == CrossoverBattleActorKind.Enemy && actor.Combat.NativeId == target.Native.Placement.EnemyId);
 
     public void PressTrigger()
@@ -222,26 +270,25 @@ internal sealed class CrossoverGunbladeHostAttack : IFf7BattleGuestAttack
         }
         else
         {
-            model = new(ActorSlot, 0)
-            {
-                Transform = new(Origin, Origin, 0, 0, 4096),
-                SequenceState = new() { Locals = NativeBattleSequenceState.ColdProcessLocals() },
-                LinkedTransform = new(default, default)
-            };
-            model = NativeBattleGraphicsModels.CompleteLoad(model, 0, 0, ref global);
-            model = NativeBattleGraphicsModels.SelectSequence(model, 1);
-            model = NativeBattleSequenceMachine.Advance(model, resource, new(0, 0)).Model;
+            model = LoadStanding(ref global);
         }
         model = model with { Rotation14 = yaw, Flags2 = (ushort)(model.Flags2!.Value & ~4) };
         model = model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, resource.PoseSource!) };
         CrossoverGunbladePresentationState presentation = CrossoverGunbladePresentation.Begin(model, resource, sequences, null);
         NativeBattleGraphicsPresentationStep clock = NativeBattleGraphicsPresentationClock.Advance(0, false, TimeSpan.FromTicks(HostTime(invocation.StartedAt)));
-        state = new(roster.EncounterId, invocation, invocation.StartedAt, clock.Subticks, clock.HalfSubtick, false, placement, presentation, global, state.Auxiliary, state.Sine, state.Cosine, distance) { OriginGlobalRandom = state.OriginGlobalRandom };
+        state = new(roster.EncounterId, invocation, invocation.StartedAt, clock.Subticks, clock.HalfSubtick, false, placement, presentation, global, state.Auxiliary, state.Sine, state.Cosine, distance)
+        {
+            OriginGlobalRandom = state.OriginGlobalRandom,
+            EffectTarget = placement.ResolvePosition(readHostImpactAnchor?.Invoke(target.Slot) ?? target.Placement.Position),
+            TargetJointCount = target.JointCount,
+            PreviousParticleBone = state.PreviousParticleBone,
+            SourceSavedStatuses = state.SourceSavedStatuses
+        };
     }
 
     public Ff7BattleGuestAttackUpdate Advance(long hostTick)
     {
-        if (state.Invocation is null || state.Presentation is not { } presentation || state.Placement is not { } placement || hostTick != state.HostTick + 1)
+        if (state.Invocation is not { } invocation || state.Presentation is not { } presentation || state.Placement is not { } placement || hostTick != state.HostTick + 1)
         {
             throw new InvalidOperationException("Guest Attack advances one admitted host tick at a time.");
         }
@@ -252,12 +299,14 @@ internal sealed class CrossoverGunbladeHostAttack : IFf7BattleGuestAttack
             state = next;
             LastTriggerSound = false;
             LastAuxiliaryEmissions = [];
+            LastModuleSounds = [];
             LastContactEffect = null;
             return new(null, false);
         }
         NativeGlobalRandomState random = state.GlobalRandom;
         short? sine = state.Sine;
         short? cosine = state.Cosine;
+        byte previousParticleBone = state.PreviousParticleBone;
         Matrix4x4 originToHost = placement.Matrix;
         NativeBattleAuxiliaryStep tasks = state.Auxiliary.Advance(new()
         {
@@ -267,13 +316,34 @@ internal sealed class CrossoverGunbladeHostAttack : IFf7BattleGuestAttack
         NativeBattleAuxiliaryState auxiliary = tasks.State;
         NativeBattleSequenceParticle? contactEffect = null;
         NativeBattleTriggerReceipt? prepared = presentation.ContactTiming;
+        bool blinded = ((state.SourceSavedStatuses ?? kit.Statuses.Saved) & 8) != 0;
         Ff7BattleGuestPhysicalHit? hit = null;
+        CrossoverPhysicalHostEffectsState? effects = state.PhysicalEffects;
+        ImmutableArray<NativeBattleModuleSound>.Builder sounds = ImmutableArray.CreateBuilder<NativeBattleModuleSound>();
+        if (effects is { Complete: false } activeEffects)
+        {
+            CrossoverPhysicalHostEffectsStep effectStep = AdvancePhysicalHostEffects(activeEffects, presentation.Model, placement);
+            effects = effectStep.State;
+            AttackCrtRandom = effects.Random;
+            sounds.AddRange(effectStep.Sounds);
+            if (effectStep.Contact)
+            {
+                if (presentation.ContactPublished)
+                {
+                    throw new InvalidDataException("The native projectile already published its contact.");
+                }
+                hit = ProjectContact(kit, 0);
+                presentation = presentation with { ContactPublished = true };
+            }
+        }
+        byte? targetCue = null;
         NativeBattleSequenceInputs inputs = new(0, 0)
         {
             ReadModelExternal = (_, variable) => variable switch
             {
                 17 => state.AdjustedDistance,
-                25 or 46 => 0,
+                25 => !blinded && prepared is { Timing: >= 20 } ? 2 : 0,
+                46 => 0,
                 18 => sine ?? throw new InvalidDataException("The guest Attack read its sine before the native sequence initialized it."),
                 19 => cosine ?? throw new InvalidDataException("The guest Attack read its cosine before the native sequence initialized it."),
                 _ => throw new NotSupportedException($"The guest Attack profile has no native sequence variable {variable} owner.")
@@ -293,34 +363,129 @@ internal sealed class CrossoverGunbladeHostAttack : IFf7BattleGuestAttack
                 }
             },
             ScheduleSoundParticle = (program, two, bone) => (auxiliary, random, _) = auxiliary.AppendSoundParticle(ActorSlot, two, bone, program, random),
+            PlaySound = (current, cue) =>
+            {
+                NativeBattleSequenceSound source = new(checked((byte)cue.First), cue.Kind == NativeBattleSequenceCueKind.ActorSound, checked((byte)cue.Second), checked((ushort)cue.Third)) { OverrideOnContact4 = cue.OverrideSoundOnContact4 };
+                // TODO(TD-025): Supply the mixed contact's flags for the sequence's alternate miss sound.
+                NativeBattleModuleSound? sound = NativeBattleSequenceAudio.Resolve505AB0(source, ActorSlot, checked((byte)invocation.TargetSlot), _ => kit.CharacterId,
+                    index => index == ActorSlot ? NativeBattlePoseMatrices.ReadBone(current, resource.PoseSource!, 241, 0) : state.EffectTarget ?? throw new InvalidDataException("The guest Attack sound lost its selected host target."),
+                    position => readHostPan(Vector3.Transform(new(position.X, position.Y, position.Z), originToHost)), graphicsRules.ActorSounds1120, 0);
+                if (sound is not null)
+                {
+                    sounds.Add(sound);
+                }
+            },
+            SelectModelSequence = (current, opcode, _, selected) =>
+            {
+                if (opcode != 0xBF || selected != 4)
+                {
+                    throw new NotSupportedException($"The guest Attack has no native target presentation for opcode {opcode:X2} and sequence {selected}.");
+                }
+                targetCue = selected;
+                return current;
+            },
             ApplyActionContacts = current =>
             {
-                hit = ProjectContact(prepared ?? throw new InvalidDataException("The native Gunblade timing receipt is missing at contact."));
+                if (NativeGunbladeAttack.HasTrigger(kit.CharacterId) != (prepared is not null))
+                {
+                    throw new InvalidDataException("The native physical contact timing contradicts the selected weapon's attack type.");
+                }
+                hit = ProjectContact(kit, blinded ? (short)1 : prepared?.Timing ?? 0);
                 return current;
             },
             ScheduleContactEffect = (current, program) =>
             {
-                SceneCameraPlacement camera = readHostCamera();
-                Vector3 direction = Vector3.TransformNormal(camera.Position - camera.Focus, Matrix4x4.CreateRotationY(-placement.Yaw * MathF.Tau / 4096));
-                int angle = NativeWorldScriptedPathMath.NativeAngle((int)direction.X, (int)direction.Z);
-                contactEffect = NativeBattleSequenceParticles.Read505900(program, angle);
+                contactEffect = ReadParticle(program, SelectParticleBone);
+                QueueParticle(contactEffect, current, true);
                 return (current, contactEffect.NextOffset);
+            },
+            ScheduleModelParticle = (current, program) =>
+            {
+                NativeBattleSequenceParticle particle = ReadParticle(program);
+                QueueParticle(particle, current, false);
+                return (current, particle.NextOffset);
             }
         };
-        CrossoverGunbladePresentationStep step = CrossoverGunbladePresentation.Advance(presentation, resource, inputs, 0, publicationDuration, state.PendingPress, receipt => prepared = receipt);
-        state = next with { Invocation = step.State.Complete ? null : next.Invocation, PendingPress = false, Presentation = step.State, GlobalRandom = random, Auxiliary = auxiliary, Sine = sine, Cosine = cosine };
-        LastTriggerSound = step.TriggerSound;
+        CrossoverGunbladePresentationStep? step = presentation.Complete ? null : CrossoverGunbladePresentation.Advance(presentation, resource, inputs, 0, publicationDuration, state.PendingPress, receipt => prepared = receipt);
+        presentation = step?.State ?? presentation;
+        bool complete = presentation.Complete && (effects is null or { Complete: true });
+        state = next with { Invocation = complete ? null : next.Invocation, PendingPress = false, Presentation = presentation, GlobalRandom = random, Auxiliary = auxiliary, Sine = sine, Cosine = cosine, PhysicalEffects = complete ? null : effects, EffectTarget = complete ? null : next.EffectTarget, PreviousParticleBone = previousParticleBone };
+        LastTriggerSound = !blinded && step?.TriggerSound == true;
         LastAuxiliaryEmissions = tasks.Emissions;
+        LastModuleSounds = sounds.ToImmutable();
         LastContactEffect = contactEffect;
-        return new(hit, step.State.Complete);
+        return new(hit, complete) { AttackTargetCue = targetCue };
+
+        void QueueParticle(NativeBattleSequenceParticle particle, NativeBattleGraphicsModel model, bool contact)
+        {
+            if (state.EffectTarget is not { } target)
+            {
+                if ((byte)particle.PackedParameters == 34)
+                {
+                    throw new InvalidDataException("The native projectile has no selected host target anchor.");
+                }
+                return;
+            }
+            NativeCrtRandomState crt = effects?.Random ?? AttackCrtRandom ?? NativeCrtRandomState.FromColdProcess();
+            effects = QueuePhysicalHostParticle(effects, target, invocation.TargetSlot, particle, model, contact, crt);
+        }
+
+        NativeBattleSequenceParticle ReadParticle(NativeBattleAuxiliaryProgram program, Func<byte>? selectBone = null)
+        {
+            SceneCameraPlacement camera = readHostCamera();
+            Vector3 direction = Vector3.TransformNormal(camera.Position - camera.Focus, Matrix4x4.CreateRotationY(-placement.Yaw * MathF.Tau / 4096));
+            int angle = NativeWorldScriptedPathMath.NativeAngle((int)direction.X, (int)direction.Z);
+            return NativeBattleSequenceParticles.Read505900(program, angle, selectBone);
+        }
+
+        byte SelectParticleBone()
+        {
+            if (state.TargetJointCount is < 2 or > 256)
+            {
+                throw new InvalidDataException("The guest Attack particle needs the selected host model's joint count.");
+            }
+            random = random.Draw(out ushort draw);
+            previousParticleBone = checked((byte)((draw % (state.TargetJointCount - 1) + previousParticleBone + 1) % state.TargetJointCount));
+            return previousParticleBone;
+        }
     }
 
-    private Ff7BattleGuestPhysicalHit ProjectContact(NativeBattleTriggerReceipt contact)
+    private NativeBattleGraphicsModel LoadStanding(ref NativeGlobalRandomState random)
     {
-        byte power = checked((byte)(8 * (contact.Timing / 20 + 2)));
-        Ff7BattleDamageAction action = new(0x11, power, 96, UsePhysicalStats: true) { SuppressCritical = true };
-        return new(ProjectPhysicalSource(kit), action, 0);
+        NativeBattleGraphicsModel model = new(ActorSlot, 0)
+        {
+            Transform = new(Origin, Origin, 0, 0, 4096),
+            SequenceState = new() { Locals = NativeBattleSequenceState.ColdProcessLocals() },
+            LinkedTransform = new(default, default),
+            FileSelector128 = resource.LinkedFileSelector128,
+            FileSelector129 = resource.BodyFileSelector129
+        };
+        model = NativeBattleGraphicsModels.CompleteLoad(model, kit.CharacterId, 0, ref random);
+        model = NativeBattleGraphicsModels.SelectSequence(model, 1);
+        return NativeBattleSequenceMachine.Advance(model, resource, new(0, 0)).Model;
     }
+
+    internal static Ff7BattleGuestPhysicalHit ProjectContact(CrossoverFf8BattleKit kit, short timing)
+    {
+        BattleNativeAction native = kit.Attack;
+        bool gunblade = NativeGunbladeAttack.HasTrigger(kit.CharacterId);
+        byte accuracy = native.Hit ?? 255;
+        byte power = ProjectPhysicalPower(native.Power, gunblade ? timing / 20 + 2 : 2);
+        Ff7BattleAttack? status = Ff7GuestBattleStatuses.ToHostStatusRecord(native.Statuses0, native.Statuses1, native.StatusAttack);
+        Ff7BattleDamageAction action = new(0x11, power, accuracy, CanBeBlinded: !gunblade, UsePhysicalStats: true, HasStatusOperation: status is not null, AddsStatuses: status is not null)
+        {
+            SuppressCritical = gunblade,
+            AlwaysHits = gunblade || accuracy == 255
+        };
+        return new(ProjectPhysicalSource(kit) with { CriticalBonus = (byte)(native.Critical.GetValueOrDefault() * 100 / 256) }, action, Ff7GuestBattleStatuses.ToHostElements(native.Element))
+        {
+            ElementPercent = native.ElementPercent,
+            StatusRecord = status
+        };
+    }
+
+    // Original physical type9 uses P/16 and untriggered type10 uses 2*P/32.
+    internal static byte ProjectPhysicalPower(byte nativePower, int multiplier) => (byte)Math.Min(byte.MaxValue, 8 * nativePower * multiplier / 20);
 
     internal static Ff7BattleDamageActor ProjectPhysicalSource(CrossoverFf8BattleKit kit) => new(Project(kit.Level, 7, 6, 100, 99), Project(kit.Stats.Strength, 17, 36, 255, 255), 0, 0, Project(kit.Stats.Luck, 16, 14, 255, 255), 0, 0, 0, 0);
 

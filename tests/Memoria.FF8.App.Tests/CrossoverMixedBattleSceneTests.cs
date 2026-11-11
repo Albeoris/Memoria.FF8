@@ -22,20 +22,36 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
     [InlineData(true)]
     public void Squall_mapping_runs_original_command_and_combined_settlement_through_the_scene(bool useLimit) => RunOpeningBattle(useLimit, useWorldSwitch: false);
 
-    [Fact]
-    public void World_switch_mapping_owns_combat_without_changing_a_restored_native_battle() => RunOpeningBattle(useLimit: false, useWorldSwitch: true);
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void World_switch_mapping_owns_saved_gear_and_junctions_without_changing_a_restored_native_battle(int characterId) => RunOpeningBattle(useLimit: false, useWorldSwitch: true, characterId);
 
-    private void RunOpeningBattle(bool useLimit, bool useWorldSwitch)
+    private void RunOpeningBattle(bool useLimit, bool useWorldSwitch, int characterId = 0)
     {
         string? ff7Root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
         string? ff8Root = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(ff7Root) && !string.IsNullOrWhiteSpace(ff8Root), "Select both original game installations.");
         Ff7Installation installation = Ff7Installation.Discover(ff7Root!);
         using GameAssets game = new(ff8Root!);
+        using BattleAssets battleAssets = new(ff8Root!);
         NativeCharacterVitals origin = game.ReadNewGameCharacterVitals();
+        int originRow = origin.FindPhysicalRow((byte)characterId);
         if (useLimit)
         {
-            origin = origin.WithSavedHitPoints(origin.FindPhysicalRow(0), 60);
+            origin = origin.WithSavedHitPoints(originRow, 60);
+        }
+        if (useWorldSwitch)
+        {
+            BattleNativePlayerStatRules rules = battleAssets.ReadPlayerNativeStatRules(origin, originRow);
+            int blindSpell = Enumerable.Range(1, rules.MagicRecords.Length - 1).First(id => rules.MagicRecords[id][36] > 0 && (rules.MagicRecords[id][38] & 8) != 0);
+            origin = origin.ChangeMagicStock(originRow, 1, 100, MagicOperationReason.ScriptReward, out _);
+            origin = origin.ChangeMagicStock(originRow, blindSpell, 100, MagicOperationReason.ScriptReward, out _);
+            byte[] junctions = origin.Records[originRow].Junction.MagicJunctions.ToArray();
+            junctions[9] = 1;
+            junctions[10] = (byte)blindSpell;
+            NativeCharacterVital saved = origin.Records[originRow];
+            origin.Records[originRow] = saved with { Weapon = characterId == 0 ? (byte)2 : saved.Weapon, Junction = saved.Junction with { MagicJunctions = junctions } };
         }
         GameplaySaveComponentDocument document = GameplaySaveSessionLoaderTests.Document(game, false) with { Characters = GameplaySaveCharacters.Capture(origin) };
         if (useLimit)
@@ -53,7 +69,7 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
         Assert.False(scene.MixedCombatEnabled);
         using SpriteBatch batch = new(device.Device);
         scene.ConfigureSharedDialogueDefaults(batch, ff8Root!, Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")));
-        CharacterAppearanceMapping[] mappings = CharacterMappingAssociations.Assign([], 0, 0);
+        CharacterAppearanceMapping[] mappings = CharacterMappingAssociations.Assign([], 0, characterId);
         if (useWorldSwitch)
         {
             using Texture2D pixel = new(device.Device, 1, 1);
@@ -101,13 +117,24 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
         Ff7SessionSave nativeBattle = session.Capture();
         using RenderTarget2D target = device.CreateTarget(320, 240);
         Draw();
-        string originName = document.Progression!.SceneFacts!.Names[0];
+        string originName = CrossoverGuestFieldVitals.ReadGuestName(document, characterId);
         Assert.Equal(originName, session.Battle!.Name(0));
-        Assert.Equal(useLimit ? 60U : 486U, session.Battle!.Actors.Single(actor => actor.Actor.Slot == 0).Actor.HitPoints);
+        Assert.Equal((uint)origin.Records[originRow].HitPoints.Minimum, session.Battle!.Actors.Single(actor => actor.Actor.Slot == 0).Actor.HitPoints);
         CombinedSessionSave active = scene.Capture();
         Assert.NotEmpty(active.MixedBattlePayload!);
         if (useWorldSwitch)
         {
+            Assert.Equal(characterId, active.MixedCombat?.OriginCharacter);
+            Assert.Equal(characterId, active.Ff7!.Battle!.GuestVitals?.OriginCharacter);
+            CrossoverMixedBattleSnapshot mixed = JsonSerializer.Deserialize<CrossoverMixedBattleSnapshot>(active.MixedBattlePayload!)!;
+            Assert.Equal((byte)characterId, mixed.Attack.Presentation!.Model.ModelId4);
+            Assert.Equal((byte)battleAssets.WeaponDefinitions[origin.Records[originRow].Weapon].Tier, mixed.Attack.Presentation.Model.FileSelector128);
+            CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.Read(origin, battleAssets, characterId);
+            Ff7BattleGuestPhysicalHit attack = CrossoverGunbladeHostAttack.ProjectContact(kit, 0);
+            Assert.Equal((ushort)1, attack.Elements);
+            Assert.True(attack.ElementPercent > 0);
+            Assert.NotNull(attack.StatusRecord);
+            Assert.NotEqual(0u, attack.StatusRecord.StatusMask & Ff7NativeBattleActionResolver.Darkness);
             ColdContinue(active);
             Assert.Equal(originName, scene.Session!.Battle!.Name(0));
             ColdContinue(source with { Mappings = mappings, Ff7 = nativeBattle });

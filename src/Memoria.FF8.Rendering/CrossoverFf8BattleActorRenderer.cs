@@ -7,10 +7,11 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8.Rendering;
 
 /// <summary>An original FFVIII pose and its placement in the host arena's world space.</summary>
-public sealed record CrossoverFf8BattleActorVisual(BattleModel Body, BattleModel Weapon, NativeBattleGraphicsModel Model, Matrix4x4 OriginToHost)
+public sealed record CrossoverFf8BattleActorVisual(BattleModel Body, BattleModel? Weapon, NativeBattleGraphicsModel Model, Matrix4x4 OriginToHost)
 {
     public NativeBattleModelTextureBinding? BodyTextures { get; init; }
     public NativeBattleEffectTextureState? Textures { get; init; }
+    public NativeBattleActionMatrix? DetachedWeapon { get; init; }
 }
 
 public static class CrossoverFf8BattleActorRenderer
@@ -25,9 +26,9 @@ public static class CrossoverFf8BattleActorRenderer
         {
             throw new InvalidDataException("Mixed source texture animation requires both its model binding and VRAM owner.");
         }
-        if (model is not { ModelId4: 0 } || visual.Body.EditableOverride is not null || visual.Weapon.EditableOverride is not null)
+        if (model is not { ModelId4: < 11 } || visual.Body.EditableOverride is not null || visual.Weapon?.EditableOverride is not null)
         {
-            throw new NotSupportedException("Mixed actor rendering requires original Squall body and weapon resources.");
+            throw new NotSupportedException("Mixed actor rendering requires original FFVIII party geometry.");
         }
         if ((model.Flags0 & 6) != 2 || ((model.Flags2 ?? throw new InvalidDataException("Mixed actor rendering requires native model flags.")) & 0x84) != 0)
         {
@@ -38,8 +39,9 @@ public static class CrossoverFf8BattleActorRenderer
         ImmutableArray<NativeBattleActionMatrix> bodyBones = NativeBattleBodyBoneMatrices.Require(model, bodySource).Select(bone => NativeBattleGfMatrices.Compose56C2F0(world, bone)).ToImmutableArray();
         uint bodyMask = model.SequenceState?.MeshMask124 ?? throw new InvalidDataException("Mixed actor rendering requires the native object mask.");
         IReadOnlyList<BattleMesh> bodyMeshes = visual.Body.NativeControlMeshes ?? visual.Body.Meshes;
-        IReadOnlyList<BattleMesh> weaponMeshes = visual.Weapon.NativeControlMeshes ?? visual.Weapon.Meshes;
-        bool sharedSkeleton = visual.Weapon.NativeWeaponUsesBodySkeleton ?? throw new InvalidDataException("Mixed actor rendering requires the original weapon skeleton binding.");
+        BattleModel? weapon = visual.Weapon;
+        IReadOnlyList<BattleMesh> weaponMeshes = weapon?.NativeControlMeshes ?? weapon?.Meshes ?? [];
+        bool sharedSkeleton = weapon is not null && (weapon.NativeWeaponUsesBodySkeleton ?? throw new InvalidDataException("Mixed actor rendering requires the original weapon skeleton binding."));
         if (sharedSkeleton && (bodyMeshes.Count < 2 || weaponMeshes.Count != 1))
         {
             throw new InvalidDataException("A shared-skeleton weapon must replace body object 1 with its original single object.");
@@ -51,15 +53,15 @@ public static class CrossoverFf8BattleActorRenderer
                 continue;
             }
             bool weaponObject = sharedSkeleton && objectIndex == 1;
-            DrawMesh(weaponObject ? weaponMeshes[0] : bodyMeshes[objectIndex], weaponObject ? visual.Weapon.Textures : visual.Body.Textures, bodyBones, !weaponObject);
+            DrawMesh(weaponObject ? weaponMeshes[0] : bodyMeshes[objectIndex], weaponObject ? weapon!.Textures : visual.Body.Textures, bodyBones, !weaponObject);
         }
-        if (!sharedSkeleton && (model.Flags0 & 0x200) == 0)
+        if (weapon is not null && !sharedSkeleton && (visual.DetachedWeapon is not null || (model.Flags0 & 0x200) == 0))
         {
-            NativeBattlePoseSource weaponSource = visual.Weapon.NativePoseSource ?? throw new InvalidDataException("Mixed actor rendering requires the original linked weapon skeleton.");
-            ImmutableArray<NativeBattleActionMatrix> weaponBones = NativeBattlePoseMatrices.LinkedGeometryMatrices502D40(model, weaponSource, Identity);
+            NativeBattlePoseSource weaponSource = weapon.NativePoseSource ?? throw new InvalidDataException("Mixed actor rendering requires the original linked weapon skeleton.");
+            ImmutableArray<NativeBattleActionMatrix> weaponBones = visual.DetachedWeapon is { } detached ? Enumerable.Repeat(detached, weaponSource.BoneCount).ToImmutableArray() : NativeBattlePoseMatrices.LinkedGeometryMatrices502D40(model, weaponSource, Identity);
             foreach (BattleMesh mesh in weaponMeshes)
             {
-                DrawMesh(mesh, visual.Weapon.Textures, weaponBones, false);
+                DrawMesh(mesh, weapon.Textures, weaponBones, false);
             }
         }
 

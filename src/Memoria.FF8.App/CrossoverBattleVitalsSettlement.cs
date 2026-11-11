@@ -11,6 +11,7 @@ namespace Memoria.FF8;
 internal sealed record CrossoverBattleVitalsSettlementResult(CombinedSessionSave Save, Ff7GuestBattleSettlementReceipt Receipt);
 internal sealed record CrossoverGuestItemSettlement(Guid EncounterId, CrossoverGuestItemInventory Inventory, NativeCrtRandomState? OriginCrtRandom, NativeCrtRandomState CrtRandom);
 internal sealed record CrossoverGuestMagicSettlement(CrossoverBattleRoster Roster, CrossoverBattleStockSnapshot Stock, NativeCrtRandomState? OriginCrtRandom, NativeCrtRandomState CrtRandom, ImmutableArray<CrossoverGuestCommittedSpell> Costs, bool LegacyBattleMaskContinuation = false);
+internal sealed record CrossoverGuestCrtSettlement(NativeCrtRandomState? Origin, NativeCrtRandomState Current);
 
 /// <summary>Stages an FFVII field continuation and FFVIII character update together from immutable source snapshots.</summary>
 internal static class CrossoverBattleVitalsSettlement
@@ -19,19 +20,21 @@ internal static class CrossoverBattleVitalsSettlement
     {
         source.Validate();
         roster.Validate();
-        if (source is not { ActiveGame: SessionGame.Ff7, Ff7.Battle: { } host } || host.RequestId != roster.HostRequestId || host.FormationId != roster.HostFormationId || roster.Guest.Combat is not { Origin: SessionGame.Ff8, NativeId: 0 })
+        if (source is not { ActiveGame: SessionGame.Ff7, Ff7.Battle: { } host } || host.RequestId != roster.HostRequestId || host.FormationId != roster.HostFormationId)
         {
             throw new InvalidDataException("Guest vitals require the exact suspended FFVIII payload and matching host battle occurrence.");
         }
         GameplaySaveComponentDocument document = CrossoverSaveAdapter.ReadFf8(source);
         NativeCharacterVitals vitals = document.Characters.Restore(installed);
-        CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.ReadSquall(vitals, assets);
-        if (kit.Statuses.Battle != 0 || (vitals.Records[kit.RecordRow].Status & ~Ff7GuestBattleStatuses.SupportedOrigin) != 0)
+        int character = roster.Guest.Combat.NativeId;
+        CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.Read(vitals, assets, character);
+        Ff7BattleGuestProjection projection = CrossoverGuestHostActions.Projection(kit);
+        return new(roster.EncounterId, Hash(source.Ff8Payload!), roster.Guest.HostSlot, roster.Guest.Story.NativeId, character, kit.RecordRow, kit.HitPoints, projection.MaximumHp, projection.Level, projection.Luck, projection.Defense, projection.MagicDefense)
         {
-            throw new NotSupportedException("The first guest vitals profile requires a living, status-free Squall save record.");
-        }
-        return new(roster.EncounterId, Hash(source.Ff8Payload!), roster.Guest.HostSlot, roster.Guest.Story.NativeId, 0, kit.RecordRow, kit.HitPoints, checked((ushort)kit.MaximumHitPoints),
-            Project(kit.Level, 7, 6, 100, 99), Project(kit.Stats.Luck, 16, 14, 255, 255), Project(kit.Stats.Vitality, 6, 24, 255, 255), Project(kit.Stats.Spirit, 5, 17, 255, 255)) { OriginStatuses = vitals.Records[kit.RecordRow].Status, OriginName = document.Progression?.SceneFacts?.Names.GetValueOrDefault(0) ?? "Squall" };
+            OriginStatuses = kit.Statuses.Saved,
+            OriginBattleStatuses = kit.Statuses.Battle,
+            OriginName = CrossoverGuestFieldVitals.ReadGuestName(document, character)
+        };
     }
 
     public static CrossoverBattleVitalsSettlementResult PrepareVictory(CombinedSessionSave source, Ff7Installation installation, NativeCharacterVitals installed, Ff7GuestBattleSettlementReceipt? completed = null, CrossoverGunbladeHostSnapshot? presentation = null)
@@ -43,7 +46,7 @@ internal static class CrossoverBattleVitalsSettlement
         return PrepareResult(source, installation, installed, completed, presentation);
     }
 
-    public static CrossoverBattleVitalsSettlementResult PrepareResult(CombinedSessionSave source, Ff7Installation installation, NativeCharacterVitals installed, Ff7GuestBattleSettlementReceipt? completed = null, CrossoverGunbladeHostSnapshot? presentation = null, CrossoverGuestMagicSettlement? magic = null, CrossoverGuestItemSettlement? items = null)
+    public static CrossoverBattleVitalsSettlementResult PrepareResult(CombinedSessionSave source, Ff7Installation installation, NativeCharacterVitals installed, Ff7GuestBattleSettlementReceipt? completed = null, CrossoverGunbladeHostSnapshot? presentation = null, CrossoverGuestMagicSettlement? magic = null, CrossoverGuestItemSettlement? items = null, CrossoverGuestCrtSettlement? crt = null)
     {
         source.Validate();
         if (source is not { ActiveGame: SessionGame.Ff7, Ff7: { } host, Ff8Payload: { Length: > 0 } payload })
@@ -76,7 +79,7 @@ internal static class CrossoverBattleVitalsSettlement
         NativeCharacterVital saved = original.Records[row];
         if (row != binding.OriginRow || saved.HitPoints != new NativeHpWord(binding.InitialHp, binding.InitialHp) || saved.Status != binding.OriginStatuses || original.GetMagicMaximumHitPoints(row) != binding.MaximumHp)
         {
-            throw new InvalidDataException("The suspended Squall record no longer matches the admitted guest vitals.");
+            throw new InvalidDataException("The suspended FFVIII character record no longer matches the admitted guest vitals.");
         }
         Ff7BattleAiActor projected = battle.Actors.Single(actor => actor.Actor.Slot == binding.HostSlot && actor.Identity == binding.StoryCharacter).Actor;
         NativeCharacterVitals finalStock = original;
@@ -93,7 +96,7 @@ internal static class CrossoverBattleVitalsSettlement
         ushort hp = checked((ushort)projected.HitPoints);
         if (maximumHp != currentProjection.MaximumHp || projected.MaxHitPoints != maximumHp || hp > maximumHp || (projected.Statuses & ~Ff7GuestBattleStatuses.SupportedHost) != 0 || (hp == 0) != ((projected.Statuses & 1) != 0))
         {
-            throw new InvalidDataException("Guest settlement supports exact HP and semantic KO only.");
+            throw new InvalidDataException("Guest settlement requires consistent HP and mapped statuses.");
         }
         NativeHpWord exactHp = finalStock.WithSavedHitPoints(row, hp).Records[row].HitPoints;
         GameplaySaveCharacters characters = document.Characters;
@@ -102,7 +105,7 @@ internal static class CrossoverBattleVitalsSettlement
             characters = document.Characters with { Records = finalStock.Records, Magic = GameplaySaveCharacters.Capture(finalStock).Magic };
         }
         NativeCharacterVital[] rows = (NativeCharacterVital[])characters.Records.Clone();
-        rows[row] = rows[row] with { HitPoints = exactHp, Status = Ff7GuestBattleStatuses.ToOrigin(projected.Statuses) };
+        rows[row] = rows[row] with { HitPoints = exactHp, Status = Ff7GuestBattleStatuses.ToOrigin(projected.Statuses, saved.Status) };
         GameplaySaveComponentDocument updated = document with { Characters = characters with { Records = rows } };
         if (magic is not null)
         {
@@ -128,6 +131,14 @@ internal static class CrossoverBattleVitalsSettlement
                 throw new InvalidDataException("Guest settlement requires the completed native presentation and its exact original global RNG owner.");
             }
             updated = updated with { Progression = updated.Progression! with { Clocks = updated.Progression!.Clocks with { GlobalRandom = presentation.GlobalRandom } } };
+        }
+        if (crt is not null)
+        {
+            if (presentation is null || magic is not null || items is not null || document.Progression is not { } progression || progression.Clocks.CrtRandom != crt.Origin)
+            {
+                throw new InvalidDataException("Guest attack CRT settlement requires its exact source and completed presentation.");
+            }
+            updated = updated with { Progression = updated.Progression! with { Clocks = updated.Progression!.Clocks with { CrtRandom = crt.Current } } };
         }
         using MemoryStream ff8 = new();
         GameplaySaveCodec.Write(ff8, updated);
@@ -189,6 +200,4 @@ internal static class CrossoverBattleVitalsSettlement
         return actual;
     }
 
-    private static byte Project(int value, int from, int to, int sourceCap, int targetCap)
-        => checked((byte)(value <= from ? value * to / from : to + (value - from) * (targetCap - to) / (sourceCap - from)));
 }

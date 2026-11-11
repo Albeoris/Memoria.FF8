@@ -19,7 +19,7 @@ public sealed class CrossoverNativeCureProgramTests(ITestOutputHelper output)
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(root) && !string.IsNullOrWhiteSpace(hostRoot), "Select both original game installations.");
         using GameAssets game = new(root!);
         using BattleAssets assets = new(root!);
-        CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.ReadSquall(game.ReadNewGameCharacterVitals(), assets);
+        CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.Read(game.ReadNewGameCharacterVitals(), assets, 0);
         BattleNativeAction cure = Assert.Single(kit.Spells, spell => spell.ActionId == 21);
         Assert.Equal((1, 3, 18, 20), ((int)cure.MagicId, (int)cure.AttackType, (int)cure.Power, (int)cure.TargetFlags!));
         BattleModel body = assets.LoadPlayer(0);

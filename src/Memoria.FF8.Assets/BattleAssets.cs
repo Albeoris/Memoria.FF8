@@ -267,6 +267,13 @@ public sealed partial class BattleAssets : IDisposable
 
     public BattleModel? ResolveWeaponModel(int characterId, int savedWeaponId, BattleModel body)
     {
+        BattleModel? model = ResolvePlayerRenderWeapon(characterId, savedWeaponId, body);
+        // The original reduced loader for Zell and Kiros creates no second render header.
+        return characterId is 1 or 9 ? null : model;
+    }
+
+    public BattleModel? ResolvePlayerRenderWeapon(int characterId, int savedWeaponId, BattleModel body)
+    {
         if ((uint)savedWeaponId >= WeaponDefinitions.Count || WeaponDefinitions[savedWeaponId].CharacterId != characterId)
         {
             throw new NotSupportedException($"Saved weapon {savedWeaponId} does not belong to character {characterId}.");
@@ -275,9 +282,7 @@ public sealed partial class BattleAssets : IDisposable
         {
             return null;
         }
-        BattleModel model = LoadWeapon(ResolvePlayerWeaponName(characterId, savedWeaponId), body);
-        // The original reduced loader supplies sequence/sound services for Zell and Kiros; it creates no second render header.
-        return characterId is 1 or 9 ? null : model;
+        return LoadWeapon(ResolvePlayerWeaponName(characterId, savedWeaponId), body);
     }
 
     public BattleSequenceSet LoadPlayerSequences(int characterId, int? savedWeaponId, BattleModel character)

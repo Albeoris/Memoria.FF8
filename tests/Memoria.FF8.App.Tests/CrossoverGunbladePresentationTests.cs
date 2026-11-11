@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 
@@ -13,7 +13,7 @@ public sealed class CrossoverGunbladePresentationTests
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(root), "Select the installed original FFVIII resources.");
         using GameAssets game = new(root!);
         using BattleAssets assets = new(root!);
-        CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.ReadSquall(game.ReadNewGameCharacterVitals(), assets);
+        CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.Read(game.ReadNewGameCharacterVitals(), assets, 0);
         NativeBattleGraphicsResource weapon = assets.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = 0, WeaponId = kit.Weapon });
         uint duration = game.ReadNativeBattleGraphicsRules().UiPublicationDuration!.Value;
         NativeBattleVector origin = new(0, 0, 2200);

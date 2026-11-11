@@ -50,7 +50,7 @@ public sealed class CrossoverBattleBridgeTests
         const ushort fire = 1;
         initial = initial.ChangeMagicStock(row, fire, 4, MagicOperationReason.ScriptReward, out MagicStockMutation granted);
         Assert.Equal(4, granted.Accepted);
-        CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.ReadSquall(initial, assets);
+        CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.Read(initial, assets, 0);
         Assert.Equal(row, kit.RecordRow);
         Assert.Equal(original.Weapon, kit.Weapon);
         Assert.Equal(original.HitPoints.Minimum, kit.HitPoints);

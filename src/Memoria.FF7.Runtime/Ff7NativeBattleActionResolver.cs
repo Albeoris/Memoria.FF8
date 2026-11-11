@@ -87,11 +87,18 @@ public static class Ff7NativeBattleActionResolver
     }
 
     public static Ff7BattleActionReceipt Resolve(Ff7BattleDamageActor sourceStats, Ff7BattleActionVitals source, Ff7BattleDamageActor targetStats, Ff7BattleActionVitals target, Ff7BattleDamageAction action, Ff7BattleAttack? record, Ff7BattleRng random, bool sameActor = false)
+        => ResolveCore(sourceStats, source, targetStats, target, action, record, random, sameActor, false, null);
+
+    internal static Ff7BattleActionReceipt ResolveGuestContact(Ff7BattleDamageActor sourceStats, Ff7BattleActionVitals source, Ff7BattleDamageActor targetStats, Ff7BattleActionVitals target, Ff7BattleDamageAction action, Ff7BattleAttack? record, Ff7BattleRng random, bool sameActor = false, IReadOnlyList<byte>? originStatusResistances = null)
+        => ResolveCore(sourceStats, source, targetStats, target, action, record, random, sameActor, true, originStatusResistances);
+
+    private static Ff7BattleActionReceipt ResolveCore(Ff7BattleDamageActor sourceStats, Ff7BattleActionVitals source, Ff7BattleDamageActor targetStats, Ff7BattleActionVitals target, Ff7BattleDamageAction action, Ff7BattleAttack? record, Ff7BattleRng random, bool sameActor, bool guestContact, IReadOnlyList<byte>? originStatusResistances)
     {
         ArgumentNullException.ThrowIfNull(random);
         int mode = record is null ? 3 : record.StatusChange >> 6;
         uint mask = ReadStatusMask(record);
-        if ((mask & ~SupportedRecordStatuses) != 0 || record is { AdditionalEffect: not byte.MaxValue })
+        uint supportedStatuses = guestContact ? Ff7GuestBattleStatuses.SupportedHost : SupportedRecordStatuses;
+        if ((mask & ~supportedStatuses) != 0 || record is { AdditionalEffect: not byte.MaxValue })
         {
             throw new NotSupportedException($"FFVII attack has unsupported additional effect or status mask 0x{mask:X8}.");
         }
@@ -109,12 +116,21 @@ public static class Ff7NativeBattleActionResolver
             return new(source, target, new(true, false, 0), 0, 0);
         }
 
-        uint statuses = ApplyStatuses(target, targetStats.IsEnemy, record, action.Formula, admittedStatus ? mask : 0, mode);
+        uint admittedMask = admittedStatus ? mask : 0;
+        if (admittedMask != 0 && mode is 0 or 2 && originStatusResistances is not null)
+        {
+            admittedMask = Ff7GuestBattleStatuses.ResistIncoming(admittedMask, target.Statuses, originStatusResistances, random);
+        }
+        uint statuses = ApplyStatuses(target, targetStats.IsEnemy, record, action.Formula, admittedMask, mode, guestContact);
         if ((target.Statuses & (Petrify | Peerless)) != 0)
         {
             damage = damage with { Damage = 0 };
         }
         Ff7BattleActionVitals nextTarget = ApplyDamage(target with { Statuses = statuses }, damage.Damage, action.TargetsMagicPoints);
+        if (guestContact && (target.Statuses & Death) == 0 && (nextTarget.Statuses & Death) != 0)
+        {
+            nextTarget = nextTarget with { Hp = 0 };
+        }
         Ff7BattleActionVitals nextSource = sameActor ? nextTarget : source;
         if (record is { SpecialFlags: var drainFlags } && (drainFlags & 0x10) == 0 && damage.Damage != 0)
         {
@@ -178,7 +194,7 @@ public static class Ff7NativeBattleActionResolver
         return roll < threshold;
     }
 
-    private static uint ApplyStatuses(Ff7BattleActionVitals target, bool enemy, Ff7BattleAttack? record, byte formula, uint mask, int mode)
+    private static uint ApplyStatuses(Ff7BattleActionVitals target, bool enemy, Ff7BattleAttack? record, byte formula, uint mask, int mode, bool guestContact)
     {
         uint immunity = target.StatusImmunities;
         if ((target.Statuses & Resist) != 0)
@@ -212,9 +228,13 @@ public static class Ff7NativeBattleActionResolver
         {
             remove |= target.Statuses & PhysicalWakeStatuses;
         }
-        if ((add & Slow) != 0)
+        if ((add & Slow & ~immunity) != 0 || !guestContact && (add & Slow) != 0)
         {
             remove |= 0x100;
+        }
+        if (guestContact && (add & 0x100 & ~immunity) != 0)
+        {
+            remove |= Slow;
         }
         uint toggle = mode == 2 ? mask : 0;
         return ((target.Statuses | (add & ~immunity)) & ~(remove & ~immunity)) ^ (toggle & ~immunity);

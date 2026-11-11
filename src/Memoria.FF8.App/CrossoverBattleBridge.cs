@@ -23,9 +23,9 @@ internal sealed record CrossoverBattleRoster(int Version, Guid EncounterId, long
         ArgumentNullException.ThrowIfNull(host);
         ArgumentNullException.ThrowIfNull(bindings);
         ArgumentNullException.ThrowIfNull(appearances);
-        if (bindings.Count != 1 || bindings[0] is not { GuestCharacter: 0 })
+        if (bindings.Count != 1 || bindings[0].GuestCharacter is < 0 or > 10)
         {
-            throw new NotSupportedException("The first mixed roster requires one explicit Squall combat binding.");
+            throw new NotSupportedException("The current mixed roster requires one mapped FFVIII combatant.");
         }
         CrossoverBattleBinding binding = bindings[0];
         if (binding.HostSlot is < 0 or > 2 || !host.Actors.Any(actor => actor.Actor.Slot == binding.HostSlot && actor.Identity == binding.StoryCharacter))
@@ -78,7 +78,7 @@ internal sealed record CrossoverBattleRoster(int Version, Guid EncounterId, long
                 {
                     throw new InvalidDataException("Mixed battle party contains duplicate or malformed character ownership.");
                 }
-                if (actor.Combat.Origin == SessionGame.Ff8 && actor.Combat.NativeId == 0)
+                if (actor.Combat.Origin == SessionGame.Ff8 && actor.Combat.NativeId is >= 0 and <= 10)
                 {
                     guests++;
                 }
@@ -94,7 +94,7 @@ internal sealed record CrossoverBattleRoster(int Version, Guid EncounterId, long
         }
         if (guests != 1)
         {
-            throw new InvalidDataException("The mixed roster requires exactly one original Squall combat owner.");
+            throw new InvalidDataException("The mixed roster requires exactly one original FFVIII combat owner.");
         }
     }
 
@@ -104,43 +104,38 @@ internal sealed record CrossoverBattleRoster(int Version, Guid EncounterId, long
 
 internal sealed record CrossoverFf8BattleKit(int RecordRow, ushort HitPoints, int MaximumHitPoints, int Level, byte Weapon, BattlePlayerStats Stats, NativeBattleStatusAllocation Statuses, BattleNativeAction Attack, BattleNativeLimitDefinition Limit, byte FinisherFlags, ImmutableArray<byte> Commands, ImmutableArray<BattleNativeAction> Spells)
 {
+    public byte CharacterId { get; init; }
     public uint StatusPassives { get; init; }
     public byte RenzokukenPower { get; init; }
 
     public string? OpeningCombatUnavailableReason()
     {
-        if (Weapon != 0)
-        {
-            return "Squall must equip his original Revolver for this mixed combat profile.";
-        }
-        if (Statuses.Battle != 0 || (Statuses.Saved & ~Ff7GuestBattleStatuses.SupportedOrigin) != 0)
-        {
-            return "Squall has a status or automatic battle ability outside the mixed combat profile.";
-        }
-        return Attack is { AttackType: 10, Power: 20, Element: 0, Statuses0: 0, Statuses1: 0 } && Stats.Hit == 255
-            ? null
-            : "Squall's current attack or junctions require a different mixed Gunblade profile.";
+        return Attack.AttackType is 1 or 9 or 10 ? null : $"FFVIII physical attack type {Attack.AttackType} has no mixed battle contract.";
     }
 
-    public static CrossoverFf8BattleKit ReadSquall(NativeCharacterVitals vitals, BattleAssets resources)
+    public static CrossoverFf8BattleKit Read(NativeCharacterVitals vitals, BattleAssets resources, int characterId)
     {
         ArgumentNullException.ThrowIfNull(vitals);
         ArgumentNullException.ThrowIfNull(resources);
+        ArgumentOutOfRangeException.ThrowIfNegative(characterId);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(characterId, 10);
         vitals.Validate();
-        int row = vitals.FindPhysicalRow(0);
-        if ((uint)row >= vitals.Records.Length || vitals.Records.Count(record => record.CharacterId == 0) != 1)
+        int row = vitals.FindPhysicalRow(checked((byte)characterId));
+        if ((uint)row >= vitals.Records.Length || vitals.Records.Count(record => record.CharacterId == characterId) != 1)
         {
-            throw new NotSupportedException("Mixed combat requires one original Squall record in the suspended FFVIII world.");
+            throw new NotSupportedException($"Mixed combat requires one original {CrossoverCharacterCatalog.AppearanceNames[characterId]} record in the suspended FFVIII world.");
         }
         NativeCharacterVital saved = vitals.Records[row];
         if (saved.HitPoints.Minimum != saved.HitPoints.Maximum)
         {
-            throw new NotSupportedException("Mixed combat requires Squall's exact saved HP.");
+            throw new NotSupportedException("Mixed combat requires the selected FFVIII character's exact saved HP.");
         }
         BattleNativePlayerStatRules rules = resources.ReadPlayerNativeStatRules(vitals, row);
         ImmutableArray<BattleNativeAction> spells = resources.NativeActions.Where(action => action.Command == 2 && action.KernelSection == 1 && action.ActionId != 0).ToImmutableArray();
-        return new(row, saved.HitPoints.Minimum, vitals.GetMagicMaximumHitPoints(row), rules.Level, saved.Weapon, resources.ReadPlayerStats(vitals, row), resources.ReadPlayerNativeStatusData(vitals, row), resources.ReadPlayerNativeAttackData(vitals, row), resources.ReadNativeLimitDefinition(0), rules.WeaponRecord[2], resources.ReadPlayerNativeCommandSlots(vitals, row), spells)
+        byte weapon = vitals.DreamEnabled && characterId >= 8 ? vitals.DreamWeapons[characterId - 8] : saved.Weapon;
+        return new(row, saved.HitPoints.Minimum, vitals.GetMagicMaximumHitPoints(row), rules.Level, weapon, resources.ReadPlayerStats(vitals, row), resources.ReadPlayerNativeStatusData(vitals, row), resources.ReadPlayerNativeAttackData(vitals, row), resources.ReadNativeLimitDefinition(characterId), rules.WeaponRecord[2], resources.ReadPlayerNativeCommandSlots(vitals, row), spells)
         {
+            CharacterId = (byte)characterId,
             StatusPassives = rules.NativeStatusPassiveFlags ?? throw new InvalidDataException("The native character ability passives are missing."),
             RenzokukenPower = rules.CharacterRecord[33]
         };
@@ -200,7 +195,11 @@ internal static class CrossoverBattleBridge
         {
             throw new InvalidDataException("Mixed action requires a valid action occurrence and native FFVIII ability identity.");
         }
-        ValidateSquallOwner(vitals, kit.RecordRow);
+        ValidateGuestOwner(vitals, kit.RecordRow, roster.Guest.Combat.NativeId);
+        if (kit.CharacterId != roster.Guest.Combat.NativeId)
+        {
+            throw new InvalidDataException("The native action kit does not belong to this FFVIII guest.");
+        }
         CrossoverBattleParticipant target = roster.Participants.SingleOrDefault(actor => actor.Combat == targetId) ?? throw new InvalidDataException("Mixed action target has no combat occurrence in the active encounter.");
         if (ability.Kind == CrossoverBattleAbilityKind.Draw && !target.ProvidesDrawStock)
         {
@@ -241,7 +240,7 @@ internal static class CrossoverBattleBridge
             MagicCastQuote quote = MagicCastingService.Quote(vitals, kit.RecordRow, ability.NativeId, MagicCastContext.Battle, reservation);
             if (!quote.Allowed)
             {
-                return Denied(quote.Reason ?? "Squall has no available stock for this spell.");
+                return Denied(quote.Reason ?? "The FFVIII guest has no available stock for this spell.");
             }
             working = MagicCastingService.Reserve(vitals, kit.RecordRow, ability.NativeId, MagicCastContext.Battle, reservation);
         }
@@ -274,7 +273,7 @@ internal static class CrossoverBattleBridge
         ArgumentNullException.ThrowIfNull(working);
         ArgumentNullException.ThrowIfNull(action);
         roster.Validate();
-        ValidateSquallOwner(working, action.OriginRow);
+        ValidateGuestOwner(working, action.OriginRow, roster.Guest.Combat.NativeId);
         string? expected = action.Ability.Kind == CrossoverBattleAbilityKind.Spell ? ReservationKey(roster, action.Ordinal) : null;
         if (action.Ordinal < 1 || action.Actor != roster.Guest.Combat || action.Ability.Origin != action.Actor.Origin || action.Ability.Kind is not (CrossoverBattleAbilityKind.Attack or CrossoverBattleAbilityKind.Spell) || !roster.Participants.Any(actor => actor.Combat == action.Target) || action.StockReservation != expected)
         {
@@ -287,11 +286,11 @@ internal static class CrossoverBattleBridge
         return expected;
     }
 
-    private static void ValidateSquallOwner(NativeCharacterVitals vitals, int row)
+    private static void ValidateGuestOwner(NativeCharacterVitals vitals, int row, int characterId)
     {
-        if ((uint)row >= vitals.Records.Length || vitals.Records[row].CharacterId != 0 || vitals.Records.Count(record => record.CharacterId == 0) != 1)
+        if ((uint)row >= vitals.Records.Length || vitals.Records[row].CharacterId != characterId || vitals.Records.Count(record => record.CharacterId == characterId) != 1)
         {
-            throw new InvalidDataException("The mixed guest requires one original Squall record in the suspended FFVIII world.");
+            throw new InvalidDataException("The mixed guest requires one original character record in the suspended FFVIII world.");
         }
     }
 

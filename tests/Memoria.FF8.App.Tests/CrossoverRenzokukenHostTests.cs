@@ -30,7 +30,7 @@ public sealed class CrossoverRenzokukenHostTests(ITestOutputHelper output)
         SceneFormation formation = SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path)).Single(item => item.FormationId == 300);
         NativeCharacterVitals origin = game.ReadNewGameCharacterVitals();
         origin = origin.WithSavedHitPoints(origin.FindPhysicalRow(0), 1);
-        CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.ReadSquall(origin, assets);
+        CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.Read(origin, assets, 0);
         ushort options = game.ReadNewGameLimitProgress().Options978!.Value;
         if (automatic)
         {

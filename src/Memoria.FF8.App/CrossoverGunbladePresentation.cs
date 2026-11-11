@@ -19,23 +19,23 @@ internal sealed record CrossoverGunbladePresentationState(NativeBattleGraphicsMo
 
 internal sealed record CrossoverGunbladePresentationStep(CrossoverGunbladePresentationState State, NativeBattleTriggerReceipt? Contact, ImmutableArray<NativeBattleSequenceCue> Cues, bool TriggerSound);
 
-/// <summary>Runs the original weapon sequence and trigger callbacks on the host's presentation timeline.</summary>
+/// <summary>Runs the original Attack sequence and any trigger callbacks on the host's presentation timeline.</summary>
 internal static class CrossoverGunbladePresentation
 {
-    public static CrossoverGunbladePresentationState Begin(NativeBattleGraphicsModel squall, NativeBattleGraphicsResource weapon, ImmutableArray<byte> commandSequences, NativeBattleUiRandomState? random)
+    public static CrossoverGunbladePresentationState Begin(NativeBattleGraphicsModel model, NativeBattleGraphicsResource resource, ImmutableArray<byte> commandSequences, NativeBattleUiRandomState? random)
     {
-        if (squall is not { Index: >= 0 and < 3, ModelId4: 0 } || (squall.Flags0 & 2) == 0 || commandSequences.Length != 39 || commandSequences[1] == 0 || !weapon.Contains(commandSequences[1]))
+        if (model is not { Index: >= 0 and < 3, ModelId4: < 11 } || (model.Flags0 & 2) == 0 || commandSequences.Length != 39 || commandSequences[1] == 0 || !resource.Contains(commandSequences[1]))
         {
-            throw new InvalidDataException("Gunblade presentation requires a loaded Squall model and its original Attack sequence binding.");
+            throw new InvalidDataException("Attack presentation requires a loaded FFVIII party model and its original command sequence binding.");
         }
-        return new(NativeBattleGraphicsModels.SelectSequence(squall, commandSequences[1]), NativeBattleUiServices.Initialize(), random);
+        return new(NativeBattleGraphicsModels.SelectSequence(model, commandSequences[1]), NativeBattleUiServices.Initialize(), random);
     }
 
     public static CrossoverGunbladePresentationStep Advance(CrossoverGunbladePresentationState state, NativeBattleGraphicsResource weapon, NativeBattleSequenceInputs services, ushort savedOptions, uint publicationDuration, bool triggerPressed, Action<NativeBattleTriggerReceipt> prepareContact)
     {
         if (state.Complete)
         {
-            throw new InvalidOperationException("The Gunblade presentation has returned to standing.");
+            throw new InvalidOperationException("The Attack presentation has returned to standing.");
         }
         if (triggerPressed && (savedOptions & 1) == 0 && state.Widget is { ClosingPhase: 0, Input.TriggerTiming: 0 } widget)
         {
@@ -56,24 +56,26 @@ internal static class CrossoverGunbladePresentation
             state = state with { ContactTiming = timing, PendingTrigger = null };
         }
 
+        bool published = state.ContactPublished;
         NativeBattleTriggerReceipt? contact = null;
         NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(state.Model, weapon, services with
         {
             OriginalResource = weapon,
             ApplyActionContacts = current =>
             {
-                if (state.ContactPublished || contact is not null || state.ContactTiming is not { } currentTiming)
+                if (published || NativeGunbladeAttack.HasTrigger(state.Model.ModelId4) && state.ContactTiming is null)
                 {
-                    throw new InvalidDataException("Gunblade AA requires one prior ordinary trigger receipt.");
+                    throw new InvalidDataException("Attack AA requires an unpublished contact and any prior gunblade trigger receipt.");
                 }
-                contact = currentTiming;
-                return (services.ApplyActionContacts ?? throw new NotSupportedException("Gunblade AA requires its host contact publisher."))(current);
+                contact = state.ContactTiming;
+                published = true;
+                return (services.ApplyActionContacts ?? throw new NotSupportedException("Attack AA requires its host contact publisher."))(current);
             }
         });
         NativeBattleGraphicsModel model = step.Model;
-        NativeBattlePoseSource pose = weapon.PoseSource ?? throw new InvalidDataException("Gunblade presentation requires the original Squall skeleton.");
+        NativeBattlePoseSource pose = weapon.PoseSource ?? throw new InvalidDataException("Attack presentation requires the original actor skeleton.");
         model = model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, pose) };
-        state = state with { Model = model, ContactPublished = state.ContactPublished || contact is not null };
+        state = state with { Model = model, ContactPublished = published };
         foreach (NativeBattleSequenceCue cue in step.Cues)
         {
             if (cue.Kind == NativeBattleSequenceCueKind.TriggerWindow)
@@ -89,7 +91,7 @@ internal static class CrossoverGunbladePresentation
             {
                 if (!state.ContactPublished)
                 {
-                    throw new InvalidDataException("Gunblade Attack returned to standing without publishing its physical contact.");
+                    throw new InvalidDataException("Attack returned to standing without publishing its physical contact.");
                 }
                 state = state with { ReturnedToStanding = true };
             }

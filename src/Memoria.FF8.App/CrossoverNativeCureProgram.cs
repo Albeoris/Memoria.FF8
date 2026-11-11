@@ -26,9 +26,9 @@ internal sealed class CrossoverNativeCureProgram(GameAssets game, NativeBattleGr
             throw new NotSupportedException("Mixed Cure-family recovery requires its original Cure or Potion module.");
         }
         model = model with { Color40 = model.Color40 ?? rules.SummonColors!.Transition, Color44 = model.Color44 ?? rules.SummonColors!.Normal };
-        if (model is not { Index: 0, ModelId4: 0, Color40: not null, Color44: not null } || (model.Flags0 & 2) == 0 || (model.Flags2!.Value & 4) != 0 || foreignSlot is < 0 or >= 3 || contact.ActorIndex != (foreignSlot is null ? 0 : 3))
+        if (model is not { Index: 0, ModelId4: >= 0 and <= 10, Color40: not null, Color44: not null } || (model.Flags0 & 2) == 0 || (model.Flags2!.Value & 4) != 0 || foreignSlot is < 0 or >= 3 || contact.ActorIndex != (foreignSlot is null ? 0 : 3))
         {
-            throw new InvalidDataException("Mixed Cure requires its loaded original Squall caster and one prepared party contact.");
+            throw new InvalidDataException("Mixed Cure requires its loaded original caster and one prepared party contact.");
         }
         NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[640], new byte[1176]);
         (packets, _) = packets.Prepare(effectId == 50 ? new(0, 4, 15, 0, 1, 50, null) : new(0, 2, 11, 0, 21, 1, null));

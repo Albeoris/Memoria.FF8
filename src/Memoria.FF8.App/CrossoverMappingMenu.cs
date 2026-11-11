@@ -342,8 +342,8 @@ internal sealed class CrossoverMappingMenu : IDisposable
         }
         else
         {
-            string help = destinationGame == SessionGame.Ff7 && CharacterMappingAssociations.UsesSquallCombat(mappings)
-                ? "Squall takes Cloud's slot in battle with his FFVIII equipment and commands."
+            string help = destinationGame == SessionGame.Ff7 && mappings.Length > 0
+                ? "Mapped FFVIII characters bring their saved equipment and junctions into battle."
                 : "Associations affect FFVII appearance. FFVIII keeps its native characters.";
             Label(help, 24, 445, Color.LightGray, 12);
         }

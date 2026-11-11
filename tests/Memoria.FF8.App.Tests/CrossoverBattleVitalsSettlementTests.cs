@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Events;
 using Memoria.FF7.Runtime;
@@ -92,7 +92,7 @@ public sealed class CrossoverBattleVitalsSettlementTests(ITestOutputHelper outpu
         }
         Assert.Equal((uint)binding.MaximumHp, GuestHp(battle));
         Assert.Equal(potionBefore - 1, battle.Capture().Inventory.SingleOrDefault(item => item.ItemId == 0)?.Quantity ?? 0);
-        CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.ReadSquall(document.Characters.Restore(installed), assets);
+        CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.Read(document.Characters.Restore(installed), assets, 0);
         CrossoverGunbladeHostAttack gunblade = new(roster, kit, assets, game, game.ReadNewGameGlobalRandom(), () => battle.Data.Cameras[0], _ => 128);
         battle.BindGuestAttack(gunblade);
         for (int tick = 0; tick < 6500 && !battle.ResultReady; tick++)

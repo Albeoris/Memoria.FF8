@@ -29,7 +29,7 @@ public sealed class CrossoverOpeningCombatTests(ITestOutputHelper output)
         IReadOnlyList<byte> reel = Ff7PcExecutableData.LoadBeatRushReel(installation);
         NativeCharacterVitals origin = game.ReadNewGameCharacterVitals();
         GameplaySaveEconomy economy = GameplaySaveEconomy.Capture(game.ReadNewGameEconomy());
-        CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.ReadSquall(origin, assets);
+        CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.Read(origin, assets, 0);
         int[] selection = [.. Enumerable.Range(300, 25), 328, 329, 330, .. Enumerable.Range(332, 28), 364, 367, .. Enumerable.Range(392, 4)];
         foreach (int formationId in selection)
         {
@@ -117,7 +117,7 @@ public sealed class CrossoverOpeningCombatTests(ITestOutputHelper output)
         Ff7BattleAnimationResources animations = new(archive, Ff7PcExecutableData.LoadBattlePlacement(installation), magic, Ff7PcExecutableData.LoadBattleJumpDeltas(installation), Ff7PcExecutableData.LoadBattleHitmarks(installation), Ff7PcExecutableData.LoadBattleActorModelResources(installation));
         NativeCharacterVitals origin = game.ReadNewGameCharacterVitals();
         origin = origin.WithSavedHitPoints(origin.FindPhysicalRow(0), 80);
-        CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.ReadSquall(origin, assets);
+        CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.Read(origin, assets, 0);
         ushort options = game.ReadNewGameLimitProgress().Options978!.Value;
         int[] selection = [.. Enumerable.Range(300, 25), 328, 329, 330, .. Enumerable.Range(332, 28), 364, 367, .. Enumerable.Range(392, 4)];
         HashSet<int> prototypes = [];

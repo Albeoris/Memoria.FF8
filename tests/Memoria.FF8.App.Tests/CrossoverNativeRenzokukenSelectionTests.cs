@@ -14,7 +14,7 @@ public sealed class CrossoverNativeRenzokukenSelectionTests
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(directory), "Select the original FFVIII installation.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(directory!);
-        CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.ReadSquall(game.ReadNewGameCharacterVitals(), assets);
+        CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.Read(game.ReadNewGameCharacterVitals(), assets, 0);
         Ff7BattleAiActor source = new(0, 0, 0, 0, 0, 1, (uint)kit.MaximumHitPoints);
         NativeBattleRandomState native = NativeBattleRandomState.ForecastPhase(1);
         CrossoverNativeRenzokukenSelection initial = new(native);

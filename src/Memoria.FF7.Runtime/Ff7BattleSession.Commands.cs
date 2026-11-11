@@ -415,7 +415,7 @@ public sealed partial class Ff7BattleSession
                 {
                     poison = poison with { Affinity = Ff7NativeBattleDamage.ResolveEnemyAffinity(Enemy(command.ActorSlot), Ff7NativeBattleStatusClock.PoisonElement) };
                 }
-                ApplyHit(command, command.ActorSlot, poison, null);
+                ApplyHit(command, command.ActorSlot, poison, null, Ff7NativeBattleStatusClock.PoisonElement);
                 break;
             case (byte)Ff7BattleCommand.Defend:
                 Replace(source with { Defending = true });
@@ -497,11 +497,11 @@ public sealed partial class Ff7BattleSession
                 continue;
             }
             Ff7BattleDamageAction hit = target.Actor.Slot >= 4 ? action with { Affinity = Ff7NativeBattleDamage.ResolveEnemyAffinity(Enemy(target.Actor.Slot), elements) } : action;
-            ApplyHit(command, target.Actor.Slot, hit, record);
+            ApplyHit(command, target.Actor.Slot, hit, record, elements);
         }
     }
 
-    private void ApplyHit(Ff7BattleQueuedCommand command, int targetSlot, Ff7BattleDamageAction action, Ff7BattleAttack? record)
+    private void ApplyHit(Ff7BattleQueuedCommand command, int targetSlot, Ff7BattleDamageAction action, Ff7BattleAttack? record, ushort elements)
     {
         ValidateGuestIncoming(command, targetSlot, record);
         Ff7BattleActorState source = Actor(command.ActorSlot);
@@ -515,7 +515,21 @@ public sealed partial class Ff7BattleSession
         uint immunity = targetSlot >= 4 ? ~Enemy(targetSlot).NativeStatusMask : 0;
         Ff7BattleActionVitals sourceVitals = new(source.Actor.HitPoints, source.Actor.MaxHitPoints, source.Actor.MagicPoints, source.Actor.MaxMagicPoints, source.Actor.Statuses);
         Ff7BattleActionVitals targetVitals = new(native.HitPoints, native.MaxHitPoints, native.MagicPoints, native.MaxMagicPoints, native.Statuses, immunity);
-        Ff7BattleActionReceipt result = Ff7NativeBattleActionResolver.Resolve(Stats(source), sourceVitals, Stats(target), targetVitals, action, record, random, source.Actor.Slot == targetSlot);
+        Ff7BattleActionReceipt result;
+        if (IsGuestVitalsSlot(targetSlot))
+        {
+            Ff7BattleGuestProjection? projection = GuestProjection;
+            if (projection?.OriginElementDefenses is { } defenses)
+            {
+                action = action with { GuestElementAdjustment = Ff7GuestBattleElements.DefenseAdjustment(elements, defenses) };
+            }
+            IReadOnlyList<byte>? statusResistances = projection?.OriginStatusResistances is { } statuses ? statuses : null;
+            result = Ff7NativeBattleActionResolver.ResolveGuestContact(Stats(source), sourceVitals, Stats(target), targetVitals, action, Ff7GuestBattleStatuses.ProjectIncoming(record), random, source.Actor.Slot == targetSlot, statusResistances);
+        }
+        else
+        {
+            result = Ff7NativeBattleActionResolver.Resolve(Stats(source), sourceVitals, Stats(target), targetVitals, action, record, random, source.Actor.Slot == targetSlot);
+        }
         if (source.Actor.Slot != targetSlot)
         {
             Replace(source with { Actor = source.Actor with { HitPoints = result.Source.Hp, MagicPoints = result.Source.Mp, Statuses = result.Source.Statuses } });

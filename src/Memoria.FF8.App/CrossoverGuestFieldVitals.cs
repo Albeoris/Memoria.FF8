@@ -20,11 +20,12 @@ internal sealed class CrossoverGuestFieldVitals : IFf7GuestFieldVitals, IDisposa
     public Ff7GuestFieldVitalsView Read()
     {
         CombinedSessionSave source = read();
+        Ff7MixedCombatBinding binding = source.MixedCombat ?? throw new InvalidOperationException("Field vitals require a mapped FFVIII character.");
         GameplaySaveComponentDocument document = CrossoverSaveAdapter.ReadFf8(source);
         NativeCharacterVitals vitals = document.Characters.Restore(assets.ReadNewGameCharacterVitals());
-        int row = vitals.FindPhysicalRow(0);
+        int row = ReadGuestRow(vitals, binding.OriginCharacter);
         NativeCharacterVital saved = vitals.Records[row];
-        return new(source.MixedCombat!.StoryCharacter, document.Progression?.SceneFacts?.Names.GetValueOrDefault(0) ?? "Squall", NativeStatDefinitions.Level(saved.Experience, vitals.Definitions.Characters[0]), saved.HitPoints.Minimum, vitals.GetMagicMaximumHitPoints(row));
+        return new(binding.StoryCharacter, ReadGuestName(document, binding.OriginCharacter), NativeStatDefinitions.Level(saved.Experience, vitals.Definitions.Characters[binding.OriginCharacter]), saved.HitPoints.Minimum, vitals.GetMagicMaximumHitPoints(row));
     }
 
     public void Recover(bool clearStatuses) => Update(null, clearStatuses);
@@ -33,14 +34,15 @@ internal sealed class CrossoverGuestFieldVitals : IFf7GuestFieldVitals, IDisposa
     private void Update(short? amount, bool clearStatuses)
     {
         CombinedSessionSave source = read();
+        Ff7MixedCombatBinding binding = source.MixedCombat ?? throw new InvalidOperationException("Field vitals require a mapped FFVIII character.");
         GameplaySaveComponentDocument document = CrossoverSaveAdapter.ReadFf8(source);
         NativeCharacterVitals vitals = document.Characters.Restore(assets.ReadNewGameCharacterVitals());
-        int row = vitals.FindPhysicalRow(0);
+        int row = ReadGuestRow(vitals, binding.OriginCharacter);
         NativeCharacterVital saved = vitals.Records[row];
         ushort maximum = vitals.GetMagicMaximumHitPoints(row);
         ushort hp = amount is short delta ? checked((ushort)Math.Clamp((int)saved.HitPoints.Minimum + delta, 0, maximum)) : maximum;
         NativeHpWord exact = vitals.WithSavedHitPoints(row, hp).Records[row].HitPoints;
-        ushort statuses = clearStatuses ? (ushort)0 : (ushort)(saved.Status & ~1);
+        ushort statuses = (ushort)(saved.Status & ~(clearStatuses ? Ff7GuestBattleStatuses.SupportedOrigin : 1));
         if (hp == 0)
         {
             statuses |= 1;
@@ -50,6 +52,19 @@ internal sealed class CrossoverGuestFieldVitals : IFf7GuestFieldVitals, IDisposa
         using MemoryStream destination = new();
         GameplaySaveCodec.Write(destination, document with { Characters = document.Characters with { Records = rows } });
         publish(source with { Ff8Payload = destination.ToArray() });
+    }
+
+    internal static string ReadGuestName(GameplaySaveComponentDocument document, int character)
+        => document.Progression?.SceneFacts?.Names.GetValueOrDefault(character) ?? CrossoverCharacterCatalog.AppearanceNames[character];
+
+    private static int ReadGuestRow(NativeCharacterVitals vitals, int character)
+    {
+        int row = vitals.FindPhysicalRow(checked((byte)character));
+        if ((uint)row >= vitals.Records.Length)
+        {
+            throw new NotSupportedException($"The suspended FFVIII save has no {CrossoverCharacterCatalog.AppearanceNames[character]} record.");
+        }
+        return row;
     }
 
     public void Dispose() => assets.Dispose();

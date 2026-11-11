@@ -19,6 +19,10 @@ public readonly record struct Ff7BattleDamageAction(byte Formula, byte Power, by
     public bool SuppressCritical { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public bool AlwaysHits { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    internal byte? GuestElementPercent { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    internal int GuestElementAdjustment { get; init; }
 
     public static Ff7BattleDamageAction FromAttack(Ff7BattleAttack attack)
     {
@@ -137,29 +141,50 @@ public static class Ff7NativeBattleDamage
         {
             damage = Math.Max(1, damage * (3841 + random.NextByte()) >> 12);
         }
-        bool absorb = (action.Affinity & Ff7BattleDamageAffinity.Absorb) != 0;
-        if (!absorb && (action.Affinity & Ff7BattleDamageAffinity.Double) != 0)
+        if (!hit)
+        {
+            return new(true, false, 0);
+        }
+        int elementalDamage = ApplyAffinity(damage, action.Affinity);
+        if (action.GuestElementPercent is byte percent)
+        {
+            elementalDamage = damage + (elementalDamage - damage) * percent / 100;
+        }
+        if (action.GuestElementAdjustment != 0)
+        {
+            elementalDamage = elementalDamage * (100 + action.GuestElementAdjustment) / 100;
+        }
+        int limit = action.TargetsMagicPoints ? 999 : 9999;
+        damage = Math.Clamp(elementalDamage, -limit, limit);
+        bool nullified = (action.Affinity & Ff7BattleDamageAffinity.Nullify) != 0 && action.GuestElementPercent is null or 100;
+        return new(false, critical && !nullified, action.Healing ? -damage : damage);
+    }
+
+    private static int ApplyAffinity(int damage, Ff7BattleDamageAffinity affinity)
+    {
+        if ((affinity & Ff7BattleDamageAffinity.Nullify) != 0)
+        {
+            return 0;
+        }
+        if ((affinity & Ff7BattleDamageAffinity.Absorb) != 0)
+        {
+            return -damage;
+        }
+        if ((affinity & Ff7BattleDamageAffinity.Double) != 0)
         {
             damage *= 2;
         }
-        if (!absorb && (action.Affinity & Ff7BattleDamageAffinity.Half) != 0)
+        if ((affinity & Ff7BattleDamageAffinity.Half) != 0)
         {
             damage = (damage + 1) >> 1;
         }
-        if (!hit || (action.Affinity & Ff7BattleDamageAffinity.Nullify) != 0)
-        {
-            return new(!hit, false, 0);
-        }
-
-        damage = Math.Min(damage, action.TargetsMagicPoints ? 999 : 9999);
-        bool heals = action.Healing ^ absorb;
-        return new(false, critical, heals ? -damage : damage);
+        return damage;
     }
 
     private static bool PhysicalHit(Ff7BattleDamageActor attacker, Ff7BattleDamageActor target, Ff7BattleDamageAction action, int accuracy, Ff7BattleRng random)
     {
         int hitRate = 255;
-        if (!action.AlwaysHits && !action.BackAttack && !GuaranteesHit(action.Affinity) && (target.Statuses & GuaranteedPhysicalHit) == 0)
+        if (!action.AlwaysHits && !action.BackAttack && !GuaranteesHit(action) && (target.Statuses & GuaranteedPhysicalHit) == 0)
         {
             int dexterity = ApplyModifier(attacker.Dexterity, attacker.DexterityModifier);
             int attackerEvade = ApplyModifier(attacker.Evade + (attacker.IsEnemy ? 0 : attacker.Dexterity / 4), attacker.EvadeModifier);
@@ -194,7 +219,7 @@ public static class Ff7NativeBattleDamage
     {
         int evadeRoll = ScaleByteToPercent(random.NextByte());
         int hitRoll = ScaleByteToPercent(random.NextByte()) + 1;
-        if (accuracy >= 255 || GuaranteesHit(action.Affinity) || (!action.AddsStatuses && (target.Statuses & GuaranteedStatusMagicHit) != 0))
+        if (accuracy >= 255 || GuaranteesHit(action) || (!action.AddsStatuses && (target.Statuses & GuaranteedStatusMagicHit) != 0))
         {
             return true;
         }
@@ -280,7 +305,8 @@ public static class Ff7NativeBattleDamage
 
     private static int ApplyFury(int value, uint statuses) => value < 255 && (statuses & Fury) != 0 ? value - value * 3 / 10 : value;
 
-    private static bool GuaranteesHit(Ff7BattleDamageAffinity affinity) => (affinity & (Ff7BattleDamageAffinity.Absorb | Ff7BattleDamageAffinity.Nullify)) != 0;
+    private static bool GuaranteesHit(Ff7BattleDamageAction action)
+        => action.GuestElementPercent is null or 100 && (action.Affinity & (Ff7BattleDamageAffinity.Absorb | Ff7BattleDamageAffinity.Nullify)) != 0;
 
     private static int RollPercent(Ff7BattleRng random) => 1 + random.NextWord() * 99 / 65535;
 

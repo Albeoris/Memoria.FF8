@@ -27,53 +27,84 @@ internal sealed partial class Ff7Scene
 
     private void ApplyMappedCombat(Ff7Session session)
     {
+        if (session.Battle?.GuestVitals is null && envelope.Ff8Payload is { Length: > 0 } && envelope.Mappings.Length > 0 && envelope.MixedCombat is null)
+        {
+            session.SetFullCombatEnabled(true);
+        }
         if (session.Battle?.GuestVitals is null)
         {
-            Ff7MixedCombatBinding? mapped = envelope.Ff8Payload is { Length: > 0 } && CharacterMappingAssociations.UsesSquallCombat(envelope.Mappings) ? new(0) : null;
-            if (mapped is not null && mapped != envelope.MixedCombat)
-            {
-                session.SetFullCombatEnabled(true);
-            }
-            envelope = envelope with { MixedCombat = mapped };
+            envelope = envelope with { MixedCombat = ResolveMappedCombat(session, requireSingle: false) };
         }
         AttachMixedFieldVitals();
     }
 
+    private Ff7MixedCombatBinding? ResolveMappedCombat(Ff7Session session, bool requireSingle)
+    {
+        if (envelope.Ff8Payload is not { Length: > 0 })
+        {
+            return null;
+        }
+        CharacterAppearanceMapping[] active = envelope.Mappings.Where(mapping => session.Progress.Party.Contains(mapping.StoryCharacter)).Take(2).ToArray();
+        if (active.Length > 1 && requireSingle)
+        {
+            throw new NotSupportedException("This FFVII encounter can bind one FFVIII guest. Multiple mapped characters occupy the current party.");
+        }
+        return active.Length == 1 ? new(active[0].StoryCharacter, active[0].AppearanceCharacter) : null;
+    }
+
+    private void RefreshMappedFieldCombat(Ff7Session session)
+    {
+        Ff7MixedCombatBinding? mapped = ResolveMappedCombat(session, requireSingle: false);
+        if (mapped != envelope.MixedCombat)
+        {
+            envelope = envelope with { MixedCombat = mapped };
+            AttachMixedFieldVitals();
+        }
+    }
+
     internal void PrepareMappedCombatForSwitch()
     {
-        if (!MixedCombatEnabled)
+        if (envelope.Mappings.Length == 0)
         {
             return;
         }
+        Ff7Session session = Session ?? throw new InvalidOperationException("Mixed combat requires the destination FFVII session.");
+        ResolveMappedCombat(session, requireSingle: true);
         string directory = identityFf8Directory ?? throw new InvalidOperationException("Select the FFVIII installation before entering mixed combat.");
         using GameAssets origin = new(directory);
         using BattleAssets battle = new(directory);
         GameplaySaveComponentDocument source = CrossoverSaveAdapter.ReadFf8(envelope);
         if (source.Progression?.Clocks.GlobalRandom is null)
         {
-            throw new NotSupportedException("Save FFVIII with its current gameplay codec before switching with the Squall mapping.");
+            throw new NotSupportedException("Save FFVIII with its current gameplay codec before switching with a combat mapping.");
         }
-        CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.ReadSquall(source.Characters.Restore(origin.ReadNewGameCharacterVitals()), battle);
-        if (kit.OpeningCombatUnavailableReason() is { } unsupported)
+        NativeCharacterVitals vitals = source.Characters.Restore(origin.ReadNewGameCharacterVitals());
+        foreach (int characterId in envelope.Mappings.Select(mapping => mapping.AppearanceCharacter).Distinct())
         {
-            throw new NotSupportedException(unsupported);
+            CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.Read(vitals, battle, characterId);
+            if (kit.OpeningCombatUnavailableReason() is { } unsupported)
+            {
+                throw new NotSupportedException(unsupported);
+            }
         }
-        Session!.SetFullCombatEnabled(true);
+        session.SetFullCombatEnabled(true);
     }
 
     private void EnsureMixedBattle(Ff7BattleSession battle)
     {
-        if (envelope.MixedCombat is not { } binding || ReferenceEquals(mixedCombat?.Host, battle) || ReferenceEquals(restoredNativeBattle, battle))
+        if (ReferenceEquals(mixedCombat?.Host, battle) || ReferenceEquals(restoredNativeBattle, battle))
         {
             return;
         }
-        restoredNativeBattle = null;
-        if (battle.GuestVitals is null && !battle.Actors.Any(actor => actor.Actor.Slot < 3 && actor.Identity == binding.StoryCharacter))
-        {
-            return;
-        }
-        ResetMixedCombat();
         Ff7Session session = Session ?? throw new InvalidOperationException("A mixed encounter requires its native FFVII session.");
+        Ff7MixedCombatBinding? binding = battle.GuestVitals is null ? ResolveMappedCombat(session, requireSingle: true) : envelope.MixedCombat;
+        if (binding is null)
+        {
+            return;
+        }
+        envelope = envelope with { MixedCombat = binding };
+        restoredNativeBattle = null;
+        ResetMixedCombat();
         CombinedSessionSave source = envelope with { Ff7 = session.Capture(), ActiveGame = SessionGame.Ff7 };
         mixedCombat = new(identityFf8Directory ?? throw new InvalidOperationException("Select the FFVIII installation before entering mixed combat."), source, battle);
         mixedCombat.Actions.BindForeignGeometry(slot =>

@@ -10,6 +10,48 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class CrossoverBattleActorRenderingTests(ITestOutputHelper output)
 {
+    [Theory]
+    [InlineData(1, true)]
+    [InlineData(3, false)]
+    [InlineData(7, null)]
+    [InlineData(9, true)]
+    public void Installed_guest_rendering_uses_the_selected_original_weapon_geometry_binding(int modelId, bool? sharedSkeleton)
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(root), "Select the original FFVIII installation.");
+        using BattleAssets assets = new(root!);
+        int weaponId = assets.WeaponDefinitions.First(weapon => weapon.CharacterId == modelId).Id;
+        BattleModel body = assets.LoadPlayer(modelId);
+        BattleModel? weapon = assets.ResolvePlayerRenderWeapon(modelId, weaponId, body);
+        Assert.Equal(sharedSkeleton, weapon?.NativeWeaponUsesBodySkeleton);
+        Assert.Equal(sharedSkeleton == false, assets.ResolveWeaponModel(modelId, weaponId, body) is not null);
+        NativeBattleGraphicsResource resource = assets.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = modelId, WeaponId = weaponId });
+        NativeGlobalRandomState random = new(0);
+        NativeBattleGraphicsModel model = new(0, 0)
+        {
+            Transform = new(default, default, 0, 0, 4096),
+            SequenceState = new() { Locals = NativeBattleSequenceState.ColdProcessLocals() },
+            LinkedTransform = new(default, default)
+        };
+        model = NativeBattleGraphicsModels.CompleteLoad(model, checked((byte)modelId), 0, ref random);
+        model = NativeBattleGraphicsModels.SelectSequence(model, 1);
+        model = NativeBattleSequenceMachine.Advance(model, resource, new(0, 0)).Model;
+        model = model with
+        {
+            Flags2 = (ushort)(model.Flags2!.Value & ~4),
+            GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, resource.PoseSource!)
+        };
+        Capture capture = new();
+        capture.Begin(640, 480, Vector4.Zero);
+        CrossoverFf8BattleActorRenderer.Draw(capture, new(body, weapon, model, Matrix4x4.Identity), point => point + new Vector3(0, 1000, 4000), 640, 480, 256);
+        capture.End();
+        Assert.Contains(capture.Triangles, triangle => body.Textures.Any(texture => ReferenceEquals(texture, triangle.Texture)));
+        if (weapon is not null)
+        {
+            Assert.Contains(capture.Triangles, triangle => weapon.Textures.Any(texture => ReferenceEquals(texture, triangle.Texture)));
+        }
+    }
+
     [Fact]
     public void Installed_Squall_and_Revolver_submit_distinct_original_materials_in_the_FFVII_arena_pass()
     {

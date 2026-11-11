@@ -18,7 +18,7 @@ internal sealed record CrossoverNativeRenzokukenPlan(ushort Variant, byte? Finis
 
     internal static Ff7BattleGuestPhysicalHit ProjectPhysicalStrike(CrossoverFf8BattleKit kit, byte nativePower, int multiplier, bool critical)
     {
-        byte power = (byte)Math.Min(byte.MaxValue, 8 * nativePower * multiplier / 20);
+        byte power = CrossoverGunbladeHostAttack.ProjectPhysicalPower(nativePower, multiplier);
         Ff7BattleDamageAction attack = new(0x11, power, 255, ForceCritical: critical, UsePhysicalStats: true) { SuppressCritical = true, AlwaysHits = true };
         return new(CrossoverGunbladeHostAttack.ProjectPhysicalSource(kit), attack, 0);
     }
@@ -43,10 +43,7 @@ internal sealed record CrossoverNativeRenzokukenSelection([property: JsonRequire
             throw new InvalidDataException("The guest Limit readiness must follow its native command and host clock.");
         }
         ushort saved = Ff7GuestBattleStatuses.ToOrigin(source.Statuses);
-        uint battle = kit.Statuses.Battle;
-        battle |= (source.Statuses & 4) != 0 ? 1u : 0;
-        battle |= (source.Statuses & 0x100) != 0 ? 2u : 0;
-        battle |= (source.Statuses & 0x200) != 0 ? 4u : 0;
+        uint battle = kit.Statuses.Battle | Ff7GuestBattleStatuses.ToOriginBattle(source.Statuses);
         byte roll = 0;
         NativeBattleRandomState random = disabled || (battle & 0x200) != 0 ? Random : Random.Draw(out roll);
         byte crisis = NativeBattleLimitRules.CrisisLevel(kit.Limit, checked((int)source.HitPoints), checked((int)source.MaxHitPoints), saved, battle, deadParty, roll, disabled);
@@ -74,7 +71,7 @@ internal sealed record CrossoverNativeRenzokukenSelection([property: JsonRequire
     {
         if (ReadyTick is not null || action is not { Command: 249, DispatchCommand: 250, ActionId: 0, MagicId: 163, AttackType: 9, Power: 48, HitCount: 1, Hit: null or 255, Critical: null or 0, AttackFlags: 3, TargetFlags: 0x58, Element: 0, StatusAttack: 0, Statuses0: 0, Statuses1: 0 })
         {
-            throw new NotSupportedException("Guest Rough Divide requires its selected original Revolver finisher record.");
+            throw new NotSupportedException("Guest Rough Divide requires its selected original finisher record.");
         }
         NativeBattleRandomState random = Random.Draw(out byte criticalRoll);
         bool critical = NativeBattleDamage.PhysicalCritical(action.Critical.GetValueOrDefault(), kit.Stats.Luck, criticalRoll);

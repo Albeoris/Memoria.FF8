@@ -35,9 +35,20 @@ FFVII keeps its own VM, story, inventory, RNG, script PCs and save permissions. 
 
 Appearance profiles retain native target idle/walk/run bindings and retarget admitted source actions through anatomical bindings and the common pose pipeline. Profiles are versioned, older identifiers remain supported and exact rig/allocation validation stays strict. Recognized authored bind-relative repairs do not emulate out-of-allocation reads. Catalog membership is not a guarantee of artistic contact quality, all model variants or combat compatibility.
 
-The Cloud-to-Squall mapping enables full combat when switching to FFVII and places Squall's FFVIII character, HP and supported kit in Cloud's battle slot. The current profile requires Revolver and an attack without elemental or status junction effects. The switch checks the suspended FFVIII save and reports unsupported equipment or status in the editor. A restored encounter keeps the combat owners recorded when it began. Other mappings have field appearance support.
+The character mapping enables full combat when switching to FFVII and places the mapped FFVIII character in the corresponding FFVII story slot. The guest reads equipment, HP, junctions and stock from the character's record in the suspended FFVIII save. The FFVII encounter currently admits one active FFVIII guest. A restored encounter keeps the combat owners recorded when it began.
 
-FFVII battles use the common battle HUD and popup windows. FFVII party members show MP below HP and spell costs in the Magic list's right column. Squall uses his FFVIII magic stock in that column.
+FFVII battles use the common battle HUD and popup windows. FFVII party members show MP below HP and spell costs in the Magic list's right column. The FFVIII guest uses their spell stock in that column.
+
+### Mixed damage and statuses
+
+The FFVII encounter resolves the hit. An FFVIII Attack supplies the equipped weapon, junctioned stats and the elemental and status portions from the source record. Against an FFVII target, the translated element uses the target's native affinity. Against the FFVIII guest, the translated element and status use the guest's original junction defenses. An element with no counterpart is neutral. An unmapped status application leaves the target's original statuses as they were.
+
+Common status mappings cover KO, Poison, Petrify, Blind, Silence, Berserk, Sleep, Haste, Slow, Stop, Protect/Barrier and Shell/MBarrier. Some native behavior remains incomplete, including forced Berserk turns and several status timers. Confuse, Regen, Reflect, Doom/Death Sentence, Petrifying/Slow Numb and Invincible/Peerless have counterparts and await host behavior support.
+
+- FFVIII statuses without a shared counterpart include Zombie, Aura, Curse, Float, Drain, Eject, Double, Triple, Charged, Vit 0, Angel Wing and The End.
+- FFVII statuses without a shared counterpart include Sadness, Fury, Frog, Small, Dual, Shield, Manipulate, Paralysis, Dual Drain, Death Force, Resist, Lucky Girl and Imprisoned. Near Death is an FFVII HP state.
+
+The shared Attack path reads each guest's original actor and weapon sequence. Squall's supported Limit paths cover ordinary Renzokuken and Rough Divide. The other Limit commands and finishers require their own native execution and presentation contracts.
 
 The ordinary menu exposes native inventory/status browsing, shared Config/controls and the common save/load/world-switch flow. Item-use effects are not advertised. Native party vitals caches are published on entry without healing beyond the original upper clamp. Field scripts pause while native real play time and music continue; explicit focus/user/debug pause remains separate. Shops use original FFVII stock, item/materia/gear, Gil, AP prices and exactly-once receipts through the existing common shop layout. Their native fade callbacks stay at60Hz independently of UI FPS; confirmed Exit and Cancel retain distinct native sounds.
 

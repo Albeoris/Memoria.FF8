@@ -15,9 +15,9 @@ internal static class CrossoverNativeCastPresentation
 {
     public static CrossoverNativeCastState Begin(NativeBattleGraphicsModel model, NativeBattleGraphicsResource resource, ImmutableArray<byte> commandSequences, byte command)
     {
-        if (command is not (2 or 4 or 5) || model is not { Index: 0, ModelId4: 0 } || (model.Flags0 & 2) == 0 || commandSequences.Length != 39 || !resource.Contains(commandSequences[command]))
+        if (command is not (2 or 4 or 5) || model is not { Index: 0, ModelId4: >= 0 and <= 10 } || (model.Flags0 & 2) == 0 || commandSequences.Length != 39 || !resource.Contains(commandSequences[command]))
         {
-            throw new InvalidDataException("Mixed casting requires loaded Squall and an original Magic, Item or Limit source sequence.");
+            throw new InvalidDataException("Mixed casting requires a loaded original FFVIII character and a native Magic, Item or Limit sequence.");
         }
         return new(NativeBattleGraphicsModels.SelectSequence(model, commandSequences[command]), 3, false);
     }
@@ -52,7 +52,7 @@ internal static class CrossoverNativeCastPresentation
     public static (CrossoverNativeCastState State, ImmutableArray<NativeBattleSequenceCue> Cues) AdvanceModel(CrossoverNativeCastState source, NativeBattleGraphicsResource resource, NativeBattleSequenceInputs services)
     {
         NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(source.Model, resource, services with { OriginalResource = resource });
-        NativeBattlePoseSource pose = resource.PoseSource ?? throw new InvalidDataException("Mixed casting requires the original Squall skeleton.");
+        NativeBattlePoseSource pose = resource.PoseSource ?? throw new InvalidDataException("Mixed casting requires the original character skeleton.");
         NativeBattleGraphicsModel model = step.Model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(step.Model, pose) };
         bool returned = source.ReturnedToStanding || step.Cues.Any(cue => cue.Kind == NativeBattleSequenceCueKind.RestoreStanding);
         if (returned && source.Phase != 8)

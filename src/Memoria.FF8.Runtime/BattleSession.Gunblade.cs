@@ -48,12 +48,12 @@ public sealed partial class BattleSession
     private static bool IsGunbladeAttack(BattleCombatant actor, BattleAbility ability)
     {
         // Native48FE20 defers ordinary attacks for Squall0 and Seifer6 to485160/attacktype10.
-        return ability == BattleAbility.Attack && actor.IsPlayer && actor.ModelId is 0 or 6 && actor.WeaponId is not null;
+        return ability == BattleAbility.Attack && actor.IsPlayer && NativeGunbladeAttack.HasTrigger(actor.ModelId) && actor.WeaponId is not null;
     }
 
     private static bool IsGunbladeAction(BattleCombatant actor, BattleActionPresentation action)
     {
-        return actor.GuardianFormVitals is null && actor.IsPlayer && actor.ModelId is 0 or 6 && actor.WeaponId is not null && (action.Ability == BattleAbility.Attack || action.NativeAction?.Command is 1 or 12 or 28 or 243 or 248 or 253);
+        return actor.GuardianFormVitals is null && actor.IsPlayer && NativeGunbladeAttack.HasTrigger(actor.ModelId) && actor.WeaponId is not null && (action.Ability == BattleAbility.Attack || action.NativeAction?.Command is 1 or 12 or 28 or 243 or 248 or 253);
     }
 
     private static short ProjectGunbladeTiming(int remainingFrames)

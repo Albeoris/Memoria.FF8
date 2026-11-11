@@ -3,6 +3,8 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Original48F480 damage and48FE10 trigger acceptance, independent of ordinary critical hits.</summary>
 public static class NativeGunbladeAttack
 {
+    public static bool HasTrigger(int? modelId) => modelId is 0 or 6;
+
     public static bool TriggerSucceeded(short timing)
     {
         return timing >= 20;

@@ -200,7 +200,7 @@ public sealed class CrossoverGuestMagicHostTests(ITestOutputHelper output)
             origin.Records[row].Junction.MagicJunctions[3] = checked((byte)ability);
             origin = origin.WithSavedHitPoints(row, origin.GetMagicMaximumHitPoints(row));
         }
-        CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.ReadSquall(origin, assets);
+        CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.Read(origin, assets, 0);
         string immutableOrigin = JsonSerializer.Serialize(origin);
         using LgpArchive archive = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
         using LgpArchive magic = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.MagicArchive).Path);
@@ -373,7 +373,7 @@ public sealed class CrossoverGuestMagicHostTests(ITestOutputHelper output)
         {
             origin.Records[row] = origin.Records[row] with { Status = 2 };
         }
-        CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.ReadSquall(origin, assets);
+        CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.Read(origin, assets, 0);
         GameplaySaveEconomy? economy = nativeItem ? GameplaySaveEconomy.Capture(game.ReadNewGameEconomy()) : null;
         int originalItemStock = economy?.Items.Single(item => item.ItemId == ability).Count ?? 0;
         string immutableOrigin = JsonSerializer.Serialize(origin);

@@ -102,7 +102,7 @@ internal sealed partial class CrossoverGuestHostActions
         CrossoverNativeRenzokukenSelection next = limitSelection!.Select(kit.FinisherFlags, out CrossoverNativeRenzokukenPlan plan);
         if (plan.Finisher is not (null or 0))
         {
-            throw new NotSupportedException("The guest Revolver has an unsupported native finisher index.");
+            throw new NotSupportedException($"The selected Squall finisher {plan.Finisher} has no mixed-battle presentation contract.");
         }
         CrossoverGunbladeHostPlacement placement = new(Ff7BattlePosition.FromVector(source.Position), source.Yaw);
         (_, short yaw, _, int distance) = placement.ResolveContact(target.Placement, target.CollisionRadius);
