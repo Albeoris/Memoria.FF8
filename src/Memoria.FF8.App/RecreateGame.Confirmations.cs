@@ -69,7 +69,7 @@ internal sealed partial class RecreateGame
 
     private async Task SavePlayerSlotAsync(int slot)
     {
-        if (slot <= PlayerSaveStore.MemoriaSlotCount)
+        if (InFf7 || slot <= PlayerSaveStore.MemoriaSlotCount)
         {
             SavePlayerSlot(slot);
             return;

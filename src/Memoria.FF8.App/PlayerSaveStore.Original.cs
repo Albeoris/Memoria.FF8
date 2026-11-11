@@ -10,7 +10,7 @@ internal sealed partial class PlayerSaveStore
 
     public void SetOriginalDirectory(string path)
     {
-        OriginalDirectory = OriginalSaveLocation.ValidateDirectory(path);
+        OriginalDirectory = ValidateOriginalDirectory(path);
         entries.Clear();
     }
 
@@ -37,6 +37,10 @@ internal sealed partial class PlayerSaveStore
 
     public void Transfer(int sourceSlot, int destinationSlot, Action<GameState>? validateContinuation = null, NativeCharacterVitals? targetSource = null, bool allowGuardianForceLoss = false, GameState? reviewedSource = null, short? originalPlaceId = null, Func<GameState, string, Action<GameState>?, GameState>? writeGameplay = null)
     {
+        if (Game != Memoria.FF7.Runtime.SessionGame.Ff8)
+        {
+            throw new InvalidOperationException("Use the FFVII transfer contract in the FFVII world.");
+        }
         if (destinationSlot <= 0 || destinationSlot > TotalSlotCount)
         {
             throw new ArgumentOutOfRangeException(nameof(destinationSlot));
@@ -83,6 +87,11 @@ internal sealed partial class PlayerSaveStore
 
     private void CopyMemoria(string source, string destination, Action<GameState>? validateContinuation)
     {
+        if (!IsCurrentWorldSave(source))
+        {
+            throw new InvalidDataException("Switch to the save's game world before copying it.");
+        }
+        EnsureCurrentWorldTarget(destination);
         Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
         string temporary = destination + "." + Guid.NewGuid().ToString("N") + ".tmp";
         bool temporaryCreated = false;

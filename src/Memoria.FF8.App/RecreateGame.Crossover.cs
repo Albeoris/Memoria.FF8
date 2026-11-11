@@ -162,6 +162,7 @@ internal sealed partial class RecreateGame
                 gameMenus?.InvalidateLiveData();
             });
             scene.ConfigureSharedControls(keyboard, gameplayClock, profile => profile.Save(new GlobalSettingsPaths(isolatedDirectory: options.SettingsDirectory).ControlsPreferencesPath));
+            scene.PlayerSaveRequested += input => UpdatePlayerSaves(input);
             scene.ContinueRequested += () => OpenPlayerSaveMenu(PlayerSaveMenuMode.Load);
             scene.RenderLimit = options.WorldRenderLimit;
             scene.InterpolatePresentation = !options.ControlStep;

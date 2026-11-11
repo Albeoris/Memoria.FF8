@@ -12,6 +12,14 @@ Older compact gameplay saves remain loadable when presentation or process fields
 
 Difficulty is stored in each Memoria save and standalone battle snapshot. Saves without a difficulty setting load as **Normal**. **Hard** and **Hardcore** are retained by Memoria saves. Exporting to an original bank discards the difficulty choice; the exported copy uses the original game's rules.
 
+## FFVII and FFVIII worlds
+
+The active game selects its own player save bank. F5/F6 and F9/F10 have the same actions in both games. FFVII slots and quick saves live in the `ff7` subdirectory of the player save directory; FFVIII retains its existing directory. Each browser shows only its own game. Loading stays in the current game. Use **Switch world** or **Return** explicitly to cross between games.
+
+In FFVII, the two Original tabs cover native PC banks `save00.ff7` through `save09.ff7`, with 15 slots per file. Choose an original save folder, then use **Transfer** (the configured Card action, S by default) to copy between Memoria and original banks. Import and export currently support native field saves. Native world-map saves can be copied between original slots but cannot yet be imported or exported as Memoria continuations. Native conversion restarts field initialization and omits exact VM positions, dormant FFVIII state and appearance mappings; keep a Memoria slot for those. This supports classic PC bank files; cloud account metadata and other edition formats are outside this conversion.
+
+Recognized FFVII saves in the former shared directory remain readable from the FFVII browser. New FFVII manual saves use its own subdirectory and leave the old manual files unchanged. Quick-save rotation and retention apply only to the current game's quick saves.
+
 ## Player saves
 
 The default player directory is `%LOCALAPPDATA%\Memoria.FF8\player-saves`. It contains a rotating set of quick saves (including the compatible `quick.json`) and one Memoria bank of 100 manual slots, `slot-01.json` through `slot-100.json`. Existing slots from both former Memoria banks appear in this bank with their filenames and contents preserved.

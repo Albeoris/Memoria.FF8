@@ -19,7 +19,22 @@ internal sealed class PlayerSaveMenu
 
     internal string FormatSystemText(string id, string original, params object?[] arguments) => Memoria.FF8.Resources.Localization.SystemTextCatalog.Format(SystemText(id, original), original, arguments);
 
-    private readonly PlayerSaveStore store;
+    private PlayerSaveStore store;
+
+    internal void SetStore(PlayerSaveStore value)
+    {
+        if (ReferenceEquals(store, value))
+        {
+            return;
+        }
+        Close();
+        store = value;
+        rememberedSlots.Clear();
+        rememberedBanks.Clear();
+    }
+
+    internal bool IsFf7 => store.Game == Memoria.FF7.Runtime.SessionGame.Ff7;
+    internal int BankSize(int bank) => store.BankSize(bank);
     private readonly Dictionary<(PlayerSaveMenuMode Mode, int Bank), int> rememberedSlots = [];
     private readonly Dictionary<PlayerSaveMenuMode, int> rememberedBanks = [];
     private MenuCursor? transferSource;
@@ -46,7 +61,7 @@ internal sealed class PlayerSaveMenu
     public int Selection { get; private set; }
     public int Bank { get; private set; }
     public int Page { get; private set; }
-    public int BankSlotCount => PlayerSaveStore.GetBankSlotCount(Bank);
+    public int BankSlotCount => store.BankSize(Bank);
     public int PageCount => Math.Max(1, (Entries.Count + PageCapacity - 1) / PageCapacity);
     public int SelectedSlot => Entries.Count == 0 ? 0 : Entries[Selection].Slot;
     public bool IsQuick => Mode is PlayerSaveMenuMode.QuickSave or PlayerSaveMenuMode.QuickLoad;
@@ -83,11 +98,21 @@ internal sealed class PlayerSaveMenu
         {
             return SystemText("save.slot.quick", "Quick Save");
         }
+        if (IsFf7)
+        {
+            return store.SlotLabel(slot);
+        }
         int bank = PlayerSaveStore.GetBank(slot);
-        return bank == 0 ? FormatSystemText("save.slot.memoria", "Memoria, Slot {0:00}", slot) : FormatSystemText("save.slot.original", "ORIGINAL FF8 {0}, Slot {1:00}", bank == 1 ? "I" : "II", slot - PlayerSaveStore.GetFirstSlot(bank) + 1);
+        return bank == 0 ? FormatSystemText("save.slot.memoria", "Memoria, Slot {0:00}", slot) : FormatSystemText("save.slot.original", "ORIGINAL FF8 {0}, Slot {1:00}", bank == 1 ? "I" : "II", slot - store.FirstSlot(bank) + 1);
     }
 
-    internal string BankLabel(int bank) => bank switch
+    internal string BankLabel(int bank) => IsFf7 ? bank switch
+    {
+        0 => "FFVII Memoria",
+        1 => "FFVII 00–04",
+        2 => "FFVII 05–09",
+        _ => throw new ArgumentOutOfRangeException(nameof(bank))
+    } : bank switch
     {
         0 => SystemText("save.bank.memoria", "Memoria"),
         1 => SystemText("save.bank.original-one", "Original I"),
@@ -101,6 +126,7 @@ internal sealed class PlayerSaveMenu
     {
         string details = entry.DetailsSystemId switch
         {
+            "save.slot.choose-original-folder" when IsFf7 => "Choose the original FFVII save folder.",
             "save.slot.choose-original-folder" => SystemText("save.slot.choose-original-folder", "Choose the original FF8 save folder."),
             "save.slot.empty" => SystemText("save.slot.empty", "Empty"),
             "save.slot.unavailable" => FormatSystemText("save.slot.unavailable", "Unavailable: {0}", entry.DetailsError),
@@ -144,7 +170,7 @@ internal sealed class PlayerSaveMenu
         }
         else
         {
-            SetSelectedSlot(rememberedSlots.GetValueOrDefault((mode, Bank), Entries.FirstOrDefault()?.Slot ?? PlayerSaveStore.GetFirstSlot(Bank)));
+            SetSelectedSlot(rememberedSlots.GetValueOrDefault((mode, Bank), Entries.FirstOrDefault()?.Slot ?? store.FirstSlot(Bank)));
         }
         IsOpen = true;
     }
@@ -454,8 +480,8 @@ internal sealed class PlayerSaveMenu
                 return false;
             }
             int row = Selection % PageCapacity;
-            int page = Math.Min(Page, (PlayerSaveStore.GetBankSlotCount(bank) - 1) / PageCapacity);
-            int slot = rememberedSlots.GetValueOrDefault((Mode, bank), PlayerSaveStore.GetFirstSlot(bank) + page * PageCapacity + row);
+            int page = Math.Min(Page, (store.BankSize(bank) - 1) / PageCapacity);
+            int slot = rememberedSlots.GetValueOrDefault((Mode, bank), store.FirstSlot(bank) + page * PageCapacity + row);
             IReadOnlyList<PlayerSaveEntry> nextEntries = store.ReadEntries(bank, Mode == PlayerSaveMenuMode.Load && !IsTransferring);
             RememberCursor();
             Bank = bank;

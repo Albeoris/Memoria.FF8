@@ -75,6 +75,7 @@ internal sealed partial class Ff7Scene : IDisposable
 
     public string? Error => error;
     public event Action<CombinedSessionSave>? SaveRequested;
+    public event Action<InputFrame>? PlayerSaveRequested;
     public event Action<CombinedSessionSave>? WorldSwitchRequested;
     public event Action? ContinueRequested;
     public event Action? DebugMenuRequested;
@@ -139,6 +140,11 @@ internal sealed partial class Ff7Scene : IDisposable
             if (focusPaused || userPaused)
             {
                 movieSkipGesture.Reset();
+                return;
+            }
+            if (playerMenu?.IsCapturingControls != true && PlayerSaveRequested is not null && (semanticInput.Save || semanticInput.QuickLoad || semanticInput.SaveMenu || semanticInput.LoadMenu))
+            {
+                PlayerSaveRequested.Invoke(semanticInput);
                 return;
             }
             if (sharedInput.DebugRoomRequested && playerMenu?.IsCapturingControls != true)

@@ -86,7 +86,7 @@ internal sealed partial class Ff7Game : Game
         scene.RenderLimit = launchOptions?.WorldRenderLimit ?? 2048;
         Window.TextInput += (_, input) =>
         {
-            if (IsActive && launchOptions?.AcceptsPhysicalInput != false)
+            if (IsActive && launchOptions?.AcceptsPhysicalInput != false && saveMenu?.IsOpen != true)
             {
                 scene.EnterText(input.Character);
             }
@@ -98,27 +98,7 @@ internal sealed partial class Ff7Game : Game
         scene.InterpolatePresentation = launchOptions?.ControlStep != true;
         scene.ConfigureAutoPlayCheckpoint(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(savePath))!, "autoplay", "ff7", "current.ffsave"));
         InitializeUpdateHandoff();
-        scene.SaveRequested += saved => CombinedSessionCodec.Save(savePath, saved);
-        scene.ContinueRequested += () =>
-        {
-            try
-            {
-                using FileStream stream = File.OpenRead(savePath);
-                CombinedSessionSave saved = CombinedSessionCodec.Read(stream);
-                if (saved.Ff8Payload is { Length: > 0 })
-                {
-                    RequestCrossover(saved);
-                }
-                else
-                {
-                    RestoreStandalone(saved);
-                }
-            }
-            catch (Exception exception) when (exception is IOException or InvalidDataException or NotSupportedException or InvalidOperationException)
-            {
-                scene.ShowNotice(exception.Message);
-            }
-        };
+        InitializePlayerSaves();
         scene.WorldSwitchRequested += saved =>
         {
             OpenWorldSwitchMapping(saved);
@@ -150,13 +130,17 @@ internal sealed partial class Ff7Game : Game
         updateControls?.Poll();
         controls?.Poll();
         UpdateWindowModeHotkey(launchOptions?.AcceptsPhysicalInput == false ? default : Keyboard.GetState(), IsActive);
-        scene.SetFocusPaused(mappingMenu is not null || updateSave.Paused || !IsActive && launchOptions?.ControlDirectory is null);
+        scene.SetFocusPaused(mappingMenu is not null || saveMenu.IsOpen || updateSave.Paused || !IsActive && launchOptions?.ControlDirectory is null);
         if (!updateSave.Paused && launchOptions?.ControlStep != true)
         {
             GamePadState pad = launchOptions?.AcceptsPhysicalInput == false ? default : controller!.Read();
             keyboard.ControllerPresentation = controller!.Presentation;
             keyboard.ControllerGeneration = controller.Generation;
-            if (mappingMenu is not null)
+            if (saveMenu.IsOpen)
+            {
+                HandlePlayerSaveInput(keyboard.Read(ReadControlKeys(), pad, IsActive));
+            }
+            else if (mappingMenu is not null)
             {
                 mappingMenu.Update(keyboard.Read(ReadControlKeys(), pad, IsActive), Mouse.GetState(), GraphicsDevice.Viewport.Bounds);
             }
@@ -198,6 +182,7 @@ internal sealed partial class Ff7Game : Game
         int height = GraphicsDevice.PresentationParameters.BackBufferHeight;
         scene.Draw(batch, new Rectangle(0, 0, width, height));
         mappingMenu?.Draw(batch, new Rectangle(0, 0, width, height), scene.PresentationPreferences.UiFontFamily);
+        DrawPlayerSaveMenu(gameTime, new Rectangle(0, 0, width, height));
         string? capturePath = pendingCapture ?? (!frameCaptured && launchOptions?.CaptureFramePath is string requested && gameTime.TotalGameTime.TotalSeconds >= launchOptions.CaptureAfterSeconds ? requested : null);
         if (capturePath is string path)
         {

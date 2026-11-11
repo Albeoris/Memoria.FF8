@@ -110,7 +110,7 @@ internal sealed partial class RecreateGame
         ConnectLocalizationTools();
         ConnectLocalizationWorkbench();
         gameMenus.ConnectPreferences(ReadCurrentUiPreferences, ApplyLiveMenuAction);
-        gameMenus.ConnectQuickSaveRetention(playerSaves.PreviewQuickSaveCount, CommitQuickSaveRetention);
+        gameMenus.ConnectQuickSaveRetention(count => playerSaves.PreviewQuickSaveCount(count), CommitQuickSaveRetention);
         gameMenus.ConnectNaming(ReadDebugNames, (subject, name) => world!.Rename(subject, name));
         gameMenus.ConnectEncounterPolicyConsequence(() => world?.HasPendingBattle == true || world?.Battle?.Outcome == BattleOutcome.Active);
         gameMenus.ConnectBattleSource(() => ActiveBattle is null ? "No active battle" : debugBattle is not null ? "Laboratory battle" : "Game battle");
@@ -503,6 +503,8 @@ internal sealed partial class RecreateGame
             accepted.Save(UiPreferencesPath);
             uiPreferences = accepted;
         });
+        ff8PlayerSaves.SetQuickSaveCount(count);
+        ff7PlayerSaves.SetQuickSaveCount(count);
         gameMenus?.InvalidateLiveData();
         return result;
     }

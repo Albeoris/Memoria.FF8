@@ -46,8 +46,8 @@ internal sealed partial class PlayerSaveView
             float textLeft = Bounds.X + iconWidth + 22;
             float rowHeight = Math.Max(0, Bounds.Height - 12) / 2;
             UiRect label = new(textLeft, Bounds.Y + 6, Math.Max(0, Bounds.Right - textLeft - 10), rowHeight);
-            string name = bank == 0 ? SystemText("save.bank.memoria", "Memoria") : SystemText("save.bank.original", "Original");
-            string details = (active ? SystemText("save.bank.active", "ACTIVE  ·  ") : "") + (quick ? SystemText("save.bank.quick", "Quick saves") : FormatSystemText("save.bank.slots", "{0} slots", PlayerSaveStore.GetBankSlotCount(bank)));
+            string name = menu?.IsFf7 == true ? menu.BankLabel(bank) : bank == 0 ? SystemText("save.bank.memoria", "Memoria") : SystemText("save.bank.original", "Original");
+            string details = (active ? SystemText("save.bank.active", "ACTIVE  ·  ") : "") + (quick ? SystemText("save.bank.quick", "Quick saves") : FormatSystemText("save.bank.slots", "{0} slots", (menu?.BankSize(bank) ?? PlayerSaveStore.GetBankSlotCount(bank))));
             canvas.Text(name, 24 * textScale, label, foreground, UiAlignment.Center, UiTextFlow.SingleLine);
             UiRect capacity = new(textLeft, label.Bottom, label.Width, rowHeight);
             canvas.Text(details, 15 * textScale, capacity, foreground, UiAlignment.Center, UiTextFlow.SingleLine);

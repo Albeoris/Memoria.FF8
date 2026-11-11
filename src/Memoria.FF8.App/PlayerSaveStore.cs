@@ -9,7 +9,6 @@ internal sealed record PlayerSaveEntry(int Slot, string Label, DateTime? SavedAt
 {
     internal bool CanCopy { get; init; } = CanLoad;
     internal SessionGame? ActiveGame { get; init; }
-    internal bool RequiresFf8Continuation { get; init; }
     internal string? DetailsSystemId { get; init; }
     internal string? DetailsError { get; init; }
     internal Func<string?>? ReadLocation { get; init; }
@@ -44,15 +43,19 @@ internal sealed partial class PlayerSaveStore
     private readonly Dictionary<string, CachedSaveEntry> entries = new(StringComparer.OrdinalIgnoreCase);
     private int quickSaveCount = DefaultQuickSaveCount;
 
-    public PlayerSaveStore(string researchCheckpoint, string? directory = null, Func<GameState, string?>? locationName = null, string? originalDirectory = null, Func<string, GameState>? loadOriginal = null, bool discoverOriginalSaves = true, Func<string, GameState>? loadMemoria = null, string? gameDirectory = null)
+    public PlayerSaveStore(string researchCheckpoint, string? directory = null, Func<GameState, string?>? locationName = null, string? originalDirectory = null, Func<string, GameState>? loadOriginal = null, bool discoverOriginalSaves = true, Func<string, GameState>? loadMemoria = null, string? gameDirectory = null, SessionGame game = SessionGame.Ff8)
     {
-        this.directory = Path.GetFullPath(directory ?? DefaultDirectory);
+        Game = game;
+        this.gameDirectory = gameDirectory;
+        legacyDirectory = game == SessionGame.Ff7 ? Path.GetFullPath(directory ?? DefaultDirectory) : null;
+        string root = Path.GetFullPath(directory ?? DefaultDirectory);
+        this.directory = game == SessionGame.Ff7 ? Path.Combine(root, "ff7") : root;
         this.researchCheckpoint = Path.GetFullPath(researchCheckpoint);
         this.locationName = locationName;
         this.loadOriginal = loadOriginal;
         this.loadMemoria = loadMemoria;
-        OriginalDirectoryCandidates = discoverOriginalSaves ? OriginalSaveLocation.FindCandidates(gameDirectory: gameDirectory) : [];
-        OriginalDirectory = originalDirectory is not null ? OriginalSaveLocation.ValidateDirectory(originalDirectory) : OriginalDirectoryCandidates.Count == 1 ? OriginalDirectoryCandidates[0] : null;
+        OriginalDirectoryCandidates = game == SessionGame.Ff7 ? [] : discoverOriginalSaves ? OriginalSaveLocation.FindCandidates(gameDirectory: gameDirectory) : [];
+        OriginalDirectory = originalDirectory is not null ? ValidateOriginalDirectory(originalDirectory) : OriginalDirectoryCandidates.Count == 1 ? OriginalDirectoryCandidates[0] : null;
     }
 
     public void SetQuickSaveCount(int count)
@@ -65,7 +68,6 @@ internal sealed partial class PlayerSaveStore
     }
 
     internal int QuickSaveCount => quickSaveCount;
-    internal Func<string?>? ReadFf7OnlyLoadUnavailable { get; set; }
 
     public int PreviewQuickSaveCount(int count)
     {
@@ -113,17 +115,17 @@ internal sealed partial class PlayerSaveStore
 
     public string GetPath(int slot)
     {
-        if (slot > TotalSlotCount)
+        if (slot > MaximumSlot)
         {
             throw new ArgumentOutOfRangeException(nameof(slot));
         }
         string path = slot switch
         {
             0 => FindQuickSaves().FirstOrDefault()?.Path ?? Path.Combine(directory, "quick.json"),
-            int.MinValue => Path.Combine(directory, "quick.json"),
-            < 0 => GetQuickPath(-slot),
-            > MemoriaSlotCount => GetOriginalPath(slot),
-            _ => Path.Combine(directory, $"slot-{slot:00}.json")
+            int.MinValue => ResolveMemoriaReadPath("quick.json"),
+            < 0 => ResolveMemoriaReadPath("quick-" + (-slot).ToString("D10", CultureInfo.InvariantCulture) + ".json"),
+            > MemoriaSlotCount => Game == SessionGame.Ff7 ? GetFf7OriginalPath(slot) : GetOriginalPath(slot),
+            _ => ResolveMemoriaReadPath($"slot-{slot:00}.json")
         };
         ValidatePath(path);
         return path;
@@ -146,7 +148,7 @@ internal sealed partial class PlayerSaveStore
     public bool ContainsPath(string path)
     {
         string fullPath = Path.GetFullPath(path);
-        return IsInDirectory(fullPath, directory) || OriginalDirectory is { } original && IsInDirectory(fullPath, original);
+        return IsInDirectory(fullPath, directory) || legacyDirectory is not null && IsInDirectory(fullPath, legacyDirectory) && File.Exists(fullPath) && IsCurrentWorldSave(fullPath) || OriginalDirectory is { } original && IsInDirectory(fullPath, original);
     }
 
     public static bool RequiresMemoriaFormat(GameState state, bool allowGuardianForceProjection = false)
@@ -156,6 +158,10 @@ internal sealed partial class PlayerSaveStore
 
     public void Save(int slot, GameSession session, Action<GameState>? validateContinuation = null, NativeCharacterVitals? targetSource = null, bool allowGuardianForceLoss = false, short? originalPlaceId = null, Func<string, Action<GameState>?, DateTime?, GameState>? writeGameplay = null, bool combinedSession = false)
     {
+        if (Game != SessionGame.Ff8)
+        {
+            throw new InvalidOperationException("Use the FFVII save contract in the FFVII world.");
+        }
         if (slot < 0 || slot > TotalSlotCount)
         {
             throw new ArgumentOutOfRangeException(nameof(slot));
@@ -171,6 +177,7 @@ internal sealed partial class PlayerSaveStore
         if (slot != 0)
         {
             string target = GetPath(slot);
+            EnsureCurrentWorldTarget(target);
             if (slot > MemoriaSlotCount)
             {
                 GameState snapshot = session.PrepareSnapshot();
@@ -198,7 +205,7 @@ internal sealed partial class PlayerSaveStore
         {
             throw new InvalidOperationException("The quick save sequence is exhausted.");
         }
-        string path = GetQuickPath(sequence + 1);
+        string path = NextQuickPath(sequence);
         ValidatePath(path);
         QuickSaveFile[] obsolete = files.Skip(quickSaveCount - 1).ToArray();
         ValidateRemoval(obsolete);
@@ -228,6 +235,10 @@ internal sealed partial class PlayerSaveStore
 
     public GameState Load(int slot)
     {
+        if (Game != SessionGame.Ff8)
+        {
+            throw new InvalidOperationException("Use the FFVII load contract in the FFVII world.");
+        }
         string path = GetPath(slot);
         return slot > MemoriaSlotCount ? LoadOriginal(path) : LoadPath(path);
     }
@@ -252,12 +263,12 @@ internal sealed partial class PlayerSaveStore
     public IReadOnlyList<PlayerSaveEntry> ReadEntries(int bank, bool includeQuick)
     {
         var entries = new List<PlayerSaveEntry>();
-        int firstSlot = GetFirstSlot(bank);
+        int firstSlot = FirstSlot(bank);
         if (includeQuick && bank == 0)
         {
             entries.AddRange(ReadQuickEntries());
         }
-        for (int slot = firstSlot; slot < firstSlot + GetBankSlotCount(bank); slot++)
+        for (int slot = firstSlot; slot < firstSlot + BankSize(bank); slot++)
         {
             if (bank != 0 && OriginalDirectory is null)
             {
@@ -265,7 +276,7 @@ internal sealed partial class PlayerSaveStore
             }
             else
             {
-                entries.Add(ReadEntry(slot, bank == 0 ? Path.Combine(directory, $"slot-{slot:00}.json") : GetOriginalPath(slot), null));
+                entries.Add(ReadEntry(slot, bank == 0 ? ResolveMemoriaReadPath($"slot-{slot:00}.json") : Game == SessionGame.Ff7 ? GetFf7OriginalPath(slot) : GetOriginalPath(slot), null));
             }
         }
         return includeQuick && bank == 0 ? entries.OrderByDescending(entry => entry.SavedAtUtc.HasValue).ThenByDescending(entry => entry.SavedAtUtc).ThenBy(entry => entry.Slot > 0 ? entry.Slot : 0).ToArray() : entries;
@@ -273,7 +284,11 @@ internal sealed partial class PlayerSaveStore
 
     private PlayerSaveEntry ReadEntry(int slot, string path, DateTime? savedAt)
     {
-        string label = GetLabel(slot);
+        string label = SlotLabel(slot);
+        if (Game == SessionGame.Ff7)
+        {
+            return ReadFf7Entry(slot, path, savedAt);
+        }
         DateTime? savedAtUtc = savedAt?.ToUniversalTime();
         try
         {
@@ -288,7 +303,7 @@ internal sealed partial class PlayerSaveStore
             savedAtUtc = file.LastWriteTimeUtc;
             if (entries.TryGetValue(path, out CachedSaveEntry? cached) && cached.Length == file.Length && cached.ModifiedUtc == file.LastWriteTimeUtc)
             {
-                return ApplyFf7LoadContext(cached.Entry with { Slot = slot, Label = cached.Entry.ActiveGame == SessionGame.Ff7 ? label + " · FINAL FANTASY VII" : label, SavedAt = savedAt, SavedAtUtc = savedAtUtc });
+                return cached.Entry with { Slot = slot, Label = label, SavedAt = savedAt, SavedAtUtc = savedAtUtc };
             }
             PlayerSaveEntry entry;
             SaveSummary? summary = null;
@@ -297,24 +312,7 @@ internal sealed partial class PlayerSaveStore
                 CombinedSessionSave? combined = slot <= MemoriaSlotCount ? CrossoverSaveAdapter.ReadEnvelope(path) : null;
                 if (combined?.ActiveGame == SessionGame.Ff7)
                 {
-                    bool requiresFf8 = CrossoverSaveAdapter.RequiresCurrentFf8(combined);
-                    bool canLoad = combined.Ff8Payload is { Length: > 0 } && combined.Ff8PayloadFormat == CrossoverSaveAdapter.Ff8Codec;
-                    if (canLoad)
-                    {
-                        _ = CrossoverSaveAdapter.ReadFf8(combined);
-                    }
-                    string details = "FINAL FANTASY VII · " + (combined.Ff7!.World is null ? combined.Ff7.FieldName : "World map");
-                    if (!canLoad && !requiresFf8)
-                    {
-                        details += " · This save contains an unsupported FFVIII continuation.";
-                    }
-                    entry = new(slot, label + " · FINAL FANTASY VII", savedAt, details, canLoad)
-                    {
-                        CanCopy = true,
-                        RequiresFf8Continuation = requiresFf8,
-                        ActiveGame = SessionGame.Ff7,
-                        SavedAtUtc = savedAtUtc
-                    };
+                    return new PlayerSaveEntry(slot, label, null, "Empty", false) { DetailsSystemId = "save.slot.empty" };
                 }
                 else
                 {
@@ -342,7 +340,7 @@ internal sealed partial class PlayerSaveStore
                 entry = new PlayerSaveEntry(slot, label, savedAt, "Unavailable: " + exception.Message, false) { DetailsSystemId = "save.slot.unavailable", DetailsError = exception.Message, SavedAtUtc = savedAtUtc, SavedLocalAt = summary?.SavedLocalAt };
             }
             entries[path] = new CachedSaveEntry(file.Length, file.LastWriteTimeUtc, entry);
-            return ApplyFf7LoadContext(entry);
+            return entry;
         }
         catch (Exception exception) when (IsUnavailable(exception))
         {
@@ -350,18 +348,12 @@ internal sealed partial class PlayerSaveStore
         }
     }
 
-    private PlayerSaveEntry ApplyFf7LoadContext(PlayerSaveEntry entry)
-    {
-        if (!entry.RequiresFf8Continuation)
-        {
-            return entry;
-        }
-        string? reason = ReadFf7OnlyLoadUnavailable is null ? "Start or load an FFVIII game and reach a save-enabled boundary to preserve a world to return to." : ReadFf7OnlyLoadUnavailable();
-        return entry with { CanLoad = reason is null, Details = reason is null ? entry.Details : entry.Details + " · " + reason };
-    }
-
     private GameState LoadPath(string path)
     {
+        if (!IsCurrentWorldSave(path))
+        {
+            throw new InvalidDataException("Switch to the save's game world before loading it.");
+        }
         GameState state = loadMemoria is null ? GameSession.Load(path) : loadMemoria(path);
         if (state.Scene == SceneKind.Title)
         {
@@ -373,24 +365,23 @@ internal sealed partial class PlayerSaveStore
     private List<QuickSaveFile> FindQuickSaves()
     {
         var files = new List<QuickSaveFile>();
-        if (!Directory.Exists(directory))
+        foreach (string folder in new[] { directory, legacyDirectory }.OfType<string>().Where(Directory.Exists))
         {
-            return files;
-        }
-        string legacyPath = Path.Combine(directory, "quick.json");
-        if (File.Exists(legacyPath))
-        {
-            files.Add(new QuickSaveFile(int.MinValue, legacyPath, File.GetLastWriteTimeUtc(legacyPath)));
-        }
-        foreach (string path in Directory.EnumerateFiles(directory, "quick-*.json"))
-        {
-            string name = Path.GetFileNameWithoutExtension(path);
-            if (int.TryParse(name.AsSpan(6), NumberStyles.None, CultureInfo.InvariantCulture, out int sequence) && sequence > 0 && path.Equals(GetQuickPath(sequence), StringComparison.OrdinalIgnoreCase))
+            string legacyPath = Path.Combine(folder, "quick.json");
+            if (File.Exists(legacyPath))
             {
-                files.Add(new QuickSaveFile(-sequence, path, File.GetLastWriteTimeUtc(path)));
+                files.Add(new QuickSaveFile(int.MinValue, legacyPath, File.GetLastWriteTimeUtc(legacyPath)));
+            }
+            foreach (string path in Directory.EnumerateFiles(folder, "quick-*.json"))
+            {
+                string name = Path.GetFileNameWithoutExtension(path);
+                if (int.TryParse(name.AsSpan(6), NumberStyles.None, CultureInfo.InvariantCulture, out int sequence) && sequence > 0 && path.Equals(Path.Combine(folder, $"quick-{sequence:D10}.json"), StringComparison.OrdinalIgnoreCase))
+                {
+                    files.Add(new QuickSaveFile(-sequence, path, File.GetLastWriteTimeUtc(path)));
+                }
             }
         }
-        return files.OrderByDescending(file => file.SavedAtUtc).ThenByDescending(file => file.Slot == int.MinValue ? 0 : -file.Slot).ToList();
+        return files.Where(file => IsCurrentWorldSave(file.Path)).GroupBy(file => file.Slot).Select(group => group.First()).OrderByDescending(file => file.SavedAtUtc).ThenByDescending(file => file.Slot == int.MinValue ? 0 : -file.Slot).ToList();
     }
 
     private string GetQuickPath(int sequence)

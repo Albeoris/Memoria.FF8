@@ -84,6 +84,8 @@ public sealed record Ff7SessionSave
     public required Ff7Progress Progress { get; init; }
     public required FieldVmSnapshot Vm { get; init; }
     public required Ff7FieldProcess Process { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte[]? NativeSaveData { get; init; }
     public Ff7AudioPresentationState? AudioPresentation { get; init; }
     public short BattleBigShotChargeRotation { get; init; }
     public short BattleBigShotCounterRotation { get; init; }
@@ -103,6 +105,10 @@ public sealed record Ff7SessionSave
             throw new InvalidDataException("Unsupported or corrupt FFVII session save.");
         }
         Progress.Validate();
+        if (NativeSaveData is not null && NativeSaveData.Length != Ff7NativeSaveSlot.Size)
+        {
+            throw new InvalidDataException("The preserved native FFVII save slot has an invalid size.");
+        }
         Process.Validate();
         if (Battle is not null && (World is not null || Process.GlobalCommand != Ff7GlobalCommand.Battle || Process.GlobalRequestId != Battle.RequestId || Progress.CompletedBattles.Any(receipt => receipt.FieldGeneration == FieldGeneration && receipt.RequestId == Battle.RequestId) || !Process.Receipts.Any(receipt => receipt.Request.Id == Battle.RequestId && receipt.Request.Command is FieldBattleCommand command && command.Formation == Battle.FormationId && !receipt.Reply.Completed)))
         {

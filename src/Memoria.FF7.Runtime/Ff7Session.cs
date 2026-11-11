@@ -100,6 +100,7 @@ public sealed partial class Ff7Session : IDisposable
                 throw new InvalidDataException("The FFVII saved field is absent from the original maplist.");
             }
             session.Progress = save.Progress;
+            session.nativeSaveData = save.NativeSaveData?.ToArray();
             session.battleBigShotChargeRotation = save.BattleBigShotChargeRotation;
             session.battleBigShotCounterRotation = save.BattleBigShotCounterRotation;
             session.battleSearchScopeScaleCounter = save.BattleSearchScopeScaleCounter;
@@ -239,7 +240,7 @@ public sealed partial class Ff7Session : IDisposable
         {
             vm = vm with { PersistentVariables = World.Machine.CopyPersistent() };
         }
-        return new Ff7SessionSave { ResourceProfile = installation.Layout.ToString(), Language = installation.Language, FieldName = Field.Name, FieldGeneration = FieldGeneration, Progress = Progress, Vm = vm, Process = Host.Capture(), TickContinuation = tickContinuation is null ? null : tickContinuation with { ScriptReturns = tickContinuation.ScriptReturns?.ToArray() }, World = World?.Process, EventCoverage = EventCoverage is null ? null : new Memoria.AutoPlay.AutoPlayEventCoverageLedger(EventCoverage).Capture(), Battle = Battle?.Capture(), BattleBigShotChargeRotation = Battle?.BigShotChargeRotation ?? battleBigShotChargeRotation, BattleBigShotCounterRotation = Battle?.BigShotCounterRotation ?? battleBigShotCounterRotation, BattleSearchScopeScaleCounter = Battle?.SearchScopeScaleCounter ?? battleSearchScopeScaleCounter, BattleSilkDirection = Battle?.SilkDirection ?? battleSilkDirection, BattleCameraPresentationCounter = Battle?.CameraPresentationCounter ?? battleCameraPresentationCounter };
+        return new Ff7SessionSave { NativeSaveData = nativeSaveData?.ToArray(), ResourceProfile = installation.Layout.ToString(), Language = installation.Language, FieldName = Field.Name, FieldGeneration = FieldGeneration, Progress = Progress, Vm = vm, Process = Host.Capture(), TickContinuation = tickContinuation is null ? null : tickContinuation with { ScriptReturns = tickContinuation.ScriptReturns?.ToArray() }, World = World?.Process, EventCoverage = EventCoverage is null ? null : new Memoria.AutoPlay.AutoPlayEventCoverageLedger(EventCoverage).Capture(), Battle = Battle?.Capture(), BattleBigShotChargeRotation = Battle?.BigShotChargeRotation ?? battleBigShotChargeRotation, BattleBigShotCounterRotation = Battle?.BigShotCounterRotation ?? battleBigShotCounterRotation, BattleSearchScopeScaleCounter = Battle?.SearchScopeScaleCounter ?? battleSearchScopeScaleCounter, BattleSilkDirection = Battle?.SilkDirection ?? battleSilkDirection, BattleCameraPresentationCounter = Battle?.CameraPresentationCounter ?? battleCameraPresentationCounter };
     }
 
     private bool fieldLoadIncomplete;

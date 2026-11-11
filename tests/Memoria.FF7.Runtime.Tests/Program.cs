@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-saves-only", StringComparer.Ordinal))
+{
+    NativeSaveBankTests.Run();
+    return 0;
+}
+
 if (args.Contains("--pub-only", StringComparer.Ordinal))
 {
     NativeWallMarketPubCoverageTests.Run();
@@ -68,6 +74,7 @@ if (args.Contains("--eyes-only", StringComparer.Ordinal))
 
 var tests = new (string Name, Action Run)[]
 {
+    ("native save bank projection and slot integrity", NativeSaveBankTests.Run),
     ("envelope preserves both game namespaces and exact FFVIII payload", EnvelopeRoundTrip),
     ("envelope corruption and missing active game rejected", InvalidEnvelope),
     ("world switch requires save permission and prepares before commit", SwitchGuard),

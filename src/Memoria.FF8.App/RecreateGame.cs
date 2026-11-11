@@ -27,7 +27,9 @@ internal sealed partial class RecreateGame : Game
     private MovieClock movieClock;
     private FieldAudioPresentation? fieldAudio;
     private bool resumeGameplayAudio;
-    private readonly PlayerSaveStore playerSaves;
+    private readonly PlayerSaveStore ff8PlayerSaves;
+    private readonly PlayerSaveStore ff7PlayerSaves;
+    private PlayerSaveStore playerSaves => InFf7 ? ff7PlayerSaves : ff8PlayerSaves;
     private readonly PlayerSaveMenu saveMenu;
     private SpriteBatch batch = null!;
     private SystemTextRenderer text = null!;
@@ -84,12 +86,12 @@ internal sealed partial class RecreateGame : Game
         updateSave = new UpdateSaveHandoff(CaptureUpdateState, ValidatePlayerState, EnsureUpdateSaveIsSafe, writeGameplay: WritePlayerGameplaySave);
         startup = new StartupSequence(StartupSequence.ShouldPlay(options));
         movieClock = new MovieClock(session, options.GameDirectory, options.MediaToolsDirectory);
-        playerSaves = new PlayerSaveStore(options.SavePath, directory: options.IsolatedPlayerSaveDirectory, locationName: state =>
+        ff8PlayerSaves = new PlayerSaveStore(options.SavePath, directory: options.IsolatedPlayerSaveDirectory, locationName: state =>
         {
             EnsureLiveMenuCatalog();
             return liveMenuCatalog!.LocationName(state);
         }, originalDirectory: options.ControlExclusive ? null : ReadOriginalSaveDirectory(), loadOriginal: LoadOriginalPlayerState, discoverOriginalSaves: !options.ControlExclusive, loadMemoria: path => PlayerStateLoader.Load(path, options.GameDirectory, world?.ValidationAssets, resourceHost?.Resources, resourceHost, () => resourceHost?.GameplayPolicy ?? GameplayTuningPolicy.Empty, initialized => resourceHost is null ? initialized : GameplaySaveGuardianForceDefinitions.Select(initialized, resourceHost)), gameDirectory: options.GameDirectory);
-        playerSaves.ReadFf7OnlyLoadUnavailable = Ff7OnlyLoadUnavailable;
+        ff7PlayerSaves = new PlayerSaveStore(options.SavePath, directory: options.IsolatedPlayerSaveDirectory, originalDirectory: options.ControlExclusive ? null : ReadOriginalSaveDirectory(ff7: true), discoverOriginalSaves: false, gameDirectory: options.Ff7GameDirectory, game: Memoria.FF7.Runtime.SessionGame.Ff7);
         saveMenu = new PlayerSaveMenu(playerSaves);
         saveMenu.BeforeBankChange = EnsurePlayerSaveBank;
         saveMenu.SoundRequested += cue => fieldAudio?.PlayUiSound(cue);
@@ -98,7 +100,8 @@ internal sealed partial class RecreateGame : Game
             globalSettings.ImportLegacyFiles(options.SavePath);
         }
         uiPreferences = GameUi.UiPreferences.Load(UiPreferencesPath);
-        playerSaves.SetQuickSaveCount(uiPreferences.QuickSaveCount);
+        ff8PlayerSaves.SetQuickSaveCount(uiPreferences.QuickSaveCount);
+        ff7PlayerSaves.SetQuickSaveCount(uiPreferences.QuickSaveCount);
         appliedMsaaSamples = uiPreferences.Graphics.MsaaSamples;
         graphics = GraphicsDeviceSettings.Create(this, uiPreferences, options, () => uiPreferences);
         Window.Title = "Memoria - Final Fantasy VIII";
@@ -885,7 +888,7 @@ internal sealed partial class RecreateGame : Game
     {
         if (input.LoadMenu || input.SaveMenu)
         {
-            if (input.SaveMenu && (session.State.Scene == SceneKind.Title || fieldFaulted))
+            if (input.SaveMenu && (InFf7 ? ff7Scene?.CanSave != true : session.State.Scene == SceneKind.Title || fieldFaulted))
             {
                 ShowSaveNotice("Start or load a running game before saving.");
             }
@@ -934,6 +937,7 @@ internal sealed partial class RecreateGame : Game
             movie = null;
             movieIndex = -1;
         }
+        saveMenu.SetStore(playerSaves);
         saveMenu.Open(mode);
     }
 
@@ -953,6 +957,18 @@ internal sealed partial class RecreateGame : Game
 
     private void SavePlayerSlot(int slot)
     {
+        if (InFf7)
+        {
+            if (ff7Scene?.CanSave != true)
+            {
+                throw new InvalidOperationException("Saving is unavailable at the current FFVII boundary.");
+            }
+            var saved = ff7Scene.Capture();
+            playerSaves.SaveFf7(slot, saved);
+            crossover = saved;
+            ff7Scene.ShowNotice("Saved");
+            return;
+        }
         PreparePlayerSlotSave();
         playerSaves.Save(slot, session, ValidatePlayerState, writeGameplay: WritePlayerGameplaySave, combinedSession: crossover is not null);
         if (slot == 0)
@@ -990,30 +1006,31 @@ internal sealed partial class RecreateGame : Game
 
     private void LoadPlayerSlot(int slot)
     {
-        Memoria.FF7.Runtime.CombinedSessionSave? savedCrossover = CrossoverSaveAdapter.ReadEnvelope(playerSaves.GetPath(slot));
-        if (savedCrossover is not null && CrossoverSaveAdapter.RequiresCurrentFf8(savedCrossover))
+        if (InFf7)
         {
-            LoadFf7OnlyPlayerSave(savedCrossover);
-            saveNotice = null;
-            saveNoticeSeconds = 0;
+            var saved = playerSaves.LoadFf7(slot);
+            if (saved.Ff8Payload is null && crossover is not null)
+            {
+                saved = saved with { Ff8Payload = crossover.Ff8Payload, Ff8PayloadFormat = crossover.Ff8PayloadFormat, Mappings = crossover.Mappings, CharacterNameOverrides = crossover.CharacterNameOverrides };
+            }
+            Ff7Scene prepared = PrepareFf7Scene(saved);
+            StopAutoPlayForPlayerSession();
+            ff7Scene?.Dispose();
+            ff7Scene = prepared;
+            crossover = saved;
+            suspendedFf8PayloadChanged = true;
             return;
+        }
+        Memoria.FF7.Runtime.CombinedSessionSave? savedCrossover = CrossoverSaveAdapter.ReadEnvelope(playerSaves.GetPath(slot));
+        if (savedCrossover?.ActiveGame == Memoria.FF7.Runtime.SessionGame.Ff7)
+        {
+            throw new InvalidOperationException("Switch to the FFVII world before loading FFVII saves.");
         }
         GameState state = playerSaves.Load(slot);
         ValidatePlayerState(state);
-        Ff7Scene? preparedCrossover = savedCrossover?.ActiveGame == Memoria.FF7.Runtime.SessionGame.Ff7 ? PrepareFf7Scene(savedCrossover) : null;
         StopAutoPlayForPlayerSession();
-        try
-        {
-            RestorePlayerState(state);
-            preparedCrossover?.ConfigureSharedControls(keyboard, gameplayClock);
-            preparedCrossover?.SuppressInitialPresses(physicalInput.ReadKeyboard());
-            RestoreCrossover(savedCrossover, preparedCrossover);
-        }
-        catch
-        {
-            preparedCrossover?.Dispose();
-            throw;
-        }
+        RestorePlayerState(state);
+        RestoreCrossover(savedCrossover);
         saveNotice = null;
         saveNoticeSeconds = 0;
     }
@@ -1116,6 +1133,11 @@ internal sealed partial class RecreateGame : Game
 
     private void ShowSaveNotice(Func<string> message, double durationSeconds = 5)
     {
+        if (InFf7)
+        {
+            ff7Scene?.ShowNotice(message());
+            return;
+        }
         saveNotice = message;
         saveNoticeSeconds = durationSeconds;
     }

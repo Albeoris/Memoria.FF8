@@ -60,6 +60,10 @@ internal sealed partial class PlayerSaveView : UiElement
         information.Children.Add(header);
         string instruction = menu.IsTransferring ? menu.ConfirmOverwrite ? menu.SystemText("save.view.confirm-transfer-overwrite", "Confirm transfer overwrite") : menu.SystemText("save.view.choose-destination-block", "Choose destination block") : menu.ConfirmOverwrite ? menu.SystemText("save.view.confirm-overwrite", "Confirm overwrite") : menu.IsSaving ? menu.SystemText("save.view.choose-block-to-save", "Choose block to save") : menu.SystemText("save.view.choose-block-to-load", "Choose block to load");
         string detail = menu.TransferSource is int source ? $"{menu.SlotLabel(source)}  →  {menu.SlotLabel(menu.SelectedSlot)}" : menu.ConfirmOverwrite ? menu.SystemText("save.view.confirm-again-to-overwrite-the-selected-save", "Confirm again to overwrite the selected save.") : menu.IsQuick ? menu.IsSaving ? menu.SystemText("save.view.create-a-new-quick-save", "Create a new quick save.") : menu.SystemText("save.view.choose-a-quick-save-to-load", "Choose a quick save to load.") : menu.FormatSystemText("save.view.navigation", "{0}    {1}: Select    {2}: Back", transferHint, confirmHint, cancelHint);
+        if (menu.IsFf7 && menu.Bank > 0 && (menu.IsSaving || menu.IsTransferring))
+        {
+            detail = "Native FFVII saves resume from the game save point. Keep a Memoria slot to retain exact scripts, world return and appearance mappings.";
+        }
         if (menu.Message is string message)
         {
             detail = message;

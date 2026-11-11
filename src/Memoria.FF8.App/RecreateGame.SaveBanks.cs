@@ -8,15 +8,16 @@ internal sealed partial class RecreateGame
 {
     private bool previousSaveMousePressed;
 
-    private string? ReadOriginalSaveDirectory()
+    private string? ReadOriginalSaveDirectory(bool ff7 = false)
     {
-        if (!File.Exists(globalSettings.SaveBanksPath))
+        string preferencesPath = ff7 ? Path.Combine(globalSettings.DirectoryPath, "ff7-save-banks.json") : globalSettings.SaveBanksPath;
+        if (!File.Exists(preferencesPath))
         {
             return null;
         }
         try
         {
-            string? directory = JsonSerializer.Deserialize<SaveBankPreferences>(File.ReadAllText(globalSettings.SaveBanksPath))?.OriginalDirectory;
+            string? directory = JsonSerializer.Deserialize<SaveBankPreferences>(File.ReadAllText(preferencesPath))?.OriginalDirectory;
             return directory is not null && Directory.Exists(directory) ? directory : null;
         }
         catch (JsonException)
@@ -40,14 +41,15 @@ internal sealed partial class RecreateGame
         try
         {
             string initial = playerSaves.OriginalDirectoryCandidates.FirstOrDefault() ?? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-            string? path = await ModelBrowserDialogs.PathAsync(ModelBrowserDialogs.Desktop.SelectFolderAsync(new(LocalizeAuthored("save.original.choose-folder", "Choose the original FINAL FANTASY VIII save folder (containing slot1_save01.ff8)"), initial)));
+            string prompt = InFf7 ? "Choose the original FINAL FANTASY VII save folder (containing save00.ff7)" : LocalizeAuthored("save.original.choose-folder", "Choose the original FINAL FANTASY VIII save folder (containing slot1_save01.ff8)");
+            string? path = await ModelBrowserDialogs.PathAsync(ModelBrowserDialogs.Desktop.SelectFolderAsync(new(prompt, initial)));
             if (path is null)
             {
                 return;
             }
             playerSaves.SetOriginalDirectory(path);
             Directory.CreateDirectory(globalSettings.DirectoryPath);
-            File.WriteAllText(globalSettings.SaveBanksPath, JsonSerializer.Serialize(new SaveBankPreferences(playerSaves.OriginalDirectory)));
+            File.WriteAllText(InFf7 ? Path.Combine(globalSettings.DirectoryPath, "ff7-save-banks.json") : globalSettings.SaveBanksPath, JsonSerializer.Serialize(new SaveBankPreferences(playerSaves.OriginalDirectory)));
             if (transferring)
             {
                 saveMenu.RequestTransfer();
@@ -75,6 +77,11 @@ internal sealed partial class RecreateGame
 
     private async Task TransferPlayerSaveAsync(int source, int destination)
     {
+        if (InFf7)
+        {
+            playerSaves.TransferFf7(source, destination);
+            return;
+        }
         if (source <= PlayerSaveStore.MemoriaSlotCount && destination > PlayerSaveStore.MemoriaSlotCount)
         {
             CrossoverSaveAdapter.EnsureOriginalExportAllowed(playerSaves.GetPath(source));

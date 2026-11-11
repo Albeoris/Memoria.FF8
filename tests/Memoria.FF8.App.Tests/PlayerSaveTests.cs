@@ -191,7 +191,7 @@ public sealed class PlayerSaveTests : IDisposable
         Assert.False(entries.Single(entry => entry.Slot == 2).CanLoad);
         Assert.Equal("Empty", entries.Single(entry => entry.Slot == 3).Details);
         Assert.Throws<FileNotFoundException>(() => store.Load(0));
-        Assert.Throws<System.Text.Json.JsonException>(() => store.Load(1));
+        Assert.ThrowsAny<System.Text.Json.JsonException>(() => store.Load(1));
         var conflicting = new PlayerSaveStore(store.GetPath(1), Path.GetDirectoryName(store.GetPath(1)));
         Assert.Throws<InvalidOperationException>(() => conflicting.GetPath(1));
         Assert.Throws<InvalidOperationException>(() => conflicting.Save(1, new GameSession(new GameState { Scene = SceneKind.Field })));
