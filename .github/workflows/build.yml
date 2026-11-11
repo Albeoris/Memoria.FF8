@@ -51,6 +51,7 @@ jobs:
         id: distribution
         uses: actions/github-script@v9
         with:
+          retries: 3
           script: |
             const findDistribution = require('./.github/scripts/find-distribution.cjs');
             await findDistribution({ github, context, core, rid: '${{ matrix.rid }}' });
