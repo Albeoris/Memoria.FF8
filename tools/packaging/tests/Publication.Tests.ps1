@@ -8,6 +8,7 @@ New-Item -ItemType Directory -Path $temporary | Out-Null
 $source = 'a' * 40
 $global:MemoriaPublicationTestCalls = [Collections.Generic.List[string[]]]::new()
 $global:MemoriaPublicationVersionCalls = [Collections.Generic.List[object]]::new()
+$global:MemoriaPublicationReleaseNotes = $null
 # Exercise publication offline; no external gh executable is called.
 function gh {
     $global:MemoriaPublicationTestCalls.Add([string[]]$args)
@@ -18,7 +19,35 @@ function gh {
     if ($args[0] -eq 'release' -and $args[1] -eq 'view') {
         $global:LASTEXITCODE = 1
     }
+    if ($args[0] -eq 'api' -and $args[2] -like '*/releases?per_page=100') {
+        return 'v1.2.2', 'v1.2.0', 'v1.2.10', 'v1.2.1'
+    }
+    if ($args[0] -eq 'api' -and $args[3] -like '*/releases/generate-notes') {
+        return @"
+## What's Changed
+* Squashed change by @contributor in https://github.com/$env:GITHUB_REPOSITORY/pull/42
+
+**Full Changelog**: https://github.com/$env:GITHUB_REPOSITORY/compare/v1.2.1...v1.2.3
+"@
+    }
+    if ($args[0] -eq 'api' -and $args[2] -like '*/commits/*/pulls?per_page=100' -and $args[2] -like "*/commits/$squash/pulls?per_page=100") {
+        return '42'
+    }
+    if ($args[0] -eq 'release' -and $args[1] -eq 'create' -and $args -contains '--notes-file') {
+        $global:MemoriaPublicationReleaseNotes = Get-Content -LiteralPath $args[([Array]::IndexOf($args, '--notes-file') + 1)] -Raw
+    }
 }
+function Invoke-TestGit([string[]]$Arguments) {
+    $output = & git -C $temporary -c user.name='Release Notes Test' -c user.email='release-notes@example.invalid' @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Could not construct the release history fixture.'
+    }
+    $output
+}
+$savedRepository = $env:GITHUB_REPOSITORY
+$savedServer = $env:GITHUB_SERVER_URL
+$env:GITHUB_REPOSITORY = 'owner/repository'
+$env:GITHUB_SERVER_URL = 'https://github.com'
 try {
     foreach ($rid in @('win-x64', 'linux-x64', 'osx-x64', 'osx-arm64')) {
         $extension = if ($rid -eq 'win-x64') { '.zip' } else { '.tar.gz' }
@@ -32,6 +61,7 @@ try {
     New-Item -ItemType Directory -Path $testTools | Out-Null
     $publisher = Join-Path $testTools 'Publish-Distributions.ps1'
     Copy-Item -LiteralPath (Join-Path $product 'tools/Publish-Distributions.ps1') -Destination $publisher
+    Copy-Item -LiteralPath (Join-Path $product 'tools/Get-ReleaseNotes.ps1') -Destination $testTools
     Set-Content -LiteralPath (Join-Path $testTools 'Set-DistributionVersion.ps1') -Encoding utf8NoBOM -Value @'
 param([string]$ArchivePath, [string]$Version, [string]$BuildId)
 $global:MemoriaPublicationVersionCalls.Add(@{ ArchivePath = $ArchivePath; Version = $Version; BuildId = $BuildId })
@@ -82,14 +112,47 @@ $global:MemoriaPublicationVersionCalls.Add(@{ ArchivePath = $ArchivePath; Versio
     }
     Set-Content -LiteralPath $macReceiptPath -Value $macReceiptText -Encoding utf8NoBOM
     $version = 'v1.2.3'
+    $null = Invoke-TestGit @('init', '--quiet', '--object-format=sha1')
+    $tree = Invoke-TestGit @('write-tree')
+    $root = Invoke-TestGit @('commit-tree', $tree, '-m', 'Old release')
+    $prior = Invoke-TestGit @('commit-tree', $tree, '-p', $root, '-m', 'Prior release on second parent')
+    $unrelated = Invoke-TestGit @('commit-tree', $tree, '-p', $root, '-m', 'Unrelated release')
+    $direct = Invoke-TestGit @('commit-tree', $tree, '-p', $root, '-m', 'Direct change with [brackets] & a <tag>')
+    $squash = Invoke-TestGit @('commit-tree', $tree, '-p', $direct, '-m', 'Squash subject already covered by PR')
+    $source = Invoke-TestGit @('commit-tree', $tree, '-p', $squash, '-p', $prior, '-m', 'Publication merge')
+    Invoke-TestGit @('tag', 'v1.2.0', $root)
+    Invoke-TestGit @('tag', 'v1.2.1', $prior)
+    Invoke-TestGit @('tag', 'v1.2.2', $unrelated)
+    Invoke-TestGit @('tag', 'v1.2.2.1', $direct)
+    Invoke-TestGit @('tag', $version, $source)
+    Invoke-TestGit @('tag', 'v1.2.10', $source)
+    foreach ($receiptPath in (Get-ChildItem -LiteralPath $temporary -Filter 'receipt-*.json')) {
+        $receipt = Get-Content -LiteralPath $receiptPath.FullName -Raw | ConvertFrom-Json
+        $receipt.source = $source
+        $receipt | ConvertTo-Json | Set-Content -LiteralPath $receiptPath.FullName -Encoding utf8NoBOM
+    }
     $global:MemoriaPublicationTestCalls.Clear()
-    & $publisher -Directory $temporary -Source $source -Reference $version
+    Push-Location -LiteralPath $temporary
+    try {
+        & $publisher -Directory $temporary -Source $source -Reference $version
+    }
+    finally {
+        Pop-Location
+    }
     $create = @($global:MemoriaPublicationTestCalls | Where-Object { $_[0] -eq 'release' -and $_[1] -eq 'create' })
     if ($create.Count -ne 1 -or $create[0][2] -cne $version -or $create[0] -notcontains '--verify-tag' -or $create[0] -contains '--target' -or $create[0] -contains '--prerelease') {
         throw 'Versioned release creation must verify the existing tag without specifying a target commit.'
     }
     if ($global:MemoriaPublicationVersionCalls.Count -ne 0) {
         throw 'Tagged publication must reuse every tested archive without version stamping.'
+    }
+    $generate = @($global:MemoriaPublicationTestCalls | Where-Object { $_[3] -like '*/releases/generate-notes' })
+    if ($generate.Count -ne 1 -or $generate[0] -notcontains 'previous_tag_name=v1.2.1') {
+        throw 'Release notes must compare against the preceding published stable ancestor, including second parents.'
+    }
+    $notes = $global:MemoriaPublicationReleaseNotes
+    if ($notes -notlike "*$direct*" -or !$notes.Contains('Direct change with \[brackets\] &amp; a &lt;tag&gt;') -or $notes -notlike '*/pull/42*' -or $notes -notlike '*/compare/v1.2.1...v1.2.3*' -or $notes -match 'Squash subject|Old release|Publication merge|Prior release') {
+        throw 'Release notes must combine direct commits and GitHub pull requests without repeating commits already represented by a PR.'
     }
     $publication = Get-Content -LiteralPath (Join-Path $temporary 'release-artifacts.json') -Raw | ConvertFrom-Json
     if ($publication.channel -cne $version -or $publication.source -cne $source) {
@@ -102,9 +165,11 @@ $global:MemoriaPublicationVersionCalls.Add(@{ ArchivePath = $ArchivePath; Versio
             throw 'Both release channels must retain the tested archive digest.'
         }
     }
-    Write-Output 'Four-target publication, nightly and existing-tag creation, immutable archive reuse and invalid receipt rejection passed offline.'
+    Write-Output 'Four-target publication, release notes, immutable archive reuse and invalid receipt rejection passed offline.'
 }
 finally {
+    $env:GITHUB_REPOSITORY = $savedRepository
+    $env:GITHUB_SERVER_URL = $savedServer
     if ([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($temporary)) -ne [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd([IO.Path]::DirectorySeparatorChar)) {
         throw 'Test cleanup escaped its dedicated temporary root.'
     }

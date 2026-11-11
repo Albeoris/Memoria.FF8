@@ -23,6 +23,11 @@ the complete platform set to the `nightly` prerelease. A version tag such as
 write permission. Manual runs follow the selected branch or tag's publication
 gate.
 
+Versioned release notes compare against the highest lower published stable tag
+reachable from the release commit, including through a merge's second parent.
+`What's Changed` includes direct commits with links alongside GitHub's pull
+request summaries.
+
 Packaging is serialized by source and platform, with a queue that retains pending
 publications. Pushing main and a tag still creates two workflow runs, but only
 the first job for each source/RID builds and tests. The next job reuses its

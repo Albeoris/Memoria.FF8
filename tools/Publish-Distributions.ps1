@@ -51,14 +51,21 @@ $publication = @{ source = $Source; channel = $tag; artifacts = @($archives | Fo
 $publication | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $Directory 'release-artifacts.json') -Encoding utf8NoBOM
 & gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
 if ($LASTEXITCODE -ne 0) {
-    $create = @('release', 'create', $tag, '--repo', $env:GITHUB_REPOSITORY, '--generate-notes')
+    $create = @('release', 'create', $tag, '--repo', $env:GITHUB_REPOSITORY)
     if ($tag -eq 'nightly') {
-        $create += @('--target', $Source, '--prerelease')
+        Invoke-Gh ($create + @('--target', $Source, '--prerelease', '--generate-notes'))
     }
     else {
-        $create += '--verify-tag'
+        $notes = & (Join-Path $PSScriptRoot 'Get-ReleaseNotes.ps1') -Tag $tag -Source $Source -Repository $env:GITHUB_REPOSITORY
+        $notesFile = [IO.Path]::GetTempFileName()
+        try {
+            [IO.File]::WriteAllText($notesFile, $notes)
+            Invoke-Gh ($create + @('--verify-tag', '--notes-file', $notesFile))
+        }
+        finally {
+            Remove-Item -LiteralPath $notesFile
+        }
     }
-    Invoke-Gh $create
 }
 if ($tag -eq 'nightly') {
     Invoke-Gh @('api', '--method', 'PATCH', "repos/$env:GITHUB_REPOSITORY/git/refs/tags/nightly", '-f', "sha=$Source", '-F', 'force=true')
