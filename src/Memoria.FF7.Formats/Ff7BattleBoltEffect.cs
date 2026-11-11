@@ -6,6 +6,7 @@ public sealed record Ff7BattleBoltStrike(short X, short Y, short Z, int Collisio
 public sealed record Ff7BattleBoltSpark(short X, short Y, short Z, int CollisionRadius, int Flip, int Frame = 0);
 public sealed record Ff7BattleBoltState(ushort TargetMask, int Frame = -1, IReadOnlyList<Ff7BattleBoltStrike>? Strikes = null, IReadOnlyList<Ff7BattleBoltSpark>? Sparks = null)
 {
+    public Ff7BattlePrimaryState? Primary { get; init; }
     public bool Completed => Frame >= 16 + (BitOperations.PopCount(TargetMask) - 1) * 2 && Sparks is not { Count: > 0 };
 }
 
@@ -19,7 +20,7 @@ public static class Ff7BattleBoltEffect
         {
             throw new ArgumentOutOfRangeException(nameof(targetMask));
         }
-        return new(targetMask);
+        return new(targetMask) { Primary = Ff7BattlePrimaryEffects.ScheduleBolt(new(), targetMask) };
     }
 
     public static Ff7BattleBoltUpdate Advance(Ff7BattleBoltState state, Func<int, Vector3> targetAnchor, Func<int, int> collisionRadius, Func<int> nextVisualRandom)
@@ -32,42 +33,9 @@ public static class Ff7BattleBoltEffect
         {
             return new(state, 0);
         }
-        int frame = state.Frame + 1;
-        List<Ff7BattleBoltSpark> sparks = [];
-        foreach (Ff7BattleBoltSpark spark in state.Sparks ?? [])
-        {
-            if (spark.Frame < 7)
-            {
-                sparks.Add(spark with { Frame = spark.Frame + 1 });
-            }
-        }
-
-        List<Ff7BattleBoltStrike> strikes = (state.Strikes ?? []).ToList();
-        int ordinal = 0;
-        ushort impacts = 0;
-        for (int slot = 0; slot < 10; slot++)
-        {
-            if ((state.TargetMask & (1 << slot)) == 0)
-            {
-                continue;
-            }
-            int localFrame = frame - ordinal * 2;
-            if (localFrame == 0)
-            {
-                Vector3 point = targetAnchor(slot);
-                strikes.Add(new((short)point.X, (short)point.Y, (short)point.Z, collisionRadius(slot), frame));
-                impacts |= (ushort)(1 << slot);
-            }
-            if (localFrame is >= 2 and <= 15)
-            {
-                Ff7BattleBoltStrike strike = strikes[ordinal];
-                short x = (short)(strike.X + nextVisualRandom() % 1000 - 500);
-                short y = (short)(strike.Y + nextVisualRandom() % 1000 - 500);
-                short z = (short)(strike.Z + nextVisualRandom() % 1000 - 500);
-                sparks.Add(new(x, y, z, strike.CollisionRadius, nextVisualRandom() & 3));
-            }
-            ordinal++;
-        }
-        return new(state with { Frame = frame, Strikes = strikes.AsReadOnly(), Sparks = sparks.AsReadOnly() }, impacts);
+        Ff7BattlePrimaryContext context = new((actor, _, point) => targetAnchor(actor) + point, _ => default, collisionRadius, nextVisualRandom, JointPoint: (actor, _) => targetAnchor(actor));
+        Ff7BattlePrimaryState previous = state.Primary ?? Ff7BattlePrimaryEffects.ImportBolt(new() { Tick = state.Frame }, state, context);
+        Ff7BattlePrimaryState primary = Ff7BattlePrimaryEffects.Advance(previous, context);
+        return new(Ff7BattlePrimaryEffects.ProjectBolt(primary, state, retainPrimary: true), primary.ImpactTargets);
     }
 }

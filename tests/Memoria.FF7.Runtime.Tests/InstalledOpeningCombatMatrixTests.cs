@@ -181,13 +181,15 @@ internal static class InstalledOpeningCombatMatrixTests
                     Ff7BattleSession battle = new(formation, progress, kernel, materiaModifiers, 1, snapshot: snapshot, animations: animations);
                     bool active = false;
                     bool restored = false;
+                    bool silkRestored = false;
                     try
                     {
                         for (int tick = 0; tick < 3500; tick++)
                         {
                             battle.Advance(waitForCommand: true);
                             active |= battle.Action is { Command: { } current } && current.ActorSlot == slot && (current.AttackId ?? current.Argument) == selector.AttackId;
-                            if (active && !restored && battle.Action is { Applied: true })
+                            bool liveSilk = record.Data.AttackEffect == 0x02 && !silkRestored && battle.Action is { SilkStarted: true } && battle.PrimaryEffects?.Draws.Any(draw => draw is Ff7BattlePrimarySilkLineDraw) == true;
+                            if (active && ((!restored && battle.Action is { Applied: true }) || liveSilk))
                             {
                                 Ff7BattleSnapshot saved = JsonSerializer.Deserialize<Ff7BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!;
                                 Ff7BattleSession cold = new(formation, progress, kernel, materiaModifiers, 1, snapshot: saved, animations: animations);
@@ -202,6 +204,7 @@ internal static class InstalledOpeningCombatMatrixTests
                                 }
                                 battle = cold;
                                 restored = true;
+                                silkRestored |= liveSilk;
                             }
                             if (active && battle.Action is null)
                             {
@@ -213,7 +216,7 @@ internal static class InstalledOpeningCombatMatrixTests
                     {
                         throw new InvalidOperationException($"Enemy {enemy.Placement.EnemyId}, original action {selector.AttackId:X4}/{selector.ActionAnimation} in formation {formation.FormationId}.", exception);
                     }
-                    if (!active || !restored || battle.Action is not null)
+                    if (!active || !restored || battle.Action is not null || record.Data.AttackEffect == 0x02 && !silkRestored)
                     {
                         throw new InvalidOperationException($"Enemy {enemy.Placement.EnemyId} original action {selector.AttackId:X4}/{selector.ActionAnimation} did not complete.");
                     }

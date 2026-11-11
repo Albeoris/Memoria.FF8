@@ -9,14 +9,6 @@ public sealed partial class Ff7BattleSession
     public Ff7BattleSecondaryState? SecondaryEffects => state.SecondaryEffects;
     public Ff7BattleStageFadeState? StageFade => state.StageFade;
 
-    private void AdvanceStageFade()
-    {
-        if (state.StageFade is { } fade)
-        {
-            state = state with { StageFade = Ff7BattleStageFade.Advance(fade) };
-        }
-    }
-
     private Ff7BattleSecondaryState EnsureSecondaryEffects()
     {
         if (state.SecondaryEffects is { } current)

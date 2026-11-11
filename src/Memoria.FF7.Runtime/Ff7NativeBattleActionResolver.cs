@@ -135,6 +135,16 @@ public static class Ff7NativeBattleActionResolver
 
     private static uint ReadStatusMask(Ff7BattleAttack? record) => record is not null && record.StatusChange < 0xC0 ? record.StatusMask : 0;
 
+    public static Ff7BattleActionReceipt ApplyPreparedHpDamage(Ff7BattleActionVitals source, Ff7BattleActionVitals target, Ff7BattleDamageResult damage)
+    {
+        if (damage.Missed)
+        {
+            return new(source, target, damage, 0, 0);
+        }
+        Ff7BattleActionVitals next = ApplyDamage(target, damage.Damage, false);
+        return new(source, next, damage, next.Statuses & ~target.Statuses, target.Statuses & ~next.Statuses);
+    }
+
     private static bool RollStatus(Ff7BattleAttack record, Ff7BattleDamageAction action, Ff7BattleRng random)
     {
         int threshold = (record.StatusChange & 0x3F) * 4;

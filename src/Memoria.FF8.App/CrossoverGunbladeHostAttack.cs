@@ -31,7 +31,7 @@ internal sealed class CrossoverGunbladeHostAttack : IFf7BattleGuestAttack
 {
     private static readonly NativeBattleVector Origin = new(0, 0, 2200);
     private readonly CrossoverBattleRoster roster;
-    private readonly CrossoverFf8BattleKit kit;
+    private CrossoverFf8BattleKit kit;
     private readonly BattleModel body;
     private readonly BattleModel weapon;
     private readonly NativeBattleGraphicsResource resource;
@@ -75,6 +75,14 @@ internal sealed class CrossoverGunbladeHostAttack : IFf7BattleGuestAttack
     public bool TriggerWindowOpen => Invocation is not null && state.Presentation?.TriggerWindowOpen == true;
     public CrossoverFf8BattleActorVisual? Visual => state.Placement is { } placement && state.Presentation is { } presentation ? new(body, weapon, presentation.Model, placement.Matrix) : null;
     public CrossoverGunbladeHostSnapshot Capture() => state;
+    public void ReprojectKit(CrossoverFf8BattleKit current)
+    {
+        if (current.RecordRow != kit.RecordRow || current.Weapon != kit.Weapon || current.Attack is not { AttackType: 10, Power: 20, Element: 0, Statuses0: 0, Statuses1: 0 } || current.Stats.Hit != 255)
+        {
+            throw new NotSupportedException("The updated guest kit requires an unsupported native physical action profile.");
+        }
+        kit = current;
+    }
     public void ResumeStandingFromCast(NativeBattleGraphicsModel model, long hostTick, long subticks, bool halfSubtick, bool completed = true)
     {
         if (state.Invocation is not null || state.Presentation is null || model.Index != ActorSlot || hostTick < state.HostTick)

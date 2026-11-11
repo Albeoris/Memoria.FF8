@@ -6,14 +6,14 @@ namespace Memoria.FF7.Runtime;
 /// <summary>Explicit debug result policy: defeat the formation's original enemies without combat turns, damage, steals or morphs.</summary>
 public static class Ff7DebugVictory
 {
-    public static Ff7Progress Apply(Ff7Progress progress, SceneFormation formation, IReadOnlyList<KernelSection> kernel, long fieldGeneration, long requestId)
+    public static Ff7Progress Apply(Ff7Progress progress, SceneFormation formation, IReadOnlyList<KernelSection> kernel, long fieldGeneration, long requestId, int? dormantGuestStoryCharacter = null)
     {
         if (kernel.Count < 9)
         {
             throw new InvalidDataException("FFVII victory requires its original growth and equipment kernel sections.");
         }
         Ff7BattleRng random = new(kernel[2].Data.Span, Ff7BattleRng.BeginBattle(progress.BattleRng?.CrtSeed ?? 1));
-        return ApplyResolved(progress, formation, kernel, fieldGeneration, requestId, random);
+        return ApplyResolved(progress, formation, kernel, fieldGeneration, requestId, random, dormantGuestStoryCharacter: dormantGuestStoryCharacter);
     }
 
     internal static Ff7Progress ApplyResolved(Ff7Progress progress, SceneFormation formation, IReadOnlyList<KernelSection> kernel, long fieldGeneration, long requestId, Ff7BattleRng random, Func<SceneEnemyInstance, bool>? defeated = null, int? dormantGuestStoryCharacter = null)

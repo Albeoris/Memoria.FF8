@@ -64,7 +64,7 @@ public sealed partial class Ff7BattleSession
             {
                 ushort targets = Mask(state.Actors.Where(target => target.Actor.Slot >= 4 && IsAlive(target) && (target.Actor.Conditions & 8) != 0 && guestAttack.Supports(DescribeGuestTarget(target.Actor.Slot))));
                 guest.Insert(0, new(Ff7BattleCommand.Attack, 0, targets, true, true));
-                if (guestAttack is IFf7BattleGuestMagic magic && actor.Actor.Statuses == 0 && magic.MagicStock(1) > 0)
+                if (guestAttack is IFf7BattleGuestMagic magic && Ff7GuestBattleStatuses.CanCastMagic(actor.Actor.Statuses) && magic.MagicStock(1) > 0)
                 {
                     ushort magicTargets = Mask(state.Actors.Where(target => target.Actor.Slot >= 4 && IsAlive(target) && (target.Actor.Conditions & 8) != 0 && SupportsGuestAbility(guestAttack, 1, DescribeGuestTarget(target.Actor.Slot))));
                     if (magicTargets != 0)
@@ -210,8 +210,11 @@ public sealed partial class Ff7BattleSession
         }
         if (!active.Applied)
         {
+            BeginSourceModel(active);
             BeginSoundAction();
+            cameraTargetRows = animations is null ? null : [];
             ApplyAction(command);
+            BeginCameraAction(command);
             Ff7BattleHit? hit = state.LastHit is { } current && current.Tick == Tick ? current : null;
             active = active with { Applied = true, PendingDisplayHit = hit };
         }
@@ -224,8 +227,11 @@ public sealed partial class Ff7BattleSession
             ushort? limit = command.CommandId == (byte)Ff7BattleCommand.Limit ? command.Argument : null;
             BattleActionSequence sequence = presentation.Get(model, active.Animation, limit);
             // TODO(TD-024) Bind the remaining original effect callbacks after native asset readiness.
-            BattleActionPoseUpdate update = sequence.Advance(active.Pose ?? new(), effectReady: true);
+            AdvanceActorReactionModels(actorModelCursor, command.ActorSlot);
+            actorModelCursor = command.ActorSlot + 1;
+            BattleActionPoseUpdate update = sequence.Advance(active.Pose ?? new(), effectReady: true, primaryCallbacksReady: !HasPrimaryPresentationCallbacks, linkedActorReady: LinkedModelReady(command.ActorSlot));
             active = active with { Pose = update.State };
+            PublishSourceModel(active, update.State);
             foreach (BattleActionInstruction instruction in update.Events)
             {
                 if (instruction.Opcode is 0xF7 or 0xBE && command.TargetMask != 0)
@@ -235,6 +241,14 @@ public sealed partial class Ff7BattleSession
                     {
                         active = ScheduleTargetReactions(active, command.TargetMask, instruction.Operands.Span[0]);
                     }
+                }
+                else if (instruction.Opcode == 0x92)
+                {
+                    SetCameraActiveAction();
+                }
+                else if (instruction.Opcode == 0xB9)
+                {
+                    SetCameraEntry(instruction.Operands.Span[0]);
                 }
                 else if (instruction.Opcode == 0xD1)
                 {
@@ -295,13 +309,18 @@ public sealed partial class Ff7BattleSession
                 }
             }
             state = state with { Action = active };
-            active = AdvanceEffects(active);
-            active = AdvanceTargetReactions(active);
-            if (!update.State.Completed || HasTargetReactions(active) || active.EffectRunning)
-            {
-                state = state with { Action = active };
-                return;
-            }
+            AdvanceCameraPresentation();
+        }
+        state = state with { Action = active };
+    }
+
+    private void FinishActionPresentation(Ff7BattleActionState active)
+    {
+        Ff7BattleQueuedCommand command = active.Command;
+        if (animations is not null && active.Animation >= 0 && active.Pose?.Completed != true || HasTargetReactions(active) || active.EffectRunning)
+        {
+            state = state with { Action = active };
+            return;
         }
         if (command.Priority != 0 && command.CommandId != 0x23)
         {
@@ -310,16 +329,9 @@ public sealed partial class Ff7BattleSession
         state = state with { Action = null, DisplayedHit = active.PendingDisplayHit is { } undisplayed ? undisplayed with { Tick = Tick } : state.DisplayedHit };
     }
 
-    private Ff7BattleActionState AdvanceTargetReactions(Ff7BattleActionState active)
+    private Ff7BattleActionState PublishTargetReactions(Ff7BattleActionState active, IEnumerable<int> targets)
     {
-        Ff7BattleReactionState reactions = TargetReactionState(active);
-        if (reactions.Pending.Length == 0)
-        {
-            return active;
-        }
-        Ff7BattleReactionUpdate update = Ff7BattleReactionClock.Advance(reactions, false);
-        active = active with { TargetReactions = update.State, Reactions = null };
-        foreach (int slot in update.Targets)
+        foreach (int slot in targets)
         {
             QueueImpactPresentation(active.Command, slot);
             Ff7BattleHit? hit = active.PendingDisplayHit;
@@ -336,9 +348,10 @@ public sealed partial class Ff7BattleSession
         return active;
     }
 
-    private static Ff7BattleActionState ScheduleTargetReactions(Ff7BattleActionState action, ushort targets, byte delay)
+    private Ff7BattleActionState ScheduleTargetReactions(Ff7BattleActionState action, ushort targets, byte delay)
     {
-        return action with { TargetReactions = Ff7BattleReactionClock.Schedule(TargetReactionState(action), targets, delay), Reactions = null };
+        state = state with { PrimaryEffects = Ff7BattlePrimaryEffects.ScheduleTargetReactions(EnsurePrimaryEffects(), targets, delay) };
+        return action with { TargetReactions = null, Reactions = null, PrimaryCallbacksRunning = true };
     }
 
     private static bool HasTargetReactions(Ff7BattleActionState action)
@@ -469,6 +482,7 @@ public sealed partial class Ff7BattleSession
         {
             Replace(source with { Actor = source.Actor with { HitPoints = result.Source.Hp, MagicPoints = result.Source.Mp, Statuses = result.Source.Statuses } });
         }
+        cameraTargetRows?.Add(targetSlot);
         CaptureImpactPresentation(command, targetSlot, source, result.Damage, record);
         PublishHit(command, target, action, result);
     }

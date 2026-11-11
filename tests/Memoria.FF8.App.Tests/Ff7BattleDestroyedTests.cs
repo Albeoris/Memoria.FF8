@@ -66,7 +66,8 @@ public sealed class Ff7BattleDestroyedTests
             renderer.Render(gpu, 320, 240, new(data.Cameras[0], []) { Destroyed = saved });
             var cold = GpuTestDevice.Read(gpu.Target);
             Assert.Equal(first, cold);
-            renderer.Render(gpu, 320, 240, new(data.Cameras[0], []) { Destroyed = state with { Sprites = [] } });
+            Ff7BattlePrimaryState? pulse = state.Primary is { } primary ? primary with { Draws = primary.Draws.Where(draw => draw is not Ff7BattlePrimaryDestroyedSpriteDraw).ToArray() } : null;
+            renderer.Render(gpu, 320, 240, new(data.Cameras[0], []) { Destroyed = state with { Sprites = [], Primary = pulse } });
             var pulseOnly = GpuTestDevice.Read(gpu.Target);
             if (first.Zip(pulseOnly).Count(pair => pair.First != pair.Second) > 16)
             {

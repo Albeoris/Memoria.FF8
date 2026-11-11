@@ -1,6 +1,9 @@
 namespace Memoria.FF7.Formats;
 
-public sealed record BattleActionPoseState(int NextInstruction = 0, int ClipIndex = -1, int ClipFrame = 0, byte WaitFrames = 0, bool Completed = false, byte PresetWaitFrames = 15);
+public sealed record BattleActionPoseState(int NextInstruction = 0, int ClipIndex = -1, int ClipFrame = 0, byte WaitFrames = 0, bool Completed = false, byte PresetWaitFrames = 15)
+{
+    public byte? TerminalOpcode { get; init; }
+}
 public sealed record BattleActionPoseUpdate(BattleActionPoseState State, IReadOnlyList<BattleActionInstruction> Events);
 
 /// <summary>Advances the clip and script owners by one native animation callback.</summary>
@@ -41,7 +44,7 @@ public sealed class BattleActionSequence
         return new(instructions, model.BodyClips, alternateRowIndex);
     }
 
-    public BattleActionPoseUpdate Advance(BattleActionPoseState state, bool effectReady = false, bool alternateRowBranch = false, int idleClipFrame = 0)
+    public BattleActionPoseUpdate Advance(BattleActionPoseState state, bool effectReady = false, bool alternateRowBranch = false, int idleClipFrame = 0, bool primaryCallbacksReady = true, bool linkedActorReady = true)
     {
         ArgumentNullException.ThrowIfNull(state);
         if (state.Completed)
@@ -98,6 +101,10 @@ public sealed class BattleActionSequence
                 }
                 continue;
             }
+            if (opcode == 0x9E && (!primaryCallbacksReady || !linkedActorReady))
+            {
+                return new(state with { NextInstruction = index }, events.AsReadOnly());
+            }
             if (opcode is 0x9E or 0xEB or 0xEC && !effectReady)
             {
                 return new(state with { NextInstruction = index }, events.AsReadOnly());
@@ -124,7 +131,7 @@ public sealed class BattleActionSequence
             events.Add(instruction);
             if (opcode is 0x9E or 0xEE or 0xFF)
             {
-                return new(state with { NextInstruction = index + 1, Completed = true }, events.AsReadOnly());
+                return new(state with { NextInstruction = index + 1, Completed = true, TerminalOpcode = opcode }, events.AsReadOnly());
             }
         }
         throw new InvalidDataException("FFVII battle action exhausted its instructions before transferring to idle.");

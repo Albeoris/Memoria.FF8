@@ -4,11 +4,12 @@ using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
+using System.Collections.Immutable;
 
 namespace Memoria.FF8;
 
 internal sealed record CrossoverBattleVitalsSettlementResult(CombinedSessionSave Save, Ff7GuestBattleSettlementReceipt Receipt);
-internal sealed record CrossoverGuestMagicSettlement(CrossoverBattleRoster Roster, CrossoverBattleStockSnapshot Stock, NativeCrtRandomState? OriginCrtRandom, NativeCrtRandomState CrtRandom);
+internal sealed record CrossoverGuestMagicSettlement(CrossoverBattleRoster Roster, CrossoverBattleStockSnapshot Stock, NativeCrtRandomState? OriginCrtRandom, NativeCrtRandomState CrtRandom, ImmutableArray<CrossoverGuestCommittedSpell> Costs, bool LegacyBattleMaskContinuation = false);
 
 /// <summary>Stages an FFVII field continuation and FFVIII character update together from immutable source snapshots.</summary>
 internal static class CrossoverBattleVitalsSettlement
@@ -77,25 +78,27 @@ internal static class CrossoverBattleVitalsSettlement
             throw new InvalidDataException("The suspended Squall record no longer matches the admitted guest vitals.");
         }
         Ff7BattleAiActor projected = battle.Actors.Single(actor => actor.Actor.Slot == binding.HostSlot && actor.Identity == binding.StoryCharacter).Actor;
-        ushort hp = checked((ushort)projected.HitPoints);
-        if (hp > binding.MaximumHp || (projected.Statuses & ~Ff7GuestBattleStatuses.SupportedHost) != 0 || (hp == 0) != ((projected.Statuses & 1) != 0))
-        {
-            throw new InvalidDataException("Guest settlement supports exact HP and semantic KO only.");
-        }
-        NativeHpWord exactHp = original.WithSavedHitPoints(row, hp).Records[row].HitPoints;
-        GameplaySaveCharacters characters = document.Characters;
+        NativeCharacterVitals finalStock = original;
         if (magic is not null)
         {
             if (magic.Roster.EncounterId != binding.EncounterId || magic.Roster.Guest.HostSlot != binding.HostSlot || document.Progression?.Clocks.CrtRandom != magic.OriginCrtRandom)
             {
                 throw new InvalidDataException("Guest magic settlement has a different encounter or original visual RNG owner.");
             }
-            NativeCharacterVitals stock = magic.Stock.Restore(magic.Roster, original);
-            if (stock.MagicSystem.Reservations.Length != 0 || stock.Records.Where((record, index) => record with { MagicInventory = original.Records[index].MagicInventory } != original.Records[index]).Any())
-            {
-                throw new InvalidDataException("Guest spell settlement contains an unfinished stock reservation or unrelated character change.");
-            }
-            characters = document.Characters with { Records = stock.Records, Magic = GameplaySaveCharacters.Capture(stock).Magic };
+            finalStock = RestoreCommittedStock(magic, original, row);
+        }
+        ushort maximumHp = finalStock.GetMagicMaximumHitPoints(row);
+        Ff7BattleGuestProjection currentProjection = battle.GuestProjection ?? new(binding.MaximumHp, binding.Level, binding.Luck, binding.Defense, binding.MagicDefense);
+        ushort hp = checked((ushort)projected.HitPoints);
+        if (maximumHp != currentProjection.MaximumHp || projected.MaxHitPoints != maximumHp || hp > maximumHp || (projected.Statuses & ~Ff7GuestBattleStatuses.SupportedHost) != 0 || (hp == 0) != ((projected.Statuses & 1) != 0))
+        {
+            throw new InvalidDataException("Guest settlement supports exact HP and semantic KO only.");
+        }
+        NativeHpWord exactHp = finalStock.WithSavedHitPoints(row, hp).Records[row].HitPoints;
+        GameplaySaveCharacters characters = document.Characters;
+        if (magic is not null)
+        {
+            characters = document.Characters with { Records = finalStock.Records, Magic = GameplaySaveCharacters.Capture(finalStock).Magic };
         }
         NativeCharacterVital[] rows = (NativeCharacterVital[])characters.Records.Clone();
         rows[row] = rows[row] with { HitPoints = exactHp, Status = Ff7GuestBattleStatuses.ToOrigin(projected.Statuses) };
@@ -145,6 +148,32 @@ internal static class CrossoverBattleVitalsSettlement
         => Hash(JsonSerializer.SerializeToUtf8Bytes(host.Progress.Characters.Single(character => character.Id == storyCharacter)));
 
     private static string Hash(byte[] payload) => Convert.ToHexString(SHA256.HashData(payload));
+
+    private static NativeCharacterVitals RestoreCommittedStock(CrossoverGuestMagicSettlement magic, NativeCharacterVitals original, int row)
+    {
+        NativeCharacterVitals actual = magic.Stock.Restore(magic.Roster, original);
+        if (actual.MagicSystem.Reservations.Length != 0 || magic.Costs.IsDefault || magic.Costs.IsEmpty)
+        {
+            throw new InvalidDataException("Guest spell settlement requires completed native stock costs.");
+        }
+        string encounter = $"mixed:{magic.Roster.EncounterId:N}";
+        NativeCharacterVitals expected = magic.LegacyBattleMaskContinuation ? original with { MagicSystem = original.MagicSystem with { EncounterId = encounter } } : MagicCastingService.BeginEncounter(original, encounter);
+        for (int index = 0; index < magic.Costs.Length; index++)
+        {
+            CrossoverGuestCommittedSpell cost = magic.Costs[index];
+            if (cost.Ordinal != index + 1 || cost.Spell != 1 || cost.OriginRow != row)
+            {
+                throw new InvalidDataException("Guest spell settlement contains a foreign cost occurrence.");
+            }
+            string action = $"{encounter}:{cost.Ordinal.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+            expected = MagicCastingService.Commit(MagicCastingService.Reserve(expected, row, cost.Spell, MagicCastContext.Battle, action), action);
+        }
+        if (!actual.Records.SequenceEqual(expected.Records) || JsonSerializer.Serialize(actual.MagicSystem) != JsonSerializer.Serialize(expected.MagicSystem))
+        {
+            throw new InvalidDataException("Guest spell stock or junction state differs from its native committed cost projection.");
+        }
+        return actual;
+    }
 
     private static byte Project(int value, int from, int to, int sourceCap, int targetCap)
         => checked((byte)(value <= from ? value * to / from : to + (value - from) * (targetCap - to) / (sourceCap - from)));

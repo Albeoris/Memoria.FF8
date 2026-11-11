@@ -14,28 +14,29 @@ public sealed partial class Ff7BattleSession
             byte effect = Data.Attacks.Single(attack => attack.Slot == command.Argument && attack.Id == command.AttackId).Data.AttackEffect;
             return effect switch
             {
+                0x02 when !action.SilkStarted => StartPrimarySilk(action),
                 0x13 when action.Rockets is null => action with { Rockets = Ff7BattleRocketEffect.Start(command.TargetMask) },
                 0x15 when action.Smog is null => action with { Smog = Ff7BattleSmogEffect.Start(command.TargetMask) },
                 0x40 when action.SmokeShot is null => action with { SmokeShot = Ff7BattleSmokeShotEffect.Start(command.TargetMask) },
                 0x4B when action.SearchScope is null => StartSearchScope(action),
-                0x5A when action.Destroyed is null => action with { Destroyed = Ff7BattleDestroyedEffect.Start(command.TargetMask) },
+                0x5A when action.Destroyed is null => StartPrimaryDestroyed(action),
                 _ => action
             };
         }
         ushort? spell = command.CommandId is (byte)Ff7BattleCommand.Magic or (byte)Ff7BattleCommand.Limit ? command.Argument : null;
         return spell switch
         {
-            0x00 when action.Cure is null => action with { Cure = Ff7BattleCureEffect.Start(command.TargetMask) },
+            0x00 when action.Cure is null => StartPrimaryCure(action, Ff7BattleCureKind.Cure),
             0x1B when action.Fire is null => action with { Fire = Ff7BattleFireEffect.Start(command.TargetMask) },
             0x1E when action.Ice is null => action with { Ice = Ff7BattleIceEffect.Start(command.TargetMask) },
-            0x21 when action.Bolt is null => action with { Bolt = Ff7BattleBoltEffect.Start(command.TargetMask) },
+            0x21 when action.Bolt is null => StartPrimaryBolt(action),
             0x80 when action.Braver is null => action with { Braver = Ff7BattleBraverEffect.Start(command.TargetMask) },
             0x87 when action.BigShot is null => action with { BigShot = Ff7BattleBigShotEffect.Start(command.TargetMask, state.BigShotChargeRotation, state.BigShotCounterRotation) },
             _ => action
         };
     }
 
-    private static Ff7BattleActionState StartItemEffect(Ff7BattleActionState action)
+    private Ff7BattleActionState StartItemEffect(Ff7BattleActionState action)
     {
         if (action.Command.Argument == 20 && action.Grenade is null)
         {
@@ -49,7 +50,7 @@ public sealed partial class Ff7BattleSession
             8 => Ff7BattleCureKind.Antidote,
             _ => null
         };
-        return kind is Ff7BattleCureKind item && action.Cure is null ? action with { Cure = Ff7BattleCureEffect.Start(action.Command.TargetMask, item) } : action;
+        return kind is Ff7BattleCureKind item && action.Cure is null ? StartPrimaryCure(action, item) : action;
     }
 
     private Ff7BattleActionState AdvanceEffects(Ff7BattleActionState action)
@@ -60,23 +61,6 @@ public sealed partial class Ff7BattleSession
         {
             Ff7BattleRocketUpdate update = Ff7BattleRocketEffect.Advance(rockets, () => JointPoint(action.Command.ActorSlot, 9), ImpactAnchor, random.NextCrt);
             action = action with { Rockets = update.State };
-            impacts |= update.ImpactTargets;
-        }
-        if (action.SearchScope is { Completed: false } scope)
-        {
-            Ff7BattleSearchScopeUpdate update = Ff7BattleSearchScopeEffect.Advance(scope);
-            action = action with { SearchScope = update.State };
-            state = state with { SearchScopeScaleCounter = update.State.ScaleCounter };
-            if (update.State.Frame == 39)
-            {
-                state = state with { StageFade = Ff7BattleStageFade.FadeTo(state.StageFade ?? new(), 0, 10) };
-            }
-            impacts |= update.ImpactTargets;
-        }
-        if (action.Destroyed is { Completed: false } destroyed)
-        {
-            Ff7BattleDestroyedUpdate update = Ff7BattleDestroyedEffect.Advance(destroyed, slot => animations!.BoneCount(ActorModel(slot)), BonePosition, random.NextCrt);
-            action = action with { Destroyed = update.State };
             impacts |= update.ImpactTargets;
         }
         if (action.Smog is { Completed: false } smog)
@@ -107,18 +91,6 @@ public sealed partial class Ff7BattleSession
             action = action with { Ice = update.State };
             impacts |= update.ImpactTargets;
         }
-        if (action.Bolt is { Completed: false } bolt)
-        {
-            Ff7BattleBoltUpdate update = Ff7BattleBoltEffect.Advance(bolt, ImpactAnchor, CollisionRadius, random.NextCrt);
-            action = action with { Bolt = update.State };
-            impacts |= update.ImpactTargets;
-        }
-        if (action.Cure is { Completed: false } cure)
-        {
-            Ff7BattleCureUpdate update = Ff7BattleCureEffect.Advance(cure, slot => animations!.BoneCount(ActorModel(slot)), BonePosition, random.NextCrt);
-            action = action with { Cure = update.State };
-            impacts |= update.ImpactTargets;
-        }
         if (action.Braver is { Completed: false } braver)
         {
             Ff7BattleBraverUpdate update = Ff7BattleBraverEffect.Advance(braver, point => LimitWeaponPoint(action, point), ImpactAnchor, CollisionRadius);
@@ -146,7 +118,7 @@ public sealed partial class Ff7BattleSession
             impacts |= update.ImpactTargets;
         }
         EffectCallbackSounds(beforeEffects, action);
-        return impacts == 0 ? action : ScheduleTargetReactions(action, impacts, 0);
+        return impacts == 0 ? action : PublishTargetReactions(action, Enumerable.Range(0, Ff7NativeAtb.SlotCount).Where(slot => (impacts & (1 << slot)) != 0));
     }
 
     private Vector3 ImpactAnchor(int slot) => JointPoint(slot, 0);
@@ -154,9 +126,11 @@ public sealed partial class Ff7BattleSession
     private Ff7BattleActionState StartSearchScope(Ff7BattleActionState action)
     {
         Ff7BattleQueuedCommand command = action.Command;
-        Ff7BattleSearchScopeState scope = Ff7BattleSearchScopeEffect.Start(command.TargetMask, JointPoint(command.ActorSlot, 9), MeanImpactAnchor(command.TargetMask), state.SearchScopeScaleCounter);
-        state = state with { StageFade = Ff7BattleStageFade.FadeTo(state.StageFade ?? new(), 1024, 10) };
-        return action with { SearchScope = scope };
+        System.Numerics.Vector3 source = JointPoint(command.ActorSlot, 9);
+        System.Numerics.Vector3 center = MeanImpactAnchor(command.TargetMask);
+        Ff7BattlePrimaryState primary = Ff7BattlePrimaryEffects.ScheduleSearchScope(EnsurePrimaryEffects(), command.TargetMask, source, center);
+        state = state with { PrimaryEffects = primary, StageFade = primary.StageFade };
+        return action with { SearchScope = Ff7BattleSearchScopeEffect.Start(command.TargetMask, source, center, state.SearchScopeScaleCounter) with { Primary = null }, PrimaryCallbacksRunning = true };
     }
 
     private Vector3 MeanImpactAnchor(ushort mask)

@@ -1,0 +1,336 @@
+using System.Numerics;
+using System.Text.Json.Serialization;
+
+namespace Memoria.FF7.Formats;
+
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "Callback")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryTargetReaction), "TargetReaction")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryStageFade), "StageFade")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryScopeController), "ScopeController")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryScopeEmitter), "ScopeEmitter")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryScopeSprite), "ScopeSprite")]
+[JsonDerivedType(typeof(Ff7BattlePrimarySilkGroup), "SilkGroup")]
+[JsonDerivedType(typeof(Ff7BattlePrimarySilkController), "SilkController")]
+[JsonDerivedType(typeof(Ff7BattlePrimarySilkLines), "SilkLines")]
+[JsonDerivedType(typeof(Ff7BattlePrimarySilkSprite), "SilkSprite")]
+[JsonDerivedType(typeof(Ff7BattlePrimarySilkStrand), "SilkStrand")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryTargetGroup), "TargetGroup")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryCureController), "CureController")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryCureParticle), "CureParticle")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBoltController), "BoltController")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBoltSpark), "BoltSpark")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryDestroyedController), "DestroyedController")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryDestroyedSprite), "DestroyedSprite")]
+public abstract record Ff7BattlePrimaryCallback
+{
+    public int Owner { get; init; }
+    public int Age { get; init; }
+}
+
+public sealed record Ff7BattlePrimaryStageFade(Ff7BattleStageFadeRamp Ramp) : Ff7BattlePrimaryCallback;
+public sealed record Ff7BattlePrimaryScopeController(ushort Targets, Ff7BattleBraverPoint Source, Ff7BattleSearchScopeBasis Basis, short Length) : Ff7BattlePrimaryCallback;
+public sealed record Ff7BattlePrimaryScopeEmitter(Ff7BattleBraverPoint Source, Ff7BattleSearchScopeBasis Basis, short Length, int Index) : Ff7BattlePrimaryCallback;
+public sealed record Ff7BattlePrimaryScopeSprite(Ff7BattleBraverPoint Position, int Stage = 0) : Ff7BattlePrimaryCallback;
+
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "Packet")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryScopeMeshDraw), "ScopeMesh")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryScopeSpriteDraw), "ScopeSprite")]
+[JsonDerivedType(typeof(Ff7BattlePrimarySilkLineDraw), "SilkLine")]
+[JsonDerivedType(typeof(Ff7BattlePrimarySilkSpriteDraw), "SilkSprite")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryCureDraw), "Cure")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBoltStrikeDraw), "BoltStrike")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBoltSparkDraw), "BoltSpark")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryDestroyedSpriteDraw), "DestroyedSprite")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryDestroyedPulseDraw), "DestroyedPulse")]
+public abstract record Ff7BattlePrimaryDraw
+{
+    public int Slot { get; init; }
+    public int Owner { get; init; }
+}
+
+public sealed record Ff7BattlePrimaryScopeMeshDraw(Ff7BattleBraverPoint Source, Ff7BattleSearchScopeBasis Basis, Ff7BattleSearchScopeMesh Mesh) : Ff7BattlePrimaryDraw;
+public sealed record Ff7BattlePrimaryScopeSpriteDraw(Ff7BattleBraverPoint Position, int Stage, int Frame) : Ff7BattlePrimaryDraw;
+
+public sealed record Ff7BattlePrimaryContext(Func<int, int, Vector3, Vector3> ActorPoint, Func<int, BattleRotationWords> ActorRotation, Func<int, int> CollisionRadius, Func<int> NextCrt, Func<int, int>? BoneCount = null, Func<int, int, Vector3>? JointPoint = null, Func<int, int, int>? JointSelector = null);
+public sealed record Ff7BattlePrimaryHitmark(int Target, int Style);
+public sealed record Ff7BattlePrimaryReactionReceipt(int Target, bool RespectDeathMask);
+
+public sealed record Ff7BattlePrimaryState
+{
+    public IReadOnlyList<Ff7BattlePrimaryCallback?> Slots { get; init; } = new Ff7BattlePrimaryCallback?[Ff7BattlePrimaryEffects.Capacity];
+    public IReadOnlyList<Ff7BattlePrimaryDraw> Draws { get; init; } = [];
+    public IReadOnlyList<ushort> SoundIds { get; init; } = [];
+    public IReadOnlyList<Ff7BattlePrimaryHitmark> Hitmarks { get; init; } = [];
+    public IReadOnlyList<Ff7BattlePrimaryReactionReceipt> TargetReactions { get; init; } = [];
+    public ushort ImpactTargets { get; init; }
+    public int Tick { get; init; } = -1;
+    public short SearchScopeCounter { get; init; }
+    public byte StageRed { get; init; }
+    public byte StageGreen { get; init; }
+    public byte StageBlue { get; init; }
+    public short StageTransparency { get; init; }
+    public Ff7BattleSilkLinePool SilkLines { get; init; } = new();
+    [JsonIgnore]
+    public Ff7BattleStageFadeState StageFade => new(StageRed, StageGreen, StageBlue, StageTransparency, Slots.OfType<Ff7BattlePrimaryStageFade>().FirstOrDefault()?.Ramp);
+    [JsonIgnore]
+    public bool HasCallbacks => Slots.Any(slot => slot is not null);
+    [JsonIgnore]
+    public int OccupiedSlotCount => Slots.Count(slot => slot is not null);
+
+    public bool HasOwner(int owner) => Slots.Any(slot => slot?.Owner == owner);
+}
+
+public static partial class Ff7BattlePrimaryEffects
+{
+    public const int Capacity = 100;
+
+    public static Ff7BattlePrimaryState ScheduleSearchScope(Ff7BattlePrimaryState state, ushort targets, Vector3 source, Vector3 targetCenter, int owner = 0)
+    {
+        Ff7BattleSearchScopeState scope = Ff7BattleSearchScopeEffect.CreateState(targets, source, targetCenter, state.SearchScopeCounter);
+        short length = Length(scope.Source, scope.TargetCenter);
+        PrimaryPass pass = new(state, null);
+        pass.Allocate(new Ff7BattlePrimaryScopeController(targets, scope.Source, scope.Basis, length) { Owner = owner });
+        pass.StageRed = 0;
+        pass.StageGreen = 0;
+        pass.StageBlue = 0;
+        pass.FadeTo(1024, 10);
+        return pass.Finish(state.Tick, preserveReceipts: true);
+    }
+
+    public static Ff7BattlePrimaryState FadeTo(Ff7BattlePrimaryState state, int target, int duration)
+    {
+        PrimaryPass pass = new(state, null);
+        pass.FadeTo(target, duration);
+        return pass.Finish(state.Tick, preserveReceipts: true);
+    }
+
+    public static Ff7BattlePrimaryState ImportStageFade(Ff7BattlePrimaryState state, Ff7BattleStageFadeState previous)
+    {
+        ArgumentNullException.ThrowIfNull(previous);
+        PrimaryPass pass = new(state, null) { StageRed = previous.Red, StageGreen = previous.Green, StageBlue = previous.Blue, StageTransparency = previous.Transparency };
+        if (previous.Ramp is { } ramp)
+        {
+            pass.Allocate(new Ff7BattlePrimaryStageFade(ramp) { Owner = -1 });
+        }
+        return pass.Finish(state.Tick, preserveReceipts: true);
+    }
+
+    public static Ff7BattlePrimaryState ImportSearchScope(Ff7BattlePrimaryState state, Ff7BattleSearchScopeState previous, int owner = 0)
+    {
+        ArgumentNullException.ThrowIfNull(previous);
+        PrimaryPass pass = new(state, null) { SearchScopeCounter = previous.ScaleCounter };
+        short length = Length(previous.Source, previous.TargetCenter);
+        if (previous.Frame < 39)
+        {
+            pass.Allocate(new Ff7BattlePrimaryScopeController(previous.Targets, previous.Source, previous.Basis, length) { Owner = owner, Age = previous.Frame + 1 });
+        }
+        if (previous.Frame < 31)
+        {
+            for (int index = 0; index < 4; index++)
+            {
+                pass.Allocate(new Ff7BattlePrimaryScopeEmitter(previous.Source, previous.Basis, length, index) { Owner = owner, Age = previous.Frame + 1 });
+            }
+        }
+        foreach (Ff7BattleSearchScopeSprite sprite in previous.Sprites)
+        {
+            int age = previous.Frame - sprite.StartedAt + 1;
+            if (age < Ff7BattleSearchScopeEffect.FirstSpriteFrames + Ff7BattleSearchScopeEffect.SecondSpriteFrames)
+            {
+                bool second = age >= Ff7BattleSearchScopeEffect.FirstSpriteFrames;
+                pass.Allocate(new Ff7BattlePrimaryScopeSprite(sprite.Position, second ? 1 : 0) { Owner = owner, Age = second ? age - Ff7BattleSearchScopeEffect.FirstSpriteFrames : age });
+            }
+        }
+        return pass.Finish(state.Tick, preserveReceipts: true);
+    }
+
+    public static Ff7BattlePrimaryState Advance(Ff7BattlePrimaryState state, Ff7BattlePrimaryContext? context = null)
+    {
+        PrimaryPass pass = new(state, context);
+        for (int index = 0; index < Capacity; index++)
+        {
+            pass.Cursor = index;
+            if (pass.Slots[index] is not { } callback)
+            {
+                continue;
+            }
+            pass.CurrentOwner = callback.Owner;
+            pass.Slots[index] = Execute(callback, pass);
+        }
+        return pass.Finish(state.Tick + 1);
+    }
+
+    private static Ff7BattlePrimaryCallback? Execute(Ff7BattlePrimaryCallback callback, PrimaryPass pass)
+    {
+        switch (callback)
+        {
+            case Ff7BattlePrimaryTargetReaction reaction:
+                return ExecuteTargetReaction(reaction, pass);
+            case Ff7BattlePrimaryStageFade fade:
+                Ff7BattleStageFadeState updated = Ff7BattleStageFade.Advance(new(pass.StageRed, pass.StageGreen, pass.StageBlue, pass.StageTransparency, fade.Ramp));
+                pass.StageTransparency = updated.Transparency;
+                return updated.Ramp is { } ramp ? fade with { Ramp = ramp, Age = fade.Age + 1 } : null;
+            case Ff7BattlePrimaryScopeController scope:
+                if (scope.Age == 0)
+                {
+                    for (int index = 0; index < 4; index++)
+                    {
+                        pass.Allocate(new Ff7BattlePrimaryScopeEmitter(scope.Source, scope.Basis, scope.Length, index) { Owner = scope.Owner });
+                    }
+                }
+                if (scope.Age == 32)
+                {
+                    pass.ContactMask(scope.Targets);
+                }
+                if (scope.Age == 39)
+                {
+                    pass.FadeTo(0, 10);
+                    return null;
+                }
+                return scope with { Age = scope.Age + 1 };
+            case Ff7BattlePrimaryScopeEmitter emitter:
+                int sign = (emitter.Index >> 1) * 2 - 1;
+                short pitch = (short)(Ff7BattleSearchScopeEffect.Sine(emitter.Age << 8) / 40 * sign);
+                short yaw = (short)((Ff7BattleSearchScopeEffect.Sine(emitter.Age << 7) >> 4) * sign);
+                bool inner = (emitter.Index & 1) == 0;
+                Ff7BattleSearchScopeMesh mesh = new(inner ? 1 : 0, new((short)(pitch - 1024), yaw, 0), (short)(emitter.Length * 5376 / 2800), inner ? 12288 : 16384, (short)(4096 - pass.SearchScopeCounter * (inner ? 32 : 24)));
+                pass.Emit(new Ff7BattlePrimaryScopeMeshDraw(emitter.Source, emitter.Basis, mesh));
+                if (inner)
+                {
+                    Matrix4x4 transform = BattleRigidPose.Rotation(new(pitch, yaw, 0)) * emitter.Basis.Matrix;
+                    Ff7BattleBraverPoint offset = Ff7BattleBraverPoint.At(Vector3.Transform(new(0, 0, emitter.Length), transform));
+                    Ff7BattleBraverPoint point = new((short)(emitter.Source.X + offset.X), (short)(emitter.Source.Y + offset.Y), (short)(emitter.Source.Z + offset.Z));
+                    pass.Allocate(new Ff7BattlePrimaryScopeSprite(point) { Owner = emitter.Owner });
+                }
+                if (emitter.Age < 8)
+                {
+                    pass.SearchScopeCounter = (short)(pass.SearchScopeCounter + 1);
+                }
+                if (emitter.Age > 24)
+                {
+                    pass.SearchScopeCounter = (short)(pass.SearchScopeCounter - 1);
+                }
+                return emitter.Age == 31 ? null : emitter with { Age = emitter.Age + 1 };
+            case Ff7BattlePrimaryScopeSprite sprite:
+                pass.Emit(new Ff7BattlePrimaryScopeSpriteDraw(sprite.Position, sprite.Stage, sprite.Age));
+                int count = sprite.Stage == 0 ? Ff7BattleSearchScopeEffect.FirstSpriteFrames : Ff7BattleSearchScopeEffect.SecondSpriteFrames;
+                if (sprite.Age + 1 < count)
+                {
+                    return sprite with { Age = sprite.Age + 1 };
+                }
+                return sprite.Stage == 0 ? sprite with { Stage = 1, Age = 0 } : null;
+            case Ff7BattlePrimarySilkGroup:
+            case Ff7BattlePrimarySilkController:
+            case Ff7BattlePrimarySilkLines:
+            case Ff7BattlePrimarySilkSprite:
+            case Ff7BattlePrimarySilkStrand:
+                return ExecuteSilk(callback, pass);
+            case Ff7BattlePrimaryTargetGroup:
+            case Ff7BattlePrimaryCureController:
+            case Ff7BattlePrimaryCureParticle:
+            case Ff7BattlePrimaryBoltController:
+            case Ff7BattlePrimaryBoltSpark:
+            case Ff7BattlePrimaryDestroyedController:
+            case Ff7BattlePrimaryDestroyedSprite:
+                return ExecuteParticles(callback, pass);
+            default:
+                throw new NotSupportedException("FFVII primary callback has no admitted executor.");
+        }
+    }
+
+    private static short Length(Ff7BattleBraverPoint from, Ff7BattleBraverPoint to)
+    {
+        int x = (short)(to.X - from.X);
+        int y = (short)(to.Y - from.Y);
+        int z = (short)(to.Z - from.Z);
+        return (short)(int)Math.Sqrt(x * x + y * y + z * z);
+    }
+
+    private sealed class PrimaryPass
+    {
+        private readonly Ff7BattlePrimaryState previous;
+        public readonly Ff7BattlePrimaryCallback?[] Slots;
+        public readonly List<Ff7BattlePrimaryDraw> Draws = [];
+        public readonly List<ushort> SoundIds = [];
+        public readonly List<Ff7BattlePrimaryHitmark> Hitmarks = [];
+        public readonly List<Ff7BattlePrimaryReactionReceipt> TargetReactions = [];
+        public readonly Ff7BattlePrimaryContext? Context;
+        public int Cursor;
+        public int CurrentOwner;
+        public ushort ImpactTargets;
+        public short SearchScopeCounter;
+        public byte StageRed;
+        public byte StageGreen;
+        public byte StageBlue;
+        public short StageTransparency;
+        public Ff7BattleSilkLinePool SilkLines;
+        public int Tick => previous.Tick + 1;
+
+        public PrimaryPass(Ff7BattlePrimaryState state, Ff7BattlePrimaryContext? context)
+        {
+            ArgumentNullException.ThrowIfNull(state);
+            if (state.Slots.Count != Capacity)
+            {
+                throw new InvalidDataException("FFVII primary continuation requires exactly 100 native slots.");
+            }
+            previous = state;
+            Slots = state.Slots.ToArray();
+            Context = context;
+            SearchScopeCounter = state.SearchScopeCounter;
+            StageRed = state.StageRed;
+            StageGreen = state.StageGreen;
+            StageBlue = state.StageBlue;
+            StageTransparency = state.StageTransparency;
+            SilkLines = state.SilkLines;
+        }
+
+        public void Allocate(Ff7BattlePrimaryCallback callback)
+        {
+            for (int index = Cursor; index < Capacity; index++)
+            {
+                if (Slots[index] is null)
+                {
+                    Slots[index] = callback;
+                    return;
+                }
+            }
+            throw new InvalidOperationException("FFVII primary callback pool exhausted its remaining native slots.");
+        }
+
+        public void Emit(Ff7BattlePrimaryDraw draw)
+        {
+            Draws.Add(draw with { Slot = Cursor, Owner = CurrentOwner });
+        }
+
+        public void Contact(int target)
+        {
+            ImpactTargets |= (ushort)(1 << target);
+            TargetReactions.Add(new(target, true));
+        }
+
+        public void ContactMask(ushort targets)
+        {
+            for (int target = 0; target < 10; target++)
+            {
+                if ((targets & (1 << target)) != 0)
+                {
+                    Contact(target);
+                }
+            }
+        }
+
+        public void FadeTo(int target, int duration)
+        {
+            if (Slots.Any(callback => callback is Ff7BattlePrimaryStageFade))
+            {
+                return;
+            }
+            Ff7BattleStageFadeState fade = Ff7BattleStageFade.FadeTo(new(StageRed, StageGreen, StageBlue, StageTransparency), target, duration);
+            Allocate(new Ff7BattlePrimaryStageFade(fade.Ramp!) { Owner = -1 });
+        }
+
+        public Ff7BattlePrimaryState Finish(int tick, bool preserveReceipts = false)
+        {
+            return new() { Slots = Slots, Tick = tick, Draws = preserveReceipts ? [.. previous.Draws, .. Draws] : Draws, SoundIds = preserveReceipts ? [.. previous.SoundIds, .. SoundIds] : SoundIds, Hitmarks = preserveReceipts ? [.. previous.Hitmarks, .. Hitmarks] : Hitmarks, TargetReactions = preserveReceipts ? [.. previous.TargetReactions, .. TargetReactions] : TargetReactions, ImpactTargets = preserveReceipts ? previous.ImpactTargets : ImpactTargets, SearchScopeCounter = SearchScopeCounter, StageRed = StageRed, StageGreen = StageGreen, StageBlue = StageBlue, StageTransparency = StageTransparency, SilkLines = SilkLines };
+        }
+    }
+}

@@ -10,8 +10,10 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class CrossoverGuestMagicHostTests(ITestOutputHelper output)
 {
-    [Fact]
-    public void Original_field_victory_settles_only_guest_spell_stock_and_visual_random_with_one_envelope_receipt()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Original_field_victory_settles_only_guest_spell_stock_and_visual_random_with_one_envelope_receipt(bool junctioned)
     {
         string? ff7Root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
         string? ff8Root = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
@@ -23,7 +25,14 @@ public sealed class CrossoverGuestMagicHostTests(ITestOutputHelper output)
         int row = origin.FindPhysicalRow(0);
         int magicAbility = origin.MenuDefinitions.CommandAbilityCommands.IndexOf((byte)2) + 20;
         origin.Records[row] = origin.Records[row] with { Junction = origin.Records[row].Junction with { Commands = (uint)magicAbility } };
-        origin = origin.ChangeMagicStock(row, 1, 4, MagicOperationReason.ScriptReward, out _);
+        int initialStock = junctioned ? 50 : 4;
+        origin = origin.ChangeMagicStock(row, 1, initialStock, MagicOperationReason.ScriptReward, out _);
+        if (junctioned)
+        {
+            origin.Records[row].Junction.MagicJunctions[0] = 1;
+            origin = origin.WithSavedHitPoints(row, origin.GetMagicMaximumHitPoints(row));
+        }
+        ushort originalMaximum = origin.GetMagicMaximumHitPoints(row);
         GameplaySaveComponentDocument document = GameplaySaveSessionLoaderTests.Document(game, world: false) with { Characters = GameplaySaveCharacters.Capture(origin) };
         using MemoryStream payload = new();
         GameplaySaveCodec.Write(payload, document);
@@ -55,6 +64,7 @@ public sealed class CrossoverGuestMagicHostTests(ITestOutputHelper output)
         CombinedSessionSave source = new() { ActiveGame = SessionGame.Ff7, Ff7 = session.Capture(), Ff8Payload = originalPayload, Ff8PayloadFormat = CrossoverSaveAdapter.Ff8Codec, MixedCombat = new(0) };
         using CrossoverMixedBattle mixed = new(ff8Root!, source, battle);
         int casts = 0;
+        bool restoredCap = false;
         for (int tick = 0; tick < 6000 && !battle.ResultReady; tick++)
         {
             if (battle.ReadyPlayer == 0)
@@ -65,6 +75,18 @@ public sealed class CrossoverGuestMagicHostTests(ITestOutputHelper output)
                 casts++;
             }
             session.AdvanceTick();
+            if (junctioned && !restoredCap && mixed.Actions.Capture().Fire is not null)
+            {
+                CombinedSessionSave checkpoint = source with { Ff7 = session.Capture(), MixedBattlePayload = mixed.Capture() };
+                using Ff7Session cold = Ff7Session.Restore(installation, RoundTrip(checkpoint.Ff7!));
+                using CrossoverMixedBattle coldMixed = new(ff8Root!, checkpoint, cold.Battle!);
+                Assert.Equal(battle.GuestProjection, cold.Battle!.GuestProjection);
+                cold.AdvanceTick();
+                session.AdvanceTick();
+                Assert.Equal(JsonSerializer.Serialize(session.Battle!.Capture()), JsonSerializer.Serialize(cold.Battle.Capture()));
+                Assert.Equal(mixed.Capture(), coldMixed.Capture());
+                restoredCap = true;
+            }
         }
         Assert.Equal(Ff7BattleOutcome.Victory, battle.Outcome);
         Assert.True(battle.ResultReady);
@@ -74,17 +96,32 @@ public sealed class CrossoverGuestMagicHostTests(ITestOutputHelper output)
         CrossoverBattleVitalsSettlementResult settled = mixed.Settle(terminal, installation);
         GameplaySaveComponentDocument result = CrossoverSaveAdapter.ReadFf8(settled.Save);
         NativeCharacterVitals updated = result.Characters.Restore(installed);
-        Assert.Equal(2, updated.GetMagicCount(row, 1));
+        Assert.Equal(initialStock - 2, updated.GetMagicCount(row, 1));
+        Assert.Equal(origin.Records[row].Junction, updated.Records[row].Junction);
+        Assert.Equal(originalMaximum, battle.GuestVitals!.MaximumHp);
+        Assert.Equal(updated.GetMagicMaximumHitPoints(row), battle.GuestProjection!.MaximumHp);
+        if (junctioned)
+        {
+            Assert.True(updated.GetMagicMaximumHitPoints(row) < originalMaximum);
+            Assert.True(restoredCap);
+        }
         Assert.Equal(mixed.Actions.CurrentCrtRandom, result.Progression!.Clocks.CrtRandom);
         Assert.Equal(dormant, JsonSerializer.Serialize(settled.Save.Ff7!.Progress.Characters.Single(character => character.Id == 0)));
         Assert.Single(settled.Save.GuestBattleSettlements!);
         Assert.Same(settled.Save, CrossoverBattleVitalsSettlement.PrepareResult(settled.Save, installation, installed).Save);
         Assert.Equal(originalPayload, source.Ff8Payload);
-        output.WriteLine($"Original field request {battle.RequestId}: two original Fire casts settled stock4->2 and native CRT once; dormant Cloud preserved.");
+        output.WriteLine($"Original field request {battle.RequestId}: two original Fire casts settled stock{initialStock}->{initialStock - 2}, maxHP{originalMaximum}->{updated.GetMagicMaximumHitPoints(row)} and native CRT once; dormant Cloud preserved.");
     }
 
-    [Fact]
-    public void Original_Fire_charges_origin_stock_once_and_publishes_one_prepared_host_receipt_after_cold_casting()
+    [Theory]
+    [InlineData(0u, false)]
+    [InlineData(8u, false)]
+    [InlineData(0x200u, false)]
+    [InlineData(0x04000000u, false)]
+    [InlineData(4u, false)]
+    [InlineData(0x80u, false)]
+    [InlineData(0u, true)]
+    public void Original_Fire_charges_origin_stock_once_and_publishes_one_prepared_host_receipt_after_cold_casting(uint sourceStatus, bool junctioned)
     {
         string? ff7Root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
         string? ff8Root = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
@@ -97,7 +134,13 @@ public sealed class CrossoverGuestMagicHostTests(ITestOutputHelper output)
         int row = origin.FindPhysicalRow(0);
         int magicAbility = origin.MenuDefinitions.CommandAbilityCommands.IndexOf((byte)2) + 20;
         origin.Records[row] = origin.Records[row] with { Junction = origin.Records[row].Junction with { Commands = (uint)magicAbility } };
-        origin = origin.ChangeMagicStock(row, 1, 4, MagicOperationReason.ScriptReward, out _);
+        int initialStock = junctioned ? 100 : 4;
+        origin = origin.ChangeMagicStock(row, 1, initialStock, MagicOperationReason.ScriptReward, out _);
+        if (junctioned)
+        {
+            origin.Records[row].Junction.MagicJunctions[3] = 1;
+            origin = origin.WithSavedHitPoints(row, origin.GetMagicMaximumHitPoints(row));
+        }
         CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.ReadSquall(origin, assets);
         string immutableOrigin = JsonSerializer.Serialize(origin);
         using LgpArchive archive = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
@@ -118,9 +161,33 @@ public sealed class CrossoverGuestMagicHostTests(ITestOutputHelper output)
         {
             host.Advance();
         }
+        if (sourceStatus != 0)
+        {
+            Ff7BattleSnapshot statusHost = host.Capture();
+            statusHost = statusHost with
+            {
+                Actors = statusHost.Actors.Select(actor => actor.Actor.Slot == 0 ? actor with { Actor = actor.Actor with { Statuses = sourceStatus }, Timers = Ff7NativeBattleStatusClock.Apply(actor.Timers, actor.Actor.Statuses, sourceStatus) } : actor).ToArray(),
+                Inventory = [.. statusHost.Inventory.Where(item => item.ItemId != 8), new(8, 1)]
+            };
+            CrossoverGunbladeHostSnapshot statusAttack = attack.Capture();
+            CrossoverGuestHostActionsSnapshot statusActions = actions.Capture();
+            host = new(formation, original.Progress, kernel, executable.NativeMateriaStatModifiers, 1, snapshot: statusHost, animations: animations);
+            attack = new(roster, kit, assets, game, game.ReadNewGameGlobalRandom(), () => host.Data.Cameras[0], _ => 128, statusAttack);
+            actions = new(roster, kit, origin, NativeCrtRandomState.FromColdProcess(), attack, host, game, assets, statusActions);
+            host.BindGuestAttack(actions);
+        }
+        if (sourceStatus is 4 or 0x80)
+        {
+            Assert.DoesNotContain(host.Commands(0), option => option.Command == Ff7BattleCommand.Magic);
+            Assert.False(host.SubmitGuestMagic(0, 4));
+            Assert.Equal(initialStock, actions.WorkingStock.GetMagicCount(row, 1));
+            Assert.Empty(actions.WorkingStock.MagicSystem.Reservations);
+            Assert.Empty(actions.Capture().CommittedSpells!.Value);
+            return;
+        }
         Ff7BattleCommandOption option = Assert.Single(host.Commands(0), option => option.Command == Ff7BattleCommand.Magic);
         Assert.Equal((ushort)1, option.Argument);
-        Assert.Equal(4, option.Cost);
+        Assert.Equal(initialStock, option.Cost);
         Assert.True(host.Submit(0, Ff7BattleCommand.Magic, 1, 1 << 4));
         while (host.Capture().Action is not { Command.GuestAbility: 1 })
         {
@@ -128,7 +195,14 @@ public sealed class CrossoverGuestMagicHostTests(ITestOutputHelper output)
         }
         CrossoverGuestFireHostState pending = actions.Capture().Fire!;
         Assert.NotNull(pending.Prepared.PreparedContact);
-        Assert.Equal(3, actions.WorkingStock.GetMagicCount(row, 1));
+        Assert.Equal(initialStock - 1, actions.WorkingStock.GetMagicCount(row, 1));
+        Assert.Equal(Math.Min(pending.Prepared.PreparedContact!.SourceBefore.Hp, host.GuestProjection!.MaximumHp), host.Actors.Single(actor => actor.Actor.Slot == 0).Actor.HitPoints);
+        Assert.Equal(actions.WorkingStock.GetMagicMaximumHitPoints(row), host.GuestProjection.MaximumHp);
+        if (junctioned)
+        {
+            Assert.Equal(host.GuestVitals!.MaximumHp, host.GuestProjection.MaximumHp);
+            Assert.True(actions.DescribeMagic(1).Source.Magic < pending.Prepared.Source.Magic);
+        }
         Assert.Single(actions.WorkingStock.MagicSystem.CommittedActionIds, id => id.StartsWith($"mixed:{roster.EncounterId:N}:", StringComparison.Ordinal));
         Assert.Equal(pending.Prepared.PreparedContact!.TargetBefore.Hp, host.Actors.Single(actor => actor.Actor.Slot == 4).Actor.HitPoints);
         Ff7BattleSession uninterrupted = new(formation, original.Progress, kernel, executable.NativeMateriaStatModifiers, 1, snapshot: RoundTrip(host.Capture()), animations: animations);
@@ -159,7 +233,7 @@ public sealed class CrossoverGuestMagicHostTests(ITestOutputHelper output)
                 restoredContact |= hit is not null;
             }
             host.Advance();
-            if (host.LastHit is { Source: 0 } contact)
+            if (host.LastHit is { Source: 0, Target: 4, AttackId: 1 } contact)
             {
                 Assert.Equal(pending.Prepared.PreparedContact.Receipt.Damage, contact.Damage);
                 Assert.Equal(pending.Prepared.PreparedContact.Receipt.Target.Hp, host.Actors.Single(actor => actor.Actor.Slot == 4).Actor.HitPoints);
@@ -175,12 +249,31 @@ public sealed class CrossoverGuestMagicHostTests(ITestOutputHelper output)
             if (hit is not null && actions.Invocation is null)
             {
                 Assert.True(restoredCasting && restoredContact);
-                Assert.Equal(3, actions.WorkingStock.GetMagicCount(row, 1));
+                Assert.Equal(initialStock - 1, actions.WorkingStock.GetMagicCount(row, 1));
                 Assert.Equal(immutableOrigin, JsonSerializer.Serialize(origin));
                 Assert.Equal(JsonSerializer.Serialize(uninterrupted.Capture()), JsonSerializer.Serialize(host.Capture()));
                 Assert.Equal(JsonSerializer.Serialize(uninterruptedActions.Capture()), JsonSerializer.Serialize(actions.Capture()));
+                Assert.Equal(3, actions.PeekSoundRequests().Length);
+                Assert.Equal(new[] { CrossoverGuestAudioKind.Module, CrossoverGuestAudioKind.Module, CrossoverGuestAudioKind.Fire }, actions.PeekSoundRequests().Select(receipt => receipt.Kind));
+                Assert.All(actions.PeekSoundRequests(), receipt => Assert.NotNull(receipt.Sound.Allocation));
                 Assert.Equal(0, host.Actors.Single(actor => actor.Actor.Slot == 0).Actor.MagicPoints);
-                output.WriteLine($"Original Fire prepared {hit.Damage.Damage} damage, contact host tick {hit.Tick}, return {host.Tick}, origin stock 4->3 across two cold continuations.");
+                if (sourceStatus == Ff7NativeBattleActionResolver.Poison)
+                {
+                    for (int recoveryTick = 0; recoveryTick < 4000 && host.ReadyPlayer != 0; recoveryTick++)
+                    {
+                        host.Advance();
+                    }
+                    Ff7BattleActorState poisoned = host.Actors.Single(actor => actor.Actor.Slot == 0);
+                    Assert.True(host.ReadyPlayer == 0, $"Poison recovery has outcome {host.Outcome}, hp {poisoned.Actor.HitPoints}, status {poisoned.Actor.Statuses:X8}, gauge {poisoned.Gauge}, ready {poisoned.AwaitingTurn}, action {host.Capture().Action?.Command.CommandId} at tick {host.Tick}.");
+                    Assert.True(host.Submit(0, Ff7BattleCommand.Item, 8, 1));
+                    for (int recoveryTick = 0; recoveryTick < 2000 && (host.Actors.Single(actor => actor.Actor.Slot == 0).Actor.Statuses & Ff7NativeBattleActionResolver.Poison) != 0; recoveryTick++)
+                    {
+                        host.Advance();
+                    }
+                    Assert.Equal(0u, host.Actors.Single(actor => actor.Actor.Slot == 0).Actor.Statuses & Ff7NativeBattleActionResolver.Poison);
+                    Assert.Equal(initialStock - 1, actions.WorkingStock.GetMagicCount(row, 1));
+                }
+                output.WriteLine($"Original Fire status{sourceStatus:X8}, junctioned{junctioned}: prepared {hit.Damage.Damage}, contact host tick {hit.Tick}, origin stock {initialStock}->{initialStock - 1} across two cold continuations.");
                 return;
             }
         }

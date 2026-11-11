@@ -82,7 +82,7 @@ public sealed partial class Ff7BattleSession
         {
             return false;
         }
-        if (!SupportsGuestAbility(guest, ability, DescribeGuestTarget(targetSlot)) || ability != 0 && Actor(slot).Actor.Statuses != 0)
+        if (!SupportsGuestAbility(guest, ability, DescribeGuestTarget(targetSlot)) || ability != 0 && !Ff7GuestBattleStatuses.CanCastMagic(Actor(slot).Actor.Statuses))
         {
             return false;
         }
@@ -107,7 +107,7 @@ public sealed partial class Ff7BattleSession
             return true;
         }
         Ff7BattleGuestAttackTarget targetDescription = DescribeGuestTarget(invocation.TargetSlot);
-        if (!SupportsGuestAbility(guest, command.GuestAbility, targetDescription) || command.GuestAbility != 0 && Actor(command.ActorSlot).Actor.Statuses != 0)
+        if (!SupportsGuestAbility(guest, command.GuestAbility, targetDescription) || command.GuestAbility != 0 && !Ff7GuestBattleStatuses.CanCastMagic(Actor(command.ActorSlot).Actor.Statuses))
         {
             FinishTurn(command.ActorSlot);
             return true;
@@ -185,11 +185,12 @@ public sealed partial class Ff7BattleSession
             Ff7BattleGuestPreparedContact prepared = hit.PreparedContact ?? throw new InvalidDataException("Guest magic lost its prepared native numeric receipt.");
             Ff7BattleActionVitals currentSource = new(source.Actor.HitPoints, source.Actor.MaxHitPoints, source.Actor.MagicPoints, source.Actor.MaxMagicPoints, source.Actor.Statuses);
             Ff7BattleActionVitals currentTarget = new(target.Actor.HitPoints, target.Actor.MaxHitPoints, target.Actor.MagicPoints, target.Actor.MaxMagicPoints, target.Actor.Statuses, ~Enemy(targetSlot).NativeStatusMask);
-            if (prepared.Invocation != GuestInvocation(command, state.Action!.StartedAt) || prepared.SourceBefore != currentSource || prepared.TargetBefore != currentTarget)
+            if (prepared.Invocation != GuestInvocation(command, state.Action!.StartedAt) || prepared.SourceBefore.Mp != currentSource.Mp || prepared.SourceBefore.MaxMp != currentSource.MaxMp || prepared.TargetBefore.MaxHp != currentTarget.MaxHp || prepared.TargetBefore.MaxMp != currentTarget.MaxMp || prepared.TargetBefore.StatusImmunities != currentTarget.StatusImmunities || (currentTarget.Statuses & ~Ff7GuestBattleStatuses.SupportedHost) != 0)
             {
                 throw new InvalidDataException("Guest magic numeric receipt no longer matches its host action and vitals.");
             }
-            PublishHit(command, target, attack, prepared.Receipt);
+            Ff7BattleActionReceipt receipt = Ff7NativeBattleActionResolver.ApplyPreparedHpDamage(currentSource, currentTarget, prepared.Receipt.Damage);
+            PublishHit(command, target, attack, receipt);
             if (!prepared.Receipt.Damage.Missed)
             {
                 state = state with { Reaction = new(targetSlot, Tick) };
@@ -216,7 +217,7 @@ public sealed partial class Ff7BattleSession
         => new(RequestId, Formation.FormationId, startedAt, command.ActorSlot, BitOperations.TrailingZeroCount(command.TargetMask)) { GuestAbility = command.GuestAbility };
 
     private static bool SupportsGuestAbility(IFf7BattleGuestAttack guest, ushort ability, Ff7BattleGuestAttackTarget target)
-        => ability == 0 ? guest.Supports(target) : ability == 1 && target.Actor.Statuses == 0 && guest is IFf7BattleGuestMagic magic && magic.MagicStock(ability) > 0 && magic.SupportsMagic(ability, target);
+        => ability == 0 ? guest.Supports(target) : ability == 1 && (target.Actor.Statuses & ~Ff7GuestBattleStatuses.SupportedHost) == 0 && guest is IFf7BattleGuestMagic magic && magic.MagicStock(ability) > 0 && magic.SupportsMagic(ability, target);
 
     private static void ValidateGuestMagic(Ff7BattleGuestPhysicalHit hit)
     {

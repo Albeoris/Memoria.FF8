@@ -37,7 +37,7 @@ internal static class NativeBattleDestroyedTests
             }
             if (frame == 21)
             {
-                Check(state.Sprites![^1] is { Position: { X: 174, Y: -169, Z: -448 }, Scale: 8918, Variant: 0 }, "Destroyed's final original sprite fields changed.");
+                Check(state.Sprites!.Single(sprite => sprite.StartedAt == 21) is { Position: { X: 174, Y: -169, Z: -448 }, Scale: 8918, Variant: 0 }, "Destroyed's final original sprite fields changed.");
             }
             Check(state.ScreenBlue == (frame < 30 ? (frame & 1) * 32 + 32 : 0), "Destroyed's native full-screen pulse receipt changed.");
         }

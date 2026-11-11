@@ -63,6 +63,56 @@ internal static class InstalledOpeningTests
         }
     }
 
+    public static void RunGuestInstantVictory()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            Console.WriteLine("SKIP installed guest instant victory: MEMORIA_FF7_GAME_DIR is unset.");
+            return;
+        }
+        Ff7Installation installation = Ff7Installation.Discover(root);
+        using Ff7Session original = Ff7Session.NewGame(installation);
+        original.GuestFieldVitals = new GuestFieldVitalsFixture();
+        string dormant = JsonSerializer.Serialize(original.Progress.Characters.Single(character => character.Id == 0));
+        uint gil = original.Progress.Gil;
+        int tick = 0;
+        while (tick < 4500 && original.Progress.CompletedBattles.Length == 0)
+        {
+            Step(original, tick++);
+        }
+        Equal(1, original.Progress.CompletedBattles.Length);
+        Equal(true, original.Progress.Gil > gil);
+        Equal(dormant, JsonSerializer.Serialize(original.Progress.Characters.Single(character => character.Id == 0)));
+        Equal<Ff7BattleSession?>(null, original.Battle);
+        Ff7SessionSave checkpoint = JsonSerializer.Deserialize<Ff7SessionSave>(JsonSerializer.Serialize(original.Capture()))!;
+        using Ff7Session cold = Ff7Session.Restore(installation, checkpoint);
+        cold.GuestFieldVitals = new GuestFieldVitalsFixture();
+        for (int continuation = 0; continuation < 60; continuation++)
+        {
+            Step(original, tick + continuation);
+            Step(cold, tick + continuation);
+        }
+        Equal(JsonSerializer.Serialize(original.Capture()), JsonSerializer.Serialize(cold.Capture()));
+        Equal(1, cold.Progress.CompletedBattles.Length);
+        Equal(dormant, JsonSerializer.Serialize(cold.Progress.Characters.Single(character => character.Id == 0)));
+    }
+
+    private sealed class GuestFieldVitalsFixture : IFf7GuestFieldVitals
+    {
+        public Ff7GuestFieldVitalsView Read() => new(0, "Squall", 7, 486, 486);
+
+        public void Recover(bool clearStatuses)
+        {
+            throw new InvalidOperationException("The instant victory fixture expects no guest recovery.");
+        }
+
+        public void AddHitPoints(short amount)
+        {
+            throw new InvalidOperationException("The instant victory fixture expects no guest HP mutation.");
+        }
+    }
+
     public static void RunDeferredBattle()
     {
         string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");

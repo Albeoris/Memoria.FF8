@@ -108,10 +108,87 @@ internal static class NativeBattleCameraTests
         Throws<InvalidDataException>(() => resources.Script(-2, 103, 0, Ff7BattleCameraComponent.Position));
         OpeningCameraCallbacks(installation, actors, math);
         OpeningEntryCallbacks(installation, math);
+        SessionCallbacks(installation, kernel, actors);
         Check(normal.Script(6, 0, Ff7BattleCameraComponent.Position).Span[..8].SequenceEqual(new byte[] { 0xDC, 0xF0, 0, 0x2C, 1, 0xC3, 0xFC, 0x2E }), "Original camera 6 position operands changed.");
         Check(normal.Script(50, 1, Ff7BattleCameraComponent.Position).Span.SequenceEqual(normal.Script(50, 2, Ff7BattleCameraComponent.Position).Span), "Aliased camera track pointers changed their shared bytes.");
         Check(Ff7BattleCameraResources.Load(installation, 1).CameraCount == 394 && Ff7BattleCameraResources.Load(installation, 2).CameraCount == 375 && Enumerable.Range(3, 5).All(layout => Ff7BattleCameraResources.Load(installation, (byte)layout).CameraCount == 374) && Ff7BattleCameraResources.Load(installation, 8).CameraCount == 394, "Native formation layout must select its original camera bank.");
         Throws<NotSupportedException>(() => Ff7BattleCameraResources.Load(installation, 9));
+    }
+
+    private static void SessionCallbacks(Ff7Installation installation, IReadOnlyList<KernelSection> kernel, LgpArchive archive)
+    {
+        using Ff7Session original = Ff7Session.NewGame(installation);
+        using LgpArchive magic = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.MagicArchive).Path);
+        Ff7BattleAnimationResources animations = new(archive, Ff7PcExecutableData.LoadBattlePlacement(installation), magic, Ff7PcExecutableData.LoadBattleJumpDeltas(installation), Ff7PcExecutableData.LoadBattleHitmarks(installation));
+        Ff7PcExecutableData executable = Ff7PcExecutableData.Load(installation);
+        SceneFormation formation = SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path)).Single(formation => formation.FormationId == 300);
+        Ff7BattleCameraScriptResources scripts = Ff7BattleCameraResources.LoadScripts(installation, formation.Layout);
+        Ff7BattleSession Restore(Ff7BattleSnapshot snapshot) => new(formation, original.Progress, kernel, executable.NativeMateriaStatModifiers, 1, snapshot: snapshot, animations: animations, cameraScripts: scripts);
+        Ff7BattleSession battle = new(formation, original.Progress, kernel, executable.NativeMateriaStatModifiers, 1, animations: animations, cameraScripts: scripts, cameraPresentationCounter: 250);
+        Ff7BattleSnapshot initial = battle.Capture();
+        string random = JsonSerializer.Serialize(initial.Random);
+        ushort[] gauges = initial.Actors.Select(actor => actor.Gauge).ToArray();
+        Check(battle.IntroActive && battle.ReadyPlayer is null && initial.Camera!.Scripts.CameraId == -2 && !battle.IsActorPresentationReady(0), "Fresh native startup must issue its explicit entry-camera receipt before player admission.");
+        for (int callback = 0; callback < 63; callback++)
+        {
+            SceneCameraPlacement previous = battle.CameraOutput;
+            Ff7BattleSnapshot saved = JsonSerializer.Deserialize<Ff7BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!;
+            Ff7BattleSession cold = Restore(saved);
+            int updates = callback == 0 ? 1 : 4;
+            for (int logic = 0; logic < updates; logic++)
+            {
+                battle.Advance(waitForCommand: true);
+                cold.Advance(waitForCommand: true);
+            }
+            string liveJson = JsonSerializer.Serialize(battle.Capture());
+            string coldJson = JsonSerializer.Serialize(cold.Capture());
+            using JsonDocument liveDocument = JsonDocument.Parse(liveJson);
+            using JsonDocument coldDocument = JsonDocument.Parse(coldJson);
+            string changed = string.Join(",", liveDocument.RootElement.EnumerateObject().Where(property => property.Value.GetRawText() != coldDocument.RootElement.GetProperty(property.Name).GetRawText()).Select(property => property.Name));
+            Check(liveJson == coldJson, $"Startup callback {callback} changed after a cold restore: {changed}.");
+            Check(battle.RenderCameraOutput == previous, "Camera matrices must retain the previously published raw output for the current rendered callback.");
+            Check(battle.CameraPresentationCounter == unchecked((byte)(251 + callback)), "Camera variants must use the unsigned outer presentation counter across wrap.");
+            Check(battle.IsActorPresentationReady(4) == (callback >= 5) && battle.IsActorPresentationReady(0) == (callback >= 6), "Resident startup model readiness lost its post-render enemy/party creation order.");
+            Check(JsonSerializer.Serialize(battle.Capture().Random) == random && battle.Actors.Select(actor => actor.Gauge).SequenceEqual(gauges) && battle.Action is null, "Startup must not run a gauge, AI main, action, escape RNG or effect callback.");
+        }
+        Check(!battle.IntroActive && battle.Capture().Intro!.Callbacks == 63, "Resident startup must release after exactly 63 presentation callbacks.");
+        Ff7BattleSnapshot complete = battle.Capture();
+        Ff7BattleSession legacy = Restore(complete with { Camera = null, Intro = null });
+        Check(!legacy.IntroActive && legacy.Tick == complete.Tick && legacy.Capture().Camera!.Scripts.CameraId == -1 && JsonSerializer.Serialize(legacy.Capture().Random) == random, "An older in-progress snapshot must initialize presentation from saved facts without replaying startup or numeric progress.");
+        complete.Camera!.JointCache[0].Joints[0] = new(123, 456, 789);
+        Check(battle.Capture().Camera!.JointCache[0].Joints[0] != new Ff7BattleCameraPoint(123, 456, 789), "Captured joint arrays must not alias the live camera cache.");
+        Ff7BattleCameraPresentation invalid = battle.Capture().Camera! with { JointCache = [] };
+        Throws<InvalidDataException>(() => Restore(battle.Capture() with { Camera = invalid }));
+        Throws<InvalidDataException>(() => Restore(battle.Capture() with { Intro = new(64) }));
+        foreach (int weapon in new[] { 0, 32, 64 })
+        {
+            Check(Ff7NativeBattleCamera.SelectWeapon(kernel[5].Data.Span.Slice(weapon * 44, 44)) == new Ff7BattleActionCameras(ushort.MaxValue, ushort.MaxValue), "Starting ordinary attacks must select the original weapon's FFFF camera sentinel.");
+        }
+        foreach (Ff7BattleOutcome outcome in new[] { Ff7BattleOutcome.Victory, Ff7BattleOutcome.Defeat, Ff7BattleOutcome.Escaped })
+        {
+            Ff7BattleSession terminal = Restore(battle.Capture() with { Outcome = outcome });
+            for (int logic = 0; logic < 4; logic++)
+            {
+                terminal.Advance();
+            }
+            Ff7BattleCameraPresentation camera = terminal.Capture().Camera!;
+            Check(camera.TerminalOutcome == outcome && camera.Scripts.CameraId == (outcome == Ff7BattleOutcome.Victory ? -3 : -1), "Terminal camera receipts must distinguish victory special scripts from defeat/escape idle return.");
+            Ff7BattleSession cold = Restore(JsonSerializer.Deserialize<Ff7BattleSnapshot>(JsonSerializer.Serialize(terminal.Capture()))!);
+            for (int logic = 0; logic < 4; logic++)
+            {
+                terminal.Advance();
+                cold.Advance();
+            }
+            Check(JsonSerializer.Serialize(terminal.Capture()) == JsonSerializer.Serialize(cold.Capture()), "A terminal camera must continue its retained script cursor without replaying the receipt after restore.");
+        }
+        Ff7BattleQueuedCommand attack = new(6, 0, (byte)Ff7BattleCommand.Attack, 0, 16);
+        Ff7BattleSnapshot queued = battle.Capture() with { Queue = Ff7BattleCommandQueue.Enqueue(Ff7BattleCommandQueueState.Create(), attack) };
+        battle = Restore(queued);
+        for (int logic = 0; logic < 8; logic++)
+        {
+            battle.Advance(waitForCommand: true);
+        }
+        Check(battle.Action is { Applied: true } && battle.Capture().Camera is { Attacker: 0, Target: 4, TargetMask: 16, Scripts.CameraId: -1 }, "A numeric attack receipt must publish its actual target row before the camera model phase.");
     }
 
     private static void MotionCallbacks()

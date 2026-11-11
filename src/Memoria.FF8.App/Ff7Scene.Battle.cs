@@ -103,6 +103,7 @@ internal sealed partial class Ff7Scene
         while (tickRemainder >= tickDuration && !battle.ResultReady)
         {
             tickRemainder -= tickDuration;
+            battle.SetCameraMenuPhase(selectedBattleCommand is null ? (short)-1 : (short)0);
             session.AdvanceTick(advanceClock: false, waitForBattleCommand: selectedBattleCommand is not null, confirmBattleLimit: pendingLimitConfirm, escapeBattleHeld: escapeHeld);
             pendingLimitConfirm = false;
         }
@@ -282,7 +283,7 @@ internal sealed partial class Ff7Scene
         foreach (Ff7BattleActorState actor in battle.Actors)
         {
             int slot = actor.Actor.Slot;
-            if (IsMixedBattleSlot(slot))
+            if (!battle.IsActorPresentationReady(slot) || IsMixedBattleSlot(slot))
             {
                 continue;
             }
@@ -307,7 +308,7 @@ internal sealed partial class Ff7Scene
             (int clip, int frame) = battle.VisualPose(slot);
             visuals.Add(new(model, placement.Position, placement.Yaw * MathF.Tau / 4096, clip, frame, weapon, battle.VisualLimit(slot)));
         }
-        battleRenderer!.Render(triangles, bounds.Width, bounds.Height, new(battle.Data.Cameras[0], visuals, battle.Action?.Fire, battle.Action?.Ice, battle.Action?.Bolt, Cure: battle.Action?.Cure, Braver: battle.Action?.Braver) { Grenade = battle.Action?.Grenade, BeatRush = battle.Action?.BeatRushEffect, BigShot = battle.Action?.BigShot, Hitmarks = battle.Hitmarks, SecondaryEffects = battle.SecondaryEffects, SmokeShot = battle.Action?.SmokeShot, Smog = battle.Action?.Smog, Destroyed = battle.Action?.Destroyed, SearchScope = battle.Action?.SearchScope, Rockets = battle.Action?.Rockets, StageFade = battle.StageFade, Guest = MixedBattleVisual(battle), GuestEffects = mixedCombat?.Actions.EffectVisual });
+        battleRenderer!.Render(triangles, bounds.Width, bounds.Height, new(battle.RenderCameraOutput, visuals, battle.Action?.Fire, battle.Action?.Ice, battle.Action?.Bolt, Cure: battle.Action?.Cure, Braver: battle.Action?.Braver) { Grenade = battle.Action?.Grenade, BeatRush = battle.Action?.BeatRushEffect, BigShot = battle.Action?.BigShot, Hitmarks = battle.Hitmarks, SecondaryEffects = battle.SecondaryEffects, PrimaryEffects = battle.PrimaryEffects, SmokeShot = battle.Action?.SmokeShot, Smog = battle.Action?.Smog, Destroyed = battle.Action?.Destroyed, SearchScope = battle.Action?.SearchScope, Rockets = battle.Action?.Rockets, StageFade = battle.StageFade, Guest = MixedBattleVisual(battle), GuestEffects = mixedCombat?.Actions.EffectVisual });
     }
 
     private void ResetBattlePresentation()

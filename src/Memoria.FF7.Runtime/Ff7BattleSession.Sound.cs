@@ -81,7 +81,7 @@ public sealed partial class Ff7BattleSession
         }
         EnsureSecondaryEffects();
         Ff7BattleSoundState before = state.Sounds ?? Ff7BattleSoundState.Empty;
-        foreach (Ff7BattleImpactPresentation impact in before.PendingHitmarks)
+        foreach (Ff7BattleImpactPresentation impact in before.PendingHitmarks.Concat(before.DueImpacts))
         {
             int style = impact.Hitmark;
             if (style >= 0 && SoundScreenX(state.SoundAttacker) < SoundScreenX(impact.Target))
@@ -104,10 +104,8 @@ public sealed partial class Ff7BattleSession
         {
             AppendSounds(Ff7NativeBattleSound.Impact(state.Sounds!, impact.Sound, impact.ReactionEffect, impact.Source, SoundScreenX(impact.Target)));
         }
-        state = state with { Sounds = state.Sounds! with { PendingHitmarks = before.DueImpacts.Where(impact => impact.Hitmark >= 0).ToArray() } };
-
         short[] projected = new short[Ff7NativeAtb.SlotCount];
-        BattleCameraBasis camera = BattleCameraBasis.Create(Data.Cameras[0]);
+        BattleCameraBasis camera = BattleCameraBasis.Create(RenderCameraOutput);
         foreach (Ff7BattleActorState actor in state.Actors)
         {
             int slot = actor.Actor.Slot;
@@ -186,13 +184,12 @@ public sealed partial class Ff7BattleSession
 
     private void QueueEffectSound(ushort sound, Vector3 point)
     {
-        Ff7BattleSoundState sounds = state.Sounds ?? Ff7BattleSoundState.Empty;
-        state = state with { Sounds = sounds with { DueEffects = [.. sounds.DueEffects, new(sound, SoundPointPan(point))] } };
+        AppendSounds(Ff7NativeBattleSound.Emit(state.Sounds ?? Ff7BattleSoundState.Empty, sound, SoundPointPan(point)));
     }
 
     private byte SoundPointPan(Vector3 point)
     {
-        Vector3 projected = BattleCameraBasis.Create(Data.Cameras[0]).Transform(point);
+        Vector3 projected = BattleCameraBasis.Create(RenderCameraOutput).Transform(point);
         short screenX = projected.Z == 0 ? (short)-1 : unchecked((short)(int)(160 + projected.X * 512 / projected.Z));
         return Ff7NativeBattleSound.PointPan(screenX);
     }

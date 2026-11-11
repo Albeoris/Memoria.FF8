@@ -165,6 +165,7 @@ var tests = new (string Name, Action Run)[]
     ("native jump and actor position query contracts", NativeJumpTests.Run),
     ("installed native movement contracts", NativeMovementTests.RunInstalled),
     ("installed New Game and cold continuation", InstalledSession),
+    ("installed opening guest instant victory", InstalledOpeningTests.RunGuestInstantVictory),
     ("installed opening deferred battle handoff", InstalledOpeningTests.RunDeferredBattle),
     ("installed opening playable battle handoff", InstalledOpeningTests.RunPlayableBattle),
     ("installed opening full combat matrix", InstalledOpeningCombatMatrixTests.Run),

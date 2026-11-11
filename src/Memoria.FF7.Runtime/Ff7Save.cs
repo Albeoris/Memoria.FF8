@@ -80,6 +80,8 @@ public sealed record Ff7SessionSave
     public short BattleBigShotChargeRotation { get; init; }
     public short BattleBigShotCounterRotation { get; init; }
     public short BattleSearchScopeScaleCounter { get; init; }
+    public short BattleSilkDirection { get; init; } = 1;
+    public byte BattleCameraPresentationCounter { get; init; }
     public Ff7TickContinuation? TickContinuation { get; init; }
     public Ff7WorldProcess? World { get; init; }
     public AutoPlayEventCoverageState? EventCoverage { get; init; }

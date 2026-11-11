@@ -22,6 +22,7 @@ public sealed record Ff7BattleRenderFrame(SceneCameraPlacement Camera, IReadOnly
     public Ff7BattleSearchScopeState? SearchScope { get; init; }
     public Ff7BattleStageFadeState? StageFade { get; init; }
     public Ff7BattleRocketState? Rockets { get; init; }
+    public Ff7BattlePrimaryState? PrimaryEffects { get; init; }
 }
 
 /// <summary>Submits original FFVII stage and rigid actor geometry without advancing the battle.</summary>
@@ -86,7 +87,9 @@ public sealed partial class Ff7BattleRenderer
         ArgumentNullException.ThrowIfNull(frame);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
-        if (frame.StageFade is { } stageFade && (stageFade.Red | stageFade.Green | stageFade.Blue) != 0)
+        Ff7BattlePrimaryState? primary = frame.PrimaryEffects ?? frame.SearchScope?.Primary ?? frame.Cure?.Primary ?? frame.Bolt?.Primary ?? frame.Destroyed?.Primary;
+        Ff7BattleStageFadeState? stageFade = primary?.StageFade ?? frame.StageFade;
+        if (stageFade is not null && (stageFade.Red | stageFade.Green | stageFade.Blue) != 0)
         {
             throw new NotSupportedException("FFVII arena tint requires its native nonzero-color material consumer.");
         }
@@ -97,7 +100,7 @@ public sealed partial class Ff7BattleRenderer
             Ff7ModelMaterialState material = new() { Cull = true };
             foreach (Ff7BattleArenaPart part in arena.Geometry)
             {
-                DrawModel(renderer, part.Polygon, arenaTextures, Matrix4x4.Identity, view, material, (frame.StageFade?.Alpha ?? 255) / 255f);
+                DrawModel(renderer, part.Polygon, arenaTextures, Matrix4x4.Identity, view, material, (stageFade?.Alpha ?? 255) / 255f);
             }
             foreach (Ff7BattleActorVisual actor in frame.Actors)
             {
@@ -106,6 +109,14 @@ public sealed partial class Ff7BattleRenderer
             if (frame.Guest is { } guest)
             {
                 CrossoverFf8BattleActorRenderer.Draw(renderer, guest, view.Transform, width, height, view.Focal);
+            }
+            foreach (Ff7BattleHitmarkState hitmark in frame.Hitmarks ?? [])
+            {
+                DrawHitmark(renderer, hitmark, view);
+            }
+            if (frame.SecondaryEffects is { } secondary)
+            {
+                DrawSecondaryEffects(renderer, secondary, view);
             }
             if (frame.Fire is { Sprites.Count: > 0 } effect)
             {
@@ -133,20 +144,15 @@ public sealed partial class Ff7BattleRenderer
                     }
                 }
             }
-            if (frame.Bolt is { Completed: false, Frame: >= 0 } bolt)
+            if (primary is null && frame.Bolt is { Completed: false, Frame: >= 0 } bolt)
             {
                 DrawBolt(renderer, bolt, view);
             }
-            if (frame.Cure is { Particles.Count: > 0 } cureEffect)
+            if (primary is null && frame.Cure is { Particles.Count: > 0 } cureEffect)
             {
                 foreach (Ff7BattleCureParticle particle in cureEffect.Particles)
                 {
-                    if (!cure.TryGetValue((cureEffect.Kind, particle.AtlasY), out Ff7BattleBillboardRenderer? particles))
-                    {
-                        particles = LoadCure(cureEffect.Kind, particle.AtlasY);
-                        cure.Add((cureEffect.Kind, particle.AtlasY), particles);
-                    }
-                    particles.Draw(renderer, particle.Frame, SpriteAnchor(particle.X, particle.Y, particle.Z, 500, view), width, height, view.Focal, particle.Scale / 4096f);
+                    DrawCureParticle(renderer, cureEffect.Kind, particle, view);
                 }
             }
             if (frame.Braver is { Completed: false } braver)
@@ -165,15 +171,11 @@ public sealed partial class Ff7BattleRenderer
             {
                 DrawBigShot(renderer, bigShot, view);
             }
-            foreach (Ff7BattleHitmarkState hitmark in frame.Hitmarks ?? [])
-            {
-                DrawHitmark(renderer, hitmark, view);
-            }
             if (frame.SmokeShot is { Sprites.Count: > 0 } smokeShot)
             {
                 DrawSmokeShot(renderer, smokeShot, view);
             }
-            if (frame.Destroyed is { Completed: false } destroyedEffect)
+            if (primary is null && frame.Destroyed is { Completed: false } destroyedEffect)
             {
                 DrawDestroyed(renderer, destroyedEffect, view);
             }
@@ -181,7 +183,7 @@ public sealed partial class Ff7BattleRenderer
             {
                 DrawSmog(renderer, smog, view);
             }
-            if (frame.SearchScope is { Completed: false } searchScope)
+            if (primary is null && frame.SearchScope is { Completed: false } searchScope)
             {
                 DrawSearchScope(renderer, searchScope, view);
             }
@@ -189,11 +191,11 @@ public sealed partial class Ff7BattleRenderer
             {
                 DrawRockets(renderer, rockets, view);
             }
-            frame.GuestEffects?.Draw(renderer, frame.Camera, width, height);
-            if (frame.SecondaryEffects is { } secondary)
+            if (primary is not null)
             {
-                DrawSecondaryEffects(renderer, secondary, view);
+                DrawPrimaryEffects(renderer, primary, view);
             }
+            frame.GuestEffects?.Draw(renderer, frame.Camera, width, height);
         }
         finally
         {
@@ -316,11 +318,8 @@ public sealed partial class Ff7BattleRenderer
 
     private void DrawBolt(ITriangleRenderer renderer, Ff7BattleBoltState bolt, CameraView view)
     {
-        const string archivePath = "ff7/data/battle/magic/thunder/";
         if (bolt.Strikes is { } strikes)
         {
-            shockwave ??= PcPolygonModel.Read(Read(MagicArchive(), archivePath + "thund_3.p"));
-            shockwaveTextures ??= [PcTexture.Read(Read(MagicArchive(), archivePath + "sonic_1.tex"))];
             foreach (Ff7BattleBoltStrike strike in strikes)
             {
                 int frame = bolt.Frame - strike.StartedAt;
@@ -328,25 +327,49 @@ public sealed partial class Ff7BattleRenderer
                 {
                     continue;
                 }
-                if (frame < 9)
-                {
-                    lightning ??= LoadBillboard("kami_1.s", [archivePath + "thunde00.tex"], 5, _ => 0);
-                    lightning.Draw(renderer, frame / 2, SpriteAnchor(strike.X, strike.Y, strike.Z, strike.CollisionRadius, view), view.Width, view.Height, view.Focal, scale: 2);
-                }
-                float scale = 1 + frame / 8f;
-                float opacity = frame < 8 ? 1 : (16 - frame) / 8f;
-                Matrix4x4 transform = Matrix4x4.CreateScale(scale) * Matrix4x4.CreateRotationX(MathF.PI / 2) * Matrix4x4.CreateTranslation(strike.X, strike.Y, strike.Z);
-                DrawModel(renderer, shockwave, shockwaveTextures, transform, view, new() { Cull = true }, opacity);
+                DrawBoltStrike(renderer, strike, frame, view);
             }
         }
         if (bolt.Sparks is { Count: > 0 } active)
         {
-            sparks ??= LoadBillboard(archivePath + "spark_1.s", [archivePath + "thunde01.tex"], 8, _ => 0);
             foreach (Ff7BattleBoltSpark spark in active)
             {
-                sparks.Draw(renderer, spark.Frame, SpriteAnchor(spark.X, spark.Y, spark.Z, spark.CollisionRadius, view), view.Width, view.Height, view.Focal, scale: 2, flip: spark.Flip);
+                DrawBoltSpark(renderer, spark, view);
             }
         }
+    }
+
+    private void DrawBoltStrike(ITriangleRenderer renderer, Ff7BattleBoltStrike strike, int frame, CameraView view)
+    {
+        const string archivePath = "ff7/data/battle/magic/thunder/";
+        shockwave ??= PcPolygonModel.Read(Read(MagicArchive(), archivePath + "thund_3.p"));
+        shockwaveTextures ??= [PcTexture.Read(Read(MagicArchive(), archivePath + "sonic_1.tex"))];
+        if (frame < 9)
+        {
+            lightning ??= LoadBillboard("kami_1.s", [archivePath + "thunde00.tex"], 5, _ => 0);
+            lightning.Draw(renderer, frame / 2, SpriteAnchor(strike.X, strike.Y, strike.Z, strike.CollisionRadius, view), view.Width, view.Height, view.Focal, scale: 2);
+        }
+        float scale = 1 + frame / 8f;
+        float opacity = frame < 8 ? 1 : (16 - frame) / 8f;
+        Matrix4x4 transform = Matrix4x4.CreateScale(scale) * Matrix4x4.CreateRotationX(MathF.PI / 2) * Matrix4x4.CreateTranslation(strike.X, strike.Y, strike.Z);
+        DrawModel(renderer, shockwave, shockwaveTextures, transform, view, new() { Cull = true }, opacity);
+    }
+
+    private void DrawBoltSpark(ITriangleRenderer renderer, Ff7BattleBoltSpark spark, CameraView view)
+    {
+        const string archivePath = "ff7/data/battle/magic/thunder/";
+        sparks ??= LoadBillboard(archivePath + "spark_1.s", [archivePath + "thunde01.tex"], 8, _ => 0);
+        sparks.Draw(renderer, spark.Frame, SpriteAnchor(spark.X, spark.Y, spark.Z, spark.CollisionRadius, view), view.Width, view.Height, view.Focal, scale: 2, flip: spark.Flip);
+    }
+
+    private void DrawCureParticle(ITriangleRenderer renderer, Ff7BattleCureKind kind, Ff7BattleCureParticle particle, CameraView view)
+    {
+        if (!cure.TryGetValue((kind, particle.AtlasY), out Ff7BattleBillboardRenderer? particles))
+        {
+            particles = LoadCure(kind, particle.AtlasY);
+            cure.Add((kind, particle.AtlasY), particles);
+        }
+        particles.Draw(renderer, particle.Frame, SpriteAnchor(particle.X, particle.Y, particle.Z, 500, view), view.Width, view.Height, view.Focal, particle.Scale / 4096f);
     }
 
     private Ff7BattleBillboardRenderer LoadBillboard(string name, string[] textures, int frames, Func<ushort, int> selectPage, TriangleBlend blend = TriangleBlend.Replace)

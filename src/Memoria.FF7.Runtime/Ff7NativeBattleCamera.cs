@@ -32,6 +32,16 @@ public static class Ff7NativeBattleCamera
         };
     }
 
+    public static Ff7BattleActionCameras SelectWeapon(ReadOnlySpan<byte> weapon)
+    {
+        if (weapon.Length != 44)
+        {
+            throw new InvalidDataException("FFVII weapon camera selection requires its complete native record.");
+        }
+        ushort camera = BinaryPrimitives.ReadUInt16LittleEndian(weapon[12..]);
+        return new(camera, camera);
+    }
+
     public static Ff7BattleActionCameras SelectItem(ReadOnlySpan<byte> item)
     {
         if (item.Length != 28)

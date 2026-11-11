@@ -16,6 +16,7 @@ public sealed record Ff7BattleSearchScopeState(ushort Targets, Ff7BattleBraverPo
     public short ScaleCounter { get; init; } = InitialScaleCounter;
     public IReadOnlyList<Ff7BattleSearchScopeMesh> Meshes { get; init; } = [];
     public IReadOnlyList<Ff7BattleSearchScopeSprite> Sprites { get; init; } = [];
+    public Ff7BattlePrimaryState? Primary { get; init; }
     public bool Completed => Frame >= 51;
 }
 
@@ -28,7 +29,8 @@ public static class Ff7BattleSearchScopeEffect
 
     public static Ff7BattleSearchScopeState Start(ushort targets, Vector3 source, Vector3 targetCenter, short initialScaleCounter = 0)
     {
-        return CreateState(targets, source, targetCenter, initialScaleCounter);
+        Ff7BattleSearchScopeState state = CreateState(targets, source, targetCenter, initialScaleCounter);
+        return state with { Primary = Ff7BattlePrimaryEffects.ScheduleSearchScope(new() { SearchScopeCounter = initialScaleCounter }, targets, source, targetCenter) };
     }
 
     internal static Ff7BattleSearchScopeState CreateState(ushort targets, Vector3 source, Vector3 targetCenter, short initialScaleCounter = 0)
@@ -54,40 +56,9 @@ public static class Ff7BattleSearchScopeEffect
         {
             return new(state, 0);
         }
-        int frame = state.Frame + 1;
-        List<Ff7BattleSearchScopeMesh> meshes = [];
-        List<Ff7BattleSearchScopeSprite> sprites = state.Sprites.Where(sprite => frame - sprite.StartedAt < FirstSpriteFrames + SecondSpriteFrames).ToList();
-        short counter = state.ScaleCounter;
-        if (frame < 32)
-        {
-            Ff7BattleBraverPoint difference = Difference(state.Source, state.TargetCenter);
-            int length = (short)(int)Math.Sqrt(difference.X * difference.X + difference.Y * difference.Y + difference.Z * difference.Z);
-            for (int index = 0; index < 4; index++)
-            {
-                int sign = (index >> 1) * 2 - 1;
-                short pitch = (short)(Sine(frame << 8) / 40 * sign);
-                short yaw = (short)((Sine(frame << 7) >> 4) * sign);
-                int model = (index & 1) == 0 ? 1 : 0;
-                meshes.Add(new(model, new((short)(pitch - 1024), yaw, 0), (short)(length * 5376 / 2800), model == 1 ? 12288 : 16384, (short)(4096 - counter * (model == 1 ? 32 : 24))));
-                if (model == 1)
-                {
-                    Matrix4x4 transform = BattleRigidPose.Rotation(new(pitch, yaw, 0)) * state.Basis.Matrix;
-                    Ff7BattleBraverPoint offset = Ff7BattleBraverPoint.At(Vector3.Transform(new(0, 0, length), transform));
-                    sprites.Add(new(frame, new((short)(state.Source.X + offset.X), (short)(state.Source.Y + offset.Y), (short)(state.Source.Z + offset.Z))));
-                }
-                if (frame < 8)
-                {
-                    counter = (short)(counter + 1);
-                }
-                if (frame > 24)
-                {
-                    counter = (short)(counter - 1);
-                }
-            }
-        }
-        // TODO(TD-024) Replace the isolated leaf-order projection with the shared primary callback owner.
-        sprites = sprites.OrderBy(sprite => sprite.StartedAt % (FirstSpriteFrames + SecondSpriteFrames)).ToList();
-        return new(state with { Frame = frame, ScaleCounter = counter, Meshes = meshes, Sprites = sprites }, frame == 32 ? state.Targets : (ushort)0);
+        Ff7BattlePrimaryState previous = state.Primary ?? Ff7BattlePrimaryEffects.ImportSearchScope(new() { Tick = state.Frame, SearchScopeCounter = state.ScaleCounter }, state);
+        Ff7BattlePrimaryState primary = Ff7BattlePrimaryEffects.Advance(previous);
+        return new(Ff7BattlePrimaryEffects.ProjectSearchScope(primary, state, retainPrimary: true), primary.ImpactTargets);
     }
 
     public static byte Alpha(short transparency) => Ff7BattleStageFade.Alpha(transparency);

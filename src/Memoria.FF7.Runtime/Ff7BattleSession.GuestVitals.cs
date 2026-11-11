@@ -2,6 +2,19 @@
 
 namespace Memoria.FF7.Runtime;
 
+public sealed record Ff7BattleGuestProjection(ushort MaximumHp, byte Level, byte Luck, ushort Defense, ushort MagicDefense)
+{
+    internal void Validate()
+    {
+        if (MaximumHp is 0 or > 9999 || Level > 99 || Defense > 999 || MagicDefense > 999)
+        {
+            throw new InvalidDataException("The current guest stat projection exceeds its admitted native caps.");
+        }
+    }
+
+    internal static Ff7BattleGuestProjection From(Ff7BattleGuestVitalsBinding source) => new(source.MaximumHp, source.Level, source.Luck, source.Defense, source.MagicDefense);
+}
+
 public sealed record Ff7BattleGuestVitalsBinding(Guid EncounterId, string SourcePayloadSha256, int HostSlot, int StoryCharacter, int OriginCharacter, int OriginRow, ushort InitialHp, ushort MaximumHp, byte Level, byte Luck, ushort Defense, ushort MagicDefense)
 {
     public ushort OriginStatuses { get; init; }
@@ -19,6 +32,18 @@ public sealed record Ff7BattleGuestVitalsBinding(Guid EncounterId, string Source
 public sealed partial class Ff7BattleSession
 {
     public Ff7BattleGuestVitalsBinding? GuestVitals => state.GuestVitals;
+    public Ff7BattleGuestProjection? GuestProjection => state.GuestProjection ?? (state.GuestVitals is { } binding ? Ff7BattleGuestProjection.From(binding) : null);
+
+    public void ReprojectGuestVitals(Ff7BattleGuestProjection projection)
+    {
+        ArgumentNullException.ThrowIfNull(projection);
+        projection.Validate();
+        Ff7BattleGuestVitalsBinding binding = state.GuestVitals ?? throw new InvalidOperationException("A guest stat update requires its immutable source binding.");
+        Ff7BattleActorState actor = Actor(binding.HostSlot);
+        Ff7BattleAiActor current = actor.Actor with { HitPoints = Math.Min(actor.Actor.HitPoints, projection.MaximumHp), MaxHitPoints = projection.MaximumHp, Defense = projection.Defense, MagicDefense = projection.MagicDefense };
+        Replace(actor with { Actor = current });
+        state = state with { GuestProjection = projection };
+    }
 
     public void BindGuestVitals(Ff7BattleGuestVitalsBinding binding)
     {
@@ -47,8 +72,8 @@ public sealed partial class Ff7BattleSession
 
     private Ff7BattleDamageActor ProjectGuestDefense(Ff7BattleActorState actor, Ff7BattleDamageActor stats)
     {
-        return state.GuestVitals is { } binding && actor.Actor.Slot == binding.HostSlot
-            ? stats with { Level = binding.Level, Luck = binding.Luck, Evade = 0, MagicEvade = 0, DefenseModifier = 0, EvadeModifier = 0, MagicDefenseModifier = 0 }
+        return state.GuestVitals is { } binding && actor.Actor.Slot == binding.HostSlot && GuestProjection is { } projection
+            ? stats with { Level = projection.Level, Luck = projection.Luck, Evade = 0, MagicEvade = 0, DefenseModifier = 0, EvadeModifier = 0, MagicDefenseModifier = 0 }
             : stats;
     }
 
@@ -72,13 +97,19 @@ public sealed partial class Ff7BattleSession
     {
         if (snapshot.GuestVitals is not { } binding)
         {
+            if (snapshot.GuestProjection is not null)
+            {
+                throw new InvalidDataException("A current guest projection has no source identity binding.");
+            }
             return;
         }
         binding.Validate();
+        Ff7BattleGuestProjection projection = snapshot.GuestProjection ?? Ff7BattleGuestProjection.From(binding);
+        projection.Validate();
         Ff7BattleActorState actor = snapshot.Actors.SingleOrDefault(candidate => candidate.Actor.Slot == binding.HostSlot && candidate.Identity == binding.StoryCharacter)
             ?? throw new InvalidDataException("Saved guest vitals do not identify the occupied story slot.");
         Ff7BattleAiActor native = actor.Actor;
-        if (native.HitPoints > binding.MaximumHp || native.MaxHitPoints != binding.MaximumHp || native.Defense != binding.Defense || native.MagicDefense != binding.MagicDefense || native.MagicPoints != 0 || native.MaxMagicPoints != 0 || (native.Statuses & ~Ff7GuestBattleStatuses.SupportedHost) != 0 || (native.HitPoints == 0) != ((native.Statuses & 1) != 0) || actor.LimitGauge != 0 || actor.AllUses is not null)
+        if (native.HitPoints > projection.MaximumHp || native.MaxHitPoints != projection.MaximumHp || native.Defense != projection.Defense || native.MagicDefense != projection.MagicDefense || native.MagicPoints != 0 || native.MaxMagicPoints != 0 || (native.Statuses & ~Ff7GuestBattleStatuses.SupportedHost) != 0 || (native.HitPoints == 0) != ((native.Statuses & 1) != 0) || actor.LimitGauge != 0 || actor.AllUses is not null)
         {
             throw new InvalidDataException("Saved guest vitals contain an unsupported host projection.");
         }

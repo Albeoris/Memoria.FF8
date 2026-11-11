@@ -55,7 +55,12 @@ public sealed partial class Ff7BattleSession
     public (int Clip, int Frame) VisualPose(int slot)
     {
         Ff7BattleActorState actor = Actor(slot);
-        if (state.Action is { Pose: { ClipIndex: >= 0 } pose } action && action.Command.ActorSlot == slot)
+        Ff7BattleActorModelState? modelState = state.ActorModels.SingleOrDefault(model => model.Slot == slot);
+        if (modelState?.Pose is { ClipIndex: >= 0 } modelPose)
+        {
+            return (modelPose.ClipIndex, modelPose.ClipFrame);
+        }
+        if (modelState?.IdleStarted is null && state.Action is { Pose: { ClipIndex: >= 0 } pose } action && action.Command.ActorSlot == slot)
         {
             return (pose.ClipIndex, pose.ClipFrame);
         }
@@ -94,12 +99,24 @@ public sealed partial class Ff7BattleSession
                 return (hurt, elapsed);
             }
         }
-        return (clip, (int)(PresentationTick % frames));
+        long idleFrame = modelState?.IdleStarted is long idleStarted ? PresentationTick - idleStarted : IdlePresentationFrame(slot);
+        return (clip, (int)(idleFrame % frames));
     }
 
     public BattleLimitAnimation? VisualLimit(int slot)
     {
-        return state.Action is { Animation: >= 0, Command: { CommandId: (byte)Ff7BattleCommand.Limit } command } && command.ActorSlot == slot ? animations!.GetLimit(command.Argument) : null;
+        ushort? limit = VisualLimitId(slot);
+        return limit is ushort id ? animations!.GetLimit(id) : null;
+    }
+
+    private ushort? VisualLimitId(int slot)
+    {
+        Ff7BattleActorModelState? model = state.ActorModels.SingleOrDefault(model => model.Slot == slot);
+        if (model is not null)
+        {
+            return model.Limit;
+        }
+        return state.Action is { Animation: >= 0, Command: { CommandId: (byte)Ff7BattleCommand.Limit } command } && command.ActorSlot == slot ? command.Argument : null;
     }
 
     private string ActorModel(int slot) => Ff7BattleAnimationResources.ModelPrefix(Actor(slot).Identity, slot >= 4);
@@ -109,7 +126,7 @@ public sealed partial class Ff7BattleSession
         (int clip, int frame) = VisualPose(slot);
         if (VisualLimit(slot) is not null)
         {
-            return animations!.LimitBonePosition(ActorModel(slot), clip, frame, VisualPlacement(slot), state.Action!.Command.Argument, bone, Vector3.Zero);
+            return animations!.LimitBonePosition(ActorModel(slot), clip, frame, VisualPlacement(slot), VisualLimitId(slot)!.Value, bone, Vector3.Zero);
         }
         return animations!.BonePosition(ActorModel(slot), clip, frame, VisualPlacement(slot), bone);
     }

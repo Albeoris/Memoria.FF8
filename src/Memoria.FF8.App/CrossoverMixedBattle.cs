@@ -73,7 +73,8 @@ internal sealed class CrossoverMixedBattle : IDisposable
     public CrossoverBattleVitalsSettlementResult Settle(CombinedSessionSave source, Ff7Installation installation)
     {
         Actions.CancelAtTerminal();
-        CrossoverGuestMagicSettlement? magic = Actions.UsedMagic ? new(roster, Actions.Capture().Stock, Actions.OriginCrtRandom, Actions.CurrentCrtRandom) : null;
+        CrossoverGuestHostActionsSnapshot actions = Actions.Capture();
+        CrossoverGuestMagicSettlement? magic = Actions.UsedMagic ? new(roster, actions.Stock, Actions.OriginCrtRandom, Actions.CurrentCrtRandom, actions.CommittedSpells!.Value, Actions.LegacyBattleMaskContinuation) : null;
         return CrossoverBattleVitalsSettlement.PrepareResult(source with { MixedBattlePayload = Capture() }, installation, game.ReadNewGameCharacterVitals(), presentation: Attack.Capture(), magic: magic);
     }
 

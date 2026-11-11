@@ -1,4 +1,4 @@
-using System.Numerics;
+using Memoria.FF7.Formats;
 
 namespace Memoria.FF7.Runtime;
 
@@ -16,22 +16,7 @@ public sealed record Ff7BattleTargetCallbacks(ushort RemainingTargets, byte Dela
 
     public Ff7BattleTargetCallbacks Advance(bool paused, out int? targetSlot)
     {
-        if (RemainingTargets > 0x3FF || Elapsed > Delay + Ff7NativeAtb.SlotCount)
-        {
-            throw new InvalidDataException("The FFVII target reaction schedule is corrupt.");
-        }
-        targetSlot = null;
-        if (paused || RemainingTargets == 0)
-        {
-            return this;
-        }
-        ushort remaining = RemainingTargets;
-        if (Elapsed >= Delay)
-        {
-            int slot = BitOperations.TrailingZeroCount((uint)remaining);
-            targetSlot = slot;
-            remaining = (ushort)(remaining & ~(1 << slot));
-        }
-        return this with { RemainingTargets = remaining, Elapsed = (ushort)(Elapsed + 1) };
+        Ff7BattlePrimaryTargetReaction next = Ff7BattlePrimaryEffects.AdvanceTargetReaction(new(RemainingTargets, Delay) { Age = Elapsed }, paused, out targetSlot);
+        return this with { RemainingTargets = next.RemainingTargets, Elapsed = checked((ushort)next.Age) };
     }
 }

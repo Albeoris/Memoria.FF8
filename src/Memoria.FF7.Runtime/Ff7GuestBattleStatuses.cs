@@ -6,6 +6,15 @@ public static class Ff7GuestBattleStatuses
     public const uint SupportedHost = 1u | 4u | 8u | 0x80u | 0x100u | 0x200u | 0x04000000u;
     public const ushort SupportedOrigin = 1 | 2 | 8 | 16;
 
+    public static bool CanCastMagic(uint host)
+    {
+        if ((host & ~SupportedHost) != 0)
+        {
+            throw new NotSupportedException("The mixed profile cannot classify this host casting status.");
+        }
+        return (host & (Ff7NativeBattleActionResolver.Death | Ff7NativeBattleActionResolver.Sleep | 0x80)) == 0;
+    }
+
     public static uint FromOrigin(ushort saved)
     {
         if ((saved & ~SupportedOrigin) != 0)
