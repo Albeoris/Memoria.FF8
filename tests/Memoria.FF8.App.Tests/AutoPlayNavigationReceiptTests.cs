@@ -1,5 +1,6 @@
 using System.Numerics;
 using Memoria.FF8.Assets;
+using Memoria.FF8.Events;
 
 namespace Memoria.FF8.App.Tests;
 
@@ -38,6 +39,27 @@ public sealed class AutoPlayNavigationReceiptTests
         receipts[source] = physical with { StateFingerprint = new string('A', 64) };
         coverage.NavigationRoutes.Clear();
         Assert.Equal(new[] { 600 }, AutoPlayController.FindStatefulNavigationFields(coverage, receipts));
+    }
+
+    [Fact]
+    public void TransitSharesStateOnlyAcrossAnObservedRouteWithMatchingPersistentReads()
+    {
+        AutoPlayNavigationReceipt physical = Capture(CreateWalkmesh(), 0, []);
+        AutoPlayNavigationReceipt stairs = physical with { StateFingerprint = new string('A', 64) };
+        AutoPlayNavigationReceipt transit = physical with { FieldId = 601 };
+        string source = stairs.Key("600:16");
+        string destination = transit.Key("601:16");
+        AutoPlayPlannerState coverage = new();
+        coverage.NavigationRoutes.Add(new(source, destination, "exit", new("601:16", "open", false, [])));
+        Dictionary<string, AutoPlayNavigationReceipt> receipts = new() { [source] = stairs, [destination] = transit };
+        AutoPlayVisitGuard guard = new(AutoPlayVisitGuard.CurrentVersion, stairs.FieldId, stairs.ProgramHash, [new NativePersistentPredicateRead("PSHM_B", 300, 1)], "shared");
+        Dictionary<string, AutoPlayVisitGuard> guards = new() { [source] = guard, [destination] = guard with { FieldId = transit.FieldId, Fingerprint = "different" } };
+
+        Assert.Equal(new[] { 600 }, AutoPlayController.FindStatefulNavigationFields(coverage, receipts, guards));
+        guards[destination] = guards[destination] with { Fingerprint = guard.Fingerprint };
+        Assert.Equal(new[] { 600, 601 }, AutoPlayController.FindStatefulNavigationFields(coverage, receipts, guards).Order());
+        coverage.NavigationRoutes.Clear();
+        Assert.Equal(new[] { 600 }, AutoPlayController.FindStatefulNavigationFields(coverage, receipts, guards));
     }
 
     [Theory]

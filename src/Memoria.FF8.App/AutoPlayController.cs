@@ -779,6 +779,7 @@ internal sealed partial class AutoPlayController
         SaveLocationEntry();
         if (world.CaptureAutoPlayVisitGuard(targets) is { } guard)
         {
+            navigationGuardsChanged |= !run.VisitGuards.TryGetValue(navigation, out AutoPlayVisitGuard? previousGuard) || guard.Fingerprint != previousGuard.Fingerprint || !guard.Reads.SequenceEqual(previousGuard.Reads);
             run.VisitGuards[navigation] = guard;
             SeedExhaustedSurveyInspection(run, navigation, guard);
         }

@@ -6,8 +6,9 @@ internal sealed partial class AutoPlayController
     private AutoPlayPlannerState? navigationStateEvidence;
     private int navigationStateRouteCount = -1;
     private int navigationStateRetirementCount = -1;
+    private bool navigationGuardsChanged;
 
-    internal static IReadOnlySet<int> FindStatefulNavigationFields(AutoPlayPlannerState coverage, IReadOnlyDictionary<string, AutoPlayNavigationReceipt> receipts)
+    internal static IReadOnlySet<int> FindStatefulNavigationFields(AutoPlayPlannerState coverage, IReadOnlyDictionary<string, AutoPlayNavigationReceipt> receipts, IReadOnlyDictionary<string, AutoPlayVisitGuard>? guards = null)
     {
         HashSet<int> fields = receipts.Values.Where(receipt => receipt.StateFingerprint is not null).Select(receipt => receipt.FieldId).ToHashSet();
         Dictionary<(string Source, string Event), string?> predicates = [];
@@ -26,12 +27,64 @@ internal sealed partial class AutoPlayController
             }
             predicates.TryAdd(key, edge.Route.ConditionSignature);
         }
+        if (guards is null || fields.Count == 0)
+        {
+            return fields;
+        }
+        // Transit fields can preserve a branch predicate even when none of their
+        // own exits test it. Only link observed routes with matching portable reads.
+        Dictionary<int, HashSet<int>> sharedState = [];
+        foreach (AutoPlayNavigationRoute edge in coverage.NavigationRoutes)
+        {
+            if (edge.Route.ObservedStoryChanged == true || !TryReadGuard(edge.SourceKey, out AutoPlayVisitGuard source) || !TryReadGuard(edge.DestinationKey, out AutoPlayVisitGuard destination) || source.FieldId == destination.FieldId || source.Fingerprint != destination.Fingerprint || !source.Reads.SequenceEqual(destination.Reads) || !source.Reads.Any(read => read.Address != 256))
+            {
+                continue;
+            }
+            AddLink(source.FieldId, destination.FieldId);
+            AddLink(destination.FieldId, source.FieldId);
+        }
+        Queue<int> pending = new(fields);
+        while (pending.TryDequeue(out int field))
+        {
+            if (!sharedState.TryGetValue(field, out HashSet<int>? neighbors))
+            {
+                continue;
+            }
+            foreach (int neighbor in neighbors)
+            {
+                if (fields.Add(neighbor))
+                {
+                    pending.Enqueue(neighbor);
+                }
+            }
+        }
         return fields;
+
+        bool TryReadGuard(string key, out AutoPlayVisitGuard guard)
+        {
+            if (guards.TryGetValue(key, out AutoPlayVisitGuard? candidate) && receipts.TryGetValue(key, out AutoPlayNavigationReceipt? receipt) && candidate.Version == AutoPlayVisitGuard.CurrentVersion && candidate.FieldId == receipt.FieldId && candidate.ProgramHash == receipt.ProgramHash)
+            {
+                guard = candidate;
+                return true;
+            }
+            guard = null!;
+            return false;
+        }
+
+        void AddLink(int source, int destination)
+        {
+            if (!sharedState.TryGetValue(source, out HashSet<int>? neighbors))
+            {
+                neighbors = [];
+                sharedState.Add(source, neighbors);
+            }
+            neighbors.Add(destination);
+        }
     }
 
     private bool UsesStatefulNavigation(int field)
     {
-        if (!ReferenceEquals(navigationStateEvidence, run.Coverage) || navigationStateRouteCount != run.Coverage.NavigationRoutes.Count || navigationStateRetirementCount != run.Coverage.NavigationRetirements.Count)
+        if (navigationGuardsChanged || !ReferenceEquals(navigationStateEvidence, run.Coverage) || navigationStateRouteCount != run.Coverage.NavigationRoutes.Count || navigationStateRetirementCount != run.Coverage.NavigationRetirements.Count)
         {
             if (!ReferenceEquals(navigationStateEvidence, run.Coverage))
             {
@@ -40,7 +93,8 @@ internal sealed partial class AutoPlayController
             navigationStateEvidence = run.Coverage;
             navigationStateRouteCount = run.Coverage.NavigationRoutes.Count;
             navigationStateRetirementCount = run.Coverage.NavigationRetirements.Count;
-            statefulNavigationFields.UnionWith(FindStatefulNavigationFields(run.Coverage, run.NavigationReceipts));
+            navigationGuardsChanged = false;
+            statefulNavigationFields.UnionWith(FindStatefulNavigationFields(run.Coverage, run.NavigationReceipts, run.VisitGuards));
         }
         return statefulNavigationFields.Contains(field);
     }
