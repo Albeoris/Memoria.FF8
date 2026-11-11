@@ -18,13 +18,17 @@ public sealed partial class Ff7BattleSession
         state = state with { Sounds = sounds with { PreparedImpacts = [] } };
     }
 
-    private void CaptureImpactPresentation(Ff7BattleQueuedCommand command, int target, Ff7BattleActorState source, Ff7BattleDamageResult result, Ff7BattleAttack? record)
+    private void CaptureImpactPresentation(Ff7BattleQueuedCommand command, int target, Ff7BattleActorState source, Ff7BattleActionReceipt receipt, Ff7BattleDamageAction damageAction, Ff7BattleAttack? record)
     {
         if (animations is null || command.CommandId == 0x23)
         {
             return;
         }
-        Ff7BattleImpactPresentation impact = ReadImpactPresentation(command, target, source, result, record);
+        Ff7BattleActorState previous = Actor(target);
+        byte hurtIndex = command.CommandId == (byte)Ff7BattleCommand.Item ? (byte)0 : record?.HurtAction ?? 0;
+        bool revived = (previous.Actor.Statuses & 1) != 0 && (receipt.Target.Statuses & 1) == 0;
+        short modelAction = Ff7NativeBattleModelReaction.Select(target < 3, previous.Actor.HurtAction, hurtIndex, animations.ActorResources?.PlayerHurtActions, damageAction.Power, previous.Actor.Statuses, receipt.Damage.Missed, receipt.Damage.Damage, damageAction.TargetsMagicPoints, revived, (receipt.AddedStatuses & 1) != 0);
+        Ff7BattleImpactPresentation impact = ReadImpactPresentation(command, target, source, receipt.Damage, record) with { ModelAction = modelAction };
         Ff7BattleSoundState sounds = state.Sounds ?? Ff7BattleSoundState.Empty;
         state = state with { Sounds = sounds with { PreparedImpacts = [.. sounds.PreparedImpacts.Where(previous => previous.Target != target), impact] } };
     }
@@ -37,9 +41,9 @@ public sealed partial class Ff7BattleSession
         {
             ReadOnlySpan<byte> character = characters[command.ActorSlot]!.NativeRecord;
             ReadOnlySpan<byte> weapon = kernel[5].Data.Span.Slice(character[28] * 44, 44);
-            bool berserk = (source.Actor.Statuses & 0x800) != 0;
-            sound = Ff7NativeBattleSound.WeaponImpactSound(weapon, result.Critical, result.Missed, berserk);
-            hitmark = berserk ? 0 : weapon[39];
+            bool frog = (source.Actor.Statuses & 0x800) != 0;
+            sound = Ff7NativeBattleSound.WeaponImpactSound(weapon, result.Critical, result.Missed, frog);
+            hitmark = frog ? 0 : weapon[39];
         }
         else
         {
@@ -92,6 +96,10 @@ public sealed partial class Ff7BattleSession
         }
         Ff7BattleSecondaryState secondary = Ff7BattleSecondaryEffects.Advance(state.SecondaryEffects!, SecondaryActorPoint, slot => new(0, (short)VisualPlacement(slot).Yaw, 0), random.NextCrt);
         state = state with { SecondaryEffects = secondary, Sounds = before with { DueImpacts = [], PendingHitmarks = [], DueEffects = [] } };
+        foreach (Ff7BattleActorModelWrite write in secondary.ActorWrites)
+        {
+            ApplyActorModelWrite(write);
+        }
         foreach (ushort sound in secondary.SoundIds)
         {
             AppendSounds(Ff7NativeBattleSound.Emit(state.Sounds!, sound, Ff7NativeBattleSound.ActorPan(SoundScreenX(state.SoundAttacker))));
@@ -104,13 +112,19 @@ public sealed partial class Ff7BattleSession
         {
             AppendSounds(Ff7NativeBattleSound.Impact(state.Sounds!, impact.Sound, impact.ReactionEffect, impact.Source, SoundScreenX(impact.Target)));
         }
+    }
+
+    private void PublishSoundScreenPositions()
+    {
+        if (animations is null)
+        {
+            return;
+        }
         short[] projected = new short[Ff7NativeAtb.SlotCount];
-        BattleCameraBasis camera = BattleCameraBasis.Create(RenderCameraOutput);
         foreach (Ff7BattleActorState actor in state.Actors)
         {
             int slot = actor.Actor.Slot;
-            Vector3 point = camera.Transform(ImpactAnchor(slot));
-            projected[slot] = point.Z <= 0 ? (short)-1 : unchecked((short)(int)(160 + point.X * 512 / point.Z));
+            projected[slot] = ActorProjectedScreenX(slot);
         }
         state = state with { SoundProjectedX = projected };
     }
@@ -249,7 +263,7 @@ public sealed partial class Ff7BattleSession
         long sequence = 0;
         foreach (Ff7BattleSoundReceipt sound in snapshot.SoundRequests)
         {
-            if (sound is null || sound.Sequence <= sequence || sound.Sequence > (snapshot.Sounds?.Sequence ?? 0) || sound.Pan > 127)
+            if (sound is null || sound.Sequence <= sequence || sound.Sequence > (snapshot.Sounds?.Sequence ?? 0) || sound.Pan > 127 || sound.Channel is < 1 or > 5)
             {
                 throw new InvalidDataException("FFVII battle snapshot has invalid sound receipt ordering.");
             }

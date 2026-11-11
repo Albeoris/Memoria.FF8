@@ -99,9 +99,14 @@ public static partial class Ff7BattlePrimaryEffects
             else if (age < 16)
             {
                 Ff7BattleBoltStrike strike;
-                if (previous.Strikes is { } strikes && ordinal < strikes.Count)
+                Ff7BattleBoltStrike? saved = previous.Strikes?.FirstOrDefault(strike => strike.StartedAt == ordinal * 2);
+                if (saved is null && previous.Strikes is { } oldStrikes && oldStrikes.All(strike => strike.StartedAt == 0) && ordinal < oldStrikes.Count)
                 {
-                    strike = strikes[ordinal];
+                    saved = oldStrikes[ordinal];
+                }
+                if (saved is not null)
+                {
+                    strike = saved;
                 }
                 else
                 {

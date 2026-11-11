@@ -12,9 +12,14 @@ namespace Memoria.FF8.App.Tests;
 [Collection("GPU rendering")]
 public sealed class CrossoverNativeCastPresentationTests(ITestOutputHelper output)
 {
-    [Fact]
-    public void Embedded_Fire_source_component_retains_its_native_random_and_one_contact_across_cold_restore()
+    [Theory]
+    [InlineData((ushort)1)]
+    [InlineData((ushort)4)]
+    [InlineData((ushort)7)]
+    [InlineData((ushort)21)]
+    public void Embedded_original_spell_source_retains_its_native_random_and_one_contact_across_cold_restore(ushort ability)
     {
+        bool cure = ability == 21;
         string? root = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         string? hostRoot = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(root) && !string.IsNullOrWhiteSpace(hostRoot), "Select both original game installations.");
@@ -30,8 +35,9 @@ public sealed class CrossoverNativeCastPresentationTests(ITestOutputHelper outpu
             SequenceState = new() { Locals = NativeBattleSequenceState.ColdProcessLocals() }
         }, 0, 0, ref random);
         model = NativeBattleSequenceMachine.Advance(NativeBattleGraphicsModels.SelectSequence(model, 1), resource, new(0, 0)).Model;
-        CrossoverNativeFirePresentation presentation = new(game, resource);
-        CrossoverNativeFirePresentationState state = presentation.Begin(model, 4, NativeCrtRandomState.FromColdProcess(), new(3, 4, 0, 0, 0, 83, 0));
+        model = model with { Flags2 = (ushort)(model.Flags2!.Value & ~4), GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, resource.PoseSource!) };
+        CrossoverNativeMagicPresentation presentation = new(game, resource);
+        CrossoverNativeMagicPresentationState state = presentation.Begin(model, cure ? 0 : 4, NativeCrtRandomState.FromColdProcess(), cure ? new(0, 4, 0, 1, 0, 282, 0) : new(3, 4, 0, 0, 0, 83, 0), ability);
         BattleModel body = battle.LoadPlayer(0);
         BattleModel weapon = battle.ResolveWeaponModel(0, kit.Weapon, body)!;
         Ff7Installation installation = Ff7Installation.Discover(hostRoot!);
@@ -52,42 +58,69 @@ public sealed class CrossoverNativeCastPresentationTests(ITestOutputHelper outpu
         int soundRequests = 0;
         bool castingCold = false;
         bool fireCold = false;
-        for (int callback = 1; callback <= 150; callback++)
+        bool cameraCold = false;
+        int pendingShakes = 0;
+        int renderedShakes = 0;
+        for (int callback = 1; callback <= 250; callback++)
         {
-            CrossoverNativeFirePresentationStep next = Step(state);
+            CrossoverNativeMagicPresentationStep next = Step(state);
             state = next.State;
+            if (state.Blizzard is { } blizzard)
+            {
+                Assert.True(blizzard.PendingViewTranslationY is 0 or 32);
+                Assert.True(blizzard.ViewTranslationY is 0 or 32);
+                pendingShakes += blizzard.PendingViewTranslationY != 0 ? 1 : 0;
+                renderedShakes += blizzard.ViewTranslationY != 0 ? 1 : 0;
+            }
             contacts += next.Contact ? 1 : 0;
-            soundRequests += next.Sounds.Length + next.FireSounds.Length;
-            if (!state.Draws.IsEmpty)
+            soundRequests += next.Sounds.Length + next.FireSounds.Length + next.EffectSounds.Length;
+            if (!state.Draws.IsEmpty || state.Cure is not null || state.Blizzard is not null)
             {
                 CrossoverFf8BattleActorVisual visual = new(body, weapon, state.Cast.Model, placement.Matrix) { BodyTextures = state.BodyTextures, Textures = state.Textures };
-                arena.Render(new OverlayRenderer(gpu, () => triangles += compositor.Draw(gpu, state.Draws, state.Textures, camera, 320, 240, CrossoverGunbladeHostPlacement.OriginToHostScale)), 320, 240, new(scene.Cameras[0], []) { Guest = visual });
+                CrossoverNativeEffectVisual effect = new(compositor, state.Draws, state.Textures, placement.Matrix, CrossoverGunbladeHostPlacement.OriginToHostScale) { Ordering = state.Cure?.Ordering ?? state.Blizzard?.Ordering, Memory = state.Cure?.Frame.Memory ?? state.Blizzard?.Frame.Memory };
+                System.Numerics.Vector3 offset = BattleCameraBasis.Create(scene.Cameras[0]).Up * ((state.Blizzard?.ViewTranslationY ?? 0) * CrossoverGunbladeHostPlacement.OriginToHostScale);
+                SceneCameraPlacement displayed = new(scene.Cameras[0].Position - offset, scene.Cameras[0].Focus - offset);
+                arena.Render(new OverlayRenderer(gpu, () => triangles += effect.Draw(gpu, displayed, 320, 240)), 320, 240, new(displayed, []) { Guest = visual });
                 Color[] frame = GpuTestDevice.Read(gpu.Target);
                 changedPixels = Math.Max(changedPixels, baseline.Zip(frame).Count(pair => pair.First != pair.Second));
             }
-            if (!castingCold && state.Modules.PublishedCount > 0 || !fireCold && state.Fire is { ContactPublished: true })
+            if (!castingCold && state.Modules.PublishedCount > 0 || !fireCold && (state.Fire is { ContactPublished: true } || state.Cure is { ContactPublished: true } || state.Thunder is { ContactPublished: true } || state.Blizzard is { ContactPublished: true }) || !cameraCold && state.Blizzard?.PendingViewTranslationY != 0 && state.Blizzard is not null)
             {
-                CrossoverNativeFirePresentationState restored = CrossoverNativeFirePresentation.Restore(RoundTrip(CrossoverNativeFirePresentation.Capture(state)));
-                Assert.Equal(JsonSerializer.Serialize(CrossoverNativeFirePresentation.Capture(Step(state).State)), JsonSerializer.Serialize(CrossoverNativeFirePresentation.Capture(Step(restored).State)));
+                CrossoverNativeMagicPresentationState snapshot = RoundTrip(CrossoverNativeMagicPresentation.Capture(state));
+                CrossoverNativeMagicPresentationState isolated = CrossoverNativeMagicPresentation.Restore(snapshot);
+                CrossoverNativeMagicPresentationState restored = CrossoverNativeMagicPresentation.Restore(RoundTrip(snapshot));
+                Assert.Equal(JsonSerializer.Serialize(CrossoverNativeMagicPresentation.Capture(Step(isolated).State)), JsonSerializer.Serialize(CrossoverNativeMagicPresentation.Capture(Step(restored).State)));
+                cameraCold |= state.Blizzard?.PendingViewTranslationY != 0 && state.Blizzard is not null;
                 castingCold = true;
-                fireCold |= state.Fire is not null;
-                state = restored;
+                fireCold |= state.Fire is not null || state.Cure is not null || state.Thunder is not null || state.Blizzard is not null;
+                state = CrossoverNativeMagicPresentation.Restore(RoundTrip(snapshot));
             }
             if (state.Complete)
             {
                 Assert.True(castingCold && fireCold);
-                Assert.Equal(114, callback);
+                if (ability == 1)
+                {
+                    Assert.Equal(115, callback);
+                }
+                if (ability == 4)
+                {
+                    Assert.True(cameraCold);
+                    Assert.Equal(1, pendingShakes);
+                    Assert.Equal(1, renderedShakes);
+                    Assert.Equal(0, state.Blizzard!.ViewTranslationY);
+                    Assert.Equal(0, state.Blizzard.PendingViewTranslationY);
+                }
                 Assert.Equal(1, contacts);
                 Assert.True(soundRequests >= 3);
                 Assert.True(triangles > 0 && changedPixels > 8);
                 Assert.Same(state, Step(state).State);
-                output.WriteLine($"Native Squall cast and Fire returned callback {callback}; original module/effect GPU triangles {triangles}, changed pixels {changedPixels}, sounds {soundRequests}.");
+                output.WriteLine($"Native Squall cast ability{ability} returned callback {callback}; original module/effect GPU triangles {triangles}, changed pixels {changedPixels}, sounds {soundRequests}.");
                 return;
             }
         }
         throw new InvalidOperationException("Embedded original Fire did not return through its source sequence.");
 
-        CrossoverNativeFirePresentationStep Step(CrossoverNativeFirePresentationState current) => presentation.Advance(current, () => new(0, -600, -2200, 500), () => new(new(0, 0, -2200), new(0, 0, -2200), 0, 0, 1024));
+        CrossoverNativeMagicPresentationStep Step(CrossoverNativeMagicPresentationState current) => presentation.Advance(current, () => new(0, -600, -2200, 500), () => new(new(0, 0, -2200), new(0, 0, -2200), 0, 0, 1024), camera);
     }
 
     private static T RoundTrip<T>(T source) => JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(source))!;

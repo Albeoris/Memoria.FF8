@@ -246,18 +246,20 @@ public sealed class Ff7SoundChannelsTests
     [Fact]
     public void IntroCursorRestoresRemainingHandoffTimeAndMusicUsesAudibleQueueCursor()
     {
+        double elapsed = 0;
         string fingerprint = new('E', 64);
         byte[] pcm = Sequence(100, 200, 300, 400, 500, 600);
         PcmMixer mixer = new();
         using PcmAudioOutput output = new(mixer);
-        using Ff7SoundChannels sounds = new();
+        using Ff7SoundChannels sounds = new(() => elapsed);
         sounds.Play(output, pcm, 44100, 1, false, 0, 0, 236, true, 4, 10, fingerprint);
         AssertFrame(mixer, 100);
+        elapsed = 1 / 44100d;
         Ff7SoundVoicePosition saved = Assert.Single(sounds.Capture(0));
         Assert.False(saved.LoopStarted);
         PcmMixer cold = new();
         using PcmAudioOutput coldOutput = new(cold);
-        using Ff7SoundChannels restored = new();
+        using Ff7SoundChannels restored = new(() => elapsed);
         Assert.True(restored.RestoreVoice(coldOutput, pcm, 44100, 1, 236, false, true, 4, 10, fingerprint, saved));
         AssertFrame(cold, 200);
         restored.RetireFinished(false, 1 / 44100d);

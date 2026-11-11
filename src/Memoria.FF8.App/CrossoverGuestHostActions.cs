@@ -8,7 +8,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
-internal sealed record CrossoverGuestFireHostState(Ff7BattleGuestInvocation Invocation, long HostTick, long Subticks, bool HalfSubtick, CrossoverGunbladeHostPlacement Placement, ushort TargetRadius, Ff7BattleGuestPhysicalHit Prepared, CrossoverBattleAction StockAction, CrossoverNativeFirePresentationState Presentation, bool ContactPublished);
+internal sealed record CrossoverGuestFireHostState(Ff7BattleGuestInvocation Invocation, long HostTick, long Subticks, bool HalfSubtick, CrossoverGunbladeHostPlacement Placement, ushort TargetRadius, Ff7BattleGuestPhysicalHit Prepared, CrossoverBattleAction StockAction, CrossoverNativeMagicPresentationState Presentation, bool ContactPublished);
 internal sealed record CrossoverGuestCommittedSpell(long Ordinal, ushort Spell, int OriginRow);
 internal sealed record CrossoverGuestHostActionsSnapshot(CrossoverBattleStockSnapshot Stock, NativeCrtRandomState? OriginCrtRandom, NativeCrtRandomState CrtRandom, long NextOrdinal, CrossoverGuestFireHostState? Fire)
 {
@@ -17,15 +17,15 @@ internal sealed record CrossoverGuestHostActionsSnapshot(CrossoverBattleStockSna
     public CrossoverGuestAudioState? Audio { get; init; }
 }
 
-/// <summary>One host provider for native Gunblade and the explicit original Fire profile.</summary>
-internal sealed class CrossoverGuestHostActions : IFf7BattleGuestAttack, IFf7BattleGuestMagic
+/// <summary>One host provider for native Gunblade and the admitted original spell profiles.</summary>
+internal sealed class CrossoverGuestHostActions : IFf7BattleGuestAttack, IFf7BattleGuestMagic, IFf7BattleGuestCamera
 {
     private readonly CrossoverBattleRoster roster;
     private CrossoverFf8BattleKit kit;
     private readonly BattleAssets assets;
     private readonly Ff7BattleSession host;
     private readonly CrossoverGunbladeHostAttack attack;
-    private readonly CrossoverNativeFirePresentation fireProgram;
+    private readonly CrossoverNativeMagicPresentation fireProgram;
     private readonly CrossoverNativeSpriteRenderer compositor;
     private NativeCharacterVitals working;
     private NativeCrtRandomState random;
@@ -65,13 +65,13 @@ internal sealed class CrossoverGuestHostActions : IFf7BattleGuestAttack, IFf7Bat
         fire = saved?.Fire;
         fireProgram = new(game, assets.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = 0, WeaponId = kit.Weapon }));
         compositor = new(assets.ReadNativePrimitiveTables(), game.ReadNativeEffectMeshes(), graphicsRules.SummonColors!);
-        if (nextOrdinal < 1 || saved is not null && saved.OriginCrtRandom != crt || fire is { } active && (active.Invocation.GuestAbility != 1 || active.Invocation.RequestId != host.RequestId || active.Invocation.FormationId != host.Formation.FormationId || active.Invocation.ActorSlot != ActorSlot || active.Prepared.PreparedContact?.Invocation != active.Invocation || active.StockAction.Ordinal >= nextOrdinal || !CrossoverBattleBridge.HasCommittedStock(roster, working, active.StockAction)))
+        if (nextOrdinal < 1 || saved is not null && saved.OriginCrtRandom != crt || fire is { } active && (active.Invocation.GuestAbility is not (1 or 4 or 7 or 21) || active.Presentation.Ability != active.Invocation.GuestAbility || active.Invocation.RequestId != host.RequestId || active.Invocation.FormationId != host.Formation.FormationId || active.Invocation.ActorSlot != ActorSlot || active.Prepared.PreparedContact?.Invocation != active.Invocation || active.StockAction.Ordinal >= nextOrdinal || !CrossoverBattleBridge.HasCommittedStock(roster, working, active.StockAction)))
         {
             throw new InvalidDataException("The saved guest spell owner contradicts its native encounter and committed stock.");
         }
         if (fire is not null)
         {
-            fire = fire with { Presentation = CrossoverNativeFirePresentation.Restore(fire.Presentation) };
+            fire = fire with { Presentation = CrossoverNativeMagicPresentation.Restore(fire.Presentation) };
         }
         this.kit = CrossoverFf8BattleKit.ReadSquall(working, assets);
         attack.ReprojectKit(this.kit);
@@ -79,12 +79,13 @@ internal sealed class CrossoverGuestHostActions : IFf7BattleGuestAttack, IFf7Bat
         {
             throw new InvalidDataException("The current host guest stats disagree with its native working magic stock.");
         }
-        if (committedSpells.IsDefault || committedSpells.Length != nextOrdinal - 1 || committedSpells.Where((cost, index) => cost.Ordinal != index + 1 || cost.Spell != 1 || cost.OriginRow != kit.RecordRow).Any())
+        if (committedSpells.IsDefault || committedSpells.Length != nextOrdinal - 1 || committedSpells.Where((cost, index) => cost.Ordinal != index + 1 || cost.Spell is not (1 or 4 or 7 or 21) || cost.OriginRow != kit.RecordRow).Any())
         {
             throw new InvalidDataException("The guest spell cost ledger contradicts its action ordinals.");
         }
     }
 
+    public float ViewTranslationY => (fire?.Presentation.Blizzard?.ViewTranslationY ?? 0) * CrossoverGunbladeHostPlacement.OriginToHostScale;
     public int ActorSlot => attack.ActorSlot;
     public Guid EncounterId => attack.EncounterId;
     public Ff7BattleGuestInvocation? Invocation => fire?.Invocation ?? attack.Invocation;
@@ -93,8 +94,8 @@ internal sealed class CrossoverGuestHostActions : IFf7BattleGuestAttack, IFf7Bat
     public CrossoverFf8BattleActorVisual? Visual => fire is { } current && attack.Visual is { } visual ? visual with { Model = current.Presentation.Cast.Model, OriginToHost = current.Placement.Matrix, BodyTextures = current.Presentation.BodyTextures, Textures = current.Presentation.Textures } : attack.Visual;
     public ImmutableArray<NativeBattleModuleDraw> Draws => fire?.Presentation.Draws ?? [];
     public NativeBattleEffectTextureState? Textures => fire?.Presentation.Textures;
-    public CrossoverNativeEffectVisual? EffectVisual => fire is { Presentation.Draws.IsEmpty: false } current ? new(compositor, current.Presentation.Draws, current.Presentation.Textures, current.Placement.Matrix, CrossoverGunbladeHostPlacement.OriginToHostScale) : null;
-    public string MagicName(ushort ability) => ability == 1 ? kit.Spells.Single(IsFire).Name ?? throw new InvalidDataException("Original Fire has no localized source name.") : throw new NotSupportedException("The guest ability has no admitted native spell name.");
+    public CrossoverNativeEffectVisual? EffectVisual => fire is { } current ? new(compositor, current.Presentation.Draws, current.Presentation.Textures, current.Placement.Matrix, CrossoverGunbladeHostPlacement.OriginToHostScale) { Ordering = current.Presentation.Cure?.Ordering ?? current.Presentation.Blizzard?.Ordering, Memory = current.Presentation.Cure?.Frame.Memory ?? current.Presentation.Blizzard?.Frame.Memory } : null;
+    public string MagicName(ushort ability) => ability is 1 or 4 or 7 or 21 ? kit.Spells.Single(spell => IsSpell(spell, ability)).Name ?? throw new InvalidDataException("The original spell has no localized source name.") : throw new NotSupportedException("The guest ability has no admitted native spell name.");
     public ImmutableArray<NativeBattleModuleDraw> LastSounds { get; private set; } = [];
     public ImmutableArray<NativeBattleFireSound> LastFireSounds { get; private set; } = [];
     public NativeCharacterVitals WorkingStock => working;
@@ -103,26 +104,26 @@ internal sealed class CrossoverGuestHostActions : IFf7BattleGuestAttack, IFf7Bat
     public bool UsedMagic => nextOrdinal > 1;
     public bool LegacyBattleMaskContinuation => legacyBattleMaskContinuation;
 
-    public CrossoverGuestHostActionsSnapshot Capture() => new(CrossoverBattleStockSnapshot.Capture(roster, working), originRandom, random, nextOrdinal, fire is { } current ? current with { Presentation = CrossoverNativeFirePresentation.Capture(current.Presentation) } : null) { CommittedSpells = committedSpells, LegacyBattleMaskContinuation = legacyBattleMaskContinuation, Audio = audio };
+    public CrossoverGuestHostActionsSnapshot Capture() => new(CrossoverBattleStockSnapshot.Capture(roster, working), originRandom, random, nextOrdinal, fire is { } current ? current with { Presentation = CrossoverNativeMagicPresentation.Capture(current.Presentation) } : null) { CommittedSpells = committedSpells, LegacyBattleMaskContinuation = legacyBattleMaskContinuation, Audio = audio };
     public ImmutableArray<CrossoverGuestAudioReceipt> PeekSoundRequests() => audio.Pending;
     public void AcknowledgeSoundRequests(long throughOrdinal) => audio = audio.Acknowledge(throughOrdinal);
     public bool Supports(Ff7BattleGuestAttackTarget target) => attack.Supports(target);
-    public int MagicStock(ushort ability) => ability == 1 && kit.Commands.Contains((byte)2) && kit.Spells.Any(IsFire) ? MagicCastingService.Quote(working, kit.RecordRow, 1, MagicCastContext.Battle).Available : 0;
-    public bool SupportsMagic(ushort ability, Ff7BattleGuestAttackTarget target) => ability == 1 && (target.Actor.Statuses & ~Ff7GuestBattleStatuses.SupportedHost) == 0 && attack.Supports(target) && kit.Spells.Any(IsFire);
+    public int MagicStock(ushort ability) => ability is 1 or 4 or 7 or 21 && kit.Commands.Contains((byte)2) && kit.Spells.Any(spell => IsSpell(spell, ability)) ? MagicCastingService.Quote(working, kit.RecordRow, ability, MagicCastContext.Battle).Available : 0;
+    public bool SupportsMagic(ushort ability, Ff7BattleGuestAttackTarget target) => ability is 1 or 4 or 7 or 21 && (target.Actor.Statuses & ~Ff7GuestBattleStatuses.SupportedHost) == 0 && (ability != 21 ? attack.Supports(target) : target.Slot == ActorSlot) && kit.Spells.Any(spell => IsSpell(spell, ability));
 
     public Ff7BattleGuestPhysicalHit DescribeMagic(ushort ability)
     {
-        if (ability != 1 || MagicStock(ability) <= 0)
+        if (ability is not (1 or 4 or 7 or 21) || MagicStock(ability) <= 0)
         {
-            throw new InvalidOperationException("Squall has no available original Fire stock.");
+            throw new InvalidOperationException("Squall has no available stock for this original spell.");
         }
         Ff7BattleDamageActor source = new(Project(kit.Level, 7, 6, 100, 99), 0, CrossoverBattleFireRules.ProjectMagic(kit.Stats.Magic), 0, Project(kit.Stats.Luck, 16, 14, 255, 255), 0, 0, 0, 0);
-        return new(source, new(0x22, 8, 100, LongRange: true), 1);
+        return ability != 21 ? new(source, new(0x22, 8, 100, LongRange: true), ability == 1 ? (ushort)1 : ability == 4 ? (ushort)2 : (ushort)4) : new(source, new(0x25, 5, 255, LongRange: true, Healing: true), 0x200);
     }
 
     public void PrepareMagic(Ff7BattleGuestPhysicalHit value)
     {
-        if (prepared is not null || Invocation is not null || value.PreparedContact is not { Invocation.GuestAbility: 1 })
+        if (prepared is not null || Invocation is not null || value.PreparedContact is not { Invocation.GuestAbility: 1 or 4 or 7 or 21 })
         {
             throw new InvalidOperationException("The guest spell already has an active prepared receipt.");
         }
@@ -136,26 +137,26 @@ internal sealed class CrossoverGuestHostActions : IFf7BattleGuestAttack, IFf7Bat
             attack.Begin(invocation, source, target);
             return;
         }
-        if (invocation.GuestAbility != 1 || Invocation is not null || prepared is not { PreparedContact: { } receipt } hit || receipt.Invocation != invocation || !SupportsMagic(1, target))
+        if (invocation.GuestAbility is not (1 or 4 or 7 or 21) || Invocation is not null || prepared is not { PreparedContact: { } receipt } hit || receipt.Invocation != invocation || !SupportsMagic(invocation.GuestAbility, target))
         {
             throw new InvalidDataException("Mixed Fire requires one prepared native receipt and admitted enemy occurrence.");
         }
-        CrossoverBattleAbilityId ability = new(SessionGame.Ff8, CrossoverBattleAbilityKind.Spell, 1);
+        CrossoverBattleAbilityId ability = new(SessionGame.Ff8, CrossoverBattleAbilityKind.Spell, invocation.GuestAbility);
         CrossoverBattleActorId targetId = roster.Participants.Single(participant => participant.HostSlot == target.Slot).Combat;
         CrossoverBattleAdmission admission = CrossoverBattleBridge.Prepare(roster, kit, working, nextOrdinal, ability, targetId, [new(roster.Version, ability, targetId.Origin, targetId.Kind, targetId.NativeId)]);
         CrossoverBattleAction stockAction = admission.Action ?? throw new InvalidOperationException(admission.Reason);
         NativeCharacterVitals reserved = admission.Vitals;
         CrossoverGunbladeHostPlacement placement = new(Ff7BattlePosition.FromVector(source.Position), source.Yaw);
         NativeBattleGraphicsModel model = attack.Visual?.Model ?? throw new InvalidDataException("Mixed Fire has no loaded native Squall source.");
-        BattleNativeAction original = kit.Spells.Single(IsFire);
+        BattleNativeAction original = kit.Spells.Single(spell => IsSpell(spell, invocation.GuestAbility));
         byte flags = receipt.Receipt.Damage.Missed ? (byte)1 : (byte)0;
         byte hitFlags = receipt.Receipt.Damage.Damage < 0 ? (byte)1 : (byte)0;
         NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(original.DamagePresentation, flags, hitFlags, original.AttackType, 255);
-        NativeBattleContactHalf contact = NativeBattleContactHalf.FromScratch(3, presentation.Sequence, presentation.Flags2, presentation.HitFlags3, (ushort)(receipt.Receipt.Target.Statuses & 1), Math.Abs(receipt.Receipt.Damage.Damage), 0);
-        CrossoverNativeFirePresentationState program;
+        NativeBattleContactHalf contact = NativeBattleContactHalf.FromScratch(invocation.GuestAbility == 21 ? (byte)0 : (byte)3, presentation.Sequence, presentation.Flags2, presentation.HitFlags3, (ushort)(receipt.Receipt.Target.Statuses & 1), Math.Abs(receipt.Receipt.Damage.Damage), 0);
+        CrossoverNativeMagicPresentationState program;
         try
         {
-            program = fireProgram.Begin(model with { Index = 0 }, target.Slot, random, contact);
+            program = fireProgram.Begin(model with { Index = 0 }, target.Slot, random, contact, invocation.GuestAbility);
         }
         catch
         {
@@ -163,7 +164,7 @@ internal sealed class CrossoverGuestHostActions : IFf7BattleGuestAttack, IFf7Bat
             throw;
         }
         working = CrossoverBattleBridge.CommitStock(roster, reserved, stockAction);
-        committedSpells = committedSpells.Add(new(nextOrdinal, 1, kit.RecordRow));
+        committedSpells = committedSpells.Add(new(nextOrdinal, invocation.GuestAbility, kit.RecordRow));
         kit = CrossoverFf8BattleKit.ReadSquall(working, assets);
         attack.ReprojectKit(kit);
         host.ReprojectGuestVitals(Projection(kit));
@@ -214,7 +215,7 @@ internal sealed class CrossoverGuestHostActions : IFf7BattleGuestAttack, IFf7Bat
                 throw new InvalidDataException("Mixed Fire received multiple native callbacks in one host update.");
             }
             Matrix4x4.Invert(current.Placement.Matrix, out Matrix4x4 inverse);
-            CrossoverNativeFirePresentationStep next = fireProgram.Advance(current.Presentation, () =>
+            CrossoverNativeMagicPresentationStep next = fireProgram.Advance(current.Presentation, () =>
             {
                 Vector3 anchor = Vector3.Transform(host.GuestEffectTargetAnchor(current.Invocation.TargetSlot), inverse);
                 return new(Word(anchor.X), Word(anchor.Y), Word(anchor.Z), Word(current.TargetRadius / CrossoverGunbladeHostPlacement.OriginToHostScale));
@@ -224,7 +225,7 @@ internal sealed class CrossoverGuestHostActions : IFf7BattleGuestAttack, IFf7Bat
                 NativeBattleVector point = new(Word(position.X), Word(position.Y), Word(position.Z));
                 short scale = checked((short)NativePrecision53.RoundInteger(current.TargetRadius / CrossoverGunbladeHostPlacement.OriginToHostScale * 4096 / 2000));
                 return new(point, point, 0, 0, scale);
-            });
+            }, CrossoverNativeSpriteRenderer.Camera(host.RenderCameraOutput, current.Placement.Matrix));
             current = current with { Presentation = next.State, ContactPublished = current.ContactPublished || next.Contact };
             random = next.State.Random;
             LastSounds = next.Sounds;
@@ -232,6 +233,10 @@ internal sealed class CrossoverGuestHostActions : IFf7BattleGuestAttack, IFf7Bat
             foreach (NativeBattleModuleDraw sound in next.Sounds)
             {
                 QueueSound(hostTick, CrossoverGuestAudioKind.Module, new(sound.Sound, sound.SoundFlags, sound.Anchor), current.Placement.Matrix);
+            }
+            foreach (NativeBattleModuleSound sound in next.EffectSounds)
+            {
+                QueueSound(hostTick, CrossoverGuestAudioKind.Module, sound, current.Placement.Matrix);
             }
             foreach (NativeBattleFireSound sound in next.FireSounds)
             {
@@ -269,6 +274,7 @@ internal sealed class CrossoverGuestHostActions : IFf7BattleGuestAttack, IFf7Bat
         attack.CancelAtTerminal();
     }
 
+    private static bool IsSpell(BattleNativeAction spell, ushort ability) => ability == 1 ? IsFire(spell) : ability == 4 ? spell is { Command: 2, ActionId: 4, MagicId: 144, AttackType: 2, Power: 18, Element: 2, Statuses0: 0, Statuses1: 0 } : ability == 7 ? spell is { Command: 2, ActionId: 7, MagicId: 3, AttackType: 2, Power: 18, Element: 4, Statuses0: 0, Statuses1: 0 } : ability == 21 && spell is { Command: 2, ActionId: 21, MagicId: 1, AttackType: 3, Power: 18, Element: 0, Statuses0: 0, Statuses1: 0 };
     private static bool IsFire(BattleNativeAction spell) => spell is { Command: 2, ActionId: 1, MagicId: 2, AttackType: 2, Power: 18, Element: 1, Statuses0: 0, Statuses1: 0 };
     private static long HostTime(long tick) => checked(tick * TimeSpan.TicksPerSecond) / Ff7BattleSession.LogicUpdatesPerSecond;
     private static short Word(float value) => checked((short)NativePrecision53.RoundInteger(value));

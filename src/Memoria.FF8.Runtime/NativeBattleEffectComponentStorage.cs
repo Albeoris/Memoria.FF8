@@ -7,4 +7,10 @@ public static class NativeBattleEffectComponentStorage
     public static NativeBattleEffectTextureState Restore(NativeBattleEffectTextureState source) => NativeBattleStorageSnapshots.Restore(source);
     public static NativeBattleOriginalEffectState Capture(NativeBattleOriginalEffectState source) => NativeBattleStorageSnapshots.Capture(source);
     public static NativeBattleOriginalEffectState Restore(NativeBattleOriginalEffectState source) => NativeBattleStorageSnapshots.Restore(source);
+    public static NativeBattleCureFrame Capture(NativeBattleCureFrame source) => NativeBattleStorageSnapshots.Capture(source);
+    public static NativeBattleCureFrame Restore(NativeBattleCureFrame source) => NativeBattleStorageSnapshots.Restore(source);
+    public static NativeBattleBlizzardFrame Capture(NativeBattleBlizzardFrame source) => NativeBattleStorageSnapshots.Capture(source);
+    public static NativeBattleBlizzardFrame Restore(NativeBattleBlizzardFrame source) => NativeBattleStorageSnapshots.Restore(source);
+    public static NativeBattleLogicalOrdering Capture(NativeBattleLogicalOrdering source) => NativeBattleStorageSnapshots.Capture(source);
+    public static NativeBattleLogicalOrdering Restore(NativeBattleLogicalOrdering source) => NativeBattleStorageSnapshots.Restore(source);
 }

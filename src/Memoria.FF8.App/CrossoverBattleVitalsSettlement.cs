@@ -161,7 +161,7 @@ internal static class CrossoverBattleVitalsSettlement
         for (int index = 0; index < magic.Costs.Length; index++)
         {
             CrossoverGuestCommittedSpell cost = magic.Costs[index];
-            if (cost.Ordinal != index + 1 || cost.Spell != 1 || cost.OriginRow != row)
+            if (cost.Ordinal != index + 1 || cost.Spell is not (1 or 4 or 7 or 21) || cost.OriginRow != row)
             {
                 throw new InvalidDataException("Guest spell settlement contains a foreign cost occurrence.");
             }

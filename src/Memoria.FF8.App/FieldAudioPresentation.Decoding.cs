@@ -10,6 +10,7 @@ internal sealed partial class FieldAudioPresentation
     private bool audioDisposed;
     internal Func<string, byte[]?, CancellationToken, Task<PcmAudio>>? DecodeOverride { get; init; }
     internal Func<PcmAudioOutput>? OutputFactory { get; init; }
+    internal bool OwnsSoundOutput { get; init; } = true;
     private AudioDecodeQueue Decoder => decodeQueue ??= !audioDisposed ? new AudioDecodeQueue(ReportOutputFailure) : throw new ObjectDisposedException(nameof(FieldAudioPresentation));
 
     private async Task<PcmAudio> DecodeAsync(string path, byte[]? input, CancellationToken token)
@@ -51,7 +52,7 @@ internal sealed partial class FieldAudioPresentation
                     GameplaySaveAudioPosition? savedPosition = ResumeMusicPosition(slot, track, 0, "pcm16-v1", fingerprint);
                     if (ValidPcmPosition(savedPosition, pcm, 0, pcm.Bytes.Length))
                     {
-                        buffer.Position(checked((int)(savedPosition!.Position * pcm.Channels * 2)));
+                        buffer.PositionFrames(savedPosition!.Position + savedPosition.FractionalFrame);
                     }
                     buffer.Play(true);
                     musicPositionCaptures[slot] = queued => [CapturePcmPosition(buffer, null, false, pcm, fingerprint, 0, pcm.Bytes.Length, queued)];

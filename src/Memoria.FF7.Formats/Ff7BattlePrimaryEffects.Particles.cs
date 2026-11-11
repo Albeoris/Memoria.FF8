@@ -6,10 +6,15 @@ public enum Ff7BattlePrimaryFamily
 {
     Cure,
     Bolt,
-    Destroyed
+    Destroyed,
+    Fire,
+    Ice,
+    SmokeShot,
+    Smog,
+    Rocket
 }
 
-public sealed record Ff7BattlePrimaryTargetGroup(Ff7BattlePrimaryFamily Family, ushort Targets, int Step, Ff7BattleCureKind CureKind = Ff7BattleCureKind.Cure, int NextTarget = 0) : Ff7BattlePrimaryCallback;
+public sealed record Ff7BattlePrimaryTargetGroup(Ff7BattlePrimaryFamily Family, ushort Targets, int Step, Ff7BattleCureKind CureKind = Ff7BattleCureKind.Cure, int NextTarget = 0, int Source = 0) : Ff7BattlePrimaryCallback;
 public sealed record Ff7BattlePrimaryCureController(int Target, Ff7BattleCureKind Kind, int PreviousBone = 0) : Ff7BattlePrimaryCallback;
 public sealed record Ff7BattlePrimaryCureParticle(Ff7BattleCureKind Kind, Ff7BattleCureParticle Particle) : Ff7BattlePrimaryCallback;
 public sealed record Ff7BattlePrimaryBoltController(int Target, Ff7BattleBoltStrike Strike) : Ff7BattlePrimaryCallback;
@@ -83,6 +88,31 @@ public static partial class Ff7BattlePrimaryEffects
                             break;
                         case Ff7BattlePrimaryFamily.Destroyed:
                             pass.Allocate(new Ff7BattlePrimaryDestroyedController(next) { Owner = group.Owner });
+                            break;
+                        case Ff7BattlePrimaryFamily.Fire:
+                            pass.Allocate(new Ff7BattlePrimaryFireController(next, context.CollisionRadius(next)) { Owner = group.Owner });
+                            break;
+                        case Ff7BattlePrimaryFamily.Rocket:
+                            Func<int, int, Vector3> rocketJoint = context.JointPoint ?? throw new InvalidOperationException("FFVII rocket requires original actor joint selectors.");
+                            Ff7BattleRocketProjectile rocket = Ff7BattleRocketEffect.CreateProjectile(Ff7BattleBraverPoint.At(rocketJoint(group.Source, 9)), Ff7BattleBraverPoint.At(rocketJoint(next, 0)));
+                            pass.Allocate(new Ff7BattlePrimaryRocketController(next, rocket) { Owner = group.Owner });
+                            break;
+                        case Ff7BattlePrimaryFamily.Smog:
+                            Func<int, int, Vector3> smogJoint = context.JointPoint ?? throw new InvalidOperationException("FFVII Smog requires original actor joint selectors.");
+                            Ff7BattleBraverPoint smogSource = Ff7BattleBraverPoint.At(smogJoint(group.Source, 9));
+                            Ff7BattleBraverPoint smogDestination = Ff7BattleBraverPoint.At(smogJoint(next, 0));
+                            Ff7BattleBraverPoint smogVelocity = new((short)((smogDestination.X - smogSource.X) / 12), (short)((smogDestination.Y - smogSource.Y) / 12), (short)((smogDestination.Z - smogSource.Z) / 12));
+                            pass.Allocate(new Ff7BattlePrimarySmogController(next, smogSource, smogVelocity) { Owner = group.Owner });
+                            break;
+                        case Ff7BattlePrimaryFamily.SmokeShot:
+                            Func<int, int, Vector3> smokeJoint = context.JointPoint ?? throw new InvalidOperationException("FFVII Smoke Shot requires original actor joint selectors.");
+                            Ff7BattleBraverPoint source = Ff7BattleBraverPoint.At(smokeJoint(group.Source, 8));
+                            Ff7BattleBraverPoint destination = Ff7BattleBraverPoint.At(smokeJoint(next, 0));
+                            Ff7BattleBraverPoint velocity = new((short)((destination.X - source.X) / 16), (short)((destination.Y - source.Y) / 16), (short)((destination.Z - source.Z) / 16));
+                            pass.Allocate(new Ff7BattlePrimarySmokeShotController(next, source, velocity) { Owner = group.Owner });
+                            break;
+                        case Ff7BattlePrimaryFamily.Ice:
+                            pass.Allocate(new Ff7BattlePrimaryIceInitializer(next) { Owner = group.Owner });
                             break;
                         default:
                             throw new NotSupportedException("FFVII primary target driver has an unsupported initializer.");

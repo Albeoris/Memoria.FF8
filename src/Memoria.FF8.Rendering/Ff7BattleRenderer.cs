@@ -6,7 +6,10 @@ using Memoria.FF7.Resources;
 
 namespace Memoria.FF8.Rendering;
 
-public sealed record Ff7BattleActorVisual(string ModelPrefix, Vector3 Position, float FacingRadians, int ClipIndex, int ClipFrame, int? WeaponIndex = null, BattleLimitAnimation? Limit = null);
+public sealed record Ff7BattleActorVisual(string ModelPrefix, Vector3 Position, float FacingRadians, int ClipIndex, int ClipFrame, int? WeaponIndex = null, BattleLimitAnimation? Limit = null)
+{
+    public Ff7BattleActorModelModifiers? ModelModifiers { get; init; }
+}
 public sealed record Ff7BattleRenderFrame(SceneCameraPlacement Camera, IReadOnlyList<Ff7BattleActorVisual> Actors, Ff7BattleFireState? Fire = null, Ff7BattleIceState? Ice = null, Ff7BattleBoltState? Bolt = null, Ff7BattleCureState? Cure = null, Ff7BattleBraverState? Braver = null)
 {
     public CrossoverFf8BattleActorVisual? Guest { get; init; }
@@ -87,7 +90,7 @@ public sealed partial class Ff7BattleRenderer
         ArgumentNullException.ThrowIfNull(frame);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
-        Ff7BattlePrimaryState? primary = frame.PrimaryEffects ?? frame.SearchScope?.Primary ?? frame.Cure?.Primary ?? frame.Bolt?.Primary ?? frame.Destroyed?.Primary;
+        Ff7BattlePrimaryState? primary = frame.PrimaryEffects ?? frame.SearchScope?.Primary ?? frame.Cure?.Primary ?? frame.Bolt?.Primary ?? frame.Destroyed?.Primary ?? frame.Fire?.Primary ?? frame.Ice?.Primary ?? frame.Braver?.Primary ?? frame.BeatRush?.Primary ?? frame.BigShot?.Primary ?? frame.SmokeShot?.Primary ?? frame.Smog?.Primary ?? frame.Rockets?.Primary;
         Ff7BattleStageFadeState? stageFade = primary?.StageFade ?? frame.StageFade;
         if (stageFade is not null && (stageFade.Red | stageFade.Green | stageFade.Blue) != 0)
         {
@@ -118,29 +121,21 @@ public sealed partial class Ff7BattleRenderer
             {
                 DrawSecondaryEffects(renderer, secondary, view);
             }
-            if (frame.Fire is { Sprites.Count: > 0 } effect)
+            if (primary is null && frame.Fire is { Sprites.Count: > 0 } effect)
             {
-                fire ??= LoadBillboard("fi_a01.s", ["fire00.tex", "fire01.tex"], Ff7BattleFireEffect.SpriteFrameCount, page => page switch
-                {
-                    0x2C => 0,
-                    0x2D => 1,
-                    _ => throw new NotSupportedException($"FFVII Fire billboard uses unsupported texture page 0x{page:X4}.")
-                });
                 foreach (Ff7BattleFireSprite sprite in effect.Sprites)
                 {
-                    fire.Draw(renderer, sprite.Frame, SpriteAnchor(sprite.X, sprite.Y, sprite.Z, sprite.CollisionRadius, view), width, height, view.Focal);
+                    DrawFireSprite(renderer, sprite, view);
                 }
             }
-            if (frame.Ice is { Completed: false, Frame: >= 0, Crystals: { } crystals } iceEffect)
+            if (primary is null && frame.Ice is { Completed: false, Frame: >= 0, Crystals: { } crystals } iceEffect)
             {
-                ice ??= LoadIce();
                 foreach (Ff7BattleIceCrystal crystal in crystals)
                 {
                     int localFrame = iceEffect.Frame - crystal.StartedAt;
                     if (localFrame >= 0 && localFrame < Ff7BattleIceEffect.FrameCount)
                     {
-                        Matrix4x4 transform = Matrix4x4.CreateScale(Ff7BattleIceEffect.Scale(localFrame, crystal.CollisionRadius)) * Matrix4x4.CreateTranslation(crystal.X, crystal.Y, crystal.Z);
-                        DrawModel(renderer, ice, [], transform, view, new() { Cull = true }, Ff7BattleIceEffect.Opacity(localFrame));
+                        DrawIceCrystal(renderer, crystal, localFrame, view);
                     }
                 }
             }
@@ -155,7 +150,7 @@ public sealed partial class Ff7BattleRenderer
                     DrawCureParticle(renderer, cureEffect.Kind, particle, view);
                 }
             }
-            if (frame.Braver is { Completed: false } braver)
+            if (primary is null && frame.Braver is { Completed: false } braver)
             {
                 DrawBraver(renderer, braver, view);
             }
@@ -163,11 +158,11 @@ public sealed partial class Ff7BattleRenderer
             {
                 DrawGrenade(renderer, grenade, view);
             }
-            if (frame.BeatRush is { Completed: false } beatRush)
+            if (primary is null && frame.BeatRush is { Completed: false } beatRush)
             {
                 DrawBeatRush(renderer, beatRush, view);
             }
-            if (frame.BigShot is { Completed: false } bigShot)
+            if (primary is null && frame.BigShot is { Completed: false } bigShot)
             {
                 DrawBigShot(renderer, bigShot, view);
             }
@@ -179,7 +174,7 @@ public sealed partial class Ff7BattleRenderer
             {
                 DrawDestroyed(renderer, destroyedEffect, view);
             }
-            if (frame.Smog is { Completed: false } smog)
+            if (primary is null && frame.Smog is { Completed: false } smog)
             {
                 DrawSmog(renderer, smog, view);
             }
@@ -187,7 +182,7 @@ public sealed partial class Ff7BattleRenderer
             {
                 DrawSearchScope(renderer, searchScope, view);
             }
-            if (frame.Rockets is { Completed: false } rockets)
+            if (primary is null && frame.Rockets is { Completed: false } rockets)
             {
                 DrawRockets(renderer, rockets, view);
             }
@@ -205,30 +200,14 @@ public sealed partial class Ff7BattleRenderer
 
     private void DrawActor(ITriangleRenderer renderer, Ff7BattleActorVisual actor, CameraView view, Ff7ModelMaterialState material)
     {
-        ActorModel resource = LoadActor(actor.ModelPrefix);
-        Matrix4x4 world = Matrix4x4.CreateRotationY(actor.FacingRadians) * Matrix4x4.CreateTranslation(actor.Position);
-        BattleClipFrame frame = Frame(resource.GetClip(actor.ClipIndex, false, actor.Limit), actor.ClipFrame);
-        Span<Matrix4x4> transforms = stackalloc Matrix4x4[resource.Data.Bones.Count];
-        BattleRigidPose.WriteTransforms(resource.Data, frame, world, transforms);
-        for (int index = 0; index < transforms.Length; index++)
+        if (actor.ModelModifiers is { Visible: false })
         {
-            if (resource.Parts[index] is PcPolygonModel model)
-            {
-                DrawModel(renderer, model, resource.Textures, transforms[index], view, material);
-            }
+            return;
         }
-        if (actor.WeaponIndex is int weaponIndex && resource.HasWeaponClip(actor.ClipIndex, actor.Limit))
-        {
-            BattleClipFrame weaponFrame = Frame(resource.GetClip(actor.ClipIndex, true, actor.Limit), actor.ClipFrame);
-            if (weaponFrame.Rotations.Count != 1)
-            {
-                throw new NotSupportedException($"FFVII battle model '{actor.ModelPrefix}' weapon requires a separate multi-joint skeleton.");
-            }
-            DrawModel(renderer, resource.GetWeapon(archive, actor.ModelPrefix, weaponIndex), resource.Textures, BattleRigidPose.FrameTransform(weaponFrame) * world, view, material);
-        }
+        VisitActorGeometry(actor, (model, textures, transform) => DrawModel(renderer, model, textures, transform, view, material, actorModifiers: actor.ModelModifiers));
     }
 
-    private void DrawModel(ITriangleRenderer renderer, PcPolygonModel model, IReadOnlyList<PcTexture> textures, Matrix4x4 transform, CameraView view, Ff7ModelMaterialState material, float opacity = 1)
+    private void DrawModel(ITriangleRenderer renderer, PcPolygonModel model, IReadOnlyList<PcTexture> textures, Matrix4x4 transform, CameraView view, Ff7ModelMaterialState material, float opacity = 1, Ff7BattleActorModelModifiers? actorModifiers = null)
     {
         if (model.Groups.Count != model.RenderStates.Count)
         {
@@ -258,7 +237,18 @@ public sealed partial class Ff7BattleRenderer
             {
                 int vertex = group.VertexStart + local;
                 uint argb = vertex < model.VertexColors.Count ? model.VertexColors[vertex] : uint.MaxValue;
-                Vector4 color = new((argb >> 16 & 255) / 255f, (argb >> 8 & 255) / 255f, (argb & 255) / 255f, (argb >> 24) / 255f * state.VertexAlpha / 255f * opacity);
+                float red = argb >> 16 & 255;
+                float green = argb >> 8 & 255;
+                float blue = argb & 255;
+                if (actorModifiers is { ScaleOverride: true } modifiers)
+                {
+                    float originalWeight = modifiers.Alpha * (1f / 255f);
+                    float tintWeight = 1f - originalWeight;
+                    red = MathF.Round(red * originalWeight + modifiers.Red * tintWeight);
+                    green = MathF.Round(green * originalWeight + modifiers.Green * tintWeight);
+                    blue = MathF.Round(blue * originalWeight + modifiers.Blue * tintWeight);
+                }
+                Vector4 color = new(red / 255f, green / 255f, blue / 255f, (argb >> 24) / 255f * state.VertexAlpha / 255f * opacity);
                 Vector2 uv = image is null ? Vector2.Zero : model.TextureCoordinates[group.TextureCoordinateStart + local];
                 return new(view.Transform(Vector3.Transform(model.Vertices[vertex], transform)), uv, color);
             }
@@ -370,6 +360,24 @@ public sealed partial class Ff7BattleRenderer
             cure.Add((kind, particle.AtlasY), particles);
         }
         particles.Draw(renderer, particle.Frame, SpriteAnchor(particle.X, particle.Y, particle.Z, 500, view), view.Width, view.Height, view.Focal, particle.Scale / 4096f);
+    }
+
+    private void DrawFireSprite(ITriangleRenderer renderer, Ff7BattleFireSprite sprite, CameraView view)
+    {
+        fire ??= LoadBillboard("fi_a01.s", ["fire00.tex", "fire01.tex"], Ff7BattleFireEffect.SpriteFrameCount, page => page switch
+        {
+            0x2C => 0,
+            0x2D => 1,
+            _ => throw new NotSupportedException($"FFVII Fire billboard uses unsupported texture page 0x{page:X4}.")
+        });
+        fire.Draw(renderer, sprite.Frame, SpriteAnchor(sprite.X, sprite.Y, sprite.Z, sprite.CollisionRadius, view), view.Width, view.Height, view.Focal);
+    }
+
+    private void DrawIceCrystal(ITriangleRenderer renderer, Ff7BattleIceCrystal crystal, int frame, CameraView view)
+    {
+        ice ??= LoadIce();
+        Matrix4x4 transform = Matrix4x4.CreateScale(Ff7BattleIceEffect.Scale(frame, crystal.CollisionRadius)) * Matrix4x4.CreateTranslation(crystal.X, crystal.Y, crystal.Z);
+        DrawModel(renderer, ice, [], transform, view, new() { Cull = true }, Ff7BattleIceEffect.Opacity(frame));
     }
 
     private Ff7BattleBillboardRenderer LoadBillboard(string name, string[] textures, int frames, Func<ushort, int> selectPage, TriangleBlend blend = TriangleBlend.Replace)

@@ -8,9 +8,17 @@ namespace Memoria.FF8.Rendering;
 
 public sealed record CrossoverNativeEffectVisual(CrossoverNativeSpriteRenderer Renderer, ImmutableArray<NativeBattleModuleDraw> Draws, NativeBattleEffectTextureState Textures, Matrix4x4 OriginToHost, float Scale)
 {
-    public void Draw(ITriangleRenderer renderer, SceneCameraPlacement camera, int width, int height)
+    public NativeBattleLogicalOrdering? Ordering { get; init; }
+    public NativeBattleEffectMemory? Memory { get; init; }
+
+    public int Draw(ITriangleRenderer renderer, SceneCameraPlacement camera, int width, int height)
     {
-        Renderer.Draw(renderer, Draws, Textures, CrossoverNativeSpriteRenderer.Camera(camera, OriginToHost), width, height, Scale);
+        int triangles = 0;
+        if (Ordering is not null && Memory is { } memory)
+        {
+            triangles += Renderer.DrawOrdering(renderer, Ordering, memory.Textures!, width, height, Scale, (reference, count) => reference.Bank == "20DFAB8" ? memory.Arena!.Read(reference.ByteOffset, count) : (memory.PrimitiveProcess! with { PacketBank = reference.Bank, PacketBuffer = reference.Buffer }).ReadCommonPacket(reference.ByteOffset, count));
+        }
+        return triangles + Renderer.Draw(renderer, Draws, Textures, CrossoverNativeSpriteRenderer.Camera(camera, OriginToHost), width, height, Scale);
     }
 }
 
@@ -53,6 +61,7 @@ public sealed class CrossoverNativeSpriteRenderer(NativeBattlePrimitiveTables ta
             }
             NativeBattleModulePacketBatch packets = draw.Kind switch
             {
+                NativeBattleModuleDrawKind.Flash => NativeBattleFlashPackets.Emit(draw),
                 NativeBattleModuleDrawKind.Sprite => NativeBattleModulePackets.EmitSprite571DC0(draw, camera, 0, 17, 2),
                 NativeBattleModuleDrawKind.Mesh => NativeBattleModulePackets.EmitMesh572200(draw, meshes.Single(mesh => mesh.Id == draw.MeshId), camera, 17, 2, colors),
                 _ => throw new NotSupportedException("Mixed module composition requires an admitted original sprite or mesh producer.")
@@ -64,8 +73,17 @@ public sealed class CrossoverNativeSpriteRenderer(NativeBattlePrimitiveTables ta
             }
             cursor += packets.AllocationBytes;
         }
+        return DrawOrdering(renderer, ordering, source, width, height, originToHostScale);
+    }
+
+    public int DrawOrdering(ITriangleRenderer renderer, NativeBattleLogicalOrdering ordering, NativeBattleEffectTextureState source, int width, int height, float originToHostScale, Func<NativeBattlePrimitiveReference, int, byte[]>? readPhysical = null)
+    {
+        if (width <= 0 || height <= 0 || !float.IsFinite(originToHostScale) || originToHostScale <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(originToHostScale), "Mixed primitive composition requires positive render dimensions and a finite positive origin scale.");
+        }
         NativeBattlePcTextureWindowCache cache = NativeBattlePcTextureWindowCache.Reset4647A0(null) with { ScaleU = 0, ScaleV = 0, SpriteTileCacheControl1CCFD90 = 0 };
-        var executed = NativeBattleLogicalPasses.Execute(ordering, tables, new(0) { TextureWindowBits = 0 }, 1, cache);
+        var executed = NativeBattleLogicalPasses.Execute(ordering, tables, new(0) { TextureWindowBits = 0 }, 1, cache, readPhysical);
         NativeBattlePreparedPrimitiveFrame frame = new(executed.Commands, [])
         {
             LastDescriptorPerspective = true,

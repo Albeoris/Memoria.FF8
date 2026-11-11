@@ -21,6 +21,31 @@ namespace Memoria.FF7.Formats;
 [JsonDerivedType(typeof(Ff7BattlePrimaryBoltSpark), "BoltSpark")]
 [JsonDerivedType(typeof(Ff7BattlePrimaryDestroyedController), "DestroyedController")]
 [JsonDerivedType(typeof(Ff7BattlePrimaryDestroyedSprite), "DestroyedSprite")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryFireController), "FireController")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryFireSprite), "FireSprite")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryIceInitializer), "IceInitializer")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryIceMesh), "IceMesh")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBraverGroup), "BraverGroup")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBraverController), "BraverController")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBraverShine), "BraverShine")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBraverTrail), "BraverTrail")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBraverImpact), "BraverImpact")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBeatRushController), "BeatRushController")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBeatRushTrail), "BeatRushTrail")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBeatRushSprite), "BeatRushSprite")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBigShotGroup), "BigShotGroup")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBigShotController), "BigShotController")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBigShotCharge), "BigShotCharge")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBigShotParticle), "BigShotParticle")]
+[JsonDerivedType(typeof(Ff7BattlePrimarySmokeShotController), "SmokeShotController")]
+[JsonDerivedType(typeof(Ff7BattlePrimarySmokeShotSprite), "SmokeShotSprite")]
+[JsonDerivedType(typeof(Ff7BattlePrimarySmogController), "SmogController")]
+[JsonDerivedType(typeof(Ff7BattlePrimarySmogCloud), "SmogCloud")]
+[JsonDerivedType(typeof(Ff7BattlePrimarySmogSprite), "SmogSprite")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryDeathController), "ActorDeath")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryRocketController), "RocketController")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryRocketMissile), "RocketMissile")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryRocketExplosion), "RocketExplosion")]
 public abstract record Ff7BattlePrimaryCallback
 {
     public int Owner { get; init; }
@@ -42,6 +67,15 @@ public sealed record Ff7BattlePrimaryScopeSprite(Ff7BattleBraverPoint Position, 
 [JsonDerivedType(typeof(Ff7BattlePrimaryBoltSparkDraw), "BoltSpark")]
 [JsonDerivedType(typeof(Ff7BattlePrimaryDestroyedSpriteDraw), "DestroyedSprite")]
 [JsonDerivedType(typeof(Ff7BattlePrimaryDestroyedPulseDraw), "DestroyedPulse")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryFireDraw), "Fire")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryIceDraw), "Ice")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBraverDraw), "Braver")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBeatRushDraw), "BeatRush")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBigShotDraw), "BigShot")]
+[JsonDerivedType(typeof(Ff7BattlePrimarySmokeShotDraw), "SmokeShot")]
+[JsonDerivedType(typeof(Ff7BattlePrimarySmogSpriteDraw), "SmogSprite")]
+[JsonDerivedType(typeof(Ff7BattlePrimarySmogCloudDraw), "SmogCloud")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryRocketDraw), "Rocket")]
 public abstract record Ff7BattlePrimaryDraw
 {
     public int Slot { get; init; }
@@ -51,7 +85,7 @@ public abstract record Ff7BattlePrimaryDraw
 public sealed record Ff7BattlePrimaryScopeMeshDraw(Ff7BattleBraverPoint Source, Ff7BattleSearchScopeBasis Basis, Ff7BattleSearchScopeMesh Mesh) : Ff7BattlePrimaryDraw;
 public sealed record Ff7BattlePrimaryScopeSpriteDraw(Ff7BattleBraverPoint Position, int Stage, int Frame) : Ff7BattlePrimaryDraw;
 
-public sealed record Ff7BattlePrimaryContext(Func<int, int, Vector3, Vector3> ActorPoint, Func<int, BattleRotationWords> ActorRotation, Func<int, int> CollisionRadius, Func<int> NextCrt, Func<int, int>? BoneCount = null, Func<int, int, Vector3>? JointPoint = null, Func<int, int, int>? JointSelector = null);
+public sealed record Ff7BattlePrimaryContext(Func<int, int, Vector3, Vector3> ActorPoint, Func<int, BattleRotationWords> ActorRotation, Func<int, int> CollisionRadius, Func<int> NextCrt, Func<int, int>? BoneCount = null, Func<int, int, Vector3>? JointPoint = null, Func<int, int, int>? JointSelector = null, Func<int, Vector3, Vector3>? WeaponPoint = null, Func<int, Ff7BattleActorModelModifiers>? ActorModel = null, Func<int, short>? ActorRootZ = null, Func<int, short>? ActorHomeZ = null);
 public sealed record Ff7BattlePrimaryHitmark(int Target, int Style);
 public sealed record Ff7BattlePrimaryReactionReceipt(int Target, bool RespectDeathMask);
 
@@ -62,6 +96,9 @@ public sealed record Ff7BattlePrimaryState
     public IReadOnlyList<ushort> SoundIds { get; init; } = [];
     public IReadOnlyList<Ff7BattlePrimaryHitmark> Hitmarks { get; init; } = [];
     public IReadOnlyList<Ff7BattlePrimaryReactionReceipt> TargetReactions { get; init; } = [];
+    public IReadOnlyList<Ff7BattleActorModelWrite> ActorWrites { get; init; } = [];
+    public IReadOnlyList<Ff7BattleActorModelSound> ActorSounds { get; init; } = [];
+    public IReadOnlyList<Ff7BattleBossDeathShakeRequest> BossDeathShakes { get; init; } = [];
     public ushort ImpactTargets { get; init; }
     public int Tick { get; init; } = -1;
     public short SearchScopeCounter { get; init; }
@@ -83,6 +120,14 @@ public sealed record Ff7BattlePrimaryState
 public static partial class Ff7BattlePrimaryEffects
 {
     public const int Capacity = 100;
+
+    private static Ff7BattlePrimaryState Schedule(Ff7BattlePrimaryState state, Ff7BattlePrimaryCallback callback)
+    {
+        PrimaryPass pass = new(state, null);
+        pass.Allocate(callback);
+        return pass.Finish(state.Tick, preserveReceipts: true);
+    }
+
 
     public static Ff7BattlePrimaryState ScheduleSearchScope(Ff7BattlePrimaryState state, ushort targets, Vector3 source, Vector3 targetCenter, int owner = 0)
     {
@@ -163,6 +208,34 @@ public static partial class Ff7BattlePrimaryEffects
     {
         switch (callback)
         {
+            case Ff7BattlePrimaryRocketController:
+            case Ff7BattlePrimaryRocketMissile:
+            case Ff7BattlePrimaryRocketExplosion:
+                return ExecuteRocket(callback, pass);
+            case Ff7BattlePrimaryDeathController death:
+                return ExecuteDeath(death, pass);
+            case Ff7BattlePrimarySmogController:
+            case Ff7BattlePrimarySmogCloud:
+            case Ff7BattlePrimarySmogSprite:
+                return ExecuteSmog(callback, pass);
+            case Ff7BattlePrimarySmokeShotController:
+            case Ff7BattlePrimarySmokeShotSprite:
+                return ExecuteSmokeShot(callback, pass);
+            case Ff7BattlePrimaryBigShotGroup:
+            case Ff7BattlePrimaryBigShotController:
+            case Ff7BattlePrimaryBigShotCharge:
+            case Ff7BattlePrimaryBigShotParticle:
+                return ExecuteBigShot(callback, pass);
+            case Ff7BattlePrimaryBeatRushController:
+            case Ff7BattlePrimaryBeatRushTrail:
+            case Ff7BattlePrimaryBeatRushSprite:
+                return ExecuteBeatRush(callback, pass);
+            case Ff7BattlePrimaryBraverGroup:
+            case Ff7BattlePrimaryBraverController:
+            case Ff7BattlePrimaryBraverShine:
+            case Ff7BattlePrimaryBraverTrail:
+            case Ff7BattlePrimaryBraverImpact:
+                return ExecuteBraver(callback, pass);
             case Ff7BattlePrimaryTargetReaction reaction:
                 return ExecuteTargetReaction(reaction, pass);
             case Ff7BattlePrimaryStageFade fade:
@@ -232,6 +305,11 @@ public static partial class Ff7BattlePrimaryEffects
             case Ff7BattlePrimaryDestroyedController:
             case Ff7BattlePrimaryDestroyedSprite:
                 return ExecuteParticles(callback, pass);
+            case Ff7BattlePrimaryFireController:
+            case Ff7BattlePrimaryFireSprite:
+            case Ff7BattlePrimaryIceInitializer:
+            case Ff7BattlePrimaryIceMesh:
+                return ExecuteFireIce(callback, pass);
             default:
                 throw new NotSupportedException("FFVII primary callback has no admitted executor.");
         }
@@ -245,7 +323,7 @@ public static partial class Ff7BattlePrimaryEffects
         return (short)(int)Math.Sqrt(x * x + y * y + z * z);
     }
 
-    private sealed class PrimaryPass
+    private sealed partial class PrimaryPass
     {
         private readonly Ff7BattlePrimaryState previous;
         public readonly Ff7BattlePrimaryCallback?[] Slots;
@@ -330,7 +408,7 @@ public static partial class Ff7BattlePrimaryEffects
 
         public Ff7BattlePrimaryState Finish(int tick, bool preserveReceipts = false)
         {
-            return new() { Slots = Slots, Tick = tick, Draws = preserveReceipts ? [.. previous.Draws, .. Draws] : Draws, SoundIds = preserveReceipts ? [.. previous.SoundIds, .. SoundIds] : SoundIds, Hitmarks = preserveReceipts ? [.. previous.Hitmarks, .. Hitmarks] : Hitmarks, TargetReactions = preserveReceipts ? [.. previous.TargetReactions, .. TargetReactions] : TargetReactions, ImpactTargets = preserveReceipts ? previous.ImpactTargets : ImpactTargets, SearchScopeCounter = SearchScopeCounter, StageRed = StageRed, StageGreen = StageGreen, StageBlue = StageBlue, StageTransparency = StageTransparency, SilkLines = SilkLines };
+            return new() { Slots = Slots, Tick = tick, Draws = preserveReceipts ? [.. previous.Draws, .. Draws] : Draws, SoundIds = preserveReceipts ? [.. previous.SoundIds, .. SoundIds] : SoundIds, Hitmarks = preserveReceipts ? [.. previous.Hitmarks, .. Hitmarks] : Hitmarks, TargetReactions = preserveReceipts ? [.. previous.TargetReactions, .. TargetReactions] : TargetReactions, ImpactTargets = preserveReceipts ? previous.ImpactTargets : ImpactTargets, SearchScopeCounter = SearchScopeCounter, StageRed = StageRed, StageGreen = StageGreen, StageBlue = StageBlue, StageTransparency = StageTransparency, SilkLines = SilkLines, ActorWrites = preserveReceipts ? [.. previous.ActorWrites, .. ActorWrites] : ActorWrites, ActorSounds = preserveReceipts ? [.. previous.ActorSounds, .. ActorSounds] : ActorSounds, BossDeathShakes = preserveReceipts ? [.. previous.BossDeathShakes, .. BossDeathShakes] : BossDeathShakes };
         }
     }
 }

@@ -15,9 +15,9 @@ public sealed partial class Ff7BattleSession
             return effect switch
             {
                 0x02 when !action.SilkStarted => StartPrimarySilk(action),
-                0x13 when action.Rockets is null => action with { Rockets = Ff7BattleRocketEffect.Start(command.TargetMask) },
-                0x15 when action.Smog is null => action with { Smog = Ff7BattleSmogEffect.Start(command.TargetMask) },
-                0x40 when action.SmokeShot is null => action with { SmokeShot = Ff7BattleSmokeShotEffect.Start(command.TargetMask) },
+                0x13 when action.Rockets is null => StartPrimaryRocket(action),
+                0x15 when action.Smog is null => StartPrimarySmog(action),
+                0x40 when action.SmokeShot is null => StartPrimarySmokeShot(action),
                 0x4B when action.SearchScope is null => StartSearchScope(action),
                 0x5A when action.Destroyed is null => StartPrimaryDestroyed(action),
                 _ => action
@@ -27,11 +27,11 @@ public sealed partial class Ff7BattleSession
         return spell switch
         {
             0x00 when action.Cure is null => StartPrimaryCure(action, Ff7BattleCureKind.Cure),
-            0x1B when action.Fire is null => action with { Fire = Ff7BattleFireEffect.Start(command.TargetMask) },
-            0x1E when action.Ice is null => action with { Ice = Ff7BattleIceEffect.Start(command.TargetMask) },
+            0x1B when action.Fire is null => StartPrimaryFire(action),
+            0x1E when action.Ice is null => StartPrimaryIce(action),
             0x21 when action.Bolt is null => StartPrimaryBolt(action),
-            0x80 when action.Braver is null => action with { Braver = Ff7BattleBraverEffect.Start(command.TargetMask) },
-            0x87 when action.BigShot is null => action with { BigShot = Ff7BattleBigShotEffect.Start(command.TargetMask, state.BigShotChargeRotation, state.BigShotCounterRotation) },
+            0x80 when action.Braver is null => StartPrimaryBraver(action),
+            0x87 when action.BigShot is null => StartPrimaryBigShot(action),
             _ => action
         };
     }
@@ -57,64 +57,10 @@ public sealed partial class Ff7BattleSession
     {
         Ff7BattleActionState beforeEffects = action;
         ushort impacts = 0;
-        if (action.Rockets is { Completed: false } rockets)
-        {
-            Ff7BattleRocketUpdate update = Ff7BattleRocketEffect.Advance(rockets, () => JointPoint(action.Command.ActorSlot, 9), ImpactAnchor, random.NextCrt);
-            action = action with { Rockets = update.State };
-            impacts |= update.ImpactTargets;
-        }
-        if (action.Smog is { Completed: false } smog)
-        {
-            Ff7BattleSmogUpdate update = Ff7BattleSmogEffect.Advance(smog, () => JointPoint(action.Command.ActorSlot, 9), ImpactAnchor, random.NextCrt);
-            action = action with { Smog = update.State };
-            impacts |= update.ImpactTargets;
-        }
-        if (action.SmokeShot is { Completed: false } smokeShot)
-        {
-            Ff7BattleSmokeShotUpdate update = Ff7BattleSmokeShotEffect.Advance(smokeShot, () => JointPoint(action.Command.ActorSlot, 8), ImpactAnchor);
-            action = action with { SmokeShot = update.State };
-            impacts |= update.ImpactTargets;
-            foreach (Ff7BattleActorState target in state.Actors.Where(target => (update.ImpactTargets & (1 << target.Actor.Slot)) != 0))
-            {
-                StartHitmark(target.Actor.Slot, 0x32);
-            }
-        }
-        if (action.Fire is { Completed: false } fire)
-        {
-            Ff7BattleFireUpdate update = Ff7BattleFireEffect.Advance(fire, slot => animations!.BoneCount(ActorModel(slot)), BonePosition, CollisionRadius, random.NextCrt);
-            action = action with { Fire = update.State };
-            impacts |= update.ImpactTargets;
-        }
-        if (action.Ice is { Completed: false } ice)
-        {
-            Ff7BattleIceUpdate update = Ff7BattleIceEffect.Advance(ice, ImpactAnchor, CollisionRadius);
-            action = action with { Ice = update.State };
-            impacts |= update.ImpactTargets;
-        }
-        if (action.Braver is { Completed: false } braver)
-        {
-            Ff7BattleBraverUpdate update = Ff7BattleBraverEffect.Advance(braver, point => LimitWeaponPoint(action, point), ImpactAnchor, CollisionRadius);
-            action = action with { Braver = update.State };
-            impacts |= update.ImpactTargets;
-        }
         if (action.Grenade is { Completed: false } grenade)
         {
             Ff7BattleGrenadeUpdate update = Ff7BattleGrenadeEffect.Advance(grenade, ImpactAnchor, CollisionRadius);
             action = action with { Grenade = update.State };
-            impacts |= update.ImpactTargets;
-        }
-        if (action.BeatRushEffect is { Completed: false } beatRush)
-        {
-            Ff7BattleBeatRushUpdate update = Ff7BattleBeatRushEffect.Advance(beatRush, point => LimitJointPoint(action, 0x20, point), random.NextCrt);
-            action = action with { BeatRushEffect = update.State };
-            impacts |= update.ImpactTargets;
-        }
-        if (action.BigShot is { Completed: false } bigShot)
-        {
-            int yaw = VisualPlacement(action.Command.ActorSlot).Yaw;
-            Ff7BattleBigShotUpdate update = Ff7BattleBigShotEffect.Advance(bigShot, point => LimitWeaponPoint(action, point), ImpactAnchor, yaw, random.NextCrt);
-            action = action with { BigShot = update.State };
-            state = state with { BigShotChargeRotation = update.State.ChargeRotation, BigShotCounterRotation = update.State.CounterRotation };
             impacts |= update.ImpactTargets;
         }
         EffectCallbackSounds(beforeEffects, action);
@@ -168,10 +114,5 @@ public sealed partial class Ff7BattleSession
         return animations!.LimitWeaponPosition(ActorModel(slot), clip, frame, placement, action.Command.Argument, point);
     }
 
-    private Vector3 LimitJointPoint(Ff7BattleActionState action, int bone, Vector3 point)
-    {
-        int slot = action.Command.ActorSlot;
-        (int clip, int frame) = VisualPose(slot);
-        return animations!.LimitBonePosition(ActorModel(slot), clip, frame, VisualPlacement(slot), action.Command.Argument, bone, point);
-    }
+
 }

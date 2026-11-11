@@ -48,7 +48,7 @@ internal sealed partial class Ff7Scene
                 }
                 music = source with { PositionFrames = frames, LoopStarted = repeating };
             }
-            return new() { Sounds = pendingSounds ?? soundChannels.Capture(queued), Music = music };
+            return new() { Sounds = pendingSounds ?? soundChannels.Capture(queued), Music = music, GuestSoundPayload = CaptureGuestSounds(queued) };
         }
         return audioOutput is null ? Capture(0) : audioOutput.CapturePlaybackPosition(Capture);
     }
@@ -56,6 +56,7 @@ internal sealed partial class Ff7Scene
     private void RestoreAudioPresentation(Ff7AudioPresentationState? saved, bool restoring)
     {
         pendingSounds = null;
+        pendingGuestSounds = null;
         pendingMusic = null;
         legacyMusicPosition = restoring && saved is null;
         if (saved is null)
@@ -73,6 +74,7 @@ internal sealed partial class Ff7Scene
         }
         saved.Validate();
         pendingSounds = saved.Sounds;
+        pendingGuestSounds = saved.GuestSoundPayload?.ToArray();
         pendingMusic = saved.Music;
     }
 

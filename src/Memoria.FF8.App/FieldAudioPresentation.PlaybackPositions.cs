@@ -123,13 +123,14 @@ internal sealed partial class FieldAudioPresentation
     private static GameplaySaveAudioPosition CapturePcmPosition(PcmAudioOutput.Buffer primary, PcmAudioOutput.Buffer? loop, bool loopStarted, PcmAudio pcm, string fingerprint, int loopStart, int loopEnd, int queued)
     {
         bool repeating = loopStarted && loop?.HasStartedBeforeQueuedFrames(queued) == true;
-        long bytes = repeating ? loopStart + loop!.PositionBytesBeforeQueuedFrames(queued) : primary.PositionBytesBeforeQueuedFrames(queued);
-        return new("pcm16-v1", fingerprint, "source-frames", bytes / (pcm.Channels * 2), pcm.SampleRate, pcm.Channels, loopStart / (pcm.Channels * 2), loopEnd / (pcm.Channels * 2), repeating ? 1 : 0);
+        double frames = repeating ? loopStart / (pcm.Channels * 2) + loop!.PositionFramesBeforeQueuedFrames(queued) : primary.PositionFramesBeforeQueuedFrames(queued);
+        long whole = (long)frames;
+        return new("pcm16-v1", fingerprint, "source-frames", whole, pcm.SampleRate, pcm.Channels, loopStart / (pcm.Channels * 2), loopEnd / (pcm.Channels * 2), repeating ? 1 : 0) { FractionalFrame = frames - whole };
     }
 
     private static bool ValidPcmPosition(GameplaySaveAudioPosition? saved, PcmAudio pcm, int loopStart, int loopEnd)
     {
         int frameBytes = pcm.Channels * 2;
-        return saved is not null && saved.SampleRate == pcm.SampleRate && saved.Channels == pcm.Channels && saved.Position < loopEnd / frameBytes && saved.LoopStart == loopStart / frameBytes && saved.LoopEnd == loopEnd / frameBytes && saved.StartPoint is 0 or 1 && (saved.StartPoint == 0 || loopStart > 0 && saved.Position >= loopStart / frameBytes);
+        return saved is not null && double.IsFinite(saved.FractionalFrame) && saved.FractionalFrame is >= 0 and < 1 && saved.SampleRate == pcm.SampleRate && saved.Channels == pcm.Channels && saved.Position < loopEnd / frameBytes && saved.LoopStart == loopStart / frameBytes && saved.LoopEnd == loopEnd / frameBytes && saved.StartPoint is 0 or 1 && (saved.StartPoint == 0 || loopStart > 0 && saved.Position >= loopStart / frameBytes);
     }
 }

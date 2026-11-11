@@ -287,7 +287,7 @@ internal sealed partial class Ff7Scene
             {
                 continue;
             }
-            Ff7BattlePlacement placement = battle.VisualPlacement(slot);
+            Ff7BattlePlacement placement = battle.RenderActorPlacement(slot);
             string model;
             int? weapon;
             if (slot < 3)
@@ -305,10 +305,10 @@ internal sealed partial class Ff7Scene
                 model = Ff7BattleAnimationResources.ModelPrefix(actor.Identity, true);
                 weapon = actor.Identity == 16 ? 0 : null;
             }
-            (int clip, int frame) = battle.VisualPose(slot);
-            visuals.Add(new(model, placement.Position, placement.Yaw * MathF.Tau / 4096, clip, frame, weapon, battle.VisualLimit(slot)));
+            (int clip, int frame) = battle.RenderActorPose(slot);
+            visuals.Add(new(model, placement.Position, placement.Yaw * MathF.Tau / 4096, clip, frame, weapon, battle.RenderActorLimit(slot)) { ModelModifiers = battle.ActorModelOutput(slot) });
         }
-        battleRenderer!.Render(triangles, bounds.Width, bounds.Height, new(battle.RenderCameraOutput, visuals, battle.Action?.Fire, battle.Action?.Ice, battle.Action?.Bolt, Cure: battle.Action?.Cure, Braver: battle.Action?.Braver) { Grenade = battle.Action?.Grenade, BeatRush = battle.Action?.BeatRushEffect, BigShot = battle.Action?.BigShot, Hitmarks = battle.Hitmarks, SecondaryEffects = battle.SecondaryEffects, PrimaryEffects = battle.PrimaryEffects, SmokeShot = battle.Action?.SmokeShot, Smog = battle.Action?.Smog, Destroyed = battle.Action?.Destroyed, SearchScope = battle.Action?.SearchScope, Rockets = battle.Action?.Rockets, StageFade = battle.StageFade, Guest = MixedBattleVisual(battle), GuestEffects = mixedCombat?.Actions.EffectVisual });
+        battleRenderer!.Render(triangles, bounds.Width, bounds.Height, new(battle.GuestRenderCameraOutput, visuals, battle.Action?.Fire, battle.Action?.Ice, battle.Action?.Bolt, Cure: battle.Action?.Cure, Braver: battle.Action?.Braver) { Grenade = battle.Action?.Grenade, BeatRush = battle.Action?.BeatRushEffect, BigShot = battle.Action?.BigShot, Hitmarks = battle.Hitmarks, SecondaryEffects = battle.SecondaryEffects, PrimaryEffects = battle.PrimaryEffects, SmokeShot = battle.Action?.SmokeShot, Smog = battle.Action?.Smog, Destroyed = battle.Action?.Destroyed, SearchScope = battle.Action?.SearchScope, Rockets = battle.Action?.Rockets, StageFade = battle.StageFade, Guest = MixedBattleVisual(battle), GuestEffects = mixedCombat?.Actions.EffectVisual });
     }
 
     private void ResetBattlePresentation()

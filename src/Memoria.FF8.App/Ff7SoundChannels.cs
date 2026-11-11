@@ -74,7 +74,7 @@ internal sealed class Ff7SoundChannels(Func<double>? elapsedSeconds = null) : ID
     {
         int alignment = channels * sizeof(short);
         int terminal = (loop ? end : pcm.Length) / alignment;
-        if (saved.SoundId != sample || !saved.Fingerprint.Equals(fingerprint, StringComparison.OrdinalIgnoreCase) || saved.SampleRate != rate || saved.Channels != channels || saved.Loop != loop || saved.LoopStartFrames != (loop ? start / alignment : 0) || saved.LoopEndFrames != terminal || saved.PositionFrames < 0 || (saved.PositionFrames > terminal || saved.PositionFrames == terminal && saved.LoopHandoffRemainingSeconds is null) || saved.NativeSampleRate != 0 && saved.NativeSampleRate != (nativeSampleRate == 0 ? rate : nativeSampleRate) || saved.LoopStarted && (!loop || start == 0 || saved.PositionFrames < start / alignment) || stream != (saved.Channel == 0))
+        if (saved.SoundId != sample || !saved.Fingerprint.Equals(fingerprint, StringComparison.OrdinalIgnoreCase) || saved.SampleRate != rate || saved.Channels != channels || saved.Loop != loop || saved.LoopStartFrames != (loop ? start / alignment : 0) || saved.LoopEndFrames != terminal || saved.PositionFrames < 0 || !double.IsFinite(saved.FractionalFrame) || saved.FractionalFrame is < 0 or >= 1 || (saved.PositionFrames > terminal || saved.PositionFrames == terminal && saved.LoopHandoffRemainingSeconds is null) || saved.NativeSampleRate != 0 && saved.NativeSampleRate != (nativeSampleRate == 0 ? rate : nativeSampleRate) || saved.LoopStarted && (!loop || start == 0 || saved.PositionFrames < start / alignment) || stream != (saved.Channel == 0))
         {
             return false;
         }
@@ -296,6 +296,7 @@ internal sealed class Ff7SoundChannels(Func<double>? elapsedSeconds = null) : ID
             Loop = loop;
             int alignment = channels * sizeof(short);
             int position = checked((int)(resume?.PositionFrames ?? 0) * alignment);
+            double fractional = resume?.FractionalFrame ?? 0;
             primary = output.Create(loop ? pcm.AsSpan(0, end).ToArray() : pcm, rate, channels);
             primary.FrequencyRatio(primaryFrequency / (double)nativeRate);
             primary.Pan(pan);
@@ -311,7 +312,7 @@ internal sealed class Ff7SoundChannels(Func<double>? elapsedSeconds = null) : ID
                 playback = new PcmLoopPlayback(primary, repeat, 127, resume?.LoopHandoffRemainingSeconds ?? nativeLoopDelaySeconds ?? (start - position) / (double)bytesPerSecond, bytesPerSecond, end - start, restoredLoop: repeating, blockAlignment: alignment, elapsedSeconds: elapsedSeconds);
                 if (repeating)
                 {
-                    repeat.Position(position - start);
+                    repeat.PositionFrames((position - start) / alignment + fractional);
                     repeat.Play(true);
                 }
                 else
@@ -322,14 +323,14 @@ internal sealed class Ff7SoundChannels(Func<double>? elapsedSeconds = null) : ID
                     }
                     else
                     {
-                        primary.Position(position);
+                        primary.PositionFrames(position / alignment + fractional);
                         primary.Play(false);
                     }
                 }
             }
             else
             {
-                primary.Position(position);
+                primary.PositionFrames(position / alignment + fractional);
                 primary.Play(loop);
             }
         }
@@ -354,7 +355,9 @@ internal sealed class Ff7SoundChannels(Func<double>? elapsedSeconds = null) : ID
                 }
             }
             double? handoff = playback is not null && !repeating ? playback.CaptureHandoffRemainingSeconds(queued, 44100) : null;
-            return new(owner, Sample, fingerprint, rate, channels, bytes / alignment, Loop, start / alignment, end / alignment, repeating, primary.PanValue, primary.GainValue, NativeVolume, nativeRate, primaryFrequency, secondaryFrequency, handoff, nativePanVersion, repeat?.PanValue, nativeFrequencyVersion, nativeGainVersion);
+            double frame = repeating ? start / alignment + repeat!.PositionFramesBeforeQueuedFrames(queued) : primary.PositionFramesBeforeQueuedFrames(queued);
+            long wholeFrame = (long)frame;
+            return new(owner, Sample, fingerprint, rate, channels, wholeFrame, Loop, start / alignment, end / alignment, repeating, primary.PanValue, primary.GainValue, NativeVolume, nativeRate, primaryFrequency, secondaryFrequency, handoff, nativePanVersion, repeat?.PanValue, nativeFrequencyVersion, nativeGainVersion) { FractionalFrame = frame - wholeFrame };
         }
 
         public void PublishGain(int volume, long version, Func<int, int> outputGain)

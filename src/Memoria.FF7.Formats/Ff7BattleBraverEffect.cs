@@ -16,6 +16,7 @@ public sealed record Ff7BattleBraverTrail(Ff7BattleBraverPoint Base, Ff7BattleBr
 public sealed record Ff7BattleBraverImpact(Ff7BattleBraverPoint Anchor, int CollisionRadius);
 public sealed record Ff7BattleBraverState(int Target, int Frame = -1, Ff7BattleBraverPoint? Shine = null, Ff7BattleBraverTrail? Trail = null, Ff7BattleBraverTrail? PreviousTrail = null, Ff7BattleBraverImpact? Impact = null)
 {
+    public Ff7BattlePrimaryState? Primary { get; init; }
     public bool Completed => Frame >= 37;
 }
 
@@ -24,6 +25,12 @@ public sealed record Ff7BattleBraverUpdate(Ff7BattleBraverState State, ushort Im
 public static class Ff7BattleBraverEffect
 {
     public static Ff7BattleBraverState Start(ushort targetMask)
+    {
+        Ff7BattleBraverState state = CreateState(targetMask);
+        return state with { Primary = Ff7BattlePrimaryEffects.ScheduleBraver(new(), 0, targetMask) };
+    }
+
+    internal static Ff7BattleBraverState CreateState(ushort targetMask)
     {
         if (targetMask == 0 || (targetMask & ~0x03F7) != 0 || (targetMask & (targetMask - 1)) != 0)
         {
@@ -42,19 +49,9 @@ public static class Ff7BattleBraverEffect
         {
             return new(state, 0);
         }
-        int frame = state.Frame + 1;
-        Ff7BattleBraverPoint? shine = frame is >= 10 and < 20 ? Ff7BattleBraverPoint.At(weaponPoint(new(0, 0, -400))) : null;
-        Ff7BattleBraverTrail? trail = null;
-        if (frame is >= 17 and < 37)
-        {
-            trail = new(Ff7BattleBraverPoint.At(weaponPoint(Vector3.Zero)), Ff7BattleBraverPoint.At(weaponPoint(new(0, 0, -800))));
-        }
-        Ff7BattleBraverImpact? impact = frame switch
-        {
-            26 => new(Ff7BattleBraverPoint.At(targetAnchor(state.Target)), collisionRadius(state.Target)),
-            < 33 => state.Impact,
-            _ => null
-        };
-        return new(new(state.Target, frame, shine, trail, state.Trail, impact), frame == 26 ? (ushort)(1 << state.Target) : (ushort)0);
+        Ff7BattlePrimaryContext context = new((_, _, _) => throw new NotSupportedException(), _ => default, collisionRadius, () => throw new NotSupportedException(), JointPoint: (target, _) => targetAnchor(target), WeaponPoint: (_, offset) => weaponPoint(offset));
+        Ff7BattlePrimaryState primary = state.Primary ?? Ff7BattlePrimaryEffects.ImportBraver(new(), state, 0);
+        primary = Ff7BattlePrimaryEffects.Advance(primary, context);
+        return new(Ff7BattlePrimaryEffects.ProjectBraver(primary, state, retainPrimary: true), primary.ImpactTargets);
     }
 }

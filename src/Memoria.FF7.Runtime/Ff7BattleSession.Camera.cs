@@ -4,13 +4,12 @@ using Memoria.FF7.Resources;
 
 namespace Memoria.FF7.Runtime;
 
-public sealed record Ff7BattleCameraJointCache(int Actor, Ff7BattleCameraPoint[] Joints, bool Deferred = false);
 public readonly record struct Ff7BattleCameraView(Ff7BattleCameraPoint Position, Ff7BattleCameraPoint Focus)
 {
     public SceneCameraPlacement ToPlacement() => new(Position.ToVector(), Focus.ToVector());
 }
 
-public sealed record Ff7BattleCameraPresentation(Ff7BattleCameraScriptState Scripts, Ff7BattleCameraView Output, Ff7BattleCameraView RenderOutput, Ff7BattleCameraJointCache[] JointCache, int Attacker = 0, int Target = 0, ushort TargetMask = 0, ushort Options = 0, short MenuPhase = -1, sbyte PrimaryQueueState = 0, Ff7BattleOutcome? TerminalOutcome = null);
+public sealed record Ff7BattleCameraPresentation(Ff7BattleCameraScriptState Scripts, Ff7BattleCameraView Output, Ff7BattleCameraView RenderOutput, int Attacker = 0, int Target = 0, ushort TargetMask = 0, ushort Options = 0, short MenuPhase = -1, sbyte PrimaryQueueState = 0, Ff7BattleOutcome? TerminalOutcome = null);
 
 public sealed partial class Ff7BattleSession
 {
@@ -20,6 +19,16 @@ public sealed partial class Ff7BattleSession
 
     public SceneCameraPlacement CameraOutput => state.Camera?.Output.ToPlacement() ?? Data.Cameras[0];
     public SceneCameraPlacement RenderCameraOutput => state.Camera?.RenderOutput.ToPlacement() ?? Data.Cameras[0];
+    public SceneCameraPlacement GuestRenderCameraOutput
+    {
+        get
+        {
+            SceneCameraPlacement camera = RenderCameraOutput;
+            float translation = (guestAttack as IFf7BattleGuestCamera)?.ViewTranslationY ?? 0;
+            Vector3 offset = BattleCameraBasis.Create(camera).Up * translation;
+            return new(camera.Position - offset, camera.Focus - offset);
+        }
+    }
     public byte CameraPresentationCounter => state.Camera?.Scripts.PresentationCounter ?? 0;
 
     public void SetCameraMenuPhase(short phase)
@@ -32,11 +41,7 @@ public sealed partial class Ff7BattleSession
 
     public void SetCameraJointDeferral(int slot, bool deferred)
     {
-        if (state.Camera is not { } camera || camera.JointCache.All(row => row.Actor != slot))
-        {
-            throw new InvalidOperationException("FFVII camera joint deferral requires an initialized physical actor.");
-        }
-        state = state with { Camera = camera with { JointCache = camera.JointCache.Select(row => row.Actor == slot ? row with { Deferred = deferred } : row).ToArray() } };
+        SetActorModelDeferral(slot, deferred);
     }
 
     private void InitializeCamera(byte counter, bool fresh)
@@ -51,11 +56,10 @@ public sealed partial class Ff7BattleSession
         }
         SceneCameraPlacement initial = Data.Cameras[0];
         Ff7BattleCameraScriptState scripts = Ff7NativeBattleCameraScripts.Create(fresh ? (short)-2 : (short)-1, Formation.InitialCamera, initial, counter);
-        Ff7BattleCameraJointCache[] cache = state.Actors.Select(actor => new Ff7BattleCameraJointCache(actor.Actor.Slot, new Ff7BattleCameraPoint[animations.BoneCount(ActorModel(actor.Actor.Slot))])).ToArray();
-        state = state with { Camera = new(scripts, CameraView(initial), CameraView(initial), cache), Intro = fresh ? new() : null };
+        state = state with { Camera = new(scripts, CameraView(initial), CameraView(initial)), Intro = fresh ? new() : null };
         if (!fresh)
         {
-            RefreshCameraJoints(false);
+            PublishActorFrames(false);
         }
     }
 
@@ -63,6 +67,8 @@ public sealed partial class Ff7BattleSession
     {
         cameraAdvanced = false;
         actorModelCursor = 0;
+        deferredActorSubmissions.Clear();
+        actorDeferAfterSubmission.Clear();
         if (state.Camera is { } camera)
         {
             state = state with { Camera = camera with { RenderOutput = camera.Output } };
@@ -71,20 +77,25 @@ public sealed partial class Ff7BattleSession
 
     private void AdvanceCameraPresentation()
     {
-        AdvanceActorReactionModels(actorModelCursor, 10);
-        actorModelCursor = 10;
-        if (cameraAdvanced || state.Camera is not { } camera)
+        if (cameraAdvanced)
         {
             return;
         }
+        AdvanceActorReactionModels(actorModelCursor, 10);
+        actorModelCursor = 10;
+        AdvanceActorMotionPresentation();
+        PublishActorFrames(false);
         cameraAdvanced = true;
+        if (state.Camera is not { } camera)
+        {
+            return;
+        }
         if (Outcome != Ff7BattleOutcome.Fighting && camera.TerminalOutcome != Outcome)
         {
             short terminal = Outcome == Ff7BattleOutcome.Victory ? (short)-3 : (short)-1;
             camera = camera with { Scripts = Ff7NativeBattleCameraScripts.Start(camera.Scripts, terminal), TerminalOutcome = Outcome };
             state = state with { Camera = camera };
         }
-        RefreshCameraJoints(false);
         camera = state.Camera!;
         Ff7BattleCameraActors actors = new(camera.Attacker, camera.Target,
             (slot, selector) => animations!.JointSelector(ActorModel(slot), selector),
@@ -99,43 +110,22 @@ public sealed partial class Ff7BattleSession
 
     private void FinishCameraPresentation()
     {
+        PublishActorFrames(true);
         if (state.Camera is not { } camera)
         {
             return;
         }
-        RefreshCameraJoints(true);
-        camera = state.Camera!;
         state = state with { Camera = camera with { Scripts = Ff7NativeBattleCameraScripts.AdvanceOuterCallback(camera.Scripts), PrimaryQueueState = NativeActorModelsReady && !HasPrimaryPresentationCallbacks ? (sbyte)1 : (sbyte)0 } };
-    }
-
-    private void RefreshCameraJoints(bool deferred)
-    {
-        Ff7BattleCameraPresentation camera = state.Camera!;
-        Ff7BattleCameraJointCache[] rows = camera.JointCache.Select(row =>
-        {
-            if (row.Deferred != deferred || state.Intro is { } intro && intro.Callbacks + 1 < (row.Actor >= 4 ? 6 : 7))
-            {
-                return row;
-            }
-            Ff7BattleCameraPoint[] joints = new Ff7BattleCameraPoint[row.Joints.Length];
-            for (int bone = 0; bone < joints.Length; bone++)
-            {
-                Vector3 point = BonePosition(row.Actor, bone);
-                joints[bone] = CameraPoint(point);
-            }
-            return row with { Joints = joints };
-        }).ToArray();
-        state = state with { Camera = camera with { JointCache = rows } };
     }
 
     private Ff7BattleCameraPoint CameraJoint(int slot, int bone)
     {
-        Ff7BattleCameraJointCache? row = state.Camera!.JointCache.SingleOrDefault(row => row.Actor == slot);
-        if (row is null || (uint)bone >= row.Joints.Length)
+        Ff7BattleActorModelState? model = state.ActorModels.SingleOrDefault(model => model.Slot == slot);
+        if (model?.Joints is not { } joints || (uint)bone >= joints.Length)
         {
             throw new NotSupportedException($"FFVII camera joint {slot}:{bone} has no initialized native actor cache.");
         }
-        return row.Joints[bone];
+        return joints[bone].ToCameraPoint();
     }
 
     private Ff7BattleCameraActorInput CameraActor(int slot)
@@ -171,23 +161,24 @@ public sealed partial class Ff7BattleSession
         }
     }
 
-    private void BeginCameraAction(Ff7BattleQueuedCommand command)
+    private ushort BeginCameraAction(Ff7BattleQueuedCommand command)
     {
         int[] rows = cameraTargetRows?.ToArray() ?? [];
         cameraTargetRows = null;
         state = state with { ModelPrimaryTarget = Ff7NativeBattleCamera.InitialTarget(rows) ?? state.ModelPrimaryTarget };
-        if (state.Camera is not { } camera)
-        {
-            return;
-        }
-        Ff7BattleActionCameras pair = CameraSelection(command, rows.Length > 1);
-        short selected = unchecked((short)(rows.Length > 1 ? pair.MultipleTargets : pair.SingleTarget));
         ushort mask = 0;
         foreach (int row in rows)
         {
             mask |= (ushort)(1 << row);
         }
+        if (state.Camera is not { } camera)
+        {
+            return mask;
+        }
+        Ff7BattleActionCameras pair = CameraSelection(command, rows.Length > 1);
+        short selected = unchecked((short)(rows.Length > 1 ? pair.MultipleTargets : pair.SingleTarget));
         state = state with { Camera = camera with { Scripts = Ff7NativeBattleCameraScripts.Start(camera.Scripts, selected), Attacker = command.ActorSlot, Target = Ff7NativeBattleCamera.InitialTarget(rows) ?? camera.Target, TargetMask = mask } };
+        return mask;
     }
 
     private Ff7BattleActionCameras CameraSelection(Ff7BattleQueuedCommand command, bool multiple)
@@ -224,7 +215,7 @@ public sealed partial class Ff7BattleSession
 
     private static Ff7BattleCameraPoint CameraPoint(Vector3 point) => new(unchecked((short)(int)point.X), unchecked((short)(int)point.Y), unchecked((short)(int)point.Z));
 
-    private static Ff7BattleCameraPresentation CopyCamera(Ff7BattleCameraPresentation camera) => camera with { Scripts = Ff7NativeBattleCameraScripts.Copy(camera.Scripts), JointCache = camera.JointCache.Select(row => row with { Joints = row.Joints.ToArray() }).ToArray() };
+    private static Ff7BattleCameraPresentation CopyCamera(Ff7BattleCameraPresentation camera) => camera with { Scripts = Ff7NativeBattleCameraScripts.Copy(camera.Scripts) };
 
     private void ValidateCamera(Ff7BattleSnapshot snapshot)
     {
@@ -236,7 +227,7 @@ public sealed partial class Ff7BattleSession
         {
             return;
         }
-        if (cameraScripts is null || animations is null || camera.Scripts is null || camera.JointCache is null || camera.PrimaryQueueState is < 0 or > 1 || camera.Attacker is < 0 or > 9 || camera.Target is < 0 or > 15 || camera.Target is > 9 and < 15 || !camera.JointCache.Select(row => row.Actor).SequenceEqual(snapshot.Actors.Select(actor => actor.Actor.Slot)) || camera.JointCache.Any(row => row.Joints is null || row.Joints.Length != animations.BoneCount(Ff7BattleAnimationResources.ModelPrefix(snapshot.Actors.Single(actor => actor.Actor.Slot == row.Actor).Identity, row.Actor >= 4))))
+        if (cameraScripts is null || animations is null || camera.Scripts is null || camera.PrimaryQueueState is < 0 or > 1 || camera.Attacker is < 0 or > 9 || camera.Target is < 0 or > 15 || camera.Target is > 9 and < 15)
         {
             throw new InvalidDataException("FFVII battle camera snapshot lost its native resource, selector or joint-cache owner.");
         }

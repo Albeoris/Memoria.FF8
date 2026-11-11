@@ -5,6 +5,7 @@ namespace Memoria.FF7.Formats;
 public sealed record Ff7BattleIceCrystal(short X, short Y, short Z, int CollisionRadius, int StartedAt = 0);
 public sealed record Ff7BattleIceState(ushort TargetMask, int Frame = -1, IReadOnlyList<Ff7BattleIceCrystal>? Crystals = null)
 {
+    public Ff7BattlePrimaryState? Primary { get; init; }
     public bool Completed => Frame >= Ff7BattleIceEffect.FrameCount + (BitOperations.PopCount(TargetMask) - 1) * 4;
 }
 
@@ -20,7 +21,7 @@ public static class Ff7BattleIceEffect
         {
             throw new ArgumentOutOfRangeException(nameof(targetMask));
         }
-        return new(targetMask);
+        return new(targetMask) { Primary = Ff7BattlePrimaryEffects.ScheduleIce(new(), targetMask) };
     }
 
     public static Ff7BattleIceUpdate Advance(Ff7BattleIceState state, Func<int, Vector3> targetAnchor, Func<int, int> collisionRadius)
@@ -32,24 +33,10 @@ public static class Ff7BattleIceEffect
         {
             return new(state, 0);
         }
-        int frame = state.Frame + 1;
-        List<Ff7BattleIceCrystal> crystals = (state.Crystals ?? []).ToList();
-        int ordinal = 0;
-        ushort impacts = 0;
-        for (int slot = 0; slot < 10; slot++)
-        {
-            if ((state.TargetMask & (1 << slot)) != 0)
-            {
-                if (frame == ordinal * 4)
-                {
-                    Vector3 point = targetAnchor(slot);
-                    crystals.Add(new((short)point.X, (short)point.Y, (short)point.Z, collisionRadius(slot), frame));
-                    impacts |= (ushort)(1 << slot);
-                }
-                ordinal++;
-            }
-        }
-        return new(state with { Frame = frame, Crystals = crystals.AsReadOnly() }, impacts);
+        Ff7BattlePrimaryContext context = new((actor, _, point) => targetAnchor(actor) + point, _ => default, collisionRadius, () => throw new InvalidOperationException("FFVII Ice has no random callback."), JointPoint: (actor, _) => targetAnchor(actor));
+        Ff7BattlePrimaryState previous = state.Primary ?? Ff7BattlePrimaryEffects.ImportIce(new() { Tick = state.Frame }, state, context);
+        Ff7BattlePrimaryState primary = Ff7BattlePrimaryEffects.Advance(previous, context);
+        return new(Ff7BattlePrimaryEffects.ProjectIce(primary, state, retainPrimary: true), primary.ImpactTargets);
     }
 
     public static float Scale(int frame, int collisionRadius)

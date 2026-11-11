@@ -12,6 +12,10 @@ namespace Memoria.FF7.Formats;
 [JsonDerivedType(typeof(Ff7BattleHitmarkOwnerCallback), "HitmarkOwner")]
 [JsonDerivedType(typeof(Ff7BattleHitmarkSpriteCallback), "HitmarkSprite")]
 [JsonDerivedType(typeof(Ff7BattleDelayedSoundCallback), "Sound")]
+[JsonDerivedType(typeof(Ff7BattleBossDeathShakeCallback), "BossDeathShake")]
+[JsonDerivedType(typeof(Ff7BattleLimitPreparationEntry), "LimitPreparationEntry")]
+[JsonDerivedType(typeof(Ff7BattleLimitPreparationEmitter), "LimitPreparationEmitter")]
+[JsonDerivedType(typeof(Ff7BattleLimitPreparationMesh), "LimitPreparationMesh")]
 public abstract record Ff7BattleSecondaryCallback
 {
     public int Age { get; init; }
@@ -36,7 +40,9 @@ public enum Ff7BattleSecondaryDrawKind
     Casing,
     Spark,
     Dust,
-    Hitmark
+    Hitmark,
+    ScreenPulse,
+    LimitPreparation
 }
 public sealed record Ff7BattleSecondaryDraw(Ff7BattleSecondaryDrawKind Kind, int Index);
 
@@ -49,12 +55,15 @@ public sealed record Ff7BattleSecondaryState
     public IReadOnlyList<Ff7BattleGunDust> Dust { get; init; } = [];
     public IReadOnlyList<Ff7BattleHitmarkState> Hitmarks { get; init; } = [];
     public IReadOnlyList<ushort> SoundIds { get; init; } = [];
+    public IReadOnlyList<Ff7BattleActorModelWrite> ActorWrites { get; init; } = [];
+    public IReadOnlyList<Ff7BattleActorScreenPulse> ScreenPulses { get; init; } = [];
+    public IReadOnlyList<Ff7BattleLimitPreparationDraw> LimitPreparations { get; init; } = [];
     public IReadOnlyList<Ff7BattleSecondaryDraw> DrawOrder { get; init; } = [];
     [JsonIgnore]
     public bool HasCallbacks => Slots.Any(slot => slot is not null);
 }
 
-public static class Ff7BattleSecondaryEffects
+public static partial class Ff7BattleSecondaryEffects
 {
     public const int Capacity = 60;
 
@@ -113,12 +122,39 @@ public static class Ff7BattleSecondaryEffects
         List<Ff7BattleHitmarkState> hitmarks = [];
         List<ushort> sounds = [];
         List<Ff7BattleSecondaryDraw> drawOrder = [];
+        List<Ff7BattleActorModelWrite> actorWrites = [];
+        List<Ff7BattleActorScreenPulse> screenPulses = [];
+        List<Ff7BattleLimitPreparationDraw> limitPreparations = [];
         for (int cursor = 0; cursor < Capacity; cursor++)
         {
             switch (slots[cursor])
             {
                 case null:
                     continue;
+                case Ff7BattleBossDeathShakeCallback shake:
+                    Ff7BattleBossDeathShakeUpdate shakeUpdate = Ff7BattleActorDeath.AdvanceShake(shake.State);
+                    slots[cursor] = shakeUpdate.State is { } shakeState ? shake with { State = shakeState, Age = shake.Age + 1 } : null;
+                    if (shakeUpdate.Write is { } actorWrite)
+                    {
+                        actorWrites.Add(actorWrite);
+                    }
+                    if (shakeUpdate.Flash)
+                    {
+                        drawOrder.Add(new(Ff7BattleSecondaryDrawKind.ScreenPulse, screenPulses.Count));
+                        screenPulses.Add(new(250, 250, 250));
+                    }
+                    break;
+                case Ff7BattleLimitPreparationEntry preparationEntry:
+                    sounds.Add(0x24);
+                    Allocate(new Ff7BattleLimitPreparationEmitter(Ff7BattleBraverPoint.At(actorPoint(preparationEntry.Actor, preparationEntry.Bone, Vector3.Zero))));
+                    slots[cursor] = null;
+                    break;
+                case Ff7BattleLimitPreparationEmitter preparationEmitter:
+                    slots[cursor] = ExecuteLimitPreparation(preparationEmitter, Allocate, EmitPreparation);
+                    break;
+                case Ff7BattleLimitPreparationMesh preparationMesh:
+                    slots[cursor] = ExecuteLimitPreparation(preparationMesh, Allocate, EmitPreparation);
+                    break;
                 case Ff7BattleGunEmitter emitter:
                     int age = emitter.Age - emitter.Delay;
                     if (age >= (emitter.Duration & 127))
@@ -215,9 +251,15 @@ public static class Ff7BattleSecondaryEffects
                     throw new NotSupportedException("FFVII secondary callback has no admitted executor.");
             }
 
-            void Allocate(Ff7BattleSecondaryCallback callback) => Insert(slots, cursor, callback);
+            void EmitPreparation(Ff7BattleLimitPreparationDraw draw)
+        {
+            drawOrder.Add(new(Ff7BattleSecondaryDrawKind.LimitPreparation, limitPreparations.Count));
+            limitPreparations.Add(draw);
         }
-        return new() { Slots = slots, Muzzles = muzzles, Casings = casings, Sparks = sparks, Dust = dust, Hitmarks = hitmarks, SoundIds = sounds, DrawOrder = drawOrder };
+
+        void Allocate(Ff7BattleSecondaryCallback callback) => Insert(slots, cursor, callback);
+        }
+        return new() { Slots = slots, Muzzles = muzzles, Casings = casings, Sparks = sparks, Dust = dust, Hitmarks = hitmarks, SoundIds = sounds, ActorWrites = actorWrites, ScreenPulses = screenPulses, LimitPreparations = limitPreparations, DrawOrder = drawOrder };
     }
 
     private static Ff7BattleBraverPoint Add(Ff7BattleBraverPoint a, Ff7BattleBraverPoint b) => new((short)(a.X + b.X), (short)(a.Y + b.Y), (short)(a.Z + b.Z));

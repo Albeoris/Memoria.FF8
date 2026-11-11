@@ -20,7 +20,7 @@ internal static class InstalledOpeningCombatMatrixTests
         IReadOnlyList<SceneFormation> scenes = SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path));
         using LgpArchive archive = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
         using LgpArchive magic = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.MagicArchive).Path);
-        Ff7BattleAnimationResources animations = new(archive, Ff7PcExecutableData.LoadBattlePlacement(installation), magic, Ff7PcExecutableData.LoadBattleJumpDeltas(installation), Ff7PcExecutableData.LoadBattleHitmarks(installation));
+        Ff7BattleAnimationResources animations = new(archive, Ff7PcExecutableData.LoadBattlePlacement(installation), magic, Ff7PcExecutableData.LoadBattleJumpDeltas(installation), Ff7PcExecutableData.LoadBattleHitmarks(installation), Ff7PcExecutableData.LoadBattleActorModelResources(installation));
         IReadOnlyList<Ff7BattleAttack> limits = Ff7PcExecutableData.LoadBattleLimits(installation);
         IReadOnlyList<byte> reel = Ff7PcExecutableData.LoadBeatRushReel(installation);
         int[] opening = [.. Enumerable.Range(300, 25), 328, 329, 330, .. Enumerable.Range(332, 28), 364, 367, .. Enumerable.Range(392, 4)];
@@ -298,10 +298,9 @@ internal static class InstalledOpeningCombatMatrixTests
         {
             if (battle.ReadyPlayer is int slot)
             {
-                Ff7BattleActorState own = battle.Actors.Single(actor => actor.Actor.Slot == slot);
                 IReadOnlyList<Ff7BattleCommandOption> commands = battle.Commands(slot);
                 Ff7BattleCommandOption selected = commands.FirstOrDefault(command => command.ValidTargets != 0 && command.Command == Ff7BattleCommand.Item && command.Argument == 7)
-                    ?? commands.FirstOrDefault(command => command.ValidTargets != 0 && command.Command == Ff7BattleCommand.Item && command.Argument == 0 && own.Actor.HitPoints * 3 < own.Actor.MaxHitPoints)
+                    ?? commands.FirstOrDefault(command => command.ValidTargets != 0 && command.Command == Ff7BattleCommand.Item && command.Argument == 0 && battle.Actors.Any(ally => (command.ValidTargets & 1 << ally.Actor.Slot) != 0 && ally.Actor.HitPoints > 0 && ally.Actor.HitPoints * 2 < ally.Actor.MaxHitPoints))
                     ?? commands.FirstOrDefault(command => command.ValidTargets != 0 && command.Command == Ff7BattleCommand.Limit)
                     ?? commands.FirstOrDefault(command => command.ValidTargets != 0 && command.Command == Ff7BattleCommand.Magic && command.Argument == 0x21)
                     ?? commands.FirstOrDefault(command => command.ValidTargets != 0 && command.Command == Ff7BattleCommand.Attack)

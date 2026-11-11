@@ -55,6 +55,8 @@ internal sealed class PcmAudioOutput : IDisposable
         public bool IsPlaying => voice.IsPlaying;
         internal bool HasStartedBeforeQueuedFrames(int queuedFrames) => voice.HasStartedBeforeQueuedFrames(queuedFrames);
         internal int PositionBytesBeforeQueuedFrames(int queuedFrames) => voice.PositionBytesBeforeQueuedFrames(queuedFrames);
+        internal double PositionFramesBeforeQueuedFrames(int queuedFrames) => voice.PositionFramesBeforeQueuedFrames(queuedFrames);
+        internal void PositionFrames(double sourceFrame) => voice.PositionFrames(sourceFrame);
         internal int PositionBytes => voice.PositionBytes;
         internal int PanValue { get; private set; }
         internal int GainValue { get; private set; }

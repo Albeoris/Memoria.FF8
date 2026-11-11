@@ -119,7 +119,9 @@ internal static class NativeBattleCameraTests
     {
         using Ff7Session original = Ff7Session.NewGame(installation);
         using LgpArchive magic = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.MagicArchive).Path);
-        Ff7BattleAnimationResources animations = new(archive, Ff7PcExecutableData.LoadBattlePlacement(installation), magic, Ff7PcExecutableData.LoadBattleJumpDeltas(installation), Ff7PcExecutableData.LoadBattleHitmarks(installation));
+        Ff7BattleAnimationResources animations = new(archive, Ff7PcExecutableData.LoadBattlePlacement(installation), magic, Ff7PcExecutableData.LoadBattleJumpDeltas(installation), Ff7PcExecutableData.LoadBattleHitmarks(installation), Ff7PcExecutableData.LoadBattleActorModelResources(installation));
+        ModelEndCallbacks(animations);
+        ModelReactionSelection(animations.ActorResources!.PlayerHurtActions);
         Ff7PcExecutableData executable = Ff7PcExecutableData.Load(installation);
         SceneFormation formation = SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path)).Single(formation => formation.FormationId == 300);
         Ff7BattleCameraScriptResources scripts = Ff7BattleCameraResources.LoadScripts(installation, formation.Layout);
@@ -155,10 +157,11 @@ internal static class NativeBattleCameraTests
         Ff7BattleSnapshot complete = battle.Capture();
         Ff7BattleSession legacy = Restore(complete with { Camera = null, Intro = null });
         Check(!legacy.IntroActive && legacy.Tick == complete.Tick && legacy.Capture().Camera!.Scripts.CameraId == -1 && JsonSerializer.Serialize(legacy.Capture().Random) == random, "An older in-progress snapshot must initialize presentation from saved facts without replaying startup or numeric progress.");
-        complete.Camera!.JointCache[0].Joints[0] = new(123, 456, 789);
-        Check(battle.Capture().Camera!.JointCache[0].Joints[0] != new Ff7BattleCameraPoint(123, 456, 789), "Captured joint arrays must not alias the live camera cache.");
-        Ff7BattleCameraPresentation invalid = battle.Capture().Camera! with { JointCache = [] };
-        Throws<InvalidDataException>(() => Restore(battle.Capture() with { Camera = invalid }));
+        complete.ActorModels[0].Joints![0] = new(123, 456, 789);
+        Check(battle.Capture().ActorModels[0].Joints![0] != new Ff7BattleWorldJoint(123, 456, 789), "Captured joint arrays must not alias the live camera cache.");
+        Ff7BattleSnapshot invalid = battle.Capture();
+        invalid.ActorModels[0] = invalid.ActorModels[0] with { Joints = [] };
+        Throws<InvalidDataException>(() => Restore(invalid));
         Throws<InvalidDataException>(() => Restore(battle.Capture() with { Intro = new(64) }));
         foreach (int weapon in new[] { 0, 32, 64 })
         {
@@ -189,6 +192,48 @@ internal static class NativeBattleCameraTests
             battle.Advance(waitForCommand: true);
         }
         Check(battle.Action is { Applied: true } && battle.Capture().Camera is { Attacker: 0, Target: 4, TargetMask: 16, Scripts.CameraId: -1 }, "A numeric attack receipt must publish its actual target row before the camera model phase.");
+    }
+
+    private static void ModelEndCallbacks(Ff7BattleAnimationResources animations)
+    {
+        BattleActionSequence beatRush = animations.Get("ru", 0x3C, 0x95);
+        BattleActionPoseState pose = new();
+        for (int callback = 0; callback < 1000 && pose.TerminalOpcode != 0x9E; callback++)
+        {
+            pose = beatRush.Advance(pose, effectReady: true, primaryCallbacksReady: false, linkedActorReady: true).State;
+            pose = JsonSerializer.Deserialize<BattleActionPoseState>(JsonSerializer.Serialize(pose))!;
+        }
+        Check(pose is { TerminalOpcode: 0x9E, Completed: false, ClipIndex: >= 0 }, "Original Beat Rush must reach a blocked 9E without transferring to idle.");
+        BattleActionPoseState linked = beatRush.Advance(pose, effectReady: true, primaryCallbacksReady: true, linkedActorReady: false).State;
+        Check(!linked.Completed && linked.NextInstruction == pose.NextInstruction && linked.ClipIndex == pose.ClipIndex && linked.ClipFrame == pose.ClipFrame, "A non-owner 9E must retain its PC and final pose until the linked actor is ready.");
+        BattleActionPoseState finished = beatRush.Advance(linked, effectReady: false, primaryCallbacksReady: true, linkedActorReady: true).State;
+        Check(finished is { Completed: true, TerminalOpcode: 0x9E } && finished.ClipIndex == pose.ClipIndex && finished.ClipFrame == pose.ClipFrame, "Ready 9E must hold its final body pose and must not depend on the effect-resource admission flag.");
+        Check(beatRush.Advance(finished).State == finished, "A retained ready model must not replay a completed 9E script.");
+    }
+
+    private static void ModelReactionSelection(IReadOnlyList<byte> table)
+    {
+        Check(table.SequenceEqual(new byte[] { 5, 6, 7, 18, 15 }), "Player hurt indices must come from the original model-action table.");
+        foreach ((int target, byte index, uint status, bool missed, int damage, bool mp, short expected) in new (int, byte, uint, bool, int, bool, short)[]
+        {
+            (0, 0, 0, false, 17, false, 5),
+            (0, 1, 0, false, 17, false, 6),
+            (0, 2, 0, false, 17, false, 7),
+            (0, 0, 0, false, -17, false, 8),
+            (0, 0, 0, true, 17, false, 10),
+            (0, 0, 0, false, 0, false, 0x33),
+            (0, 0, 0, false, 17, true, 0x33),
+            (4, 0, 0, false, 17, false, 1),
+            (4, 0, 0, false, -17, false, 2),
+            (4, 0, 0, true, 17, false, 2),
+            (0, 0, 0x400, false, 17, false, 0x30),
+            (4, 0, 0x800, false, 17, false, 5)
+        })
+        {
+            short actual = Ff7NativeBattleModelReaction.Select(target < 3, target < 3 ? (byte)5 : (byte)1, index, table, 16, status, missed, damage, mp, false, false);
+            Check(actual == expected, "A model reaction differs from the executed original numerical queue selector.");
+        }
+        Check(Ff7NativeBattleModelReaction.Select(true, 5, 0, table, 0, 0, false, 0, false, false, false) == 0x33, "Zero-power status actions must retain the no-model reaction sentinel.");
     }
 
     private static void MotionCallbacks()

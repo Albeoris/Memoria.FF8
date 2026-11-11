@@ -85,7 +85,7 @@ public sealed class PcmMixer(int sampleRate = 44100)
         private readonly object tempoGate = new();
         private byte[] playbackPcm;
         private double cursor;
-        internal readonly AudioPlaybackTimeline timeline = new();
+        private readonly AudioPlaybackTimeline cursorTimeline = new();
         private double volume = 1;
         private double frequencyRatio = 1;
         private double leftPan = 1;
@@ -140,7 +140,15 @@ public sealed class PcmMixer(int sampleRate = 44100)
         {
             lock (owner.gate)
             {
-                return checked((int)timeline.PositionBeforeQueuedFrames(queuedFrames) * channels * 2);
+                return checked((int)BitConverter.Int64BitsToDouble(cursorTimeline.PositionBeforeQueuedFrames(queuedFrames)) * channels * 2);
+            }
+        }
+
+        public double PositionFramesBeforeQueuedFrames(int queuedFrames)
+        {
+            lock (owner.gate)
+            {
+                return BitConverter.Int64BitsToDouble(cursorTimeline.PositionBeforeQueuedFrames(queuedFrames));
             }
         }
 
@@ -212,7 +220,7 @@ public sealed class PcmMixer(int sampleRate = 44100)
             {
                 ObjectDisposedException.ThrowIf(disposed, this);
                 cursor = pcm.Length / (channels * 2);
-                timeline.Reset((long)cursor);
+                cursorTimeline.Reset(BitConverter.DoubleToInt64Bits(cursor));
                 playing = false;
             }
         }
@@ -226,7 +234,21 @@ public sealed class PcmMixer(int sampleRate = 44100)
             lock (owner.gate)
             {
                 cursor = pcmByteOffset / (channels * 2);
-                timeline.Reset((long)cursor);
+                cursorTimeline.Reset(BitConverter.DoubleToInt64Bits(cursor));
+            }
+        }
+
+        public void PositionFrames(double sourceFrame)
+        {
+            if (!double.IsFinite(sourceFrame) || sourceFrame < 0 || sourceFrame >= pcm.Length / (channels * 2))
+            {
+                throw new ArgumentOutOfRangeException(nameof(sourceFrame));
+            }
+            lock (owner.gate)
+            {
+                ObjectDisposedException.ThrowIf(disposed, this);
+                cursor = sourceFrame;
+                cursorTimeline.Reset(BitConverter.DoubleToInt64Bits(cursor));
             }
         }
 
@@ -269,7 +291,8 @@ public sealed class PcmMixer(int sampleRate = 44100)
 
         internal void RecordPosition()
         {
-            timeline.Record((long)cursor);
+            // Retain the exact interpolation cursor in the existing bounded 64-bit timeline.
+            cursorTimeline.Record(BitConverter.DoubleToInt64Bits(cursor));
             startedTimeline.Record(hasStarted ? 1 : 0);
         }
 

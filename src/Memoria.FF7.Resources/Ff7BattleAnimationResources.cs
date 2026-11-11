@@ -3,7 +3,7 @@ using Memoria.FF7.Formats;
 
 namespace Memoria.FF7.Resources;
 
-public sealed partial class Ff7BattleAnimationResources(LgpArchive archive, Ff7BattlePlacementTables placement, LgpArchive magicArchive, IReadOnlyList<short[]> jumpDeltas, IReadOnlyList<Ff7BattleHitmarkDefinition> hitmarks)
+public sealed partial class Ff7BattleAnimationResources(LgpArchive archive, Ff7BattlePlacementTables placement, LgpArchive magicArchive, IReadOnlyList<short[]> jumpDeltas, IReadOnlyList<Ff7BattleHitmarkDefinition> hitmarks, Ff7BattleActorModelResources? actorResources = null)
 {
     private readonly Dictionary<string, (BattleActionBank Bank, BattleModelData Model)> models = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<(string Prefix, int Action, ushort? Limit), BattleActionSequence> actions = [];
@@ -15,6 +15,7 @@ public sealed partial class Ff7BattleAnimationResources(LgpArchive archive, Ff7B
 
     public Ff7BattlePlacementTables Placement { get; } = placement;
     public IReadOnlyList<Ff7BattleHitmarkDefinition> Hitmarks { get; } = hitmarks;
+    public Ff7BattleActorModelResources? ActorResources { get; } = actorResources;
 
     public short[] JumpDeltas(int selector)
     {
@@ -42,12 +43,12 @@ public sealed partial class Ff7BattleAnimationResources(LgpArchive archive, Ff7B
     public byte JointSelector(string prefix, int selector) => GetModel(prefix).Bank.JointSelectors.Span[selector];
     public int ClipFrameCount(string prefix, int clip) => checked((int)GetModel(prefix).Model.BodyClips[clip].FrameCount);
 
-    public Vector3 BonePosition(string prefix, int clip, int frame, Ff7BattlePlacement placement, int bone)
+    public Vector3 BonePosition(string prefix, int clip, int frame, Ff7BattlePlacement placement, int bone, BattleActorPoseTransform? extra = null)
     {
-        return BaseBonePoint(prefix, clip, frame, placement, bone, Vector3.Zero);
+        return BaseBonePoint(prefix, clip, frame, placement, bone, Vector3.Zero, extra);
     }
 
-    public Vector3 BaseBonePoint(string prefix, int clip, int frame, Ff7BattlePlacement placement, int bone, Vector3 localPoint)
+    public Vector3 BaseBonePoint(string prefix, int clip, int frame, Ff7BattlePlacement placement, int bone, Vector3 localPoint, BattleActorPoseTransform? extra = null)
     {
         BattleModelData model = GetModel(prefix).Model;
         if (!clips.TryGetValue((prefix, clip), out IReadOnlyList<BattleClipFrame>? frames))
@@ -55,17 +56,17 @@ public sealed partial class Ff7BattleAnimationResources(LgpArchive archive, Ff7B
             frames = BattleClipDecoder.Decode(model.BodyClips[clip]);
             clips.Add((prefix, clip), frames);
         }
-        return BattleRigidPose.BonePoint(model, frames[frame % frames.Count], placement.Position, placement.Yaw * MathF.Tau / 4096, bone, localPoint);
+        return BattleRigidPose.BonePoint(model, frames[frame % frames.Count], placement.Position, placement.Yaw * MathF.Tau / 4096, bone, localPoint, extra);
     }
 
-    public Vector3 BaseWeaponPosition(string prefix, int clip, int frame, Ff7BattlePlacement placement, Vector3 localPoint)
+    public Vector3 BaseWeaponPosition(string prefix, int clip, int frame, Ff7BattlePlacement placement, Vector3 localPoint, BattleActorPoseTransform? extra = null)
     {
         if (!weaponClips.TryGetValue((prefix, clip), out IReadOnlyList<BattleClipFrame>? frames))
         {
             frames = BattleClipDecoder.Decode(GetModel(prefix).Model.WeaponClips[clip]);
             weaponClips.Add((prefix, clip), frames);
         }
-        return BattleRigidPose.WeaponPosition(frames[frame % frames.Count], placement.Position, placement.Yaw * MathF.Tau / 4096, localPoint);
+        return BattleRigidPose.WeaponPosition(frames[frame % frames.Count], placement.Position, placement.Yaw * MathF.Tau / 4096, localPoint, extra);
     }
 
     public BattleLimitAnimation GetLimit(ushort attack)
@@ -78,7 +79,7 @@ public sealed partial class Ff7BattleAnimationResources(LgpArchive archive, Ff7B
         return animation;
     }
 
-    public Vector3 LimitWeaponPosition(string prefix, int clip, int frame, Ff7BattlePlacement placement, ushort limit, Vector3 localPoint)
+    public Vector3 LimitWeaponPosition(string prefix, int clip, int frame, Ff7BattlePlacement placement, ushort limit, Vector3 localPoint, BattleActorPoseTransform? extra = null)
     {
         if (!limitWeaponClips.TryGetValue((prefix, clip, limit), out IReadOnlyList<BattleClipFrame>? frames))
         {
@@ -86,10 +87,10 @@ public sealed partial class Ff7BattleAnimationResources(LgpArchive archive, Ff7B
             frames = BattleClipDecoder.Decode(packed);
             limitWeaponClips.Add((prefix, clip, limit), frames);
         }
-        return BattleRigidPose.WeaponPosition(frames[frame % frames.Count], placement.Position, placement.Yaw * MathF.Tau / 4096, localPoint);
+        return BattleRigidPose.WeaponPosition(frames[frame % frames.Count], placement.Position, placement.Yaw * MathF.Tau / 4096, localPoint, extra);
     }
 
-    public Vector3 LimitBonePosition(string prefix, int clip, int frame, Ff7BattlePlacement placement, ushort limit, int bone, Vector3 localPoint)
+    public Vector3 LimitBonePosition(string prefix, int clip, int frame, Ff7BattlePlacement placement, ushort limit, int bone, Vector3 localPoint, BattleActorPoseTransform? extra = null)
     {
         BattleModelData model = GetModel(prefix).Model;
         if (!limitBodyClips.TryGetValue((prefix, clip, limit), out IReadOnlyList<BattleClipFrame>? frames))
@@ -98,7 +99,7 @@ public sealed partial class Ff7BattleAnimationResources(LgpArchive archive, Ff7B
             frames = BattleClipDecoder.Decode(packed);
             limitBodyClips.Add((prefix, clip, limit), frames);
         }
-        return BattleRigidPose.BonePoint(model, frames[frame % frames.Count], placement.Position, placement.Yaw * MathF.Tau / 4096, bone, localPoint);
+        return BattleRigidPose.BonePoint(model, frames[frame % frames.Count], placement.Position, placement.Yaw * MathF.Tau / 4096, bone, localPoint, extra);
     }
 
     private (BattleActionBank Bank, BattleModelData Model) GetModel(string prefix)

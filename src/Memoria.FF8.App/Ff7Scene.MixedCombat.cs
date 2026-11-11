@@ -115,6 +115,7 @@ internal sealed partial class Ff7Scene
         {
             return false;
         }
+        DeliverGuestBattleSounds();
         bool gameOver = battle.Outcome == Ff7BattleOutcome.Defeat && !battle.ReturnsAfterDefeat;
         CrossoverBattleVitalsSettlementResult staged = mixed.Settle(Capture(), installation);
         envelope = staged.Save;
@@ -138,6 +139,7 @@ internal sealed partial class Ff7Scene
 
     private void ResetMixedCombat()
     {
+        DeliverGuestBattleSounds();
         mixedCombat?.Dispose();
         mixedCombat = null;
         mixedFieldVitals?.Dispose();

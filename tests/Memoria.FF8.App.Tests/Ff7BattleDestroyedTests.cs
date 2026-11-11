@@ -51,7 +51,7 @@ public sealed class Ff7BattleDestroyedTests
         SceneBattleEnemy enemy = data.Enemies[0];
         string model = Ff7BattleRenderer.EnemyModelPrefix(enemy.Placement.EnemyId);
         Ff7BattlePlacement placement = new(enemy.Placement.Position, Ff7BattlePlacementTables.EnemyYaw(formation.Layout, enemy.Placement.Position));
-        Ff7BattleAnimationResources animations = new(archive, Ff7PcExecutableData.LoadBattlePlacement(installation), magic, Ff7PcExecutableData.LoadBattleJumpDeltas(installation), Ff7PcExecutableData.LoadBattleHitmarks(installation));
+        Ff7BattleAnimationResources animations = new(archive, Ff7PcExecutableData.LoadBattlePlacement(installation), magic, Ff7PcExecutableData.LoadBattleJumpDeltas(installation), Ff7PcExecutableData.LoadBattleHitmarks(installation), Ff7PcExecutableData.LoadBattleActorModelResources(installation));
         Ff7BattleRenderer renderer = new(archive, formation.LocationId, magic);
         Ff7BattleDestroyedState state = Ff7BattleDestroyedEffect.Start(0x10);
         IReadOnlyList<KernelSection> kernel = KernelArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.Kernel).Path));

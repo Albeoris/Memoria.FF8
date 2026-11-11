@@ -21,7 +21,12 @@ public sealed partial class Ff7BattleRenderer
 
     private static void DrawDestroyedPulse(ITriangleRenderer renderer, byte blue, CameraView view)
     {
-        Vector4 color = new(0, 0, blue / 255f, 1);
+        DrawScreenPulse(renderer, 0, 0, blue, view);
+    }
+
+    private static void DrawScreenPulse(ITriangleRenderer renderer, byte red, byte green, byte blue, CameraView view)
+    {
+        Vector4 color = new(red / 255f, green / 255f, blue / 255f, 1);
         TriangleVertex a = new(new(0, 0), 0.1f, 1, Vector2.Zero, color);
         TriangleVertex b = new(new(view.Width, 0), 0.1f, 1, Vector2.Zero, color);
         TriangleVertex c = new(new(0, view.Height), 0.1f, 1, Vector2.Zero, color);

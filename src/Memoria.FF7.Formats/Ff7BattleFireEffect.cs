@@ -6,6 +6,7 @@ public sealed record Ff7BattleFireTarget(int Slot, int PreviousBone = 0);
 public sealed record Ff7BattleFireSprite(short X, short Y, short Z, int CollisionRadius, int Frame = 0);
 public sealed record Ff7BattleFireState(int Callback, IReadOnlyList<Ff7BattleFireTarget> Targets, IReadOnlyList<Ff7BattleFireSprite> Sprites)
 {
+    public Ff7BattlePrimaryState? Primary { get; init; }
     public bool Completed => Callback >= 5 && Sprites.Count == 0;
 }
 
@@ -30,7 +31,7 @@ public static class Ff7BattleFireEffect
                 targets.Add(new(slot));
             }
         }
-        return new(0, targets.AsReadOnly(), []);
+        return new(0, targets.AsReadOnly(), []) { Primary = Ff7BattlePrimaryEffects.ScheduleFire(new(), targetMask) };
     }
 
     public static Ff7BattleFireUpdate Advance(Ff7BattleFireState state, Func<int, int> boneCount, Func<int, int, Vector3> bonePosition, Func<int, int> collisionRadius, Func<int> nextVisualRandom)
@@ -44,37 +45,9 @@ public static class Ff7BattleFireEffect
         {
             return new(state, 0);
         }
-
-        List<Ff7BattleFireSprite> sprites = [];
-        foreach (Ff7BattleFireSprite sprite in state.Sprites)
-        {
-            if (sprite.Frame + 1 < SpriteFrameCount)
-            {
-                sprites.Add(sprite with { Frame = sprite.Frame + 1 });
-            }
-        }
-
-        IReadOnlyList<Ff7BattleFireTarget> targets = state.Targets;
-        ushort impact = 0;
-        if (state.Callback is 0 or 2 or 4)
-        {
-            Ff7BattleFireTarget[] updated = new Ff7BattleFireTarget[targets.Count];
-            for (int index = 0; index < targets.Count; index++)
-            {
-                Ff7BattleFireTarget target = targets[index];
-                int count = boneCount(target.Slot);
-                ArgumentOutOfRangeException.ThrowIfNegativeOrZero(count);
-                int bone = (target.PreviousBone + (nextVisualRandom() & 15) + 1) % count;
-                Vector3 position = bonePosition(target.Slot, bone);
-                sprites.Add(new((short)position.X, (short)position.Y, (short)position.Z, collisionRadius(target.Slot)));
-                updated[index] = target with { PreviousBone = bone };
-                if (state.Callback == 0)
-                {
-                    impact |= (ushort)(1 << target.Slot);
-                }
-            }
-            targets = Array.AsReadOnly(updated);
-        }
-        return new(new(state.Callback + 1, targets, sprites.AsReadOnly()), impact);
+        Ff7BattlePrimaryContext context = new((actor, bone, point) => bonePosition(actor, bone) + point, _ => default, collisionRadius, nextVisualRandom, boneCount);
+        Ff7BattlePrimaryState previous = state.Primary ?? Ff7BattlePrimaryEffects.ImportFire(new() { Tick = state.Callback - 1 }, state, context);
+        Ff7BattlePrimaryState primary = Ff7BattlePrimaryEffects.Advance(previous, context);
+        return new(Ff7BattlePrimaryEffects.ProjectFire(primary, state, retainPrimary: true), primary.ImpactTargets);
     }
 }

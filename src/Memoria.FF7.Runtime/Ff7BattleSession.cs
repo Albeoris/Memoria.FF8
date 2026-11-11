@@ -37,6 +37,7 @@ public sealed record Ff7BattleSnapshot(long RequestId, int FormationId, byte Lay
 {
     public Ff7BattleCameraPresentation? Camera { get; init; }
     public Ff7BattleIntroState? Intro { get; init; }
+    public Ff7BattleActorMotionState? ActorMotion { get; init; }
     public Ff7BattleActorModelState[] ActorModels { get; init; } = [];
     public int ModelPrimaryTarget { get; init; }
     public Ff7BattleHit? DisplayedHit { get; init; }
@@ -114,7 +115,7 @@ public sealed partial class Ff7BattleSession
         {
             ValidateSnapshot(snapshot, requestId, initialActors);
             state = CopySnapshot(snapshot);
-            InitializeActorModels();
+            InitializeActorModels(snapshot.Tick == 0);
             InitializeCamera(cameraPresentationCounter, snapshot.Tick == 0);
             if (animations is not null)
             {
@@ -139,7 +140,7 @@ public sealed partial class Ff7BattleSession
         {
             Replace(actor with { Gauge = gauges[actor.Actor.Slot] });
         }
-        InitializeActorModels();
+        InitializeActorModels(true);
         InitializeCamera(cameraPresentationCounter, true);
         if (animations is not null)
         {
@@ -226,6 +227,7 @@ public sealed partial class Ff7BattleSession
                     AdvanceCameraPresentation();
                     AdvanceBattleSounds();
                     AdvancePrimaryPresentation();
+                    PublishSoundScreenPositions();
                     FinishCameraPresentation();
                 }
             }
@@ -240,14 +242,19 @@ public sealed partial class Ff7BattleSession
             }
             return;
         }
-        AdvanceGuestAttack();
-        if ((Tick - 1) % LogicUpdatesPerPresentation == 0)
+        bool presentationDue = (Tick - 1) % LogicUpdatesPerPresentation == 0;
+        if (presentationDue)
         {
             BeginCameraPresentation();
+        }
+        AdvanceGuestAttack();
+        if (presentationDue)
+        {
             AdvancePresentation(escapeHeld);
             AdvanceCameraPresentation();
             AdvanceBattleSounds();
             AdvancePrimaryPresentation();
+            PublishSoundScreenPositions();
             FinishCameraPresentation();
         }
         if (Outcome != Ff7BattleOutcome.Fighting)
@@ -289,6 +296,10 @@ public sealed partial class Ff7BattleSession
             {
                 AdvanceAction(active);
             }
+            return;
+        }
+        if (HasPrimaryPresentationCallbacks)
+        {
             return;
         }
         PromoteReadyCommands();
@@ -495,7 +506,8 @@ public sealed partial class Ff7BattleSession
                 WriteSequences = (byte[])queue.WriteSequences.Clone()
             },
             Camera = source.Camera is null ? null : CopyCamera(source.Camera),
-            ActorModels = source.ActorModels.ToArray(),
+            ActorModels = source.ActorModels.Select(model => model with { Joints = model.Joints?.ToArray() }).ToArray(),
+            ActorMotion = source.ActorMotion is null ? null : CopyActorMotion(source.ActorMotion),
             Messages = source.Messages is null ? null : source.Messages with { Pending = (Ff7BattleMessageEntry[])source.Messages.Pending.Clone() },
             Hitmarks = source.Hitmarks.ToArray(),
             SecondaryEffects = source.SecondaryEffects is null ? null : CopySecondaryEffects(source.SecondaryEffects),

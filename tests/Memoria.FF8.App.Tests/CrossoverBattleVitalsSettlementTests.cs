@@ -113,6 +113,8 @@ public sealed class CrossoverBattleVitalsSettlementTests(ITestOutputHelper outpu
         }
         Assert.Equal(Ff7BattleOutcome.Victory, battle.Outcome);
         Assert.True(battle.ResultReady);
+        Ff7BattleReward expectedReward = battle.PreviewVictory();
+        int potionDrops = expectedReward.Items.Where(item => item.ItemId == 0).Sum(item => item.Quantity);
         Assert.False(cold.ConfirmBattleVictory());
         ushort expectedHp = checked((ushort)GuestHp(battle));
         Assert.InRange(expectedHp, 1, binding.InitialHp - 1);
@@ -127,9 +129,9 @@ public sealed class CrossoverBattleVitalsSettlementTests(ITestOutputHelper outpu
         Assert.Equal((uint)expectedHp, GuestHp(battle));
         Assert.Equal((expectedHp, roster.EncounterId), (staged.Receipt.SettledHp, staged.Receipt.EncounterId));
         Assert.Null(staged.Save.Ff7!.Battle);
-        Assert.Single(staged.Save.Ff7.Progress.CompletedBattles);
+        Assert.Equal(expectedReward.Items, Assert.Single(staged.Save.Ff7.Progress.CompletedBattles).Reward.Items);
         Assert.Equal(originalCloud, JsonSerializer.Serialize(staged.Save.Ff7.Progress.Characters.Single(character => character.Id == 0)));
-        Assert.Equal(potionBefore - 1, staged.Save.Ff7.Progress.Inventory.SingleOrDefault(item => item.ItemId == 0)?.Quantity ?? 0);
+        Assert.Equal(Math.Min(99, potionBefore - 1 + potionDrops), staged.Save.Ff7.Progress.Inventory.SingleOrDefault(item => item.ItemId == 0)?.Quantity ?? 0);
         GameplaySaveComponentDocument updated = CrossoverSaveAdapter.ReadFf8(staged.Save);
         NativeCharacterVital original = document.Characters.Records[binding.OriginRow];
         NativeCharacterVital changed = updated.Characters.Records[binding.OriginRow];

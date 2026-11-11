@@ -64,12 +64,15 @@ public sealed partial class Ff7BattleSession
             {
                 ushort targets = Mask(state.Actors.Where(target => target.Actor.Slot >= 4 && IsAlive(target) && (target.Actor.Conditions & 8) != 0 && guestAttack.Supports(DescribeGuestTarget(target.Actor.Slot))));
                 guest.Insert(0, new(Ff7BattleCommand.Attack, 0, targets, true, true));
-                if (guestAttack is IFf7BattleGuestMagic magic && Ff7GuestBattleStatuses.CanCastMagic(actor.Actor.Statuses) && magic.MagicStock(1) > 0)
+                if (guestAttack is IFf7BattleGuestMagic magic && Ff7GuestBattleStatuses.CanCastMagic(actor.Actor.Statuses))
                 {
-                    ushort magicTargets = Mask(state.Actors.Where(target => target.Actor.Slot >= 4 && IsAlive(target) && (target.Actor.Conditions & 8) != 0 && SupportsGuestAbility(guestAttack, 1, DescribeGuestTarget(target.Actor.Slot))));
-                    if (magicTargets != 0)
+                    foreach (ushort ability in new ushort[] { 1, 4, 7, 21 })
                     {
-                        guest.Insert(1, new(Ff7BattleCommand.Magic, 1, magicTargets, true, true, magic.MagicStock(1)));
+                        ushort magicTargets = Mask(state.Actors.Where(target => IsAlive(target) && (target.Actor.Conditions & 8) != 0 && SupportsGuestAbility(guestAttack, ability, DescribeGuestTarget(target.Actor.Slot))));
+                        if (magicTargets != 0)
+                        {
+                            guest.Insert(guest.Count - commands.Count(option => GuestRecoveryCommand(option.Command, option.Argument)), new(Ff7BattleCommand.Magic, ability, magicTargets, true, ability != 21, magic.MagicStock(ability)));
+                        }
                     }
                 }
             }
@@ -94,7 +97,7 @@ public sealed partial class Ff7BattleSession
         }
         if (IsGuestVitalsSlot(slot) && command == Ff7BattleCommand.Magic)
         {
-            return argument == 1 && !group && System.Numerics.BitOperations.IsPow2((uint)targets) && SubmitGuestMagic(slot, System.Numerics.BitOperations.TrailingZeroCount((uint)targets), argument);
+            return argument is 1 or 4 or 7 or 21 && !group && System.Numerics.BitOperations.IsPow2((uint)targets) && SubmitGuestMagic(slot, System.Numerics.BitOperations.TrailingZeroCount((uint)targets), argument);
         }
         Ff7BattleCommandOption? option = Commands(slot).SingleOrDefault(candidate => candidate.Command == command && candidate.Argument == argument);
         if (option is null || targets == 0 || (targets & ~option.ValidTargets) != 0)
@@ -212,9 +215,10 @@ public sealed partial class Ff7BattleSession
         {
             BeginSourceModel(active);
             BeginSoundAction();
-            cameraTargetRows = animations is null ? null : [];
+            cameraTargetRows = [];
             ApplyAction(command);
-            BeginCameraAction(command);
+            command = command with { TargetMask = BeginCameraAction(command) };
+            active = active with { Command = command };
             Ff7BattleHit? hit = state.LastHit is { } current && current.Tick == Tick ? current : null;
             active = active with { Applied = true, PendingDisplayHit = hit };
         }
@@ -264,6 +268,7 @@ public sealed partial class Ff7BattleSession
                 else if (instruction.Opcode == 0xFA)
                 {
                     active = active with { Motion = null };
+                    ResetActorPosition(command.ActorSlot);
                 }
                 else if (instruction.Opcode == 0xFC)
                 {
@@ -272,6 +277,7 @@ public sealed partial class Ff7BattleSession
                 else if (instruction.Opcode == 0xE5)
                 {
                     active = active with { FacingYaw = null };
+                    ResetActorFacing(command.ActorSlot);
                 }
                 else if (instruction.Opcode == 0xE3 && command.CommandId == (byte)Ff7BattleCommand.Change)
                 {
@@ -303,12 +309,18 @@ public sealed partial class Ff7BattleSession
                     Ff7BattleSecondaryState secondary = EnsureSecondaryEffects();
                     state = state with { SecondaryEffects = Ff7BattleSecondaryEffects.ScheduleGun(secondary, command.ActorSlot, bone, BinaryPrimitives.ReadInt16LittleEndian(operands[1..]), operands[3], operands[4]) };
                 }
+                else if (instruction.Opcode == 0xE0)
+                {
+                    Ff7BattleSecondaryState secondary = EnsureSecondaryEffects();
+                    state = state with { SecondaryEffects = Ff7BattleSecondaryEffects.ScheduleE0(secondary, command.ActorSlot, presentation.JointSelector(model, 0)) };
+                }
                 else if (instruction.Opcode == 0x9D && command is { CommandId: (byte)Ff7BattleCommand.Limit, Argument: 0x95, TargetMask: not 0 } && instruction.Operands.Span[0] == 0 && active.BeatRushEffect is null)
                 {
-                    active = active with { BeatRushEffect = Ff7BattleBeatRushEffect.Start(command.TargetMask) };
+                    active = StartPrimaryBeatRush(active);
                 }
             }
             state = state with { Action = active };
+            PublishSourceMotion(active);
             AdvanceCameraPresentation();
         }
         state = state with { Action = active };
@@ -317,7 +329,7 @@ public sealed partial class Ff7BattleSession
     private void FinishActionPresentation(Ff7BattleActionState active)
     {
         Ff7BattleQueuedCommand command = active.Command;
-        if (animations is not null && active.Animation >= 0 && active.Pose?.Completed != true || HasTargetReactions(active) || active.EffectRunning)
+        if (animations is not null && active.Animation >= 0 && active.Pose?.Completed != true || !NativeActorModelsReady || HasTargetReactions(active) || state.PrimaryEffects?.HasOwner(0) == true)
         {
             state = state with { Action = active };
             return;
@@ -483,7 +495,7 @@ public sealed partial class Ff7BattleSession
             Replace(source with { Actor = source.Actor with { HitPoints = result.Source.Hp, MagicPoints = result.Source.Mp, Statuses = result.Source.Statuses } });
         }
         cameraTargetRows?.Add(targetSlot);
-        CaptureImpactPresentation(command, targetSlot, source, result.Damage, record);
+        CaptureImpactPresentation(command, targetSlot, source, result, action, record);
         PublishHit(command, target, action, result);
     }
 

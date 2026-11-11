@@ -37,6 +37,7 @@ internal sealed partial class Ff7Scene
         Ff7BattleSoundReceipt[] battleSounds = session.Battle?.DrainSoundRequests() ?? [];
         if (!audioEnabled)
         {
+            DeliverGuestBattleSounds();
             return;
         }
         if (session.Battle is null)
@@ -47,12 +48,24 @@ internal sealed partial class Ff7Scene
             RefreshNativeFrequencies();
         }
         RestorePendingSounds();
+        RestoreGuestSounds();
+        DeliverGuestBattleSounds();
         Ff7FieldProcess state = session.Host.Process;
         foreach (Ff7BattleSoundReceipt sound in battleSounds)
         {
             PlayBattleSound(sound);
         }
         soundChannels.SetTempo(sharedClock.EffectiveSpeed(session.World is not null ? SceneKind.WorldMap : state.Movie is { Playing: true } ? SceneKind.Movie : SceneKind.Field, false, session.Battle is not null));
+        if (guestSoundOutput is { } guest)
+        {
+            guest.SetSoundSpeed(sharedClock.EffectiveSpeed(session.World is not null ? SceneKind.WorldMap : SceneKind.Field, false, session.Battle is not null));
+            guest.SetOutputPreferences(dialoguePreferences?.Invoke().MusicVolume ?? 100, dialoguePreferences?.Invoke().SoundVolume ?? 100);
+            guest.Update();
+            if (guest.Error is { } failure)
+            {
+                throw new InvalidOperationException(failure);
+            }
+        }
         int track = session.Battle?.MusicTrack ?? state.NativeMusicTrack ?? (state.Music is null || state.Music.Track < 0 ? 0 : session.Host.ResolveNativeMusicTrack(state.Music.Track));
         track = Ff7FieldHost.NormalizeNativeMusicTrack(track);
         if (track == 0)
@@ -293,13 +306,13 @@ internal sealed partial class Ff7Scene
     {
         if (request.Sound == 0)
         {
-            soundChannels.StopNativeChannel(1);
+            soundChannels.StopNativeChannel(request.Channel);
             return;
         }
         var decoded = DecodeSound(request.Sound);
         audioOutput ??= new PcmAudioOutput();
         audioNative ??= Ff7PcExecutableData.Load(installation);
-        soundChannels.Play(audioOutput, decoded.Pcm.Bytes, decoded.Pcm.SampleRate, decoded.Pcm.Channels, decoded.Streamed, audioNative.NativeSoundPan[request.Pan], NativeGain(127, dialoguePreferences?.Invoke().SoundVolume ?? 100), request.Sound, decoded.Loop, decoded.LoopStart, decoded.LoopEnd, decoded.Fingerprint, nativeVolume: 127, nativeSampleRate: decoded.NativeRate, nativeLoopDelaySeconds: decoded.LoopDelay);
+        soundChannels.Play(audioOutput, decoded.Pcm.Bytes, decoded.Pcm.SampleRate, decoded.Pcm.Channels, decoded.Streamed, audioNative.NativeSoundPan[request.Pan], NativeGain(127, dialoguePreferences?.Invoke().SoundVolume ?? 100), request.Sound, decoded.Loop, decoded.LoopStart, decoded.LoopEnd, decoded.Fingerprint, channel: request.Channel, nativeVolume: 127, nativeSampleRate: decoded.NativeRate, nativeLoopDelaySeconds: decoded.LoopDelay);
         soundChannels.Pause(audioPaused);
     }
 
@@ -314,6 +327,7 @@ internal sealed partial class Ff7Scene
         audioPaused = paused;
         musicPlayback?.Pause(paused);
         soundChannels.Pause(paused);
+        guestSoundOutput?.SetFocusPaused(paused);
     }
 
     private void StopMusicAudio()
@@ -333,6 +347,7 @@ internal sealed partial class Ff7Scene
 
     private void StopAudio()
     {
+        DeliverGuestBattleSounds(discard: true);
         if (audioHost is not null)
         {
             audioHost.AudioRequested = null;
@@ -341,6 +356,8 @@ internal sealed partial class Ff7Scene
         }
         StopMusicAudio();
         soundChannels.Dispose();
+        guestSoundOutput?.Dispose();
+        guestSoundOutput = null;
         audioOutput?.Dispose();
         audioOutput = null;
         audioTrack = -1;

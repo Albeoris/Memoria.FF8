@@ -103,9 +103,9 @@ public sealed class BattleActionSequence
             }
             if (opcode == 0x9E && (!primaryCallbacksReady || !linkedActorReady))
             {
-                return new(state with { NextInstruction = index }, events.AsReadOnly());
+                return new(state with { NextInstruction = index, TerminalOpcode = 0x9E }, events.AsReadOnly());
             }
-            if (opcode is 0x9E or 0xEB or 0xEC && !effectReady)
+            if (opcode is 0xEB or 0xEC && !effectReady)
             {
                 return new(state with { NextInstruction = index }, events.AsReadOnly());
             }

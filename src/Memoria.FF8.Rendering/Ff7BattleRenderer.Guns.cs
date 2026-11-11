@@ -16,6 +16,13 @@ public sealed partial class Ff7BattleRenderer
         {
             switch (draw.Kind)
             {
+                case Ff7BattleSecondaryDrawKind.LimitPreparation:
+                    DrawLimitPreparation(renderer, state.LimitPreparations[draw.Index], view);
+                    break;
+                case Ff7BattleSecondaryDrawKind.ScreenPulse:
+                    Ff7BattleActorScreenPulse pulse = state.ScreenPulses[draw.Index];
+                    DrawScreenPulse(renderer, pulse.Red, pulse.Green, pulse.Blue, view);
+                    break;
                 case Ff7BattleSecondaryDrawKind.Muzzle:
                     DrawMuzzle(state.Muzzles[draw.Index]);
                     break;

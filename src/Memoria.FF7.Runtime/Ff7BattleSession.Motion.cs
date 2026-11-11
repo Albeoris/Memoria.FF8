@@ -31,25 +31,28 @@ public sealed partial class Ff7BattleSession
     public Ff7BattlePlacement VisualPlacement(int slot)
     {
         Ff7BattlePlacement home = HomePlacement(slot);
+        Ff7BattleActorModelState? model = state.ActorModels.SingleOrDefault(model => model.Slot == slot);
+        Vector3 position = model?.Position?.ToVector() ?? home.Position;
+        int yaw = model?.FacingYaw ?? home.Yaw;
         if (state.Action is { } action && action.Command.ActorSlot == slot)
         {
-            return home with { Position = action.Motion?.Position.ToVector() ?? home.Position, Yaw = action.FacingYaw ?? home.Yaw };
+            return home with { Position = action.Motion?.Position.ToVector() ?? position, Yaw = action.FacingYaw ?? yaw };
         }
         if (slot >= 3 || !IsAlive(Actor(slot)))
         {
-            return home;
+            return home with { Position = position, Yaw = yaw };
         }
         if (Outcome == Ff7BattleOutcome.Escaped)
         {
-            int yaw = Layout == 4 ? state.Actors.Any(actor => actor.Actor.Slot >= 4 && IsAlive(actor) && FacingGroup(actor.Actor) == 0) ? 0 : 2048 : home.Yaw;
-            int direction = yaw == 0 ? 1 : -1;
-            return home with { Position = home.Position + new Vector3(0, 0, direction * 400 * state.TerminalFrames), Yaw = yaw };
+            int runYaw = Layout == 4 ? state.Actors.Any(actor => actor.Actor.Slot >= 4 && IsAlive(actor) && FacingGroup(actor.Actor) == 0) ? 0 : 2048 : home.Yaw;
+            int direction = runYaw == 0 ? 1 : -1;
+            return home with { Position = home.Position + new Vector3(0, 0, direction * 400 * state.TerminalFrames), Yaw = runYaw };
         }
         if (Outcome == Ff7BattleOutcome.Victory && CelebrateVictory && Layout is 2 or 4)
         {
             return home with { Yaw = Layout == 2 ? 2048 : 0 };
         }
-        return home;
+        return home with { Position = position, Yaw = yaw };
     }
 
     public (int Clip, int Frame) VisualPose(int slot)
@@ -90,7 +93,7 @@ public sealed partial class Ff7BattleSession
         }
         int clip = actor.Actor.IdleAction;
         int frames = animations!.ClipFrameCount(prefix, clip);
-        if (state.Reaction is { } reaction && reaction.Slot == slot)
+        if (state.ActorModels.Length == 0 && state.Reaction is { } reaction && reaction.Slot == slot)
         {
             int hurt = actor.Actor.HurtAction;
             int elapsed = (int)((Tick - reaction.Tick) / LogicUpdatesPerPresentation);
@@ -123,12 +126,22 @@ public sealed partial class Ff7BattleSession
 
     private Vector3 BonePosition(int slot, int bone)
     {
+        Ff7BattleActorModelState? model = state.ActorModels.SingleOrDefault(model => model.Slot == slot);
+        if (model?.Joints is { } joints && (uint)bone < joints.Length)
+        {
+            return joints[bone].ToVector();
+        }
+        return LiveBonePosition(slot, bone);
+    }
+
+    private Vector3 LiveBonePosition(int slot, int bone)
+    {
         (int clip, int frame) = VisualPose(slot);
         if (VisualLimit(slot) is not null)
         {
-            return animations!.LimitBonePosition(ActorModel(slot), clip, frame, VisualPlacement(slot), VisualLimitId(slot)!.Value, bone, Vector3.Zero);
+            return animations!.LimitBonePosition(ActorModel(slot), clip, frame, VisualPlacement(slot), VisualLimitId(slot)!.Value, bone, Vector3.Zero, state.ActorModels.SingleOrDefault(model => model.Slot == slot)?.Modifiers?.PoseTransform);
         }
-        return animations!.BonePosition(ActorModel(slot), clip, frame, VisualPlacement(slot), bone);
+        return animations!.BonePosition(ActorModel(slot), clip, frame, VisualPlacement(slot), bone, state.ActorModels.SingleOrDefault(model => model.Slot == slot)?.Modifiers?.PoseTransform);
     }
 
     private Ff7BattlePlacement HomePlacement(int slot)
@@ -152,7 +165,7 @@ public sealed partial class Ff7BattleSession
         {
             return action.Motion;
         }
-        Ff7BattlePosition origin = action.Motion?.Position ?? Ff7BattlePosition.FromVector(HomePlacement(command.ActorSlot).Position);
+        Ff7BattlePosition origin = action.Motion?.Position ?? Ff7BattlePosition.FromVector(VisualPlacement(command.ActorSlot).Position);
         Ff7BattlePosition center = default;
         int angle = 0;
         int radii = 0;

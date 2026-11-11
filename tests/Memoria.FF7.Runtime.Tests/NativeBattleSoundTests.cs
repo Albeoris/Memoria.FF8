@@ -121,7 +121,7 @@ internal static class NativeBattleSoundTests
         Ff7PcExecutableData executable = Ff7PcExecutableData.Load(installation);
         using LgpArchive models = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
         using LgpArchive magic = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.MagicArchive).Path);
-        Ff7BattleAnimationResources animations = new(models, Ff7PcExecutableData.LoadBattlePlacement(installation), magic, Ff7PcExecutableData.LoadBattleJumpDeltas(installation), Ff7PcExecutableData.LoadBattleHitmarks(installation));
+        Ff7BattleAnimationResources animations = new(models, Ff7PcExecutableData.LoadBattlePlacement(installation), magic, Ff7PcExecutableData.LoadBattleJumpDeltas(installation), Ff7PcExecutableData.LoadBattleHitmarks(installation), Ff7PcExecutableData.LoadBattleActorModelResources(installation));
         foreach (bool enemy in new[] { false, true })
         {
             Ff7BattleSession initial = new(formation, progress, kernel, executable.NativeMateriaStatModifiers, 1, animations: animations);
@@ -180,10 +180,10 @@ internal static class NativeBattleSoundTests
         Ff7PcExecutableData executable = Ff7PcExecutableData.Load(installation);
         using LgpArchive models = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
         using LgpArchive magic = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.MagicArchive).Path);
-        Ff7BattleAnimationResources animations = new(models, Ff7PcExecutableData.LoadBattlePlacement(installation), magic, Ff7PcExecutableData.LoadBattleJumpDeltas(installation), Ff7PcExecutableData.LoadBattleHitmarks(installation));
+        Ff7BattleAnimationResources animations = new(models, Ff7PcExecutableData.LoadBattlePlacement(installation), magic, Ff7PcExecutableData.LoadBattleJumpDeltas(installation), Ff7PcExecutableData.LoadBattleHitmarks(installation), Ff7PcExecutableData.LoadBattleActorModelResources(installation));
         IReadOnlyList<Ff7BattleAttack> limits = Ff7PcExecutableData.LoadBattleLimits(installation);
         IReadOnlyList<byte> symbols = Ff7PcExecutableData.LoadBeatRushReel(installation);
-        foreach ((int character, ushort attack, ushort[] expected) in new[] { (0, (ushort)0x80, new ushort[] { 26, 48, 27 }), (1, (ushort)0x87, new ushort[] { 40 }), (2, (ushort)0x95, new ushort[] { 347, 347, 347 }) })
+        foreach ((int character, ushort attack, ushort[] expected) in new[] { (0, (ushort)0x80, new ushort[] { 36, 26, 48, 27 }), (1, (ushort)0x87, new ushort[] { 36, 40 }), (2, (ushort)0x95, new ushort[] { 36, 347, 347, 347 }) })
         {
             Ff7Progress progress = original.Progress with { Party = [character, 255, 255] };
             Ff7BattleSession initial = new(formation, progress, kernel, executable.NativeMateriaStatModifiers, 1, animations: animations, limits: limits, beatRushSymbols: symbols);

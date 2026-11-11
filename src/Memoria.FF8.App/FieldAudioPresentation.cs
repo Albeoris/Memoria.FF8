@@ -248,7 +248,7 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
         PlaySoundSample(sample, voice, volume, pan, resource.LoopPolicy);
     }
 
-    private void PlaySoundSample(int index, int voiceId, uint volume, uint effectivePan, GlobalSoundLoopPolicy policy)
+    private void PlaySoundSample(int index, int voiceId, uint volume, uint effectivePan, GlobalSoundLoopPolicy policy, GameplaySaveAudioPosition? presentationPosition = null)
     {
         if (!samples.TryGetValue(index, out PcmAudio? pcm))
         {
@@ -274,30 +274,40 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
             loop?.Volume(gain);
             loop?.Pan(pan);
             StopVoice(voiceId);
-            var voice = new Voice(primary, loop, volume, effectivePan, policy.LoopTransitionDelayMilliseconds, SoundTimeProvider);
+            var voice = new Voice(index, primary, loop, volume, effectivePan, policy.LoopTransitionDelayMilliseconds, SoundTimeProvider);
             voice.Clock.SetSpeed(soundSpeed);
             voices.Add(voiceId, voice);
             int loopStart = checked((int)policy.LoopStartPcmByte);
             int loopEnd = loop is null ? pcm.Bytes.Length : checked((int)policy.LoopEndPcmByte);
             string fingerprint = PcmFingerprint(pcm, loopStart, loopEnd);
-            GameplaySaveAudioPosition? saved = ResumeAmbientPosition(voiceId, fingerprint);
+            GameplaySaveAudioPosition? saved = CompatiblePosition(presentationPosition, "pcm16-v1", fingerprint) ? presentationPosition : ResumeAmbientPosition(voiceId, fingerprint);
+            if (presentationPosition is not null && saved is null)
+            {
+                Console.Error.WriteLine("Audio compatibility: the selected sound resource changed; its saved presentation restarts.");
+            }
             if (ValidPcmPosition(saved, pcm, loopStart, loopEnd))
             {
                 voice.Clock.SetPosition(TimeSpan.FromSeconds(saved!.Position / (double)pcm.SampleRate));
                 if (saved!.StartPoint == 1 && loop is not null)
                 {
-                    loop.Position(checked((int)(saved.Position * pcm.Channels * 2) - loopStart));
+                    loop.PositionFrames(saved.Position + saved.FractionalFrame - loopStart / (pcm.Channels * 2));
                     loop.Play(true);
                     voice.LoopStarted = true;
                 }
                 else
                 {
-                    primary.Position(checked((int)(saved.Position * pcm.Channels * 2)));
+                    primary.PositionFrames(saved.Position + saved.FractionalFrame);
                 }
             }
             if (!voice.LoopStarted)
             {
                 primary.Play(loop is null && (policy.PlaybackFlags & 1) != 0);
+            }
+            if (focusPaused)
+            {
+                voice.Clock.Stop();
+                primary.Pause();
+                loop?.Pause();
             }
             DiscardAmbientResumePosition(voiceId);
             voice.PlaybackPosition = queued => CapturePcmPosition(primary, loop, voice.LoopStarted, pcm, fingerprint, loopStart, loopEnd, queued);
@@ -374,11 +384,13 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
 
     public void PlayBattleModuleSound(NativeBattleModuleSound sound)
     {
-        TryOutput(() =>
-        {
-            uint pan = ResolveNativeModuleSoundPan(sound);
-            PlayPresentationSound(sound.Sound, ResolveNativeModuleSoundVoice(sound), pan, sound.Volume);
-        });
+        TryOutput(() => PlayBattleModuleSoundStrict(sound));
+    }
+
+    internal void PlayBattleModuleSoundStrict(NativeBattleModuleSound sound)
+    {
+        uint pan = ResolveNativeModuleSoundPan(sound);
+        PlayPresentationSound(sound.Sound, ResolveNativeModuleSoundVoice(sound), pan, sound.Volume);
     }
 
     internal static uint ResolveNativeModuleSoundPan(NativeBattleModuleSound sound)
@@ -722,12 +734,16 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
         }
         StopAll();
         music?.Dispose();
-        sound?.Dispose();
+        if (OwnsSoundOutput)
+        {
+            sound?.Dispose();
+        }
         gameFiles.Dispose();
     }
 
-    private sealed class Voice(PcmAudioOutput.Buffer primary, PcmAudioOutput.Buffer? loop, float volume, float pan, int? loopDelay, TimeProvider timeProvider)
+    private sealed class Voice(int sampleIndex, PcmAudioOutput.Buffer primary, PcmAudioOutput.Buffer? loop, float volume, float pan, int? loopDelay, TimeProvider timeProvider)
     {
+        public int SampleIndex { get; } = sampleIndex;
         public Func<int, GameplaySaveAudioPosition>? PlaybackPosition { get; set; }
         public PcmAudioOutput.Buffer Primary { get; } = primary;
         public PcmAudioOutput.Buffer? Loop { get; } = loop;

@@ -10,6 +10,27 @@ public sealed partial class Ff7BattleRenderer
         {
             switch (draw)
             {
+                case Ff7BattlePrimaryRocketDraw rocket:
+                    DrawRockets(renderer, rocket.State, view);
+                    break;
+                case Ff7BattlePrimarySmogSpriteDraw smogSprite:
+                    DrawSmog(renderer, new(smogSprite.Frame, [], [smogSprite.Sprite]), view);
+                    break;
+                case Ff7BattlePrimarySmogCloudDraw smogCloud:
+                    DrawSmog(renderer, new(smogCloud.Frame + 12, [new(smogCloud.Target, Cloud: smogCloud.Position)], []), view);
+                    break;
+                case Ff7BattlePrimarySmokeShotDraw smokeShot:
+                    DrawSmokeShot(renderer, new(smokeShot.Frame, [], [smokeShot.Sprite]), view);
+                    break;
+                case Ff7BattlePrimaryBigShotDraw bigShot:
+                    DrawBigShot(renderer, bigShot.State, view);
+                    break;
+                case Ff7BattlePrimaryBeatRushDraw beatRush:
+                    DrawBeatRush(renderer, beatRush.State, view);
+                    break;
+                case Ff7BattlePrimaryBraverDraw braver:
+                    DrawBraver(renderer, braver.State, view);
+                    break;
                 case Ff7BattlePrimaryScopeMeshDraw mesh:
                     DrawSearchScopeMesh(renderer, mesh.Source, mesh.Basis, mesh.Mesh, view);
                     break;
@@ -36,6 +57,12 @@ public sealed partial class Ff7BattleRenderer
                     break;
                 case Ff7BattlePrimaryDestroyedPulseDraw pulse:
                     DrawDestroyedPulse(renderer, pulse.Blue, view);
+                    break;
+                case Ff7BattlePrimaryFireDraw fire:
+                    DrawFireSprite(renderer, fire.Sprite, view);
+                    break;
+                case Ff7BattlePrimaryIceDraw ice:
+                    DrawIceCrystal(renderer, ice.Crystal, ice.Frame, view);
                     break;
                 default:
                     throw new NotSupportedException("FFVII primary packet has no admitted renderer.");

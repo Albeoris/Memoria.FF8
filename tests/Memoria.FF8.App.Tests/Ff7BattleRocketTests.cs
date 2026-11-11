@@ -161,7 +161,7 @@ public sealed class Ff7BattleRocketTests
             }
             if (frame == 0)
             {
-                renderer.Render(gpu, 320, 240, new(scene.Cameras[0], []) { Rockets = state with { Missiles = [], Sprites = [] } });
+                renderer.Render(gpu, 320, 240, new(scene.Cameras[0], []) { Rockets = state with { Missiles = [], Sprites = [], Primary = null } });
                 Assert.True(baseline.Zip(GpuTestDevice.Read(gpu.Target)).Any(pair => pair.First.PackedValue != pair.Second.PackedValue), "Native one-pixel rocket points did not render independently.");
             }
         }

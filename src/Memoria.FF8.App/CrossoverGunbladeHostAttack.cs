@@ -146,7 +146,7 @@ internal sealed class CrossoverGunbladeHostAttack : IFf7BattleGuestAttack
         }
     }
 
-    public bool Supports(Ff7BattleGuestAttackTarget target) => target.CollisionRadius > 0
+    public bool Supports(Ff7BattleGuestAttackTarget target) => target.Native is not null && target.CollisionRadius > 0
         && roster.Participants.Any(actor => actor.HostSlot == target.Slot && actor.Combat.Origin == SessionGame.Ff7 && actor.Combat.Kind == CrossoverBattleActorKind.Enemy && actor.Combat.NativeId == target.Native.Placement.EnemyId);
 
     public void PressTrigger()

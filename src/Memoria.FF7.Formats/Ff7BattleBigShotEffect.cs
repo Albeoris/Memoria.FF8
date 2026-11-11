@@ -13,6 +13,7 @@ public sealed record Ff7BattleBigShotParticle(Ff7BattleBigShotParticleKind Kind,
 public sealed record Ff7BattleBigShotCharge(Ff7BattleBraverPoint Origin, Ff7BattleBraverPoint XAxis, Ff7BattleBraverPoint YAxis, Ff7BattleBraverPoint ZAxis);
 public sealed record Ff7BattleBigShotState(int Target, int Frame = -1, Ff7BattleBigShotCharge? Charge = null, IReadOnlyList<Ff7BattleBigShotParticle>? Particles = null, short InitialChargeRotation = 0, short InitialCounterRotation = 0)
 {
+    public Ff7BattlePrimaryState? Primary { get; init; }
     public bool Completed => Frame >= 44;
     public short ChargeRotation => (short)(InitialChargeRotation + Math.Clamp(Frame + 1, 0, 22) * 640);
     public short CounterRotation => (short)(InitialCounterRotation - Math.Clamp(Frame + 1, 0, 22) * 448);
@@ -23,6 +24,12 @@ public sealed record Ff7BattleBigShotUpdate(Ff7BattleBigShotState State, ushort 
 public static class Ff7BattleBigShotEffect
 {
     public static Ff7BattleBigShotState Start(ushort targetMask, short chargeRotation = 0, short counterRotation = 0)
+    {
+        Ff7BattleBigShotState state = CreateState(targetMask, chargeRotation, counterRotation);
+        return state with { Primary = Ff7BattlePrimaryEffects.ScheduleBigShot(new(), 0, targetMask, chargeRotation, counterRotation) };
+    }
+
+    internal static Ff7BattleBigShotState CreateState(ushort targetMask, short chargeRotation, short counterRotation)
     {
         if (targetMask == 0 || (targetMask & ~0x03F7) != 0 || (targetMask & (targetMask - 1)) != 0)
         {
@@ -42,31 +49,15 @@ public static class Ff7BattleBigShotEffect
             return new(state, 0);
         }
 
-        int frame = state.Frame + 1;
-        List<Ff7BattleBigShotParticle> particles = [];
-        foreach (Ff7BattleBigShotParticle particle in state.Particles ?? [])
-        {
-            int age = frame - particle.StartedAt;
-            if (age >= (particle.Kind == Ff7BattleBigShotParticleKind.Charge ? 8 : 22))
-            {
-                continue;
-            }
-            Ff7BattleBraverPoint position = Add(particle.Position, particle.Velocity);
-            if (particle.Kind != Ff7BattleBigShotParticleKind.Charge && position.Y > 0)
-            {
-                continue;
-            }
-            Ff7BattleBraverPoint velocity = particle.Velocity with { Y = (short)(particle.Velocity.Y + (particle.Kind == Ff7BattleBigShotParticleKind.Fragment ? 10 : 0)) };
-            BattleRotationWords rotation = new((short)(particle.Rotation.X + particle.Spin.X), (short)(particle.Rotation.Y + particle.Spin.Y), (short)(particle.Rotation.Z + particle.Spin.Z));
-            particles.Add(particle with { Position = position, Velocity = velocity, Rotation = rotation });
-        }
+        Ff7BattlePrimaryContext context = new((_, _, _) => throw new NotSupportedException(), _ => new(0, (short)facing, 0), _ => throw new NotSupportedException(), nextVisualRandom, JointPoint: (target, _) => targetAnchor(target), WeaponPoint: (_, offset) => weaponPoint(offset));
+        Ff7BattlePrimaryState primary = state.Primary ?? Ff7BattlePrimaryEffects.ImportBigShot(new(), state, 0);
+        primary = Ff7BattlePrimaryEffects.Advance(primary, context);
+        return new(Ff7BattlePrimaryEffects.ProjectBigShot(primary, state, retainPrimary: true), primary.ImpactTargets);
+    }
 
-        Ff7BattleBigShotCharge? charge = null;
-        if (frame < 22)
-        {
-            Vector3 origin = weaponPoint(Vector3.Zero);
-            charge = new(Ff7BattleBraverPoint.At(origin), Ff7BattleBraverPoint.At(weaponPoint(new(4096, 0, 0)) - origin), Ff7BattleBraverPoint.At(weaponPoint(new(0, 4096, 0)) - origin), Ff7BattleBraverPoint.At(weaponPoint(new(0, 0, 4096)) - origin));
-        }
+    internal static IReadOnlyList<Ff7BattleBigShotParticle> Spawn(int frame, int target, Func<Vector3, Vector3> weaponPoint, Func<int, Vector3> targetAnchor, int facing, Func<int> nextVisualRandom)
+    {
+        List<Ff7BattleBigShotParticle> particles = [];
         if (frame < 14)
         {
             for (int spawn = 0; spawn < 2; spawn++)
@@ -81,7 +72,7 @@ public static class Ff7BattleBigShotEffect
         }
         if (frame == 22)
         {
-            Ff7BattleBraverPoint anchor = Ff7BattleBraverPoint.At(targetAnchor(state.Target));
+            Ff7BattleBraverPoint anchor = Ff7BattleBraverPoint.At(targetAnchor(target));
             for (int spawn = 0; spawn < 80; spawn++)
             {
                 bool fragment = spawn < 50;
@@ -100,10 +91,10 @@ public static class Ff7BattleBigShotEffect
                 particles.Add(new(fragment ? Ff7BattleBigShotParticleKind.Fragment : Ff7BattleBigShotParticleKind.Burst, frame, variant, anchor, velocity, scale, rotation, spin));
             }
         }
-        return new(new(state.Target, frame, charge, particles.AsReadOnly(), state.InitialChargeRotation, state.InitialCounterRotation), frame == 22 ? (ushort)(1 << state.Target) : (ushort)0);
+        return particles;
     }
 
-    private static Ff7BattleBraverPoint Add(Ff7BattleBraverPoint a, Ff7BattleBraverPoint b)
+    internal static Ff7BattleBraverPoint Add(Ff7BattleBraverPoint a, Ff7BattleBraverPoint b)
     {
         return new((short)(a.X + b.X), (short)(a.Y + b.Y), (short)(a.Z + b.Z));
     }
