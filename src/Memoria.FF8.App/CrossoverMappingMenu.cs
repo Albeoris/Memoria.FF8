@@ -49,8 +49,7 @@ internal sealed class CrossoverMappingMenu : IDisposable
         this.destinationGame = destinationGame;
         this.installation = installation;
         this.ff8Directory = ff8Directory;
-        this.mappings = mappings.ToArray();
-        CharacterMappingAssociations.Validate(this.mappings);
+        this.mappings = CharacterMappingAssociations.Normalize(mappings);
         previousMouse = mouse;
     }
 
@@ -316,9 +315,12 @@ internal sealed class CrossoverMappingMenu : IDisposable
             Texture2D portrait = choosingAppearance ? appearancePortraits[id] : storyPortraits[id];
             Rectangle portraitBounds = FitPortrait(portrait, Scale(new Rectangle(cell.X + 8, cell.Y + 8, 48, 48)));
             batch.Draw(portrait, portraitBounds, Color.White);
-            if (!choosingAppearance && mappings.SingleOrDefault(mapping => mapping.StoryCharacter == id) is { } mapping)
+            CharacterAppearanceMapping? mapping = choosingAppearance
+                ? mappings.SingleOrDefault(mapping => mapping.AppearanceCharacter == id)
+                : mappings.SingleOrDefault(mapping => mapping.StoryCharacter == id);
+            if (mapping is not null)
             {
-                Texture2D mappedPortrait = appearancePortraits[mapping.AppearanceCharacter];
+                Texture2D mappedPortrait = choosingAppearance ? storyPortraits[mapping.StoryCharacter] : appearancePortraits[mapping.AppearanceCharacter];
                 Rectangle overlay = FitPortrait(mappedPortrait, new Rectangle(portraitBounds.X + portraitBounds.Width * 45 / 100, portraitBounds.Y + portraitBounds.Height / 5, portraitBounds.Width, portraitBounds.Height));
                 batch.Draw(mappedPortrait, overlay, Color.White * 0.9f);
             }

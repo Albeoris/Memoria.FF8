@@ -230,6 +230,7 @@ internal sealed partial class Ff7Scene : IDisposable
                 PublishCurrentMovieCameraFrame();
                 return;
             }
+            ObserveLocationMovement(gameTime.ElapsedGameTime);
             Session.AdvanceClock(gameTime.ElapsedGameTime);
             UpdateAudio();
             if (autoPlay?.Running != true || autoPlay.Paused)

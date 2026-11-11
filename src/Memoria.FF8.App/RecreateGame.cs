@@ -614,6 +614,8 @@ internal sealed partial class RecreateGame : Game
         }
     }
 
+    private readonly LocationMovementGate locationMovement = new();
+
     private void UpdateField(TimeSpan elapsed, TimeSpan realElapsed, InputFrame input)
     {
         if (fieldFaulted && field?.Id == session.State.FieldId)
@@ -632,6 +634,11 @@ internal sealed partial class RecreateGame : Game
                 fieldRenderFaulted = false;
                 Console.WriteLine($"loaded={field!.Id}:{field.Name} models={field.Models.Count} tiles={field.Background.Count}");
             }
+            locationMovement.Observe(events!.Scene, realElapsed, events.FieldFade?.Physical.Mode is not (null or 0));
+            if (!options.ControlStep)
+            {
+                input = locationMovement.Filter(input);
+            }
             if (SynchronizeNativeNamePrompt())
             {
                 return;
@@ -646,9 +653,10 @@ internal sealed partial class RecreateGame : Game
                 UpdatePartyMenu(elapsed, input);
                 return;
             }
-            if (!options.ControlStep && (events!.ButtonInput?.PhysicalHeld ?? 0) != keyboard.HeldFieldButtons)
+            ushort fieldButtons = locationMovement.FilterButtons(keyboard.HeldFieldButtons);
+            if (!options.ControlStep && (events!.ButtonInput?.PhysicalHeld ?? 0) != fieldButtons)
             {
-                world.Apply(new PlayerAction(PlayerActionKind.FieldButtons, keyboard.HeldFieldButtons));
+                world.Apply(new PlayerAction(PlayerActionKind.FieldButtons, fieldButtons));
             }
             UpdateDialoguePages(elapsed);
             DialogueState? dialogue = events!.CurrentDialogue;
@@ -807,6 +815,8 @@ internal sealed partial class RecreateGame : Game
                 worldSimulationOwner = world.WorldScene;
                 worldSimulationClock.Reset();
             }
+            locationMovement.Observe(world.WorldScene!, elapsed, false);
+            input = locationMovement.Filter(input);
             UpdateDialoguePages(elapsed);
             DialogueState? dialogue = world.CurrentDialogue;
             if (dialogue != presentedDialogue)
@@ -836,7 +846,7 @@ internal sealed partial class RecreateGame : Game
             while (worldSimulationClock.TryStep())
             {
                 NativeLimitProgress? previousLimits = session.State.LimitProgress;
-                PlayerAction action = ControllerGameplayInput.CreateWorldAction(input, session.State, keyboard.HeldControlButtons);
+                PlayerAction action = ControllerGameplayInput.CreateWorldAction(input, session.State, locationMovement.FilterButtons(keyboard.HeldControlButtons));
                 metrics.Simulate(world.Apply(action).FramesAdvanced);
                 if (PresentAngeloLearning(previousLimits) || session.State.Scene != SceneKind.WorldMap)
                 {

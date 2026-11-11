@@ -9,6 +9,7 @@ namespace Memoria.FF8;
 internal sealed partial class Ff7Scene
 {
     private readonly Dictionary<(long Generation, int Text), IReadOnlyList<FieldTextToken>> dialogueTokens = new();
+    private readonly LocationMovementGate locationMovement = new();
     private ushort heldKeys;
     private ushort pendingPressedKeys;
     private int moveHorizontal;
@@ -89,9 +90,16 @@ internal sealed partial class Ff7Scene
 
     private void ApplyLogicalInput()
     {
-        Session!.SetInput(heldKeys, pendingPressedKeys);
+        ObserveLocationMovement(TimeSpan.Zero);
+        Session!.SetInput(locationMovement.FilterButtons(heldKeys), locationMovement.FilterButtons(pendingPressedKeys));
         pendingPressedKeys = 0;
-        Session.MovePlayer(moveHorizontal, moveVertical, runHeld);
+        Session.MovePlayer(locationMovement.Blocked ? 0 : moveHorizontal, locationMovement.Blocked ? 0 : moveVertical, runHeld);
+    }
+
+    private void ObserveLocationMovement(TimeSpan elapsed)
+    {
+        Ff7Session session = Session!;
+        locationMovement.Observe((session, session.FieldGeneration, session.World is not null), elapsed, session.World is null && session.Host.Process.FadeState is { Completed: false });
     }
 
     private IReadOnlyList<FieldTextToken> Tokens(Ff7Dialogue dialogue)

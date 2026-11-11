@@ -20,8 +20,14 @@ internal static class CharacterMappingAssociations
 
     internal static CharacterAppearanceMapping[] Assign(IEnumerable<CharacterAppearanceMapping> mappings, int story, int appearance)
     {
-        CharacterAppearanceMapping[] result = mappings.Where(mapping => mapping.StoryCharacter != story).Append(new(SessionGame.Ff7, story, SessionGame.Ff8, appearance, Ff7ModelAppearance.GeneralFieldProfileVersion)).OrderBy(mapping => mapping.StoryCharacter).ToArray();
-        Validate(result);
-        return result;
+        CharacterAppearanceMapping[] result = mappings.Where(mapping => mapping.StoryCharacter != story && mapping.AppearanceCharacter != appearance).Append(new(SessionGame.Ff7, story, SessionGame.Ff8, appearance, Ff7ModelAppearance.GeneralFieldProfileVersion)).ToArray();
+        return Normalize(result);
+    }
+
+    internal static CharacterAppearanceMapping[] Normalize(IEnumerable<CharacterAppearanceMapping> mappings)
+    {
+        CharacterAppearanceMapping[] source = mappings.ToArray();
+        Validate(source);
+        return source.Reverse().DistinctBy(mapping => mapping.AppearanceCharacter).OrderBy(mapping => mapping.StoryCharacter).ToArray();
     }
 }
