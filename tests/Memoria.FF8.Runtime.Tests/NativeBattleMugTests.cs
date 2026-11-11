@@ -1,20 +1,26 @@
 using System.Collections.Immutable;
+using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleMugTests
 {
-    [Fact]
-    public void SuccessfulMugAddsTheOriginalBandItemAndStillPerformsItsWeaponHit()
+    [Theory]
+    [InlineData(1, "Potion")]
+    [InlineData(120, "Field item")]
+    public void SuccessfulMugAddsTheOriginalBandItemAndStillPerformsItsWeaponHit(int itemId, string itemName)
     {
-        BattleSession battle = Create(255);
+        BattleSession battle = Create(255, itemId: itemId, itemName: itemName);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
 
         Hit(battle);
+        Hit(restored);
 
-        Assert.Equal(new BattleStock(1, 2), Assert.Single(battle.Items));
+        Assert.Equal(new BattleStock(itemId, 2), Assert.Single(battle.Items));
         Assert.True(battle.Combatants.Single(actor => !actor.IsPlayer).CurrentHp < 500);
         Assert.NotEqual(0u, battle.Combatants.Single(actor => !actor.IsPlayer).NativeCombatantFlags & 0x800);
-        Assert.Equal("Stole 2 Potions!", Assert.Single(battle.Events, entry => entry.Kind == "NativeText").Message);
+        Assert.Equal($"Stole 2 {itemName}s!", Assert.Single(battle.Events, entry => entry.Kind == "NativeText").Message);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
         Assert.NotEqual(0u, BattleSession.Restore(battle.Capture()).Combatants.Single(actor => !actor.IsPlayer).NativeCombatantFlags & 0x800);
     }
 
@@ -76,7 +82,7 @@ public sealed class NativeBattleMugTests
         }
     }
 
-    private static BattleSession Create(byte rate, int enemyHp = 500, bool rewards = false)
+    private static BattleSession Create(byte rate, int enemyHp = 500, bool rewards = false, int itemId = 1, string itemName = "Potion")
     {
         BattleNativeAction attack = Action(1, 0) with { Name = "Weapon attack", AttackType = 1, Power = 16, Hit = 255, AttackFlags = 0 };
         BattleNativeAction potion = Action(4, 1) with { Name = "Potion" };
@@ -88,17 +94,20 @@ public sealed class NativeBattleMugTests
         messages[71] = "";
         messages[115] = "!";
         messages[119] = "s";
+        string?[] itemNames = new string?[itemId + 1];
+        itemNames[itemId] = itemName;
         return new(new BattleDefinition
         {
             NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
             Name = "Native Mug component",
             NativeMessageSpeed = 0,
             NativeGlobalMessages = messages,
+            NativeItemNames = itemNames,
             NativeActions = [potion],
             Combatants =
             [
                 new() { Id = "party-0", Name = "Party", IsPlayer = true, ModelId = 1, InitialAtb = BattleSession.AtbMaximum, Attack = 100, Speed = 1, Hit = 255, NativeAttack = attack, NativeCommands = ImmutableArray.Create(new BattleNativeCommandBinding(12, "Mug", 0x50, 0)) },
-                new() { Id = "enemy", Name = "Enemy", MaximumHp = enemyHp, CurrentHp = enemyHp, Defense = 0, Evasion = 0, NativeMug = new(rate, 10, 20, Enumerable.Repeat(new BattleStock(1, 2), 12).ToImmutableArray()), RewardSlot = rewards ? 0 : null, Rewards = rewards ? new(0, 0, 10, 20, 255, false, 255, Enumerable.Repeat(new BattleStock(2, 1), 12).ToImmutableArray()) : null }
+                new() { Id = "enemy", Name = "Enemy", MaximumHp = enemyHp, CurrentHp = enemyHp, Defense = 0, Evasion = 0, NativeMug = new(rate, 10, 20, Enumerable.Repeat(new BattleStock(itemId, 2), 12).ToImmutableArray()), RewardSlot = rewards ? 0 : null, Rewards = rewards ? new(0, 0, 10, 20, 255, false, 255, Enumerable.Repeat(new BattleStock(2, 1), 12).ToImmutableArray()) : null }
             ]
         }, BattleAtbMode.Normal);
     }

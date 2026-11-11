@@ -25,7 +25,8 @@ public sealed partial class BattleSession
         BattleStock stolen = mug.Item(recipient.Level, BattleEnemyRewardDefinition.SelectDropSlot((byte)NextRandomByte(), definition.RareItem, definition.Tuning.RareItem));
         recipient.NativeCombatantFlags |= 0x800;
         AddNativeBattleItem(stolen.Id, stolen.Count);
-        string name = stolen.Id == 0 ? "" : FindInstalledNativeAction(4, checked((ushort)stolen.Id)).Name ?? throw new InvalidDataException("Native Mug requires the installed item name.");
+        //48FE20 formats the stolen item through 47EA30, which also names field items.
+        string name = stolen.Id == 0 ? "" : NativeSpecialName(definition.NativeItemNames, stolen.Id, "item");
         string digits = NativeBattleGlobalText(11);
         if (digits.Length < 11)
         {
