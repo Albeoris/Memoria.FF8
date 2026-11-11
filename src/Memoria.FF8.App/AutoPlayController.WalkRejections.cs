@@ -14,6 +14,52 @@ internal sealed partial class AutoPlayController
 {
     private sealed record InterruptedGatewayWalk(AutoPlayPlanStep Plan, AutoPlayContactSource Source, FieldFixedPosition Position, int Resumes);
     private InterruptedGatewayWalk? interruptedGatewayWalk;
+    private sealed record GatewayApproach(string Navigation, AutoPlayTarget Target, string Conditions);
+    private readonly HashSet<(GatewayApproach Approach, FieldFixedPosition InterruptedAt)> unownedGatewayAttempts = [];
+    private readonly HashSet<GatewayApproach> repeatedGatewayApproaches = [];
+    private long gatewayAttemptProgress = -1;
+
+    private void RefreshGatewayApproachEvidence()
+    {
+        if (gatewayAttemptProgress == run.LastProgressStep)
+        {
+            return;
+        }
+        gatewayAttemptProgress = run.LastProgressStep;
+        unownedGatewayAttempts.Clear();
+        repeatedGatewayApproaches.Clear();
+    }
+
+    private void RecordUnownedGatewayInterruption(GameWorld world, AutoPlayContactSource source, AutoPlayWalkResult result)
+    {
+        if (source.Target.Kind != AutoPlayTargetKind.Gateway || result.GatewayIndex is not null || result.InterruptingObjectId is not null || world.Events.FieldId != source.FieldId || world.Events.Scene.NativePlayerPosition is not { } position)
+        {
+            return;
+        }
+        RefreshGatewayApproachEvidence();
+        GatewayApproach approach = new(source.NavigationKey, source.Target, source.ConditionSignature);
+        if (unownedGatewayAttempts.Contains((approach, position)))
+        {
+            if (repeatedGatewayApproaches.Add(approach))
+            {
+                RecordRecentAction("Repeated native interruption at " + source.Target.Id);
+            }
+        }
+        else if (unownedGatewayAttempts.Count < 256)
+        {
+            unownedGatewayAttempts.Add((approach, position));
+        }
+    }
+
+    private IReadOnlyList<AutoPlayTarget> FilterRepeatedGatewayApproaches(GameWorld world, string navigation, IReadOnlyList<AutoPlayTarget> targets)
+    {
+        RefreshGatewayApproachEvidence();
+        if (repeatedGatewayApproaches.Count == 0)
+        {
+            return targets;
+        }
+        return targets.Where(target => target.Kind != AutoPlayTargetKind.Gateway || !repeatedGatewayApproaches.Contains(new(navigation, target, world.ReadAutoPlayConditions(target.CoverageId, target.ObjectId).Fingerprint))).ToArray();
+    }
 
     private (InterruptedGatewayWalk? Walk, string? SkippedVariant) ResumeInterruptedGatewayWalk(GameWorld world, string navigation, IReadOnlyList<AutoPlayTarget> targets)
     {
