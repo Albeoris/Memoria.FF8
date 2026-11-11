@@ -28,7 +28,12 @@ internal static partial class Program
                 {
                     // Declared four-frame component metadata isolates the interaction from model-resource decoding.
                     AnimationFrameCount = (_, _) => 4,
-                    ReadNativeDrawPointCatalog = provider ? assets.ReadNativeDrawPointCatalog : null
+                    ReadNativeDrawPointCatalog = provider ? assets.ReadNativeDrawPointCatalog : null,
+                    ResolveGlobalSoundResource = sample =>
+                    {
+                        GlobalAudioSampleDescriptor descriptor = GlobalAudioFormat.Read(gameDirectory, sample);
+                        return new GlobalSoundResource(sample, GlobalSoundBackendStatus.Muted, new GlobalSoundLoopPolicy(descriptor.PlaybackFlags, descriptor.LoopStartPcmByte, descriptor.LoopEndPcmByte, descriptor.WaveFormat.SampleRate, 16, descriptor.WaveFormat.Channels, 1087));
+                    }
                 };
                 engine.LoadField(74, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
                 return (session, engine);
@@ -39,6 +44,15 @@ internal static partial class Program
             engine.Step();
             NativeDrawPointMemory bank = session.EventRandom!.DrawPoints!;
             engine.Step();
+            if (depletion is 2 or 3)
+            {
+                Require(engine.CurrentDialogue is null && engine.Scene.DrawPointInteraction is null && engine.IsUserControlEnabled && session.State.Variables[500] == 77, "Depleted DRAWPOINT retained a dialogue, operand or control wait.");
+                Require(session.EventRandom!.State == 1 && session.EventRandom.DrawPoints == bank && session.CharacterVitals!.Records.Select(row => row.MagicInventory).Zip(originalVitals.Records.Select(row => row.MagicInventory)).All(pair => pair.First.SequenceEqual(pair.Second)), "Depleted DRAWPOINT sampled RNG, changed stock or changed depletion.");
+                Require(engine.Scene.GlobalSoundRequests.Count(request => request.OriginalEffectId == 16) == 1 && engine.Scene.GlobalSoundRequests.All(request => request.OriginalEffectId != 66), "Depleted DRAWPOINT failed to emit its failure sound or emitted discovery sound.");
+                JsonElement owner = engine.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1);
+                Require(owner.GetProperty("Results").GetProperty("0").GetInt32() == 0 && owner.GetProperty("Results").GetProperty("3").GetInt32() == 0, "Depleted DRAWPOINT did not complete with its zero result.");
+                continue;
+            }
             Require(engine.CurrentDialogue is { Channel: 6, MessageId: -1, CanConfirm: true, FirstChoice: null } message && message.Text == catalog.NoEligibleMessage && !engine.IsUserControlEnabled, "No-eligible DRAWPOINT bypassed its actual common confirmation or restored control early.");
             Require(engine.Scene.DrawPointInteraction is { PointIndex: 13, PointByte: 6, RandomStateBefore: 1, RandomStateAfter: 1103527590 } issued && issued.Quantity == (depletion == 1 ? 4 : 7) && issued.DepletionAtIssue == depletion && engine.Actors[0].NativeMovementAccelerationTarget == 1 && session.EventRandom!.State == 1103527590, "DRAWPOINT lost its lowBYTE index, unsigned RNG sample, depletion-sensitive quantity or sole shared516 phase.");
             Require(session.EventRandom!.DrawPoints == bank && session.CharacterVitals!.Records.Select(row => row.MagicInventory).Zip(originalVitals.Records.Select(row => row.MagicInventory)).All(pair => pair.First.SequenceEqual(pair.Second)) && !session.State.Variables.ContainsKey(500), "No-eligible DRAWPOINT awarded magic, depleted the point or executed its successor before confirmation.");
@@ -88,6 +102,6 @@ internal static partial class Program
             JsonElement refusedOwner = refused.GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1);
             Require(unknown.LastFault?.Opcode == "DRAWPOINT" && unknown.Scene.DrawPointInteraction is null && unknown.CurrentDialogue is null && refusedOwner.GetProperty("Position").GetInt32() == 8 && refusedOwner.GetProperty("Stack")[0].GetInt32() == raw && refused.GetProperty("EventRandom").GetProperty("State").GetUInt32() == 1, "Missing draw-point provider changed PC/operand/RNG before refusal.");
         }
-        Console.WriteLine("Native no-eligible DRAWPOINT: original point/common7, one RNG sample, BYTE wrap, held full operand/shared516, ordinary confirmation/R0=0, no award/depletion, independent restore and missing-provider refusal passed.");
+        Console.WriteLine("Native no-eligible DRAWPOINT: original point/common7, one RNG sample, BYTE wrap, held full operand/shared516, ordinary confirmation/R0=0, no award/depletion, independent restore, missing-provider refusal and silent depleted-point failure passed.");
     }
 }

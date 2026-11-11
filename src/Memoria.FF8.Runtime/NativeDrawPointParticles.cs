@@ -55,6 +55,8 @@ public sealed record NativeDrawPointSpark([property: JsonRequired] byte Status, 
 /// <summary>Native1CE0750/1CDC620/1CE4C88 particle records, independently of the depletion bank and script RNG.</summary>
 public sealed record NativeDrawPointParticles([property: JsonRequired] int Version, [property: JsonRequired] ImmutableArray<NativeDrawPointSpark> Sparks, [property: JsonRequired] byte Palette)
 {
+    public bool DrawUnavailable { get; init; }
+
     [JsonRequired]
     public ImmutableArray<NativeDrawPointSpark> Drawings { get; init; } = [];
     [JsonIgnore]

@@ -92,6 +92,10 @@ public sealed class NativeDrawPointParticleTests
         byte[] empty = Draw(particles, 0);
         byte[] visible = Draw(particles, 1);
         Assert.NotEqual(empty, visible);
+        byte[] unavailable = Draw(particles with { DrawUnavailable = true }, 1);
+        Assert.NotEqual(visible, unavailable);
+        Assert.Contains(Enumerable.Range(0, unavailable.Length / 4), pixel => unavailable[pixel * 4] == unavailable[pixel * 4 + 1] && unavailable[pixel * 4] > unavailable[pixel * 4 + 2]);
+        Assert.Equal(empty, Draw(particles with { DrawUnavailable = true }, 0));
         Assert.Equal(empty, Draw(particles, 255));
         Assert.Throws<NotSupportedException>(() => Draw(particles, null));
         NativeDrawPointParticles flight = particles.Launch(60, 10, 20, 64, 17, tables);
@@ -103,6 +107,11 @@ public sealed class NativeDrawPointParticleTests
         Assert.Equal(Draw(flight, 1), Draw(flight, null));
         string saved = JsonSerializer.Serialize(flight);
         NativeDrawPointParticles restored = JsonSerializer.Deserialize<NativeDrawPointParticles>(saved)!;
+        System.Text.Json.Nodes.JsonNode legacy = System.Text.Json.Nodes.JsonNode.Parse(saved)!;
+        legacy.AsObject().Remove("DrawUnavailable");
+        NativeDrawPointParticles legacyRestored = JsonSerializer.Deserialize<NativeDrawPointParticles>(legacy.ToJsonString())!;
+        Assert.False(legacyRestored.DrawUnavailable);
+        Assert.Equal(Draw(flight, 1), Draw(legacyRestored, 1));
         Assert.Equal(Draw(flight, 1), Draw(restored, 1));
         Assert.Equal(JsonSerializer.Serialize(flight.Step(200, tables)), JsonSerializer.Serialize(restored.Step(200, tables)));
     }

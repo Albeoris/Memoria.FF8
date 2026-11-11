@@ -42,8 +42,13 @@ public sealed partial class FieldRenderer
                 {
                     continue;
                 }
-                Vector3 head = age == 0 ? new Vector3(128) : tables.Color(particles.Palette, age);
-                Vector3 tail = tables.Color(particles.Palette, age + 1);
+                Vector3 TrailColor(int trailAge)
+                {
+                    Vector3 color = tables.Color(particles.Palette, trailAge);
+                    return particles.DrawUnavailable ? new Vector3(MathF.Max(color.X, color.Z), MathF.Max(color.X, color.Z), color.Y) : color;
+                }
+                Vector3 head = age == 0 ? new Vector3(128) : TrailColor(age);
+                Vector3 tail = TrailColor(age + 1);
                 bool revealed = revealHiddenPoint && spark.RenderStatus == 1;
                 Action draw = () =>
                 {

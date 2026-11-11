@@ -113,6 +113,12 @@ public sealed record NativeDrawPointCatalog(string ExecutableHash, string Kernel
         }
         return string.Join("{Line}", selected);
     }
+    public string FormatSharedSelection(bool canDraw)
+    {
+        string[] lines = Message(4).Split("{Line}", StringSplitOptions.None);
+        return string.Join("{Line}", lines[0], lines[1], (canDraw ? "{Color White}" : "{Color Disabled}") + "Draw");
+    }
+
     public static string CharacterTag(int characterId)
     {
         return characterId switch

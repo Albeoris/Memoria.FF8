@@ -7,6 +7,7 @@ namespace Memoria.FF8.Events;
 /// <summary>Executed522770 request and its process selection globals; actor WORD516 is the sole phase word.</summary>
 public sealed record NativeDrawPointInteraction([property: JsonRequired] int FieldId, [property: JsonRequired] string ProgramHash, [property: JsonRequired] long Frame, [property: JsonRequired] int ObjectId, [property: JsonRequired] int ScriptId, [property: JsonRequired] int Operation, [property: JsonRequired] long OwnerSequence, [property: JsonRequired] int RawArgument, [property: JsonRequired] byte PointIndex, [property: JsonRequired] byte PointByte, [property: JsonRequired] byte DepletionAtIssue, [property: JsonRequired] uint RandomStateBefore, [property: JsonRequired] uint RandomStateAfter, [property: JsonRequired] short Quantity, [property: JsonRequired] string CommonMessageHash)
 {
+    public bool SharedSelection { get; init; }
     public int DrawBonus { get; init; }
     public byte EligibleCombatSlots { get; init; }
     public int Message { get; init; } = 7;
@@ -41,6 +42,20 @@ public sealed partial class EventEngine
             }
         }
         return (catalog, rebuilt, eligible);
+    }
+
+    private int? FindAvailableDrawPointReceiver(int magicId, NativeCharacterVitals vitals, byte eligible)
+    {
+        for (int selection = 0; selection < Scene.Party.Count() && Scene.Party[selection] != 255; selection++)
+        {
+            int combat = FindDrawPointCombatSlot(Scene.Party[selection]);
+            if ((eligible & (1 << combat)) != 0 && vitals.GetMagicCapacity(vitals.CombatParty[combat], magicId) == 0)
+            {
+                // Point quantity is sampled once and does not depend on character stats.
+                return selection;
+            }
+        }
+        return null;
     }
 
     private string? UnsupportedDrawPointInteraction(Fiber fiber)
@@ -83,6 +98,10 @@ public sealed partial class EventEngine
             {
                 (NativeDrawPointCatalog catalog, _, byte eligible) = PrepareDrawPointParty();
                 byte index = unchecked((byte)(fiber.Stack.Peek() - 1));
+                if (ReadDrawPointDepletion(index) is 2 or 3)
+                {
+                    _ = PrepareDrawPointSound(16);
+                }
                 if (eligible != 0 && ReadDrawPointDepletion(index) is not (2 or 3))
                 {
                     _ = catalog.FormatMessage(2, catalog.PointBytes[index] & 63);
@@ -138,6 +157,13 @@ public sealed partial class EventEngine
             byte point = catalog.PointBytes[index];
             NativeEventRandomState before = services.EventRandom!;
             byte depletion = ReadDrawPointDepletion(index);
+            if (depletion is 2 or 3)
+            {
+                PreparedGlobalSoundEmission unavailable = PrepareDrawPointSound(16);
+                services.SetNativeEventOwners(services.WorldControls!, globalSoundProcess: unavailable.Process);
+                PublishDrawPointSound(unavailable);
+                return CompleteDrawPointInteraction(fiber, true);
+            }
             int basis = unchecked((sbyte)point) < 0 ? 20 : 10;
             if (depletion == 1)
             {
@@ -160,7 +186,24 @@ public sealed partial class EventEngine
             Scene.DrawPointInteraction = new NativeDrawPointInteraction(FieldId, programHash, Frame, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, fiber.Sequence, raw, index, point, depletion, before.State, next.State, quantity, catalog.CommonMessageHash) { DrawBonus = drawBonus, EligibleCombatSlots = eligible, Message = message };
             actor.NativeMovementAccelerationTarget = 1;
             PublishDrawPointSound(sound);
-            ShowDrawPointMessage(fiber, catalog, message);
+            if (vitals.MagicSystem.SharedMagicStock)
+            {
+                int? receiver = FindAvailableDrawPointReceiver(point & 63, vitals, eligible);
+                Scene.DrawPointInteraction = Scene.DrawPointInteraction with { SharedSelection = true, Selection = receiver };
+                if (receiver is not null)
+                {
+                    actor.NativeMovementAccelerationTarget = 4;
+                }
+                else
+                {
+                    ShowDrawPointSelection(fiber);
+                    actor.NativeMovementAccelerationTarget = 3;
+                }
+            }
+            else
+            {
+                ShowDrawPointMessage(fiber, catalog, message);
+            }
         }
         else
         {
@@ -205,6 +248,18 @@ public sealed partial class EventEngine
                     {
                         return CompleteDrawPointInteraction(fiber, true);
                     }
+                    if (current.SharedSelection)
+                    {
+                        int? receiver = FindAvailableDrawPointReceiver(current.PointByte & 63, services.CharacterVitals!, current.EligibleCombatSlots);
+                        if (receiver is null)
+                        {
+                            PreparedGlobalSoundEmission unavailable = PrepareDrawPointSound(16);
+                            services.SetNativeEventOwners(services.WorldControls!, globalSoundProcess: unavailable.Process);
+                            PublishDrawPointSound(unavailable);
+                            return CompleteDrawPointInteraction(fiber, true);
+                        }
+                        selection = receiver.Value + 1;
+                    }
                     Scene.DrawPointInteraction = current with { Selection = selection - 1 };
                     actor.NativeMovementAccelerationTarget = 4;
                     break;
@@ -233,16 +288,16 @@ public sealed partial class EventEngine
                     break;
                 case 6:
                     CompleteDrawPointAcquisition(fiber);
+                    if (current.SharedSelection && Scene.DrawPointInteraction?.Acquired > 0)
+                    {
+                        DepleteDrawPoint(current);
+                        return CompleteDrawPointInteraction(fiber, false);
+                    }
                     break;
                 case 7:
                     if (!dialogues.ContainsKey(6))
                     {
-                        NativeEventRandomState random = services.EventRandom!;
-                        NativeDrawPointMemory bank = random.DrawPoints!;
-                        int address = 116 + current.PointIndex / 4;
-                        int shift = 2 * (current.PointIndex & 3);
-                        int value = (bank.Read(address, 1) & ~(3 << shift)) | (((current.PointByte & 0x40) != 0 ? 2 : 3) << shift);
-                        services.SetNativeEventOwners(services.WorldControls!, eventRandom: random with { DrawPoints = bank.Write(address, 1, value) });
+                        DepleteDrawPoint(current);
                         return CompleteDrawPointInteraction(fiber, false);
                     }
                     break;
@@ -252,6 +307,16 @@ public sealed partial class EventEngine
         fiber.Position--;
         WaitFrames(fiber, 1);
         return [];
+    }
+
+    private void DepleteDrawPoint(NativeDrawPointInteraction current)
+    {
+        NativeEventRandomState random = services.EventRandom!;
+        NativeDrawPointMemory bank = random.DrawPoints!;
+        int address = 116 + current.PointIndex / 4;
+        int shift = 2 * (current.PointIndex & 3);
+        int value = (bank.Read(address, 1) & ~(3 << shift)) | (((current.PointByte & 0x40) != 0 ? 2 : 3) << shift);
+        services.SetNativeEventOwners(services.WorldControls!, eventRandom: random with { DrawPoints = bank.Write(address, 1, value) });
     }
 
     private int[] CompleteDrawPointInteraction(Fiber fiber, bool zeroResult)
@@ -309,7 +374,11 @@ public sealed partial class EventEngine
         {
             throw Fault(fiber, "DRAWPOINT has no field-party selection entries.");
         }
-        string text = catalog.FormatSelection(Scene.Party.ToArray(), services.CharacterVitals!, current.PointByte & 63, current.EligibleCombatSlots);
+        string text = current.SharedSelection ? catalog.FormatSharedSelection(FindAvailableDrawPointReceiver(current.PointByte & 63, services.CharacterVitals!, current.EligibleCombatSlots) is not null) : catalog.FormatSelection(Scene.Party.ToArray(), services.CharacterVitals!, current.PointByte & 63, current.EligibleCombatSlots);
+        if (current.SharedSelection)
+        {
+            count = 1;
+        }
         Scene.DrawPointInteraction = current with { Message = 4, Selection = null };
         // Native selection result0 cancels;1..count are retained field-party entries.
         ShowDialogue(fiber, new DialogueState(6, -1, text, 0, 0, FirstChoice: 1, LastChoice: count + 1, InitialChoice: 2, CancelChoice: 1), false);
@@ -336,7 +405,10 @@ public sealed partial class EventEngine
             services.SetMessageVariables((services.MessageVariables ?? NativeMessageVariables.Unknown()).WithWrite(7, acquired));
         }
         Scene.DrawPointInteraction = current with { Acquired = acquired };
-        ShowDrawPointMessage(fiber, ReadNativeDrawPointCatalog!(), acquired > 0 ? 5 : 6);
+        if (!current.SharedSelection || acquired == 0)
+        {
+            ShowDrawPointMessage(fiber, ReadNativeDrawPointCatalog!(), acquired > 0 ? 5 : 6);
+        }
         actors[fiber.ObjectId].NativeMovementAccelerationTarget = acquired > 0 ? (short)7 : (short)1;
     }
 
@@ -384,8 +456,8 @@ public sealed partial class EventEngine
         }
         if (dialogue is not null)
         {
-            string expected = current.Message == 4 ? catalog.FormatSelection(saved.Scene.Party.ToArray(), saved.CharacterVitals!, current.PointByte & 63, current.EligibleCombatSlots) : catalog.FormatMessage(current.Message, current.PointByte & 63, current.Selection is int selected ? saved.Scene.Party[selected] : 0);
-            if (dialogue.MessageId != -1 || dialogue.Text != expected || !dialogue.CanConfirm || dialogue.IsNamePrompt || dialogue.ObjectId != current.ObjectId || dialogue.ScriptId != current.ScriptId || dialogue.Operation != current.Operation || current.Message == 4 && (dialogue.FirstChoice != 1 || dialogue.LastChoice != count + 1 || dialogue.InitialChoice != 2 || dialogue.CancelChoice != 1 || phase != 3 || current.Selection is not null) || current.Message != 4 && (dialogue.FirstChoice is not null || phase is not (1 or 7)))
+            string expected = current.Message == 4 && current.SharedSelection ? catalog.FormatSharedSelection(false) : current.Message == 4 ? catalog.FormatSelection(saved.Scene.Party.ToArray(), saved.CharacterVitals!, current.PointByte & 63, current.EligibleCombatSlots) : catalog.FormatMessage(current.Message, current.PointByte & 63, current.Selection is int selected ? saved.Scene.Party[selected] : 0);
+            if (dialogue.MessageId != -1 || dialogue.Text != expected || !dialogue.CanConfirm || dialogue.IsNamePrompt || dialogue.ObjectId != current.ObjectId || dialogue.ScriptId != current.ScriptId || dialogue.Operation != current.Operation || current.Message == 4 && (dialogue.FirstChoice != 1 || dialogue.LastChoice != (current.SharedSelection ? 2 : count + 1) || dialogue.InitialChoice != 2 || dialogue.CancelChoice != 1 || phase != 3 || current.Selection is not null) || current.Message != 4 && (dialogue.FirstChoice is not null || phase is not (1 or 7)))
             {
                 throw new InvalidDataException("Saved DRAWPOINT lost its authenticated common text or channel6 choice metadata.");
             }

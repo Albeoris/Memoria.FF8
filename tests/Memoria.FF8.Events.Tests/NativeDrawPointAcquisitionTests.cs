@@ -16,14 +16,14 @@ internal static partial class Program
         NativeDrawPointParticleTables particles = NativeDrawPointParticleTableReader.Read(File.ReadAllBytes(Path.Combine(gameDirectory, "FF8_EN.exe")));
         byte drawAbility = checked((byte)(20 + Array.IndexOf(catalog.CommandIds.ToArray(), (byte)6)));
         int regeneratingIndex = Enumerable.Range(0, 256).First(index => (catalog.PointBytes[index] & 0x40) != 0 && (catalog.PointBytes[index] & 63) is > 0 and < 57);
-        foreach ((int index, int initialCount, bool cancel, int bonus) in new[] { (13, 98, true, 0), (13, 100, false, 0), (13, 98, false, 0), (regeneratingIndex, 98, false, 0), (13, 1, false, 5), (13, 1, false, 100), (13, 98, true, 100), (13, 100, false, 100) })
+        foreach ((int index, int initialCount, bool cancel, int bonus, bool shared, int receiver, bool equipped) in new[] { (13, 98, true, 0, false, 0, true), (13, 100, false, 0, false, 0, true), (13, 98, false, 0, false, 0, true), (regeneratingIndex, 98, false, 0, false, 0, true), (13, 1, false, 5, false, 0, true), (13, 1, false, 100, false, 0, true), (13, 98, true, 100, false, 0, true), (13, 100, false, 100, false, 0, true), (13, 98, false, 0, true, 0, true), (regeneratingIndex, 98, false, 100, true, 0, true), (13, 100, true, 0, true, 0, true), (13, 98, false, 0, true, 1, true), (13, 98, true, 0, true, 0, false) })
         {
             bool full = initialCount == 100;
             int magic = catalog.PointBytes[index] & 63;
             byte[] content = SyntheticObjects([1, (8 << 7) | 1], [
-                [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.SETPARTY, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.PSHN_L, 200), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.SETDRAWPOINT, 0), (Jsm.Opcode.PSHN_L, index + 1), (Jsm.Opcode.Unknown16, 0), (Jsm.Opcode.RET, 8)],
+                [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, receiver == 0 ? 255 : receiver), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.SETPARTY, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.PSHN_L, 200), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.SETDRAWPOINT, 0), (Jsm.Opcode.PSHN_L, index + 1), (Jsm.Opcode.Unknown16, 0), (Jsm.Opcode.RET, 8)],
                 [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.UCOFF, 0), (Jsm.Opcode.PSHN_L, 53), (Jsm.Opcode.POPI_L, 0), (Jsm.Opcode.PSHN_L, index + 1), (Jsm.Opcode.DRAWPOINT, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.UCON, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 500), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)],
-                [(Jsm.Opcode.LBL, 8), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 200), (Jsm.Opcode.PSHN_L, 200), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.RET, 8)],
+                [(Jsm.Opcode.LBL, 8), (Jsm.Opcode.PSHN_L, receiver), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 200), (Jsm.Opcode.PSHN_L, 200), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.RET, 8)],
                 [(Jsm.Opcode.LBL, 9), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
             (GameSession Session, EventEngine Engine) Create()
             {
@@ -37,8 +37,16 @@ internal static partial class Program
                 NativeMagicStock[] inventory = records[0].MagicInventory.ToArray();
                 inventory[0] = new NativeMagicStock((byte)magic, checked((byte)initialCount));
                 // Declared component stock/command bytes exercise native acquisition, not an original gameplay input journal.
-                records[0] = records[0] with { Junction = records[0].Junction with { Commands = drawAbility }, MagicInventory = inventory };
+                records[0] = records[0] with { MagicInventory = inventory };
+                if (equipped)
+                {
+                    records[receiver] = records[receiver] with { Junction = records[receiver].Junction with { Commands = drawAbility } };
+                }
                 session.SetCharacterVitals(initial with { Records = records });
+                if (shared)
+                {
+                    session.SetGameplayPreferences(session.State.GameplayPreferences with { SharedMagicStock = true });
+                }
                 EventEngine engine = new(session)
                 {
                     AnimationFrameCount = (_, _) => 4,
@@ -80,7 +88,44 @@ internal static partial class Program
             {
                 engine.Step();
             }
-            byte expectedEligible = (byte)(1 << Array.IndexOf(session.CharacterVitals!.CombatParty, (byte)0));
+            byte expectedEligible = equipped ? (byte)(1 << Array.IndexOf(session.CharacterVitals!.CombatParty, (byte)receiver)) : (byte)0;
+            Require(engine.Scene.NativeDrawPointParticles!.DrawUnavailable == (full || !equipped), "Ready draw-point availability did not reflect actual magic capacity.");
+            if (shared)
+            {
+                int originalCount = session.CharacterVitals!.GetMagicCount(0, magic);
+                Require(originalCount == initialCount, "Shared draw-point setup changed its initial stock.");
+                if (full || !equipped)
+                {
+                    Require(engine.Scene.DrawPointInteraction is { SharedSelection: true, Message: 4 } && Phase() == 3 && engine.CurrentDialogue is { FirstChoice: 1, LastChoice: 2, CancelChoice: 1 } sharedSelection && sharedSelection.Text == catalog.FormatSharedSelection(false) && !sharedSelection.Text.Contains("{Char ", StringComparison.Ordinal), "Unavailable shared draw did not offer only Don't draw/Draw choices.");
+                    StepRestored();
+                    Require(engine.Apply(new PlayerAction(PlayerActionKind.Cancel)).Accepted, "Unavailable shared draw selection refused cancellation.");
+                    StepRestored();
+                    Require(engine.Scene.DrawPointInteraction is null && engine.CurrentDialogue is null && session.CharacterVitals!.GetMagicCount(0, magic) == initialCount && session.EventRandom!.DrawPoints!.Depletion.All(value => value == 0) && engine.IsUserControlEnabled && session.State.Variables[500] == 77, "Canceled shared draw changed stock/depletion or retained its wait.");
+                    continue;
+                }
+                Require(engine.Scene.DrawPointInteraction is { RandomStateBefore: 1, RandomStateAfter: 1103527590 } automatic && automatic.Selection == receiver && Phase() == 4 && engine.CurrentDialogue is null, "Shared draw did not select its eligible receiver automatically without dialogue.");
+                short sharedQuantity = engine.Scene.DrawPointInteraction!.Quantity;
+                Require(sharedQuantity > 2 && engine.Scene.DrawPointInteraction.EligibleCombatSlots == expectedEligible, "Shared draw lost its eligible receiver or sampled quantity.");
+                StepRestored();
+                Require(Phase() == 5 && engine.NativeDrawPointAcquisitionActive && engine.CurrentDialogue is null, "Shared draw did not launch acquisition without prompting.");
+                long sharedLaunched = engine.Frame;
+                while (engine.Scene.DrawPointInteraction is not null && engine.Frame - sharedLaunched < 80)
+                {
+                    Require(engine.CurrentDialogue is null, "Shared draw introduced a discovery, receiver or success dialogue.");
+                    if (Phase() is 6 or 7)
+                    {
+                        StepRestored();
+                    }
+                    else
+                    {
+                        engine.Step();
+                    }
+                }
+                int sharedDepletion = (session.EventRandom!.DrawPoints!.Depletion[index / 4] >> (2 * (index & 3))) & 3;
+                Require(engine.Scene.DrawPointInteraction is null && engine.CurrentDialogue is null && session.CharacterVitals!.GetMagicCount(0, magic) == Math.Min(100, initialCount + sharedQuantity) && sharedDepletion == ((catalog.PointBytes[index] & 0x40) != 0 ? 2 : 3) && engine.IsUserControlEnabled && session.State.Variables[500] == 77, "Automatic shared draw lost capped stock, depletion or same-callback completion.");
+                Require(session.EventRandom.State == 1103527590 && engine.Scene.GlobalSoundRequests.Count(request => request.OriginalEffectId == 67) == 1, "Automatic shared draw repeated RNG or its acquisition sound.");
+                continue;
+            }
             Require(engine.Scene.DrawPointInteraction is { Message: 2, RandomStateBefore: 1, RandomStateAfter: 1103527590 } issued && issued.PointIndex == index && issued.EligibleCombatSlots == expectedEligible && issued.Quantity > 2 && Phase() == 1 && engine.CurrentDialogue?.Text == catalog.FormatMessage(2, magic), "Eligible draw point lost its original message, equipped command, point index, sampled quantity or first phase.");
             short quantity = engine.Scene.DrawPointInteraction!.Quantity;
             int basis = unchecked((sbyte)catalog.PointBytes[index]) < 0 ? 20 : 10;
@@ -151,6 +196,6 @@ internal static partial class Program
                 Require(owner.GetProperty("Results").GetProperty("0").GetInt32() == 53 && owner.GetProperty("Results").GetProperty("3").GetInt32() == 53, "Successful draw invented result0=1 instead of preserving the issuing result register.");
             }
         }
-        Console.WriteLine("Eligible DRAWPOINT: original discovery/selection, explicit Cancel, actual spark completion, full-stock retry, accepted-unit cap/message variable7, depletion2/3 and independent restore at phases1..7 passed.");
+        Console.WriteLine("Eligible DRAWPOINT: original discovery/selection, explicit Cancel, actual spark completion, full-stock retry, accepted-unit cap/message variable7, depletion2/3, shared automatic acquisition/full-pool cancellation, capacity presentation and independent restore at phases1..7 passed.");
     }
 }

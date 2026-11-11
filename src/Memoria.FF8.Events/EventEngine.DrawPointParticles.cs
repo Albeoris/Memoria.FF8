@@ -68,7 +68,14 @@ public sealed partial class EventEngine
         }
         if (Scene.DrawPointIndex is byte index && services.EventRandom?.DrawPoints is NativeDrawPointMemory bank)
         {
-            Scene.NativeDrawPointParticles = current with { Palette = (byte)((bank.Depletion[index / 4] >> (2 * (index & 3))) & 3) };
+            byte palette = (byte)((bank.Depletion[index / 4] >> (2 * (index & 3))) & 3);
+            bool unavailable = false;
+            if (palette < 2 && Scene.DrawPointEnabled != 0 && ReadNativeDrawPointCatalog is not null)
+            {
+                (NativeDrawPointCatalog catalog, NativeCharacterVitals vitals, byte eligible) = PrepareDrawPointParty();
+                unavailable = FindAvailableDrawPointReceiver(catalog.PointBytes[index] & 63, vitals, eligible) is null;
+            }
+            Scene.NativeDrawPointParticles = current with { Palette = palette, DrawUnavailable = unavailable };
         }
         else if (Scene.DrawPointEnabled != 0)
         {
