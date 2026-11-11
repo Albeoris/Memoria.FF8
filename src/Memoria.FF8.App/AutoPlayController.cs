@@ -620,7 +620,20 @@ internal sealed partial class AutoPlayController
         if (session.State.Scene == SceneKind.Movie)
         {
             run.SettleFrames = 0;
-            Apply(new(PlayerActionKind.SkipMovie));
+            if (TryDriveCurrentLadderInput(world))
+            {
+                return;
+            }
+            // NG-020: the bridge collapse checks Squall's position after the controllable movie.
+            if (world.Events.FieldId == 809 && session.State.MovieSource is { DiscIndex: 1, MovieIndex: 3 })
+            {
+                var axes = world.Events.AutoPlayMovementAxes(new(-1, 0));
+                Apply(world.Events.CanAcceptMovementInput ? new(PlayerActionKind.Move, Horizontal: axes.X, Vertical: axes.Y, Frames: 120) : new(PlayerActionKind.Wait));
+            }
+            else
+            {
+                Apply(new(PlayerActionKind.SkipMovie));
+            }
             return;
         }
         if (world.Events.Scene.NativeTutorial is not null || world.Events.Scene.NativeMenuTutorial is not null)
@@ -678,7 +691,7 @@ internal sealed partial class AutoPlayController
             AdvanceInputFrame(world);
             return;
         }
-        if (world.Events.IsUserControlEnabled && world.Events.PlayerActor is { NativeLadder: { Active: true, AutomaticCompletion: false } ladder, NativeMovementCompletion542: 1 } ladderPlayer && TryDriveOwnedLadderInput(world, ladderPlayer, ladder))
+        if (TryDriveCurrentLadderInput(world))
         {
             return;
         }
@@ -1243,12 +1256,17 @@ internal sealed partial class AutoPlayController
         return input is { PhysicalHeld: 0, RawHeld: 0, RawPressed: 0, PendingPulse: 0, Held: 0, Pressed: 0 } && input.SampledFieldId == field && input.SampledFrame == frame;
     }
 
+    private bool TryDriveCurrentLadderInput(GameWorld world)
+    {
+        return world.Events.IsUserControlEnabled && world.Events.PlayerActor is { NativeLadder: { Active: true, AutomaticCompletion: false } ladder, NativeMovementCompletion542: 1 } player && TryDriveOwnedLadderInput(world, player, ladder);
+    }
+
     private bool TryDriveOwnedLadderInput(GameWorld world, ActorState player, NativeLadderState owner)
     {
         int field = world.Events.FieldId;
         bool HasOwner()
         {
-            return !owner.AutomaticCompletion && session.State.Scene == SceneKind.Field && session.State.FieldId == field && world.Events.FieldId == field && world.Events.IsUserControlEnabled && ReferenceEquals(world.Events.PlayerActor, player) && player.NativeMovementCompletion542 == 1 && player.NativeLadder is { Active: true, AutomaticCompletion: false } current && current.FiberSequence == owner.FiberSequence && current.ScriptId == owner.ScriptId && current.Operation == owner.Operation && current.Up == owner.Up && world.CurrentDialogue is null && world.PendingEntityName is null && world.Events.PartyMenu is null && !world.Events.HasPendingBattle && world.Events.PendingTripleTriad is null && world.Events.Scene.NativeTutorial is null && world.Events.Scene.NativeMenuTutorial is null;
+            return !owner.AutomaticCompletion && session.State.Scene is SceneKind.Field or SceneKind.Movie && session.State.FieldId == field && world.Events.FieldId == field && world.Events.IsUserControlEnabled && ReferenceEquals(world.Events.PlayerActor, player) && player.NativeMovementCompletion542 == 1 && player.NativeLadder is { Active: true, AutomaticCompletion: false } current && current.FiberSequence == owner.FiberSequence && current.ScriptId == owner.ScriptId && current.Operation == owner.Operation && current.Up == owner.Up && world.CurrentDialogue is null && world.PendingEntityName is null && world.Events.PartyMenu is null && !world.Events.HasPendingBattle && world.Events.PendingTripleTriad is null && world.Events.Scene.NativeTutorial is null && world.Events.Scene.NativeMenuTutorial is null;
         }
         if (!HasOwner())
         {
@@ -1262,7 +1280,14 @@ internal sealed partial class AutoPlayController
             for (int callback = 0; callback < 16 && HasOwner(); callback++)
             {
                 Apply(new(PlayerActionKind.FieldButtons, physical));
-                AdvanceInputFrame(world);
+                if (session.State.Scene == SceneKind.Movie)
+                {
+                    Apply(new(PlayerActionKind.Wait));
+                }
+                else
+                {
+                    AdvanceInputFrame(world);
+                }
                 driven = true;
             }
         }
