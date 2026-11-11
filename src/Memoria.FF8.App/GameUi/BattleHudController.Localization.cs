@@ -7,7 +7,7 @@ public sealed partial class BattleHudController
 {
     private Func<BattleActionDefinition, string>? localizedActionName;
     private Func<BattleCombatant, string>? localizedCombatantName;
-    private Func<BattleAbility, BattleCombatant?, string, string>? localizedCommandName;
+    private Func<int, string, string>? localizedCommandName;
     private Func<BattleEvent, string>? localizedBattleMessage;
     private Func<BattleEvent, BoundLocalizationText?>? boundBattleMessage;
     private Func<string, string, string>? localizeSystemText;

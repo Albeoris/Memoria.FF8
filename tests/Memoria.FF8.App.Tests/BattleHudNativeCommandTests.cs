@@ -94,6 +94,8 @@ public sealed class BattleHudNativeCommandTests
             session.Tick();
         }
         Assert.Equal(BattleNativeDuelPhase.Ready, session.GetNativeDuel("zell")!.Phase);
+        // Gameplay readiness precedes the presentation clock opening the choice panel.
+        session.AdvanceNativeDuelUi();
         BattleNativeDuelChoice choice = session.GetNativeDuelChoices("zell").First(candidate => candidate.Learned);
         hud.SetNativeCommandButtons(hiddenCommands ? (ushort)0x100 : (ushort)0);
         Assert.Equal(hiddenCommands, hud.CommandMenuHidden);

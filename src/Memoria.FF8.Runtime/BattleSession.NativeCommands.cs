@@ -30,7 +30,7 @@ public sealed partial class BattleSession
         return definition.NativeCommandNames.ElementAtOrDefault(limit.Command) ?? limit.InvocationChoices.FirstOrDefault()?.Name ?? throw new NotSupportedException("Limit command text requires the original kernel command name.");
     }
 
-    public IReadOnlyList<BattleActionDefinition> GetNativePlayerActionChoices(string actorId, bool limits)
+    public IReadOnlyList<BattleActionDefinition> GetNativePlayerActionChoices(string actorId, bool limits, int? command = null)
     {
         BattleCombatant actor = GetActor(actorId);
         List<BattleNativeAction> choices = [];
@@ -78,7 +78,7 @@ public sealed partial class BattleSession
         }
         else
         {
-            foreach (BattleNativeCommandBinding binding in actor.NativeCommands.Where(binding => binding.Command is not (1 or 2 or 3 or 4 or 6 or 12)))
+            foreach (BattleNativeCommandBinding binding in actor.NativeCommands.Where(binding => binding.Command is not (1 or 2 or 3 or 4 or 6 or 12) && (command is null || binding.Command == command)))
             {
                 choices.Add(FindNativeCommandAction(actor, binding.Command, NativeBindingActionId(binding)));
             }

@@ -4,8 +4,8 @@ namespace Memoria.FF8.GameUi;
 
 public sealed partial class BattleHudController
 {
-    private readonly Dictionary<(string Actor, bool Form), BattleAbility> rememberedCommands = [];
-    private readonly Dictionary<(string Actor, bool Form, BattleAbility Command), CursorSelection> rememberedActions = [];
+    private readonly Dictionary<(string Actor, bool Form), (BattleAbility Ability, int? NativeCommand)> rememberedCommands = [];
+    private readonly Dictionary<(string Actor, bool Form, BattleAbility Command, int? NativeCommand), CursorSelection> rememberedActions = [];
     private string? cursorActorId;
     private bool cursorMemory;
 
@@ -26,7 +26,7 @@ public sealed partial class BattleHudController
         }
     }
 
-    private sealed record CursorSelection(string Actor, bool Form, BattleAbility Command, BattleAbility? ActionAbility, int? ActionId, string? Target);
+    private sealed record CursorSelection(string Actor, bool Form, BattleAbility Command, int? NativeCommand, BattleAbility? ActionAbility, int? ActionId, string? Target);
 
     private void SynchronizeCursorActor(BattleCombatant? actor)
     {
@@ -45,10 +45,9 @@ public sealed partial class BattleHudController
             return;
         }
         bool form = session.GetGuardianForm(actor.Id) is { Phase: BattleGuardianFormPhase.Active, RemainingTicks: > 0 };
-        if (rememberedCommands.TryGetValue((actor.Id, form), out BattleAbility command))
+        if (rememberedCommands.TryGetValue((actor.Id, form), out var command))
         {
-            IReadOnlyList<BattleAbility> commands = form ? [BattleAbility.Attack, BattleAbility.Magic, BattleAbility.GuardianForce] : actor.Abilities;
-            commandIndex = Math.Max(0, commands.ToList().IndexOf(command));
+            commandIndex = Math.Max(0, PlayerCommandChoices.ToList().FindIndex(choice => choice.Ability == command.Ability && choice.Command == command.NativeCommand));
         }
     }
 
@@ -58,7 +57,7 @@ public sealed partial class BattleHudController
         {
             return null;
         }
-        return rememberedActions.GetValueOrDefault((actor.Id, HasGuardianFormCommands, SelectedCommand));
+        return rememberedActions.GetValueOrDefault((actor.Id, HasGuardianFormCommands, SelectedCommand, SelectedNativeCommand));
     }
 
     private void RestoreActionCursor()
@@ -83,7 +82,7 @@ public sealed partial class BattleHudController
     {
         BattleAbility command = SelectedCommand;
         BattleActionDefinition? action = command == BattleAbility.Attack || HasGuardianFormCommands ? null : SelectedAction;
-        return new(actor.Id, HasGuardianFormCommands, command, action?.Ability, action?.Id, selectedTargetId);
+        return new(actor.Id, HasGuardianFormCommands, command, SelectedNativeCommand, action?.Ability, action?.Id, selectedTargetId);
     }
 
     private void RememberCursorSelection(CursorSelection selection)
@@ -92,7 +91,7 @@ public sealed partial class BattleHudController
         {
             return;
         }
-        rememberedCommands[(selection.Actor, selection.Form)] = selection.Command;
-        rememberedActions[(selection.Actor, selection.Form, selection.Command)] = selection;
+        rememberedCommands[(selection.Actor, selection.Form)] = (selection.Command, selection.NativeCommand);
+        rememberedActions[(selection.Actor, selection.Form, selection.Command, selection.NativeCommand)] = selection;
     }
 }

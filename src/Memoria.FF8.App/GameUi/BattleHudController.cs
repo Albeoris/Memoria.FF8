@@ -71,7 +71,7 @@ public sealed partial class BattleHudController
     public string GunbladeBindingHint { get; set; } = new KeyboardInput().BindingPrompt(ControlAction.RotateRight);
     internal string GuardianForceDisplayName(int id) => guardianForceName(id);
     public IReadOnlyList<BattleCombatant> Party => session.Combatants.Where(actor => actor.IsPlayer).ToArray();
-    public IReadOnlyList<BattleAbility> Commands => GetPlayerCommandChoices();
+    public IReadOnlyList<BattleAbility> Commands => PlayerCommandChoices.Select(command => command.Ability).ToArray();
     public bool MagicAvailable => SelectedActor is { } actor && (actor.PersistentStatus & 0x10) == 0;
     public BattleAbility SelectedCommand
     {
@@ -120,7 +120,7 @@ public sealed partial class BattleHudController
         }
         if (command is BattleAbility.NativeCommand or BattleAbility.LimitBreak)
         {
-            return session.GetNativePlayerActionChoices(actor.Id, command == BattleAbility.LimitBreak);
+            return session.GetNativePlayerActionChoices(actor.Id, command == BattleAbility.LimitBreak, SelectedNativeCommand);
         }
         return session.ActionDefinitions.Where(action => command switch
         {
@@ -137,7 +137,7 @@ public sealed partial class BattleHudController
             return actions.ElementAtOrDefault(Math.Clamp(actionIndex, 0, Math.Max(0, actions.Count - 1)));
         }
     }
-    public IReadOnlyList<string> ChoiceLabels => SelectingNativeSlots ? [SystemText("battle.ui.choicelabels.do.over", "Do over"), SystemText("battle.ui.choicelabels.cast", "Cast")] : SelectingGuardianFormAction ? [SystemText("battle.ui.choicelabels.summon", "Summon")] : HasGuardianFormCommands ? [SystemText("battle.ui.choicelabels.attack", "Attack"), SystemText("battle.ui.choicelabels.fire", "Fire"), SystemText("battle.ui.choicelabels.hell.fire", "Hell Fire")] : NativeDuelChoiceLabels ?? (SelectingAction ? ActionChoices.Select(ChoiceLabel).ToArray() : Commands.Select(CommandLabel).ToArray());
+    public IReadOnlyList<string> ChoiceLabels => SelectingNativeSlots ? [SystemText("battle.ui.choicelabels.do.over", "Do over"), SystemText("battle.ui.choicelabels.cast", "Cast")] : SelectingGuardianFormAction ? [SystemText("battle.ui.choicelabels.summon", "Summon")] : HasGuardianFormCommands ? [SystemText("battle.ui.choicelabels.attack", "Attack"), SystemText("battle.ui.choicelabels.fire", "Fire"), SystemText("battle.ui.choicelabels.hell.fire", "Hell Fire")] : NativeDuelChoiceLabels ?? (SelectingAction ? ActionChoices.Select(ChoiceLabel).ToArray() : PlayerCommandChoices.Select(CommandLabel).ToArray());
     public int ChoiceIndex => SelectingNativeSlots ? nativeSlotsChoice : SelectingGuardianFormAction ? 0 : SelectingAction ? Math.Clamp(actionIndex, 0, Math.Max(0, ActionChoices.Count - 1)) : Math.Clamp(commandIndex, 0, Math.Max(0, Commands.Count - 1));
     public int ChoiceStart => Math.Clamp(ChoiceIndex - 1, 0, Math.Max(0, ChoiceLabels.Count - 4));
     public IReadOnlyList<BattleCombatant> Targets
@@ -482,7 +482,7 @@ public sealed partial class BattleHudController
                 session.OpenNativeActionMenu();
             }
             RestoreActionCursor();
-            SetSystemMessage(() => ActionChoices.Count == 0 ? SystemText("battle.ui.attack.no.available.stock.or.junctioned.gf.for", "No available stock or junctioned GF for this command.") : SelectedCommand == BattleAbility.Magic ? FormatSystemText("battle.ui.magic.choose.sections.pages.and.recovery", "Choose magic. Left/Right at edges or Page Left/Right: sections. Page Up/Down: casts. {0}: recovery.", ButtonPromptText.Mark(NativeButtonBindingHint(0x80))) : SelectedCommand == BattleAbility.GuardianForce ? SystemText("battle.ui.attack.choose.a.guardian.force", "Choose a Guardian Force.") : FormatSystemText("battle.ui.attack.choose", "Choose {0}.", SelectedCommand));
+            SetSystemMessage(() => ActionChoices.Count == 0 ? SystemText("battle.ui.attack.no.available.stock.or.junctioned.gf.for", "No available stock or junctioned GF for this command.") : SelectedCommand == BattleAbility.Magic ? FormatSystemText("battle.ui.magic.choose.sections.pages.and.recovery", "Choose magic. Left/Right at edges or Page Left/Right: sections. Page Up/Down: casts. {0}: recovery.", ButtonPromptText.Mark(NativeButtonBindingHint(0x80))) : SelectedCommand == BattleAbility.GuardianForce ? SystemText("battle.ui.attack.choose.a.guardian.force", "Choose a Guardian Force.") : FormatSystemText("battle.ui.attack.choose", "Choose {0}.", CommandLabel(SelectedCommand)));
             if (SelectedCommand == BattleAbility.LimitBreak && actor.NativeLimit?.Command == 16)
             {
                 SetSystemMessage(() => SystemText("battle.ui.attack.do.over.to.change.magic.or.cast", "Do over to change magic, or Cast to accept."));
@@ -523,7 +523,7 @@ public sealed partial class BattleHudController
             return;
         }
         BattleSmartAttackPreview? smartPreview = SelectedCommand == BattleAbility.Attack ? ConfirmedAttackPreview() : null;
-        string name = smartPreview is not null ? FormatBattleText(smartPreview.Name) : SelectedCommand == BattleAbility.Attack ? CommandLabel(BattleAbility.Attack) : ChoiceLabel(SelectedAction!);
+        string name = smartPreview is not null ? SmartAttackDisplayName(smartPreview) : SelectedCommand == BattleAbility.Attack ? CommandLabel(BattleAbility.Attack) : ChoiceLabel(SelectedAction!);
         CursorSelection cursor = CaptureCursorSelection(actor);
         try
         {
@@ -803,7 +803,7 @@ public sealed partial class BattleHudController
             {
                 SelectingTarget = false;
                 selectedMagicTargets.Clear();
-                SetSystemMessage(() => FormatSystemText("battle.ui.canceltarget.choose", "Choose {0}.", SelectedCommand));
+                SetSystemMessage(() => FormatSystemText("battle.ui.canceltarget.choose", "Choose {0}.", CommandLabel(SelectedCommand)));
                 SoundRequested?.Invoke(MenuSound.Cancel);
                 return;
             }

@@ -75,18 +75,48 @@ public sealed partial class BattleHudController
 
     internal string CommandLabel(BattleAbility command)
     {
-        if (command == BattleAbility.LimitBreak && SelectedActor is { } actor)
+        if (command == BattleAbility.LimitBreak)
         {
-            string original = session.GetNativeLimitCommandName(actor.Id);
-            return FormatBattleText(localizedCommandName?.Invoke(command, actor, original) ?? original);
+            return LimitCommandLabel();
         }
-        string label = command == BattleAbility.GuardianForce ? "GF" : command.ToString();
-        string formatted = FormatBattleText(localizedCommandName?.Invoke(command, SelectedActor, label) ?? label);
-        if (command == BattleAbility.Draw && !DrawStockAvailable && DrawAvailable)
+        IReadOnlyList<BattleCommandPresentation> commands = PlayerCommandChoices;
+        BattleCommandPresentation? selected = commands.ElementAtOrDefault(Math.Clamp(commandIndex, 0, Math.Max(0, commands.Count - 1)));
+        return CommandLabel(selected?.Ability == command ? selected : commands.FirstOrDefault(choice => choice.Ability == command) ?? BattleCommandPresentation.Default(command));
+    }
+
+    private string CommandLabel(BattleCommandPresentation command)
+    {
+        string original = command.Ability == BattleAbility.LimitBreak && SelectedActor is { } actor ? session.GetNativeLimitCommandName(actor.Id) : command.Name;
+        string formatted = FormatBattleText(localizedCommandName?.Invoke(command.Command, original) ?? original);
+        if (command.Ability == BattleAbility.Draw && !DrawStockAvailable && DrawAvailable)
         {
             return formatted + ": " + SystemText("battle.ui.choicelabels.cast", "Cast");
         }
         return formatted;
+    }
+
+    private BattleCommandPresentation LimitCommand(BattleCombatant actor)
+    {
+        return new(BattleAbility.LimitBreak, actor.NativeLimit!.Command, actor.NativeLimit.InvocationChoices.FirstOrDefault()?.Name ?? string.Empty);
+    }
+
+    private IReadOnlyList<BattleCommandPresentation> PlayerCommandChoices => GetPlayerCommandPresentations();
+    private int? SelectedNativeCommand
+    {
+        get
+        {
+            IReadOnlyList<BattleCommandPresentation> commands = PlayerCommandChoices;
+            return commands.ElementAtOrDefault(Math.Clamp(commandIndex, 0, Math.Max(0, commands.Count - 1)))?.Command;
+        }
+    }
+
+    private string LimitCommandLabel()
+    {
+        if (SelectedActor is { } actor)
+        {
+            return CommandLabel(LimitCommand(actor));
+        }
+        return string.Empty;
     }
 
     private BattleCombatant? NativeShotActor => session.Combatants.FirstOrDefault(actor => session.GetShotUi(actor.Id) is { OwnsInput: true });
@@ -145,7 +175,7 @@ public sealed partial class BattleHudController
         SoundRequested?.Invoke(MenuSound.Confirm);
     }
 
-    private IReadOnlyList<BattleAbility> GetPlayerCommandChoices()
+    private IReadOnlyList<BattleCommandPresentation> GetPlayerCommandPresentations()
     {
         if (NativeTimedLimitActive)
         {
@@ -157,15 +187,15 @@ public sealed partial class BattleHudController
         }
         if (HasGuardianFormCommands)
         {
-            return [BattleAbility.Attack, BattleAbility.Magic, BattleAbility.GuardianForce];
+            return [BattleCommandPresentation.Default(BattleAbility.Attack), BattleCommandPresentation.Default(BattleAbility.Magic), BattleCommandPresentation.Default(BattleAbility.GuardianForce)];
         }
         if (nativeLimitCommandSelected && NativeLimitAvailable && actor.Abilities.Count > 0)
         {
-            BattleAbility[] commands = actor.Abilities.ToArray();
-            commands[0] = BattleAbility.LimitBreak;
+            BattleCommandPresentation[] commands = BattleCommandPresentation.Read(actor).ToArray();
+            commands[0] = LimitCommand(actor);
             return commands;
         }
-        return actor.Abilities;
+        return BattleCommandPresentation.Read(actor).Select(choice => choice.Ability == BattleAbility.LimitBreak ? LimitCommand(actor) : choice).ToArray();
     }
 
     private void RefreshNativeLimitSelection()
@@ -212,5 +242,5 @@ public sealed partial class BattleHudController
     }
 
     internal float LimitCommandReveal => limitCommandReveal;
-    internal string OrdinaryFirstCommandLabel => SelectedActor is { Abilities.Count: > 0 } actor ? CommandLabel(actor.Abilities[0]) : string.Empty;
+    internal string OrdinaryFirstCommandLabel => SelectedActor is { Abilities.Count: > 0 } actor ? CommandLabel(BattleCommandPresentation.Read(actor)[0]) : string.Empty;
 }

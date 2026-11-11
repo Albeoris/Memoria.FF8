@@ -1,5 +1,8 @@
 using System.Collections.Immutable;
+using Memoria.FF8.Assets.Localization;
 using Memoria.FF8.GameUi;
+using Memoria.FF8.Resources;
+using Memoria.FF8.Resources.Localization;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
 
@@ -188,9 +191,19 @@ public sealed class MagicSystemInterfaceTests
         Assert.True(hud.SelectingTarget);
         Assert.Equal(BattleAbility.Magic, hud.TargetActionPreview!.Ability);
         Assert.Equal("Blizzard", hud.TargetActionCaption);
+        using InMemoryResourceSource source = new(new("test", GameDataEdition.Classic, [], "en"));
+        ResourceService resources = new(source);
+        hud.ConfigureLocalization(new(resources));
+        resources.Prepare(null, localization: new(new Dictionary<string, LocalizationValue>
+        {
+            [LocalizationSourceExporter.IndexedKey("en", "kernel_magicspells_name", 4)] = new("Localized Blizzard", "test", "test"),
+            [LocalizationSourceExporter.IndexedKey("en", "kernel_battlecommands_name", 1)] = new("Localized Attack", "test", "test")
+        })).Commit();
+        Assert.Equal("Localized Blizzard", hud.TargetActionCaption);
         hud.SetNativeCommandButtons(0x01);
         Assert.True(hud.ForcePhysical);
         Assert.Equal(BattleAbility.Attack, hud.TargetActionPreview!.Ability);
+        Assert.Equal("Localized Attack", hud.TargetActionCaption);
         hud.SetNativeCommandButtons(0);
         BattleSmartAttackPreview preview = hud.TargetActionPreview!;
         Assert.Equal(BattleAbility.Magic, preview.Ability);
@@ -203,6 +216,7 @@ public sealed class MagicSystemInterfaceTests
         Assert.Equal("enemy", input.TargetId);
         Assert.False(input.ForcePhysical);
         Assert.Equal(preview, input.SmartAttackPreview);
+        Assert.Contains("Localized Blizzard", hud.Message);
     }
 
     [Fact]

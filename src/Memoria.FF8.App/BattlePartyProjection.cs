@@ -125,15 +125,7 @@ internal static class BattlePartyProjection
 
     private static BattleAbility[] ReadCommandAbilities(ImmutableArray<BattleNativeCommandBinding> commands)
     {
-        return commands.Select(binding => binding.Command switch
-        {
-            1 or 12 => BattleAbility.Attack,
-            2 => BattleAbility.Magic,
-            3 => BattleAbility.GuardianForce,
-            4 => BattleAbility.Item,
-            6 => BattleAbility.Draw,
-            _ => BattleAbility.NativeCommand
-        }).Distinct().ToArray();
+        return commands.Select(binding => BattleCommandPresentation.AbilityFor(binding.Command)).Distinct().ToArray();
     }
 
     public static BattleCombatantDefinition[] CreateNewGame(GameAssets assets, LiveMenuCatalog catalog, BattleAssets resources)

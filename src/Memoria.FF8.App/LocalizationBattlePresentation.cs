@@ -38,9 +38,8 @@ internal sealed class LocalizationBattlePresentation(ResourceService resources)
         };
     }
 
-    public string CommandName(BattleAbility ability, BattleCombatant? actor, string original)
+    public string CommandName(int command, string original)
     {
-        int command = ability switch { BattleAbility.Attack => 1, BattleAbility.Magic => 2, BattleAbility.GuardianForce => 3, BattleAbility.Item => 4, BattleAbility.Draw => 6, BattleAbility.LimitBreak => actor?.NativeLimit?.Command ?? -1, _ => -1 };
         return command >= 0 ? Kernel("BattleCommands", "Name", command, original) : original;
     }
 
