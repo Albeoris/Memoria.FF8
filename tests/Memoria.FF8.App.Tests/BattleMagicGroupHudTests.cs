@@ -17,25 +17,25 @@ public sealed class BattleMagicGroupHudTests
         hud.BuildView();
         hud.Choose(0);
         hud.Choose(0);
+        Assert.Equal(2, hud.MagicCastCount);
         hud.SelectTarget("caster", true);
         Assert.True(hud.SelectingTarget);
         Assert.Empty(session.QueuedActions);
         hud.SelectTarget("ally", true);
-        Assert.True(hud.SelectingTarget);
-        Assert.Empty(session.QueuedActions);
-        hud.SelectTarget("ally", true);
+        Assert.False(hud.SelectingTarget);
         BattleAttackCommand queued = Assert.Single(session.QueuedActions);
         Assert.Equal(spell, queued.ActionId);
-        Assert.Equal(new ushort[] { 1, 2, 2 }, queued.NativeMagicTargets.ToArray());
+        Assert.Equal(new ushort[] { 1, 2 }, queued.NativeMagicTargets.ToArray());
+        Assert.Equal(3, queued.NativeMagicCastMode);
         Assert.Equal(2, Assert.Single(session.Combatants[0].MagicStocks).Count);
     }
 
     [Theory]
     [InlineData(0x20000u, 2)]
     [InlineData(0x40000u, 3)]
-    [InlineData(0x40000u, 3, 2)]
-    [InlineData(0x40000u, 3, 1)]
-    [InlineData(0x20000u, 2, 1)]
+    [InlineData(0x40000u, 2, 2)]
+    [InlineData(0x40000u, 1, 1)]
+    [InlineData(0x20000u, 1, 1)]
     public void RepeatedMagicDefaultsToAvailableStatusAndAllowsEachTarget(uint status, int count, int stock = 3)
     {
         BattleSession session = CreateSession(status, stock);
@@ -44,7 +44,10 @@ public sealed class BattleMagicGroupHudTests
         hud.Choose(0);
         hud.Choose(0);
         Assert.Equal(count, hud.MagicCastCount);
-        Assert.Contains($"×{count}", hud.TargetActionCaption);
+        if (count > 1)
+        {
+            Assert.Contains($"×{count}", hud.TargetActionCaption);
+        }
         for (int index = 0; index < count; index++)
         {
             Assert.True(hud.SelectingTarget);
@@ -52,7 +55,7 @@ public sealed class BattleMagicGroupHudTests
             hud.SelectTarget(index % 2 == 0 ? "enemy-a" : "enemy-b", true);
         }
         BattleAttackCommand queued = Assert.Single(session.QueuedActions);
-        Assert.Equal(Enumerable.Range(0, count).Select(index => (ushort)(index % 2 == 0 ? 8 : 16)), queued.NativeMagicTargets);
+        Assert.Equal(count == 1 ? [] : Enumerable.Range(0, count).Select(index => (ushort)(index % 2 == 0 ? 8 : 16)), queued.NativeMagicTargets);
         Assert.False(hud.SelectingTarget);
     }
 

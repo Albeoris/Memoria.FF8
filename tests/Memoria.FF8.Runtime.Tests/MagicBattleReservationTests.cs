@@ -14,7 +14,7 @@ public sealed class MagicBattleReservationTests
     {
         BattleSession battle = Create(infinite: infinite, stock: stock, transient: 0x40000, enemyHp: 60000);
         Assert.Contains(3, battle.GetNativeMagicCastCounts("caster", 1));
-        battle.QueueAction("caster", "enemy", BattleAbility.Magic, 1, magicTargets: ["enemy", "enemy", "enemy"]);
+        battle.QueueAction("caster", "enemy", BattleAbility.Magic, 1, magicTargets: available == 2 ? ["enemy", "enemy"] : ["enemy", "enemy", "enemy"]);
         BattleSnapshot saved = battle.Capture();
         Assert.Equal(available, Assert.Single(saved.MagicVitals!.MagicSystem.Reservations).Count);
         BattleSession restored = BattleSession.Restore(System.Text.Json.JsonSerializer.Deserialize<BattleSnapshot>(System.Text.Json.JsonSerializer.Serialize(saved))!);

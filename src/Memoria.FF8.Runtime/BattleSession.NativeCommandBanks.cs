@@ -201,7 +201,7 @@ public sealed partial class BattleSession
                 }
                 ValidateGuardianFormCommand(command);
                 ValidateSavedAction(command.ActorId, command.TargetId, busy, command.Ability, command.ActionId, true, command.NativeAction, command.NativeTargetMask, command.NativeGraphic, command.NativeRenzokuken, command.NativePlayerReaction, allowNativeQueuedState: true, duel: command.NativeDuel, slots: command.NativeSlots, nativeQueuedCommand: command.NativeQueuedCommand);
-                ValidateNativeMagicTargets(command.Ability, command.ActionId, command.NativeMagicTargets);
+                ValidateNativeMagicTargets(command.Ability, command.ActionId, command.NativeMagicTargets, command.NativeMagicCastMode);
                 ValidateNativeDrawPacket(command.Ability, command.ActionId, command.DrawCast, command.DrawCastTargetId, command.NativeDraw, false, command.NativeAction, command.NativeTargetMask);
                 ValidateNativeActionInventory(GetActor(command.ActorId), command.Ability, command.NativeAction, command.ReservedNativeItemSlot, command.FreeNativeMagic);
             }

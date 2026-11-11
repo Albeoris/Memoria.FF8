@@ -7,6 +7,47 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class NativeMagicGroupTests
 {
     [Theory]
+    [InlineData(0u)]
+    [InlineData(0x20u)]
+    public void PlayerSelectsOnlyTwoAffordableTripleTargetsAndPreservesTripleCost(uint passive)
+    {
+        BattleSession battle = Create(0x40000, passive, 2);
+        Assert.Equal(new[] { 1, 2 }, battle.GetPlayerMagicCastCounts("caster", 1));
+        battle.QueueAction("caster", "enemy", BattleAbility.Magic, 1, magicTargets: ["enemy", "enemy"]);
+        Assert.Equal(3, Assert.Single(battle.QueuedActions).NativeMagicCastMode);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        battle.Tick();
+        BattleSession active = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        Complete(battle);
+        Complete(restored);
+        Complete(active);
+        Assert.Equal(2, battle.Events.Count(item => item.Kind == "Damage" && item.TargetId == "enemy"));
+        Assert.Empty(battle.Combatants[0].MagicStocks);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(active.Capture()));
+    }
+
+    [Fact]
+    public void TripleSingleKeepsThreeSelectableTargetsWithOneAvailableStock()
+    {
+        BattleSession battle = Create(0x40000, 0x40, 1);
+        Assert.Equal(new[] { 1, 3 }, battle.GetPlayerMagicCastCounts("caster", 1));
+    }
+
+    [Fact]
+    public void HistoricalRepeatedMagicWithoutCastModeStillLoadsAndCompletes()
+    {
+        BattleSession battle = Create(0x40000, 0, 2);
+        battle.QueueAction("caster", "enemy", BattleAbility.Magic, 1, magicTargets: ["enemy", "enemy", "enemy"]);
+        string historical = JsonSerializer.Serialize(battle.Capture()).Replace("\"NativeMagicCastMode\":0,", "", StringComparison.Ordinal);
+        Assert.DoesNotContain("NativeMagicCastMode", historical);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(historical)!);
+        Complete(battle);
+        Complete(restored);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+    }
+
+    [Theory]
     [InlineData(0x40000u, 2, 3, 0u)]
     [InlineData(0x40000u, 1, 3, 0u)]
     [InlineData(0x40000u, 2, 3, 0x20u)]

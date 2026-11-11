@@ -62,13 +62,20 @@ public sealed partial class BattleSession
         return counts;
     }
 
+    public IReadOnlyList<int> GetPlayerMagicCastCounts(string actorId, int spellId)
+    {
+        BattleCombatant actor = GetActor(actorId);
+        int available = GetAvailableMagicCasts(actorId, spellId);
+        return GetNativeMagicCastCounts(actorId, spellId).Select(mode => MagicCost(actor, mode) == 1 ? mode : Math.Min(mode, available)).Distinct().Order().ToArray();
+    }
+
     private ImmutableArray<ushort> PrepareNativeMagicTargets(BattleCombatant actor, BattleActionDefinition action, string firstTarget, IReadOnlyList<string>? targets)
     {
         if (targets is null)
         {
             return [];
         }
-        if (action.Ability != BattleAbility.Magic || action.NativeAction is not { Command: 2, TargetFlags: byte flags } || targets.Count is < 1 or > 3 || targets[0] != firstTarget || !GetNativeMagicCastCounts(actor.Id, action.Id).Contains(targets.Count))
+        if (action.Ability != BattleAbility.Magic || action.NativeAction is not { Command: 2, TargetFlags: byte flags } || targets.Count is < 1 or > 3 || targets[0] != firstTarget || !GetNativeMagicCastCounts(actor.Id, action.Id).Contains(targets.Count) && !(actor.IsPlayer && GetPlayerMagicCastCounts(actor.Id, action.Id).Contains(targets.Count)))
         {
             throw new InvalidOperationException("Magic target groups require the current native Double/Triple status, sufficient stock and one installed spell.");
         }
@@ -89,13 +96,15 @@ public sealed partial class BattleSession
     {
         BattleActionDefinition action = FindAction(BattleAbility.Magic, command.ActionId);
         uint statuses = EncounterMulticastStatusBits(actor);
-        int count = command.NativeMagicTargets.Length >= 3 && (statuses & 0x40000) != 0 ? 3 : command.NativeMagicTargets.Length >= 2 && (statuses & 0x20000) != 0 ? 2 : 1;
+        int mode = command.NativeMagicCastMode == 0 ? command.NativeMagicTargets.Length : command.NativeMagicCastMode;
+        int count = mode >= 3 && (statuses & 0x40000) != 0 ? command.NativeMagicTargets.Length : command.NativeMagicTargets.Length >= 2 && (statuses & 0x20000) != 0 ? 2 : 1;
         if (!actor.IsPlayer && HasEncounterPolicy(actor))
         {
             count = Math.Min(command.NativeMagicTargets.Length, (statuses & 0x40000) != 0 ? 3 : (statuses & 0x20000) != 0 ? 2 : 1);
         }
         uint flags = count > 1 && actor.IsPlayer ? actor.NativePlayerStatRules?.NativeStatusPassiveFlags ?? throw new NotSupportedException("Native repeated magic requires its equipped passive flags.") : 0;
-        bool singleCost = (magicVitals?.MagicSystem.InfiniteMagic != true || magicVitals?.MagicSystem.UnlimitedMagic == true) && (count == 2 && (flags & 0x20) != 0 || count == 3 && (flags & 0x40) != 0);
+        int costMode = command.NativeMagicCastMode != 0 && (statuses & 0x40000) != 0 ? command.NativeMagicCastMode : count;
+        bool singleCost = (magicVitals?.MagicSystem.InfiniteMagic != true || magicVitals?.MagicSystem.UnlimitedMagic == true) && (count > 1 && costMode == 2 && (flags & 0x20) != 0 || count > 1 && costMode == 3 && (flags & 0x40) != 0);
         int completed = 0;
         for (int index = 0; index < count; index++)
         {
@@ -114,7 +123,7 @@ public sealed partial class BattleSession
             {
                 break;
             }
-            BattleActionPresentation cast = command with { TargetId = target.Id, NativeTargetMask = mask, NativeMagicTargets = [], NativeAction = action.NativeAction };
+            BattleActionPresentation cast = command with { TargetId = target.Id, NativeTargetMask = mask, NativeMagicTargets = [], NativeMagicCastMode = 0, NativeAction = action.NativeAction };
             nativeAffinityAction = null;
             //485610 submits one104 for the group; the effect consumes the following headers itself.
             if (!ResolveInstalledNativeAction(actor, target, cast, action, queueGraphics: index == 0))
@@ -143,8 +152,12 @@ public sealed partial class BattleSession
         }
     }
 
-    private void ValidateNativeMagicTargets(BattleAbility ability, int actionId, ImmutableArray<ushort> targets)
+    private void ValidateNativeMagicTargets(BattleAbility ability, int actionId, ImmutableArray<ushort> targets, int mode = 0)
     {
+        if (mode != 0 && (mode != 3 || targets.Length != 2 || ability != BattleAbility.Magic))
+        {
+            throw new InvalidDataException("An abbreviated Triple command requires exactly two selected magic targets.");
+        }
         if (targets.IsDefault || targets.Length > 3 || targets.Length != 0 && ability != BattleAbility.Magic || targets.Any(mask => (mask & 0x1FFF) == 0 || (mask & 0x1F80) != 0))
         {
             throw new InvalidDataException("Native magic groups require one to three original physical target masks.");

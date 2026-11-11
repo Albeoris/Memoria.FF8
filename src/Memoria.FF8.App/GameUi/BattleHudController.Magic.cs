@@ -45,7 +45,7 @@ public sealed partial class BattleHudController
         }
         try
         {
-            IReadOnlyList<int> choices = session.GetNativeMagicCastCounts(actor.Id, action.Id);
+            IReadOnlyList<int> choices = session.GetPlayerMagicCastCounts(actor.Id, action.Id);
             if (choices.Count != 0)
             {
                 int index = choices.ToList().IndexOf(magicCastCount);
@@ -68,7 +68,7 @@ public sealed partial class BattleHudController
         selectedMagicTargets.Clear();
         if (SelectedCommand == BattleAbility.Magic && SelectedAction is { } action)
         {
-            IReadOnlyList<int> choices = session.GetNativeMagicCastCounts(actor.Id, action.Id);
+            IReadOnlyList<int> choices = session.GetPlayerMagicCastCounts(actor.Id, action.Id);
             if (!magicCastCountSelected || !choices.Contains(magicCastCount))
             {
                 magicCastCount = choices.Count == 0 ? 1 : choices[^1];

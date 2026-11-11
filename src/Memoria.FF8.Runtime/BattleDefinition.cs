@@ -253,6 +253,7 @@ public sealed record BattleAttackCommand(string ActorId, string TargetId, Battle
     public BattleNativeDuelInvocation? NativeDuel { get; init; }
     public BattleNativeSlotsRoll? NativeSlots { get; init; }
     public ImmutableArray<ushort> NativeMagicTargets { get; init; } = [];
+    public int NativeMagicCastMode { get; init; }
     public BattleNativeDrawContext? NativeDraw { get; init; }
     public string? DrawCastTargetId { get; init; }
     public BattleNativePlayerReaction? NativePlayerReaction { get; init; }
@@ -282,6 +283,7 @@ public sealed record BattleActionPresentation(string ActorId, string TargetId, B
     public BattleNativeDuelInvocation? NativeDuel { get; init; }
     public BattleNativeSlotsRoll? NativeSlots { get; init; }
     public ImmutableArray<ushort> NativeMagicTargets { get; init; } = [];
+    public int NativeMagicCastMode { get; init; }
     public BattleNativeDrawContext? NativeDraw { get; init; }
     public string? DrawCastTargetId { get; init; }
     public BattleNativePlayerReaction? NativePlayerReaction { get; init; }

@@ -70,6 +70,12 @@ public sealed partial class BattleSession
         return (magicVitals?.MagicSystem.InfiniteMagic != true || magicVitals?.MagicSystem.UnlimitedMagic == true) && (casts == 2 && (flags & 0x20) != 0 || casts == 3 && (flags & 0x40) != 0) ? 1 : casts;
     }
 
+    private int MagicCost(BattleCombatant actor, BattleAttackCommand command)
+    {
+        int targets = Math.Max(1, command.NativeMagicTargets.Length);
+        return command.NativeMagicCastMode == 0 ? MagicCost(actor, targets) : Math.Min(targets, MagicCost(actor, command.NativeMagicCastMode));
+    }
+
     private BattleAttackCommand EnsureMagicReservation(BattleCombatant actor, BattleAttackCommand command)
     {
         if (magicVitals is null || actor.MagicRecordId is not int row || !actor.IsPlayer || command.FreeNativeMagic || command.Ability == BattleAbility.Draw || command.MagicReservationId is not null || command.NativeHeaderIndex is not null || command.Ability != BattleAbility.Magic && command.NativeAction?.Command != 2)
@@ -82,7 +88,7 @@ public sealed partial class BattleSession
             throw new InvalidOperationException("Inventory magic requires a supported stock identity.");
         }
         string identity = Guid.NewGuid().ToString("N");
-        int count = Math.Min(MagicCost(actor, Math.Max(1, command.NativeMagicTargets.Length)), GetAvailableMagicCasts(actor.Id, spell));
+        int count = Math.Min(MagicCost(actor, command), GetAvailableMagicCasts(actor.Id, spell));
         magicVitals = MagicCastingService.Reserve(magicVitals, row, spell, MagicCastContext.Battle, identity, count);
         return command with { MagicReservationId = identity };
     }
@@ -156,7 +162,7 @@ public sealed partial class BattleSession
         foreach (BattleAttackCommand command in actions.Concat(nativeCommandBanks.BoundCommands).Where(command => command.NativeHeaderIndex is null && command.MagicReservationId is not null))
         {
             MagicCastReservation? reservation = magicVitals.MagicSystem.Reservations.FirstOrDefault(candidate => candidate.ActionId == command.MagicReservationId);
-            int cost = Math.Min(MagicCost(GetActor(command.ActorId), Math.Max(1, command.NativeMagicTargets.Length)), GetAvailableMagicCasts(command.ActorId, command.ActionId, command.MagicReservationId));
+            int cost = Math.Min(MagicCost(GetActor(command.ActorId), command), GetAvailableMagicCasts(command.ActorId, command.ActionId, command.MagicReservationId));
             if (reservation is null || reservation.Count != cost)
             {
                 throw new InvalidDataException("A saved repeated spell requires its complete quoted cast reservation.");
@@ -190,7 +196,8 @@ public sealed partial class BattleSession
             return false;
         }
         uint statuses = NativeBattleStatusBits(actor);
-        int casts = command.NativeMagicTargets.Length >= 3 && (statuses & 0x40000) != 0 ? 3 : command.NativeMagicTargets.Length >= 2 && (statuses & 0x20000) != 0 ? 2 : 1;
+        int mode = command.NativeMagicCastMode == 0 ? command.NativeMagicTargets.Length : command.NativeMagicCastMode;
+        int casts = mode >= 3 && (statuses & 0x40000) != 0 ? 3 : command.NativeMagicTargets.Length >= 2 && (statuses & 0x20000) != 0 ? 2 : 1;
         MagicCastQuote quote = MagicCastingService.Quote(magicVitals, row, reservation.SpellId, MagicCastContext.Battle, reservation.ActionId);
         return quote.Available >= Math.Min(MagicCost(actor, casts), reservation.Count) && (command.Ability != BattleAbility.Magic || (NativeSavedStatusBits(actor) & 0x10) == 0 && (actor.Abilities.Contains(BattleAbility.Magic) || HasRetainedReservedCommand(actor, command.Ability, command.NativeQueuedCommand)));
     }
