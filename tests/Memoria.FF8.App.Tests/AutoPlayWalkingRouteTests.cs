@@ -1,11 +1,39 @@
 using System.Numerics;
+using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
 public sealed class AutoPlayWalkingRouteTests
 {
+    [Fact]
+    public void SearchScopedProbeMatchesLiveNativeProposalsWithoutPublishingMovement()
+    {
+        string snapshot = TestResources.FixturePath("App.Tests.AutoPlayWalkingRouteTests.1");
+        GameSession session = new(GameSession.Load(snapshot));
+        using GameWorld world = new(session, TestResources.GameDirectory, validateWorldPresentation: false) { AutoPlayFastMovement = true };
+        world.EnsureField();
+        EventEngine events = world.Events;
+        FieldFixedPosition start = Assert.IsType<FieldFixedPosition>(events.Scene.NativePlayerPosition);
+        int triangle = events.PlayerActor!.WalkmeshTriangle;
+        JsonElement before = events.Capture();
+        var search = events.CreateAutoPlayRouteProbe();
+        foreach (float distance in new[] { 4f, 80f })
+        {
+            for (int heading = 0; heading < 8; heading++)
+            {
+                float angle = heading * MathF.PI / 4;
+                Vector2 delta = distance * new Vector2(MathF.Sin(angle), -MathF.Cos(angle));
+                NativePlayerMovementResult live = events.ProbeAutoPlayMovement(start, triangle, delta);
+                NativePlayerMovementResult cached = search(start, triangle, delta);
+                Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(live), JsonSerializer.SerializeToElement(cached)), $"Native proposal changed at heading {heading}, distance {distance}.");
+            }
+        }
+        Assert.True(JsonElement.DeepEquals(before, events.Capture()));
+    }
+
     [Fact]
     public void NativeActorEnvelopeBlocksTheEntireNarrowCorridor()
     {

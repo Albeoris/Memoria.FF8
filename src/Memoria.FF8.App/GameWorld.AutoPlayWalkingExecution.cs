@@ -58,11 +58,11 @@ internal sealed partial class GameWorld
         int field = Events.FieldId;
         HashSet<int> pending = Events.Actors.Where(actor => Events.HasPendingAutoPlayInteraction(actor.ObjectId)).Select(actor => actor.ObjectId).ToHashSet();
         Vector2 destination = new(target.ApproachX ?? target.X, target.ApproachY ?? target.Y);
+        WalkmeshPosition waypoint = new(new Vector3(destination, target.ApproachZ ?? target.Z), target.ApproachTriangle ?? target.Triangle);
         int approachObjectId = target.ObjectId;
         AutoPlayTarget? contactTarget = target.Kind == AutoPlayTargetKind.Talk ? null : target;
-        NativePlayerMovementResult Probe(FieldFixedPosition position, int triangle, Vector2 delta)
+        NativePlayerMovementResult AvoidLines(FieldFixedPosition position, NativePlayerMovementResult result)
         {
-            NativePlayerMovementResult result = Events.ProbeAutoPlayMovement(position, triangle, delta);
             if (result.Accepted && avoidedLines is { Count: > 0 })
             {
                 FieldFixedPosition proposed = new(result.FixedX, result.FixedY, result.FixedZ);
@@ -73,29 +73,54 @@ internal sealed partial class GameWorld
             }
             return result;
         }
+        NativePlayerMovementResult ProbeLiveStep(FieldFixedPosition position, int triangle, Vector2 delta)
+        {
+            return AvoidLines(position, Events.ProbeAutoPlayMovement(position, triangle, delta));
+        }
+        int plannedTriangle = -1;
         for (int frame = 0; frame < 20_000; frame++)
         {
             if (Events.FieldId != field || NextTrigger.Kind != PlayerTriggerKind.Playable || !Events.CanAcceptMovementInput)
             {
                 return new(false, true);
             }
-            if (TryFindAutoPlayWalkingRoute(target, out AutoPlayWalkingRoute route, idleDeadline, Probe))
+            var nativeProbe = Events.CreateAutoPlayRouteProbe();
+            NativePlayerMovementResult ProbeRoute(FieldFixedPosition position, int triangle, Vector2 delta)
             {
-                return WalkAutoPlayRoute(route, onProgress, approachObjectId, approachTarget: contactTarget, stepProbe: avoidedLines is { Count: > 0 } ? Probe : null);
+                return AvoidLines(position, nativeProbe(position, triangle, delta));
+            }
+            int currentTriangle = Events.PlayerActor!.WalkmeshTriangle;
+            bool searchRoute = plannedTriangle != currentTriangle;
+            plannedTriangle = currentTriangle;
+            AutoPlayWalkResult WalkRoute(AutoPlayWalkingRoute route)
+            {
+                return WalkAutoPlayRoute(route, onProgress, approachObjectId, approachTarget: contactTarget, stepProbe: avoidedLines is { Count: > 0 } ? ProbeLiveStep : null);
+            }
+            if (searchRoute && TryFindAutoPlayWalkingRoute(target, out AutoPlayWalkingRoute route, idleDeadline, ProbeRoute))
+            {
+                return WalkRoute(route);
             }
             // A frozen peer layout cannot prove that future party-following steps
-            // are unavailable. Publish only a certified local advance, then plan
-            // again against the peers actually moved by the native callback.
+            // are unavailable. Reprobe each local step against live peers. Rebuild
+            // the full route on triangle changes or when local progress stops.
             FieldFixedPosition position = Events.Scene.NativePlayerPosition ?? throw new NotSupportedException("Autoplay approach requires a retained native player position.");
+            if (!searchRoute && Field is { } fieldAssets && AutoPlayWalkingWaypointReached(fieldAssets.Walkmesh, position, currentTriangle, waypoint, Math.Max(0.125f, Events.AutoPlayMovementStepDistance * 0.75f)))
+            {
+                return new(true, false);
+            }
             Vector2 location = new(position.X / 4096f, position.Y / 4096f);
             float distance = Vector2.DistanceSquared(location, destination);
             Vector2? advance;
             using (idleDeadline?.Suspend())
             {
-                advance = FindAutoPlayWalkingAdvance(position, Events.PlayerActor!.WalkmeshTriangle, destination, Probe);
+                advance = FindAutoPlayWalkingAdvance(position, currentTriangle, destination, ProbeRoute);
             }
             if (advance is null)
             {
+                if (!searchRoute && TryFindAutoPlayWalkingRoute(target, out AutoPlayWalkingRoute refreshed, idleDeadline, ProbeRoute))
+                {
+                    return WalkRoute(refreshed);
+                }
                 return new(false, false);
             }
             AutoPlayWalkResult step = StepAutoPlayWalking(advance.Value, field, pending, approachObjectId, contactTarget, out bool moved);

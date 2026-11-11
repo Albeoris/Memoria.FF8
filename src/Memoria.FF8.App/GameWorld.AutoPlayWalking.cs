@@ -19,7 +19,7 @@ internal sealed partial class GameWorld
         Vector3 destination = new(target.ApproachX ?? target.X, target.ApproachY ?? target.Y, target.ApproachZ ?? target.Z);
         int triangle = target.ApproachTriangle ?? target.Triangle;
         using IDisposable? suspended = idleDeadline?.Suspend();
-        return TryFindAutoPlayWalkingRoute(Field.Walkmesh, Events.Scene.LockedTriangles, start, player.WalkmeshTriangle, new WalkmeshPosition(destination, triangle), Events.AutoPlayMovementStepDistance, probe ?? Events.ProbeAutoPlayMovement, out route);
+        return TryFindAutoPlayWalkingRoute(Field.Walkmesh, Events.Scene.LockedTriangles, start, player.WalkmeshTriangle, new WalkmeshPosition(destination, triangle), Events.AutoPlayMovementStepDistance, probe ?? Events.CreateAutoPlayRouteProbe(), out route);
     }
 
     internal static bool TryFindAutoPlayWalkingRoute(FieldWalkmesh mesh, IReadOnlySet<int> locked, FieldFixedPosition start, int startTriangle, WalkmeshPosition destination, float stepDistance, Func<FieldFixedPosition, int, Vector2, NativePlayerMovementResult> probe, out AutoPlayWalkingRoute route, int maximumProbes = 1_000_000)

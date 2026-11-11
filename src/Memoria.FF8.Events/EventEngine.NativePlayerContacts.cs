@@ -44,37 +44,11 @@ public sealed partial class EventEngine
         foreach (int objectId in Scene.NativeActorObjectIds)
         {
             ActorState peer = actors[objectId];
-            if (peer.ObjectId == player.ObjectId || peer.ObjectId == ignoredContact || peer.ModelId is -1 or 65535 || !peer.CollisionEnabled && !peer.PushEnabled)
+            if (!CanContactNativePlayerPeer(player, peer, ignoredContact))
             {
                 continue;
             }
-            if (peer.PushRadius is < 0 or > ushort.MaxValue)
-            {
-                throw new NotSupportedException("Native player contact peer radius exceeds its unsigned word; original state preserved.");
-            }
-            int radius = (player.PushRadius + peer.PushRadius) / 2;
-            FieldFixedPosition? raw = ReadNativePlayerContactPosition(peer);
-            if (raw is null)
-            {
-                if (!CertifyDistantNativePlayerPeer(peer, probe, radius))
-                {
-                    throw new NotSupportedException($"Native player fan may contact retained actor{peer.ObjectId} without preserved raw placement; original state preserved.");
-                }
-                continue;
-            }
-            int heightDifference = (raw.Z >> 12) - probe.NativeHeight;
-            if (heightDifference is <= -127 or >= 128)
-            {
-                continue;
-            }
-            long dx = ((long)raw.X - probe.FixedX) >> 12;
-            long dy = ((long)raw.Y - probe.FixedY) >> 12;
-            long squared = dx * dx + dy * dy;
-            if (squared > int.MaxValue)
-            {
-                throw new NotSupportedException("Native player peer distance needs an unproved wrapped comparison; original state preserved.");
-            }
-            if (squared >= unchecked(radius * radius))
+            if (!NativePlayerPeerTouchesGround(ReadNativePlayerContactPeer(player, peer), probe))
             {
                 continue;
             }
@@ -87,6 +61,62 @@ public sealed partial class EventEngine
             }
         }
         return (collision, contacts.ToArray());
+    }
+
+    private readonly record struct NativePlayerContactPeer(int ObjectId, float X, float Y, FieldFixedPosition? Position, int Radius, bool CollisionEnabled);
+
+    private static bool CanContactNativePlayerPeer(ActorState player, ActorState peer, int ignoredContact = -1)
+    {
+        return peer.ObjectId != player.ObjectId && peer.ObjectId != ignoredContact && peer.ModelId is not (-1 or 65535) && (peer.CollisionEnabled || peer.PushEnabled);
+    }
+
+    private NativePlayerContactPeer ReadNativePlayerContactPeer(ActorState player, ActorState peer)
+    {
+        if (peer.PushRadius is < 0 or > ushort.MaxValue)
+        {
+            throw new NotSupportedException("Native player contact peer radius exceeds its unsigned word; original state preserved.");
+        }
+        return new(peer.ObjectId, peer.X, peer.Y, ReadNativePlayerContactPosition(peer), (player.PushRadius + peer.PushRadius) / 2, peer.CollisionEnabled);
+    }
+
+    private Func<NativePlayerGroundProbe, bool> CaptureNativePlayerGroundCollision(ActorState player)
+    {
+        NativePlayerContactPeer[] peers = player.ModelId is -1 or 65535 ? [] : Scene.NativeActorObjectIds.Select(id => actors[id]).Where(peer => CanContactNativePlayerPeer(player, peer)).Select(peer => ReadNativePlayerContactPeer(player, peer)).ToArray();
+        return probe =>
+        {
+            bool collision = false;
+            foreach (NativePlayerContactPeer peer in peers)
+            {
+                // Every peer still participates in native geometry validation, including push-only peers.
+                collision |= NativePlayerPeerTouchesGround(peer, probe) && peer.CollisionEnabled;
+            }
+            return collision;
+        };
+    }
+
+    private static bool NativePlayerPeerTouchesGround(NativePlayerContactPeer peer, NativePlayerGroundProbe probe)
+    {
+        if (peer.Position is not { } raw)
+        {
+            if (!CertifyDistantNativePlayerPeer(peer, probe))
+            {
+                throw new NotSupportedException($"Native player fan may contact retained actor{peer.ObjectId} without preserved raw placement; original state preserved.");
+            }
+            return false;
+        }
+        int heightDifference = (raw.Z >> 12) - probe.NativeHeight;
+        if (heightDifference is <= -127 or >= 128)
+        {
+            return false;
+        }
+        long dx = ((long)raw.X - probe.FixedX) >> 12;
+        long dy = ((long)raw.Y - probe.FixedY) >> 12;
+        long squared = dx * dx + dy * dy;
+        if (squared > int.MaxValue)
+        {
+            throw new NotSupportedException("Native player peer distance needs an unproved wrapped comparison; original state preserved.");
+        }
+        return squared < unchecked(peer.Radius * peer.Radius);
     }
 
     private FieldFixedPosition? ReadNativePlayerContactPosition(ActorState actor)
@@ -105,7 +135,7 @@ public sealed partial class EventEngine
         return ReadNativeScriptPosition(actor);
     }
 
-    private static bool CertifyDistantNativePlayerPeer(ActorState peer, NativePlayerGroundProbe probe, int radius)
+    private static bool CertifyDistantNativePlayerPeer(NativePlayerContactPeer peer, NativePlayerGroundProbe probe)
     {
         if (!float.IsFinite(peer.X) || !float.IsFinite(peer.Y) || peer.X is < short.MinValue or > short.MaxValue || peer.Y is < short.MinValue or > short.MaxValue)
         {
@@ -121,7 +151,7 @@ public sealed partial class EventEngine
         }
         long closestX = minX <= 0 && maxX >= 0 ? 0 : Math.Min(Math.Abs(minX), Math.Abs(maxX));
         long closestY = minY <= 0 && maxY >= 0 ? 0 : Math.Min(Math.Abs(minY), Math.Abs(maxY));
-        return closestX * closestX + closestY * closestY >= unchecked(radius * radius);
+        return closestX * closestX + closestY * closestY >= unchecked(peer.Radius * peer.Radius);
     }
 
     private static (long Min, long Max) NativePlayerPeerDifferenceInterval(float coordinate, int probe)
