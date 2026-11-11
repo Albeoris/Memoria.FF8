@@ -2,13 +2,56 @@ namespace Memoria.FF8;
 
 internal sealed partial class AutoPlayController
 {
+    private readonly HashSet<int> statefulNavigationFields = [];
+    private AutoPlayPlannerState? navigationStateEvidence;
+    private int navigationStateRouteCount = -1;
+    private int navigationStateRetirementCount = -1;
+
+    internal static IReadOnlySet<int> FindStatefulNavigationFields(AutoPlayPlannerState coverage, IReadOnlyDictionary<string, AutoPlayNavigationReceipt> receipts)
+    {
+        HashSet<int> fields = receipts.Values.Where(receipt => receipt.StateFingerprint is not null).Select(receipt => receipt.FieldId).ToHashSet();
+        Dictionary<(string Source, string Event), string?> predicates = [];
+        foreach (AutoPlayNavigationRoute edge in coverage.NavigationRoutes)
+        {
+            if (!receipts.TryGetValue(edge.SourceKey, out AutoPlayNavigationReceipt? receipt))
+            {
+                continue;
+            }
+            int state = edge.SourceKey.IndexOf(":state:", StringComparison.Ordinal);
+            string physicalSource = state < 0 ? edge.SourceKey : edge.SourceKey[..state];
+            var key = (physicalSource, edge.EventId);
+            if (predicates.TryGetValue(key, out string? previous) && previous != edge.Route.ConditionSignature)
+            {
+                fields.Add(receipt.FieldId);
+            }
+            predicates.TryAdd(key, edge.Route.ConditionSignature);
+        }
+        return fields;
+    }
+
+    private bool UsesStatefulNavigation(int field)
+    {
+        if (!ReferenceEquals(navigationStateEvidence, run.Coverage) || navigationStateRouteCount != run.Coverage.NavigationRoutes.Count || navigationStateRetirementCount != run.Coverage.NavigationRetirements.Count)
+        {
+            if (!ReferenceEquals(navigationStateEvidence, run.Coverage))
+            {
+                statefulNavigationFields.Clear();
+            }
+            navigationStateEvidence = run.Coverage;
+            navigationStateRouteCount = run.Coverage.NavigationRoutes.Count;
+            navigationStateRetirementCount = run.Coverage.NavigationRetirements.Count;
+            statefulNavigationFields.UnionWith(FindStatefulNavigationFields(run.Coverage, run.NavigationReceipts));
+        }
+        return statefulNavigationFields.Contains(field);
+    }
+
     private string CurrentNavigationKey(GameWorld world, string visit)
     {
         if (visit.StartsWith("world:", StringComparison.Ordinal))
         {
             return visit + ":nav:world";
         }
-        AutoPlayNavigationReceipt receipt = world.CaptureAutoPlayNavigationReceipt();
+        AutoPlayNavigationReceipt receipt = world.CaptureAutoPlayNavigationReceipt(includeState: UsesStatefulNavigation(world.Events.FieldId));
         string key = receipt.Key(visit);
         run.NavigationReceipts[key] = receipt;
         return key;

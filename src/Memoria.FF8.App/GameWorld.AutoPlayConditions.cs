@@ -16,6 +16,7 @@ internal sealed partial class GameWorld
     private JsmProgram? autoPlayConditionProgram;
     private string? autoPlayConditionProgramHash;
     private int[] autoPlayInitializationConditionReads = [];
+    private int[] autoPlayNavigationConditionReads = [];
     private readonly Dictionary<(string Event, int Object), int[]> autoPlayConditionReads = [];
 
     internal EventPredicateState ReadAutoPlayConditions(string eventId, int objectId)
@@ -38,6 +39,19 @@ internal sealed partial class GameWorld
         EnsureAutoPlayConditionSource();
         IEnumerable<int> reads = autoPlayInitializationConditionReads.Concat(targets.SelectMany(target => ReadAutoPlayConditionOperations(target.CoverageId, target.ObjectId)));
         return CaptureAutoPlayVisitGuard(Events, autoPlayConditionProgramHash!, reads);
+    }
+
+    private string? CaptureAutoPlayNavigationStateFingerprint()
+    {
+        EnsureAutoPlayConditionSource();
+        AutoPlayVisitGuard? guard = CaptureAutoPlayVisitGuard(Events, autoPlayConditionProgramHash!, autoPlayNavigationConditionReads);
+        if (guard is null)
+        {
+            return null;
+        }
+        var bindings = Events.Scene.PartyBindingMemory;
+        string identity = $"{guard.Fingerprint}|player:{Events.PlayerActor?.ObjectId}|bindings:{bindings?.At(0)},{bindings?.At(1)},{bindings?.At(2)}";
+        return Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(identity)));
     }
 
     internal static AutoPlayVisitGuard? CaptureAutoPlayVisitGuard(EventEngine events, byte[] originalJsm, IReadOnlyList<AutoPlayTarget> targets)
@@ -65,6 +79,7 @@ internal sealed partial class GameWorld
         autoPlayConditionProgram = JsmProgram.Read(Field.Jsm);
         autoPlayConditionProgramHash = Convert.ToHexString(SHA256.HashData(Field.Jsm));
         autoPlayInitializationConditionReads = DiscoverAutoPlayInitializationConditionReads(autoPlayConditionProgram);
+        autoPlayNavigationConditionReads = DiscoverAutoPlayConditionReads(autoPlayConditionProgram, autoPlayConditionProgram.Objects.SelectMany(obj => obj.Scripts));
         autoPlayConditionReads.Clear();
     }
 

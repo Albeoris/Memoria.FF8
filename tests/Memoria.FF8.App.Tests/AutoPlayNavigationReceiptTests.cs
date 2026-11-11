@@ -5,6 +5,41 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class AutoPlayNavigationReceiptTests
 {
+    [Fact]
+    public void PredicateStatesSeparateTheSamePhysicalComponentWithoutChangingLegacyKeys()
+    {
+        AutoPlayNavigationReceipt physical = Capture(CreateWalkmesh(), 0, []);
+        AutoPlayNavigationReceipt closed = physical with { StateFingerprint = new string('A', 64) };
+        AutoPlayNavigationReceipt open = physical with { StateFingerprint = new string('B', 64) };
+        AutoPlayNavigationReceipt restored = System.Text.Json.JsonSerializer.Deserialize<AutoPlayNavigationReceipt>("{\"Version\":1,\"FieldId\":600,\"ProgramHash\":\"program\",\"WalkmeshHash\":\"walkmesh\",\"LockedTriangles\":[],\"ReachableTriangles\":[0,1]}")!;
+
+        Assert.Null(restored.StateFingerprint);
+        Assert.Equal(physical.Key("600:16"), restored.Key("600:16"));
+        Assert.NotEqual(closed.Key("600:16"), open.Key("600:16"));
+        Assert.StartsWith(physical.Key("600:16") + ":state:", closed.Key("600:16"));
+        Assert.Equal(physical.ReachableTriangles, closed.ReachableTriangles);
+        Assert.Equal(closed.Key("600:16"), (closed with { }).Key("600:16"));
+    }
+
+    [Fact]
+    public void BranchEvidencePromotesOnlyFieldsWithDifferentPredicatesAtTheSamePhysicalSource()
+    {
+        AutoPlayNavigationReceipt physical = Capture(CreateWalkmesh(), 0, []);
+        string source = physical.Key("600:16");
+        AutoPlayPlannerState coverage = new();
+        Dictionary<string, AutoPlayNavigationReceipt> receipts = new() { [source] = physical };
+        AutoPlayEventRoute first = new("destination", "closed", false, []);
+        coverage.NavigationRoutes.Add(new(source, "destination", "exit", first));
+        Assert.Empty(AutoPlayController.FindStatefulNavigationFields(coverage, receipts));
+        coverage.NavigationRoutes.Add(new(source, "destination", "other-exit", first with { ConditionSignature = "open" }));
+        Assert.Empty(AutoPlayController.FindStatefulNavigationFields(coverage, receipts));
+        coverage.NavigationRoutes.Add(new(source, "destination", "exit", first with { ConditionSignature = "open" }));
+        Assert.Equal(new[] { 600 }, AutoPlayController.FindStatefulNavigationFields(coverage, receipts));
+        receipts[source] = physical with { StateFingerprint = new string('A', 64) };
+        coverage.NavigationRoutes.Clear();
+        Assert.Equal(new[] { 600 }, AutoPlayController.FindStatefulNavigationFields(coverage, receipts));
+    }
+
     [Theory]
     [InlineData(0, 1)]
     [InlineData(2, 3)]

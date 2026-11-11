@@ -54,6 +54,9 @@ internal sealed class AutoPlayEventCoverage
     public List<AutoPlayParticipantPolicyDeferral> ParticipantPolicyDeferrals { get; set; } = [];
     public HashSet<string> PolicyDeferredVariants { get; set; } = new(StringComparer.Ordinal);
     public bool PolicyDeferred { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    internal bool AllowHistoricalTravelConditions { get; set; }
 }
 
 internal sealed class AutoPlayVisitCoverage
@@ -626,7 +629,7 @@ internal sealed partial class AutoPlayPlanner
 
     private static IEnumerable<AutoPlayEventRoute> TravelRoutes(AutoPlayEventCoverage item)
     {
-        return item.Routes.Where(route => item.Completed && StringComparer.Ordinal.Equals(route.ConditionSignature, item.Event.ConditionSignature) && !(route.ObservedStoryChanged ?? item.Event.ChangesStory) && (route.TargetId is null ? item.UnavailableVariants.Count == 0 && item.PolicyDeferredVariants.Count == 0 : ObservedVariants(item).Contains(route.TargetId, StringComparer.Ordinal) && !item.UnavailableVariants.Contains(route.TargetId) && !item.PolicyDeferredVariants.Contains(route.TargetId))).OrderBy(route => route.DestinationVisitKey, StringComparer.Ordinal).ThenBy(route => route.TargetId, StringComparer.Ordinal).ThenBy(route => route.Selections is null ? string.Empty : string.Join('|', route.Selections.Select(selection => $"{selection.Key}={selection.Selection}")), StringComparer.Ordinal);
+        return item.Routes.Where(route => item.Completed && (item.AllowHistoricalTravelConditions || StringComparer.Ordinal.Equals(route.ConditionSignature, item.Event.ConditionSignature)) && !(route.ObservedStoryChanged ?? item.Event.ChangesStory) && (route.TargetId is null ? item.UnavailableVariants.Count == 0 && item.PolicyDeferredVariants.Count == 0 : ObservedVariants(item).Contains(route.TargetId, StringComparer.Ordinal) && !item.UnavailableVariants.Contains(route.TargetId) && !item.PolicyDeferredVariants.Contains(route.TargetId))).OrderBy(route => route.DestinationVisitKey, StringComparer.Ordinal).ThenBy(route => route.TargetId, StringComparer.Ordinal).ThenBy(route => route.Selections is null ? string.Empty : string.Join('|', route.Selections.Select(selection => $"{selection.Key}={selection.Selection}")), StringComparer.Ordinal);
     }
 
     private static void NormalizeLegacyRoute(AutoPlayEventCoverage item)

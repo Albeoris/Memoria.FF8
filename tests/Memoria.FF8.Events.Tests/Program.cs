@@ -17,6 +17,7 @@ internal static partial class Program
                 string selectedGameDirectory = args.Length >= 3 ? args[2] : TestResources.GameDirectory;
                 Dictionary<string, Action> scenarios = new(StringComparer.OrdinalIgnoreCase)
                 {
+                    ["autoplay-position-gate"] = AutoPlayPositionGateContract,
                     ["gameplay-field-actors"] = () => GameplaySaveFieldActorContract(selectedGameDirectory),
                     ["gameplay-animation-waits"] = GameplayAnimationWaitContract,
                     ["gameplay-script-menu"] = () => GameplayScriptMenuContract(selectedGameDirectory),

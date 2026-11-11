@@ -21,7 +21,7 @@ internal sealed partial class AutoPlayController
         {
             return null;
         }
-        if (world.Field.Id != world.Events.FieldId || visit != $"{world.Events.FieldId}:{world.Events.Variables.GetValueOrDefault(256)}" || world.CaptureAutoPlayNavigationReceipt().Key(visit) != navigation)
+        if (world.Field.Id != world.Events.FieldId || visit != $"{world.Events.FieldId}:{world.Events.Variables.GetValueOrDefault(256)}" || world.CaptureAutoPlayNavigationReceipt(includeState: UsesStatefulNavigation(world.Events.FieldId)).Key(visit) != navigation)
         {
             return null;
         }

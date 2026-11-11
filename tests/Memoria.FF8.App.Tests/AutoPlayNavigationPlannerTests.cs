@@ -4,6 +4,51 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class AutoPlayNavigationPlannerTests
 {
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void ACompletedNewPredicateWithoutConnectivityProofGetsOneFreshNativeProbe(bool reachesDestination, bool changesSourceComponent)
+    {
+        AutoPlayPlanner planner = new();
+        AutoPlayEvent exit = new("exit", AutoPlayEventKind.Transition, ConditionSignature: "before");
+        AutoPlayEvent frontier = new("frontier", AutoPlayEventKind.Interaction);
+        planner.Observe(new("source", "region"), [exit]);
+        planner.ObserveNavigation("source", "source-nav", [exit]);
+        planner.Observe(new("destination", "region"), [frontier]);
+        planner.ObserveNavigation("destination", "destination-nav", [frontier]);
+        Connect(planner, "source", "exit", "destination", "source-nav", "destination-nav");
+        exit = exit with { ConditionSignature = "after" };
+        string sourceNavigation = changesSourceComponent ? "new-source-nav" : "source-nav";
+        planner.Observe(new("source", "region"), [exit]);
+        planner.ObserveNavigation("source", sourceNavigation, [exit]);
+        planner.Completed("source", "exit", observedStoryChanged: false);
+        string beforePlanning = JsonSerializer.Serialize(planner.State);
+
+        AutoPlayPlanStep probe = Assert.IsType<AutoPlayPlanStep>(planner.PlanNavigation(sourceNavigation));
+
+        Assert.Equal("exit", probe.Event.Id);
+        Assert.Null(probe.Route);
+        Assert.False(probe.IsTravel);
+        Assert.Equal(beforePlanning, JsonSerializer.Serialize(planner.State));
+        string actualVisit = reachesDestination ? "destination" : "source";
+        string actualNavigation = reachesDestination ? "destination-nav" : sourceNavigation;
+        planner.Completed("source", "exit", actualVisit, observedStoryChanged: false, selections: []);
+        AutoPlayEventRoute actual = planner.State.Visits.Single(visit => visit.Visit.Key == "source").Events.Single().Routes.Last();
+        planner.RecordNavigationRoute(sourceNavigation, actualNavigation, "exit", actual);
+        AutoPlayPlanStep? next = planner.PlanNavigation(sourceNavigation);
+        if (reachesDestination)
+        {
+            Assert.Equal("after", next!.Route!.ConditionSignature);
+            Assert.Equal(new AutoPlayTravelGoal("destination-nav", "frontier"), next.Goal);
+        }
+        else
+        {
+            Assert.Null(next);
+        }
+    }
+
     [Fact]
     public void AvoidingARepeatedFirstStepLeavesItsObservedRouteAvailableForLaterPlans()
     {
@@ -95,6 +140,123 @@ public sealed class AutoPlayNavigationPlannerTests
         Assert.Null(planner.PlanNavigation("locked-nav", allowRemoteConditionRoutes: true));
         planner.Observe(new("inside", "region"), [unlock]);
         Assert.Equal("unlock", planner.PlanNavigation("locked-nav")!.Event.Id);
+    }
+
+    [Fact]
+    public void ARemoteFieldTransitionCanGuideAnApproachWithoutAuthorizingItsOldChoicesLocally()
+    {
+        AutoPlayPlanner planner = new();
+        AutoPlayEvent entry = new("entry", AutoPlayEventKind.Transition, ConditionSignature: "entry");
+        AutoPlayEvent exit = new("exit", AutoPlayEventKind.Transition, ConditionSignature: "previous");
+        AutoPlayEvent frontier = new("frontier", AutoPlayEventKind.Interaction);
+        planner.Observe(new("outside", "region"), [entry]);
+        planner.ObserveNavigation("outside", "outside-nav", [entry]);
+        planner.Observe(new("corridor", "region"), [exit]);
+        planner.ObserveNavigation("corridor", "corridor-nav", [exit]);
+        planner.Observe(new("room", "region"), [frontier]);
+        planner.ObserveNavigation("room", "room-nav", [frontier]);
+        Connect(planner, "outside", "entry", "corridor", "outside-nav", "corridor-nav");
+        Connect(planner, "corridor", "exit", "room", "corridor-nav", "room-nav");
+        planner.Observe(new("corridor", "region"), [exit with { ConditionSignature = "different-entry" }]);
+
+        Assert.Null(planner.PlanNavigation("outside-nav"));
+        AutoPlayPlanStep approach = Assert.IsType<AutoPlayPlanStep>(planner.PlanNavigation("outside-nav", allowRemoteConditionRoutes: true));
+        Assert.Equal("entry", approach.Event.Id);
+        Assert.Equal("entry", approach.Route!.ConditionSignature);
+        Assert.Equal(new AutoPlayTravelGoal("room-nav", "frontier"), approach.Goal);
+        Assert.Null(planner.PlanNavigation("corridor-nav", allowRemoteConditionRoutes: true));
+    }
+
+    [Fact]
+    public void ReobservingARemoteComponentDoesNotEraseItsHistoricalPredicateAlternatives()
+    {
+        AutoPlayPlanner planner = new();
+        AutoPlayEvent entry = new("entry", AutoPlayEventKind.Transition, ConditionSignature: "entry");
+        AutoPlayEvent exit = new("exit", AutoPlayEventKind.Transition, ConditionSignature: "open");
+        AutoPlayEvent frontier = new("frontier", AutoPlayEventKind.Interaction);
+        planner.Observe(new("outside", "region"), [entry]);
+        planner.ObserveNavigation("outside", "outside-nav", [entry]);
+        planner.Observe(new("corridor", "region"), [exit]);
+        planner.ObserveNavigation("corridor", "corridor-nav", [exit]);
+        planner.Observe(new("room", "region"), [frontier]);
+        planner.ObserveNavigation("room", "room-nav", [frontier]);
+        planner.Observe(new("dead-end", "region"), []);
+        planner.ObserveNavigation("dead-end", "dead-end-nav", []);
+        Connect(planner, "outside", "entry", "corridor", "outside-nav", "corridor-nav");
+        Connect(planner, "corridor", "exit", "room", "corridor-nav", "room-nav");
+        exit = exit with { ConditionSignature = "closed" };
+        planner.Observe(new("corridor", "region"), [exit]);
+        planner.ObserveNavigation("corridor", "corridor-nav", [exit]);
+        Connect(planner, "corridor", "exit", "dead-end", "corridor-nav", "dead-end-nav");
+        string before = JsonSerializer.Serialize(planner.State);
+
+        Assert.Null(planner.PlanNavigation("outside-nav"));
+        AutoPlayPlanStep approach = Assert.IsType<AutoPlayPlanStep>(planner.PlanNavigation("outside-nav", allowRemoteConditionRoutes: true));
+        Assert.Equal("entry", approach.Event.Id);
+        Assert.Equal("entry", approach.Route!.ConditionSignature);
+        Assert.Equal(new AutoPlayTravelGoal("room-nav", "frontier"), approach.Goal);
+        Assert.Null(planner.PlanNavigation("corridor-nav", allowRemoteConditionRoutes: true));
+        Assert.Equal(before, JsonSerializer.Serialize(planner.State));
+    }
+
+    [Fact]
+    public void AnUnprovedRemoteComponentCanBeRevisitedForAFreshTransitionProbe()
+    {
+        AutoPlayPlanner planner = new();
+        AutoPlayEvent entry = new("entry", AutoPlayEventKind.Transition, ConditionSignature: "entry");
+        AutoPlayEvent exit = new("exit", AutoPlayEventKind.Transition, ConditionSignature: "old");
+        planner.Observe(new("outside", "region"), [entry]);
+        planner.ObserveNavigation("outside", "outside-nav", [entry]);
+        planner.Observe(new("inside", "region"), [exit]);
+        planner.ObserveNavigation("inside", "old-nav", [exit]);
+        planner.ObserveNavigation("inside", "new-nav", [exit with { ConditionSignature = "unproved" }]);
+        planner.Observe(new("destination", "region"), []);
+        planner.ObserveNavigation("destination", "destination-nav", []);
+        Connect(planner, "inside", "exit", "destination", "old-nav", "destination-nav");
+        Connect(planner, "outside", "entry", "inside", "outside-nav", "new-nav");
+        planner.Completed("inside", "exit", entrySignature: "unproved", entrySignatureAuthoritative: true);
+
+        Assert.Null(planner.PlanNavigation("outside-nav"));
+        AutoPlayPlanStep approach = Assert.IsType<AutoPlayPlanStep>(planner.PlanNavigation("outside-nav", allowRemoteConditionRoutes: true));
+        Assert.Equal("entry", approach.Event.Id);
+        Assert.Equal("entry", approach.Route!.ConditionSignature);
+        Assert.Equal(new AutoPlayTravelGoal("new-nav", "exit", "unproved"), approach.Goal);
+        Assert.Null(planner.PlanNavigation("new-nav", allowRemoteConditionRoutes: true));
+        planner.Observe(new("inside", "region"), [exit with { ConditionSignature = "unproved" }]);
+        AutoPlayPlanStep localProbe = Assert.IsType<AutoPlayPlanStep>(planner.PlanNavigation("new-nav"));
+        Assert.Equal("exit", localProbe.Event.Id);
+        Assert.Null(localProbe.Route);
+        Assert.False(localProbe.IsTravel);
+    }
+
+    [Fact]
+    public void ARealRoundTripCanReturnToAnotherPredicateStateOfTheSameComponent()
+    {
+        AutoPlayPlanner planner = new();
+        AutoPlayEvent exit = new("exit", AutoPlayEventKind.Transition, ConditionSignature: "open");
+        AutoPlayEvent back = new("back", AutoPlayEventKind.Transition, ConditionSignature: "back");
+        AutoPlayEvent frontier = new("frontier", AutoPlayEventKind.Interaction);
+        planner.Observe(new("corridor", "region"), [exit]);
+        planner.ObserveNavigation("corridor", "corridor-open-nav", [exit]);
+        planner.Observe(new("room", "region"), [frontier]);
+        planner.ObserveNavigation("room", "room-nav", [frontier]);
+        planner.Observe(new("detour", "region"), [back]);
+        planner.ObserveNavigation("detour", "detour-nav", [back]);
+        Connect(planner, "corridor", "exit", "room", "corridor-open-nav", "room-nav");
+        exit = exit with { ConditionSignature = "closed" };
+        planner.Observe(new("corridor", "region"), [exit]);
+        planner.ObserveNavigation("corridor", "corridor-closed-nav", [exit]);
+        Connect(planner, "corridor", "exit", "detour", "corridor-closed-nav", "detour-nav");
+        Connect(planner, "detour", "back", "corridor", "detour-nav", "corridor-open-nav");
+        string before = JsonSerializer.Serialize(planner.State);
+
+        Assert.Null(planner.PlanNavigation("corridor-closed-nav"));
+        AutoPlayPlanStep approach = Assert.IsType<AutoPlayPlanStep>(planner.PlanNavigation("corridor-closed-nav", allowRemoteConditionRoutes: true));
+        Assert.Equal("exit", approach.Event.Id);
+        Assert.Equal("closed", approach.Route!.ConditionSignature);
+        Assert.Equal("detour", approach.Route.DestinationVisitKey);
+        Assert.Equal(new AutoPlayTravelGoal("room-nav", "frontier"), approach.Goal);
+        Assert.Equal(before, JsonSerializer.Serialize(planner.State));
     }
 
     [Fact]
@@ -451,7 +613,9 @@ public sealed class AutoPlayNavigationPlannerTests
         planner.RecordNavigationRoute(previous.SourceKey, previous.DestinationKey, previous.EventId, previous.Route);
 
         Assert.Equal(before, JsonSerializer.Serialize(planner.State));
-        Assert.Null(planner.PlanNavigation("main"));
+        AutoPlayPlanStep probe = Assert.IsType<AutoPlayPlanStep>(planner.PlanNavigation("main"));
+        Assert.Null(probe.Route);
+        Assert.False(probe.IsTravel);
         Assert.Equal(0, planner.ReachableNavigationFrontierCount("main"));
         Assert.Equal("changed-input", Event(planner, "165:142", previous.EventId).ConditionSignature);
         Assert.Equal("changed-input", planner.State.NavigationVisits.Single(visit => visit.Key == "main").Events.Single().ConditionSignature);

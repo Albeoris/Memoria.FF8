@@ -195,6 +195,7 @@ internal sealed partial class AutoPlayPlanner
         ILookup<(string Source, string Event), AutoPlayNavigationRoute> routesByEvent = State.NavigationRoutes.ToLookup(edge => (edge.SourceKey, edge.EventId));
         Dictionary<(string Source, string Event), (AutoPlayEventCoverage Scoped, AutoPlayEventRoute[] Travel)> travelByEvent = [];
         HashSet<string> valid = State.NavigationVisits.Where(visit => isCurrent?.Invoke(visit) != false).Select(visit => visit.Key).ToHashSet(StringComparer.Ordinal);
+        ILookup<(string Visit, string Event), AutoPlayNavigationRoute> connectionsByEvent = State.NavigationRoutes.Where(edge => valid.Contains(edge.SourceKey) && valid.Contains(edge.DestinationKey)).ToLookup(edge => (navigationByKey[edge.SourceKey].VisitKey, edge.EventId));
         foreach (AutoPlayNavigationVisit observation in State.NavigationVisits.Where(visit => valid.Contains(visit.Key)))
         {
             AutoPlayVisitCoverage aggregate = aggregateByKey[observation.VisitKey];
@@ -205,15 +206,18 @@ internal sealed partial class AutoPlayPlanner
                 var key = (observation.Key, observed.Id);
                 IEnumerable<AutoPlayNavigationRoute> recorded = routesByEvent[key];
                 bool sameCondition = observed.ConditionSignature == shared.Event.ConditionSignature;
-                // A previously executed local transition can guide travel to its
+                // A previously executed transition can guide travel to its
                 // remote source. It cannot authorize an action at the current vertex.
-                bool hint = !sameCondition && hintOrigin is not null && observation.Key != hintOrigin && recorded.Any(edge =>
-                    edge.Route.ConditionSignature == observed.ConditionSignature &&
-                    edge.Route.DestinationVisitKey == observation.VisitKey && valid.Contains(edge.DestinationKey));
+                // Retain all recorded remote predicates, including alternatives
+                // replaced by a later observation of this same component.
+                bool historicalTravel = hintOrigin is not null && observation.Key != hintOrigin;
+                bool hint = !sameCondition && historicalTravel && recorded.Any(edge => valid.Contains(edge.DestinationKey));
+                bool missingConnection = !recorded.Any(edge => edge.Route.ConditionSignature == observed.ConditionSignature && valid.Contains(edge.DestinationKey)) && connectionsByEvent[(observation.VisitKey, observed.Id)].Any(edge => edge.DestinationKey != edge.SourceKey && !(edge.Route.ObservedStoryChanged ?? observed.ChangesStory));
+                bool connectionProbe = missingConnection && (sameCondition || historicalTravel);
                 AutoPlayEventCoverage local = new()
                 {
                     Event = observed,
-                    Available = sameCondition || hint,
+                    Available = sameCondition || hint || connectionProbe,
                     Completed = shared.Completed,
                     BlockedReason = shared.BlockedReason,
                     Conditions = hint ? null : shared.Conditions,
@@ -225,11 +229,21 @@ internal sealed partial class AutoPlayPlanner
                     CompletedAvailabilityFingerprints = shared.CompletedAvailabilityFingerprints,
                     PolicyDeferred = shared.PolicyDeferred,
                     PolicyDeferredVariants = shared.PolicyDeferredVariants,
-                    RouteNeedsRediscovery = !hint && shared.RouteNeedsRediscovery
+                    RouteNeedsRediscovery = !hint && shared.RouteNeedsRediscovery,
+                    AllowHistoricalTravelConditions = historicalTravel
                 };
                 if (shared.Completed && shared.Routes.Count != 0)
                 {
-                    AutoPlayEventRoute[] travel = NavigationTravelRoutes(observed, shared, aggregateByKey.ContainsKey).ToArray();
+                    AutoPlayEventRoute[] travel = NavigationTravelRoutes(observed, shared, aggregateByKey.ContainsKey, historicalTravel).ToArray();
+                    // Completion alone does not prove connectivity under a new
+                    // source predicate. Reobserve a previously real connection
+                    // without replaying choices authenticated for the old predicate.
+                    // A native return to this same component also bounds the probe.
+                    if (connectionProbe && CanProbeNavigation(local))
+                    {
+                        local.RouteNeedsRediscovery = true;
+                        local.Event = observed with { ChangesStory = false };
+                    }
                     if (travel.Length != 0)
                     {
                         travelByEvent.Add(key, (local, travel));
@@ -249,8 +263,7 @@ internal sealed partial class AutoPlayPlanner
         }
         foreach (AutoPlayNavigationRoute edge in State.NavigationRoutes)
         {
-            if (!travelByEvent.TryGetValue((edge.SourceKey, edge.EventId), out var candidate) ||
-                !valid.Contains(edge.DestinationKey) || edge.Route.DestinationVisitKey != navigationByKey[edge.DestinationKey].VisitKey)
+            if (!travelByEvent.TryGetValue((edge.SourceKey, edge.EventId), out var candidate) || !valid.Contains(edge.DestinationKey) || edge.Route.DestinationVisitKey != navigationByKey[edge.DestinationKey].VisitKey)
             {
                 continue;
             }
@@ -282,7 +295,7 @@ internal sealed partial class AutoPlayPlanner
         return scoped.Available && !scoped.Unavailable && !scoped.PolicyDeferred && scoped.BlockedReason is null;
     }
 
-    private static IEnumerable<AutoPlayEventRoute> NavigationTravelRoutes(AutoPlayEvent observed, AutoPlayEventCoverage shared, Func<string, bool> visitExists)
+    private static IEnumerable<AutoPlayEventRoute> NavigationTravelRoutes(AutoPlayEvent observed, AutoPlayEventCoverage shared, Func<string, bool> visitExists, bool allowHistoricalConditions = false)
     {
         AutoPlayEventCoverage candidates = new()
         {
@@ -290,7 +303,8 @@ internal sealed partial class AutoPlayPlanner
             Completed = shared.Completed,
             Routes = shared.Routes,
             UnavailableVariants = shared.UnavailableVariants,
-            PolicyDeferredVariants = shared.PolicyDeferredVariants
+            PolicyDeferredVariants = shared.PolicyDeferredVariants,
+            AllowHistoricalTravelConditions = allowHistoricalConditions
         };
         return TravelRoutes(candidates).Where(route => visitExists(route.DestinationVisitKey));
     }

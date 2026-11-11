@@ -729,6 +729,13 @@ internal sealed partial class AutoPlayController
         FinishWalkInterruption(world);
         string visit = VisitKey();
         string currentNavigation = CurrentNavigationKey(world, visit);
+        // Preserve the executed source observation before a same-component
+        // return replaces its conditions with the newly observed predicates.
+        bool recordedLocalReturn = run.ActiveVisit == visit && run.ActiveEvent is not null && run.ActiveNavigationKey == currentNavigation;
+        if (recordedLocalReturn)
+        {
+            RecordActiveControlReturn();
+        }
         IReadOnlyList<AutoPlayTarget> targets = world.DiscoverAutoPlayTargets();
         if (run.ContactInterruptions.Count != 0)
         {
@@ -746,14 +753,17 @@ internal sealed partial class AutoPlayController
         RefreshParticipantPolicies(world);
         InspectSurveyVisit(navigation);
         RefreshWalkingSearchRevision(run, navigation);
-        if (FinishChoices())
+        if (FinishChoices(recordedLocalReturn))
         {
             return;
         }
         AutoPlayTravelGoal? preferredGoal = run.ActiveTravelGoal;
         if (run.ActiveVisit is not null && run.ActiveEvent is not null)
         {
-            RecordActiveControlReturn();
+            if (!recordedLocalReturn)
+            {
+                RecordActiveControlReturn();
+            }
             run.ActiveVisit = null;
             run.ActiveNavigationKey = null;
             run.ActiveEvent = null;
@@ -1068,7 +1078,7 @@ internal sealed partial class AutoPlayController
         }
         if (world.Events.DiscoverAutoPlayPositionGate() is { } gate && world.WalkToAutoPlayPositionGate(gate, ResetIdleDeadline, idleDeadline))
         {
-            RecordRecentAction($"Walk into native position gate R{gate.Register} < {gate.ExclusiveUpperBound}");
+            RecordRecentAction($"Walk into native position gate for actor {gate.OwnerObjectId}");
             return;
         }
         int field = session.State.FieldId;
@@ -1739,12 +1749,15 @@ internal sealed partial class AutoPlayController
         Apply(cancel ? new(PlayerActionKind.Cancel) : new(PlayerActionKind.Choose, selection));
     }
 
-    private bool FinishChoices()
+    private bool FinishChoices(bool controlReturnRecorded = false)
     {
         CompleteInputSearchAtControlReturn();
         if (run.SceneChoices.Count != 0)
         {
-            RecordActiveControlReturn();
+            if (!controlReturnRecorded)
+            {
+                RecordActiveControlReturn();
+            }
             string continuation = $"continuation-{run.Steps:D10}.json";
             SaveGame(Path.Combine(runDirectory!, continuation), CaptureState());
             int story = session.State.Variables.GetValueOrDefault(256);
@@ -2089,7 +2102,8 @@ internal sealed partial class AutoPlayController
         else
         {
             bool sameNavigation = run.ActiveNavigationKey is null || run.ActiveNavigationKey == destinationNavigation;
-            planner.Completed(source, eventId, source == destination && sameNavigation ? null : destination, exitSignature, ObserveStoryChange(run.ActiveStory, source, session.State.Variables.GetValueOrDefault(256)), run.ActiveSelections, run.ActiveConditionSignature, entrySignatureAuthoritative: true, entryAvailabilityFingerprint: run.ActiveAvailabilityFingerprint, availabilityFingerprintAuthoritative: true, targetId: run.ActiveTargetId);
+            bool reobservedConnection = run.Coverage.Visits.Single(visit => visit.Visit.Key == source).Events.Single(item => item.Event.Id == eventId).Routes.Count != 0;
+            planner.Completed(source, eventId, source == destination && sameNavigation && !reobservedConnection ? null : destination, exitSignature, ObserveStoryChange(run.ActiveStory, source, session.State.Variables.GetValueOrDefault(256)), run.ActiveSelections, run.ActiveConditionSignature, entrySignatureAuthoritative: true, entryAvailabilityFingerprint: run.ActiveAvailabilityFingerprint, availabilityFingerprintAuthoritative: true, targetId: run.ActiveTargetId);
         }
         RecordNavigationControlReturn(source, destination, eventId);
         RecordJourneyHop(destination, destinationNavigation);
