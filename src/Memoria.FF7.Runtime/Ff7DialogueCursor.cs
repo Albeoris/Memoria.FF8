@@ -97,6 +97,16 @@ public static class Ff7DialogueCursor
                 return dialogue.WaitTicks == 0
                     ? dialogue with { Presentation = presentation with { NativeState = 2 } }
                     : dialogue with { WaitTicks = dialogue.WaitTicks - 1 };
+            case 4:
+                if (!confirm || presentation.Row != (window.Height - 9) / 16 + presentation.ScrollRows - 1)
+                {
+                    return dialogue;
+                }
+                return dialogue with { AwaitingInput = false, Presentation = presentation with { NativeState = 8, ScrollOffset = unchecked((short)(presentation.ScrollOffset - 2)), ScrollRows = unchecked((short)(presentation.ScrollRows + 1)) } };
+            case 8:
+                return dialogue with { Presentation = (presentation.ScrollOffset & 15) != 0
+                    ? presentation with { ScrollOffset = unchecked((short)(presentation.ScrollOffset - 2)) }
+                    : presentation with { NativeState = 2 } };
             case 6:
                 if ((window.Flags & 1) != 0)
                 {
@@ -117,7 +127,7 @@ public static class Ff7DialogueCursor
             case 13:
                 return confirm ? dialogue with { AwaitingInput = false, Presentation = presentation with { NativeState = 2 } } : dialogue;
             case 14:
-                return confirm ? dialogue with { Page = dialogue.Page + 1, AwaitingInput = false, Presentation = presentation with { NativeState = 2, FastCounter = 1, Row = 0 } } : dialogue;
+                return confirm ? dialogue with { Page = dialogue.Page + 1, AwaitingInput = false, Presentation = presentation with { NativeState = 2, FastCounter = 1, Row = 0, ScrollOffset = 0, ScrollRows = 0 } } : dialogue;
             default:
                 throw new NotSupportedException($"FFVII message phase {presentation.NativeState} requires its native continuation contract.");
         }
@@ -197,9 +207,9 @@ public static class Ff7DialogueCursor
                     }
                     break;
                 case FieldTextTokenKind.NewLine:
-                    if (row == (window.Height - 9) / 16 - 1)
+                    if (row == (window.Height - 9) / 16 + presentation.ScrollRows - 1)
                     {
-                        throw new NotSupportedException("FFVII message row overflow requires its native scrolling continuation contract.");
+                        return dialogue with { TokenPosition = position, AwaitingInput = true, Presentation = presentation with { NativeState = 4, RevealBudget = 0, FastCounter = 1, ExpansionOffset = expansion, Row = row } };
                     }
                     row++;
                     position++;
@@ -249,7 +259,8 @@ public static class Ff7DialogueCursor
                 row++;
             }
         }
-        return new(state, width, height, Row: row);
+        int scrollRows = Math.Max(0, row - Math.Max(0, (height - 9) / 16 - 1));
+        return new(state, width, height, Row: row) { ScrollRows = scrollRows, ScrollOffset = -16 * scrollRows };
     }
 
     public static Ff7Dialogue Confirm(Ff7Dialogue dialogue, IReadOnlyList<FieldTextToken> tokens)

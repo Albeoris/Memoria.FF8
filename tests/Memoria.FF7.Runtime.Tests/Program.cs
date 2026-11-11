@@ -125,6 +125,7 @@ var tests = new (string Name, Action Run)[]
     ("native animation authored contracts", NativeAnimationTests.Run),
     ("native dialogue continuation contracts", NativeDialogueTests.Run),
     ("native message lifecycle and cold continuation", NativeMessageLifecycleTests.Run),
+    ("installed native message scroll and cold continuation", InstalledMessageScrollTests.Run),
     ("native turn, camera and global process contracts", NativeProcessTests.Run),
     ("native global clock and timer contracts", NativeClockTests.Run),
     ("native special window timer metadata", NativeProcessTests.RunSpecialWindow),

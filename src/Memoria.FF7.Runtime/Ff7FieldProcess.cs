@@ -73,10 +73,12 @@ public sealed record Ff7DialoguePresentation(int NativeState, int AnimatedWidth,
 {
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public int? PresentationNameLength { get; init; }
+    public int ScrollOffset { get; init; }
+    public int ScrollRows { get; init; }
 
     public void Validate()
     {
-        if (NativeState is < 0 or > 14 || AnimatedWidth is < short.MinValue or > short.MaxValue || AnimatedHeight is < short.MinValue or > short.MaxValue || FastCounter is < 1 or > 128 || ExpansionOffset < 0 || ExpansionOffset > (PresentationNameLength ?? 9) || PresentationNameLength is <= 9 || Row < 0)
+        if (NativeState is < 0 or > 14 || AnimatedWidth is < short.MinValue or > short.MaxValue || AnimatedHeight is < short.MinValue or > short.MaxValue || FastCounter is < 1 or > 128 || ExpansionOffset < 0 || ExpansionOffset > (PresentationNameLength ?? 9) || PresentationNameLength is <= 9 || Row < 0 || ScrollRows is < 0 or > short.MaxValue || ScrollOffset is < short.MinValue or > 0 || (ScrollOffset & 1) != 0)
         {
             throw new InvalidDataException("FFVII saved native message animation or reveal state is invalid.");
         }

@@ -11,6 +11,9 @@ internal static class NativeMessageLifecycleTests
     public static void Run()
     {
         OpeningAndClosing();
+        RowScrolling();
+        ScrollStateCompatibility();
+        ScrollOwnerWaitsForCompletion();
         RevealBandsAndExpansion();
         WaitPausePageAndLegacy();
         HostPollAndWindowClose();
@@ -45,6 +48,119 @@ internal static class NativeMessageLifecycleTests
         state = Tick(Ff7DialogueCursor.Confirm(state with { Selected = 0 }, tokens), tokens);
         Equal(1, state.Selected);
         Equal(7, state.Presentation!.NativeState);
+    }
+
+    private static void RowScrolling()
+    {
+        Ff7Window window = Window with { Height = 25, Flags = 1 };
+        IReadOnlyList<FieldTextToken> tokens = FieldText.Read([0x21, 0xE7, 0x22, 0xE7, 0x23, 0xE8, 0x24, 255]);
+        Ff7Dialogue state = Open();
+        for (int scroll = 0; scroll < 2; scroll++)
+        {
+            state = Tick(state, tokens, speed: 0, window: window);
+            Equal(4, state.Presentation!.NativeState);
+            Equal(true, state.AwaitingInput);
+            Equal(scroll * 2 + 1, state.TokenPosition);
+            Equal(scroll, state.Presentation.Row);
+            Equal(scroll, state.Presentation.ScrollRows);
+            Equal(-16 * scroll, state.Presentation.ScrollOffset);
+            Equal((short)0, state.Presentation.RevealBudget);
+            Equal((short)1, state.Presentation.FastCounter);
+            Equal(state, Tick(state, tokens, held: true, window: window));
+            Equal(state, Tick(state, tokens, pressed: true, window: window with { Height = 41 }));
+            state = Tick(Ff7DialogueCursor.Confirm(state, tokens), tokens, window: window);
+            Equal(false, state.AwaitingInput);
+            Equal(scroll + 1, state.Presentation!.ScrollRows);
+            for (int offset = 2; offset <= 16; offset += 2)
+            {
+                Equal(8, state.Presentation!.NativeState);
+                Equal(-16 * scroll - offset, state.Presentation.ScrollOffset);
+                Equal(scroll * 2 + 1, state.TokenPosition);
+                Equal(0, state.Page);
+                if (offset < 16)
+                {
+                    state = Tick(state, tokens, held: true, pressed: true, window: window);
+                }
+            }
+            state = Tick(state, tokens, window: window);
+            Equal(2, state.Presentation!.NativeState);
+            Equal(scroll * 2 + 1, state.TokenPosition);
+        }
+        state = Tick(state, tokens, speed: 0, window: window);
+        Equal(14, state.Presentation!.NativeState);
+        Equal(2, state.Presentation.Row);
+        Equal(-32, state.Presentation.ScrollOffset);
+        state = Tick(Ff7DialogueCursor.Confirm(state, tokens), tokens, window: window);
+        Equal(1, state.Page);
+        Equal(0, state.Presentation!.ScrollRows);
+        Equal(0, state.Presentation.ScrollOffset);
+        Equal(0, state.Presentation.Row);
+        state = Tick(state, tokens, speed: 0, window: window);
+        Equal(6, state.Presentation!.NativeState);
+        Equal(false, state.Completed);
+    }
+
+    private static void ScrollOwnerWaitsForCompletion()
+    {
+        Ff7FieldResources field = NativeDialogueTests.Field([0x21, 0xE7, 0x22, 255]);
+        FieldProgram program = new([0, 0x40, 0, 0, 0x80, 0x50, 3, 99, 0x5F, 0x12, 0], [new ushort[32]]);
+        Ff7FieldHost host = new(field, (_, _) => 1, new() { Windows = [Window with { Height = 25 }], BlinkStateInitialized = true });
+        FieldMachine machine = new(program, host: host);
+        machine.Initialize();
+        for (int callback = 0; callback < 20 && host.Process.Dialogues.LastOrDefault()?.Presentation?.NativeState != 4; callback++)
+        {
+            machine.AdvanceTick();
+            Equal(1, machine.Capture().Entities[0].ProgramCounter);
+        }
+        Ff7Dialogue dialogue = host.Process.Dialogues.Single();
+        Equal(4, dialogue.Presentation!.NativeState);
+        host = new(field, (_, _) => 1, host.Capture() with { Windows = [Window with { Height = 25, Flags = 1 }] });
+        Equal(true, host.CanConfirmDialogue(dialogue.RequestId));
+        host.CompleteDialogue(dialogue.RequestId, 0);
+        Equal(true, host.Process.Dialogues.Single().Presentation!.ConfirmPending);
+        host = new(field, (_, _) => 1, host.Capture() with { Windows = [Window with { Height = 25 }] });
+        machine = FieldMachine.Restore(program, machine.Capture(), host);
+        for (int callback = 0; callback < 30 && host.Process.Dialogues.Single().Presentation!.NativeState != 6; callback++)
+        {
+            machine.AdvanceTick();
+            Equal(1, machine.Capture().Entities[0].ProgramCounter);
+            Equal((byte)0, machine.Variables.ReadByte(FieldBank.MapByte, 3));
+            host = new(field, (_, _) => 1, JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
+            machine = FieldMachine.Restore(program, JsonSerializer.Deserialize<FieldVmSnapshot>(JsonSerializer.Serialize(machine.Capture()))!, host);
+        }
+        Equal(6, host.Process.Dialogues.Single().Presentation!.NativeState);
+        host.CompleteDialogue(dialogue.RequestId, 0);
+        for (int callback = 0; callback < 8 && machine.Variables.ReadByte(FieldBank.MapByte, 3) == 0; callback++)
+        {
+            machine.AdvanceTick();
+        }
+        Equal((byte)99, machine.Variables.ReadByte(FieldBank.MapByte, 3));
+    }
+
+    private static void ScrollStateCompatibility()
+    {
+        IReadOnlyList<FieldTextToken> tokens = FieldText.Read([0x21, 0xE7, 0x22, 0xE7, 0x23, 255]);
+        Ff7Window window = Window with { Height = 25 };
+        Ff7Dialogue legacy = Ff7DialogueCursor.RestorePresentation(Open() with { TokenPosition = 5, AwaitingInput = true, Presentation = null }, tokens, window);
+        Equal(6, legacy.Presentation!.NativeState);
+        Equal(2, legacy.Presentation.Row);
+        Equal(2, legacy.Presentation.ScrollRows);
+        Equal(-32, legacy.Presentation.ScrollOffset);
+        Ff7DialoguePresentation old = JsonSerializer.Deserialize<Ff7DialoguePresentation>("{\"NativeState\":2,\"AnimatedWidth\":212,\"AnimatedHeight\":57,\"Row\":0}")!;
+        old.Validate();
+        Equal(0, old.ScrollRows);
+        Equal(0, old.ScrollOffset);
+        foreach (Ff7DialoguePresentation corrupt in new[] { old with { ScrollOffset = 2 }, old with { ScrollOffset = -1 }, old with { ScrollOffset = -32770 }, old with { ScrollRows = -1 }, old with { ScrollRows = 32768 } })
+        {
+            try
+            {
+                corrupt.Validate();
+                throw new Exception("Corrupt message scrolling state must be rejected.");
+            }
+            catch (InvalidDataException)
+            {
+            }
+        }
     }
 
     private static void OpeningAndClosing()

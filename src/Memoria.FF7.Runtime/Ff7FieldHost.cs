@@ -345,7 +345,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
     public bool CanConfirmDialogue(long requestId)
     {
         Ff7Dialogue? dialogue = Process.Dialogues.SingleOrDefault(item => item.RequestId == requestId);
-        return dialogue is { Completed: false } && (dialogue.Presentation?.NativeState is 13 or 14 || (Process.Windows.Single(window => window.Id == dialogue.Window).Flags & 1) == 0);
+        return dialogue is { Completed: false } && (dialogue.Presentation?.NativeState is 4 or 13 or 14 || (Process.Windows.Single(window => window.Id == dialogue.Window).Flags & 1) == 0);
     }
 
     public void CompleteDialogue(long requestId, int selected)

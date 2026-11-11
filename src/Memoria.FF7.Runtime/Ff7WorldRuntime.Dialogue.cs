@@ -113,7 +113,7 @@ public sealed partial class Ff7WorldRuntime
 
     public bool CanConfirmDialogue(long requestId)
     {
-        return dialogue is { Completed: false } && dialogue.RequestId == requestId && (dialogue.Presentation?.NativeState is 13 or 14 || (window!.Flags & 1) == 0);
+        return dialogue is { Completed: false } && dialogue.RequestId == requestId && (dialogue.Presentation?.NativeState is 4 or 13 or 14 || (window!.Flags & 1) == 0);
     }
 
     public void UpdateDialogue(Ff7Dialogue updated)

@@ -22,7 +22,7 @@ internal sealed partial class Ff7Scene
 
     private SystemTextRenderer? ownedDialogueText;
     private MonoGameUiCanvas? ownedDialogueCanvas;
-    private readonly Dictionary<(long Generation, long Request), (int NativePage, string Key, IReadOnlyList<DialogueVisualPage> Pages, DialoguePager Pager)> commonDialoguePages = [];
+    private readonly Dictionary<(long Generation, long Request), (int NativePage, int RetiredRows, string Key, IReadOnlyList<DialogueVisualPage> Pages, DialoguePager Pager)> commonDialoguePages = [];
     private Action<UiPreferences>? setDialoguePreferences;
     private Func<UiPreferences>? dialoguePreferences;
     private Func<UiTheme>? dialogueTheme;
@@ -79,8 +79,7 @@ internal sealed partial class Ff7Scene
             return true;
         }
         Ff7CommonDialogueText content = Ff7CommonDialogueText.Create(dialogue, Tokens(dialogue), token => Session!.ExpandDialogueToken(dialogue, token), ButtonLabel);
-        int pageEnd = presentation.Pages.Take(presentation.Pager.PageIndex + 1).Sum(DialoguePager.CharacterCount);
-        return content.VisibleCharacters >= pageEnd && presentation.Pager.Advance(presentation.Pages.Count);
+        return Ff7DialoguePresentationPolicy.AdvanceCommonPage(dialogue, content, presentation.Pages, presentation.Pager);
     }
 
     private bool CanSelectCommonDialogueChoice(Ff7Dialogue dialogue)
@@ -113,14 +112,14 @@ internal sealed partial class Ff7Scene
             : DialogueLayout.Create(document, state, nativeWindow, measurer.LineHeight, measurer.Measure);
         var identity = (DialogueGeneration, dialogue.RequestId);
         string key = document.Text + "\u0001" + preferences.DialogueFontFamily + ":" + preferences.DialogueFontSize + ":" + preferences.TextLayoutMode;
-        if (!commonDialoguePages.TryGetValue(identity, out var presentation) || presentation.NativePage != dialogue.Page || presentation.Key != key)
+        if (!commonDialoguePages.TryGetValue(identity, out var presentation) || presentation.NativePage != dialogue.Page || presentation.Key != key || presentation.RetiredRows != content.RetiredRows)
         {
             DialoguePager pager = new();
             if (presentation.Pager is not null && presentation.NativePage == dialogue.Page)
             {
-                pager.ReflowFrom(presentation.Pager, pages);
+                pager = Ff7DialoguePresentationPolicy.ReflowCommonPager(presentation.Pager, presentation.Pages, pages, presentation.RetiredRows != content.RetiredRows);
             }
-            presentation = (dialogue.Page, key, pages, pager);
+            presentation = (dialogue.Page, content.RetiredRows, key, pages, pager);
             commonDialoguePages[identity] = presentation;
         }
         DialogueVisualPage visual = presentation.Pages[presentation.Pager.PageIndex];
@@ -145,7 +144,7 @@ internal sealed partial class Ff7Scene
         }
         int remaining = Math.Max(0, content.VisibleCharacters - presentation.Pages.Take(presentation.Pager.PageIndex).Sum(DialoguePager.CharacterCount));
         float lineHeight = measurer.LineHeight * scale;
-        Vector2 origin = new(panel.X + DialoguePresentation.Padding * scale, panel.Y + DialoguePresentation.Padding * scale);
+        Vector2 origin = new(panel.X + DialoguePresentation.Padding * scale, panel.Y + DialoguePresentation.Padding * scale + Ff7DialoguePresentationPolicy.CommonScrollOffset(dialogue, lineHeight));
         dialogueCanvas!.PushClip(new(clip.X, clip.Y, clip.Width, clip.Height));
         try
         {

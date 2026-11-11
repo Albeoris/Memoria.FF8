@@ -7,6 +7,40 @@ namespace Memoria.FF8;
 
 internal static class Ff7DialoguePresentationPolicy
 {
+    internal static int RetiredRows(Ff7Dialogue dialogue) => -(dialogue.Presentation?.ScrollOffset ?? 0) / 16;
+
+    internal static float CommonScrollOffset(Ff7Dialogue dialogue, float lineHeight) => ((dialogue.Presentation?.ScrollOffset ?? 0) + RetiredRows(dialogue) * 16) * lineHeight / 16;
+
+    internal static bool AdvanceCommonPage(Ff7Dialogue dialogue, Ff7CommonDialogueText content, IReadOnlyList<DialogueVisualPage> pages, DialoguePager pager)
+    {
+        int pageEnd = pages.Take(pager.PageIndex + 1).Sum(DialoguePager.CharacterCount);
+        if (content.VisibleCharacters < pageEnd || dialogue.Presentation?.NativeState == 4 && content.VisibleCharacters == pageEnd)
+        {
+            return false;
+        }
+        return pager.Advance(pages.Count);
+    }
+
+    internal static DialoguePager ReflowCommonPager(DialoguePager previous, IReadOnlyList<DialogueVisualPage> previousPages, IReadOnlyList<DialogueVisualPage> pages, bool retiredRowsChanged)
+    {
+        DialoguePager pager = new();
+        pager.ReflowFrom(previous, pages);
+        if (retiredRowsChanged)
+        {
+            int sourceRow = previousPages[previous.PageIndex].Lines[0].SourceLineIndex;
+            int page = 0;
+            for (int index = 0; index < pages.Count; index++)
+            {
+                if (pages[index].Lines.Any(line => line.SourceLineIndex <= sourceRow))
+                {
+                    page = index;
+                }
+            }
+            pager.SelectPreviewPage(page, pages);
+        }
+        return pager;
+    }
+
     internal static byte MessageSpeed(byte nativeSpeed, int sharedSpeed)
     {
         if (sharedSpeed is < 1 or > 5)

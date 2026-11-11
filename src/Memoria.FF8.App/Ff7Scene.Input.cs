@@ -169,6 +169,7 @@ internal sealed partial class Ff7Scene
         }
         Vector2 scale = new(bounds.Width / 320f, bounds.Height / 240f);
         Vector2 origin = new(bounds.X + (window.X + 8) * scale.X, bounds.Y + (window.Y + 6) * scale.Y);
+        origin.Y += (dialogue.Presentation?.ScrollOffset ?? 0) * scale.Y;
         Vector2 position = origin;
         int color = 7;
         int row = 0;

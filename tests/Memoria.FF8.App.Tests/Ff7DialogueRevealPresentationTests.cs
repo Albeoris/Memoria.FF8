@@ -106,6 +106,75 @@ public sealed class Ff7DialogueRevealPresentationTests
         Assert.Throws<ArgumentOutOfRangeException>(() => Ff7DialoguePresentationPolicy.MessageSpeed(128, shared));
     }
 
+    [Theory]
+    [InlineData(-2, 1, 0, -1.5f)]
+    [InlineData(-14, 1, 0, -10.5f)]
+    [InlineData(-16, 1, 1, 0)]
+    [InlineData(-18, 2, 1, -1.5f)]
+    [InlineData(-32, 2, 2, 0)]
+    public void CommonScrollRetiresOnlyCompletedRowsAndPreservesSourceIndices(int offset, int scrollRows, int retiredRows, float translation)
+    {
+        FieldTextToken[] tokens = [Token(FieldTextTokenKind.Color) with { Argument = 2 }, Token(FieldTextTokenKind.Glyph, "First"), Token(FieldTextTokenKind.NewLine), Token(FieldTextTokenKind.Glyph, "Second"), Token(FieldTextTokenKind.NewLine), Token(FieldTextTokenKind.Glyph, "Third")];
+        Ff7Dialogue dialogue = Dialogue(tokens.Length) with { Presentation = new(8, 212, 57) { ScrollOffset = offset, ScrollRows = scrollRows } };
+        Ff7CommonDialogueText text = Create(dialogue, tokens);
+        Assert.Equal(retiredRows, text.RetiredRows);
+        Assert.Equal(new[] { "First", "Second", "Third" }.Skip(retiredRows), text.Document.Pages[0].Lines.Select(line => line.Text));
+        Assert.Equal(Enumerable.Range(retiredRows, 3 - retiredRows), text.Document.Pages[0].Lines.Select(line => line.SourceLineIndex));
+        Assert.Equal(new[] { 16, 11, 5 }[retiredRows], text.VisibleCharacters);
+        Assert.All(text.Document.Pages[0].Lines.SelectMany(line => line.Runs), run => Assert.Equal(Color.Red, run.Color));
+        Assert.Equal(translation, Ff7DialoguePresentationPolicy.CommonScrollOffset(dialogue, 12));
+    }
+
+    [Fact]
+    public void RetiredRowKeepsChoiceSourceIndicesAndPartialReveal()
+    {
+        FieldTextToken[] tokens = [Token(FieldTextTokenKind.Glyph, "Old"), Token(FieldTextTokenKind.NewLine), Token(FieldTextTokenKind.Glyph, "Answer"), Token(FieldTextTokenKind.NewLine), Token(FieldTextTokenKind.CharacterName)];
+        Ff7Dialogue dialogue = Dialogue(4, expansionOffset: 2) with { FirstChoice = 1, LastChoice = 2, Presentation = new(2, 212, 57, ExpansionOffset: 2) { ScrollOffset = -16, ScrollRows = 1 } };
+        Ff7CommonDialogueText text = Create(dialogue, tokens);
+        IReadOnlyList<DialogueVisualPage> pages = Layout(text, dialogue);
+        Assert.Equal("Answer\nSquall", text.Document.Text);
+        Assert.Equal(8, text.VisibleCharacters);
+        Assert.All(pages.SelectMany(page => page.Lines), line => Assert.True(line.IsChoice));
+        Assert.Equal(new[] { 1, 2 }, pages.SelectMany(page => page.Lines).Select(line => line.SourceLineIndex));
+    }
+
+    [Fact]
+    public void NativeScrollConfirmDoesNotAdvanceIntoAnUnrevealedAdaptivePage()
+    {
+        FieldTextToken[] tokens = Rows(10);
+        Ff7Dialogue dialogue = Dialogue(15) with { AwaitingInput = true, Presentation = new(4, 212, 57) };
+        Ff7CommonDialogueText text = Create(dialogue, tokens);
+        IReadOnlyList<DialogueVisualPage> pages = Layout(text, dialogue);
+        Assert.Equal(2, pages.Count);
+        DialoguePager pager = new();
+        Assert.Equal(8, text.VisibleCharacters);
+        Assert.False(Ff7DialoguePresentationPolicy.AdvanceCommonPage(dialogue, text, pages, pager));
+        Assert.Equal(0, pager.PageIndex);
+        text = Create(dialogue with { TokenPosition = 17 }, tokens);
+        Assert.True(Ff7DialoguePresentationPolicy.AdvanceCommonPage(dialogue, text, pages, pager));
+        Assert.Equal(1, pager.PageIndex);
+    }
+
+    [Fact]
+    public void RowRetirementReflowsAdaptivePagerToItsSourceRow()
+    {
+        FieldTextToken[] tokens = Rows(18);
+        Ff7Dialogue dialogue = Dialogue(tokens.Length);
+        IReadOnlyList<DialogueVisualPage> before = Layout(Create(dialogue, tokens), dialogue);
+        DialoguePager pager = new();
+        Assert.True(pager.Advance(before.Count));
+        Assert.Equal(8, before[pager.PageIndex].Lines[0].SourceLineIndex);
+        dialogue = dialogue with { Presentation = new(2, 212, 57) { ScrollOffset = -16, ScrollRows = 1 } };
+        IReadOnlyList<DialogueVisualPage> after = Layout(Create(dialogue, tokens), dialogue);
+        DialoguePager reflowed = Ff7DialoguePresentationPolicy.ReflowCommonPager(pager, before, after, true);
+        Assert.Equal(0, reflowed.PageIndex);
+        Assert.Contains(after[reflowed.PageIndex].Lines, line => line.SourceLineIndex == 8);
+    }
+
+    private static FieldTextToken[] Rows(int count) => Enumerable.Range(0, count).SelectMany(row => row == count - 1 ? new[] { Token(FieldTextTokenKind.Glyph, "X") } : new[] { Token(FieldTextTokenKind.Glyph, "X"), Token(FieldTextTokenKind.NewLine) }).ToArray();
+
+    private static IReadOnlyList<DialogueVisualPage> Layout(Ff7CommonDialogueText text, Ff7Dialogue dialogue) => DialogueLayout.Create(text.Document, new(dialogue.Window, dialogue.Text, text.Document.Text, 0, 0, dialogue.FirstChoice, dialogue.LastChoice, dialogue.Selected), new(dialogue.Window, 0, 0, 212, 57), 12, value => value.Length * 6);
+
     private static FieldTextToken Token(FieldTextTokenKind kind, string text = "") => new(kind, 0, 0, 0, 0, text);
 
     private static Ff7Dialogue Dialogue(int tokenPosition, int expansionOffset = 0) => new(1, 0, 0, null, null, 0, TokenPosition: tokenPosition, Presentation: new(2, 212, 57, ExpansionOffset: expansionOffset));

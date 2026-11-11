@@ -6,19 +6,20 @@ using Microsoft.Xna.Framework;
 
 namespace Memoria.FF8;
 
-internal sealed record Ff7CommonDialogueText(DialogueDocument Document, int VisibleCharacters)
+internal sealed record Ff7CommonDialogueText(DialogueDocument Document, int VisibleCharacters, int RetiredRows = 0)
 {
     internal static Ff7CommonDialogueText Create(Ff7Dialogue dialogue, IReadOnlyList<FieldTextToken> tokens, Func<FieldTextToken, string> expand, Func<FieldTextToken, string> buttonLabel)
     {
         int page = 0;
         int row = 0;
         int visibleCharacters = 0;
+        int retiredRows = Ff7DialoguePresentationPolicy.RetiredRows(dialogue);
         List<DialogueLine> lines = [];
         List<DialogueRun> runs = [];
         Color color = Color.White;
         void Add(string value, int index)
         {
-            if (value.Length == 0)
+            if (row < retiredRows || value.Length == 0)
             {
                 return;
             }
@@ -67,10 +68,18 @@ internal sealed record Ff7CommonDialogueText(DialogueDocument Document, int Visi
                     Add(expand(token), index);
                     break;
                 case FieldTextTokenKind.NewLine:
-                    lines.Add(new DialogueLine(runs.ToArray(), row++));
+                    if (row >= retiredRows)
+                    {
+                        lines.Add(new DialogueLine(runs.ToArray(), row));
+                    }
+                    row++;
                     runs.Clear();
                     break;
                 case FieldTextTokenKind.ControllerButton:
+                    if (row < retiredRows)
+                    {
+                        break;
+                    }
                     DialogueRun[] bindings = ButtonPromptText.BindingRuns(buttonLabel(token), color).ToArray();
                     runs.AddRange(bindings);
                     if (index < dialogue.TokenPosition)
@@ -104,7 +113,10 @@ internal sealed record Ff7CommonDialogueText(DialogueDocument Document, int Visi
                     throw new NotSupportedException($"FFVII dialogue token {token.Kind} requires its native layout or variable binding.");
             }
         }
-        lines.Add(new DialogueLine(runs.ToArray(), row));
-        return new(new DialogueDocument([new DialoguePage(lines)]), visibleCharacters);
+        if (row >= retiredRows)
+        {
+            lines.Add(new DialogueLine(runs.ToArray(), row));
+        }
+        return new(new DialogueDocument([new DialoguePage(lines)]), visibleCharacters, retiredRows);
     }
 }
