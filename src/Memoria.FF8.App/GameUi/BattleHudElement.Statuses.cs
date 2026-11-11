@@ -34,7 +34,7 @@ internal sealed partial class BattleHudElement
         new(false, 32768, "Drain", 284),
         new(false, 131072, "Double"),
         new(false, 262144, "Triple"),
-        new(false, 4194304, "Vit 0"),
+        new(false, 16777216, "Vit 0"),
         new(false, 33554432, "Angel Wing")
     ];
 
@@ -65,7 +65,7 @@ internal sealed partial class BattleHudElement
         (false, 32768) => controller.SystemText("battle.status.drain", "Drain"),
         (false, 131072) => controller.SystemText("battle.status.double", "Double"),
         (false, 262144) => controller.SystemText("battle.status.triple", "Triple"),
-        (false, 4194304) => controller.SystemText("battle.status.vit-0", "Vit 0"),
+        (false, 16777216) => controller.SystemText("battle.status.vit-0", "Vit 0"),
         (false, 33554432) => controller.SystemText("battle.status.angel-wing", "Angel Wing"),
         _ => status.Name
     };

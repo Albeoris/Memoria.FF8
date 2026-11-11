@@ -6,7 +6,7 @@ namespace Memoria.FF8.Resources;
 /// <summary>The sole encoded-resource and decoded-texture entry point. The host owns publication timing.</summary>
 public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSource
 {
-    private sealed record Publication(long Generation, ImmutableDictionary<TextureKey, TextureValue> Values, ImmutableDictionary<ResourceKey, StaticTextResource> Texts, ImmutableDictionary<ResourceKey, EncodedResource> Encoded, ImmutableArray<string> ExclusiveScopes, LocalizationCatalog Localization)
+    private sealed record Publication(long Generation, ImmutableDictionary<TextureKey, TextureValue> Values, ImmutableDictionary<ResourceKey, StaticTextResource> Texts, ImmutableDictionary<ResourceKey, EncodedResource> Encoded, ImmutableArray<string> ExclusiveScopes, LocalizationCatalog Localization, ImmutableDictionary<string, LocalizedTextAlias> TextAliases)
     {
         public long CatalogGeneration { get; init; }
     }
@@ -18,7 +18,7 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
     private readonly List<Action<ResourceChangeSet>> subscribers = [];
     private readonly object encodedGate = new();
     private readonly HashSet<ResourceKey> consumedResources = [];
-    private Publication published = new(0, ImmutableDictionary<TextureKey, TextureValue>.Empty, ImmutableDictionary<ResourceKey, StaticTextResource>.Empty, ImmutableDictionary<ResourceKey, EncodedResource>.Empty, [], LocalizationCatalog.Empty);
+    private Publication published = new(0, ImmutableDictionary<TextureKey, TextureValue>.Empty, ImmutableDictionary<ResourceKey, StaticTextResource>.Empty, ImmutableDictionary<ResourceKey, EncodedResource>.Empty, [], LocalizationCatalog.Empty, ImmutableDictionary<string, LocalizedTextAlias>.Empty);
     private ITextureReplacementResolver? resolver;
     private bool notifying;
     private long mutationVersion;
@@ -34,13 +34,20 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
     public T? GetSource<T>() where T : class => (source as IResourceSourceProvider)?.GetSource(typeof(T), this) as T ?? source as T;
     public bool HasEncodedReplacement(ResourceKey key) => Volatile.Read(ref published).Encoded.ContainsKey(key);
     public LocalizationCatalog Localization => Volatile.Read(ref published).Localization;
-    public BoundLocalizationText ResolveText(string key, string original) => Localization.ResolveText(key, original);
+    public BoundLocalizationText ResolveText(string key, string original)
+    {
+        Publication current = Volatile.Read(ref published);
+        (key, original) = ResolveAlias(current.TextAliases, key, original);
+        return current.Localization.ResolveText(key, original);
+    }
 
     public string Localize(string key, string original)
     {
         if (!LocalizationTextTrace.Enabled)
         {
-            return SystemTextCatalog.KeysForCatalogKey(key) is { } aliases ? Localization.ResolveAliases(aliases, original) : Localization.Resolve(key, original);
+            Publication current = Volatile.Read(ref published);
+            (key, original) = ResolveAlias(current.TextAliases, key, original);
+            return SystemTextCatalog.KeysForCatalogKey(key) is { } aliases ? current.Localization.ResolveAliases(aliases, original) : current.Localization.Resolve(key, original);
         }
         BoundLocalizationText resolved = ResolveText(key, original);
         return LocalizationTextTrace.Attach(resolved.Text, resolved.Binding);
@@ -54,13 +61,13 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
         Publication current = published;
         if (current.Localization.ArtworkFingerprint == localization.ArtworkFingerprint)
         {
-            return new(this, mutationVersion, resolver, ImmutableDictionary<TextureKey, TextureValue>.Empty, current.Texts, current.Encoded, current.ExclusiveScopes, [], localization);
+            return new(this, mutationVersion, resolver, ImmutableDictionary<TextureKey, TextureValue>.Empty, current.Texts, current.Encoded, current.ExclusiveScopes, [], localization, current.TextAliases);
         }
         long version = mutationVersion;
         HashSet<TextureKey> affected = current.Localization.ArtworkFingerprints.Keys.Union(localization.ArtworkFingerprints.Keys).Where(key => current.Localization.ArtworkFingerprints.GetValueOrDefault(key) != localization.ArtworkFingerprints.GetValueOrDefault(key) && contexts.ContainsKey(key)).ToHashSet();
         if (affected.Count == 0)
         {
-            return new(this, version, resolver, ImmutableDictionary<TextureKey, TextureValue>.Empty, current.Texts, current.Encoded, current.ExclusiveScopes, [], localization);
+            return new(this, version, resolver, ImmutableDictionary<TextureKey, TextureValue>.Empty, current.Texts, current.Encoded, current.ExclusiveScopes, [], localization, current.TextAliases);
         }
         ImmutableDictionary<TextureKey, TextureValue>.Builder values = current.Values.ToBuilder();
         foreach (TextureKey key in affected)
@@ -68,7 +75,7 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
             values[key] = Resolve(contexts[key], resolver, localization);
         }
         BuildTransforms(values, affected);
-        return new(this, version, resolver, affected.ToImmutableDictionary(key => key, key => values[key]), current.Texts, current.Encoded, current.ExclusiveScopes, [], localization);
+        return new(this, version, resolver, affected.ToImmutableDictionary(key => key, key => values[key]), current.Texts, current.Encoded, current.ExclusiveScopes, [], localization, current.TextAliases);
     }
     public long Generation => Volatile.Read(ref published).Generation;
     /// <summary>Advances only when a prepared resolver, encoded-resource or localization catalog is committed; native texture context updates and residency changes do not advance it.</summary>
@@ -265,10 +272,11 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
     }
 
     /// <summary>Builds every resident binding before replacing the generation, including prior no-matches.</summary>
-    public PreparedResources Prepare(ITextureReplacementResolver? nextResolver, IEnumerable<StaticTextResource>? textResources = null, IEnumerable<EncodedResource>? encodedResources = null, LocalizationCatalog? localization = null)
+    public PreparedResources Prepare(ITextureReplacementResolver? nextResolver, IEnumerable<StaticTextResource>? textResources = null, IEnumerable<EncodedResource>? encodedResources = null, LocalizationCatalog? localization = null, IReadOnlyDictionary<string, LocalizedTextAlias>? textAliases = null)
     {
         long version = mutationVersion;
         LocalizationCatalog nextLocalization = localization ?? published.Localization;
+        ImmutableDictionary<string, LocalizedTextAlias> nextAliases = textAliases is null ? published.TextAliases : ValidateTextAliases(textAliases);
         ImmutableDictionary<ResourceKey, EncodedResource> encoded;
         ImmutableArray<string> exclusiveScopes;
         lock (encodedGate)
@@ -294,7 +302,48 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
             next.Add(key, value);
         }
         BuildTransforms(next);
-        return new PreparedResources(this, version, nextResolver, next.ToImmutable(), textResources?.ToImmutableDictionary(text => text.Key) ?? published.Texts, encoded, exclusiveScopes, failures.ToImmutable(), nextLocalization);
+        return new PreparedResources(this, version, nextResolver, next.ToImmutable(), textResources?.ToImmutableDictionary(text => text.Key) ?? published.Texts, encoded, exclusiveScopes, failures.ToImmutable(), nextLocalization, nextAliases);
+    }
+
+    private static ImmutableDictionary<string, LocalizedTextAlias> ValidateTextAliases(IReadOnlyDictionary<string, LocalizedTextAlias> aliases)
+    {
+        ImmutableDictionary<string, LocalizedTextAlias> result = aliases.ToImmutableDictionary(StringComparer.Ordinal);
+        foreach ((string key, LocalizedTextAlias alias) in result)
+        {
+            if (string.IsNullOrWhiteSpace(key) || alias is null || string.IsNullOrWhiteSpace(alias.Key) || alias.Original is null)
+            {
+                throw new InvalidDataException("Localized text aliases require source and target keys and a native fallback.");
+            }
+            HashSet<string> visited = new(StringComparer.Ordinal) { key };
+            string target = alias.Key;
+            while (true)
+            {
+                if (!visited.Add(target))
+                {
+                    throw new InvalidDataException($"Localized text alias {key} has a cyclic target.");
+                }
+                if (!result.TryGetValue(target, out LocalizedTextAlias? next))
+                {
+                    break;
+                }
+                if (next is null || string.IsNullOrWhiteSpace(next.Key))
+                {
+                    throw new InvalidDataException("Localized text aliases require a target key.");
+                }
+                target = next.Key;
+            }
+        }
+        return result;
+    }
+
+    private static (string Key, string Original) ResolveAlias(ImmutableDictionary<string, LocalizedTextAlias> aliases, string key, string original)
+    {
+        for (int remaining = aliases.Count; remaining > 0 && aliases.TryGetValue(key, out LocalizedTextAlias? alias); remaining--)
+        {
+            key = alias.Key;
+            original = alias.Original;
+        }
+        return (key, original);
     }
 
     private ImmutableArray<ResourceKey> ChangedEncodedResources(ImmutableDictionary<ResourceKey, EncodedResource> next, ImmutableArray<string> exclusiveScopes)
@@ -466,10 +515,11 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
         private readonly ImmutableArray<string> exclusiveScopes;
         private readonly ImmutableArray<(TextureKey Key, Exception Exception)> failures;
         private readonly LocalizationCatalog localization;
+        private readonly ImmutableDictionary<string, LocalizedTextAlias> textAliases;
         private bool committed;
         private ResourceChangeSet? change;
 
-        internal PreparedResources(ResourceService owner, long expectedVersion, ITextureReplacementResolver? resolver, ImmutableDictionary<TextureKey, TextureValue> values, ImmutableDictionary<ResourceKey, StaticTextResource> texts, ImmutableDictionary<ResourceKey, EncodedResource> encoded, ImmutableArray<string> exclusiveScopes, ImmutableArray<(TextureKey Key, Exception Exception)> failures, LocalizationCatalog localization)
+        internal PreparedResources(ResourceService owner, long expectedVersion, ITextureReplacementResolver? resolver, ImmutableDictionary<TextureKey, TextureValue> values, ImmutableDictionary<ResourceKey, StaticTextResource> texts, ImmutableDictionary<ResourceKey, EncodedResource> encoded, ImmutableArray<string> exclusiveScopes, ImmutableArray<(TextureKey Key, Exception Exception)> failures, LocalizationCatalog localization, ImmutableDictionary<string, LocalizedTextAlias> textAliases)
         {
             this.owner = owner;
             this.expectedVersion = expectedVersion;
@@ -480,6 +530,7 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
             this.exclusiveScopes = exclusiveScopes;
             this.failures = failures;
             this.localization = localization;
+            this.textAliases = textAliases;
         }
 
         /// <summary>Publishes the prepared generation after validation and any coordinated external mutation.</summary>
@@ -495,8 +546,9 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
                 owner.mutationVersion++;
                 Publication previous = owner.published;
                 owner.resolver = resolver;
-                Volatile.Write(ref owner.published, new Publication(previous.Generation + 1, previous.Values.SetItems(values), texts, encoded, exclusiveScopes, localization) { CatalogGeneration = previous.CatalogGeneration + 1 });
-                change = new ResourceChangeSet(previous.Generation, previous.Generation + 1, values.Keys.ToImmutableArray(), reason) { Texts = previous.Texts.Keys.Union(texts.Keys).Concat(previous.Localization.Fingerprint == localization.Fingerprint ? [] : new[] { new ResourceKey("localization/catalog") }).ToImmutableArray(), Resources = changedEncoded };
+                Volatile.Write(ref owner.published, new Publication(previous.Generation + 1, previous.Values.SetItems(values), texts, encoded, exclusiveScopes, localization, textAliases) { CatalogGeneration = previous.CatalogGeneration + 1 });
+                bool localizationChanged = previous.Localization.Fingerprint != localization.Fingerprint || previous.TextAliases.Count != textAliases.Count || previous.TextAliases.Any(pair => !textAliases.TryGetValue(pair.Key, out LocalizedTextAlias? alias) || pair.Value != alias);
+                change = new ResourceChangeSet(previous.Generation, previous.Generation + 1, values.Keys.ToImmutableArray(), reason) { Texts = previous.Texts.Keys.Union(texts.Keys).Concat(localizationChanged ? new[] { new ResourceKey("localization/catalog") } : []).ToImmutableArray(), Resources = changedEncoded };
             }
             if (notify)
             {

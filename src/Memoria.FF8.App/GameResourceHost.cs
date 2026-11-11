@@ -1,6 +1,8 @@
 using Memoria.FF8.Assets;
+using Memoria.FF8.Assets.Localization;
 using Memoria.FF8.Mods;
 using Memoria.FF8.Resources;
+using Memoria.FF8.Resources.Localization;
 
 namespace Memoria.FF8;
 
@@ -358,10 +360,31 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
             1 => resolvers[0],
             _ => new OrderedTextureResolver(resolvers.ToArray())
         };
+        Dictionary<string, LocalizedTextAlias> textAliases = new(StringComparer.Ordinal);
+        if (behaviorMods.MeltdownStatusNameKey is string statusNameKey)
+        {
+            try
+            {
+                NativeLocalizationTextReferences references = new(dataCandidate);
+                string original = references.ResolveOriginal(statusNameKey);
+                if (SystemTextCatalog.KeysForSemanticId("battle.status.vit-0").Contains(statusNameKey, StringComparer.Ordinal))
+                {
+                    throw new InvalidDataException("A status name cannot refer back to its own localization identity.");
+                }
+                foreach (string key in SystemTextCatalog.KeysForSemanticId("battle.status.vit-0"))
+                {
+                    textAliases.Add(key, new(statusNameKey, original));
+                }
+            }
+            catch (Exception exception) when (exception is InvalidDataException or IOException or ArgumentException or NotSupportedException)
+            {
+                return new ModPreparationResult(false, Diagnostics: [new ModDiagnostic("Memoria.InvalidStatusNameReference", exception.Message, behaviorMods.MeltdownStatusNamePackageId, BehaviorMods.PayloadPath)]);
+            }
+        }
         ResourceService.PreparedResources prepared;
         try
         {
-            prepared = Resources.Prepare(resolver, textResources, encodedResources, ComposeAuthoringLocalization(localization!.Catalog));
+            prepared = Resources.Prepare(resolver, textResources, encodedResources, ComposeAuthoringLocalization(localization!.Catalog), textAliases);
         }
         catch (ResourceReloadRequiredException exception)
         {

@@ -1,5 +1,7 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
+using Memoria.FF8.Resources.Localization;
 
 namespace Memoria.FF8.Mods;
 
@@ -20,22 +22,27 @@ public sealed class BehaviorMods
     public const int HardcoreSpiritReductionPercent = 25;
     public const string VitalityReductionParameter = "VitalityReductionPercent";
     public const string SpiritReductionParameter = "SpiritReductionPercent";
+    public const string StatusNameParameter = "StatusName";
     private const string LegacyReductionParameter = "defenseReductionPercent";
     private static readonly string[] Parameters = [VitalityReductionParameter, SpiritReductionParameter];
-    public static BehaviorMods Empty { get; } = new(null, null, null, null);
+    public static BehaviorMods Empty { get; } = new(null, null, null, null, null, null);
 
-    private BehaviorMods(int? vitality, int? spirit, string? vitalityPackageId, string? spiritPackageId)
+    private BehaviorMods(int? vitality, int? spirit, string? vitalityPackageId, string? spiritPackageId, string? statusNameKey, string? statusNamePackageId)
     {
         MeltdownVitalityReductionPercent = vitality;
         MeltdownSpiritReductionPercent = spirit;
         MeltdownVitalityPackageId = vitalityPackageId;
         MeltdownSpiritPackageId = spiritPackageId;
+        MeltdownStatusNameKey = statusNameKey;
+        MeltdownStatusNamePackageId = statusNamePackageId;
     }
 
     public int? MeltdownVitalityReductionPercent { get; }
     public int? MeltdownSpiritReductionPercent { get; }
     public string? MeltdownVitalityPackageId { get; }
     public string? MeltdownSpiritPackageId { get; }
+    public string? MeltdownStatusNameKey { get; }
+    public string? MeltdownStatusNamePackageId { get; }
     public string? MeltdownPackageId => MeltdownVitalityPackageId == MeltdownSpiritPackageId ? MeltdownVitalityPackageId : null;
 
     public static bool IsPayloadPath(string relativePath)
@@ -47,6 +54,7 @@ public sealed class BehaviorMods
     {
         List<ModDiagnostic> errors = [];
         Dictionary<string, (ModFile Owner, int Value)> selected = new(StringComparer.Ordinal);
+        (ModFile Owner, string Key)? statusName = null;
         HashSet<string> inactivePackages = catalog.Packages.Where(package => package.Status != ModEffectiveStatus.Active).Select(package => package.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (IGrouping<string, ModFile> package in catalog.Files.Where(file => file.Format == ModFormat.Memoria && !inactivePackages.Contains(file.PackageId) && (IsPayloadPath(file.RelativePath) || file.RelativePath.Equals(ConfigurationPath, StringComparison.OrdinalIgnoreCase))).GroupBy(file => file.PackageId, StringComparer.OrdinalIgnoreCase))
         {
@@ -64,7 +72,22 @@ public sealed class BehaviorMods
                     throw new InvalidDataException("A package must have a single behavior payload and a single configuration document.");
                 }
                 payload = declarations.Single();
-                foreach (BehaviorModSetting setting in ReadSettings(payload.ReadBytes(), configurations.SingleOrDefault()?.ReadBytes()))
+                List<BehaviorModSetting> settings = ParsePayload(payload.ReadBytes(), out string? statusNameKey);
+                ApplyConfiguration(settings, configurations.SingleOrDefault()?.ReadBytes());
+                if (statusNameKey is not null)
+                {
+                    if (statusName is { } existingName)
+                    {
+                        string message = $"Behavior parameter meltdown.{StatusNameParameter} is declared by both {existingName.Owner.PackageId}:{existingName.Owner.RelativePath} and {payload.PackageId}:{payload.RelativePath}.";
+                        errors.Add(new("Memoria.BehaviorConflict", message, existingName.Owner.PackageId, existingName.Owner.RelativePath));
+                        errors.Add(new("Memoria.BehaviorConflict", message, payload.PackageId, payload.RelativePath));
+                    }
+                    else
+                    {
+                        statusName = (payload, statusNameKey);
+                    }
+                }
+                foreach (BehaviorModSetting setting in settings)
                 {
                     if (selected.TryGetValue(setting.Parameter, out var existing))
                     {
@@ -83,14 +106,20 @@ public sealed class BehaviorMods
         }
         selected.TryGetValue(VitalityReductionParameter, out var vitality);
         selected.TryGetValue(SpiritReductionParameter, out var spirit);
-        result = errors.Count == 0 ? new(vitality.Owner is null ? null : vitality.Value, spirit.Owner is null ? null : spirit.Value, vitality.Owner?.PackageId, spirit.Owner?.PackageId) : Empty;
+        result = errors.Count == 0 ? new(vitality.Owner is null ? null : vitality.Value, spirit.Owner is null ? null : spirit.Value, vitality.Owner?.PackageId, spirit.Owner?.PackageId, statusName?.Key, statusName?.Owner.PackageId) : Empty;
         diagnostics = errors.AsReadOnly();
         return errors.Count == 0;
     }
 
     internal static IReadOnlyList<BehaviorModSetting> ReadSettings(byte[] payload, byte[]? configuration)
     {
-        List<BehaviorModSetting> settings = ParsePayload(payload);
+        List<BehaviorModSetting> settings = ParsePayload(payload, out _);
+        ApplyConfiguration(settings, configuration);
+        return settings;
+    }
+
+    private static void ApplyConfiguration(List<BehaviorModSetting> settings, byte[]? configuration)
+    {
         Dictionary<string, int> configured = configuration is null ? new(StringComparer.Ordinal) : ParseConfiguration(configuration);
         foreach ((string parameter, int value) in configured)
         {
@@ -103,7 +132,6 @@ public sealed class BehaviorMods
             ValidateValue(value, setting.Min, setting.Max, setting.Step, parameter);
             settings[index] = setting with { Value = value };
         }
-        return settings;
     }
 
     internal static bool IsDocumentError(Exception exception)
@@ -117,8 +145,9 @@ public sealed class BehaviorMods
         return JsonDocument.Parse(json);
     }
 
-    private static List<BehaviorModSetting> ParsePayload(byte[] bytes)
+    private static List<BehaviorModSetting> ParsePayload(byte[] bytes, out string? statusNameKey)
     {
+        statusNameKey = null;
         using JsonDocument document = ParseDocument(bytes);
         JsonElement root = document.RootElement;
         ValidateObject(root, ["schemaVersion", "meltdown"]);
@@ -141,10 +170,19 @@ public sealed class BehaviorMods
                 Description = parameter == VitalityReductionParameter ? "Percentage by which Meltdown reduces Vitality." : "Percentage by which Meltdown reduces Spirit."
             }).ToList();
         }
-        ValidateObject(meltdown, Parameters);
+        ValidateObject(meltdown, [.. Parameters, StatusNameParameter]);
+        if (meltdown.TryGetProperty(StatusNameParameter, out _))
+        {
+            statusNameKey = ReadText(meltdown, StatusNameParameter);
+            ValidateStatusNameKey(statusNameKey);
+        }
         List<BehaviorModSetting> settings = [];
         foreach (JsonProperty property in meltdown.EnumerateObject())
         {
+            if (property.Name == StatusNameParameter)
+            {
+                continue;
+            }
             JsonElement metadata = property.Value;
             ValidateObject(metadata, ["label", "description", "control", "unit", "min", "max", "step", "default"]);
             string label = ReadText(metadata, "label");
@@ -171,6 +209,18 @@ public sealed class BehaviorMods
             settings.Add(new("meltdown", property.Name, label, min, max, defaultValue, defaultValue) { Description = description, Control = control, Unit = unit, Step = step });
         }
         return settings;
+    }
+
+    private static void ValidateStatusNameKey(string key)
+    {
+        Match match = Regex.Match(key, @"\A\$[a-z][a-z0-9-]*_(?<identity>[A-Za-z0-9_.-]+)\z", RegexOptions.CultureInvariant);
+        string identity = match.Success ? match.Groups["identity"].Value : string.Empty;
+        string systemPrefix = SystemTextCatalog.File + "_";
+        bool authoredSystem = identity.StartsWith(systemPrefix, StringComparison.Ordinal) && SystemTextCatalog.Defaults.ContainsKey(identity[systemPrefix.Length..]);
+        if (!match.Success || !authoredSystem && !Regex.IsMatch(identity, @"\A[A-Za-z0-9_][A-Za-z0-9_.-]*_[0-9]{4,}(?:_ctx_[a-fA-F0-9]{8,64})?\z", RegexOptions.CultureInvariant))
+        {
+            throw new InvalidDataException("meltdown.StatusName must reference a complete canonical localization key.");
+        }
     }
 
     private static Dictionary<string, int> ParseConfiguration(byte[] bytes)

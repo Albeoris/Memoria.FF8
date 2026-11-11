@@ -9,6 +9,7 @@ public sealed class BehaviorModsTests : IDisposable
     private const string LegacyPayload = "{\"schemaVersion\":1,\"meltdown\":{\"defenseReductionPercent\":50}}";
     private const string Vitality = BehaviorMods.VitalityReductionParameter;
     private const string Spirit = BehaviorMods.SpiritReductionParameter;
+    private const string StatusNameKey = "$en_kernel_magicspells_name_0049";
     private static readonly string Payload = CreatePayload();
 
     [Fact]
@@ -18,6 +19,8 @@ public sealed class BehaviorModsTests : IDisposable
         Assert.Null(mods.MeltdownVitalityReductionPercent);
         Assert.Null(mods.MeltdownSpiritReductionPercent);
         Assert.Null(mods.MeltdownPackageId);
+        Assert.Null(mods.MeltdownStatusNameKey);
+        Assert.Null(mods.MeltdownStatusNamePackageId);
         Assert.Empty(diagnostics);
     }
 
@@ -45,9 +48,96 @@ public sealed class BehaviorModsTests : IDisposable
         Assert.True(BehaviorMods.TryPrepare(new(1, [], [File("Memoria/A", BehaviorMods.PayloadPath, Payload)]), out BehaviorMods mods, out IReadOnlyList<ModDiagnostic> diagnostics));
         Assert.Equal(50, mods.MeltdownVitalityReductionPercent);
         Assert.Equal(25, mods.MeltdownSpiritReductionPercent);
+        Assert.Null(mods.MeltdownStatusNameKey);
+        Assert.Null(mods.MeltdownStatusNamePackageId);
         Assert.Equal("Memoria/A", mods.MeltdownVitalityPackageId);
         Assert.Equal("Memoria/A", mods.MeltdownSpiritPackageId);
         Assert.Empty(diagnostics);
+    }
+
+    [Fact]
+    public void StatusNameIsPreparedWithoutAddingAnOption()
+    {
+        string payload = CreatePayload(statusName: StatusNameKey);
+        Write("Mods/Memoria/Meltdown/gameplay/behaviors.json", payload);
+        using ModRuntime runtime = new(root, watch: false, debounce: TimeSpan.Zero);
+        Publish(runtime);
+        Assert.True(BehaviorMods.TryPrepare(runtime.Catalog, out BehaviorMods mods, out _));
+        Assert.Equal(StatusNameKey, mods.MeltdownStatusNameKey);
+        Assert.Equal("Memoria/Meltdown", mods.MeltdownStatusNamePackageId);
+        Assert.Equal(new[] { Vitality, Spirit }, runtime.ReadBehaviorSettings("Memoria/Meltdown").Select(setting => setting.Parameter));
+        Assert.False(runtime.SetBehaviorSetting("Memoria/Meltdown", "meltdown", BehaviorMods.StatusNameParameter, 1).Success);
+        Assert.True(runtime.SetBehaviorSetting("Memoria/Meltdown", "meltdown", Vitality, 65).Success);
+        Publish(runtime);
+        Assert.True(BehaviorMods.TryPrepare(runtime.Catalog, out mods, out _));
+        Assert.Equal(StatusNameKey, mods.MeltdownStatusNameKey);
+        Assert.Equal(65, mods.MeltdownVitalityReductionPercent);
+    }
+
+    [Theory]
+    [InlineData("\"$en_kernel_magicspells_name_0049\"")]
+    [InlineData("\"$en_interface_system_main.menu\"")]
+    public void StatusNameCanBeOwnedSeparatelyFromPercentages(string declaration)
+    {
+        ModFile[] files = [File("Memoria/A", BehaviorMods.PayloadPath, Payload), File("Memoria/B", BehaviorMods.PayloadPath, "{\"schemaVersion\":2,\"meltdown\":{\"StatusName\":" + declaration + "}}")];
+        Assert.True(BehaviorMods.TryPrepare(new(1, [], files), out BehaviorMods mods, out _));
+        Assert.Equal(JsonSerializer.Deserialize<string>(declaration), mods.MeltdownStatusNameKey);
+        Assert.Equal("Memoria/B", mods.MeltdownStatusNamePackageId);
+        Assert.Equal("Memoria/A", mods.MeltdownPackageId);
+    }
+
+    [Theory]
+    [InlineData("null")]
+    [InlineData("42")]
+    [InlineData("{}")]
+    [InlineData("\"\"")]
+    [InlineData("\"Meltdown\"")]
+    [InlineData("\"$en_foo\"")]
+    [InlineData("\"$en_foo_bar\"")]
+    [InlineData("\"$en_interface_system_unknown.identity\"")]
+    [InlineData("\"$en_kernel_magicspells_name_0049 \"")]
+    [InlineData("\"$en_kernel_magicspells_name_0049\\n\"")]
+    public void InvalidStatusNameRejectsCandidate(string declaration)
+    {
+        string payload = "{\"schemaVersion\":2,\"meltdown\":{\"StatusName\":" + declaration + "}}";
+        Assert.False(BehaviorMods.TryPrepare(new(1, [], [File("Memoria/A", BehaviorMods.PayloadPath, payload)]), out BehaviorMods mods, out IReadOnlyList<ModDiagnostic> diagnostics));
+        Assert.Null(mods.MeltdownStatusNameKey);
+        Assert.Single(diagnostics);
+    }
+
+    [Fact]
+    public void StatusNameConflictNamesBothOwnersIndependentlyOfPercentages()
+    {
+        ModFile[] files = [File("Memoria/A", BehaviorMods.PayloadPath, CreatePayload(Vitality, StatusNameKey)), File("Memoria/B", BehaviorMods.PayloadPath, CreatePayload(Spirit, StatusNameKey))];
+        Assert.False(BehaviorMods.TryPrepare(new(1, [], files), out BehaviorMods mods, out IReadOnlyList<ModDiagnostic> diagnostics));
+        Assert.Null(mods.MeltdownStatusNameKey);
+        Assert.Equal(new[] { "Memoria/A", "Memoria/B" }, diagnostics.Select(item => item.PackageId));
+        Assert.All(diagnostics, diagnostic =>
+        {
+            Assert.Equal("Memoria.BehaviorConflict", diagnostic.Code);
+            Assert.Contains("meltdown.StatusName", diagnostic.Message);
+            Assert.Contains("Memoria/A", diagnostic.Message);
+            Assert.Contains("Memoria/B", diagnostic.Message);
+        });
+    }
+
+    [Fact]
+    public void DisabledStatusNameOwnerIsIgnored()
+    {
+        ModPackage package = new("Memoria/A", "A", ModFormat.Memoria, false, false, ModEffectiveStatus.Disabled, root);
+        Assert.True(BehaviorMods.TryPrepare(new(1, [package], [File(package.Id, BehaviorMods.PayloadPath, CreatePayload(statusName: StatusNameKey))]), out BehaviorMods mods, out IReadOnlyList<ModDiagnostic> diagnostics));
+        Assert.Null(mods.MeltdownStatusNameKey);
+        Assert.Null(mods.MeltdownStatusNamePackageId);
+        Assert.Empty(diagnostics);
+    }
+
+    [Fact]
+    public void ConfigurationCannotOverrideStatusName()
+    {
+        ModFile[] files = [File("Memoria/A", BehaviorMods.PayloadPath, CreatePayload(statusName: StatusNameKey)), File("Memoria/A", BehaviorMods.ConfigurationPath, "{\"meltdown\":{\"StatusName\":\"$en_kernel_magicspells_name_0050\"}}")];
+        Assert.False(BehaviorMods.TryPrepare(new(1, [], files), out _, out IReadOnlyList<ModDiagnostic> diagnostics));
+        Assert.Single(diagnostics);
+        Assert.Contains("StatusName", diagnostics[0].Message);
     }
 
     [Theory]
@@ -80,6 +170,8 @@ public sealed class BehaviorModsTests : IDisposable
         Assert.True(BehaviorMods.TryPrepare(new(1, [], [File("Memoria/A", BehaviorMods.PayloadPath, LegacyPayload)]), out BehaviorMods mods, out _));
         Assert.Equal(50, mods.MeltdownVitalityReductionPercent);
         Assert.Equal(50, mods.MeltdownSpiritReductionPercent);
+        Assert.Null(mods.MeltdownStatusNameKey);
+        Assert.Null(mods.MeltdownStatusNamePackageId);
     }
 
     [Theory]
@@ -93,6 +185,8 @@ public sealed class BehaviorModsTests : IDisposable
     [InlineData("{\"schemaVersion\":1,\"meltdown\":{\"defenseReductionPercent\":\"50\"}}")]
     [InlineData("{\"schemaVersion\":1,\"meltdown\":{\"defenseReductionPercent\":50,\"defenseReductionPercent\":65}}")]
     [InlineData("{\"schemaVersion\":2,\"meltdown\":{\"expression\":\"native()\"}}")]
+    [InlineData("{\"schemaVersion\":1,\"meltdown\":{\"defenseReductionPercent\":50,\"StatusName\":\"$en_kernel_magicspells_name_0049\"}}")]
+    [InlineData("{\"schemaVersion\":2,\"meltdown\":{\"StatusName\":\"$en_kernel_magicspells_name_0049\",\"StatusName\":\"$en_kernel_magicspells_name_0049\"}}")]
     public void InvalidPayloadRejectsCandidate(string json)
     {
         Assert.False(BehaviorMods.TryPrepare(new(1, [], [File("Memoria/A", BehaviorMods.PayloadPath, json)]), out BehaviorMods mods, out IReadOnlyList<ModDiagnostic> diagnostics));
@@ -251,9 +345,13 @@ public sealed class BehaviorModsTests : IDisposable
         Assert.Equal("Memoria/A", published.MeltdownPackageId);
     }
 
-    private static string CreatePayload(string? parameter = null)
+    private static string CreatePayload(string? parameter = null, string? statusName = null)
     {
         Dictionary<string, object> parameters = new(StringComparer.Ordinal);
+        if (statusName is not null)
+        {
+            parameters.Add(BehaviorMods.StatusNameParameter, statusName);
+        }
         foreach (string name in new[] { Vitality, Spirit })
         {
             if (parameter is not null && name != parameter)

@@ -1,9 +1,10 @@
 {
   "schemaVersion": 2,
   "meltdown": {
+    "StatusName": "$en_kernel_magicspells_name_0049",
     "VitalityReductionPercent": {
       "label": "Vitality reduction",
-      "description": "Percentage by which Meltdown reduces effective Vitality after successfully applying Vit 0.",
+      "description": "Percentage by which Meltdown reduces effective Vitality after successfully applying Meltdown.",
       "control": "slider",
       "unit": "%",
       "min": 0,
@@ -13,7 +14,7 @@
     },
     "SpiritReductionPercent": {
       "label": "Spirit reduction",
-      "description": "Percentage by which Meltdown reduces effective Spirit after successfully applying Vit 0.",
+      "description": "Percentage by which Meltdown reduces effective Spirit after successfully applying Meltdown.",
       "control": "slider",
       "unit": "%",
       "min": 0,
