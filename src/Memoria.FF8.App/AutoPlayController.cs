@@ -1458,17 +1458,19 @@ internal sealed partial class AutoPlayController
             }
             return;
         }
-        // Type 33 can use world entrances directly. Other car owners must first
-        // return to foot through the native dismount controls.
-        if (current.NativeCarRuntime is { EntityType: not 33 } rental)
+        if (current.NativeCarRuntime is { EntityType: not 33 } car)
         {
-            if (rental.Speed != 0 || rental.CameraTransition is { Flags: not 0 } || NeedsWorldConfirmRelease(session.State.WorldProcess?.InputHistory))
+            bool missionCar = WorldMapScene.IsAutoPlayMissileBaseCar(current, WorldEntryVariables.Read(session.State).StoryWord);
+            if (car.Speed != 0 || car.CameraTransition is { Flags: not 0 } || NeedsWorldConfirmRelease(session.State.WorldProcess?.InputHistory) || missionCar && !WorldMapScene.IsAutoPlayCarStationary(car))
             {
                 Apply(new(PlayerActionKind.Wait));
                 return;
             }
-            ParkAutoPlayRental(world.WorldScene!);
-            return;
+            if (!missionCar)
+            {
+                ParkAutoPlayRental(world.WorldScene!);
+                return;
+            }
         }
         string visit = "world:" + session.State.Variables.GetValueOrDefault(256);
         string signature = WorldConditionSignature(session.State);

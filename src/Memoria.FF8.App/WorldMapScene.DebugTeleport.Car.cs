@@ -14,7 +14,7 @@ internal sealed partial class WorldMapScene
     {
         try
         {
-            candidate = PrepareCurrentCarPlacement(x, rawZ);
+            candidate = PrepareCarPlacement(x, rawZ, direction: null, expectedNativeHeight: null, allowMissionCar: true);
             return true;
         }
         catch (CarPlacementRejectedException)
@@ -27,15 +27,20 @@ internal sealed partial class WorldMapScene
     /// <summary>Prepares a diagnostic relocation of the current stationary car without running a world callback.</summary>
     internal WorldState PrepareCurrentCarPlacement(int x, int rawZ, int? direction = null, int? expectedNativeHeight = null)
     {
+        return PrepareCarPlacement(x, rawZ, direction, expectedNativeHeight, allowMissionCar: false);
+    }
+
+    private WorldState PrepareCarPlacement(int x, int rawZ, int? direction, int? expectedNativeHeight, bool allowMissionCar)
+    {
         ObjectDisposedException.ThrowIf(disposed, this);
         GameState departure = session.State;
-        if (departure.Scene != SceneKind.WorldMap || departure.World is not { NativeCarRuntime: { EntityType: 33 } car } before || before.NativeFootRuntime is not null || before.NativeGardenRuntime is not null || before.NativeRagnarokRuntime is not null || before.NativeTrainRuntime is not null || before.NativeScriptedRuntime is not null)
+        if (departure.Scene != SceneKind.WorldMap || departure.World is not { NativeCarRuntime: { } car } before || car.EntityType != 33 && (!allowMissionCar || !IsAutoPlayMissileBaseCar(before, WorldEntryVariables.Read(departure).StoryWord)) || before.NativeFootRuntime is not null || before.NativeGardenRuntime is not null || before.NativeRagnarokRuntime is not null || before.NativeTrainRuntime is not null || before.NativeScriptedRuntime is not null)
         {
-            throw new NotSupportedException("Diagnostic car placement requires the current ordinary type33 car owner.");
+            throw new NotSupportedException(allowMissionCar ? "World entrance discovery requires an admitted car owner." : "Diagnostic car placement requires the current ordinary type33 car owner.");
         }
         _ = new GameSession(departure);
         car.Validate();
-        if (car.Speed != 0 || car.MovementMagnitude20409F4 != 0 || car.TerrainTiltBlend != 0)
+        if (!IsAutoPlayCarStationary(car))
         {
             throw new NotSupportedException("Diagnostic car placement requires a stationary car with no pending movement or terrain blend.");
         }

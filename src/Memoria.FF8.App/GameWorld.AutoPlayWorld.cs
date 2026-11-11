@@ -22,6 +22,7 @@ internal sealed partial class GameWorld
     {
         EnsureField();
         WorldMapScene scene = worldScene ?? throw new InvalidOperationException("World automatic travel requires the current world scene.");
+        bool missionCar = WorldMapScene.IsAutoPlayMissileBaseCar(scene.State, WorldEntryVariables.Read(session.State).StoryWord);
         WorldAutoPlayTarget current = scene.DiscoverAutoPlayEntrances().SingleOrDefault(item => item.Id == target.Id) ?? throw new InvalidOperationException("The requested world entrance is no longer reachable.");
         if (current != target)
         {
@@ -61,9 +62,9 @@ internal sealed partial class GameWorld
                 {
                     return WorldTravelBlocked(scene, callbacks, "Ordinary world movement exceeded its bounded route callbacks.");
                 }
-                PlayerAction move = WorldNavigationGuide.Next(before, x, z);
+                PlayerAction move = missionCar ? scene.SteerAutoPlayRental(x, z) : WorldNavigationGuide.Next(before, x, z);
                 int? ordinaryStride = null;
-                PlayerActionResult result = AutoPlayFastMovement ? scene.ApplyAutoPlayFootMove(x, z, () => Apply(move), out ordinaryStride) : Apply(move);
+                PlayerActionResult result = AutoPlayFastMovement && !missionCar ? scene.ApplyAutoPlayFootMove(x, z, () => Apply(move), out ordinaryStride) : Apply(move);
                 callbacks += result.FramesAdvanced;
                 if (!result.Accepted || result.FramesAdvanced == 0 || result.Trigger.Kind != PlayerTriggerKind.WorldMap || scene.State.EventUi is { ScriptMode: not 0 })
                 {
@@ -84,10 +85,31 @@ internal sealed partial class GameWorld
                     stalled = 0;
                     onProgress?.Invoke();
                 }
+                else if (missionCar && move.Horizontal != 0 && traveled == 0 && before.BodyYaw != after.BodyYaw)
+                {
+                    stalled = 0;
+                }
                 else if (++stalled >= 8)
                 {
                     var crossing = path[waypoint];
-                    if (after.NativeFootRuntime is null || avoidedCrossings.Count >= 12 || !avoidedCrossings.Add(crossing) || scene.ReplanAutoPlayEntrance(target, avoidedCrossings) is not { } detour)
+                    if (after.NativeFootRuntime is null && !missionCar || avoidedCrossings.Count >= 12 || !avoidedCrossings.Add(crossing))
+                    {
+                        return WorldTravelBlocked(scene, callbacks, $"Ordinary world movement could not reach crossing ({crossing.X}, {crossing.RawZ}) after {avoidedCrossings.Count} replans.");
+                    }
+                    while (missionCar && scene.State.NativeCarRuntime is { } car && (!WorldMapScene.IsAutoPlayCarStationary(car) || car.CameraTransition is { Flags: not 0 }))
+                    {
+                        if (callbacks >= 30_000)
+                        {
+                            return WorldTravelBlocked(scene, callbacks, "Ordinary world movement exceeded its bounded route callbacks while stopping the car.");
+                        }
+                        PlayerActionResult wait = Apply(new PlayerAction(PlayerActionKind.Wait));
+                        callbacks += wait.FramesAdvanced;
+                        if (!wait.Accepted || wait.FramesAdvanced == 0 || wait.Trigger.Kind != PlayerTriggerKind.WorldMap || scene.State.EventUi is { ScriptMode: not 0 })
+                        {
+                            return FinishWorldTravel(scene, target, wait with { FramesAdvanced = callbacks });
+                        }
+                    }
+                    if (scene.ReplanAutoPlayEntrance(target, avoidedCrossings) is not { } detour)
                     {
                         return WorldTravelBlocked(scene, callbacks, $"Ordinary world movement could not reach crossing ({crossing.X}, {crossing.RawZ}) after {avoidedCrossings.Count} replans.");
                     }

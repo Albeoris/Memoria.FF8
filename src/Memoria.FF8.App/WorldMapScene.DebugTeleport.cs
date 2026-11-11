@@ -136,6 +136,7 @@ internal sealed partial class WorldMapScene
             }
             int order = field switch
             {
+                774 when IsAutoPlayMissileBaseCar(before, story) => -1,
                 159 => 0,
                 106 => 10,
                 136 => 20,
@@ -286,17 +287,29 @@ internal sealed partial class WorldMapScene
 
     private int RequireAutoPlayOwner(bool debugPlacement = false)
     {
-        if (State.NativeCarRuntime is { EntityType: 33, Speed: 0, MovementMagnitude20409F4: 0, TerrainTiltBlend: 0 } car && State.NativeFootRuntime is null && State.NativeGardenRuntime is null && State.NativeRagnarokRuntime is null && State.NativeTrainRuntime is null && State.NativeScriptedRuntime is null)
+        WorldState world = State;
+        if (world.NativeCarRuntime is { } car && IsAutoPlayCarStationary(car) && (car.EntityType == 33 || !debugPlacement && IsAutoPlayMissileBaseCar(world, WorldEntryVariables.Read(session.State).StoryWord)) && world.NativeFootRuntime is null && world.NativeGardenRuntime is null && world.NativeRagnarokRuntime is null && world.NativeTrainRuntime is null && world.NativeScriptedRuntime is null)
         {
             car.Validate();
             return car.EntityType;
         }
         if (State.NativeFootRuntime is not { } foot || !NativeWorldEntityTypes.IsSupportedFoot(foot.EntityType) || debugPlacement && (foot.EntityType is not (0 or 1) || foot.NormalObjects is not null || foot.StationTrains is not null) || State.NativeCarRuntime is not null || State.NativeGardenRuntime is not null || State.NativeRagnarokRuntime is not null || State.NativeTrainRuntime is not null || State.NativeScriptedRuntime is not null)
         {
-            throw new NotSupportedException(debugPlacement ? "Automatic coordinate travel requires ordinary foot without auxiliary objects, or the current stationary type33 car." : "Automatic world discovery requires a supported native foot owner or the current stationary type33 car.");
+            throw new NotSupportedException(debugPlacement ? "Automatic coordinate travel requires ordinary foot without auxiliary objects, or the current stationary type33 car." : "Automatic world discovery requires a supported native foot owner or an admitted stationary car.");
         }
         foot.RequireNativeGroundState();
         return foot.EntityType;
+    }
+
+    internal static bool IsAutoPlayCarStationary(NativeCarWorldRuntimeState car)
+    {
+        return car is { Speed: 0, MovementMagnitude20409F4: 0, TerrainTiltBlend: 0 };
+    }
+
+    internal static bool IsAutoPlayMissileBaseCar(WorldState world, int story)
+    {
+        // NG-026: The native missile base approach requires this mission vehicle.
+        return story == 455 && world.NativeCarRuntime is { EntityType: 32, ShapeId: 74, FootEntityType: 6 };
     }
 
     private static bool AutoPlayCanTraverse(WorldTriangle triangle, int entityType)
