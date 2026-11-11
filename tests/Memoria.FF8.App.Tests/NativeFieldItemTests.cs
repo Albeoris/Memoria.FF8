@@ -188,8 +188,10 @@ public sealed class NativeFieldItemTests
         Assert.Equal(strength.Vitals.Records[0].StatBonuses[0], restored.Records[0].StatBonuses[0]);
     }
 
-    [Fact]
-    public void BlueMagicUsesQuistisAndPublishesLearnedBitWithOneDebit()
+    [Theory]
+    [InlineData(SceneKind.Field)]
+    [InlineData(SceneKind.WorldMap)]
+    public void BlueMagicUsesQuistisAndPublishesLearnedBitWithOneDebit(SceneKind scene)
     {
         using GameAssets assets = Assets();
         LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
@@ -198,12 +200,35 @@ public sealed class NativeFieldItemTests
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().WithMemberFlags(3, true);
         NativeEconomy economy = assets.ReadNewGameEconomy().AddItem(127, 2, out _);
         NativeLimitProgress progress = assets.ReadNewGameLimitProgress();
-        Assert.False(LiveMenuData.Build(new GameState { Scene = SceneKind.Field, CharacterVitals = vitals, Economy = economy }, catalog: catalog).Items.Single(item => item.Id == "item-127").NativeFieldUseSupported);
-        var learned = web.LearnBlueMagic(vitals, economy, progress, 127, 3);
-        Assert.True(learned.Changed);
-        Assert.Equal((ushort)(progress.BlueMagicFlags | 2), learned.Progress.BlueMagicFlags);
-        Assert.Equal(1, learned.Economy.Items.Single(stock => stock.ItemId == 127).Count);
-        Assert.False(web.LearnBlueMagic(vitals, learned.Economy, learned.Progress, 127, 3).Changed);
+        GameState state = new() { Scene = scene, CharacterVitals = vitals, Economy = economy };
+        List<MenuAction> requests = [];
+        MenuController controller = new(() => LiveMenuData.Build(state, catalog: catalog), action =>
+        {
+            requests.Add(action);
+            Assert.Equal("item-127", action.SubjectId);
+            Assert.Equal("character-3", action.TargetId);
+            var learned = web.LearnBlueMagic(vitals, state.Economy!, state.LimitProgress!, 127, 3);
+            Assert.True(learned.Changed);
+            state = state with { Economy = learned.Economy, LimitProgress = learned.Progress };
+        });
+        controller.Open("item-use", false);
+        Assert.False(controller.Entries.Single(entry => entry.Id == "item-127").Enabled);
+
+        state = state with { LimitProgress = progress };
+        controller.InvalidateLiveData();
+        controller.SelectEntry("item-use", "item-127");
+        controller.Navigate(MenuInput.Confirm);
+        controller.Navigate(MenuInput.Confirm);
+
+        Assert.Equal((ushort)(progress.BlueMagicFlags | 2), state.LimitProgress!.BlueMagicFlags);
+        Assert.Equal("item-use", controller.ScreenId);
+        Assert.False(controller.Entries.Single(entry => entry.Id == "item-127").Enabled);
+        Assert.Equal(1, controller.Data.Items.Single(item => item.Id == "item-127").Quantity);
+        controller.SelectEntry("item-use", "item-127", allowDisabled: true);
+        controller.Navigate(MenuInput.Confirm);
+        Assert.Equal("item-use", controller.ScreenId);
+        Assert.Single(requests);
+        Assert.False(web.LearnBlueMagic(vitals, state.Economy!, state.LimitProgress, 127, 3).Changed);
         Assert.Throws<InvalidOperationException>(() => web.LearnBlueMagic(vitals, economy, progress, 127, 0));
         Assert.Throws<InvalidOperationException>(() => web.LearnBlueMagic(vitals with { DreamEnabled = true }, economy, progress, 127, 3));
         Assert.Equal(progress.BlueMagicFlags, JsonSerializer.Deserialize<NativeLimitProgress>(JsonSerializer.Serialize(progress))!.BlueMagicFlags);

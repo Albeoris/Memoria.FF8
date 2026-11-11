@@ -14,6 +14,11 @@ public sealed record NativeFieldItem(byte Type, byte TargetFlags, byte Power, by
     public bool SupportsGuardianForceUse => Type is 3 or 4 or 5 or 17 or 18 && (TargetFlags & 5) == 5 && (TargetFlags & 2) == 0;
     public bool SupportsBlueMagicUse => Type == 19 && (TargetFlags & 0x43) == 0x43 && Power < 16;
 
+    public bool CanLearnBlueMagic(NativeLimitProgress? progress)
+    {
+        return SupportsBlueMagicUse && progress is not null && (progress.BlueMagicFlags & (1 << Power)) == 0;
+    }
+
     public (NativeCharacterVitals Vitals, NativeEconomy Economy, ushort Encounter, int MenuResult) BeginBattle(NativeCharacterVitals vitals, NativeEconomy economy, int itemId, bool contextBlocked)
     {
         vitals.Validate();
@@ -89,12 +94,11 @@ public sealed record NativeFieldItem(byte Type, byte TargetFlags, byte Power, by
         {
             throw new InvalidOperationException("The selected Blue Magic item stock is exhausted.");
         }
-        ushort flag = (ushort)(1 << Power);
-        if ((progress.BlueMagicFlags & flag) != 0)
+        if (!CanLearnBlueMagic(progress))
         {
             return (economy, progress, false);
         }
-        return (Consume(economy, slot), progress with { BlueMagicFlags = (ushort)(progress.BlueMagicFlags | flag) }, true);
+        return (Consume(economy, slot), progress with { BlueMagicFlags = (ushort)(progress.BlueMagicFlags | (1 << Power)) }, true);
     }
 
     public (NativeCharacterVitals Vitals, NativeEconomy Economy, bool Changed) Use(NativeCharacterVitals vitals, NativeEconomy economy, int itemId, int row, BattleNativePlayerStatRules? statRules = null, int? forgottenAbility = null, NativeFieldItemContext? context = null)

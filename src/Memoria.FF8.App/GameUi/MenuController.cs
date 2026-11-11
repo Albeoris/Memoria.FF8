@@ -1054,7 +1054,7 @@ public sealed partial class MenuController
             {
                 _selections[ScreenId] = Math.Clamp(SelectedIndex, 0, Math.Max(0, Entries.Count - 1));
             }
-            if (action.Kind == "item-use" && !Data.Items.Any(item => item.Id == action.SubjectId && item.Quantity > 0))
+            if (action.Kind == "item-use" && !Data.Items.Any(item => item.Id == action.SubjectId && item.Quantity > 0 && item.NativeFieldUseSupported))
             {
                 while (_history.Count > 0 && _history.Peek() != "item-use")
                 {
