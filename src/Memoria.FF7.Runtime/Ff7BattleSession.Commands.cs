@@ -60,11 +60,19 @@ public sealed partial class Ff7BattleSession
         if (IsGuestVitalsSlot(slot))
         {
             IFf7BattleGuestItems? items = guestAttack as IFf7BattleGuestItems;
-            List<Ff7BattleCommandOption> guest = commands.Where(option => GuestRecoveryCommand(option.Command, option.Argument) && (items?.HasOriginItems != true || option.Command != Ff7BattleCommand.Item)).ToList();
+            List<Ff7BattleCommandOption> guest = items?.HasOriginItems == true ? [] : commands.Where(option => option.Command == Ff7BattleCommand.Item).ToList();
             if (guestAttack is not null)
             {
                 ushort targets = Mask(state.Actors.Where(target => target.Actor.Slot >= 4 && IsAlive(target) && (target.Actor.Conditions & 8) != 0 && guestAttack.Supports(DescribeGuestTarget(target.Actor.Slot))));
                 guest.Insert(0, new(Ff7BattleCommand.Attack, 0, targets, true, true));
+                if (guestAttack is IFf7BattleGuestLimit { LimitReady: true } limit)
+                {
+                    ushort limitTargets = Mask(state.Actors.Where(target => GuestLimitTarget(limit, target)));
+                    if (limitTargets != 0)
+                    {
+                        guest.Insert(0, new(Ff7BattleCommand.Limit, 0, limitTargets, true, true));
+                    }
+                }
                 if (guestAttack is IFf7BattleGuestMagic magic && Ff7GuestBattleStatuses.CanCastMagic(actor.Actor.Statuses))
                 {
                     int magicIndex = 1;
@@ -100,6 +108,10 @@ public sealed partial class Ff7BattleSession
         if (IsGuestVitalsSlot(slot) && command == Ff7BattleCommand.Attack && argument == 0 && !group && System.Numerics.BitOperations.IsPow2((uint)targets))
         {
             return SubmitGuestAttack(slot, System.Numerics.BitOperations.TrailingZeroCount((uint)targets));
+        }
+        if (IsGuestVitalsSlot(slot) && command == Ff7BattleCommand.Limit)
+        {
+            return argument == 0 && !group && System.Numerics.BitOperations.IsPow2(targets) && SubmitGuestLimit(slot, System.Numerics.BitOperations.TrailingZeroCount(targets));
         }
         if (IsGuestVitalsSlot(slot) && command == Ff7BattleCommand.Magic)
         {
@@ -435,7 +447,7 @@ public sealed partial class Ff7BattleSession
         Ff7BattleActionVitals sourceVitals = new(source.Actor.HitPoints, source.Actor.MaxHitPoints, source.Actor.MagicPoints, source.Actor.MaxMagicPoints, source.Actor.Statuses);
         if (state.GuestVitals is { } guest && (command.TargetMask & (1 << guest.HostSlot)) != 0)
         {
-            ValidateGuestIncoming(command, guest.HostSlot, record is null ? party[slot]!.Value.Attack : Ff7BattleDamageAction.FromAttack(record), record);
+            ValidateGuestIncoming(command, guest.HostSlot, record);
         }
         if (record is not null && !Ff7NativeBattleActionResolver.TrySpendCastingCost(sourceVitals, record, out sourceVitals))
         {
@@ -491,7 +503,7 @@ public sealed partial class Ff7BattleSession
 
     private void ApplyHit(Ff7BattleQueuedCommand command, int targetSlot, Ff7BattleDamageAction action, Ff7BattleAttack? record)
     {
-        ValidateGuestIncoming(command, targetSlot, action, record);
+        ValidateGuestIncoming(command, targetSlot, record);
         Ff7BattleActorState source = Actor(command.ActorSlot);
         Ff7BattleActorState target = Actor(targetSlot);
         if (action.Formula >> 4 is 1 or 0xB)
@@ -513,7 +525,7 @@ public sealed partial class Ff7BattleSession
         PublishHit(command, target, action, result);
     }
 
-    private void PublishHit(Ff7BattleQueuedCommand command, Ff7BattleActorState target, Ff7BattleDamageAction action, Ff7BattleActionReceipt result)
+    private void PublishHit(Ff7BattleQueuedCommand command, Ff7BattleActorState target, Ff7BattleDamageAction action, Ff7BattleActionReceipt result, bool runCounters = true)
     {
         int targetSlot = target.Actor.Slot;
         Ff7BattleAiActor native = target.Actor;
@@ -531,16 +543,22 @@ public sealed partial class Ff7BattleSession
         native = native with { HitPoints = result.Target.Hp, MagicPoints = result.Target.Mp, Statuses = result.Target.Statuses, Conditions = conditions };
         Replace(target with { Actor = native, Timers = timers, LimitGauge = gauge });
         state = state with { LastHit = new(command.ActorSlot, targetSlot, command.AttackId ?? command.Argument, result.Damage, Tick) };
-        if (targetSlot >= 4 && !result.Damage.Missed)
+        if (runCounters && targetSlot >= 4 && !result.Damage.Missed)
         {
-            ushort bit = (ushort)(1 << targetSlot);
-            ushort processed = command.Priority >= 2 ? (ushort)(1 << command.ActorSlot) : (ushort)0;
-            Ff7BattleAiCounterPlan plan = Ff7BattleAiCallbacks.SelectCounter(native, command.ActorSlot, bit, bit, (result.AddedStatuses & 1) != 0 ? bit : (ushort)0, 0, processed, (ushort)(action.UsePhysicalStats || action.Formula >> 4 == 1 ? 0 : 4));
-            Replace(Actor(targetSlot) with { Actor = plan.Target });
-            foreach (byte callback in plan.Callbacks)
-            {
-                InvokeAi(targetSlot, callback);
-            }
+            PublishEnemyCounters(command, native, (result.AddedStatuses & 1) != 0, action.UsePhysicalStats || action.Formula >> 4 == 1);
+        }
+    }
+
+    private void PublishEnemyCounters(Ff7BattleQueuedCommand command, Ff7BattleAiActor target, bool knockedOut, bool physical)
+    {
+        int targetSlot = target.Slot;
+        ushort bit = (ushort)(1 << targetSlot);
+        ushort processed = command.Priority >= 2 ? (ushort)(1 << command.ActorSlot) : (ushort)0;
+        Ff7BattleAiCounterPlan plan = Ff7BattleAiCallbacks.SelectCounter(target, command.ActorSlot, bit, bit, knockedOut ? bit : (ushort)0, 0, processed, physical ? (ushort)0 : (ushort)4);
+        Replace(Actor(targetSlot) with { Actor = plan.Target });
+        foreach (byte callback in plan.Callbacks)
+        {
+            InvokeAi(targetSlot, callback);
         }
     }
 

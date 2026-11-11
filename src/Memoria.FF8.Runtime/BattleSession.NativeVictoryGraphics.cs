@@ -65,12 +65,5 @@ public sealed partial class BattleSession
         return (graphics, step.Phase, true);
     }
 
-    private static NativeBattleGraphicsModel RetainNativeDecodedPoseBeforeResourceChange(NativeBattleGraphicsModel model, NativeBattleGraphicsResource previous)
-    {
-        NativeBattleSequenceState state = model.SequenceState ?? throw new NotSupportedException("Native5022C0 requires its actual existing decoded pose owner.");
-        NativeBattlePoseSource source = previous.PoseSource ?? throw new NotSupportedException("Native5022C0 requires its actual previous skeleton/animation source.");
-        NativeBattleDecodedPose decoded = NativeBattlePoseMatrices.ReadDecodedPose(state, source);
-        NativeBattleDecodedPose? linked = state.LinkedPose is not null && previous.LinkedPoseSource is { } linkedSource ? NativeBattlePoseMatrices.ReadLinkedDecodedPose(state, linkedSource) : state.LinkedDecodedPose;
-        return model with { SequenceState = state with { DecodedPose = decoded, LinkedDecodedPose = linked } };
-    }
+    private static NativeBattleGraphicsModel RetainNativeDecodedPoseBeforeResourceChange(NativeBattleGraphicsModel model, NativeBattleGraphicsResource previous) => NativeBattleSequenceSelections.RetainDecodedPose5022C0(model, previous);
 }

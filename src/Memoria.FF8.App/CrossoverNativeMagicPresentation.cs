@@ -46,24 +46,14 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
         {
             throw new InvalidDataException("The original guest casting program requires its bound target occurrence.");
         }
-        NativeBattleModelTextureLoad body = NativeBattleModelTextures.Prepare507400(resource.BodyTexturePack ?? throw new InvalidDataException("Mixed Fire requires Squall's original body textures."), 0);
-        NativeBattleEffectTextureState textures = NativeBattleModelTextures.Enqueue507400(NativeBattleEffectTextureState.FromColdProcess(), body);
-        NativeBattleModelTextureBinding? linked = null;
-        ushort allocation = body.AllocatedSlots;
-        if (resource.LinkedGeometry is { IsEmpty: false })
-        {
-            NativeBattleModelTextureLoad weapon = NativeBattleModelTextures.Prepare507400(resource.LinkedTexturePack!, allocation);
-            textures = NativeBattleModelTextures.Enqueue507400(textures, weapon);
-            linked = weapon.Binding;
-            allocation |= weapon.AllocatedSlots;
-        }
+        (source, NativeBattleEffectTextureState textures) = CrossoverNativeActorTextures.Allocate(source, resource);
         NativeBattleSummonColors colors = game.ReadNativeBattleGraphicsRules().SummonColors!;
-        source = source with { BodyTextureSlots = body.Binding, LinkedTextureSlots = linked, Color40 = source.Color40 ?? colors.Transition, Color44 = source.Color44 ?? colors.Normal };
+        source = source with { Color40 = source.Color40 ?? colors.Transition, Color44 = source.Color44 ?? colors.Normal };
         NativeBattleEffectInitializerAsset common = game.ReadNativeCommonEffectTexture();
         (textures, _) = textures.EnqueueTim505E30(new(common.Name, common.Data));
         textures = textures.Drain505D20(NativeBattleEffectMemory.FromColdProcess().Arena).State;
-        CrossoverNativeCastState cast = CrossoverNativeCastPresentation.Begin(source with { TextureAllocationMask = allocation }, resource, game.ReadNativeBattleCommandSequences(), command);
-        return new(cast, NativeBattleAuxiliaryState.Clear(), NativeBattleModuleState.Clear(), textures, body.Binding, resource.TextureAnimations ?? throw new InvalidDataException("Mixed Fire requires the original source texture animation table."), random, hostTarget, contact) { Ability = ability, Command = command };
+        CrossoverNativeCastState cast = CrossoverNativeCastPresentation.Begin(source, resource, game.ReadNativeBattleCommandSequences(), command);
+        return new(cast, NativeBattleAuxiliaryState.Clear(), NativeBattleModuleState.Clear(), textures, source.BodyTextureSlots!, resource.TextureAnimations ?? throw new InvalidDataException("Mixed Fire requires the original source texture animation table."), random, hostTarget, contact) { Ability = ability, Command = command };
     }
 
     public CrossoverNativeMagicPresentationStep Advance(CrossoverNativeMagicPresentationState source, Func<NativeBattleModuleAnchor> readTargetAnchor, Func<NativeBattleModelTransform> readTargetTransform, NativeBattleCameraProjection? projection = null, Func<CrossoverNativeCureForeignTarget>? readForeign = null)

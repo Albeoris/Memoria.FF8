@@ -345,6 +345,7 @@ public sealed class CrossoverGuestMagicHostTests(ITestOutputHelper output)
     [InlineData(false, true, false, false)]
     [InlineData(false, true, true, false)]
     [InlineData(false, false, false, true)]
+    [InlineData(false, true, false, true)]
     public void Original_Cure_or_item_recovers_bound_party_actor_with_one_native_debit_and_cold_redraw(bool junctioned, bool ally, bool phoenix, bool remedy)
     {
         bool nativeItem = phoenix || remedy;
@@ -368,7 +369,7 @@ public sealed class CrossoverGuestMagicHostTests(ITestOutputHelper output)
             origin = origin.WithSavedHitPoints(row, origin.GetMagicMaximumHitPoints(row));
         }
         origin = origin.WithSavedHitPoints(row, 100);
-        if (remedy)
+        if (remedy && !ally)
         {
             origin.Records[row] = origin.Records[row] with { Status = 2 };
         }
@@ -393,6 +394,13 @@ public sealed class CrossoverGuestMagicHostTests(ITestOutputHelper output)
         }
         Ff7BattleRenderer renderer = new(archive, formation.LocationId);
         Ff7BattleSession host = new(formation, progress, kernel, executable.NativeMateriaStatModifiers, 1, requestFlags: 4, animations: animations);
+        uint remedyStatuses = Ff7NativeBattleActionResolver.Poison | Ff7NativeBattleActionResolver.Darkness | Ff7NativeBattleActionResolver.Slow;
+        if (remedy && ally)
+        {
+            Ff7BattleSnapshot initial = host.Capture();
+            Ff7BattleActorState[] actors = initial.Actors.Select(actor => actor.Actor.Slot == targetSlot ? actor with { Actor = actor.Actor with { Statuses = remedyStatuses }, Timers = Ff7NativeBattleStatusClock.Apply(actor.Timers, actor.Actor.Statuses, remedyStatuses) } : actor).ToArray();
+            host = new(formation, progress, kernel, executable.NativeMateriaStatModifiers, 1, snapshot: initial with { Actors = actors }, animations: animations);
+        }
         CrossoverBattleRoster roster = CrossoverBattleRoster.Create(Guid.NewGuid(), host.Capture(), [new(0, 0, 0)], []);
         host.BindGuestVitals(new(roster.EncounterId, new('A', 64), 0, 0, 0, row, kit.HitPoints, (ushort)kit.MaximumHitPoints, 6, 14, 24, 17) { OriginStatuses = kit.Statuses.Saved });
         CrossoverGunbladeHostAttack attack = new(roster, kit, assets, game, game.ReadNewGameGlobalRandom(), () => host.Data.Cameras[0], _ => 128);
@@ -479,6 +487,11 @@ public sealed class CrossoverGuestMagicHostTests(ITestOutputHelper output)
             else
             {
                 Assert.Equal(0u, host.Actors.Single(actor => actor.Actor.Slot == targetSlot).Actor.Statuses & Ff7NativeBattleActionResolver.Poison);
+                if (ally)
+                {
+                    Assert.Equal(remedyStatuses, pending.Prepared.PreparedContact.TargetBefore.Statuses & remedyStatuses);
+                    Assert.Equal(Ff7NativeBattleActionResolver.Slow, host.Actors.Single(actor => actor.Actor.Slot == targetSlot).Actor.Statuses & remedyStatuses);
+                }
                 Assert.Equal(1024, peakStageDepth);
                 Assert.True(effectPackets > 0);
             }

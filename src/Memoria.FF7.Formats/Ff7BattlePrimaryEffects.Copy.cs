@@ -22,6 +22,7 @@ public static partial class Ff7BattlePrimaryEffects
             }).ToArray(),
             PositionedSounds = state.PositionedSounds.ToArray(),
             WaveSparks = state.WaveSparks.ToArray(),
+            TailLaserSecondaries = state.TailLaserSecondaries.ToArray(),
             ActorWrites = state.ActorWrites.ToArray(),
             ActorSounds = state.ActorSounds.ToArray(),
             BossDeathShakes = state.BossDeathShakes.ToArray(),

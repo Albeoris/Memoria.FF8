@@ -288,7 +288,9 @@ internal sealed partial class Ff7Scene
         }
         if (option.Command == Ff7BattleCommand.Limit)
         {
-            return BattleLimitName(option.Argument);
+            return mixedCombat is { } mixed && mixed.Host.ReadyPlayer == mixed.Attack.ActorSlot && option.Argument == 0
+                ? "Renzokuken"
+                : BattleLimitName(option.Argument);
         }
         return option.Command.ToString();
     }

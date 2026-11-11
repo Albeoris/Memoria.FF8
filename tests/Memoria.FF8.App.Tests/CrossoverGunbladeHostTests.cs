@@ -128,6 +128,99 @@ public sealed class CrossoverGunbladeHostTests(ITestOutputHelper output)
         }
     }
 
+    [Fact]
+    public void Original_MP_reaction_KO_and_Barret_revive_use_Squall_native_sequences_across_cold_restore()
+    {
+        string? ff7Root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        string? ff8Root = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(ff7Root) && !string.IsNullOrWhiteSpace(ff8Root), "Select both original game installations.");
+        Ff7Installation installation = Ff7Installation.Discover(ff7Root!);
+        using Ff7Session original = Ff7Session.NewGame(installation);
+        using LgpArchive archive = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
+        using LgpArchive magic = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.MagicArchive).Path);
+        Ff7BattleAnimationResources animations = new(archive, Ff7PcExecutableData.LoadBattlePlacement(installation), magic, Ff7PcExecutableData.LoadBattleJumpDeltas(installation), Ff7PcExecutableData.LoadBattleHitmarks(installation), Ff7PcExecutableData.LoadBattleActorModelResources(installation));
+        Ff7PcExecutableData executable = Ff7PcExecutableData.Load(installation);
+        IReadOnlyList<KernelSection> kernel = KernelArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.Kernel).Path));
+        SceneFormation formation = SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path)).Single(item => item.FormationId == 300);
+        Ff7Progress progress = original.Progress with { Party = [0, 1, 255] };
+        Ff7BattleSession host = Host(null);
+        using GameAssets game = new(ff8Root!);
+        using BattleAssets assets = new(ff8Root!);
+        NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals();
+        vitals = vitals.WithSavedHitPoints(vitals.FindPhysicalRow(0), 8);
+        CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.ReadSquall(vitals, assets);
+        CrossoverBattleRoster roster = CrossoverBattleRoster.Create(Guid.NewGuid(), host.Capture(), [new(0, 0, 0)], []);
+        host.BindGuestVitals(new(roster.EncounterId, new('A', 64), 0, 0, 0, kit.RecordRow, kit.HitPoints, checked((ushort)kit.MaximumHitPoints), 6, 14, 24, 17));
+        CrossoverGunbladeHostAttack guest = Guest(null);
+        guest.PrepareStanding(host.VisualPlacement(0));
+        host.BindGuestAttack(guest);
+        bool hurt = false;
+        for (int tick = 0; tick < 3500 && guest.Visual!.Model.Sequence != 3; tick++)
+        {
+            host.Advance();
+            if (!hurt && guest.Visual!.Model.Sequence == 4)
+            {
+                Assert.True(host.LastHit is { Source: >= 4, Target: 0, Damage.Damage: > 0 });
+                Assert.InRange(Squall().HitPoints, 1u, 7u);
+                Cold();
+                hurt = true;
+            }
+        }
+        Assert.True(hurt);
+        Assert.Equal((byte)3, guest.Visual!.Model.Sequence);
+        Assert.Equal(0u, Squall().HitPoints);
+        Assert.Equal(1u, Squall().Statuses & 1);
+        Cold();
+        for (int tick = 0; tick < 1500 && host.ReadyPlayer != 1; tick++)
+        {
+            host.Advance();
+            Assert.Equal((byte)3, guest.Visual!.Model.Sequence);
+        }
+        Assert.Equal(1, host.ReadyPlayer);
+        Assert.True(host.Submit(1, Ff7BattleCommand.Item, 7, 1));
+        for (int tick = 0; tick < 1200 && (Squall().Statuses & 1) != 0; tick++)
+        {
+            host.Advance();
+        }
+        Assert.True(host.LastHit is { Source: 1, Target: 0, AttackId: 7 });
+        Assert.Equal((uint)kit.MaximumHitPoints / 4, Squall().HitPoints);
+        Assert.Equal(0u, Squall().Statuses & 1);
+        Assert.True(PresentedKo());
+        Assert.Equal((byte)3, guest.Visual!.Model.Sequence);
+        Cold();
+        long healedAt = host.Tick;
+        for (int tick = 0; tick < 1000 && PresentedKo() == true; tick++)
+        {
+            host.Advance();
+            if (PresentedKo() == true)
+            {
+                Assert.Equal((byte)3, guest.Visual!.Model.Sequence);
+            }
+        }
+        Assert.True(PresentedKo() == false, $"The native Phoenix Down did not present revival after {host.Tick - healedAt} ticks; action {host.Action?.Command.CommandId}, last hit {host.LastHit}.");
+        Cold();
+        for (int tick = 0; tick < 120 && guest.Visual!.Model.Sequence != 1; tick++)
+        {
+            host.Advance();
+        }
+        Assert.Equal((byte)1, guest.Visual!.Model.Sequence);
+        output.WriteLine($"Original MP native hurt4 and KO3; Barret's Phoenix Down revived Squall at {Squall().HitPoints} HP in native stand1, with exact cold state at all three boundaries.");
+
+        bool? PresentedKo() => host.Capture().ActorModels.Single(model => model.Slot == 0).PresentedKnockedOut;
+        Ff7BattleAiActor Squall() => host.Actors.Single(actor => actor.Actor.Slot == 0).Actor;
+        Ff7BattleSession Host(Ff7BattleSnapshot? snapshot) => new(formation, progress, kernel, executable.NativeMateriaStatModifiers, 1, requestFlags: 4, snapshot: snapshot, animations: animations);
+        CrossoverGunbladeHostAttack Guest(CrossoverGunbladeHostSnapshot? snapshot) => new(roster, kit, assets, game, game.ReadNewGameGlobalRandom(), () => host.Data.Cameras[0], _ => 128, snapshot);
+        void Cold()
+        {
+            string before = JsonSerializer.Serialize(Capture(host, guest));
+            Saved saved = JsonSerializer.Deserialize<Saved>(before)!;
+            host = Host(saved.Host);
+            guest = Guest(saved.Guest);
+            host.BindGuestAttack(guest);
+            Assert.Equal(before, JsonSerializer.Serialize(Capture(host, guest)));
+        }
+    }
+
     private static Vector3 RenderRoot(CrossoverGunbladeHostAttack guest)
     {
         var visual = guest.Visual!;

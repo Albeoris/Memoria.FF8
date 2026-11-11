@@ -65,10 +65,7 @@ public sealed partial class BattleSession
         NativeGraphics = QueueNativeEntryLoads(graphics);
     }
 
-    private static byte NativeStandingSequence(uint flags)
-    {
-        return (flags & 2) != 0 ? (byte)3 : (flags & 0x1000) != 0 ? (byte)2 : (flags & 0x1000000) != 0 ? (byte)16 : (flags & 0x800000) != 0 ? (byte)19 : (flags & 0x200000) != 0 ? (byte)29 : (flags & 0x41021) != 0 ? (byte)2 : (byte)1;
-    }
+    private static byte NativeStandingSequence(uint flags) => NativeBattleGraphicsModels.PlayerStandingSequence(flags);
 
     private void QueueNativeContactPacket(NativeBattleContactPacket packet)
     {

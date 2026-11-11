@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
 
@@ -60,7 +60,10 @@ public sealed partial class Ff7BattleSession
         if (state.Action is { Command.GuestAttack: true } active)
         {
             Ff7BattleCommandQueue.ValidateCommand(active.Command);
-            if (guest.Invocation != GuestInvocation(active.Command, active.StartedAt) || guest.HostTick != Tick || guest.ContactPublished != active.Applied || guest.ActorSlot != active.Command.ActorSlot)
+            bool matches = active.GuestLimit is { } limitState
+                ? guest is IFf7BattleGuestLimit limit && (limitState.PresentationCompleted ? guest.Invocation is null : guest.Invocation == GuestInvocation(active.Command, active.StartedAt) && limit.PublishedContacts == limitState.Contacts)
+                : guest.Invocation == GuestInvocation(active.Command, active.StartedAt) && guest.ContactPublished == active.Applied;
+            if (!matches || guest.HostTick != Tick || guest.ActorSlot != active.Command.ActorSlot)
             {
                 throw new InvalidDataException("The guest presentation does not match the saved host action occurrence.");
             }
@@ -117,6 +120,17 @@ public sealed partial class Ff7BattleSession
             return true;
         }
         Ff7BattleGuestAttackTarget targetDescription = DescribeGuestTarget(invocation.TargetSlot);
+        if (command.CommandId == (byte)Ff7BattleCommand.Limit)
+        {
+            if (guest is not IFf7BattleGuestLimit { LimitReady: true } limit || !GuestLimitTarget(limit, target))
+            {
+                FinishTurn(command.ActorSlot);
+                return true;
+            }
+            guest.Begin(invocation, VisualPlacement(command.ActorSlot), targetDescription);
+            state = state with { Action = new(command, Tick, -1) { GuestLimit = new() }, GuestAttackUsed = true };
+            return true;
+        }
         if (items is not null)
         {
             PrepareGuestItem(items, invocation, target);
@@ -149,7 +163,7 @@ public sealed partial class Ff7BattleSession
         {
             if (guestAttack is { } idle)
             {
-                idle.AdvanceIdle(Tick, Actor(idle.ActorSlot).Actor.Statuses, state.Reaction?.Slot == idle.ActorSlot ? state.Reaction.Tick : null);
+                AdvanceGuestIdle(idle);
             }
             return;
         }
@@ -159,6 +173,11 @@ public sealed partial class Ff7BattleSession
         }
         IFf7BattleGuestAttack guest = RequireGuestAttack(active.Command);
         Ff7BattleGuestInvocation invocation = GuestInvocation(active.Command, active.StartedAt);
+        if (active.GuestLimit is not null)
+        {
+            AdvanceGuestLimit(active, guest, invocation);
+            return;
+        }
         if (guest.Invocation != invocation || guest.ContactPublished != active.Applied)
         {
             throw new InvalidDataException("The guest presentation and active host queue entry disagree about contact ownership.");
@@ -186,6 +205,17 @@ public sealed partial class Ff7BattleSession
         {
             state = state with { Action = active };
         }
+    }
+
+    private void AdvanceGuestIdle(IFf7BattleGuestAttack guest)
+    {
+        int slot = guest.ActorSlot;
+        uint statuses = Actor(slot).Actor.Statuses;
+        if (state.ActorModels.Length != 0 && state.Action is { Command.GuestAttack: false } && state.Sounds?.PreparedImpacts.Any(impact => impact.Target == slot) == true && ActorModelState(slot).PresentedKnockedOut is bool presented)
+        {
+            statuses = (statuses & ~Ff7NativeBattleActionResolver.Death) | (presented ? Ff7NativeBattleActionResolver.Death : 0);
+        }
+        guest.AdvanceIdle(Tick, statuses, state.Reaction?.Slot == slot ? state.Reaction.Tick : null);
     }
 
     private void ApplyGuestHit(Ff7BattleQueuedCommand command, int targetSlot, Ff7BattleGuestPhysicalHit hit)
@@ -233,7 +263,7 @@ public sealed partial class Ff7BattleSession
     }
 
     private Ff7BattleGuestInvocation GuestInvocation(Ff7BattleQueuedCommand command, long startedAt)
-        => new(RequestId, Formation.FormationId, startedAt, command.ActorSlot, BitOperations.TrailingZeroCount(command.TargetMask)) { GuestAbility = command.GuestAbility, GuestCommand = command.CommandId == (byte)Ff7BattleCommand.Item ? command.CommandId : null };
+        => new(RequestId, Formation.FormationId, startedAt, command.ActorSlot, BitOperations.TrailingZeroCount(command.TargetMask)) { GuestAbility = command.GuestAbility, GuestCommand = command.CommandId switch { (byte)Ff7BattleCommand.Item => command.CommandId, (byte)Ff7BattleCommand.Limit => 5, _ => null } };
 
     private static bool SupportsGuestAbility(IFf7BattleGuestAttack guest, ushort ability, Ff7BattleGuestAttackTarget target)
         => ability == 0 ? guest.Supports(target) : ability is 1 or 4 or 7 or 21 && (target.Actor.Statuses & ~Ff7GuestBattleStatuses.SupportedHost) == 0 && guest is IFf7BattleGuestMagic magic && magic.MagicStock(ability) > 0 && magic.SupportsMagic(ability, target);

@@ -210,18 +210,7 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState RefreshNativeGuardianStandingSequence(NativeBattleGraphicsState graphics, byte caster)
     {
-        NativeBattleGraphicsModel model = graphics.Models[caster];
-        byte standing = NativeStandingSequence(model.Flags8 ?? throw new InvalidDataException("Native509C80 requires the caster DWORD8."));
-        NativeBattleSequenceState state = model.SequenceState ?? throw new InvalidDataException("Native509C80 requires the caster resource header.");
-        if (state.Pending3 != 0)
-        {
-            return graphics with { Models = graphics.Models.SetItem(caster, model with { SequenceState = state with { Pending3 = model.Sequence != standing ? standing : (byte)0 } }) };
-        }
-        if (model.Sequence == standing)
-        {
-            return graphics;
-        }
-        ushort flags = model.ResourceFlags44 ?? throw new InvalidDataException("Native505CB0 requires the caster resource WORD44.");
-        return (flags & 0x40) != 0 ? SelectNativeHeaderSequence(graphics, caster, standing) : graphics with { Models = graphics.Models.SetItem(caster, model with { SequenceState = state with { Pending3 = standing } }) };
+        (NativeBattleGraphicsModel model, byte? immediate) = NativeBattleGraphicsModels.PlanPlayerStanding509C80(graphics.Models[caster]);
+        return immediate is byte standing ? SelectNativeHeaderSequence(graphics, caster, standing) : graphics with { Models = graphics.Models.SetItem(caster, model) };
     }
 }

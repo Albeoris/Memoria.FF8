@@ -142,6 +142,27 @@ public static class NativeBattleGraphicsModels
         return unchecked((byte)(3 - information246));
     }
 
+    public static byte PlayerStandingSequence(uint flags)
+    {
+        return (flags & 2) != 0 ? (byte)3 : (flags & 0x1000) != 0 ? (byte)2 : (flags & 0x1000000) != 0 ? (byte)16 : (flags & 0x800000) != 0 ? (byte)19 : (flags & 0x200000) != 0 ? (byte)29 : (flags & 0x41021) != 0 ? (byte)2 : (byte)1;
+    }
+
+    public static (NativeBattleGraphicsModel Model, byte? Immediate) PlanPlayerStanding509C80(NativeBattleGraphicsModel model)
+    {
+        byte standing = PlayerStandingSequence(model.Flags8 ?? throw new InvalidDataException("Native509C80 requires the source DWORD8."));
+        NativeBattleSequenceState state = model.SequenceState ?? throw new InvalidDataException("Native509C80 requires the source resource header.");
+        if (state.Pending3 != 0)
+        {
+            return (model with { SequenceState = state with { Pending3 = model.Sequence != standing ? standing : (byte)0 } }, null);
+        }
+        if (model.Sequence == standing)
+        {
+            return (model, null);
+        }
+        ushort flags = model.ResourceFlags44 ?? throw new InvalidDataException("Native505CB0 requires the source resource WORD44.");
+        return (flags & 0x40) != 0 ? (model, standing) : (model with { SequenceState = state with { Pending3 = standing } }, null);
+    }
+
     public static NativeBattleGraphicsModel SelectSequence(NativeBattleGraphicsModel model, byte sequence, bool overrideStatus = false)
     {
         if ((model.Flags0 & 2) == 0 || model.Flags8 is not uint flags)

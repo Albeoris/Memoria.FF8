@@ -145,9 +145,11 @@ public sealed partial class Ff7BattleSession
         return new(animations!.CameraModelParameters(ActorModel(slot)), 0x1000, unchecked((short)VisualPlacement(slot).Yaw), unchecked((short)HomePlacement(slot).Yaw), action);
     }
 
-    private Ff7BattleCameraPoint CameraGroupCenter()
+    private Ff7BattleCameraPoint CameraGroupCenter() => TargetRootCenter(state.Camera!.TargetMask);
+
+    private Ff7BattleCameraPoint TargetRootCenter(ushort targets)
     {
-        Ff7BattleCameraPoint[] points = state.Actors.Where(actor => (state.Camera!.TargetMask & 1 << actor.Actor.Slot) != 0).Select(actor => CameraPoint(VisualPlacement(actor.Actor.Slot).Position)).ToArray();
+        Ff7BattleCameraPoint[] points = state.Actors.Where(actor => (targets & 1 << actor.Actor.Slot) != 0).Select(actor => CameraPoint(VisualPlacement(actor.Actor.Slot).Position)).ToArray();
         if (points.Length == 0)
         {
             return default;

@@ -15,14 +15,17 @@ public sealed partial class Ff7BattleSession
             return effect switch
             {
                 0x02 when !action.SilkStarted => StartPrimarySilk(action),
+                0x04 when !action.LaserCannonStarted => StartLaserCannon(action),
                 0x13 when action.Rockets is null => StartPrimaryRocket(action),
                 0x16 when !action.BeamGunStarted => StartBeamGun(action),
                 0x15 when action.Smog is null => StartPrimarySmog(action),
                 0x2A when !action.WaveStarted => StartPrimaryWave(action),
                 0x2B when !action.EnergyBallStarted => StartPrimaryEnergyBall(action),
                 0x40 when action.SmokeShot is null => StartPrimarySmokeShot(action),
+                0x4C when !action.TailLaserStarted => StartPrimaryTailLaser(action),
                 0x4F when !action.HellBubblesStarted => StartHellBubbles(action),
                 0x4B when action.SearchScope is null => StartSearchScope(action),
+                0x58 when !action.BigBomberStarted => StartBigBomber(action),
                 0x5A when action.Destroyed is null => StartPrimaryDestroyed(action),
                 _ => action
             };
@@ -38,6 +41,13 @@ public sealed partial class Ff7BattleSession
             0x87 when action.BigShot is null => StartPrimaryBigShot(action),
             _ => action
         };
+    }
+
+    private Ff7BattleActionState StartBigBomber(Ff7BattleActionState action)
+    {
+        Ff7BattleQueuedCommand command = action.Command;
+        state = state with { PrimaryEffects = Ff7BattlePrimaryEffects.ScheduleBigBomber(EnsurePrimaryEffects(), command.ActorSlot, command.TargetMask) };
+        return action with { BigBomberStarted = true, PrimaryCallbacksRunning = true };
     }
 
     private Ff7BattleActionState StartBeamGun(Ff7BattleActionState action)

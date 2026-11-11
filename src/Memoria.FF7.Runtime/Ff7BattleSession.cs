@@ -20,6 +20,7 @@ public sealed record Ff7BattleActionState(Ff7BattleQueuedCommand Command, long S
     public Ff7BattleHit? PendingDisplayHit { get; init; }
     public Ff7BattleGrenadeState? Grenade { get; init; }
     public bool GrenadeStarted { get; init; }
+    public Ff7BattleGuestLimitState? GuestLimit { get; init; }
     public Ff7BattleBeatRushState? BeatRushEffect { get; init; }
     public Ff7BattleBigShotState? BigShot { get; init; }
     public Ff7BattleSmokeShotState? SmokeShot { get; init; }
@@ -31,7 +32,10 @@ public sealed record Ff7BattleActionState(Ff7BattleQueuedCommand Command, long S
     public bool WaveStarted { get; init; }
     public bool EnergyBallStarted { get; init; }
     public bool HellBubblesStarted { get; init; }
+    public bool TailLaserStarted { get; init; }
     public bool BeamGunStarted { get; init; }
+    public bool BigBomberStarted { get; init; }
+    public bool LaserCannonStarted { get; init; }
     public bool PrimaryCallbacksRunning { get; init; }
     public bool EffectRunning => PrimaryCallbacksRunning || Fire is { Completed: false } || Ice is { Completed: false } || Bolt is { Completed: false } || Cure is { Completed: false } || Braver is { Completed: false } || BeatRushEffect is { Completed: false } || BigShot is { Completed: false } || SmokeShot is { Completed: false } || Smog is { Completed: false } || Destroyed is { Completed: false } || SearchScope is { Completed: false } || Rockets is { Completed: false };
 }
@@ -365,6 +369,10 @@ public sealed partial class Ff7BattleSession
             {
                 state = state with { Queue = Ff7BattleCommandQueue.StageReady(state.Queue, slot, 0xFF) };
             }
+            else if (ready && IsGuestVitalsSlot(slot) && guestAttack is IFf7BattleGuestLimit limit)
+            {
+                limit.ObserveLimitReady(Tick, actor.Actor);
+            }
         }
     }
 
@@ -493,6 +501,10 @@ public sealed partial class Ff7BattleSession
         if (snapshot.Actors.Any(actor => actor?.Actor is null || actor.AiMemory is not { Length: 0 or Ff7BattleAi.LocalMemorySize }) || !snapshot.Actors.Select(actor => (actor.Actor.Slot, actor.Identity)).SequenceEqual(expected.Select(actor => (actor.Actor.Slot, actor.Identity))))
         {
             throw new InvalidDataException("FFVII battle snapshot has invalid physical actor ownership.");
+        }
+        if (snapshot.Action is { } candidate && ((candidate.GuestLimit is not null) != (candidate.Command is { GuestAttack: true, CommandId: (byte)Ff7BattleCommand.Limit }) || candidate.GuestLimit is { } limit && (limit.Contacts is < 0 or > 9 || candidate.Applied != (limit.Contacts != 0) || limit.KnockedOut && !limit.CounterPending || (limit.PresentationCompleted || limit.CounterPending) && limit.Contacts == 0)))
+        {
+            throw new InvalidDataException("The saved guest Limit has an invalid contact cursor.");
         }
         if (snapshot.TerminalFrames is < 0 or > 49 || snapshot.Messages is { } messages && (messages.Pending is null || messages.Pending.Length > 64 || messages.Pending.Any(entry => entry?.Text is null || entry.Delay > 1 || entry.Remaining > 67)) || snapshot.Action is { } action && (action.Command is null || action.StartedAt < 0 || action.StartedAt > snapshot.Tick || snapshot.Actors.All(actor => actor.Actor.Slot != action.Command.ActorSlot)))
         {

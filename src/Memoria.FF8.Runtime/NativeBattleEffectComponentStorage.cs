@@ -15,6 +15,8 @@ public static class NativeBattleEffectComponentStorage
     public static NativeBattleLifeFrame Restore(NativeBattleLifeFrame source) => NativeBattleStorageSnapshots.Restore(source);
     public static NativeBattleRestorationFrame Capture(NativeBattleRestorationFrame source) => NativeBattleStorageSnapshots.Capture(source);
     public static NativeBattleRestorationFrame Restore(NativeBattleRestorationFrame source) => NativeBattleStorageSnapshots.Restore(source);
+    public static NativeBattleRenzokuken160Frame Capture(NativeBattleRenzokuken160Frame source) => NativeBattleStorageSnapshots.Capture(source);
+    public static NativeBattleRenzokuken160Frame Restore(NativeBattleRenzokuken160Frame source) => NativeBattleStorageSnapshots.Restore(source);
     public static NativeBattleLogicalOrdering Capture(NativeBattleLogicalOrdering source) => NativeBattleStorageSnapshots.Capture(source);
     public static NativeBattleLogicalOrdering Restore(NativeBattleLogicalOrdering source) => NativeBattleStorageSnapshots.Restore(source);
 }

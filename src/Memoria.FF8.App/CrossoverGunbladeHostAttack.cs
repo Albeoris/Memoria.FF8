@@ -17,6 +17,22 @@ internal sealed record CrossoverGunbladeHostPlacement(Ff7BattlePosition Anchor, 
     [JsonIgnore]
     public Matrix4x4 Matrix => Matrix4x4.CreateTranslation(0, 1, -2200) * Matrix4x4.CreateScale(OriginToHostScale)
         * Matrix4x4.CreateRotationY(Yaw * MathF.Tau / 4096) * Matrix4x4.CreateTranslation(Anchor.ToVector() + new Vector3(0, 2.0688171f, 0));
+
+    public (NativeBattleVector Target, short Yaw, short TargetScale, int Distance) ResolveContact(Ff7BattlePlacement target, ushort collisionRadius)
+    {
+        if (!Matrix4x4.Invert(Matrix, out Matrix4x4 hostToOrigin))
+        {
+            throw new InvalidDataException("The guest model has a singular origin-to-host placement.");
+        }
+        NativeBattleVector source = new(0, 0, 2200);
+        Vector3 mappedTarget = Vector3.Transform(target.Position, hostToOrigin);
+        NativeBattleVector nativeTarget = new(checked((short)MathF.Round(mappedTarget.X)), 0, checked((short)MathF.Round(mappedTarget.Z)));
+        short yaw = checked((short)NativeWorldScriptedPathMath.NativeAngle(source.X - nativeTarget.X, source.Z - nativeTarget.Z));
+        //50D300 uses 2000 * modelScale38 / 4096 as the native contact clearance.
+        short scale = checked((short)MathF.Round(collisionRadius / OriginToHostScale * 4096 / 2000));
+        int distance = NativeBattleActionGeometryRules.ContactDistance(NativeBattleActionGeometryRules.DistanceScale(source, nativeTarget), 4096, scale);
+        return (nativeTarget, yaw, scale, distance);
+    }
 }
 
 internal sealed record CrossoverGunbladeHostSnapshot(Guid EncounterId, Ff7BattleGuestInvocation? Invocation, long HostTick, long Subticks, bool HalfSubtick, bool PendingPress, CrossoverGunbladeHostPlacement? Placement, CrossoverGunbladePresentationState? Presentation, NativeGlobalRandomState GlobalRandom, NativeBattleAuxiliaryState Auxiliary, short? Sine, short? Cosine, int AdjustedDistance)
@@ -24,6 +40,8 @@ internal sealed record CrossoverGunbladeHostSnapshot(Guid EncounterId, Ff7Battle
     public NativeGlobalRandomState? OriginGlobalRandom { get; init; }
     public bool Cancelled { get; init; }
     public long? ReactionTick { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleEffectTextureState? IdleTextures { get; init; }
 }
 
 /// <summary>First guest Attack profile. It delegates the encounter and all HP changes to FFVII.</summary>
@@ -60,7 +78,7 @@ internal sealed class CrossoverGunbladeHostAttack : IFf7BattleGuestAttack
         graphicsRules = game.ReadNativeBattleGraphicsRules();
         publicationDuration = graphicsRules.UiPublicationDuration ?? throw new NotSupportedException("The original guest trigger requires its executable UI publication period.");
         state = snapshot ?? new(roster.EncounterId, null, 0, 0, false, false, null, null, globalRandom, NativeBattleAuxiliaryState.Clear(), null, null, 0);
-        state = state with { OriginGlobalRandom = state.OriginGlobalRandom ?? globalRandom };
+        state = state with { OriginGlobalRandom = state.OriginGlobalRandom ?? globalRandom, IdleTextures = state.IdleTextures is { } savedTextures ? NativeBattleEffectComponentStorage.Restore(savedTextures) : null };
         if (state.EncounterId != roster.EncounterId || state.Invocation is { } active && (active.RequestId != roster.HostRequestId || active.FormationId != roster.HostFormationId || active.ActorSlot != ActorSlot || state.Presentation is null || state.Placement is null || state.HostTick < active.StartedAt))
         {
             throw new InvalidDataException("Saved guest Attack state contradicts its host encounter or pending native presentation.");
@@ -73,8 +91,8 @@ internal sealed class CrossoverGunbladeHostAttack : IFf7BattleGuestAttack
     public long HostTick => state.HostTick;
     public bool ContactPublished => Invocation is not null && state.Presentation?.ContactPublished == true;
     public bool TriggerWindowOpen => Invocation is not null && state.Presentation?.TriggerWindowOpen == true;
-    public CrossoverFf8BattleActorVisual? Visual => state.Placement is { } placement && state.Presentation is { } presentation ? new(body, weapon, presentation.Model, placement.Matrix) : null;
-    public CrossoverGunbladeHostSnapshot Capture() => state;
+    public CrossoverFf8BattleActorVisual? Visual => state.Placement is { } placement && state.Presentation is { } presentation ? new(body, weapon, presentation.Model, placement.Matrix) { BodyTextures = state.IdleTextures is null ? null : presentation.Model.BodyTextureSlots, Textures = state.IdleTextures } : null;
+    public CrossoverGunbladeHostSnapshot Capture() => state with { IdleTextures = state.IdleTextures is { } textures ? NativeBattleEffectComponentStorage.Capture(textures) : null };
     public void ReprojectKit(CrossoverFf8BattleKit current)
     {
         if (current.RecordRow != kit.RecordRow || current.Weapon != kit.Weapon || current.Attack is not { AttackType: 10, Power: 20, Element: 0, Statuses0: 0, Statuses1: 0 } || current.Stats.Hit != 255)
@@ -121,21 +139,52 @@ internal sealed class CrossoverGunbladeHostAttack : IFf7BattleGuestAttack
         NativeBattleGraphicsModel model = presentation.Model;
         ushort saved = Ff7GuestBattleStatuses.ToOrigin(statuses);
         uint transient = ((statuses & 4) != 0 ? 1u : 0u) | ((statuses & 0x100) != 0 ? 2u : 0u) | ((statuses & 0x200) != 0 ? 4u : 0u);
-        model = model with { Flags8 = graphicsRules.Project(saved, transient) };
-        if ((statuses & 1) != 0 && model.Sequence != 3)
+        uint previousFlags = model.Flags8!.Value;
+        uint flags = graphicsRules.Project(saved, transient);
+        model = model with { Flags8 = flags };
+        if ((flags & 2) != 0)
         {
-            model = NativeBattleGraphicsModels.SelectSequence(model, 3, overrideStatus: true);
+            if (model.Sequence != 3)
+            {
+                model = NativeBattleGraphicsModels.SelectSequence(model, 3, overrideStatus: true);
+            }
+        }
+        else if ((previousFlags & 2) != 0)
+        {
+            (model, byte? immediate) = NativeBattleGraphicsModels.PlanPlayerStanding509C80(model);
+            if (immediate is byte standing && (flags & 0x18) == 0)
+            {
+                model = NativeBattleSequenceSelections.SelectResource505BC0(model, resource, standing);
+            }
         }
         else if (reactionTick is not null && reactionTick != state.ReactionTick)
         {
             model = NativeBattleGraphicsModels.SelectSequence(model, 4, overrideStatus: true);
         }
+        NativeBattleEffectTextureState? textures = state.IdleTextures;
+        if (textures is null && model.Sequence is 3 or 4)
+        {
+            (model, textures) = CrossoverNativeActorTextures.Allocate(model, resource);
+        }
         for (long callback = 0; callback < clock.Callbacks; callback++)
         {
-            model = NativeBattleSequenceMachine.Advance(model, resource, new(0, 0)).Model;
+            model = NativeBattleSequenceMachine.Advance(model, resource, new(0, 0) { ApplyTexture = CopyTexture }).Model;
             model = model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, resource.PoseSource!) };
         }
-        state = state with { HostTick = hostTick, Subticks = clock.Subticks, HalfSubtick = clock.HalfSubtick, ReactionTick = reactionTick, Presentation = presentation with { Model = model } };
+        if (textures is { Count: > 0 })
+        {
+            textures = textures.Drain505D20(NativeBattleEffectMemory.FromColdProcess().Arena).State;
+        }
+        state = state with { HostTick = hostTick, Subticks = clock.Subticks, HalfSubtick = clock.HalfSubtick, ReactionTick = reactionTick, Presentation = presentation with { Model = model }, IdleTextures = textures };
+
+        void CopyTexture(byte selector, int variant)
+        {
+            NativeBattleEffectTextureState atlas = textures ?? throw new InvalidOperationException("The guest reaction has no allocated source atlas.");
+            if (NativeBattleTextureMotion.Plan50C780(resource.TextureAnimations ?? throw new InvalidDataException("The source model has no original texture animation table."), model.TextureAllocationMask, selector, variant) is { } copy)
+            {
+                textures = atlas.EnqueueCopy505EB0(copy.SourceX, copy.SourceY, copy.Width, copy.Height, copy.DestinationX, copy.DestinationY);
+            }
+        }
     }
 
     public void CancelAtTerminal()
@@ -164,16 +213,7 @@ internal sealed class CrossoverGunbladeHostAttack : IFf7BattleGuestAttack
             throw new InvalidOperationException("Guest Attack requires one free action slot and its admitted original MP occurrence.");
         }
         CrossoverGunbladeHostPlacement placement = new(Ff7BattlePosition.FromVector(source.Position), source.Yaw);
-        if (!Matrix4x4.Invert(placement.Matrix, out Matrix4x4 hostToOrigin))
-        {
-            throw new InvalidDataException("Guest Attack has a singular origin-to-host placement.");
-        }
-        Vector3 mappedTarget = Vector3.Transform(target.Placement.Position, hostToOrigin);
-        NativeBattleVector targetOrigin = new(checked((short)MathF.Round(mappedTarget.X)), 0, checked((short)MathF.Round(mappedTarget.Z)));
-        short yaw = checked((short)NativeWorldScriptedPathMath.NativeAngle(Origin.X - targetOrigin.X, Origin.Z - targetOrigin.Z));
-        //50D300 uses 2000 * modelScale38 / 4096 as the native contact clearance.
-        short targetScale = checked((short)MathF.Round(target.CollisionRadius / CrossoverGunbladeHostPlacement.OriginToHostScale * 4096 / 2000));
-        int distance = NativeBattleActionGeometryRules.ContactDistance(NativeBattleActionGeometryRules.DistanceScale(Origin, targetOrigin), 4096, targetScale);
+        (_, short yaw, _, int distance) = placement.ResolveContact(target.Placement, target.CollisionRadius);
         NativeGlobalRandomState global = state.GlobalRandom;
         NativeBattleGraphicsModel model;
         if (state.Presentation is { Complete: true } previous)

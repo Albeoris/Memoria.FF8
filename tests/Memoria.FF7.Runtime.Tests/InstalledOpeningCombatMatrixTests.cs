@@ -39,8 +39,8 @@ internal static class InstalledOpeningCombatMatrixTests
             if (id is >= 332 and < 392)
             {
                 // The Reactor 5 route can restock in the Sector 7 item store.
-                Ff7InventorySlot[] inventory = Ff7NativeInventory.Acquire(progress.Inventory, 5 << 9);
-                progress = progress with { Inventory = Ff7NativeInventory.Acquire(inventory, 1 << 9 | 7) };
+                Ff7InventorySlot[] inventory = Ff7NativeInventory.Acquire(progress.Inventory, 10 << 9);
+                progress = progress with { Inventory = Ff7NativeInventory.Acquire(inventory, 3 << 9 | 7) };
             }
             try
             {
@@ -58,7 +58,9 @@ internal static class InstalledOpeningCombatMatrixTests
         }
         Console.WriteLine($"Original FFVII opening combat matrix: {opening.Length} completed formations with cold continuation.");
         CheckPlayerCommands(scenes.Single(scene => scene.FormationId == 300), original.Progress, kernel, executable.NativeMateriaStatModifiers, animations, limits, reel);
-        CheckEnemyActions(scenes.Where(scene => opening.Contains(scene.FormationId)), original.Progress, kernel, executable.NativeMateriaStatModifiers, animations);
+        SceneFormation[] reached = scenes.Where(scene => opening.Contains(scene.FormationId)).ToArray();
+        CheckEnemyActions(reached, original.Progress, kernel, executable.NativeMateriaStatModifiers, animations);
+        CheckEnemyActions(reached, original.Progress, kernel, executable.NativeMateriaStatModifiers, animations, bindGuest: true);
         CheckEnemyMagicAi(scenes.Where(scene => opening.Contains(scene.FormationId)), original.Progress, kernel, executable.NativeMateriaStatModifiers, animations);
     }
 
@@ -68,6 +70,7 @@ internal static class InstalledOpeningCombatMatrixTests
         Check(0, Ff7BattleCommand.Magic, 0x1E);
         Check(0, Ff7BattleCommand.Magic, 0x21);
         Check(0, Ff7BattleCommand.Magic, 0, 0x35, group: true);
+        Check(1, Ff7BattleCommand.Magic, 0, 0x35, guestRecipient: true);
         Check(0, Ff7BattleCommand.Magic, 0x1B, 0x31);
         Check(0, Ff7BattleCommand.Magic, 0x1B, 0x31, group: true);
         Check(0, Ff7BattleCommand.Magic, 0x1E, 0x32, group: true);
@@ -84,7 +87,7 @@ internal static class InstalledOpeningCombatMatrixTests
         Check(2, Ff7BattleCommand.Limit, 0x95);
         Console.WriteLine("Opening player Attack, spells, linked All, items, Change, Defend and three Limit commands reached completion.");
 
-        void Check(int characterId, Ff7BattleCommand command, ushort argument, byte? optionalMateria = null, bool group = false)
+        void Check(int characterId, Ff7BattleCommand command, ushort argument, byte? optionalMateria = null, bool group = false, bool guestRecipient = false)
         {
             Ff7CharacterState[] characters = (Ff7CharacterState[])start.Characters.Clone();
             int characterIndex = Array.FindIndex(characters, value => value.Id == characterId);
@@ -102,22 +105,27 @@ internal static class InstalledOpeningCombatMatrixTests
             }
             characters[characterIndex] = character with { NativeRecord = record };
             bool revive = command == Ff7BattleCommand.Item && argument == 7;
-            int[] party = group && argument == 0 ? [0, 1, 2] : [characterId, revive ? 1 : 255, 255];
+            int[] party = guestRecipient ? [0, characterId, 255] : group && argument == 0 ? [0, 1, 2] : [characterId, revive ? 1 : 255, 255];
+            int sourceSlot = guestRecipient ? 1 : 0;
             Ff7Progress progress = start with { Party = party, Characters = characters, Inventory = [new(0, 3), new(3, 1), new(7, 1), new(8, 1), new(20, 1)] };
             Ff7BattleSession initial = new(formation, progress, kernel, materiaModifiers, 1, animations: animations, limits: limits, beatRushSymbols: reel);
+            if (guestRecipient)
+            {
+                initial.BindGuestVitals(new(Guid.NewGuid(), new('A', 64), 0, 0, 0, 0, 250, 486, 6, 14, 24, 17));
+            }
             Ff7BattleSnapshot snapshot = initial.Capture();
-            Ff7BattleActorState player = snapshot.Actors[0];
+            Ff7BattleActorState player = snapshot.Actors[sourceSlot];
             uint statuses = player.Actor.Statuses | (command == Ff7BattleCommand.Item && argument == 8 ? 8u : 0u);
-            snapshot.Actors[0] = player with { AwaitingTurn = true, Gauge = ushort.MaxValue, Actor = player.Actor with { HitPoints = player.Actor.HitPoints / 2, MagicPoints = (ushort)(player.Actor.MagicPoints / 2), Statuses = statuses } };
+            snapshot.Actors[sourceSlot] = player with { AwaitingTurn = true, Gauge = ushort.MaxValue, Actor = player.Actor with { HitPoints = player.Actor.HitPoints / 2, MagicPoints = (ushort)(player.Actor.MagicPoints / 2), Statuses = statuses } };
             if (revive)
             {
                 Ff7BattleActorState down = snapshot.Actors[1];
                 snapshot.Actors[1] = down with { Actor = down.Actor with { HitPoints = 0, Statuses = 1 } };
             }
             Ff7BattleSession battle = new(formation, progress, kernel, materiaModifiers, 1, snapshot: snapshot, animations: animations, limits: limits, beatRushSymbols: reel);
-            Ff7BattleCommandOption option = battle.Commands(0).Single(candidate => candidate.Command == command && candidate.Argument == argument);
+            Ff7BattleCommandOption option = battle.Commands(sourceSlot).Single(candidate => candidate.Command == command && candidate.Argument == argument);
             ushort targets = revive ? (ushort)2 : option.DefaultsToEnemies ? (ushort)(group ? 0x30 : 0x10) : (ushort)(group ? 7 : 1);
-            if (!battle.Submit(0, command, argument, targets, group))
+            if (!battle.Submit(sourceSlot, command, argument, targets, group))
             {
                 throw new InvalidOperationException($"Opening player command {command}/{argument:X2} was rejected.");
             }
@@ -140,16 +148,20 @@ internal static class InstalledOpeningCombatMatrixTests
                     battle = cold;
                     restoredEffect = true;
                 }
-                Ff7BattleActorState current = battle.Actors[0];
-                if (battle.Action is null && (battle.LastHit?.Source == 0 || current.Defending || (current.Actor.Conditions & 0x40) != (player.Actor.Conditions & 0x40)))
+                Ff7BattleActorState current = battle.Actors[sourceSlot];
+                if (battle.Action is null && (battle.LastHit?.Source == sourceSlot || current.Defending || (current.Actor.Conditions & 0x40) != (player.Actor.Conditions & 0x40)))
                 {
-                    if (command == Ff7BattleCommand.Limit && current.LimitGauge != 0 || command == Ff7BattleCommand.Magic && current.Actor.MagicPoints >= snapshot.Actors[0].Actor.MagicPoints || group && current.AllUses?.GetValueOrDefault((byte)argument) != option.GroupUses - 1)
+                    if (command == Ff7BattleCommand.Limit && current.LimitGauge != 0 || command == Ff7BattleCommand.Magic && current.Actor.MagicPoints >= snapshot.Actors[sourceSlot].Actor.MagicPoints || group && current.AllUses?.GetValueOrDefault((byte)argument) != option.GroupUses - 1)
                     {
                         throw new InvalidOperationException($"Opening player command {command}/{argument:X2} retained a spent resource.");
                     }
                     if (revive && (battle.Actors[1].Actor.HitPoints == 0 || (battle.Actors[1].Actor.Statuses & 1) != 0))
                     {
                         throw new InvalidOperationException("Phoenix Down did not restore its knocked-out party recipient.");
+                    }
+                    if (guestRecipient && (battle.LastHit?.Target != 0 || battle.Actors[0].Actor.HitPoints <= 250))
+                    {
+                        throw new InvalidOperationException("The native ally Cure did not recover the guest.");
                     }
                     bool requiresEffect = command is Ff7BattleCommand.Magic or Ff7BattleCommand.Item or Ff7BattleCommand.Limit;
                     if (requiresEffect && !visualEffect)
@@ -163,7 +175,7 @@ internal static class InstalledOpeningCombatMatrixTests
         }
     }
 
-    private static void CheckEnemyActions(IEnumerable<SceneFormation> formations, Ff7Progress progress, IReadOnlyList<KernelSection> kernel, IReadOnlyList<short> materiaModifiers, Ff7BattleAnimationResources animations)
+    private static void CheckEnemyActions(IEnumerable<SceneFormation> formations, Ff7Progress progress, IReadOnlyList<KernelSection> kernel, IReadOnlyList<short> materiaModifiers, Ff7BattleAnimationResources animations, bool bindGuest = false)
     {
         HashSet<(short Enemy, ushort Attack, byte Animation)> checkedActions = [];
         foreach (SceneFormation formation in formations)
@@ -179,6 +191,10 @@ internal static class InstalledOpeningCombatMatrixTests
                         continue;
                     }
                     Ff7BattleSession initial = new(formation, progress, kernel, materiaModifiers, 1, animations: animations);
+                    if (bindGuest)
+                    {
+                        initial.BindGuestVitals(new(Guid.NewGuid(), new('A', 64), 0, 0, 0, 0, 486, 486, 6, 14, 24, 17));
+                    }
                     Ff7BattleSnapshot snapshot = initial.Capture();
                     int slot = enemy.FormationSlot + 4;
                     ushort targets = record.Data.TargetFlags == 0 ? (ushort)(1 << slot) : (ushort)1;
@@ -197,10 +213,13 @@ internal static class InstalledOpeningCombatMatrixTests
                             bool liveEffect = !effectRestored && battle.PrimaryEffects?.Draws.Any(draw => record.Data.AttackEffect switch
                             {
                                 0x02 => draw is Ff7BattlePrimarySilkLineDraw,
+                                0x04 => draw is Ff7BattlePrimaryLaserCannonBeamDraw,
                                 0x16 => draw is Ff7BattlePrimaryBeamGunMeshDraw,
                                 0x2B => draw is Ff7BattlePrimaryEnergyBallMeshDraw,
                                 0x2A => draw is Ff7BattlePrimaryWaveMeshDraw,
+                                0x4C => draw is Ff7BattleTailLaserMeshDraw,
                                 0x4F => draw is Ff7BattlePrimaryBubbleSpriteDraw { Burst: false },
+                                0x58 => draw is Ff7BattlePrimaryBigBomberMeshDraw,
                                 _ => false
                             }) == true;
                             if (active && ((!restored && battle.Action is { Applied: true }) || liveEffect))
@@ -230,14 +249,15 @@ internal static class InstalledOpeningCombatMatrixTests
                     {
                         throw new InvalidOperationException($"Enemy {enemy.Placement.EnemyId}, original action {selector.AttackId:X4}/{selector.ActionAnimation} in formation {formation.FormationId}.", exception);
                     }
-                    if (!active || !restored || battle.Action is not null || record.Data.AttackEffect is 0x02 or 0x16 or 0x2A or 0x2B or 0x4F && !effectRestored)
+                    if (!active || !restored || battle.Action is not null || record.Data.AttackEffect is 0x02 or 0x04 or 0x16 or 0x2A or 0x2B or 0x4C or 0x4F or 0x58 && !effectRestored)
                     {
                         throw new InvalidOperationException($"Enemy {enemy.Placement.EnemyId} original action {selector.AttackId:X4}/{selector.ActionAnimation} did not complete.");
                     }
                 }
             }
         }
-        Console.WriteLine($"Original FFVII opening enemy action matrix: {checkedActions.Count} distinct prototype, attack and animation combinations.");
+        string targetProfile = bindGuest ? "with the guest vitals binding" : "with native party vitals";
+        Console.WriteLine($"Original FFVII opening enemy action matrix: {checkedActions.Count} distinct prototype, attack and animation combinations {targetProfile}.");
     }
 
     private static void CheckEnemyMagicAi(IEnumerable<SceneFormation> formations, Ff7Progress start, IReadOnlyList<KernelSection> kernel, IReadOnlyList<short> materiaModifiers, Ff7BattleAnimationResources animations)

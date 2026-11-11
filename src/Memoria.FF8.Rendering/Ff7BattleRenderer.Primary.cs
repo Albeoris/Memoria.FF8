@@ -10,6 +10,24 @@ public sealed partial class Ff7BattleRenderer
         {
             switch (draw)
             {
+                case Ff7BattlePrimaryLaserCannonBeamDraw laserCannonBeam:
+                    DrawLaserCannonBeam(renderer, laserCannonBeam, view);
+                    break;
+                case Ff7BattlePrimaryLaserCannonImpactDraw laserCannonImpact:
+                    DrawLaserCannonImpact(renderer, laserCannonImpact, view);
+                    break;
+                case Ff7BattleTailLaserMeshDraw tailLaserMesh:
+                    DrawTailLaserMesh(renderer, tailLaserMesh, view);
+                    break;
+                case Ff7BattleTailLaserSpriteDraw tailLaserSprite:
+                    DrawTailLaserSprite(renderer, tailLaserSprite.Sprite, view);
+                    break;
+                case Ff7BattlePrimaryBigBomberMeshDraw bomberMesh:
+                    DrawBigBomberMesh(renderer, bomberMesh, view);
+                    break;
+                case Ff7BattlePrimaryBigBomberSpriteDraw bomberSprite:
+                    DrawBigBomberSprite(renderer, bomberSprite, view);
+                    break;
                 case Ff7BattlePrimaryBeamGunMeshDraw shot:
                     DrawBeamGunMesh(renderer, shot, view);
                     break;

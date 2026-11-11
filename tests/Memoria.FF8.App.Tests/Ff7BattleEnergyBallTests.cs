@@ -4,6 +4,7 @@ using Memoria.FF7.Resources;
 using Memoria.FF8.Rendering;
 using Microsoft.Xna.Framework;
 using Vector3 = System.Numerics.Vector3;
+using Vector4 = System.Numerics.Vector4;
 
 namespace Memoria.FF8.App.Tests;
 
@@ -112,6 +113,61 @@ public sealed class Ff7BattleEnergyBallTests
         {
             random++;
             return random ^ (random >> 1);
+        }
+    }
+
+    [Fact]
+    public void NativeModelColorWeightPreservesMeshCoverageAndVertexAlpha()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(root), "Select original resources for FFVII Energy Ball color checks.");
+        Ff7Installation installation = Ff7Installation.Discover(root!);
+        using LgpArchive battle = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
+        using LgpArchive magic = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.MagicArchive).Path);
+        SceneFormation formation = SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path))[300];
+        SceneBattleData scene = SceneBattleData.Read(formation);
+        Ff7BattleRenderer renderer = new(battle, formation.LocationId, magic);
+        Vector3 source = scene.Enemies[0].Placement.Position + new Vector3(0, -600, 0);
+        Ff7BattlePrimaryContext context = Context(source, source + new Vector3(900, 0, 900), () => throw new InvalidOperationException());
+        Ff7BattlePrimaryState state = Ff7BattlePrimaryEffects.ScheduleEnergyBall(new(), 0, 0x10);
+        state = Ff7BattlePrimaryEffects.Advance(Ff7BattlePrimaryEffects.Advance(state, context), context);
+        Ff7BattlePrimaryEnergyBallMeshDraw mesh = state.Draws.OfType<Ff7BattlePrimaryEnergyBallMeshDraw>().First();
+        TriangleCapture baseline = Capture([]);
+        (TriangleVertex Vertex, TriangleMaterial Material)[] lit = Capture([mesh with { Alpha = 255 }]).Packets.Skip(baseline.Packets.Count).ToArray();
+        (TriangleVertex Vertex, TriangleMaterial Material)[] dark = Capture([mesh with { Alpha = 0 }]).Packets.Skip(baseline.Packets.Count).ToArray();
+        Assert.NotEmpty(lit);
+        Assert.Equal(lit.Length, dark.Length);
+        Assert.Contains(lit, packet => packet.Vertex.Color.X > 0 || packet.Vertex.Color.Y > 0 || packet.Vertex.Color.Z > 0);
+        for (int i = 0; i < lit.Length; i++)
+        {
+            Assert.Equal(lit[i].Material, dark[i].Material);
+            Assert.Equal(lit[i].Vertex.Color.W, dark[i].Vertex.Color.W);
+            Assert.Equal(new Vector4(0, 0, 0, lit[i].Vertex.Color.W), dark[i].Vertex.Color);
+        }
+
+        TriangleCapture Capture(IReadOnlyList<Ff7BattlePrimaryDraw> draws)
+        {
+            TriangleCapture capture = new();
+            renderer.Render(capture, 320, 240, new(scene.Cameras[0], []) { PrimaryEffects = state with { Draws = draws } });
+            return capture;
+        }
+    }
+
+    private sealed class TriangleCapture : ITriangleRenderer
+    {
+        public List<(TriangleVertex Vertex, TriangleMaterial Material)> Packets { get; } = [];
+
+        public void Begin(int width, int height, Vector4 clearColor, float clearDepth = 1)
+        {
+        }
+
+        public void Draw(in TriangleVertex a, in TriangleVertex b, in TriangleVertex c, in TriangleMaterial material)
+        {
+            Packets.Add((a, material));
+        }
+
+        public void End()
+        {
         }
     }
 

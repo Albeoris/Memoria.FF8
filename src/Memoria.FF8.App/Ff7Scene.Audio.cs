@@ -312,7 +312,20 @@ internal sealed partial class Ff7Scene
         var decoded = DecodeSound(request.Sound);
         audioOutput ??= new PcmAudioOutput();
         audioNative ??= Ff7PcExecutableData.Load(installation);
-        soundChannels.Play(audioOutput, decoded.Pcm.Bytes, decoded.Pcm.SampleRate, decoded.Pcm.Channels, decoded.Streamed, audioNative.NativeSoundPan[request.Pan], NativeGain(127, dialoguePreferences?.Invoke().SoundVolume ?? 100), request.Sound, decoded.Loop, decoded.LoopStart, decoded.LoopEnd, decoded.Fingerprint, channel: request.Channel, nativeVolume: 127, nativeSampleRate: decoded.NativeRate, nativeLoopDelaySeconds: decoded.LoopDelay);
+        int pan;
+        if (Session is { } session)
+        {
+            pan = session.Host.PrepareBattleSoundPlayback(request, decoded.Streamed);
+        }
+        else if (request.RawPan)
+        {
+            throw new InvalidOperationException("An original raw battle pan requires its resident sound channel owner.");
+        }
+        else
+        {
+            pan = request.Pan;
+        }
+        soundChannels.Play(audioOutput, decoded.Pcm.Bytes, decoded.Pcm.SampleRate, decoded.Pcm.Channels, decoded.Streamed, audioNative.NativeSoundPan[pan], NativeGain(127, dialoguePreferences?.Invoke().SoundVolume ?? 100), request.Sound, decoded.Loop, decoded.LoopStart, decoded.LoopEnd, decoded.Fingerprint, channel: request.Channel, nativeVolume: 127, nativeSampleRate: decoded.NativeRate, nativeLoopDelaySeconds: decoded.LoopDelay);
         soundChannels.Pause(audioPaused);
     }
 

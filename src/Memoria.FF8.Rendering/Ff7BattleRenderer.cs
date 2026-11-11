@@ -392,7 +392,17 @@ public sealed partial class Ff7BattleRenderer
 
     private static Vector3 OffsetTowardCamera(Vector3 point, int radius)
     {
-        return point.LengthSquared() == 0 ? point : point - Vector3.Normalize(point) * radius;
+        int x = (int)point.X;
+        int y = (int)-point.Y;
+        int z = (int)point.Z;
+        float length = MathF.Sqrt((float)((double)x * x + (double)y * y + (double)z * z));
+        if (length == 0)
+        {
+            return Vector3.Zero;
+        }
+        float unit = 4096f / length;
+        int Shift(int component) => (int)((double)component * unit) * -radius >> 12;
+        return new(x + Shift(x), -(y + Shift(y)), z + Shift(z));
     }
 
     private LgpArchive MagicArchive()

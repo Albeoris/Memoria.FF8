@@ -17,6 +17,15 @@ public static class NativeBattleSequenceSelections
         return model with { Sequence = unchecked((byte)selected), SequenceFrame = 0, ResourceFlags44 = 1, SequenceState = model.SequenceState is null ? null : model.SequenceState with { Offset46 = 0, Pending3 = 0, Callback42 = 0 } };
     }
 
+    public static NativeBattleGraphicsModel RetainDecodedPose5022C0(NativeBattleGraphicsModel model, NativeBattleGraphicsResource previous)
+    {
+        NativeBattleSequenceState state = model.SequenceState ?? throw new NotSupportedException("Native5022C0 requires its actual existing decoded pose owner.");
+        NativeBattlePoseSource source = previous.PoseSource ?? throw new NotSupportedException("Native5022C0 requires its actual previous skeleton/animation source.");
+        NativeBattleDecodedPose decoded = NativeBattlePoseMatrices.ReadDecodedPose(state, source);
+        NativeBattleDecodedPose? linked = state.LinkedPose is not null && previous.LinkedPoseSource is { } linkedSource ? NativeBattlePoseMatrices.ReadLinkedDecodedPose(state, linkedSource) : state.LinkedDecodedPose;
+        return model with { SequenceState = state with { DecodedPose = decoded, LinkedDecodedPose = linked } };
+    }
+
     public static (byte Actor, ushort TargetMask) GeometryArguments92(int currentIndex, byte selector, NativeBattleActionGeometry? retained)
     {
         if ((uint)currentIndex >= 7)

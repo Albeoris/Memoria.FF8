@@ -29,6 +29,19 @@ public sealed partial class Ff7FieldHost
         Process = Process with { SoundChannelStoppedByFade = stopped };
     }
 
+    public int PrepareBattleSoundPlayback(Ff7BattleSoundReceipt receipt, bool streamed)
+    {
+        ArgumentNullException.ThrowIfNull(receipt);
+        if (receipt.Channel is < 1 or > 5 || receipt.Sound is < 1 or > 750 || !receipt.RawPan && receipt.Pan > 127)
+        {
+            throw new InvalidDataException("The native battle sound request is invalid.");
+        }
+
+        Ff7NativeSoundRequest request = new(receipt.Channel, receipt.Sound, receipt.Pan, StopStream: true);
+        ApplyNativeSoundStartState(request.Channel, request.Sound, (byte)request.Pan, request.StopStream);
+        return ResolveNativeSoundPlaybackPan(request, streamed);
+    }
+
     public int ResolveNativeSoundPlaybackPan(Ff7NativeSoundRequest request, bool streamed)
     {
         if (request.Channel is < 1 or > 5 || request.Pan is < 0 or > 255)

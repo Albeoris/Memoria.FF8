@@ -3,7 +3,7 @@ using System.Numerics;
 namespace Memoria.FF7.Formats;
 
 public sealed record Ff7BattleWaveGlobals(Ff7BattleSearchScopeBasis? Basis = null, short CenterStrength = 16, short BeamStrength = 8, short OrbStrength = 8);
-public sealed record Ff7BattlePrimaryPositionedSound(ushort Sound, int Actor, byte FallbackPan, int Channel = 1);
+public sealed record Ff7BattlePrimaryPositionedSound(ushort Sound, int Actor, byte FallbackPan, int Channel = 1, bool RawPan = false);
 public sealed record Ff7BattlePrimaryWaveController(int Target, Ff7BattleBraverPoint Source, Ff7BattleBraverPoint Destination, short Length) : Ff7BattlePrimaryCallback;
 public sealed record Ff7BattlePrimaryWaveOptionalFlash : Ff7BattlePrimaryCallback;
 public sealed record Ff7BattlePrimaryWaveBeam(Ff7BattleBraverPoint Source, short LengthScale) : Ff7BattlePrimaryCallback;

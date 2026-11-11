@@ -136,6 +136,7 @@ var tests = new (string Name, Action Run)[]
     ("native opening action transactions and Limit reel", NativeBattleActionTests.Run),
     ("native battle sound dispatch and cold continuation", NativeBattleSoundTests.Run),
     ("native battle actor model callbacks", NativeBattleActorModelTests.Run),
+    ("native guest limit contact continuation", NativeGuestLimitTests.Run),
     ("native destroyed battle effect and cold continuation", NativeBattleDestroyedTests.Run),
     ("native battle camera archive and action selection", NativeBattleCameraTests.Run),
     ("native field encounter-step contracts", NativeEncounterTests.Run),

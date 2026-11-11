@@ -6,6 +6,22 @@ namespace Memoria.FF7.Formats;
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "Callback")]
 [JsonDerivedType(typeof(Ff7BattlePrimaryTargetReaction), "TargetReaction")]
 [JsonDerivedType(typeof(Ff7BattlePrimaryActionTitle), "ActionTitle")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryLaserCannonController), "LaserCannonController")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryLaserCannonBeam), "LaserCannonBeamCallback")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryLaserCannonImpact), "LaserCannonImpactCallback")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryLaserCannonFlare), "LaserCannonFlare")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBigBomberController), "BigBomberController")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBigBomberMuzzle), "BigBomberMuzzle")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBigBomberDebris), "BigBomberDebris")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBigBomberSmoke), "BigBomberSmoke")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBigBomberWave), "BigBomberWave")]
+[JsonDerivedType(typeof(Ff7BattleTailLaserStage), "TailLaserStage")]
+[JsonDerivedType(typeof(Ff7BattleTailLaserSweep), "TailLaserSweep")]
+[JsonDerivedType(typeof(Ff7BattleTailLaserBeam), "TailLaserBeam")]
+[JsonDerivedType(typeof(Ff7BattleTailLaserFragment), "TailLaserFragment")]
+[JsonDerivedType(typeof(Ff7BattleTailLaserImpact), "TailLaserImpact")]
+[JsonDerivedType(typeof(Ff7BattleTailLaserBlast), "TailLaserBlast")]
+[JsonDerivedType(typeof(Ff7BattleTailLaserSmoke), "TailLaserSmoke")]
 [JsonDerivedType(typeof(Ff7BattlePrimaryBeamGunController), "BeamGunController")]
 [JsonDerivedType(typeof(Ff7BattlePrimaryBeamGunFlash), "BeamGunFlash")]
 [JsonDerivedType(typeof(Ff7BattlePrimaryBeamGunShot), "BeamGunShot")]
@@ -84,6 +100,12 @@ public sealed record Ff7BattlePrimaryScopeEmitter(Ff7BattleBraverPoint Source, F
 public sealed record Ff7BattlePrimaryScopeSprite(Ff7BattleBraverPoint Position, int Stage = 0) : Ff7BattlePrimaryCallback;
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "Packet")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryLaserCannonBeamDraw), "LaserCannonBeam")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryLaserCannonImpactDraw), "LaserCannonImpact")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBigBomberMeshDraw), "BigBomberMesh")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBigBomberSpriteDraw), "BigBomberSprite")]
+[JsonDerivedType(typeof(Ff7BattleTailLaserMeshDraw), "TailLaserMesh")]
+[JsonDerivedType(typeof(Ff7BattleTailLaserSpriteDraw), "TailLaserSprite")]
 [JsonDerivedType(typeof(Ff7BattlePrimaryBeamGunMeshDraw), "BeamGunMesh")]
 [JsonDerivedType(typeof(Ff7BattlePrimaryBeamGunSpriteDraw), "BeamGunSprite")]
 [JsonDerivedType(typeof(Ff7BattlePrimaryBubbleSpriteDraw), "BubbleSprite")]
@@ -137,6 +159,7 @@ public sealed record Ff7BattlePrimaryState
     public Ff7BattleEnergyBallGlobals EnergyBallGlobals { get; init; } = new();
     public IReadOnlyList<Ff7BattlePrimaryPositionedSound> PositionedSounds { get; init; } = [];
     public IReadOnlyList<Ff7BattleBraverPoint> WaveSparks { get; init; } = [];
+    public IReadOnlyList<Ff7BattleSecondaryCallback> TailLaserSecondaries { get; init; } = [];
     public short CameraFocusYDelta { get; init; }
     public IReadOnlyList<Ff7BattleActorModelWrite> ActorWrites { get; init; } = [];
     public IReadOnlyList<Ff7BattleActorModelSound> ActorSounds { get; init; } = [];
@@ -287,6 +310,8 @@ public static partial class Ff7BattlePrimaryEffects
             case Ff7BattlePrimaryEnergyBallOrb:
             case Ff7BattlePrimaryEnergyBallBlast:
                 return ExecuteEnergyBall(callback, pass, ref pass.EnergyBallGlobals);
+            case Ff7BattleTailLaserCallback tailLaser:
+                return ExecuteTailLaser(tailLaser, pass);
             case Ff7BattlePrimaryWaveController:
             case Ff7BattlePrimaryWaveOptionalFlash:
             case Ff7BattlePrimaryWaveBeam:
@@ -296,6 +321,17 @@ public static partial class Ff7BattlePrimaryEffects
             case Ff7BattlePrimaryWaveExplosion:
             case Ff7BattlePrimaryWaveFragment:
                 return ExecuteWave(callback, pass, pass.Wave);
+            case Ff7BattlePrimaryLaserCannonController:
+            case Ff7BattlePrimaryLaserCannonBeam:
+            case Ff7BattlePrimaryLaserCannonImpact:
+            case Ff7BattlePrimaryLaserCannonFlare:
+                return ExecuteLaserCannon(callback, pass);
+            case Ff7BattlePrimaryBigBomberController:
+            case Ff7BattlePrimaryBigBomberMuzzle:
+            case Ff7BattlePrimaryBigBomberDebris:
+            case Ff7BattlePrimaryBigBomberSmoke:
+            case Ff7BattlePrimaryBigBomberWave:
+                return ExecuteBigBomber(callback, pass);
             case Ff7BattlePrimaryBeamGunController:
             case Ff7BattlePrimaryBeamGunFlash:
             case Ff7BattlePrimaryBeamGunShot:
@@ -414,6 +450,7 @@ public static partial class Ff7BattlePrimaryEffects
         public readonly WavePass Wave;
         public Ff7BattleEnergyBallGlobals EnergyBallGlobals;
         public readonly List<Ff7BattlePrimaryPositionedSound> PositionedSounds = [];
+        public readonly List<Ff7BattleSecondaryCallback> TailLaserSecondaries = [];
         public short CameraFocusYDelta;
         public ushort ImpactTargets;
         public short SearchScopeCounter;
@@ -446,14 +483,14 @@ public static partial class Ff7BattlePrimaryEffects
             BeamGunBasis = state.BeamGunBasis;
         }
 
-        public void Allocate(Ff7BattlePrimaryCallback callback)
+        public int Allocate(Ff7BattlePrimaryCallback callback)
         {
             for (int index = Cursor; index < Capacity; index++)
             {
                 if (Slots[index] is null)
                 {
                     Slots[index] = callback;
-                    return;
+                    return index;
                 }
             }
             throw new InvalidOperationException("FFVII primary callback pool exhausted its remaining native slots.");
@@ -493,7 +530,7 @@ public static partial class Ff7BattlePrimaryEffects
 
         public Ff7BattlePrimaryState Finish(int tick, bool preserveReceipts = false)
         {
-            return new() { Slots = Slots, BeamGunBasis = BeamGunBasis, Bubbles = Bubbles, WaveGlobals = Wave.Globals, EnergyBallGlobals = EnergyBallGlobals, PositionedSounds = preserveReceipts ? [.. previous.PositionedSounds, .. PositionedSounds] : PositionedSounds, WaveSparks = preserveReceipts ? [.. previous.WaveSparks, .. Wave.Sparks] : Wave.Sparks, CameraFocusYDelta = preserveReceipts ? previous.CameraFocusYDelta : CameraFocusYDelta, Tick = tick, Draws = preserveReceipts ? [.. previous.Draws, .. Draws] : Draws, SoundIds = preserveReceipts ? [.. previous.SoundIds, .. SoundIds] : SoundIds, Hitmarks = preserveReceipts ? [.. previous.Hitmarks, .. Hitmarks] : Hitmarks, TargetReactions = preserveReceipts ? [.. previous.TargetReactions, .. TargetReactions] : TargetReactions, ActionTitle = ActionTitle ?? (preserveReceipts ? previous.ActionTitle : null), ImpactTargets = preserveReceipts ? previous.ImpactTargets : ImpactTargets, SearchScopeCounter = SearchScopeCounter, StageRed = StageRed, StageGreen = StageGreen, StageBlue = StageBlue, StageTransparency = StageTransparency, SilkLines = SilkLines, ActorWrites = preserveReceipts ? [.. previous.ActorWrites, .. ActorWrites] : ActorWrites, ActorSounds = preserveReceipts ? [.. previous.ActorSounds, .. ActorSounds] : ActorSounds, BossDeathShakes = preserveReceipts ? [.. previous.BossDeathShakes, .. BossDeathShakes] : BossDeathShakes };
+            return new() { Slots = Slots, BeamGunBasis = BeamGunBasis, Bubbles = Bubbles, WaveGlobals = Wave.Globals, EnergyBallGlobals = EnergyBallGlobals, PositionedSounds = preserveReceipts ? [.. previous.PositionedSounds, .. PositionedSounds] : PositionedSounds, WaveSparks = preserveReceipts ? [.. previous.WaveSparks, .. Wave.Sparks] : Wave.Sparks, TailLaserSecondaries = preserveReceipts ? [.. previous.TailLaserSecondaries, .. TailLaserSecondaries] : TailLaserSecondaries, CameraFocusYDelta = preserveReceipts ? previous.CameraFocusYDelta : CameraFocusYDelta, Tick = tick, Draws = preserveReceipts ? [.. previous.Draws, .. Draws] : Draws, SoundIds = preserveReceipts ? [.. previous.SoundIds, .. SoundIds] : SoundIds, Hitmarks = preserveReceipts ? [.. previous.Hitmarks, .. Hitmarks] : Hitmarks, TargetReactions = preserveReceipts ? [.. previous.TargetReactions, .. TargetReactions] : TargetReactions, ActionTitle = ActionTitle ?? (preserveReceipts ? previous.ActionTitle : null), ImpactTargets = preserveReceipts ? previous.ImpactTargets : ImpactTargets, SearchScopeCounter = SearchScopeCounter, StageRed = StageRed, StageGreen = StageGreen, StageBlue = StageBlue, StageTransparency = StageTransparency, SilkLines = SilkLines, ActorWrites = preserveReceipts ? [.. previous.ActorWrites, .. ActorWrites] : ActorWrites, ActorSounds = preserveReceipts ? [.. previous.ActorSounds, .. ActorSounds] : ActorSounds, BossDeathShakes = preserveReceipts ? [.. previous.BossDeathShakes, .. BossDeathShakes] : BossDeathShakes };
         }
     }
 }

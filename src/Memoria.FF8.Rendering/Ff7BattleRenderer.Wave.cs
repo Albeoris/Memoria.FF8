@@ -14,10 +14,6 @@ public sealed partial class Ff7BattleRenderer
 
     private void DrawWaveMesh(ITriangleRenderer renderer, Ff7BattlePrimaryWaveMeshDraw draw, CameraView view)
     {
-        if (draw.Alpha == 0)
-        {
-            return;
-        }
         string name = draw.Model switch
         {
             1 => "hado.p",
@@ -38,7 +34,7 @@ public sealed partial class Ff7BattleRenderer
             7 => waveCenterTextures ??= [PcTexture.Read(Read(MagicArchive(), WavePath + "domu1.tex"))],
             _ => []
         };
-        DrawModel(renderer, model, textures, transform, view, new() { Cull = true }, draw.Alpha / 255f);
+        DrawModel(renderer, model, textures, transform, view, new() { Cull = true }, colorBlend: new ModelColorBlend(0, 0, 0, draw.Alpha));
     }
 
     private void DrawWaveSprite(ITriangleRenderer renderer, Ff7BattlePrimaryWaveSpriteDraw draw, CameraView view)

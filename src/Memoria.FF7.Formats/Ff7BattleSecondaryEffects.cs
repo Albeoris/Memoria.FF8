@@ -17,6 +17,8 @@ namespace Memoria.FF7.Formats;
 [JsonDerivedType(typeof(Ff7BattleLimitPreparationEmitter), "LimitPreparationEmitter")]
 [JsonDerivedType(typeof(Ff7BattleLimitPreparationMesh), "LimitPreparationMesh")]
 [JsonDerivedType(typeof(Ff7BattleWaveSpark), "WaveSpark")]
+[JsonDerivedType(typeof(Ff7BattleTailLaserSecondarySprite), "TailLaserSprite")]
+[JsonDerivedType(typeof(Ff7BattleTailLaserSecondarySpark), "TailLaserSpark")]
 public abstract record Ff7BattleSecondaryCallback
 {
     public int Age { get; init; }
@@ -44,7 +46,8 @@ public enum Ff7BattleSecondaryDrawKind
     Hitmark,
     ScreenPulse,
     LimitPreparation,
-    WaveSpark
+    WaveSpark,
+    TailLaser
 }
 public sealed record Ff7BattleSecondaryDraw(Ff7BattleSecondaryDrawKind Kind, int Index);
 
@@ -61,6 +64,7 @@ public sealed record Ff7BattleSecondaryState
     public IReadOnlyList<Ff7BattleActorScreenPulse> ScreenPulses { get; init; } = [];
     public IReadOnlyList<Ff7BattleLimitPreparationDraw> LimitPreparations { get; init; } = [];
     public IReadOnlyList<Ff7BattleWaveSparkDraw> WaveSparks { get; init; } = [];
+    public IReadOnlyList<Ff7BattleTailLaserSprite> TailLaserDraws { get; init; } = [];
     public IReadOnlyList<Ff7BattleSecondaryDraw> DrawOrder { get; init; } = [];
     [JsonIgnore]
     public bool HasCallbacks => Slots.Any(slot => slot is not null);
@@ -129,6 +133,7 @@ public static partial class Ff7BattleSecondaryEffects
         List<Ff7BattleActorScreenPulse> screenPulses = [];
         List<Ff7BattleLimitPreparationDraw> limitPreparations = [];
         List<Ff7BattleWaveSparkDraw> waveSparks = [];
+        List<Ff7BattleTailLaserSprite> tailLaserDraws = [];
         for (int cursor = 0; cursor < Capacity; cursor++)
         {
             switch (slots[cursor])
@@ -147,6 +152,9 @@ public static partial class Ff7BattleSecondaryEffects
                         drawOrder.Add(new(Ff7BattleSecondaryDrawKind.ScreenPulse, screenPulses.Count));
                         screenPulses.Add(new(250, 250, 250));
                     }
+                    break;
+                case Ff7BattleTailLaserSecondary tailLaser:
+                    slots[cursor] = ExecuteTailLaser(tailLaser, EmitTailLaser);
                     break;
                 case Ff7BattleWaveSpark waveSpark:
                     slots[cursor] = ExecuteWaveSpark(waveSpark, EmitWaveSpark);
@@ -258,6 +266,12 @@ public static partial class Ff7BattleSecondaryEffects
                     throw new NotSupportedException("FFVII secondary callback has no admitted executor.");
             }
 
+            void EmitTailLaser(Ff7BattleTailLaserSprite draw)
+            {
+                drawOrder.Add(new(Ff7BattleSecondaryDrawKind.TailLaser, tailLaserDraws.Count));
+                tailLaserDraws.Add(draw);
+            }
+
             void EmitWaveSpark(Ff7BattleWaveSparkDraw draw)
             {
                 drawOrder.Add(new(Ff7BattleSecondaryDrawKind.WaveSpark, waveSparks.Count));
@@ -272,7 +286,7 @@ public static partial class Ff7BattleSecondaryEffects
 
         void Allocate(Ff7BattleSecondaryCallback callback) => Insert(slots, cursor, callback);
         }
-        return new() { Slots = slots, Muzzles = muzzles, Casings = casings, Sparks = sparks, Dust = dust, Hitmarks = hitmarks, SoundIds = sounds, ActorWrites = actorWrites, ScreenPulses = screenPulses, LimitPreparations = limitPreparations, WaveSparks = waveSparks, DrawOrder = drawOrder };
+        return new() { Slots = slots, Muzzles = muzzles, Casings = casings, Sparks = sparks, Dust = dust, Hitmarks = hitmarks, SoundIds = sounds, ActorWrites = actorWrites, ScreenPulses = screenPulses, LimitPreparations = limitPreparations, WaveSparks = waveSparks, TailLaserDraws = tailLaserDraws, DrawOrder = drawOrder };
     }
 
     private static Ff7BattleBraverPoint Add(Ff7BattleBraverPoint a, Ff7BattleBraverPoint b) => new((short)(a.X + b.X), (short)(a.Y + b.Y), (short)(a.Z + b.Z));

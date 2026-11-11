@@ -268,7 +268,7 @@ public sealed partial class Ff7BattleSession
         long sequence = 0;
         foreach (Ff7BattleSoundReceipt sound in snapshot.SoundRequests)
         {
-            if (sound is null || sound.Sequence <= sequence || sound.Sequence > (snapshot.Sounds?.Sequence ?? 0) || sound.Pan > 127 || sound.Channel is < 1 or > 5)
+            if (sound is null || sound.Sequence <= sequence || sound.Sequence > (snapshot.Sounds?.Sequence ?? 0) || (!sound.RawPan && sound.Pan > 127) || sound.Channel is < 1 or > 5)
             {
                 throw new InvalidDataException("FFVII battle snapshot has invalid sound receipt ordering.");
             }

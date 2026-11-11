@@ -12,6 +12,7 @@ public sealed partial class Ff7BattleSession
 
     private void ApplyPrimaryEffectReceipts(Ff7BattlePrimaryState primary)
     {
+        ApplyTailLaserSecondaryReceipts(primary);
         if (primary.WaveSparks.Count > 0)
         {
             Ff7BattleSecondaryState secondary = EnsureSecondaryEffects();
@@ -24,7 +25,8 @@ public sealed partial class Ff7BattleSession
         foreach (Ff7BattlePrimaryPositionedSound cue in primary.PositionedSounds)
         {
             byte pan = cue.Actor == -1 ? cue.FallbackPan : Ff7NativeBattleSound.ActorPan(SoundScreenX(cue.Actor));
-            AppendSounds(Ff7NativeBattleSound.Emit(state.Sounds ?? Ff7BattleSoundState.Empty, cue.Sound, pan, cue.Channel));
+            Ff7BattleSoundState sounds = state.Sounds ?? Ff7BattleSoundState.Empty;
+            AppendSounds(cue.RawPan ? Ff7NativeBattleSound.EmitRawPan(sounds, cue.Sound, pan, cue.Channel) : Ff7NativeBattleSound.Emit(sounds, cue.Sound, pan, cue.Channel));
         }
         ApplyPrimaryCameraFocusY(primary.CameraFocusYDelta);
     }

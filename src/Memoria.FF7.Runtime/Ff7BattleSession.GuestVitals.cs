@@ -86,7 +86,7 @@ public sealed partial class Ff7BattleSession
         }
         if (Tick != 0 || !state.Actors.Any(actor => actor.Actor.Slot == binding.HostSlot && actor.Identity == binding.StoryCharacter) || guestAttack is { } guest && (guest.EncounterId != binding.EncounterId || guest.ActorSlot != binding.HostSlot))
         {
-            throw new NotSupportedException("The first guest vitals profile requires the original opening MP formation before its first tick.");
+            throw new NotSupportedException("The guest vitals profile requires an occupied story slot before the first encounter tick.");
         }
         Ff7BattleActorState actor = Actor(binding.HostSlot);
         uint statuses = Ff7GuestBattleStatuses.FromOrigin(binding.OriginStatuses) | (binding.InitialHp == 0 ? 1u : 0u);
@@ -104,9 +104,12 @@ public sealed partial class Ff7BattleSession
             : stats;
     }
 
-    private bool GuestRecoveryCommand(Ff7BattleCommand command, ushort argument) => command == Ff7BattleCommand.Item && ReadBattleItem(argument) is not null;
+    private bool GuestRecoveryCommand(Ff7BattleCommand command, ushort argument)
+    {
+        return command == Ff7BattleCommand.Magic && argument == 0 || command == Ff7BattleCommand.Item && ReadBattleItem(argument) is not null;
+    }
 
-    private void ValidateGuestIncoming(Ff7BattleQueuedCommand command, int targetSlot, Ff7BattleDamageAction action, Ff7BattleAttack? record)
+    private void ValidateGuestIncoming(Ff7BattleQueuedCommand command, int targetSlot, Ff7BattleAttack? record)
     {
         if (!IsGuestVitalsSlot(targetSlot))
         {
@@ -116,7 +119,7 @@ public sealed partial class Ff7BattleSession
         bool enemy = command.ActorSlot >= 4 && (command.CommandId is 0x20 or 2) || command.CommandId == 0x23;
         if (!(enemy || recovery) || record is { AdditionalEffect: not byte.MaxValue } || record is { StatusChange: < 0xC0 } && (record.StatusMask & ~Ff7GuestBattleStatuses.SupportedHost) != 0)
         {
-            throw new NotSupportedException("This guest vitals profile supports original MP physical attacks and ordinary Potion recovery.");
+            throw new NotSupportedException("The native action has no admitted effect on this guest vitals profile.");
         }
     }
 

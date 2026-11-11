@@ -19,7 +19,7 @@ public sealed record Ff7BattleSoundState(Ff7BattleDelayedSound[] Pending, long S
     public Ff7BattleImpactPresentation[] PendingHitmarks { get; init; } = [];
 }
 
-public sealed record Ff7BattleSoundReceipt(long Sequence, ushort Sound, byte Pan, int Channel = 1);
+public sealed record Ff7BattleSoundReceipt(long Sequence, ushort Sound, byte Pan, int Channel = 1, bool RawPan = false);
 
 public sealed record Ff7BattleSoundUpdate(Ff7BattleSoundState State, IReadOnlyList<Ff7BattleSoundReceipt> Sounds);
 
@@ -44,10 +44,17 @@ public static class Ff7NativeBattleSound
     public static Ff7BattleSoundUpdate Emit(Ff7BattleSoundState state, ushort sound, byte pan, int channel = 1)
     {
         ArgumentOutOfRangeException.ThrowIfGreaterThan(pan, (byte)127);
+        return EmitCore(state, sound, pan, channel, false);
+    }
+
+    public static Ff7BattleSoundUpdate EmitRawPan(Ff7BattleSoundState state, ushort sound, byte pan, int channel) => EmitCore(state, sound, pan, channel, true);
+
+    private static Ff7BattleSoundUpdate EmitCore(Ff7BattleSoundState state, ushort sound, byte pan, int channel, bool rawPan)
+    {
         ArgumentOutOfRangeException.ThrowIfLessThan(channel, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(channel, 5);
         long sequence = checked(state.Sequence + 1);
-        return new(state with { Sequence = sequence }, [new(sequence, sound, pan, channel)]);
+        return new(state with { Sequence = sequence }, [new(sequence, sound, pan, channel, rawPan)]);
     }
 
     public static int WeaponImpactSound(ReadOnlySpan<byte> weapon, bool critical, bool missed, bool berserk)

@@ -13,10 +13,6 @@ public sealed partial class Ff7BattleRenderer
 
     private void DrawEnergyBallMesh(ITriangleRenderer renderer, Ff7BattlePrimaryEnergyBallMeshDraw draw, CameraView view)
     {
-        if (draw.Alpha == 0)
-        {
-            return;
-        }
         string descriptor = draw.Model switch
         {
             0 => "elec1.rsd",
@@ -29,7 +25,7 @@ public sealed partial class Ff7BattleRenderer
         };
         Ff7BattleEffectModel model = energyBallModels[draw.Model] ??= Ff7BattleEffectModel.Read(MagicArchive(), EnergyBallPath, descriptor);
         Matrix4x4 transform = draw.Basis.Matrix * Matrix4x4.CreateTranslation(draw.Position.Position);
-        DrawModel(renderer, model.Mesh, model.Textures, transform, view, new() { Cull = true }, draw.Alpha / 255f);
+        DrawModel(renderer, model.Mesh, model.Textures, transform, view, new() { Cull = true }, colorBlend: new ModelColorBlend(0, 0, 0, draw.Alpha));
     }
 
     private void DrawEnergyBallSprite(ITriangleRenderer renderer, Ff7BattlePrimaryEnergyBallSpriteDraw draw, CameraView view)

@@ -46,6 +46,18 @@ internal static class NativeSoundPanTests
         Equal(93, invalidCold.Process.SoundChannelPans[0]);
         Equal(panVersion, invalidCold.Process.SoundChannelPanVersions[0]);
         Equal(invalidCold.Process.SoundChannelBufferPans[0], invalidCold.CreateNextFieldProcess().SoundChannelBufferPans[0]);
+        Ff7FieldHost battleHost = new(field, (_, _) => 1, new() { Tick = 44 });
+        battleHost.ConfigureNativeSoundResources(_ => new(44100, false));
+        Ff7BattleSoundReceipt invalidLaserPan = Ff7NativeBattleSound.EmitRawPan(Ff7BattleSoundState.Empty, 0x3A, 0x84, 1).Sounds.Single();
+        Equal(22, battleHost.PrepareBattleSoundPlayback(new(1, 0x3A, 22), false));
+        Ff7FieldHost restoredBattle = new(field, (_, _) => 1, JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(battleHost.Capture()))!);
+        restoredBattle.ConfigureNativeSoundResources(_ => new(44100, false), restoring: true);
+        Equal(22, restoredBattle.PrepareBattleSoundPlayback(invalidLaserPan, false));
+        Equal(44L, restoredBattle.Process.Tick);
+        Equal(70, restoredBattle.PrepareBattleSoundPlayback(new(2, 5, 70), false));
+        Equal(64, restoredBattle.PrepareBattleSoundPlayback(invalidLaserPan, false));
+        Equal(70, restoredBattle.Process.SoundChannelPans[0]);
+
         Ff7FieldHost host = new(field, (_, _) => 1, new() { Tick = 1520 });
         host.ConfigureNativeSoundResources(id => new(44100, id == 59, id == 60));
         host.NativeSoundLoopAlreadyPlaying = (_, _) => false;
