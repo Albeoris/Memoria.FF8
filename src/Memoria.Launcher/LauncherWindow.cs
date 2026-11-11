@@ -750,7 +750,7 @@ internal sealed partial class LauncherWindow : Window
             ErrorIncident? incident = await Task.Run(() => ErrorIncident.DiscoverLatest(pendingOnly: true));
             if (incident is not null && IsVisible)
             {
-                await new ErrorReportDialog("An error report from a previous game session is available. You can prepare it for GitHub or close this window.", incident).ShowDialog(this);
+                await new ErrorReportDialog("An error report from a previous game session is available. You can prepare it for GitHub, delete the local incident or close this window.", incident).ShowDialog(this);
             }
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)

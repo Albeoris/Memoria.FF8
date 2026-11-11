@@ -405,6 +405,123 @@ public sealed class ErrorReportTests : IDisposable
         }
     }
 
+    [Fact]
+    public void PendingStorageLocationAndDeletionPreserveOriginalInputsAndOtherIncidents()
+    {
+        string inputs = Path.Combine(root, "inputs");
+        Directory.CreateDirectory(inputs);
+        string log = Path.Combine(inputs, "original.log");
+        string save = Path.Combine(inputs, "original.ff8save");
+        File.WriteAllText(log, "original diagnostics");
+        File.WriteAllBytes(save, "MFF8SAVE"u8.ToArray());
+        ErrorIncident incident = ErrorIncident.Capture(new Exception("remove pending"), "test", logPaths: [log], save: new ReportSave(File.ReadAllBytes(save), "earlier save", DateTimeOffset.UtcNow, "synthetic validated"), launchId: "remove-pending-launch");
+        ErrorIncident other = ErrorIncident.Capture(new Exception("keep pending"), "test");
+        string otherPending = other.Persist(root);
+        string pending = incident.Persist(root);
+        incident.MarkPresented(root);
+
+        Assert.Equal(Path.Combine(pending, "incident.json"), incident.GetStoragePath(root));
+        ErrorIncident recovered = Assert.IsType<ErrorIncident>(ErrorIncident.DiscoverLatest(root, "remove-pending-launch"));
+        Assert.Equal(incident.Id, recovered.Id);
+        recovered.Delete(root);
+        recovered.Delete(root);
+
+        Assert.False(Directory.Exists(pending));
+        Assert.True(File.Exists(Path.Combine(otherPending, "incident.json")));
+        Assert.Equal("original diagnostics", File.ReadAllText(log));
+        Assert.Equal("MFF8SAVE"u8.ToArray(), File.ReadAllBytes(save));
+        Assert.Equal(Path.Combine(pending, "incident.json"), recovered.GetStoragePath(root));
+    }
+
+    [Fact]
+    public async Task RecoveredPreparedIncidentDeletesArchiveAndPresentationStateOnly()
+    {
+        ErrorIncident incident = ErrorIncident.Capture(new Exception("remove prepared"), "test", launchId: "remove-launch");
+        ErrorIncident other = ErrorIncident.Capture(new Exception("keep prepared"), "test");
+        string archive;
+        string otherArchive;
+        using (PreparedErrorReport report = await ErrorReport.PrepareAsync(incident, root))
+        {
+            archive = report.ArchivePath;
+        }
+        using (PreparedErrorReport report = await ErrorReport.PrepareAsync(other, root))
+        {
+            otherArchive = report.ArchivePath;
+        }
+        ErrorIncident recovered = Assert.IsType<ErrorIncident>(ErrorIncident.DiscoverLatest(root, "remove-launch"));
+        recovered.MarkPresented(root);
+        string pendingDirectory = Path.Combine(root + ".pending", incident.Id);
+
+        Assert.Equal(archive, recovered.GetStoragePath(root));
+        recovered.Delete(root);
+        recovered.Delete(root);
+
+        Assert.False(File.Exists(archive));
+        Assert.False(Directory.Exists(Path.GetDirectoryName(archive)));
+        Assert.False(Directory.Exists(pendingDirectory));
+        Assert.True(File.Exists(otherArchive));
+        Assert.Null(ErrorIncident.DiscoverLatest(root, "remove-launch"));
+    }
+
+    [Fact]
+    public void LegacyStorageLocationAndDeletionUseOnlyTheIncidentDirectory()
+    {
+        ErrorIncident incident = ErrorIncident.Capture(new Exception("legacy incident"), "test");
+        string pending = incident.Persist(root);
+        string legacy = Path.Combine(root, incident.Id);
+        Directory.CreateDirectory(root);
+        Directory.Move(pending, legacy);
+
+        Assert.Equal(Path.Combine(legacy, "incident.json"), incident.GetStoragePath(root));
+        string newPending = incident.Persist(root);
+        Assert.Equal(Path.Combine(newPending, "incident.json"), incident.GetStoragePath(root));
+        incident.Delete(root);
+
+        Assert.False(Directory.Exists(legacy));
+        Assert.False(Directory.Exists(newPending));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void IncidentDeletionRejectsLinksWithoutDeletingTheirTargets(bool linkIncidentDirectory)
+    {
+        ErrorIncident incident = ErrorIncident.Capture(new Exception("linked storage"), "test");
+        string pending = incident.Persist(root);
+        string external = Path.Combine(root, "original-inputs");
+        Directory.CreateDirectory(external);
+        string original = Path.Combine(external, "original.log");
+        File.WriteAllText(original, "preserve original");
+        string reportDirectory = Path.Combine(root, incident.Id);
+        string link = linkIncidentDirectory ? reportDirectory : Path.Combine(reportDirectory, "linked-inputs");
+        if (!linkIncidentDirectory)
+        {
+            Directory.CreateDirectory(reportDirectory);
+        }
+        try
+        {
+            Directory.CreateSymbolicLink(link, external);
+        }
+        catch (Exception failure) when (failure is UnauthorizedAccessException or PlatformNotSupportedException or IOException)
+        {
+            Assert.Skip("This host does not permit creating directory symbolic links.");
+        }
+        try
+        {
+            Assert.Throws<IOException>(() => incident.Delete(root));
+            Assert.Equal("preserve original", File.ReadAllText(original));
+            Assert.True(File.Exists(Path.Combine(pending, "incident.json")));
+            if (linkIncidentDirectory)
+            {
+                Assert.Throws<IOException>(() => incident.GetStoragePath(root));
+            }
+        }
+        finally
+        {
+            Directory.Delete(link);
+        }
+    }
+
     private sealed class BrokenContributor
     {
         public string Value => throw new InvalidOperationException("collection failed");

@@ -167,6 +167,95 @@ public sealed class ErrorIncident
 
     internal static string PendingRoot(string reportsDirectory) => Path.GetFullPath(reportsDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + ".pending";
 
+    public string GetStoragePath(string? reportsDirectory = null)
+    {
+        (string pendingDirectory, string reportDirectory) = GetStorageDirectories(reportsDirectory);
+        string pending = Path.Combine(pendingDirectory, "incident.json");
+        ValidateStoragePath(pending);
+        if (File.Exists(pending))
+        {
+            return pending;
+        }
+        if (Directory.Exists(reportDirectory))
+        {
+            string? archive = Directory.EnumerateFiles(reportDirectory, "*.zip").OrderByDescending(File.GetLastWriteTimeUtc).FirstOrDefault();
+            if (archive is not null)
+            {
+                ValidateStoragePath(archive);
+                return archive;
+            }
+        }
+        string legacy = Path.Combine(reportDirectory, "incident.json");
+        ValidateStoragePath(legacy);
+        return File.Exists(legacy) ? legacy : pending;
+    }
+
+    public void Delete(string? reportsDirectory = null)
+    {
+        (string pendingDirectory, string reportDirectory) = GetStorageDirectories(reportsDirectory);
+        ValidateStorageTree(pendingDirectory);
+        ValidateStorageTree(reportDirectory);
+        if (Directory.Exists(pendingDirectory))
+        {
+            Directory.Delete(pendingDirectory, true);
+        }
+        if (Directory.Exists(reportDirectory))
+        {
+            Directory.Delete(reportDirectory, true);
+        }
+    }
+
+    private (string PendingDirectory, string ReportDirectory) GetStorageDirectories(string? reportsDirectory)
+    {
+        if (!Guid.TryParseExact(Id, "N", out _))
+        {
+            throw new InvalidDataException("The incident identifier is invalid.");
+        }
+        string root = Path.GetFullPath(reportsDirectory ?? ApplicationPaths.Current.Reports);
+        string pendingDirectory = Path.Combine(PendingRoot(root), Id);
+        string reportDirectory = Path.Combine(root, Id);
+        ValidateStoragePath(pendingDirectory);
+        ValidateStoragePath(reportDirectory);
+        return (pendingDirectory, reportDirectory);
+    }
+
+    private static void ValidateStoragePath(string path)
+    {
+        for (string? current = path; current is not null; current = Path.GetDirectoryName(current))
+        {
+            FileAttributes attributes;
+            try
+            {
+                attributes = File.GetAttributes(current);
+            }
+            catch (Exception failure) when (failure is FileNotFoundException or DirectoryNotFoundException)
+            {
+                continue;
+            }
+            if ((attributes & FileAttributes.ReparsePoint) != 0)
+            {
+                throw new IOException("Incident storage must not contain symbolic links or reparse points.");
+            }
+        }
+    }
+
+    private static void ValidateStorageTree(string directory)
+    {
+        ValidateStoragePath(directory);
+        if (!Directory.Exists(directory))
+        {
+            return;
+        }
+        foreach (string entry in Directory.EnumerateFileSystemEntries(directory))
+        {
+            ValidateStoragePath(entry);
+            if (Directory.Exists(entry))
+            {
+                ValidateStorageTree(entry);
+            }
+        }
+    }
+
     internal byte[] EvidenceBytes(bool includeSave, bool published = false)
     {
         object evidence = new { schemaVersion = 1, Id, LaunchId, Timestamp, Subsystem = published ? ReportPrivacy.Text(Subsystem) : Subsystem, Exception = published ? ReportPrivacy.Json(JsonSerializer.SerializeToElement(Exception)) : JsonSerializer.SerializeToElement(Exception), Runtime = published ? ReportPrivacy.Json(Runtime) : Runtime, Environment = published ? ReportPrivacy.Json(Environment) : Environment, SaveUnavailableReason = published ? ReportPrivacy.Text(SaveUnavailableReason) : SaveUnavailableReason, Events = published ? ReportPrivacy.Json(JsonSerializer.SerializeToElement(Events)) : JsonSerializer.SerializeToElement(Events), CollectionErrors = published ? CollectionErrors.Select(ReportPrivacy.Text).ToArray() : CollectionErrors, LogPaths = published ? Array.Empty<string>() : logPaths, Save = !includeSave || Save is null ? null : new { Kind = published ? ReportPrivacy.Text(Save.Kind) : Save.Kind, Save.CapturedUtc, Validation = published ? ReportPrivacy.Text(Save.Validation) : Save.Validation } };
