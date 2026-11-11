@@ -131,13 +131,120 @@ public sealed class BehaviorModsTests : IDisposable
         Assert.Empty(diagnostics);
     }
 
-    [Fact]
-    public void ConfigurationCannotOverrideStatusName()
+    [Theory]
+    [InlineData("StatusName")]
+    [InlineData("StatusName_EN")]
+    [InlineData("StatusName_{LANG}")]
+    public void ConfigurationCannotOverrideStatusName(string property)
     {
-        ModFile[] files = [File("Memoria/A", BehaviorMods.PayloadPath, CreatePayload(statusName: StatusNameKey)), File("Memoria/A", BehaviorMods.ConfigurationPath, "{\"meltdown\":{\"StatusName\":\"$en_kernel_magicspells_name_0050\"}}")];
+        ModFile[] files = [File("Memoria/A", BehaviorMods.PayloadPath, CreatePayload(statusName: StatusNameKey)), File("Memoria/A", BehaviorMods.ConfigurationPath, JsonSerializer.Serialize(new { meltdown = new Dictionary<string, string> { [property] = "$en_kernel_magicspells_name_0050" } }))];
         Assert.False(BehaviorMods.TryPrepare(new(1, [], files), out _, out IReadOnlyList<ModDiagnostic> diagnostics));
         Assert.Single(diagnostics);
         Assert.Contains("StatusName", diagnostics[0].Message);
+    }
+
+    [Theory]
+    [InlineData("en", "$en_kernel_magicspells_name_0049")]
+    [InlineData("fr", "$fr_kernel_magicspells_name_0049")]
+    [InlineData("jp", "$jp_kernel_magicspells_name_0049")]
+    public void GenericStatusNameUsesSourceResourceLanguage(string sourceLanguage, string expected)
+    {
+        string payload = StatusNamesPayload(("StatusName_{LANG}", "${LANG}_kernel_magicspells_name_0049"));
+        Assert.True(BehaviorMods.TryPrepare(new(1, [], [File("Memoria/A", BehaviorMods.PayloadPath, payload)]), out BehaviorMods mods, out _, sourceLanguage));
+        Assert.Equal(expected, mods.MeltdownStatusNameKey);
+        Assert.Equal("Memoria/A", mods.MeltdownStatusNamePackageId);
+    }
+
+    [Theory]
+    [InlineData("en", "$en_kernel_magicspells_name_0051")]
+    [InlineData("fr", "$fr_kernel_magicspells_name_0062")]
+    [InlineData("de", "$de_kernel_magicspells_name_0049")]
+    public void ExplicitStatusNameOverridesGenericAndLegacyWithIndependentEntryIndices(string sourceLanguage, string expected)
+    {
+        string payload = StatusNamesPayload(("StatusName", "$en_kernel_magicspells_name_0001"), ("StatusName_{LANG}", "${LANG}_kernel_magicspells_name_0049"), ("StatusName_EN", "$en_kernel_magicspells_name_0051"), ("StatusName_fr", "${LANG}_kernel_magicspells_name_0062"));
+        Assert.True(BehaviorMods.TryPrepare(new(1, [], [File("Memoria/A", BehaviorMods.PayloadPath, payload)]), out BehaviorMods mods, out _, sourceLanguage));
+        Assert.Equal(expected, mods.MeltdownStatusNameKey);
+    }
+
+    [Theory]
+    [InlineData("en", "Memoria/A", "$en_kernel_magicspells_name_0049")]
+    [InlineData("fr", "Memoria/B", "$fr_kernel_magicspells_name_0062")]
+    [InlineData("de", null, null)]
+    public void PackagesDeclaringDifferentSourceLanguagesCoexist(string sourceLanguage, string? owner, string? expected)
+    {
+        ModFile[] files = [File("Memoria/A", BehaviorMods.PayloadPath, StatusNamesPayload(("StatusName_EN", StatusNameKey))), File("Memoria/B", BehaviorMods.PayloadPath, StatusNamesPayload(("StatusName_FR", "$fr_kernel_magicspells_name_0062")))];
+        Assert.True(BehaviorMods.TryPrepare(new(1, [], files), out BehaviorMods mods, out IReadOnlyList<ModDiagnostic> diagnostics, sourceLanguage));
+        Assert.Empty(diagnostics);
+        Assert.Equal(expected, mods.MeltdownStatusNameKey);
+        Assert.Equal(owner, mods.MeltdownStatusNamePackageId);
+    }
+
+    [Fact]
+    public void GenericAndExplicitPackagesConflictOnlyWhenBothSelectTheSourceLanguage()
+    {
+        ModFile[] files = [File("Memoria/A", BehaviorMods.PayloadPath, StatusNamesPayload(("StatusName_{LANG}", "${LANG}_kernel_magicspells_name_0049"))), File("Memoria/B", BehaviorMods.PayloadPath, StatusNamesPayload(("StatusName_FR", "$fr_kernel_magicspells_name_0062")))];
+        Assert.True(BehaviorMods.TryPrepare(new(1, [], files), out BehaviorMods english, out _, "en"));
+        Assert.Equal("Memoria/A", english.MeltdownStatusNamePackageId);
+        Assert.False(BehaviorMods.TryPrepare(new(1, [], files), out BehaviorMods french, out IReadOnlyList<ModDiagnostic> diagnostics, "fr"));
+        Assert.Null(french.MeltdownStatusNameKey);
+        Assert.Equal(new[] { "Memoria/A", "Memoria/B" }, diagnostics.Select(diagnostic => diagnostic.PackageId));
+        Assert.All(diagnostics, diagnostic => Assert.Equal("Memoria.BehaviorConflict", diagnostic.Code));
+    }
+
+    [Fact]
+    public void LegacyAbsoluteStatusNameRemainsAbsoluteForOtherSourceLanguages()
+    {
+        string payload = StatusNamesPayload(("StatusName", StatusNameKey));
+        Assert.True(BehaviorMods.TryPrepare(new(1, [], [File("Memoria/A", BehaviorMods.PayloadPath, payload)]), out BehaviorMods mods, out _, "fr"));
+        Assert.Equal(StatusNameKey, mods.MeltdownStatusNameKey);
+    }
+
+    [Theory]
+    [InlineData("StatusName_FR", "$en_kernel_magicspells_name_0049")]
+    [InlineData("StatusName_FR", "${lang}_kernel_magicspells_name_0049")]
+    [InlineData("StatusName_{lang}", "${LANG}_kernel_magicspells_name_0049")]
+    [InlineData("StatusName_", "$en_kernel_magicspells_name_0049")]
+    [InlineData("StatusName_UNKNOWN", "$en_kernel_magicspells_name_0049")]
+    [InlineData("StatusName_FR", "$fr_incomplete")]
+    public void InvalidLanguageBindingsRejectEvenWhenNotSelected(string property, string reference)
+    {
+        string payload = StatusNamesPayload((property, reference));
+        Assert.False(BehaviorMods.TryPrepare(new(1, [], [File("Memoria/A", BehaviorMods.PayloadPath, payload)]), out _, out IReadOnlyList<ModDiagnostic> diagnostics, "en"));
+        Assert.Single(diagnostics);
+        Assert.Equal("Memoria.InvalidBehaviorMod", diagnostics[0].Code);
+    }
+
+    [Fact]
+    public void CaseEquivalentLanguageBindingsAreDuplicateDeclarations()
+    {
+        string payload = StatusNamesPayload(("StatusName_EN", StatusNameKey), ("StatusName_en", StatusNameKey));
+        Assert.False(BehaviorMods.TryPrepare(new(1, [], [File("Memoria/A", BehaviorMods.PayloadPath, payload)]), out _, out IReadOnlyList<ModDiagnostic> diagnostics));
+        Assert.Contains("Duplicate", Assert.Single(diagnostics).Message);
+    }
+
+    [Fact]
+    public void LanguageBindingsNeverBecomeConfigurableSettings()
+    {
+        string payload = StatusNamesPayload(("StatusName_EN", StatusNameKey), ("StatusName_{LANG}", "${LANG}_kernel_magicspells_name_0049"));
+        Write("Mods/Memoria/A/gameplay/behaviors.json", payload);
+        using ModRuntime runtime = new(root, watch: false, debounce: TimeSpan.Zero);
+        Publish(runtime);
+        Assert.Empty(runtime.ReadBehaviorSettings("Memoria/A"));
+        Assert.False(runtime.SetBehaviorSetting("Memoria/A", "meltdown", "StatusName_EN", 1).Success);
+        Assert.False(runtime.SetBehaviorSetting("Memoria/A", "meltdown", "StatusName_{LANG}", 1).Success);
+    }
+
+    [Fact]
+    public void SettingsValidateUnselectedLanguageBindings()
+    {
+        string payload = CreatePayload(statusName: StatusNameKey).Replace("\"StatusName\":", "\"StatusName_FR\":\"$fr_incomplete\",\"StatusName_EN\":", StringComparison.Ordinal);
+        Write("Mods/Memoria/A/gameplay/behaviors.json", payload);
+        using ModRuntime runtime = new(root, watch: false, debounce: TimeSpan.Zero);
+        Publish(runtime);
+        Assert.Empty(runtime.ReadBehaviorSettings("Memoria/A"));
+        ModOperationResult result = runtime.SetBehaviorSetting("Memoria/A", "meltdown", Vitality, 65);
+        Assert.False(result.Success);
+        Assert.Contains("canonical", result.Error);
     }
 
     [Theory]
@@ -343,6 +450,12 @@ public sealed class BehaviorModsTests : IDisposable
         Assert.Equal(50, published.MeltdownVitalityReductionPercent);
         Assert.Equal(25, published.MeltdownSpiritReductionPercent);
         Assert.Equal("Memoria/A", published.MeltdownPackageId);
+    }
+
+    private static string StatusNamesPayload(params (string Property, string Reference)[] bindings)
+    {
+        Dictionary<string, string> parameters = bindings.ToDictionary(binding => binding.Property, binding => binding.Reference, StringComparer.Ordinal);
+        return JsonSerializer.Serialize(new { schemaVersion = 2, meltdown = parameters });
     }
 
     private static string CreatePayload(string? parameter = null, string? statusName = null)

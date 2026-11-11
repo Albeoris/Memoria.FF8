@@ -190,7 +190,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
             return new ModPreparationResult(false, Diagnostics: behaviorPackages.Select(package => new ModDiagnostic("junction-behavior-profile-unsupported", "Reviewed executable behavior requires the Classic English resource profile.", package.Id)).ToArray());
         }
         StartupPolicy startupPolicy = StartupPolicy.FromCatalog(catalog);
-        if (!BehaviorMods.TryPrepare(catalog, out BehaviorMods behaviorMods, out IReadOnlyList<ModDiagnostic> behaviorDiagnostics))
+        if (!BehaviorMods.TryPrepare(catalog, out BehaviorMods behaviorMods, out IReadOnlyList<ModDiagnostic> behaviorDiagnostics, sourceLanguage: Resources.Source.Language))
         {
             return new ModPreparationResult(false, Diagnostics: behaviorDiagnostics);
         }

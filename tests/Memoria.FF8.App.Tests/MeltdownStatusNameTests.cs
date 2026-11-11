@@ -42,15 +42,18 @@ public sealed class MeltdownStatusNameTests
         Assert.DoesNotContain("Meltdown", Draw(hud));
     }
 
-    [Fact]
-    public void InstalledHostPublishesNameReferenceAndKeepsPreviousNameWhenReferenceIsInvalid()
+    [Theory]
+    [InlineData("StatusName", "$en_kernel_magicspells_name_0049")]
+    [InlineData("StatusName_EN", "$en_kernel_magicspells_name_0049")]
+    [InlineData("StatusName_{LANG}", "${LANG}_kernel_magicspells_name_0049")]
+    public void InstalledHostPublishesNameReferenceAndKeepsPreviousNameWhenReferenceIsInvalid(string nameProperty, string reference)
     {
         using IsolatedFieldGame game = new();
         string root = Path.Combine(Path.GetTempPath(), "ff8-status-name-" + Guid.NewGuid().ToString("N"));
         string mods = Path.Combine(root, "Mods");
         string payload = Path.Combine(mods, "Memoria", "StatusName", "gameplay", "behaviors.json");
         Directory.CreateDirectory(Path.GetDirectoryName(payload)!);
-        File.WriteAllText(payload, "{\"schemaVersion\":2,\"meltdown\":{\"StatusName\":\"" + MagicKey + "\"}}");
+        File.WriteAllText(payload, JsonSerializer.Serialize(new { schemaVersion = 2, meltdown = new Dictionary<string, string> { [nameProperty] = reference } }));
         try
         {
             using GameResourceHost host = new(game.GameDirectory, Path.Combine(root, "Application"), watch: false, modsDirectory: mods);

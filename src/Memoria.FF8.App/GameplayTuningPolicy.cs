@@ -11,9 +11,9 @@ internal sealed class GameplayTuningPolicy
     private bool hardcoreMeltdown;
     public static GameplayTuningPolicy Empty { get; } = new();
 
-    public static GameplayTuningPolicy FromCatalog(ModCatalogSnapshot catalog, BehaviorMods? behaviorMods = null)
+    public static GameplayTuningPolicy FromCatalog(ModCatalogSnapshot catalog, BehaviorMods? behaviorMods = null, string sourceLanguage = "en")
     {
-        if (behaviorMods is null && !BehaviorMods.TryPrepare(catalog, out behaviorMods, out IReadOnlyList<ModDiagnostic> diagnostics))
+        if (behaviorMods is null && !BehaviorMods.TryPrepare(catalog, out behaviorMods, out IReadOnlyList<ModDiagnostic> diagnostics, sourceLanguage))
         {
             throw new InvalidDataException(string.Join(Environment.NewLine, diagnostics.Select(diagnostic => diagnostic.Message)));
         }

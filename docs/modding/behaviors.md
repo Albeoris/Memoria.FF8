@@ -10,7 +10,7 @@ A package's `gameplay/behaviors.json` declares defaults and UI metadata:
 {
   "schemaVersion": 2,
   "meltdown": {
-    "StatusName": "$en_kernel_magicspells_name_0049",
+    "StatusName_{LANG}": "${LANG}_kernel_magicspells_name_0049",
     "VitalityReductionPercent": {
       "label": "Vitality reduction",
       "description": "Percentage by which Meltdown reduces effective Vitality after successfully applying Meltdown.",
@@ -54,8 +54,25 @@ The percentages attach only when the existing Meltdown spell successfully applie
 
 In **Hardcore**, the installed Meltdown package is required and uses fixed reductions of **50% Vitality and 25% Spirit**. Enable/Disable, both sliders and Save are locked with an explanation. The backend rejects disable/option writes too; global auto-enable settings and saved `enabled = 0` do not bypass the requirement. Ordinary activation and option files are preserved. Loading a non-Hardcore game or changing the Title profile restores those ordinary preferences. New Game, save reconstruction and a transition to Hardcore require successful publication of the requested mod profile; pending or conflicting changes cannot silently leave the ordinary profile in use. Deleting the package itself is not prevented or repaired.
 
-The optional `meltdown.StatusName` string redirects the existing status-name localization identity to another existing kernel or authored interface key. The bundled declaration uses `$en_kernel_magicspells_name_0049`, the real Meltdown spell-name entry; it does not create a new `$status` namespace or store a fixed English display name. Its native fallback is read from the selected kernel, including accepted resource replacements. Active translations are resolved when displaying the name, so language/localization changes take effect without altering a save. Omitting the field or disabling the owner restores the original status identity. Unknown targets and cycles reject the candidate change and preserve the committed name. The localization workbench sees the target spell-name identity. This declaration is authored in the payload and is not a numeric option in `config.json`.
+Status-name declarations redirect the existing status localization identity to another existing kernel or authored interface key. The bundled declaration uses `"StatusName_{LANG}": "${LANG}_kernel_magicspells_name_0049"`, the Meltdown spell-name entry in the shared kernel schema. `{LANG}` means the original-resource language, independently of the selected translation's output language. English resources with a Russian translation still use `$en_kernel_magicspells_name_0049`; French resources use `$fr_kernel_magicspells_name_0049`. The engine does not create a new `$status` namespace or store a fixed English display name.
 
-Each behavior parameter, including `StatusName`, has one active package owner. Two packages declaring the same parameter cause diagnostics naming both owners; the candidate configuration is rejected and the committed configuration remains active. Packages declaring different parameters can coexist. No hidden load-order winner or multiplication is used. A config may override only its own package's declared parameters. Unrelated packages' `config.json` files are left alone.
+A package may provide explicit bindings when languages need different entries:
+
+```json
+{
+  "schemaVersion": 2,
+  "meltdown": {
+    "StatusName_EN": "$en_kernel_magicspells_name_0049",
+    "StatusName_FR": "$fr_kernel_magicspells_name_0049",
+    "StatusName_{LANG}": "${LANG}_kernel_magicspells_name_0049"
+  }
+}
+```
+
+Within one package, the explicit source-language binding takes precedence over `StatusName_{LANG}`, then the legacy unqualified `StatusName`. An explicit binding may use a matching absolute prefix or `${LANG}`. An unqualified absolute key stays pinned to its declared language; it is never silently rewritten. Supported source languages are `en`, `fr`, `de`, `es`, `it` and `jp`, with `ja` accepted as an alias of `jp`. Suffixes and absolute language prefixes are case insensitive; duplicate canonical bindings and unknown placeholders are rejected. The remaining key identity keeps its case. Only the selected binding must exist in the active resource namespace, but all declarations must be syntactically valid.
+
+The native fallback is read from the selected kernel, including accepted resource replacements. Active translations are resolved when displaying the name, so localization changes take effect without altering a save. Omitting an applicable binding or disabling its owner restores the original status identity. Unknown targets and cycles reject the candidate change and preserve the committed name. The localization workbench sees the resolved target spell-name identity. Name declarations belong in the payload and cannot be overridden in `config.json`.
+
+Each numeric behavior parameter and the selected status-name binding has one active package owner. Two packages claiming the same parameter cause diagnostics naming both owners; the candidate configuration is rejected and the committed configuration remains active. Explicit and generic status bindings in different packages conflict if both apply to the current source language; specificity never overrides another package. Packages providing names only for different source languages can coexist. Packages declaring different numeric parameters can also coexist. No hidden load-order winner or multiplication is used. A config may override only its own package's declared numeric parameters. Unrelated packages' `config.json` files are left alone.
 
 Built-in Memoria packages appear first with the silver Griever crest used for Memoria saves. This presentation order does not alter resource precedence. Bundled defaults live in `Data/BundledMods/Memoria`; writable settings stay under `Mods/Memoria` and survive program updates. Source builds use the same separation.

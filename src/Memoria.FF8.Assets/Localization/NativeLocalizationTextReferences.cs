@@ -22,6 +22,7 @@ public sealed class NativeLocalizationTextReferences
 
     public string ResolveOriginal(string key)
     {
+        key = new LocalizedTextReference(key).ResolveKey(resources.Source.Language);
         foreach ((string id, string original) in SystemTextCatalog.Defaults)
         {
             if (key == SystemTextCatalog.Key(id))

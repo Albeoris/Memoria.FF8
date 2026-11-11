@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "meltdown": {
-    "StatusName": "$en_kernel_magicspells_name_0049",
+    "StatusName_{LANG}": "${LANG}_kernel_magicspells_name_0049",
     "VitalityReductionPercent": {
       "label": "Vitality reduction",
       "description": "Percentage by which Meltdown reduces effective Vitality after successfully applying Meltdown.",

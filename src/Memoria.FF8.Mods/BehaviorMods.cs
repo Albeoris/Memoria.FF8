@@ -1,6 +1,5 @@
 using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using Memoria.FF8.Resources.Localization;
 
 namespace Memoria.FF8.Mods;
@@ -23,6 +22,7 @@ public sealed class BehaviorMods
     public const string VitalityReductionParameter = "VitalityReductionPercent";
     public const string SpiritReductionParameter = "SpiritReductionPercent";
     public const string StatusNameParameter = "StatusName";
+    public const string SourceLanguageStatusNameParameter = "StatusName_{LANG}";
     private const string LegacyReductionParameter = "defenseReductionPercent";
     private static readonly string[] Parameters = [VitalityReductionParameter, SpiritReductionParameter];
     public static BehaviorMods Empty { get; } = new(null, null, null, null, null, null);
@@ -50,8 +50,9 @@ public sealed class BehaviorMods
         return relativePath.Equals(PayloadPath, StringComparison.OrdinalIgnoreCase);
     }
 
-    public static bool TryPrepare(ModCatalogSnapshot catalog, out BehaviorMods result, out IReadOnlyList<ModDiagnostic> diagnostics)
+    public static bool TryPrepare(ModCatalogSnapshot catalog, out BehaviorMods result, out IReadOnlyList<ModDiagnostic> diagnostics, string sourceLanguage = "en")
     {
+        sourceLanguage = LocalizedTextReference.CanonicalLanguage(sourceLanguage);
         List<ModDiagnostic> errors = [];
         Dictionary<string, (ModFile Owner, int Value)> selected = new(StringComparer.Ordinal);
         (ModFile Owner, string Key)? statusName = null;
@@ -72,7 +73,8 @@ public sealed class BehaviorMods
                     throw new InvalidDataException("A package must have a single behavior payload and a single configuration document.");
                 }
                 payload = declarations.Single();
-                List<BehaviorModSetting> settings = ParsePayload(payload.ReadBytes(), out string? statusNameKey);
+                List<BehaviorModSetting> settings = ParsePayload(payload.ReadBytes(), out Dictionary<string, LocalizedTextReference> statusNames);
+                string? statusNameKey = SelectStatusName(statusNames, sourceLanguage);
                 ApplyConfiguration(settings, configurations.SingleOrDefault()?.ReadBytes());
                 if (statusNameKey is not null)
                 {
@@ -145,9 +147,9 @@ public sealed class BehaviorMods
         return JsonDocument.Parse(json);
     }
 
-    private static List<BehaviorModSetting> ParsePayload(byte[] bytes, out string? statusNameKey)
+    private static List<BehaviorModSetting> ParsePayload(byte[] bytes, out Dictionary<string, LocalizedTextReference> statusNames)
     {
-        statusNameKey = null;
+        statusNames = new(StringComparer.Ordinal);
         using JsonDocument document = ParseDocument(bytes);
         JsonElement root = document.RootElement;
         ValidateObject(root, ["schemaVersion", "meltdown"]);
@@ -170,16 +172,29 @@ public sealed class BehaviorMods
                 Description = parameter == VitalityReductionParameter ? "Percentage by which Meltdown reduces Vitality." : "Percentage by which Meltdown reduces Spirit."
             }).ToList();
         }
-        ValidateObject(meltdown, [.. Parameters, StatusNameParameter]);
-        if (meltdown.TryGetProperty(StatusNameParameter, out _))
+        if (meltdown.ValueKind != JsonValueKind.Object)
         {
-            statusNameKey = ReadText(meltdown, StatusNameParameter);
-            ValidateStatusNameKey(statusNameKey);
+            throw new InvalidDataException("Behavior documents and behavior parameters must be JSON objects.");
+        }
+        string[] statusNameProperties = meltdown.EnumerateObject().Where(property => property.Name == StatusNameParameter || property.Name.StartsWith(StatusNameParameter + "_", StringComparison.Ordinal)).Select(property => property.Name).ToArray();
+        ValidateObject(meltdown, [.. Parameters, .. statusNameProperties]);
+        foreach (string property in statusNameProperties)
+        {
+            string binding = property == StatusNameParameter ? string.Empty : property == SourceLanguageStatusNameParameter ? "{LANG}" : LocalizedTextReference.CanonicalLanguage(property[(StatusNameParameter.Length + 1)..]);
+            LocalizedTextReference reference = LocalizedTextReference.Parse(ReadText(meltdown, property));
+            if (binding.Length != 0 && binding != "{LANG}" && !reference.UsesSourceLanguage && !reference.Key.StartsWith("$" + binding + "_", StringComparison.Ordinal))
+            {
+                throw new InvalidDataException($"meltdown.{property} must reference its declared source language {binding}.");
+            }
+            if (!statusNames.TryAdd(binding, reference))
+            {
+                throw new InvalidDataException($"Duplicate behavior language binding: meltdown.{property}.");
+            }
         }
         List<BehaviorModSetting> settings = [];
         foreach (JsonProperty property in meltdown.EnumerateObject())
         {
-            if (property.Name == StatusNameParameter)
+            if (statusNameProperties.Contains(property.Name, StringComparer.Ordinal))
             {
                 continue;
             }
@@ -211,16 +226,13 @@ public sealed class BehaviorMods
         return settings;
     }
 
-    private static void ValidateStatusNameKey(string key)
+    private static string? SelectStatusName(Dictionary<string, LocalizedTextReference> statusNames, string sourceLanguage)
     {
-        Match match = Regex.Match(key, @"\A\$[a-z][a-z0-9-]*_(?<identity>[A-Za-z0-9_.-]+)\z", RegexOptions.CultureInvariant);
-        string identity = match.Success ? match.Groups["identity"].Value : string.Empty;
-        string systemPrefix = SystemTextCatalog.File + "_";
-        bool authoredSystem = identity.StartsWith(systemPrefix, StringComparison.Ordinal) && SystemTextCatalog.Defaults.ContainsKey(identity[systemPrefix.Length..]);
-        if (!match.Success || !authoredSystem && !Regex.IsMatch(identity, @"\A[A-Za-z0-9_][A-Za-z0-9_.-]*_[0-9]{4,}(?:_ctx_[a-fA-F0-9]{8,64})?\z", RegexOptions.CultureInvariant))
+        if (statusNames.TryGetValue(sourceLanguage, out LocalizedTextReference? reference) || statusNames.TryGetValue("{LANG}", out reference) || statusNames.TryGetValue(string.Empty, out reference))
         {
-            throw new InvalidDataException("meltdown.StatusName must reference a complete canonical localization key.");
+            return reference.ResolveKey(sourceLanguage);
         }
+        return null;
     }
 
     private static Dictionary<string, int> ParseConfiguration(byte[] bytes)

@@ -51,6 +51,39 @@ public sealed class NativeLocalizationTextReferenceTests
         Assert.Equal("Selected spell", new NativeLocalizationTextReferences(selected).ResolveOriginal(SpellKey(selected, 49)));
     }
 
+    [Theory]
+    [InlineData("en")]
+    [InlineData("fr")]
+    [InlineData("de")]
+    [InlineData("jp")]
+    public void TemplateResolvesSelectedLanguageKernelAndKeepsTranslationIdentity(string language)
+    {
+        KernelData kernel = new();
+        string nativeName = language == "jp" ? "メルトダウン" : $"Native {language}";
+        for (int index = 0; index <= 49; index++)
+        {
+            kernel.MagicSpells.Add(new() { Name = nativeName, Description = string.Empty });
+        }
+        using InMemoryResourceSource source = new(new("language-kernel", GameDataEdition.Classic, [], language));
+        ResourceService resources = new(source);
+        resources.Prepare(null, encodedResources: [new EncodedResource(new("main/kernel.bin"), "bin", 1, "synthetic-kernel", kernel.WriteToArray(NativeTextEncoding.Create(language)))]).Commit();
+        NativeLocalizationTextReferences references = new(resources);
+        LocalizedTextReference reference = new("${LANG}_kernel_magicspells_name_0049");
+        string target = reference.ResolveKey(resources.Source.Language);
+        string original = references.ResolveOriginal(reference.Key);
+        Assert.Equal(nativeName, original);
+        string status = SystemTextCatalog.Key("battle.status.vit-0");
+        resources.Prepare(null, textAliases: new Dictionary<string, LocalizedTextAlias> { [status] = new(target, original) }).Commit();
+        Assert.Equal(original, resources.Localize(status, "Vit 0"));
+        resources.PrepareLocalization(new(new Dictionary<string, LocalizationValue> { [target] = new("Translated spell", "translation", "ru-project") })).Commit();
+        Assert.Equal("Translated spell", resources.Localize(status, "Vit 0"));
+        Assert.Equal(target, resources.ResolveText(status, "Vit 0").Binding.Key);
+        if (language != "en")
+        {
+            Assert.Throws<InvalidDataException>(() => references.ResolveOriginal("$en_kernel_magicspells_name_0049"));
+        }
+    }
+
     private static string SpellKey(ResourceService resources, int ordinal) => LocalizationSourceExporter.IndexedKey(resources.Source.Language, LocalizationSourceExporter.KernelTable("MagicSpells", "Name"), ordinal);
 
     private static IResourceSource OpenInstalled()

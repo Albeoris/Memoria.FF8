@@ -193,15 +193,17 @@ internal static class MenuPreview
             UiPreferences preferences = new() { TextScale = textScale, UiFontSize = fontSize, MenuPresentation = presentation };
             MenuData? liveData = null;
             GameState? previewState = null;
+            string previewSourceLanguage = "en";
             if (statePath is not null)
             {
                 previewState = PlayerStateLoader.Load(statePath, gameDirectory);
                 using GameAssets assets = new(gameDirectory);
+                previewSourceLanguage = assets.Resources.Source.Language;
                 liveData = LiveMenuData.Build(previewState, catalog: LiveMenuCatalog.ReadInstalled(assets));
             }
             MenuController menus = liveData is null ? new() : new(() => liveData);
             GameplayTuning previewTuning = previewState?.ConfiguredGameplayTuning ?? previewState?.GameplayPreferences.Tuning ?? new();
-            GameplayTuningPolicy gameplayPolicy = GameplayTuningPolicy.FromCatalog(mods.Catalog);
+            GameplayTuningPolicy gameplayPolicy = GameplayTuningPolicy.FromCatalog(mods.Catalog, sourceLanguage: previewSourceLanguage);
             menus.ConnectGameplayTuning(() => gameplayPolicy.Apply(previewTuning), tuning => previewTuning = gameplayPolicy.EditConfigured(previewTuning, tuning), gameplayPolicy.UnavailableReason);
             menus.Presentation = presentation;
             if (screen.StartsWith("tutorial", StringComparison.Ordinal))
