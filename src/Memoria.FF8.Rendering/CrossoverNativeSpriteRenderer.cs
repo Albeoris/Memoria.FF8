@@ -6,8 +6,14 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Rendering;
 
+public sealed record CrossoverNativeStageColor(NativeBattleSummonColors Colors, short Depth)
+{
+    public uint Apply(uint argb) => Colors.Interpolate(argb, Depth, 0);
+}
+
 public sealed record CrossoverNativeEffectVisual(CrossoverNativeSpriteRenderer Renderer, ImmutableArray<NativeBattleModuleDraw> Draws, NativeBattleEffectTextureState Textures, Matrix4x4 OriginToHost, float Scale)
 {
+    public CrossoverNativeStageColor? StageColor { get; init; }
     public NativeBattleLogicalOrdering? Ordering { get; init; }
     public NativeBattleEffectMemory? Memory { get; init; }
 

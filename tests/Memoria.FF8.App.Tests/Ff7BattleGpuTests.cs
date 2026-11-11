@@ -345,21 +345,26 @@ public sealed class Ff7BattleGpuTests
             }
         }
 
-        Ff7BattleGrenadeState grenade = Ff7BattleGrenadeEffect.Start(0x90);
-        for (int frame = 0; frame <= Ff7BattleGrenadeEffect.SpriteFrameCount; frame++)
+        Ff7BattleHitmarkDefinition grenade = Ff7PcExecutableData.LoadBattleHitmarks(installation)[0x2C];
+        Assert.Equal(new Ff7BattleHitmarkCue(0, 1, 0, 0, 24576, 23, 8), Assert.Single(grenade.Cues));
+        Ff7BattleSecondaryState secondary = Ff7BattleSecondaryEffects.ScheduleHitmark(new(), 4, grenade, anchor, 350);
+        Ff7BattlePrimaryState primary = Ff7BattlePrimaryEffects.ScheduleTargetReactions(new(), 0x90, 1);
+        Ff7BattlePrimaryContext context = new((_, _, _) => anchor, _ => default, _ => 350, () => throw new InvalidOperationException("Grenade does not consume CRT draws."));
+        for (int frame = 0; frame <= 8; frame++)
         {
-            Ff7BattleGrenadeUpdate update = Ff7BattleGrenadeEffect.Advance(grenade, _ => anchor, _ => 350);
-            grenade = update.State;
-            Assert.Equal(frame switch { 1 => 0x10, 2 => 0x80, _ => 0 }, update.ImpactTargets);
+            secondary = Ff7BattleSecondaryEffects.Advance(secondary, (_, _, _) => anchor, _ => default, context.NextCrt);
+            primary = Ff7BattlePrimaryEffects.Advance(primary, context);
+            Assert.Equal(frame switch { 1 => new[] { 4 }, 2 => new[] { 7 }, _ => [] }, primary.TargetReactions.Select(reaction => reaction.Target));
             if (frame is 0 or 4)
             {
-                renderer.Render(gpu, 320, 240, new(camera, []) { Grenade = grenade });
+                renderer.Render(gpu, 320, 240, new(camera, []) { SecondaryEffects = secondary });
                 Assert.True(Changed(baseline, GpuTestDevice.Read(gpu.Target)) > 16, $"No original Grenade pixels at callback {frame}.");
-                grenade = System.Text.Json.JsonSerializer.Deserialize<Ff7BattleGrenadeState>(System.Text.Json.JsonSerializer.Serialize(grenade))!;
-                Assert.Equal((short)anchor.X, grenade.X);
+                secondary = System.Text.Json.JsonSerializer.Deserialize<Ff7BattleSecondaryState>(System.Text.Json.JsonSerializer.Serialize(secondary))!;
+                Assert.Equal((short)anchor.X, Assert.Single(secondary.Hitmarks).Anchor!.X);
             }
         }
-        Assert.True(grenade.Completed);
+        Assert.Empty(secondary.Hitmarks);
+        Assert.False(primary.HasCallbacks);
 
         static int Changed(Color[] a, Color[] b)
         {

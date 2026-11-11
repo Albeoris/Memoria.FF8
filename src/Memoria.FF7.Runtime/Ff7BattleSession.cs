@@ -19,6 +19,7 @@ public sealed record Ff7BattleActionState(Ff7BattleQueuedCommand Command, long S
     public Ff7BattleReactionState? TargetReactions { get; init; }
     public Ff7BattleHit? PendingDisplayHit { get; init; }
     public Ff7BattleGrenadeState? Grenade { get; init; }
+    public bool GrenadeStarted { get; init; }
     public Ff7BattleBeatRushState? BeatRushEffect { get; init; }
     public Ff7BattleBigShotState? BigShot { get; init; }
     public Ff7BattleSmokeShotState? SmokeShot { get; init; }
@@ -27,8 +28,12 @@ public sealed record Ff7BattleActionState(Ff7BattleQueuedCommand Command, long S
     public Ff7BattleSearchScopeState? SearchScope { get; init; }
     public Ff7BattleRocketState? Rockets { get; init; }
     public bool SilkStarted { get; init; }
+    public bool WaveStarted { get; init; }
+    public bool EnergyBallStarted { get; init; }
+    public bool HellBubblesStarted { get; init; }
+    public bool BeamGunStarted { get; init; }
     public bool PrimaryCallbacksRunning { get; init; }
-    public bool EffectRunning => PrimaryCallbacksRunning || Fire is { Completed: false } || Ice is { Completed: false } || Bolt is { Completed: false } || Cure is { Completed: false } || Braver is { Completed: false } || Grenade is { Completed: false } || BeatRushEffect is { Completed: false } || BigShot is { Completed: false } || SmokeShot is { Completed: false } || Smog is { Completed: false } || Destroyed is { Completed: false } || SearchScope is { Completed: false } || Rockets is { Completed: false };
+    public bool EffectRunning => PrimaryCallbacksRunning || Fire is { Completed: false } || Ice is { Completed: false } || Bolt is { Completed: false } || Cure is { Completed: false } || Braver is { Completed: false } || BeatRushEffect is { Completed: false } || BigShot is { Completed: false } || SmokeShot is { Completed: false } || Smog is { Completed: false } || Destroyed is { Completed: false } || SearchScope is { Completed: false } || Rockets is { Completed: false };
 }
 public sealed record Ff7BattleHit(int Source, int Target, ushort AttackId, Ff7BattleDamageResult Damage, long Tick);
 public sealed record Ff7BattleReaction(int Slot, long Tick);
@@ -45,6 +50,7 @@ public sealed record Ff7BattleSnapshot(long RequestId, int FormationId, byte Lay
     public bool GuestPresentationAttached { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public Ff7BattleGuestProjection? GuestProjection { get; init; }
+    public byte? GuestBaseDexterity { get; init; }
     public Ff7BattleSoundState? Sounds { get; init; }
     public Ff7BattleSoundReceipt[] SoundRequests { get; init; } = [];
     public short[]? SoundProjectedX { get; init; }
@@ -56,6 +62,7 @@ public sealed record Ff7BattleSnapshot(long RequestId, int FormationId, byte Lay
     public Ff7BattlePrimaryState? PrimaryEffects { get; init; }
     public short SilkDirection { get; init; } = 1;
     public Ff7BattleStageFadeState? StageFade { get; init; }
+    public Ff7BattleStageFadeState? RenderStageFade { get; init; }
     public short SearchScopeScaleCounter { get; init; }
 }
 
@@ -70,7 +77,7 @@ public sealed partial class Ff7BattleSession
     private readonly Ff7BattlePlayerStats?[] party = new Ff7BattlePlayerStats?[3];
     private readonly Ff7CharacterState?[] characters = new Ff7CharacterState?[3];
     private readonly int[] limitDivisors = new int[3];
-    private readonly int speedDenominator;
+    private int speedDenominator;
     private const byte BattleSpeed = 128;
     public const int LogicUpdatesPerSecond = 60;
     private const int LogicUpdatesPerPresentation = 4;
@@ -85,6 +92,10 @@ public sealed partial class Ff7BattleSession
         this.cameraScripts = cameraScripts;
         this.limits = limits ?? [];
         this.beatRushSymbols = beatRushSymbols ?? [];
+        if (snapshot is null)
+        {
+            progress = Ff7NativePartyRecovery.Publish(progress, Ff7MateriaResources.ReadRecords(kernel), materiaModifiers).Progress;
+        }
         List<Ff7BattleActorState> initialActors = [];
         List<byte> partyDexterity = [];
         for (int slot = 0; slot < characters.Length; slot++)
@@ -115,11 +126,16 @@ public sealed partial class Ff7BattleSession
         {
             ValidateSnapshot(snapshot, requestId, initialActors);
             state = CopySnapshot(snapshot);
+            if (state.GuestBaseDexterity is byte dexterity)
+            {
+                RefreshGuestSpeedDenominator(state.GuestVitals!.HostSlot, dexterity);
+            }
             InitializeActorModels(snapshot.Tick == 0);
             InitializeCamera(cameraPresentationCounter, snapshot.Tick == 0);
             if (animations is not null)
             {
                 EnsurePrimaryEffects();
+                RestoreGrenadePresentation();
             }
             return;
         }
@@ -164,6 +180,9 @@ public sealed partial class Ff7BattleSession
     public Ff7BattleHit? DisplayedHit => state.DisplayedHit;
     public Ff7BattleReaction? Reaction => state.Reaction;
     public string? Message => state.Messages?.Visible;
+    public Ff7BattleActionTitle? ActionTitle => state.PrimaryEffects?.ActionTitle;
+
+    public string SceneAttackName(int slot) => ReadBattleText(Data.Attacks.Single(attack => attack.Slot == slot).Name.Span);
     public bool EscapeBlocked => state.EscapeBlocked;
     public bool ReturnsAfterDefeat => state.RequestMode != 0;
     public int? MusicTrack => Outcome switch
@@ -338,7 +357,8 @@ public sealed partial class Ff7BattleSession
             }
             Ff7BattleDamageActor stats = Stats(actor);
             ushort gauge = actor.Gauge;
-            ushort increment = Ff7NativeAtb.Increment(slot, stats.Dexterity, stats.DexterityModifier, actor.Actor.Statuses, speedDenominator, BattleSpeed);
+            byte? guestDexterity = IsGuestVitalsSlot(slot) ? GuestProjection?.Dexterity : null;
+            ushort increment = Ff7NativeAtb.Increment(slot, guestDexterity ?? stats.Dexterity, guestDexterity is not null ? (sbyte)0 : stats.DexterityModifier, actor.Actor.Statuses, speedDenominator, BattleSpeed);
             bool ready = Ff7NativeAtb.Advance(ref gauge, increment, false, false);
             state.Actors[index] = actor with { Gauge = gauge, AwaitingTurn = ready };
             if (ready && slot >= 4)
@@ -377,6 +397,7 @@ public sealed partial class Ff7BattleSession
         }
         if (!CanAct(source) && command.Priority != 0 && command.CommandId != 0x23)
         {
+            CancelGuestItem(command);
             ResetGauge(command.ActorSlot);
             return;
         }

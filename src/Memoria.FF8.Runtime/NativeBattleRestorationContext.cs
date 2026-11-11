@@ -15,9 +15,23 @@ public static class NativeBattleRestorationContext
         }
         NativeBattleRestorationExecutableState retained = frame.Memory.GetRestorationExecutable(resources.Effect) ?? throw new NotSupportedException("Native restoration context requires its own retained initialization owner.");
         using NativeBattleNodeInitialization<NativeBattleRestorationExecutableState> executable = retained.Prepare(resources.Executable ?? throw new NotSupportedException("Native restoration context requires its authenticated original executable resource."));
-        task = NativeBattleEffectNodeContext.Initialize(task, hierarchy.Read(task.ReadDword(0x10)), frame.Effect.Parameters ?? throw new NotSupportedException("Native restoration context requires50AFC0 parameters."), inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource, profile.ExecutableAddress);
+        task = NativeBattleEffectNodeContext.Initialize(task, hierarchy.Read(task.ReadDword(0x10)), frame.Effect.Parameters ?? throw new NotSupportedException("Native restoration context requires50AFC0 parameters."), inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource, profile.ExecutableAddress, readForeignBone: ReadForeignBone);
         hierarchy = hierarchy.Write(address, task);
         NativeBattleEffectMemory memory = frame.Memory.WithRestorationExecutable(executable.Publish());
         return NativeBattleTaskOperation.CompleteStandalone(operation, frame with { Memory = memory, Effect = frame.Effect with { Pools = hierarchy.Pools } });
+
+        NativeBattleVector? ReadForeignBone(int index, byte selector)
+        {
+            if (inputs.ReadForeignTarget?.Invoke(index) is not { } foreign)
+            {
+                return null;
+            }
+            return selector switch
+            {
+                240 => foreign.Anchor240,
+                241 => foreign.Anchor241,
+                _ => throw new NotSupportedException("The foreign restoration target has no equivalent posed anchor.")
+            };
+        }
     }
 }

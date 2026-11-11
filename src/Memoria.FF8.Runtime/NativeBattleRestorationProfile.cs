@@ -91,6 +91,7 @@ public sealed record NativeBattleRestorationControllerStep(NativeBattleRestorati
 public sealed record NativeBattleRestorationControllerInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource)
 {
     public Func<NativeBattleRestorationFrame, int, NativeBattleRestorationFrame>? ApplyContact { get; init; }
+    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeignTarget { get; init; }
 }
 
 public sealed record NativeBattleRestorationContextStep(NativeBattleRestorationFrame Frame, bool Complete);

@@ -16,6 +16,9 @@ public sealed partial class Ff7BattleRenderer
         {
             switch (draw.Kind)
             {
+                case Ff7BattleSecondaryDrawKind.WaveSpark:
+                    DrawWaveSpark(renderer, state.WaveSparks[draw.Index], view);
+                    break;
                 case Ff7BattleSecondaryDrawKind.LimitPreparation:
                     DrawLimitPreparation(renderer, state.LimitPreparations[draw.Index], view);
                     break;

@@ -12,6 +12,11 @@ public static class Ff7MateriaResources
     public static IReadOnlyList<ReadOnlyMemory<byte>> LoadRecords(Ff7Installation installation)
     {
         IReadOnlyList<KernelSection> sections = KernelArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.Kernel).Path));
+        return ReadRecords(sections);
+    }
+
+    public static IReadOnlyList<ReadOnlyMemory<byte>> ReadRecords(IReadOnlyList<KernelSection> sections)
+    {
         if (sections.Count <= 8 || sections[8].Data.Length == 0 || sections[8].Data.Length % 20 != 0)
         {
             throw new InvalidDataException("FFVII materia requires its original kernel records.");

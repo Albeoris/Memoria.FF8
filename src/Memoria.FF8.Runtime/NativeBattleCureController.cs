@@ -18,6 +18,7 @@ public sealed record NativeBattleCureFrame(NativeBattleEffectMemory Memory, Nati
 public sealed record NativeBattleCureControllerInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource)
 {
     public Action<int>? ApplyContact { get; init; }
+    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeignTarget { get; init; }
 }
 public sealed record NativeBattleCureLeafStep(NativeBattleCureFrame Frame, int Result);
 public sealed record NativeBattleCureControllerStep(NativeBattleCureFrame Frame, ImmutableArray<int> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
@@ -186,12 +187,19 @@ public static class NativeBattleCureController
             {
                 throw new NotSupportedException($"Native Cure child callback{task.Callback:X} is not8D6CC0.");
             }
-            task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, Models(inputs), inputs.ReadPoseSource);
             int target = task.ReadByte(0x2D);
-            NativeBattleGraphicsModel model = inputs.ReadModel(target);
-            NativeBattlePoseSource source = inputs.ReadPoseSource(target);
-            NativeBattleSequenceState pose = model.SequenceState ?? throw new NotSupportedException("Native8DC870 requires its target's posed skeleton owner.");
-            task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, source.Sample(pose.Pose ?? throw new NotSupportedException("Native8DC870 has no selected pose."), pose.PoseFrame114 ?? throw new NotSupportedException("Native8DC870 has no decoded pose frame."), pose.PoseFlags109));
+            if (inputs.ReadForeignTarget?.Invoke(target) is { } foreign)
+            {
+                task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, foreign);
+            }
+            else
+            {
+                task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, Models(inputs), inputs.ReadPoseSource);
+                NativeBattleGraphicsModel model = inputs.ReadModel(target);
+                NativeBattlePoseSource source = inputs.ReadPoseSource(target);
+                NativeBattleSequenceState pose = model.SequenceState ?? throw new NotSupportedException("Native8DC870 requires its target's posed skeleton owner.");
+                task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, source.Sample(pose.Pose ?? throw new NotSupportedException("Native8DC870 has no selected pose."), pose.PoseFrame114 ?? throw new NotSupportedException("Native8DC870 has no decoded pose frame."), pose.PoseFlags109));
+            }
             state = state.Write(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {

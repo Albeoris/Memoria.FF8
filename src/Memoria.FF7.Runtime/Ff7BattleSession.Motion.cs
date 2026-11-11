@@ -68,7 +68,12 @@ public sealed partial class Ff7BattleSession
             return (pose.ClipIndex, pose.ClipFrame);
         }
         string prefix = Ff7BattleAnimationResources.ModelPrefix(actor.Identity, slot >= 4);
-        if (slot < 3 && (actor.Actor.Statuses & 1) != 0)
+        bool knockedOut = (actor.Actor.Statuses & 1) != 0;
+        if (slot < 3 && state.Action is { Applied: true } && state.Sounds?.PreparedImpacts.Any(impact => impact.Target == slot) == true)
+        {
+            knockedOut = modelState?.PresentedKnockedOut ?? knockedOut;
+        }
+        if (slot < 3 && knockedOut)
         {
             const int knockedOutClip = 6;
             return (knockedOutClip, 0);

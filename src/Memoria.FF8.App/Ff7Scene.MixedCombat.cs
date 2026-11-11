@@ -1,4 +1,4 @@
-﻿using Memoria.FF7.Runtime;
+using Memoria.FF7.Runtime;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
@@ -66,7 +66,7 @@ internal sealed partial class Ff7Scene
             envelope = envelope with { MixedCombat = new(0), MixedBattlePayload = null };
             AttachMixedFieldVitals();
             Session!.SetFullCombatEnabled(true);
-            notice = "Squall owns Cloud's battle slot. His Revolver and Gunblade trigger use his FFVIII character. Items use the encounter inventory.";
+            notice = "Squall owns Cloud's battle slot. His Revolver and Gunblade trigger use his FFVIII character. His available commands use his FFVIII stock and equipment.";
         }
         else
         {
@@ -86,6 +86,11 @@ internal sealed partial class Ff7Scene
         Ff7Session session = Session ?? throw new InvalidOperationException("A mixed encounter requires its native FFVII session.");
         CombinedSessionSave source = envelope with { Ff7 = session.Capture(), ActiveGame = SessionGame.Ff7 };
         mixedCombat = new(identityFf8Directory ?? throw new InvalidOperationException("Select the FFVIII installation before entering mixed combat."), source, battle);
+        mixedCombat.Actions.BindForeignGeometry(slot =>
+        {
+            Ff7BattleActorState actor = battle.Actors.Single(actor => actor.Actor.Slot == slot);
+            return BattleRenderer(battle).CaptureActorGeometry(BattleActorVisual(battle, actor));
+        });
     }
 
     private CombinedSessionSave CaptureMixedCombat(CombinedSessionSave saved)

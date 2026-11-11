@@ -14,7 +14,6 @@ public sealed record Ff7BattleRenderFrame(SceneCameraPlacement Camera, IReadOnly
 {
     public CrossoverFf8BattleActorVisual? Guest { get; init; }
     public CrossoverNativeEffectVisual? GuestEffects { get; init; }
-    public Ff7BattleGrenadeState? Grenade { get; init; }
     public Ff7BattleBeatRushState? BeatRush { get; init; }
     public Ff7BattleBigShotState? BigShot { get; init; }
     public IReadOnlyList<Ff7BattleHitmarkState>? Hitmarks { get; init; }
@@ -43,7 +42,6 @@ public sealed partial class Ff7BattleRenderer
     private Ff7BattleBillboardRenderer? fire;
     private Ff7BattleBillboardRenderer? lightning;
     private Ff7BattleBillboardRenderer? sparks;
-    private Ff7BattleBillboardRenderer? grenadeHitmark;
     private PcPolygonModel? shockwave;
     private PcTexture[]? shockwaveTextures;
     private PcPolygonModel? ice;
@@ -91,11 +89,8 @@ public sealed partial class Ff7BattleRenderer
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
         Ff7BattlePrimaryState? primary = frame.PrimaryEffects ?? frame.SearchScope?.Primary ?? frame.Cure?.Primary ?? frame.Bolt?.Primary ?? frame.Destroyed?.Primary ?? frame.Fire?.Primary ?? frame.Ice?.Primary ?? frame.Braver?.Primary ?? frame.BeatRush?.Primary ?? frame.BigShot?.Primary ?? frame.SmokeShot?.Primary ?? frame.Smog?.Primary ?? frame.Rockets?.Primary;
-        Ff7BattleStageFadeState? stageFade = primary?.StageFade ?? frame.StageFade;
-        if (stageFade is not null && (stageFade.Red | stageFade.Green | stageFade.Blue) != 0)
-        {
-            throw new NotSupportedException("FFVII arena tint requires its native nonzero-color material consumer.");
-        }
+        Ff7BattleStageFadeState? stageFade = frame.StageFade ?? primary?.StageFade;
+        ModelColorBlend? stageTint = stageFade is { Alpha: < 255 } fade ? new(fade.Red, fade.Green, fade.Blue, fade.Alpha) : null;
         CameraView view = CameraView.Create(frame.Camera, width, height);
         renderer.Begin(width, height, new Vector4(0, 0, 0, 1), 0);
         try
@@ -103,7 +98,7 @@ public sealed partial class Ff7BattleRenderer
             Ff7ModelMaterialState material = new() { Cull = true };
             foreach (Ff7BattleArenaPart part in arena.Geometry)
             {
-                DrawModel(renderer, part.Polygon, arenaTextures, Matrix4x4.Identity, view, material, (stageFade?.Alpha ?? 255) / 255f);
+                DrawModel(renderer, part.Polygon, arenaTextures, Matrix4x4.Identity, view, material, colorBlend: stageTint, guestStageColor: frame.GuestEffects?.StageColor);
             }
             foreach (Ff7BattleActorVisual actor in frame.Actors)
             {
@@ -154,10 +149,6 @@ public sealed partial class Ff7BattleRenderer
             {
                 DrawBraver(renderer, braver, view);
             }
-            if (frame.Grenade is { Frame: >= 0 and < Ff7BattleGrenadeEffect.SpriteFrameCount } grenade)
-            {
-                DrawGrenade(renderer, grenade, view);
-            }
             if (primary is null && frame.BeatRush is { Completed: false } beatRush)
             {
                 DrawBeatRush(renderer, beatRush, view);
@@ -204,10 +195,11 @@ public sealed partial class Ff7BattleRenderer
         {
             return;
         }
-        VisitActorGeometry(actor, (model, textures, transform) => DrawModel(renderer, model, textures, transform, view, material, actorModifiers: actor.ModelModifiers));
+        ModelColorBlend? tint = actor.ModelModifiers is { Alpha: < 255 } modifiers ? new(modifiers.Red, modifiers.Green, modifiers.Blue, modifiers.Alpha) : null;
+        VisitActorGeometry(actor, (model, textures, transform) => DrawModel(renderer, model, textures, transform, view, material, colorBlend: tint));
     }
 
-    private void DrawModel(ITriangleRenderer renderer, PcPolygonModel model, IReadOnlyList<PcTexture> textures, Matrix4x4 transform, CameraView view, Ff7ModelMaterialState material, float opacity = 1, Ff7BattleActorModelModifiers? actorModifiers = null)
+    private void DrawModel(ITriangleRenderer renderer, PcPolygonModel model, IReadOnlyList<PcTexture> textures, Matrix4x4 transform, CameraView view, Ff7ModelMaterialState material, float opacity = 1, ModelColorBlend? colorBlend = null, CrossoverNativeStageColor? guestStageColor = null)
     {
         if (model.Groups.Count != model.RenderStates.Count)
         {
@@ -237,16 +229,17 @@ public sealed partial class Ff7BattleRenderer
             {
                 int vertex = group.VertexStart + local;
                 uint argb = vertex < model.VertexColors.Count ? model.VertexColors[vertex] : uint.MaxValue;
+                argb = guestStageColor?.Apply(argb) ?? argb;
                 float red = argb >> 16 & 255;
                 float green = argb >> 8 & 255;
                 float blue = argb & 255;
-                if (actorModifiers is { ScaleOverride: true } modifiers)
+                if (colorBlend is { } blend)
                 {
-                    float originalWeight = modifiers.Alpha * (1f / 255f);
+                    float originalWeight = blend.OriginalWeight * (1f / 255f);
                     float tintWeight = 1f - originalWeight;
-                    red = MathF.Round(red * originalWeight + modifiers.Red * tintWeight);
-                    green = MathF.Round(green * originalWeight + modifiers.Green * tintWeight);
-                    blue = MathF.Round(blue * originalWeight + modifiers.Blue * tintWeight);
+                    red = MathF.Round(red * originalWeight + blend.Red * tintWeight);
+                    green = MathF.Round(green * originalWeight + blend.Green * tintWeight);
+                    blue = MathF.Round(blue * originalWeight + blend.Blue * tintWeight);
                 }
                 Vector4 color = new(red / 255f, green / 255f, blue / 255f, (argb >> 24) / 255f * state.VertexAlpha / 255f * opacity);
                 Vector2 uv = image is null ? Vector2.Zero : model.TextureCoordinates[group.TextureCoordinateStart + local];
@@ -380,11 +373,11 @@ public sealed partial class Ff7BattleRenderer
         DrawModel(renderer, ice, [], transform, view, new() { Cull = true }, Ff7BattleIceEffect.Opacity(frame));
     }
 
-    private Ff7BattleBillboardRenderer LoadBillboard(string name, string[] textures, int frames, Func<ushort, int> selectPage, TriangleBlend blend = TriangleBlend.Replace)
+    private Ff7BattleBillboardRenderer LoadBillboard(string name, string[] textures, int frames, Func<ushort, int> selectPage, TriangleBlend blend = TriangleBlend.Replace, bool nativePageOrigin = false)
     {
         LgpArchive magic = MagicArchive();
         PcTexture[] pages = textures.Select(texture => PcTexture.Read(Read(magic, texture))).ToArray();
-        Ff7BattleBillboardRenderer renderer = new(BattleBillboard.Read(Read(magic, name)), pages, selectPage, blend);
+        Ff7BattleBillboardRenderer renderer = new(BattleBillboard.Read(Read(magic, name)), pages, selectPage, blend, nativePageOrigin: nativePageOrigin);
         if (renderer.FrameCount != frames)
         {
             throw new InvalidDataException($"FFVII battle billboard '{name}' differs from its native callback duration.");
@@ -400,22 +393,6 @@ public sealed partial class Ff7BattleRenderer
     private static Vector3 OffsetTowardCamera(Vector3 point, int radius)
     {
         return point.LengthSquared() == 0 ? point : point - Vector3.Normalize(point) * radius;
-    }
-
-    private void DrawGrenade(ITriangleRenderer renderer, Ff7BattleGrenadeState effect, CameraView view)
-    {
-        if (grenadeHitmark is null)
-        {
-            PcTexture texture = grenadeTexture ?? throw new InvalidOperationException("FFVII Grenade presentation requires its original battle effect texture.");
-            IReadOnlyList<IReadOnlyList<BattleBillboardQuad>> frames = BattleBillboard.Read(Read(MagicArchive(), "ff7/data/battle/effect/hitmark/jo_c02.s"));
-            if (frames.Count != Ff7BattleGrenadeEffect.SpriteFrameCount)
-            {
-                throw new InvalidDataException("FFVII Grenade hitmark has an unexpected native frame count.");
-            }
-            grenadeHitmark = new(frames, [texture], _ => 0, paletteOverride: 23);
-        }
-        Vector3 anchor = SpriteAnchor(effect.X, effect.Y, effect.Z, effect.CollisionRadius, view);
-        grenadeHitmark.Draw(renderer, effect.Frame, anchor, view.Width, view.Height, view.Focal, scale: 6);
     }
 
     private LgpArchive MagicArchive()
@@ -547,6 +524,8 @@ public sealed partial class Ff7BattleRenderer
             return weapon;
         }
     }
+
+    private readonly record struct ModelColorBlend(byte Red, byte Green, byte Blue, byte OriginalWeight);
 
     private readonly record struct CameraView(Vector3 Position, Vector3 Right, Vector3 Up, Vector3 Forward, int Width, int Height, float Focal)
     {

@@ -10,6 +10,33 @@ public sealed partial class Ff7BattleRenderer
         {
             switch (draw)
             {
+                case Ff7BattlePrimaryBeamGunMeshDraw shot:
+                    DrawBeamGunMesh(renderer, shot, view);
+                    break;
+                case Ff7BattlePrimaryBeamGunSpriteDraw flash:
+                    DrawBeamGunSprite(renderer, flash, view);
+                    break;
+                case Ff7BattlePrimaryBubbleSpriteDraw bubble:
+                    DrawBubbleSprite(renderer, bubble, view);
+                    break;
+                case Ff7BattlePrimaryBubbleRibbonDraw ribbon:
+                    DrawBubbleRibbon(renderer, ribbon, view);
+                    break;
+                case Ff7BattlePrimaryBubbleCloudDraw cloud:
+                    DrawBubbleCloud(renderer, cloud, view);
+                    break;
+                case Ff7BattlePrimaryEnergyBallMeshDraw energyBallMesh:
+                    DrawEnergyBallMesh(renderer, energyBallMesh, view);
+                    break;
+                case Ff7BattlePrimaryEnergyBallSpriteDraw energyBallSprite:
+                    DrawEnergyBallSprite(renderer, energyBallSprite, view);
+                    break;
+                case Ff7BattlePrimaryWaveMeshDraw waveMesh:
+                    DrawWaveMesh(renderer, waveMesh, view);
+                    break;
+                case Ff7BattlePrimaryWaveSpriteDraw waveSprite:
+                    DrawWaveSprite(renderer, waveSprite, view);
+                    break;
                 case Ff7BattlePrimaryRocketDraw rocket:
                     DrawRockets(renderer, rocket.State, view);
                     break;

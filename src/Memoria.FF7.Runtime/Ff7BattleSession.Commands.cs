@@ -59,22 +59,28 @@ public sealed partial class Ff7BattleSession
         commands.Add(new(Ff7BattleCommand.Defend, 0, (ushort)(1 << slot), true, false));
         if (IsGuestVitalsSlot(slot))
         {
-            List<Ff7BattleCommandOption> guest = commands.Where(option => GuestRecoveryCommand(option.Command, option.Argument)).ToList();
+            IFf7BattleGuestItems? items = guestAttack as IFf7BattleGuestItems;
+            List<Ff7BattleCommandOption> guest = commands.Where(option => GuestRecoveryCommand(option.Command, option.Argument) && (items?.HasOriginItems != true || option.Command != Ff7BattleCommand.Item)).ToList();
             if (guestAttack is not null)
             {
                 ushort targets = Mask(state.Actors.Where(target => target.Actor.Slot >= 4 && IsAlive(target) && (target.Actor.Conditions & 8) != 0 && guestAttack.Supports(DescribeGuestTarget(target.Actor.Slot))));
                 guest.Insert(0, new(Ff7BattleCommand.Attack, 0, targets, true, true));
                 if (guestAttack is IFf7BattleGuestMagic magic && Ff7GuestBattleStatuses.CanCastMagic(actor.Actor.Statuses))
                 {
+                    int magicIndex = 1;
                     foreach (ushort ability in new ushort[] { 1, 4, 7, 21 })
                     {
                         ushort magicTargets = Mask(state.Actors.Where(target => IsAlive(target) && (target.Actor.Conditions & 8) != 0 && SupportsGuestAbility(guestAttack, ability, DescribeGuestTarget(target.Actor.Slot))));
                         if (magicTargets != 0)
                         {
-                            guest.Insert(guest.Count - commands.Count(option => GuestRecoveryCommand(option.Command, option.Argument)), new(Ff7BattleCommand.Magic, ability, magicTargets, true, ability != 21, magic.MagicStock(ability)));
+                            guest.Insert(magicIndex++, new(Ff7BattleCommand.Magic, ability, magicTargets, true, ability != 21, magic.MagicStock(ability)));
                         }
                     }
                 }
+            }
+            if (items?.HasOriginItems == true)
+            {
+                guest.AddRange(GuestItemOptions(items));
             }
             return guest;
         }
@@ -98,6 +104,10 @@ public sealed partial class Ff7BattleSession
         if (IsGuestVitalsSlot(slot) && command == Ff7BattleCommand.Magic)
         {
             return argument is 1 or 4 or 7 or 21 && !group && System.Numerics.BitOperations.IsPow2((uint)targets) && SubmitGuestMagic(slot, System.Numerics.BitOperations.TrailingZeroCount((uint)targets), argument);
+        }
+        if (IsGuestVitalsSlot(slot) && command == Ff7BattleCommand.Item && guestAttack is IFf7BattleGuestItems { HasOriginItems: true })
+        {
+            return !group && System.Numerics.BitOperations.IsPow2((uint)targets) && SubmitGuestItem(slot, System.Numerics.BitOperations.TrailingZeroCount((uint)targets), argument);
         }
         Ff7BattleCommandOption? option = Commands(slot).SingleOrDefault(candidate => candidate.Command == command && candidate.Argument == argument);
         if (option is null || targets == 0 || (targets & ~option.ValidTargets) != 0)
@@ -289,6 +299,10 @@ public sealed partial class Ff7BattleSession
                     Ff7BattleActionState beforeEffect = active;
                     active = StartEffect(active);
                     EffectEntrySound(beforeEffect, active);
+                }
+                else if (instruction.Opcode == 0xEA)
+                {
+                    state = state with { PrimaryEffects = Ff7BattlePrimaryEffects.ScheduleActionTitle(EnsurePrimaryEffects(), command.CommandId, command.Argument, Ff7NativeBattleMessage.DefaultSpeed) };
                 }
                 else if (instruction.Opcode == 0xEB && command is { CommandId: (byte)Ff7BattleCommand.Item, TargetMask: not 0 })
                 {

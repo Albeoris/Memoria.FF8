@@ -56,7 +56,7 @@ internal sealed class CrossoverMixedBattle : IDisposable
             NativeGlobalRandomState random = document.Progression?.Clocks.GlobalRandom ?? throw new NotSupportedException("Mixed combat requires the suspended FFVIII global RNG owner.");
             Attack = new(roster, kit, assets, game, random, () => host.Data.Cameras[0], _ => 128, savedAttack);
             Attack.PrepareStanding(host.VisualPlacement(roster.Guest.HostSlot));
-            Actions = new(roster, kit, origin, document.Progression?.Clocks.CrtRandom, Attack, host, game, assets, savedActions);
+            Actions = new(roster, kit, origin, document.Progression?.Clocks.CrtRandom, Attack, host, game, assets, savedActions, document.Economy);
             host.BindGuestAttack(Actions);
             Host = host;
         }
@@ -75,7 +75,8 @@ internal sealed class CrossoverMixedBattle : IDisposable
         Actions.CancelAtTerminal();
         CrossoverGuestHostActionsSnapshot actions = Actions.Capture();
         CrossoverGuestMagicSettlement? magic = Actions.UsedMagic ? new(roster, actions.Stock, Actions.OriginCrtRandom, Actions.CurrentCrtRandom, actions.CommittedSpells!.Value, Actions.LegacyBattleMaskContinuation) : null;
-        return CrossoverBattleVitalsSettlement.PrepareResult(source with { MixedBattlePayload = Capture() }, installation, game.ReadNewGameCharacterVitals(), presentation: Attack.Capture(), magic: magic);
+        CrossoverGuestItemSettlement? items = actions.Items is { Ledger.IsEmpty: false } inventory ? new(roster.EncounterId, inventory, Actions.OriginCrtRandom, Actions.CurrentCrtRandom) : null;
+        return CrossoverBattleVitalsSettlement.PrepareResult(source with { MixedBattlePayload = Capture() }, installation, game.ReadNewGameCharacterVitals(), presentation: Attack.Capture(), magic: magic, items: items);
     }
 
     public void Dispose()

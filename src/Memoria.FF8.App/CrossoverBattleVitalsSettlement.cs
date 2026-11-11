@@ -9,6 +9,7 @@ using System.Collections.Immutable;
 namespace Memoria.FF8;
 
 internal sealed record CrossoverBattleVitalsSettlementResult(CombinedSessionSave Save, Ff7GuestBattleSettlementReceipt Receipt);
+internal sealed record CrossoverGuestItemSettlement(Guid EncounterId, CrossoverGuestItemInventory Inventory, NativeCrtRandomState? OriginCrtRandom, NativeCrtRandomState CrtRandom);
 internal sealed record CrossoverGuestMagicSettlement(CrossoverBattleRoster Roster, CrossoverBattleStockSnapshot Stock, NativeCrtRandomState? OriginCrtRandom, NativeCrtRandomState CrtRandom, ImmutableArray<CrossoverGuestCommittedSpell> Costs, bool LegacyBattleMaskContinuation = false);
 
 /// <summary>Stages an FFVII field continuation and FFVIII character update together from immutable source snapshots.</summary>
@@ -42,7 +43,7 @@ internal static class CrossoverBattleVitalsSettlement
         return PrepareResult(source, installation, installed, completed, presentation);
     }
 
-    public static CrossoverBattleVitalsSettlementResult PrepareResult(CombinedSessionSave source, Ff7Installation installation, NativeCharacterVitals installed, Ff7GuestBattleSettlementReceipt? completed = null, CrossoverGunbladeHostSnapshot? presentation = null, CrossoverGuestMagicSettlement? magic = null)
+    public static CrossoverBattleVitalsSettlementResult PrepareResult(CombinedSessionSave source, Ff7Installation installation, NativeCharacterVitals installed, Ff7GuestBattleSettlementReceipt? completed = null, CrossoverGunbladeHostSnapshot? presentation = null, CrossoverGuestMagicSettlement? magic = null, CrossoverGuestItemSettlement? items = null)
     {
         source.Validate();
         if (source is not { ActiveGame: SessionGame.Ff7, Ff7: { } host, Ff8Payload: { Length: > 0 } payload })
@@ -106,6 +107,19 @@ internal static class CrossoverBattleVitalsSettlement
         if (magic is not null)
         {
             updated = updated with { Progression = updated.Progression! with { Clocks = updated.Progression!.Clocks with { CrtRandom = magic.CrtRandom } } };
+        }
+        if (items is not null)
+        {
+            if (items.EncounterId != binding.EncounterId || document.Progression?.Clocks.CrtRandom != items.OriginCrtRandom || magic is not null && magic.CrtRandom != items.CrtRandom)
+            {
+                throw new InvalidDataException("Guest item settlement has a different encounter or original visual RNG owner.");
+            }
+            CrossoverGuestItemInventory inventory = items.Inventory.Restore(document.Economy, battle.RequestId, binding.HostSlot, battle.Tick);
+            if (inventory.Pending is not null)
+            {
+                throw new InvalidDataException("Guest item settlement requires every reservation to be spent or refunded.");
+            }
+            updated = updated with { Economy = document.Economy with { Items = inventory.Slots }, Progression = updated.Progression! with { Clocks = updated.Progression!.Clocks with { CrtRandom = items.CrtRandom } } };
         }
         if (presentation is not null)
         {

@@ -21,49 +21,16 @@ public sealed partial class BattleSession
         Array.Copy(slots, nativeItems, 198);
     }
 
-    internal static void ValidateNativeItemInventory(NativeItemStock[] slots)
-    {
-        if (slots is not { Length: 198 } || slots.Any(stock => stock is null || stock.Count > 100 || (stock.ItemId == 0) != (stock.Count == 0)) || slots.Where(stock => stock.ItemId != 0).Select(stock => stock.ItemId).Distinct().Count() != slots.Count(stock => stock.ItemId != 0))
-        {
-            throw new InvalidDataException("Native battle item inventory requires198 physical slots with unique nonempty items.");
-        }
-    }
+    internal static void ValidateNativeItemInventory(NativeItemStock[] slots) => NativeBattleItemStockRules.Validate(slots);
 
-    private int ConsumeNativeItem(int id)
-    {
-        int index = Array.FindIndex(nativeItems, stock => stock.ItemId == id && stock.Count > 0);
-        if (index < 0)
-        {
-            throw new InvalidOperationException("The selected battle item stock is exhausted.");
-        }
-        NativeItemStock stock = nativeItems[index];
-        nativeItems[index] = stock.Count == 1 ? new NativeItemStock(0, 0) : stock with { Count = (byte)(stock.Count - 1) };
-        return index;
-    }
+    private int ConsumeNativeItem(int id) => NativeBattleItemStockRules.Consume(nativeItems, id);
 
     private int AddNativeBattleItem(int id, int count)
     {
-        if (id == 0 || count <= 0)
+        int added = NativeBattleItemStockRules.Add(nativeItems, id, count);
+        if (added > 0 && ChocoboRewardCatalog.FindItem(id) is { } reward)
         {
-            return 0;
-        }
-        int index = Array.FindIndex(nativeItems, stock => stock.ItemId == id);
-        if (index < 0)
-        {
-            index = Array.FindIndex(nativeItems, stock => stock.ItemId == 0);
-        }
-        if (index < 0 || count <= 0)
-        {
-            return 0;
-        }
-        int added = Math.Min(100 - nativeItems[index].Count, count);
-        if (added > 0)
-        {
-            nativeItems[index] = new NativeItemStock(checked((byte)id), checked((byte)(nativeItems[index].Count + added)));
-            if (ChocoboRewardCatalog.FindItem(id) is { } reward)
-            {
-                chocoboRewards = chocoboRewards with { AcquiredUniqueRewardIds = chocoboRewards.AcquiredUniqueRewardIds.Add(reward.Id) };
-            }
+            chocoboRewards = chocoboRewards with { AcquiredUniqueRewardIds = chocoboRewards.AcquiredUniqueRewardIds.Add(reward.Id) };
         }
         return added;
     }

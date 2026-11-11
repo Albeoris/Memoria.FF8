@@ -69,6 +69,7 @@ public sealed partial class Ff7BattleSession
         actorModelCursor = 0;
         deferredActorSubmissions.Clear();
         actorDeferAfterSubmission.Clear();
+        state = state with { RenderStageFade = state.StageFade ?? new() };
         if (state.Camera is { } camera)
         {
             state = state with { Camera = camera with { RenderOutput = camera.Output } };
@@ -116,6 +117,15 @@ public sealed partial class Ff7BattleSession
             return;
         }
         state = state with { Camera = camera with { Scripts = Ff7NativeBattleCameraScripts.AdvanceOuterCallback(camera.Scripts), PrimaryQueueState = NativeActorModelsReady && !HasPrimaryPresentationCallbacks ? (sbyte)1 : (sbyte)0 } };
+    }
+
+    private void ApplyPrimaryCameraFocusY(short delta)
+    {
+        if (delta != 0 && state.Camera is { } camera)
+        {
+            Ff7BattleCameraPoint focus = camera.Output.Focus;
+            state = state with { Camera = camera with { Output = camera.Output with { Focus = focus with { Y = unchecked((short)(focus.Y + delta)) } } } };
+        }
     }
 
     private Ff7BattleCameraPoint CameraJoint(int slot, int bone)

@@ -7,12 +7,25 @@ namespace Memoria.FF8;
 internal sealed record CrossoverNativeMagicPresentationState(CrossoverNativeCastState Cast, NativeBattleAuxiliaryState Auxiliary, NativeBattleModuleState Modules, NativeBattleEffectTextureState Textures, NativeBattleModelTextureBinding BodyTextures, ImmutableArray<byte> TextureAnimations, NativeCrtRandomState Random, int HostTarget, NativeBattleContactHalf Contact)
 {
     public ushort Ability { get; init; } = 1;
+    public byte Command { get; init; } = 2;
     public CrossoverNativeBlizzardState? Blizzard { get; init; }
     public CrossoverNativeThunderState? Thunder { get; init; }
+    public CrossoverNativeRemedyState? Remedy { get; init; }
+    public CrossoverNativePhoenixState? Phoenix { get; init; }
     public CrossoverNativeCureState? Cure { get; init; }
     public CrossoverNativeFireState? Fire { get; init; }
     public ImmutableArray<NativeBattleModuleDraw> Draws { get; init; } = [];
-    public bool Complete => Cast.Complete && Auxiliary.Head is null && Modules.Head is null && (Ability == 1 ? Fire?.Complete : Ability == 7 ? Thunder?.Complete : Ability == 4 ? Blizzard?.Complete : Cure?.Complete) == true;
+    public bool Complete => Cast.Complete && Auxiliary.Head is null && Modules.Head is null && EffectComplete;
+    public bool EffectComplete => (Command, Ability) switch
+    {
+        (4, 7) => Phoenix?.Complete == true,
+        (4, 16) => Remedy?.Complete == true,
+        (4, 1) or (2, 21) => Cure?.Complete == true,
+        (2, 1) => Fire?.Complete == true,
+        (2, 4) => Blizzard?.Complete == true,
+        (2, 7) => Thunder?.Complete == true,
+        _ => throw new InvalidDataException("The source casting continuation has a foreign command selector.")
+    };
 }
 
 internal sealed record CrossoverNativeMagicPresentationStep(CrossoverNativeMagicPresentationState State, bool Contact, ImmutableArray<NativeBattleModuleDraw> Sounds, ImmutableArray<NativeBattleFireSound> FireSounds)
@@ -25,11 +38,13 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
 {
     private readonly ImmutableArray<NativeBattleModuleResource> sprites = game.ReadNativeBattleModuleResources();
 
-    public CrossoverNativeMagicPresentationState Begin(NativeBattleGraphicsModel source, int hostTarget, NativeCrtRandomState random, NativeBattleContactHalf contact, ushort ability = 1)
+    public CrossoverNativeMagicPresentationState Begin(NativeBattleGraphicsModel source, int hostTarget, NativeCrtRandomState random, NativeBattleContactHalf contact, ushort ability = 1, byte command = 2)
     {
-        if (ability is not (1 or 4 or 7 or 21) || ability is 1 or 4 or 7 && (hostTarget is < 4 or > 9 || contact.ActorIndex != 3) || ability == 21 && (hostTarget is < 0 or > 2 || contact.ActorIndex != 0))
+        bool recovery = command == 4 && ability is 1 or 7 or 16 || command == 2 && ability == 21;
+        bool elemental = command == 2 && ability is 1 or 4 or 7;
+        if (!recovery && !elemental || recovery && (hostTarget is < 0 or > 2 || contact.ActorIndex is not (0 or 3)) || elemental && (hostTarget is < 4 or > 9 || contact.ActorIndex != 3))
         {
-            throw new InvalidDataException("Mixed Fire requires a physical host enemy occurrence.");
+            throw new InvalidDataException("The original guest casting program requires its bound target occurrence.");
         }
         NativeBattleModelTextureLoad body = NativeBattleModelTextures.Prepare507400(resource.BodyTexturePack ?? throw new InvalidDataException("Mixed Fire requires Squall's original body textures."), 0);
         NativeBattleEffectTextureState textures = NativeBattleModelTextures.Enqueue507400(NativeBattleEffectTextureState.FromColdProcess(), body);
@@ -47,11 +62,11 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
         NativeBattleEffectInitializerAsset common = game.ReadNativeCommonEffectTexture();
         (textures, _) = textures.EnqueueTim505E30(new(common.Name, common.Data));
         textures = textures.Drain505D20(NativeBattleEffectMemory.FromColdProcess().Arena).State;
-        CrossoverNativeCastState cast = CrossoverNativeCastPresentation.Begin(source with { TextureAllocationMask = allocation }, resource, game.ReadNativeBattleCommandSequences(), 2);
-        return new(cast, NativeBattleAuxiliaryState.Clear(), NativeBattleModuleState.Clear(), textures, body.Binding, resource.TextureAnimations ?? throw new InvalidDataException("Mixed Fire requires the original source texture animation table."), random, hostTarget, contact) { Ability = ability };
+        CrossoverNativeCastState cast = CrossoverNativeCastPresentation.Begin(source with { TextureAllocationMask = allocation }, resource, game.ReadNativeBattleCommandSequences(), command);
+        return new(cast, NativeBattleAuxiliaryState.Clear(), NativeBattleModuleState.Clear(), textures, body.Binding, resource.TextureAnimations ?? throw new InvalidDataException("Mixed Fire requires the original source texture animation table."), random, hostTarget, contact) { Ability = ability, Command = command };
     }
 
-    public CrossoverNativeMagicPresentationStep Advance(CrossoverNativeMagicPresentationState source, Func<NativeBattleModuleAnchor> readTargetAnchor, Func<NativeBattleModelTransform> readTargetTransform, NativeBattleCameraProjection? projection = null)
+    public CrossoverNativeMagicPresentationStep Advance(CrossoverNativeMagicPresentationState source, Func<NativeBattleModuleAnchor> readTargetAnchor, Func<NativeBattleModelTransform> readTargetTransform, NativeBattleCameraProjection? projection = null, Func<CrossoverNativeCureForeignTarget>? readForeign = null)
     {
         if (source.Complete)
         {
@@ -65,17 +80,33 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
         ImmutableArray<byte> motion = source.TextureAnimations;
         CrossoverNativeFireState? fire = source.Fire;
         CrossoverNativeCureState? cure = source.Cure;
+        CrossoverNativePhoenixState? phoenix = source.Phoenix;
+        CrossoverNativeRemedyState? remedy = source.Remedy;
         CrossoverNativeThunderState? thunder = source.Thunder;
         CrossoverNativeBlizzardState? blizzard = source.Blizzard;
-        CrossoverNativeCastPoll poll = CrossoverNativeCastPresentation.Poll(cast, modules.PublishedCount != 0, (source.Ability == 1 ? fire?.Complete : source.Ability == 7 ? thunder?.Complete : source.Ability == 4 ? blizzard?.Complete : cure?.Complete) == true);
+        CrossoverNativeCastPoll poll = CrossoverNativeCastPresentation.Poll(cast, modules.PublishedCount != 0, source.EffectComplete);
         cast = poll.State;
         if (poll.InvokeEffect)
         {
-            if (fire is not null || cure is not null || thunder is not null || blizzard is not null)
+            if (fire is not null || cure is not null || phoenix is not null || remedy is not null || thunder is not null || blizzard is not null)
             {
                 throw new InvalidDataException("Mixed Fire cannot invoke its effect descriptor twice.");
             }
-            if (source.Ability == 1)
+            if (source.Command == 4 && source.Ability == 7)
+            {
+                phoenix = new CrossoverNativePhoenixProgram(game, resource).Begin(source.HostTarget, source.Contact, random, textures);
+                textures = phoenix.Frame.Memory.Textures!;
+            }
+            else if (source.Command == 4 && source.Ability == 16)
+            {
+                remedy = new CrossoverNativeRemedyProgram(game, resource).Begin(source.Contact.ActorIndex == 3 ? source.HostTarget : null, source.Contact, random, textures);
+                textures = remedy.Frame.Memory.Textures!;
+            }
+            else if (source.Command == 4 || source.Ability == 21)
+            {
+                cure = new CrossoverNativeCureProgram(game, resource).Begin(cast.Model, source.Contact, random, textures, source.Contact.ActorIndex == 3 ? source.HostTarget : null, source.Command == 4 ? (ushort)50 : (ushort)1);
+            }
+            else if (source.Ability == 1)
             {
                 fire = CrossoverNativeFireProgram.Begin(game, source.HostTarget, random, source.Contact, textures);
                 textures = fire.Textures;
@@ -89,10 +120,6 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
             {
                 thunder = CrossoverNativeThunderProgram.Begin(game, source.Contact, textures);
                 textures = thunder.Textures;
-            }
-            else
-            {
-                cure = new CrossoverNativeCureProgram(game, resource).Begin(cast.Model, source.Contact, random, textures);
             }
         }
         auxiliary = auxiliary.Advance(new()
@@ -152,9 +179,28 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
             contact = next.Contact;
             effectSounds = next.Sounds;
         }
+        if (phoenix is not null && !phoenix.Complete)
+        {
+            CrossoverNativePhoenixStep next = new CrossoverNativePhoenixProgram(game, resource).Advance(phoenix with { Random = random }, cast.Model, (readForeign ?? throw new InvalidDataException("Phoenix Down requires the bound host ally."))(), projection ?? throw new InvalidDataException("Phoenix Down requires the host camera."));
+            phoenix = next.State;
+            random = phoenix.Random;
+            textures = phoenix.Frame.Memory.Textures!;
+            contact = next.Contact;
+            effectSounds = next.Sounds;
+        }
+        if (remedy is not null && !remedy.Complete)
+        {
+            CrossoverNativeCureForeignTarget? target = remedy.ForeignSlot.HasValue ? (readForeign ?? throw new InvalidDataException("Remedy requires the bound host ally."))() : null;
+            CrossoverNativeRemedyStep next = new CrossoverNativeRemedyProgram(game, resource).Advance(remedy with { Random = random }, cast.Model, target, projection ?? throw new InvalidDataException("Remedy requires the host camera."));
+            remedy = next.State;
+            random = remedy.Random;
+            textures = remedy.Frame.Memory.Textures!;
+            contact = next.Contact;
+            effectSounds = next.Sounds;
+        }
         if (cure is not null && !cure.Complete)
         {
-            CrossoverNativeCureStep next = new CrossoverNativeCureProgram(game, resource).Advance(cure with { Model = cast.Model, Random = random }, projection ?? throw new InvalidDataException("Cure requires the host camera."));
+            CrossoverNativeCureStep next = new CrossoverNativeCureProgram(game, resource).Advance(cure with { Model = cast.Model, Random = random }, projection ?? throw new InvalidDataException("Cure requires the host camera."), cure.ForeignSlot.HasValue ? (readForeign ?? throw new InvalidDataException("Cure requires the bound host geometry."))() : null);
             cure = next.State;
             cast = cast with { Model = cure.Model };
             random = cure.Random;
@@ -178,7 +224,7 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
             }
         });
         textures = textures.Drain505D20(NativeBattleEffectMemory.FromColdProcess().Arena).State;
-        return new(source with { Cast = cast, Auxiliary = auxiliary, Modules = modules, Textures = textures, TextureAnimations = motion, Random = random, Fire = fire, Cure = cure, Thunder = thunder, Blizzard = blizzard, Draws = draws }, contact, shared.Draws.Where(draw => draw.Kind == NativeBattleModuleDrawKind.Sound).ToImmutableArray(), fireSounds) { EffectSounds = effectSounds };
+        return new(source with { Cast = cast, Auxiliary = auxiliary, Modules = modules, Textures = textures, TextureAnimations = motion, Random = random, Fire = fire, Cure = cure, Phoenix = phoenix, Remedy = remedy, Thunder = thunder, Blizzard = blizzard, Draws = draws }, contact, shared.Draws.Where(draw => draw.Kind == NativeBattleModuleDrawKind.Sound).ToImmutableArray(), fireSounds) { EffectSounds = effectSounds };
 
         NativeBattleGraphicsModel ReadSource(int actor) => actor == 0 ? cast.Model : throw new InvalidDataException("The casting source queried an unbound physical model.");
 
@@ -196,6 +242,6 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
         }
     }
 
-    public static CrossoverNativeMagicPresentationState Capture(CrossoverNativeMagicPresentationState source) => source with { Textures = NativeBattleEffectComponentStorage.Capture(source.Textures), Fire = source.Fire is { } fire ? CrossoverNativeFireProgram.Capture(fire) : null, Cure = source.Cure is { } cure ? CrossoverNativeCureProgram.Capture(cure) : null, Thunder = source.Thunder is { } thunder ? CrossoverNativeThunderProgram.Capture(thunder) : null, Blizzard = source.Blizzard is { } blizzard ? CrossoverNativeBlizzardProgram.Capture(blizzard) : null };
-    public static CrossoverNativeMagicPresentationState Restore(CrossoverNativeMagicPresentationState source) => source with { Textures = NativeBattleEffectComponentStorage.Restore(source.Textures), Fire = source.Fire is { } fire ? CrossoverNativeFireProgram.Restore(fire) : null, Cure = source.Cure is { } cure ? CrossoverNativeCureProgram.Restore(cure) : null, Thunder = source.Thunder is { } thunder ? CrossoverNativeThunderProgram.Restore(thunder) : null, Blizzard = source.Blizzard is { } blizzard ? CrossoverNativeBlizzardProgram.Restore(blizzard) : null };
+    public static CrossoverNativeMagicPresentationState Capture(CrossoverNativeMagicPresentationState source) => source with { Textures = NativeBattleEffectComponentStorage.Capture(source.Textures), Fire = source.Fire is { } fire ? CrossoverNativeFireProgram.Capture(fire) : null, Cure = source.Cure is { } cure ? CrossoverNativeCureProgram.Capture(cure) : null, Thunder = source.Thunder is { } thunder ? CrossoverNativeThunderProgram.Capture(thunder) : null, Blizzard = source.Blizzard is { } blizzard ? CrossoverNativeBlizzardProgram.Capture(blizzard) : null, Phoenix = source.Phoenix is { } phoenix ? CrossoverNativePhoenixProgram.Capture(phoenix) : null, Remedy = source.Remedy is { } remedy ? CrossoverNativeRemedyProgram.Capture(remedy) : null };
+    public static CrossoverNativeMagicPresentationState Restore(CrossoverNativeMagicPresentationState source) => source with { Textures = NativeBattleEffectComponentStorage.Restore(source.Textures), Fire = source.Fire is { } fire ? CrossoverNativeFireProgram.Restore(fire) : null, Cure = source.Cure is { } cure ? CrossoverNativeCureProgram.Restore(cure) : null, Thunder = source.Thunder is { } thunder ? CrossoverNativeThunderProgram.Restore(thunder) : null, Blizzard = source.Blizzard is { } blizzard ? CrossoverNativeBlizzardProgram.Restore(blizzard) : null, Phoenix = source.Phoenix is { } phoenix ? CrossoverNativePhoenixProgram.Restore(phoenix) : null, Remedy = source.Remedy is { } remedy ? CrossoverNativeRemedyProgram.Restore(remedy) : null };
 }

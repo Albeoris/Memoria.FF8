@@ -11,7 +11,7 @@ internal sealed class Ff7BattleBillboardRenderer
     private readonly PcTexture[] pages;
     private readonly Dictionary<(int Page, int Palette), PixelImage> images = [];
 
-    public Ff7BattleBillboardRenderer(IReadOnlyList<IReadOnlyList<BattleBillboardQuad>> billboard, PcTexture[] pages, Func<ushort, int> selectPage, TriangleBlend blend = TriangleBlend.Replace, int? paletteOverride = null)
+    public Ff7BattleBillboardRenderer(IReadOnlyList<IReadOnlyList<BattleBillboardQuad>> billboard, PcTexture[] pages, Func<ushort, int> selectPage, TriangleBlend blend = TriangleBlend.Replace, int? paletteOverride = null, bool nativePageOrigin = false)
     {
         this.pages = pages;
         frames = new IReadOnlyList<Quad>[billboard.Count];
@@ -23,6 +23,12 @@ internal sealed class Ff7BattleBillboardRenderer
                 BattleBillboardQuad source = billboard[frame][index];
                 int page = selectPage(source.TexturePage);
                 PcTexture texture = pages[page];
+                if (nativePageOrigin)
+                {
+                    int u = BinaryPrimitives.ReadInt32LittleEndian(texture.Header.Span[0xD8..]);
+                    int v = BinaryPrimitives.ReadInt32LittleEndian(texture.Header.Span[0xDC..]);
+                    source = source with { U = checked((short)(source.U - u)), V = checked((short)(source.V - v)) };
+                }
                 int palette = paletteOverride ?? ((source.Clut >> 6) - BinaryPrimitives.ReadInt32LittleEndian(texture.Header.Span[0xE0..]));
                 if ((uint)palette >= texture.Palettes.Count || (uint)source.U >= texture.Width || (uint)source.V >= texture.Height || source.Width == 0 || source.Height == 0 || source.U + source.Width > texture.Width || source.V + source.Height > texture.Height)
                 {

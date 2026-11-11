@@ -168,8 +168,9 @@ internal static class NativeBattleSoundTests
                 }
             }
             Check(started && restored && battle.Action is null, "Original sound fixture did not complete through a cold action restore.");
-            Check(sounds.Count == 2 && sounds[0].Sound == (enemy ? 16 : 26) && sounds[1].Sound == (enemy ? 15 : battle.LastHit!.Damage.Critical ? 27 : 18), $"Original attack ({enemy}) sound order {string.Join(',', sounds.Select(sound => sound.Sound))}.");
-            Check(sounds[0].Sequence == 1 && sounds[1].Sequence == 2 && battle.DrainSoundRequests().Length == 0, "Sound output receipts must retain consumption ordering through cold restore.");
+            ushort[] expected = enemy ? [16, 15] : [26, battle.LastHit!.Damage.Critical ? (ushort)27 : (ushort)18, 22];
+            Check(sounds.Select(sound => sound.Sound).SequenceEqual(expected) && (enemy || sounds[2].Channel == 3), $"Original attack ({enemy}) sound order or KO channel changed: {string.Join(',', sounds.Select(sound => sound.Sound))}.");
+            Check(sounds.Select(sound => sound.Sequence).SequenceEqual(Enumerable.Range(1, expected.Length).Select(sequence => (long)sequence)) && battle.DrainSoundRequests().Length == 0, "Sound output receipts must retain consumption ordering through cold restore.");
         }
     }
 
@@ -215,7 +216,9 @@ internal static class NativeBattleSoundTests
                     break;
                 }
             }
-            Check(started && cold && battle.Action is null && sounds.Select(sound => sound.Sound).SequenceEqual(expected), $"Original Limit {attack:X2} changed sound callback order after restore: {string.Join(',', sounds.Select(sound => sound.Sound))}.");
+            bool knockedOut = battle.Actors.Any(actor => actor.Actor.Slot >= 4 && (actor.Actor.Statuses & 1) != 0);
+            ushort[] expectedWithDeath = knockedOut ? [.. expected, 22] : expected;
+            Check(started && cold && battle.Action is null && sounds.Select(sound => sound.Sound).SequenceEqual(expectedWithDeath) && (!knockedOut || sounds[^1].Channel == 3), $"Original Limit {attack:X2} changed sound callback order or KO channel after restore: {string.Join(',', sounds.Select(sound => sound.Sound))}.");
         }
     }
 

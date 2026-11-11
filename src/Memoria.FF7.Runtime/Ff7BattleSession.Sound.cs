@@ -26,9 +26,13 @@ public sealed partial class Ff7BattleSession
         }
         Ff7BattleActorState previous = Actor(target);
         byte hurtIndex = command.CommandId == (byte)Ff7BattleCommand.Item ? (byte)0 : record?.HurtAction ?? 0;
+        if (target < 3)
+        {
+            ReplaceActorModel(ActorModelState(target) with { PresentedKnockedOut = (previous.Actor.Statuses & 1) != 0 });
+        }
         bool revived = (previous.Actor.Statuses & 1) != 0 && (receipt.Target.Statuses & 1) == 0;
         short modelAction = Ff7NativeBattleModelReaction.Select(target < 3, previous.Actor.HurtAction, hurtIndex, animations.ActorResources?.PlayerHurtActions, damageAction.Power, previous.Actor.Statuses, receipt.Damage.Missed, receipt.Damage.Damage, damageAction.TargetsMagicPoints, revived, (receipt.AddedStatuses & 1) != 0);
-        Ff7BattleImpactPresentation impact = ReadImpactPresentation(command, target, source, receipt.Damage, record) with { ModelAction = modelAction };
+        Ff7BattleImpactPresentation impact = ReadImpactPresentation(command, target, source, receipt.Damage, record) with { ModelAction = modelAction, PostActionKnockedOut = (receipt.Target.Statuses & 1) != 0 };
         Ff7BattleSoundState sounds = state.Sounds ?? Ff7BattleSoundState.Empty;
         state = state with { Sounds = sounds with { PreparedImpacts = [.. sounds.PreparedImpacts.Where(previous => previous.Target != target), impact] } };
     }
@@ -75,6 +79,7 @@ public sealed partial class Ff7BattleSession
             impact = ReadImpactPresentation(command, target, Actor(command.ActorSlot), damage, record);
         }
         state = state with { Sounds = sounds with { DueImpacts = [.. sounds.DueImpacts, impact] } };
+        AdmitImpactModel(impact);
     }
 
     private void AdvanceBattleSounds()
@@ -146,7 +151,7 @@ public sealed partial class Ff7BattleSession
         {
             AppendSounds(Ff7NativeBattleSound.Emit(state.Sounds ?? Ff7BattleSoundState.Empty, id, SoundMaskPan(after.Command.TargetMask)));
         }
-        if (before.Grenade is null && after.Grenade is not null)
+        if (!before.GrenadeStarted && after.GrenadeStarted)
         {
             AppendSounds(Ff7NativeBattleSound.Emit(state.Sounds ?? Ff7BattleSoundState.Empty, 20, Ff7NativeBattleSound.ActorPan(SoundScreenX(after.Command.ActorSlot))));
         }

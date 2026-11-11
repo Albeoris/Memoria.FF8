@@ -7,11 +7,13 @@ namespace Memoria.FF7.Runtime;
 public sealed record Ff7BattleGuestInvocation(long RequestId, int FormationId, long StartedAt, int ActorSlot, int TargetSlot)
 {
     public ushort GuestAbility { get; init; }
+    public byte? GuestCommand { get; init; }
 }
 public sealed record Ff7BattleGuestAttackTarget(int Slot, SceneBattleEnemy? Native, Ff7BattleAiActor Actor, Ff7BattlePlacement Placement, ushort CollisionRadius);
 public sealed record Ff7BattleGuestPhysicalHit(Ff7BattleDamageActor Source, Ff7BattleDamageAction Attack, ushort Elements)
 {
     public Ff7BattleGuestPreparedContact? PreparedContact { get; init; }
+    public Ff7BattleGuestItemEffect? ItemEffect { get; init; }
 }
 public sealed record Ff7BattleGuestPreparedContact(Ff7BattleGuestInvocation Invocation, Ff7BattleActionVitals SourceBefore, Ff7BattleActionVitals TargetBefore, Ff7BattleActionReceipt Receipt);
 public sealed record Ff7BattleGuestAttackUpdate(Ff7BattleGuestPhysicalHit? Hit, bool Completed);
@@ -106,18 +108,25 @@ public sealed partial class Ff7BattleSession
         IFf7BattleGuestAttack guest = RequireGuestAttack(command);
         Ff7BattleGuestInvocation invocation = GuestInvocation(command, Tick);
         Ff7BattleActorState target = Actor(invocation.TargetSlot);
-        if (!CanAct(Actor(command.ActorSlot)) || !IsAlive(target) || (target.Actor.Conditions & 8) == 0)
+        IFf7BattleGuestItems? items = command.CommandId == (byte)Ff7BattleCommand.Item ? guest as IFf7BattleGuestItems ?? throw new InvalidDataException("The guest item lost its origin inventory owner.") : null;
+        bool usable = items is null ? IsAlive(target) && (target.Actor.Conditions & 8) != 0 : GuestItemTarget(items, command.GuestAbility, target);
+        if (!CanAct(Actor(command.ActorSlot)) || !usable)
         {
+            items?.CancelItem(invocation.TargetSlot, command.GuestAbility);
             FinishTurn(command.ActorSlot);
             return true;
         }
         Ff7BattleGuestAttackTarget targetDescription = DescribeGuestTarget(invocation.TargetSlot);
-        if (!SupportsGuestAbility(guest, command.GuestAbility, targetDescription) || command.GuestAbility != 0 && !Ff7GuestBattleStatuses.CanCastMagic(Actor(command.ActorSlot).Actor.Statuses))
+        if (items is not null)
+        {
+            PrepareGuestItem(items, invocation, target);
+        }
+        else if (!SupportsGuestAbility(guest, command.GuestAbility, targetDescription) || command.GuestAbility != 0 && !Ff7GuestBattleStatuses.CanCastMagic(Actor(command.ActorSlot).Actor.Statuses))
         {
             FinishTurn(command.ActorSlot);
             return true;
         }
-        if (command.GuestAbility != 0)
+        else if (command.GuestAbility != 0)
         {
             IFf7BattleGuestMagic magic = (IFf7BattleGuestMagic)guest;
             Ff7BattleGuestPhysicalHit hit = magic.DescribeMagic(command.GuestAbility);
@@ -183,6 +192,11 @@ public sealed partial class Ff7BattleSession
     {
         Ff7BattleActorState source = Actor(command.ActorSlot);
         Ff7BattleActorState target = Actor(targetSlot);
+        if (command.CommandId == (byte)Ff7BattleCommand.Item)
+        {
+            PublishGuestItem(command, source, target, hit);
+            return;
+        }
         Ff7BattleDamageAction attack = hit.Attack with { Affinity = targetSlot >= 4 ? Ff7NativeBattleDamage.ResolveEnemyAffinity(Enemy(targetSlot), hit.Elements) : hit.Attack.Affinity };
         if (command.GuestAbility != 0)
         {
@@ -219,7 +233,7 @@ public sealed partial class Ff7BattleSession
     }
 
     private Ff7BattleGuestInvocation GuestInvocation(Ff7BattleQueuedCommand command, long startedAt)
-        => new(RequestId, Formation.FormationId, startedAt, command.ActorSlot, BitOperations.TrailingZeroCount(command.TargetMask)) { GuestAbility = command.GuestAbility };
+        => new(RequestId, Formation.FormationId, startedAt, command.ActorSlot, BitOperations.TrailingZeroCount(command.TargetMask)) { GuestAbility = command.GuestAbility, GuestCommand = command.CommandId == (byte)Ff7BattleCommand.Item ? command.CommandId : null };
 
     private static bool SupportsGuestAbility(IFf7BattleGuestAttack guest, ushort ability, Ff7BattleGuestAttackTarget target)
         => ability == 0 ? guest.Supports(target) : ability is 1 or 4 or 7 or 21 && (target.Actor.Statuses & ~Ff7GuestBattleStatuses.SupportedHost) == 0 && guest is IFf7BattleGuestMagic magic && magic.MagicStock(ability) > 0 && magic.SupportsMagic(ability, target);
@@ -237,9 +251,9 @@ public sealed partial class Ff7BattleSession
 
     public Vector3 GuestEffectTargetAnchor(int slot)
     {
-        if (slot is < 4 or > 9 || animations is null || !state.Actors.Any(actor => actor.Actor.Slot == slot))
+        if (slot is < 0 or 3 or > 9 || animations is null || !state.Actors.Any(actor => actor.Actor.Slot == slot))
         {
-            throw new InvalidDataException("Guest effect geometry requires a physical host enemy occurrence.");
+            throw new InvalidDataException("Guest effect geometry requires a physical host actor occurrence.");
         }
         return ImpactAnchor(slot);
     }

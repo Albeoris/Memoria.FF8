@@ -57,6 +57,17 @@ internal static class NativeBattleDamageTests
         Check(party[2] == new Ff7BattlePlayerStats(new(1, 24, 11, 7, 14, 0, 0, 19, 10, CriticalBonus: 2), new(0x11, 16, 99, CanBeBlinded: true), 0x23, 0x800), $"Original Tifa actor and weapon projection changed: {party[2]}.");
 
         IReadOnlyList<SceneFormation> formations = SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path));
+        using Ff7Session original = Ff7Session.NewGame(installation);
+        Ff7Progress progress = original.Progress with { Party = [0, 1, 255] };
+        Ff7BattleSession battle = new(formations[324], progress, kernel, materiaModifiers, 1);
+        Ff7BattleAiActor cloudVitals = battle.Actors.Single(row => row.Actor.Slot == 0).Actor;
+        Ff7BattleAiActor barretVitals = battle.Actors.Single(row => row.Actor.Slot == 1).Actor;
+        Check(cloudVitals is { HitPoints: 302, MaxHitPoints: 302, MagicPoints: 54, MaxMagicPoints: 56 } && barretVitals is { HitPoints: 222, MaxHitPoints: 222, MagicPoints: 15, MaxMagicPoints: 15 }, "Original battle entry must refresh and clamp party HP/MP from equipped base stats, without filling the adjusted MP cap.");
+        Ff7BattleSnapshot saved = battle.Capture();
+        saved.Actors[0] = saved.Actors[0] with { Actor = cloudVitals with { HitPoints = 201, MagicPoints = 45 } };
+        Ff7BattleSession cold = new(formations[324], progress, kernel, materiaModifiers, 1, snapshot: JsonSerializer.Deserialize<Ff7BattleSnapshot>(JsonSerializer.Serialize(saved)));
+        Check(cold.Actors.Single(row => row.Actor.Slot == 0).Actor is { HitPoints: 201, MaxHitPoints: 302, MagicPoints: 45, MaxMagicPoints: 56 }, "Cold battle restore must retain its recorded current and maximum vitals.");
+
         SceneBattleData opening = SceneBattleData.Read(formations[300]);
         Ff7BattleDamageActor mp = Ff7NativeBattleDamage.FromEnemy(opening.Enemies[0]);
         Ff7BattleDamageAction mpAttack = Ff7BattleDamageAction.FromAttack(opening.Attacks.Single(attack => attack.Id == 272).Data);

@@ -46,4 +46,17 @@ public sealed partial class Ff7BattleSession
     }
 
     private static Ff7BattleActorMotionState CopyActorMotion(Ff7BattleActorMotionState motion) => motion with { Slots = motion.Slots.ToArray(), ActorWrites = motion.ActorWrites.ToArray(), ActorSounds = motion.ActorSounds.ToArray() };
+
+    private void ValidateActorMotion(Ff7BattleSnapshot snapshot)
+    {
+        if (snapshot.ActorMotion is not { } motion)
+        {
+            return;
+        }
+        bool HasTarget(int slot) => snapshot.Actors.Any(actor => actor.Actor.Slot == slot);
+        if (animations?.ActorResources is null || motion.Slots is not { Length: Ff7BattleActorMotionEffects.Capacity } || motion.ActorWrites is null || motion.ActorSounds is null || motion.ActorWrites.Count > Ff7BattleActorMotionEffects.Capacity || motion.ActorSounds.Count > Ff7BattleActorMotionEffects.Capacity || motion.Slots.Any(callback => callback is not null && (callback.Kind != 1 || callback.Remaining is < -1 or > 14 || !HasTarget(callback.Target))) || motion.ActorWrites.Any(write => write is null || !HasTarget(write.Target) || write.Modifiers is { } modifiers && !ValidModelModifiers(modifiers)) || motion.ActorSounds.Any(sound => sound is null || !HasTarget(sound.Target) || sound.Channel != 3))
+        {
+            throw new InvalidDataException("FFVII saved actor-motion callbacks or receipts are invalid.");
+        }
+    }
 }

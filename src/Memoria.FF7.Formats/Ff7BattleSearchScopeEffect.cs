@@ -41,12 +41,16 @@ public static class Ff7BattleSearchScopeEffect
         }
         Ff7BattleBraverPoint from = Ff7BattleBraverPoint.At(source);
         Ff7BattleBraverPoint to = Ff7BattleBraverPoint.At(targetCenter);
-        Ff7BattleBraverPoint difference = Difference(from, to);
-        Ff7BattleBraverPoint forward = Normalize(difference.Position);
+        return new(targets, from, to, AimFromDirection(Difference(from, to)), initialScaleCounter);
+    }
+
+    internal static Ff7BattleSearchScopeBasis AimFromDirection(Ff7BattleBraverPoint direction)
+    {
+        Ff7BattleBraverPoint forward = Normalize(direction.Position);
         Ff7BattleBraverPoint right = Normalize(new(forward.Z, 0, -forward.X));
         Vector3 cross = Vector3.Cross(forward.Position / 4096, right.Position / 4096);
         Ff7BattleBraverPoint up = Normalize(new((int)((double)cross.X * 4096), (int)((double)cross.Y * 4096), (int)((double)cross.Z * 4096)));
-        return new(targets, from, to, new(right, up, forward), initialScaleCounter);
+        return new(right, up, forward);
     }
 
     public static Ff7BattleSearchScopeUpdate Advance(Ff7BattleSearchScopeState state)

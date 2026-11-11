@@ -72,19 +72,11 @@ public static class NativeBattleCureActorPackets
                 int otz = original.Quad ? sum >> 4 : Math.Clamp(unchecked(sum * 0x155) >> 12, 0, 65535);
                 int bucket = checked(tableBaseBucket + (otz >> 2));
                 NativeBattleModuleProjectedVertex[] projected = corners.Select(vertex => NativeBattleModuleProjection.Project45FE10(overlayCamera, vertex, projection)).ToArray();
-                if (WithinProjection(projected, texture))
+                if (ProjectOverlay(original.Quad, actual, projected, bucket, overlayRgb, texture, rejectOverlayBackfaces) is { } overlay)
                 {
-                    int facing = Nclip(projected);
-                    if (facing <= 0 && rejectOverlayBackfaces is null)
-                    {
-                        throw new NotSupportedException("Native8D7430 requires the retained contextWORD F4 for this projected backface.");
-                    }
-                    if (facing > 0 || rejectOverlayBackfaces != 1)
-                    {
-                        NativeBattleGeometryPrimitive overlay = Capture(Overlay(original.Quad, actual, projected, bucket, overlayRgb, texture), 1);
-                        result.Add(new(overlay, NativeBattleCurePacketBank.EffectPrimary, effectBytes));
-                        effectBytes = checked(effectBytes + overlay.Words.Length * 4);
-                    }
+                    overlay = Capture(overlay, 1);
+                    result.Add(new(overlay, NativeBattleCurePacketBank.EffectPrimary, effectBytes));
+                    effectBytes = checked(effectBytes + overlay.Words.Length * 4);
                 }
                 NativeBattleGeometryPrimitive body = Capture(Body(original.Quad, source.AsSpan(), actual, bucket, baseRgb), 0);
                 result.Add(new(body, NativeBattleCurePacketBank.Process, processBytes));
@@ -115,6 +107,32 @@ public static class NativeBattleCureActorPackets
         bone.Validate();
         int Row(int row) => NativeBattlePoseMatrices.RoundNative((float)(bone.Rotation[row * 3 + 2] / 4096d) * (double)vertex.Position.Z + (float)(bone.Rotation[row * 3 + 1] / 4096d) * (double)vertex.Position.Y + (float)(bone.Rotation[row * 3] / 4096d) * (double)vertex.Position.X);
         return new((short)Math.Clamp(unchecked(Row(0) + bone.X), short.MinValue, short.MaxValue), (short)Math.Clamp(unchecked(Row(1) + bone.Y), short.MinValue, short.MaxValue), (short)Math.Clamp(unchecked(Row(2) + bone.Z), short.MinValue, short.MaxValue));
+    }
+
+    public static NativeBattleGeometryPrimitive? ProjectTriangleOverlay8D7430(NativeBattleVector a, NativeBattleVector b, NativeBattleVector c, NativeBattleActionMatrix mainCamera, NativeBattleActionMatrix overlayCamera, NativeBattleCameraProjection projection, ushort? rejectOverlayBackfaces, int tableBaseBucket)
+    {
+        NativeBattleModuleProjectedVertex[] actual = [NativeBattleModuleProjection.Project45FE10(mainCamera, a, projection), NativeBattleModuleProjection.Project45FE10(mainCamera, b, projection), NativeBattleModuleProjection.Project45FE10(mainCamera, c, projection)];
+        if (Nclip(actual) <= 0)
+        {
+            return null;
+        }
+        int depth = Math.Clamp(unchecked(actual.Sum(vertex => vertex.Depth) * 0x155) >> 12, 0, 65535);
+        NativeBattleModuleProjectedVertex[] projected = [NativeBattleModuleProjection.Project45FE10(overlayCamera, a, projection), NativeBattleModuleProjection.Project45FE10(overlayCamera, b, projection), NativeBattleModuleProjection.Project45FE10(overlayCamera, c, projection)];
+        return ProjectOverlay(false, actual, projected, checked(tableBaseBucket + (depth >> 2)), 0x808080, TextureProjection8D7050(512, 384, 320, 241, 128, 128), rejectOverlayBackfaces);
+    }
+
+    private static NativeBattleGeometryPrimitive? ProjectOverlay(bool quad, IReadOnlyList<NativeBattleModuleProjectedVertex> actual, IReadOnlyList<NativeBattleModuleProjectedVertex> projected, int bucket, uint rgb, NativeBattleCureTextureProjection texture, ushort? rejectOverlayBackfaces)
+    {
+        if (!WithinProjection(projected, texture))
+        {
+            return null;
+        }
+        int facing = Nclip(projected);
+        if (facing <= 0 && rejectOverlayBackfaces is null)
+        {
+            throw new NotSupportedException("Native8D7430 requires the retained contextWORD F4 for this projected backface.");
+        }
+        return facing > 0 || rejectOverlayBackfaces != 1 ? Overlay(quad, actual, projected, bucket, rgb, texture) : null;
     }
 
     private static bool WithinProjection(IReadOnlyList<NativeBattleModuleProjectedVertex> vertices, NativeBattleCureTextureProjection texture)

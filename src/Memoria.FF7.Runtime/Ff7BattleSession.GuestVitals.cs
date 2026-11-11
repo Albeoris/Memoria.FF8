@@ -1,9 +1,11 @@
-﻿using Memoria.FF7.Formats;
+using Memoria.FF7.Formats;
 
 namespace Memoria.FF7.Runtime;
 
 public sealed record Ff7BattleGuestProjection(ushort MaximumHp, byte Level, byte Luck, ushort Defense, ushort MagicDefense)
 {
+    public byte? Dexterity { get; init; }
+
     internal void Validate()
     {
         if (MaximumHp is 0 or > 9999 || Level > 99 || Defense > 999 || MagicDefense > 999)
@@ -43,6 +45,31 @@ public sealed partial class Ff7BattleSession
         Ff7BattleAiActor current = actor.Actor with { HitPoints = Math.Min(actor.Actor.HitPoints, projection.MaximumHp), MaxHitPoints = projection.MaximumHp, Defense = projection.Defense, MagicDefense = projection.MagicDefense };
         Replace(actor with { Actor = current });
         state = state with { GuestProjection = projection };
+    }
+
+    public void BindGuestSpeed(byte initialDexterity)
+    {
+        Ff7BattleGuestVitalsBinding binding = state.GuestVitals ?? throw new InvalidOperationException("Guest speed requires its source identity binding.");
+        if (state.GuestBaseDexterity is byte saved && saved != initialDexterity)
+        {
+            throw new InvalidDataException("Guest speed disagrees with its original encounter projection.");
+        }
+        RefreshGuestSpeedDenominator(binding.HostSlot, initialDexterity);
+        state = state with { GuestBaseDexterity = initialDexterity };
+    }
+
+    private void RefreshGuestSpeedDenominator(int slot, byte guestDexterity)
+    {
+        Span<byte> dexterity = stackalloc byte[3];
+        int count = 0;
+        for (int index = 0; index < characters.Length; index++)
+        {
+            if (characters[index] is { } character)
+            {
+                dexterity[count++] = index == slot ? guestDexterity : character.NativeRecord[6];
+            }
+        }
+        speedDenominator = Ff7NativeAtb.SpeedDenominator(dexterity[..count]);
     }
 
     public void BindGuestVitals(Ff7BattleGuestVitalsBinding binding)
@@ -97,7 +124,7 @@ public sealed partial class Ff7BattleSession
     {
         if (snapshot.GuestVitals is not { } binding)
         {
-            if (snapshot.GuestProjection is not null)
+            if (snapshot.GuestProjection is not null || snapshot.GuestBaseDexterity is not null)
             {
                 throw new InvalidDataException("A current guest projection has no source identity binding.");
             }

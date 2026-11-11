@@ -20,12 +20,15 @@ public static partial class Ff7BattlePrimaryEffects
                 Ff7BattlePrimaryBraverDraw braver => braver with { State = braver.State with { Primary = braver.State.Primary is { } braverPrimary ? Copy(braverPrimary) : null } },
                 _ => draw
             }).ToArray(),
+            PositionedSounds = state.PositionedSounds.ToArray(),
+            WaveSparks = state.WaveSparks.ToArray(),
             ActorWrites = state.ActorWrites.ToArray(),
             ActorSounds = state.ActorSounds.ToArray(),
             BossDeathShakes = state.BossDeathShakes.ToArray(),
             SoundIds = state.SoundIds.ToArray(),
             Hitmarks = state.Hitmarks.ToArray(),
             TargetReactions = state.TargetReactions.ToArray(),
+            Bubbles = state.Bubbles with { Particles = state.Bubbles.Particles.ToArray() },
             SilkLines = state.SilkLines with { Slots = state.SilkLines.Slots.ToArray() }
         };
     }

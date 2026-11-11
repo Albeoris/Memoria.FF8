@@ -29,7 +29,7 @@ public static class Ff7NativeBattleModelReaction
         {
             return 5;
         }
-        if (!player || playerHurtIndex == 0 && playerHurtActions is null)
+        if (!player)
         {
             return hurtAction;
         }

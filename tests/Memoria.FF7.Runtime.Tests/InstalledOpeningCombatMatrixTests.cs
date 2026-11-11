@@ -36,6 +36,12 @@ internal static class InstalledOpeningCombatMatrixTests
                 _ => [0, 1, 2]
             };
             Ff7Progress progress = original.Progress with { Party = party };
+            if (id is >= 332 and < 392)
+            {
+                // The Reactor 5 route can restock in the Sector 7 item store.
+                Ff7InventorySlot[] inventory = Ff7NativeInventory.Acquire(progress.Inventory, 5 << 9);
+                progress = progress with { Inventory = Ff7NativeInventory.Acquire(inventory, 1 << 9 | 7) };
+            }
             try
             {
                 Fight(formation, progress, kernel, executable.NativeMateriaStatModifiers, animations, limits);
@@ -181,15 +187,23 @@ internal static class InstalledOpeningCombatMatrixTests
                     Ff7BattleSession battle = new(formation, progress, kernel, materiaModifiers, 1, snapshot: snapshot, animations: animations);
                     bool active = false;
                     bool restored = false;
-                    bool silkRestored = false;
+                    bool effectRestored = false;
                     try
                     {
                         for (int tick = 0; tick < 3500; tick++)
                         {
                             battle.Advance(waitForCommand: true);
                             active |= battle.Action is { Command: { } current } && current.ActorSlot == slot && (current.AttackId ?? current.Argument) == selector.AttackId;
-                            bool liveSilk = record.Data.AttackEffect == 0x02 && !silkRestored && battle.Action is { SilkStarted: true } && battle.PrimaryEffects?.Draws.Any(draw => draw is Ff7BattlePrimarySilkLineDraw) == true;
-                            if (active && ((!restored && battle.Action is { Applied: true }) || liveSilk))
+                            bool liveEffect = !effectRestored && battle.PrimaryEffects?.Draws.Any(draw => record.Data.AttackEffect switch
+                            {
+                                0x02 => draw is Ff7BattlePrimarySilkLineDraw,
+                                0x16 => draw is Ff7BattlePrimaryBeamGunMeshDraw,
+                                0x2B => draw is Ff7BattlePrimaryEnergyBallMeshDraw,
+                                0x2A => draw is Ff7BattlePrimaryWaveMeshDraw,
+                                0x4F => draw is Ff7BattlePrimaryBubbleSpriteDraw { Burst: false },
+                                _ => false
+                            }) == true;
+                            if (active && ((!restored && battle.Action is { Applied: true }) || liveEffect))
                             {
                                 Ff7BattleSnapshot saved = JsonSerializer.Deserialize<Ff7BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!;
                                 Ff7BattleSession cold = new(formation, progress, kernel, materiaModifiers, 1, snapshot: saved, animations: animations);
@@ -204,7 +218,7 @@ internal static class InstalledOpeningCombatMatrixTests
                                 }
                                 battle = cold;
                                 restored = true;
-                                silkRestored |= liveSilk;
+                                effectRestored |= liveEffect;
                             }
                             if (active && battle.Action is null)
                             {
@@ -216,7 +230,7 @@ internal static class InstalledOpeningCombatMatrixTests
                     {
                         throw new InvalidOperationException($"Enemy {enemy.Placement.EnemyId}, original action {selector.AttackId:X4}/{selector.ActionAnimation} in formation {formation.FormationId}.", exception);
                     }
-                    if (!active || !restored || battle.Action is not null || record.Data.AttackEffect == 0x02 && !silkRestored)
+                    if (!active || !restored || battle.Action is not null || record.Data.AttackEffect is 0x02 or 0x16 or 0x2A or 0x2B or 0x4F && !effectRestored)
                     {
                         throw new InvalidOperationException($"Enemy {enemy.Placement.EnemyId} original action {selector.AttackId:X4}/{selector.ActionAnimation} did not complete.");
                     }
@@ -301,8 +315,8 @@ internal static class InstalledOpeningCombatMatrixTests
                 IReadOnlyList<Ff7BattleCommandOption> commands = battle.Commands(slot);
                 Ff7BattleCommandOption selected = commands.FirstOrDefault(command => command.ValidTargets != 0 && command.Command == Ff7BattleCommand.Item && command.Argument == 7)
                     ?? commands.FirstOrDefault(command => command.ValidTargets != 0 && command.Command == Ff7BattleCommand.Item && command.Argument == 0 && battle.Actors.Any(ally => (command.ValidTargets & 1 << ally.Actor.Slot) != 0 && ally.Actor.HitPoints > 0 && ally.Actor.HitPoints * 2 < ally.Actor.MaxHitPoints))
-                    ?? commands.FirstOrDefault(command => command.ValidTargets != 0 && command.Command == Ff7BattleCommand.Limit)
                     ?? commands.FirstOrDefault(command => command.ValidTargets != 0 && command.Command == Ff7BattleCommand.Magic && command.Argument == 0x21)
+                    ?? commands.FirstOrDefault(command => command.ValidTargets != 0 && command.Command == Ff7BattleCommand.Limit)
                     ?? commands.FirstOrDefault(command => command.ValidTargets != 0 && command.Command == Ff7BattleCommand.Attack)
                     ?? commands.First(command => command.Command == Ff7BattleCommand.Defend);
                 Ff7BattleActorState target = battle.Actors.Where(actor => (selected.ValidTargets & 1 << actor.Actor.Slot) != 0).OrderByDescending(actor => (actor.Actor.Slot >= 4) == selected.DefaultsToEnemies).ThenBy(actor => actor.Actor.HitPoints).First();

@@ -28,6 +28,7 @@ public sealed record NativeBattleLifeInputs(NativeBattleActionPacketsState Packe
 {
     public Func<NativeBattleLifeFrame, int, NativeBattleLifeFrame>? ApplyContact { get; init; }
     public short CameraRoll { get; init; }
+    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeignTarget { get; init; }
 }
 public sealed record NativeBattleLifeStep(NativeBattleLifeFrame Frame, NativeCrtRandomState Random, ImmutableArray<int> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
 
@@ -161,12 +162,19 @@ public static partial class NativeBattleLifeController
             {
                 throw new InvalidDataException("Native Life target callback is not864BC0.");
             }
-            task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, Models(inputs), inputs.ReadPoseSource);
             int target = task.ReadByte(0x2D);
-            NativeBattleGraphicsModel model = inputs.ReadModel(target);
-            NativeBattlePoseSource source = inputs.ReadPoseSource(target);
-            NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native8DC870 requires the current target pose.");
-            task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, source.Sample(sequence.Pose ?? throw new NotSupportedException("Native Life target has no selected pose."), sequence.PoseFrame114 ?? throw new NotSupportedException("Native Life target has no decoded pose frame."), sequence.PoseFlags109));
+            if (inputs.ReadForeignTarget?.Invoke(target) is { } foreign)
+            {
+                task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, foreign);
+            }
+            else
+            {
+                task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, Models(inputs), inputs.ReadPoseSource);
+                NativeBattleGraphicsModel model = inputs.ReadModel(target);
+                NativeBattlePoseSource source = inputs.ReadPoseSource(target);
+                NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native8DC870 requires the current target pose.");
+                task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, source.Sample(sequence.Pose ?? throw new NotSupportedException("Native Life target has no selected pose."), sequence.PoseFrame114 ?? throw new NotSupportedException("Native Life target has no decoded pose frame."), sequence.PoseFlags109));
+            }
             switch (Phase(task))
             {
                 case 0:

@@ -16,8 +16,12 @@ public sealed partial class Ff7BattleSession
             {
                 0x02 when !action.SilkStarted => StartPrimarySilk(action),
                 0x13 when action.Rockets is null => StartPrimaryRocket(action),
+                0x16 when !action.BeamGunStarted => StartBeamGun(action),
                 0x15 when action.Smog is null => StartPrimarySmog(action),
+                0x2A when !action.WaveStarted => StartPrimaryWave(action),
+                0x2B when !action.EnergyBallStarted => StartPrimaryEnergyBall(action),
                 0x40 when action.SmokeShot is null => StartPrimarySmokeShot(action),
+                0x4F when !action.HellBubblesStarted => StartHellBubbles(action),
                 0x4B when action.SearchScope is null => StartSearchScope(action),
                 0x5A when action.Destroyed is null => StartPrimaryDestroyed(action),
                 _ => action
@@ -36,11 +40,32 @@ public sealed partial class Ff7BattleSession
         };
     }
 
+    private Ff7BattleActionState StartBeamGun(Ff7BattleActionState action)
+    {
+        Ff7BattleQueuedCommand command = action.Command;
+        Ff7BattlePrimaryState primary = Ff7BattlePrimaryEffects.ScheduleBeamGun(EnsurePrimaryEffects(), command.ActorSlot, command.TargetMask);
+        AppendSounds(Ff7NativeBattleSound.Emit(state.Sounds ?? Ff7BattleSoundState.Empty, 101, Ff7NativeBattleSound.ActorPan(SoundScreenX(command.ActorSlot))));
+        state = state with { PrimaryEffects = primary };
+        return action with { BeamGunStarted = true, PrimaryCallbacksRunning = true };
+    }
+
+    private Ff7BattleActionState StartHellBubbles(Ff7BattleActionState action)
+    {
+        Ff7BattleQueuedCommand command = action.Command;
+        Ff7BattlePrimaryState primary = Ff7BattlePrimaryEffects.ScheduleHellBubbles(EnsurePrimaryEffects(), command.ActorSlot, command.TargetMask);
+        AppendSounds(Ff7NativeBattleSound.Emit(state.Sounds ?? Ff7BattleSoundState.Empty, 287, Ff7NativeBattleSound.ActorPan(SoundScreenX(command.ActorSlot))));
+        state = state with { PrimaryEffects = primary };
+        return action with { HellBubblesStarted = true, PrimaryCallbacksRunning = true };
+    }
+
     private Ff7BattleActionState StartItemEffect(Ff7BattleActionState action)
     {
-        if (action.Command.Argument == 20 && action.Grenade is null)
+        if (action.Command.Argument == 20 && !action.GrenadeStarted)
         {
-            return action with { Grenade = Ff7BattleGrenadeEffect.Start(action.Command.TargetMask) };
+            ushort targets = action.Command.TargetMask;
+            int target = BitOperations.TrailingZeroCount(targets);
+            StartHitmark(target, 0x2C);
+            return ScheduleTargetReactions(action with { GrenadeStarted = true }, targets, 1);
         }
         Ff7BattleCureKind? kind = action.Command.Argument switch
         {
@@ -53,18 +78,28 @@ public sealed partial class Ff7BattleSession
         return kind is Ff7BattleCureKind item && action.Cure is null ? StartPrimaryCure(action, item) : action;
     }
 
-    private Ff7BattleActionState AdvanceEffects(Ff7BattleActionState action)
+    private void RestoreGrenadePresentation()
     {
-        Ff7BattleActionState beforeEffects = action;
-        ushort impacts = 0;
-        if (action.Grenade is { Completed: false } grenade)
+        if (state.Action is not { Grenade: { } legacy } action)
         {
-            Ff7BattleGrenadeUpdate update = Ff7BattleGrenadeEffect.Advance(grenade, ImpactAnchor, CollisionRadius);
-            action = action with { Grenade = update.State };
-            impacts |= update.ImpactTargets;
+            return;
         }
-        EffectCallbackSounds(beforeEffects, action);
-        return impacts == 0 ? action : PublishTargetReactions(action, Enumerable.Range(0, Ff7NativeAtb.SlotCount).Where(slot => (impacts & (1 << slot)) != 0));
+        int target = BitOperations.TrailingZeroCount(action.Command.TargetMask);
+        if (legacy.Frame < 0)
+        {
+            StartHitmark(target, 0x2C);
+        }
+        else if (legacy.Frame < 8)
+        {
+            Ff7BattleHitmarkState hitmark = new(target, animations!.Hitmarks[0x2C], legacy.Frame, new(legacy.X, legacy.Y, legacy.Z), legacy.CollisionRadius);
+            state = state with { SecondaryEffects = Ff7BattleSecondaryEffects.ImportHitmark(EnsureSecondaryEffects(), hitmark) };
+        }
+        if (legacy.Targets != 0)
+        {
+            Ff7BattlePrimaryTargetReaction reaction = new(legacy.Targets, 1) { Age = legacy.Frame < 0 ? 0 : 1 };
+            state = state with { PrimaryEffects = Ff7BattlePrimaryEffects.ImportTargetReaction(EnsurePrimaryEffects(), reaction) };
+        }
+        state = state with { Action = action with { Grenade = null, GrenadeStarted = true } };
     }
 
     private Vector3 ImpactAnchor(int slot) => JointPoint(slot, 0);

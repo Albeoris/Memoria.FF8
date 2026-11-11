@@ -121,6 +121,7 @@ public sealed partial class Ff7BattleSession
         {
             AppendSounds(Ff7NativeBattleSound.Emit(state.Sounds ?? Ff7BattleSoundState.Empty, sound, Ff7NativeBattleSound.ActorPan(SoundScreenX(state.SoundAttacker))));
         }
+        ApplyPrimaryEffectReceipts(primary);
         if (state.Action is not { Applied: true, Command.GuestAttack: false } action)
         {
             return;
@@ -179,7 +180,6 @@ public sealed partial class Ff7BattleSession
         EffectCallbackSounds(before, action);
         action = PublishTargetReactions(action, primary.TargetReactions.Select(reaction => reaction.Target));
         state = state with { Action = action };
-        action = AdvanceEffects(action);
         action = action with { PrimaryCallbacksRunning = primary.HasOwner(0) };
         FinishActionPresentation(action);
     }
@@ -288,7 +288,7 @@ public sealed partial class Ff7BattleSession
         {
             return;
         }
-        if (primary.Slots is not { Count: Ff7BattlePrimaryEffects.Capacity } || primary.Draws is null || primary.SoundIds is null || primary.Hitmarks is null || primary.TargetReactions is null || primary.Tick < -1 || primary.Slots.Any(callback => callback is { Age: < 0 } || callback is { Owner: < -1 }) || primary.Draws.Any(draw => draw is null || draw.Slot is < 0 or >= Ff7BattlePrimaryEffects.Capacity) || primary.SilkLines?.Slots is not { Count: 200 } || primary.SilkLines.Direction is not (-1 or 1) || primary.SilkLines.Slots.Any(line => line is { Age: < 0 or > 9 }))
+        if (primary.Slots is not { Count: Ff7BattlePrimaryEffects.Capacity } || primary.Draws is null || primary.SoundIds is null || primary.Hitmarks is null || primary.TargetReactions is null || primary.Bubbles?.Particles is not { Count: 200 } || primary.Bubbles.Particles.Any(particle => particle is { Age: < 0 or > 24 }) || primary.WaveGlobals is null || primary.EnergyBallGlobals is null || primary.WaveSparks is null || primary.PositionedSounds is null || primary.WaveSparks.Count > Ff7BattleSecondaryEffects.Capacity || primary.PositionedSounds.Any(cue => cue is null || cue.Actor != -1 && snapshot.Actors.All(actor => actor.Actor.Slot != cue.Actor) || cue.FallbackPan > 127 || cue.Channel is < 1 or > 5) || primary.Tick < -1 || primary.Slots.Any(callback => callback is { Age: < 0 } || callback is { Owner: < -1 }) || primary.Draws.Any(draw => draw is null || draw.Slot is < 0 or >= Ff7BattlePrimaryEffects.Capacity) || primary.SilkLines?.Slots is not { Count: 200 } || primary.SilkLines.Direction is not (-1 or 1) || primary.SilkLines.Slots.Any(line => line is { Age: < 0 or > 9 }))
         {
             throw new InvalidDataException("FFVII primary presentation has invalid native slots or callback state.");
         }

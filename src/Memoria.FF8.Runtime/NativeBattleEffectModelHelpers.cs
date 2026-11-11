@@ -1,6 +1,7 @@
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleEffectLocalBounds(NativeBattleVector Minimum, NativeBattleVector Maximum);
+public sealed record NativeBattleEffectActorGeometry(NativeBattleVector Anchor240, NativeBattleVector Anchor241, short GroundY, NativeBattleEffectLocalBounds LocalBounds);
 
 /// <summary>The shared8DC610/8DC740 anchors and8DC870 local posed-skeleton bounds.</summary>
 public static class NativeBattleEffectModelHelpers
@@ -8,6 +9,11 @@ public static class NativeBattleEffectModelHelpers
     public static NativeBattleModulePoolTask UpdateTarget8DC610(NativeBattleModulePoolTask task, IReadOnlyList<NativeBattleGraphicsModel> models, Func<int, NativeBattlePoseSource> readSource, Action<NativeBattleBoneAnchorProducer>? observeAnchor = null)
     {
         return WriteAnchors(task, models, task.ReadByte(0x2D), readSource, observeAnchor);
+    }
+
+    public static NativeBattleModulePoolTask UpdateTarget8DC610(NativeBattleModulePoolTask task, NativeBattleEffectActorGeometry geometry)
+    {
+        return WriteBounds(WriteAnchors(task, geometry.Anchor240, geometry.Anchor241, geometry.GroundY), geometry.LocalBounds);
     }
 
     public static NativeBattleModulePoolTask UpdateCaster8DC740(NativeBattleModulePoolTask task, NativeBattleEffectParameters parameters, IReadOnlyList<NativeBattleGraphicsModel> models, Func<int, NativeBattlePoseSource> readSource, Action<NativeBattleBoneAnchorProducer>? observeAnchor = null)
@@ -48,7 +54,7 @@ public static class NativeBattleEffectModelHelpers
         NativeBattleVector first = ReadAnchor(240);
         NativeBattleVector second = ReadAnchor(241);
         short angle = (model.Transform ?? throw new NotSupportedException("Native8DC610/740 requires modelWORD36.")).Angle36;
-        return task.WriteWord(0x30, unchecked((ushort)second.X)).WriteWord(0x32, unchecked((ushort)angle)).WriteWord(0x34, unchecked((ushort)second.Z)).WriteWord(0x38, unchecked((ushort)((first.X + second.X) / 2))).WriteWord(0x3A, unchecked((ushort)((first.Y + second.Y) / 2))).WriteWord(0x3C, unchecked((ushort)((first.Z + second.Z) / 2))).WriteWord(0x40, unchecked((ushort)first.X)).WriteWord(0x42, unchecked((ushort)first.Y)).WriteWord(0x44, unchecked((ushort)first.Z));
+        return WriteAnchors(task, first, second, angle);
 
         NativeBattleVector ReadAnchor(byte selector)
         {
@@ -59,6 +65,11 @@ public static class NativeBattleEffectModelHelpers
             }
             return result;
         }
+    }
+
+    private static NativeBattleModulePoolTask WriteAnchors(NativeBattleModulePoolTask task, NativeBattleVector first, NativeBattleVector second, short angle)
+    {
+        return task.WriteWord(0x30, unchecked((ushort)second.X)).WriteWord(0x32, unchecked((ushort)angle)).WriteWord(0x34, unchecked((ushort)second.Z)).WriteWord(0x38, unchecked((ushort)((first.X + second.X) / 2))).WriteWord(0x3A, unchecked((ushort)((first.Y + second.Y) / 2))).WriteWord(0x3C, unchecked((ushort)((first.Z + second.Z) / 2))).WriteWord(0x40, unchecked((ushort)first.X)).WriteWord(0x42, unchecked((ushort)first.Y)).WriteWord(0x44, unchecked((ushort)first.Z));
     }
 }
 

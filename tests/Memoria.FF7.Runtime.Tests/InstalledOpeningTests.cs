@@ -191,7 +191,7 @@ internal static class InstalledOpeningTests
         Equal(true, original.Host.HasUnfinishedBattle);
         Equal(false, original.CanSave);
         long fieldTick = original.Machine.Capture().Tick;
-        int startHp = original.Progress.Characters[0].HitPoints;
+        uint startHp = battle.Actors.Single(actor => actor.Actor.Slot == 0).Actor.HitPoints;
         for (int tick = 0; tick < 1000 && battle.LastHit is null; tick++)
         {
             original.AdvanceTick();
@@ -202,7 +202,7 @@ internal static class InstalledOpeningTests
         Equal((ushort)273, firstHit.AttackId);
         Equal(false, firstHit.Damage.Missed);
         Equal(7, firstHit.Damage.Damage);
-        Equal((uint)(startHp - firstHit.Damage.Damage), battle.Actors[0].Actor.HitPoints);
+        Equal(startHp - (uint)firstHit.Damage.Damage, battle.Actors[0].Actor.HitPoints);
         Equal(fieldTick, original.Machine.Capture().Tick);
         string saved = JsonSerializer.Serialize(original.Capture());
         using Ff7Session cold = Ff7Session.Restore(installation, JsonSerializer.Deserialize<Ff7SessionSave>(saved)!);

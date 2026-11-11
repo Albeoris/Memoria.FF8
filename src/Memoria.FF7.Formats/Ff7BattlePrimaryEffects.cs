@@ -5,6 +5,17 @@ namespace Memoria.FF7.Formats;
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "Callback")]
 [JsonDerivedType(typeof(Ff7BattlePrimaryTargetReaction), "TargetReaction")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryActionTitle), "ActionTitle")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBeamGunController), "BeamGunController")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBeamGunFlash), "BeamGunFlash")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBeamGunShot), "BeamGunShot")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBeamGunBurst), "BeamGunBurst")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBubbleGroup), "BubbleGroup")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBubbleController), "BubbleController")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBubbleStream), "BubbleStream")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBubbleCloud), "BubbleCloud")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBubbleBurst), "BubbleBurst")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBubbleRibbon), "BubbleRibbon")]
 [JsonDerivedType(typeof(Ff7BattlePrimaryStageFade), "StageFade")]
 [JsonDerivedType(typeof(Ff7BattlePrimaryScopeController), "ScopeController")]
 [JsonDerivedType(typeof(Ff7BattlePrimaryScopeEmitter), "ScopeEmitter")]
@@ -46,6 +57,21 @@ namespace Memoria.FF7.Formats;
 [JsonDerivedType(typeof(Ff7BattlePrimaryRocketController), "RocketController")]
 [JsonDerivedType(typeof(Ff7BattlePrimaryRocketMissile), "RocketMissile")]
 [JsonDerivedType(typeof(Ff7BattlePrimaryRocketExplosion), "RocketExplosion")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryWaveController), "WaveController")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryWaveOptionalFlash), "WaveOptionalFlash")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryWaveBeam), "WaveBeam")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryWaveOrb), "WaveOrb")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryWaveCenter), "WaveCenter")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryWaveRing), "WaveRing")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryWaveExplosion), "WaveExplosion")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryWaveFragment), "WaveFragment")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryEnergyBallController), "EnergyBallController")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryEnergyBallSourceLight), "EnergyBallSourceLight")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryEnergyBallCharge), "EnergyBallCharge")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryEnergyBallRing), "EnergyBallRing")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryEnergyBallArc), "EnergyBallArc")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryEnergyBallOrb), "EnergyBallOrb")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryEnergyBallBlast), "EnergyBallBlast")]
 public abstract record Ff7BattlePrimaryCallback
 {
     public int Owner { get; init; }
@@ -58,6 +84,11 @@ public sealed record Ff7BattlePrimaryScopeEmitter(Ff7BattleBraverPoint Source, F
 public sealed record Ff7BattlePrimaryScopeSprite(Ff7BattleBraverPoint Position, int Stage = 0) : Ff7BattlePrimaryCallback;
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "Packet")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBeamGunMeshDraw), "BeamGunMesh")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBeamGunSpriteDraw), "BeamGunSprite")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBubbleSpriteDraw), "BubbleSprite")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBubbleRibbonDraw), "BubbleRibbon")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryBubbleCloudDraw), "BubbleCloud")]
 [JsonDerivedType(typeof(Ff7BattlePrimaryScopeMeshDraw), "ScopeMesh")]
 [JsonDerivedType(typeof(Ff7BattlePrimaryScopeSpriteDraw), "ScopeSprite")]
 [JsonDerivedType(typeof(Ff7BattlePrimarySilkLineDraw), "SilkLine")]
@@ -76,6 +107,10 @@ public sealed record Ff7BattlePrimaryScopeSprite(Ff7BattleBraverPoint Position, 
 [JsonDerivedType(typeof(Ff7BattlePrimarySmogSpriteDraw), "SmogSprite")]
 [JsonDerivedType(typeof(Ff7BattlePrimarySmogCloudDraw), "SmogCloud")]
 [JsonDerivedType(typeof(Ff7BattlePrimaryRocketDraw), "Rocket")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryWaveMeshDraw), "WaveMesh")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryWaveSpriteDraw), "WaveSprite")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryEnergyBallMeshDraw), "EnergyBallMesh")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryEnergyBallSpriteDraw), "EnergyBallSprite")]
 public abstract record Ff7BattlePrimaryDraw
 {
     public int Slot { get; init; }
@@ -96,9 +131,17 @@ public sealed record Ff7BattlePrimaryState
     public IReadOnlyList<ushort> SoundIds { get; init; } = [];
     public IReadOnlyList<Ff7BattlePrimaryHitmark> Hitmarks { get; init; } = [];
     public IReadOnlyList<Ff7BattlePrimaryReactionReceipt> TargetReactions { get; init; } = [];
+    public Ff7BattleSearchScopeBasis? BeamGunBasis { get; init; }
+    public Ff7BattleBubblePool Bubbles { get; init; } = new();
+    public Ff7BattleWaveGlobals WaveGlobals { get; init; } = new();
+    public Ff7BattleEnergyBallGlobals EnergyBallGlobals { get; init; } = new();
+    public IReadOnlyList<Ff7BattlePrimaryPositionedSound> PositionedSounds { get; init; } = [];
+    public IReadOnlyList<Ff7BattleBraverPoint> WaveSparks { get; init; } = [];
+    public short CameraFocusYDelta { get; init; }
     public IReadOnlyList<Ff7BattleActorModelWrite> ActorWrites { get; init; } = [];
     public IReadOnlyList<Ff7BattleActorModelSound> ActorSounds { get; init; } = [];
     public IReadOnlyList<Ff7BattleBossDeathShakeRequest> BossDeathShakes { get; init; } = [];
+    public Ff7BattleActionTitle? ActionTitle { get; init; }
     public ushort ImpactTargets { get; init; }
     public int Tick { get; init; } = -1;
     public short SearchScopeCounter { get; init; }
@@ -236,6 +279,37 @@ public static partial class Ff7BattlePrimaryEffects
             case Ff7BattlePrimaryBraverTrail:
             case Ff7BattlePrimaryBraverImpact:
                 return ExecuteBraver(callback, pass);
+            case Ff7BattlePrimaryEnergyBallController:
+            case Ff7BattlePrimaryEnergyBallSourceLight:
+            case Ff7BattlePrimaryEnergyBallCharge:
+            case Ff7BattlePrimaryEnergyBallRing:
+            case Ff7BattlePrimaryEnergyBallArc:
+            case Ff7BattlePrimaryEnergyBallOrb:
+            case Ff7BattlePrimaryEnergyBallBlast:
+                return ExecuteEnergyBall(callback, pass, ref pass.EnergyBallGlobals);
+            case Ff7BattlePrimaryWaveController:
+            case Ff7BattlePrimaryWaveOptionalFlash:
+            case Ff7BattlePrimaryWaveBeam:
+            case Ff7BattlePrimaryWaveOrb:
+            case Ff7BattlePrimaryWaveCenter:
+            case Ff7BattlePrimaryWaveRing:
+            case Ff7BattlePrimaryWaveExplosion:
+            case Ff7BattlePrimaryWaveFragment:
+                return ExecuteWave(callback, pass, pass.Wave);
+            case Ff7BattlePrimaryBeamGunController:
+            case Ff7BattlePrimaryBeamGunFlash:
+            case Ff7BattlePrimaryBeamGunShot:
+            case Ff7BattlePrimaryBeamGunBurst:
+                return ExecuteBeamGun(callback, pass);
+            case Ff7BattlePrimaryBubbleGroup:
+            case Ff7BattlePrimaryBubbleController:
+            case Ff7BattlePrimaryBubbleStream:
+            case Ff7BattlePrimaryBubbleCloud:
+            case Ff7BattlePrimaryBubbleBurst:
+            case Ff7BattlePrimaryBubbleRibbon:
+                return ExecuteHellBubbles(callback, pass);
+            case Ff7BattlePrimaryActionTitle title:
+                return ExecuteActionTitle(title, pass);
             case Ff7BattlePrimaryTargetReaction reaction:
                 return ExecuteTargetReaction(reaction, pass);
             case Ff7BattlePrimaryStageFade fade:
@@ -334,6 +408,13 @@ public static partial class Ff7BattlePrimaryEffects
         public readonly Ff7BattlePrimaryContext? Context;
         public int Cursor;
         public int CurrentOwner;
+        public Ff7BattleActionTitle? ActionTitle;
+        public Ff7BattleBubblePool Bubbles;
+        public Ff7BattleSearchScopeBasis? BeamGunBasis;
+        public readonly WavePass Wave;
+        public Ff7BattleEnergyBallGlobals EnergyBallGlobals;
+        public readonly List<Ff7BattlePrimaryPositionedSound> PositionedSounds = [];
+        public short CameraFocusYDelta;
         public ushort ImpactTargets;
         public short SearchScopeCounter;
         public byte StageRed;
@@ -359,6 +440,10 @@ public static partial class Ff7BattlePrimaryEffects
             StageBlue = state.StageBlue;
             StageTransparency = state.StageTransparency;
             SilkLines = state.SilkLines;
+            Wave = new(state.WaveGlobals);
+            EnergyBallGlobals = state.EnergyBallGlobals;
+            Bubbles = state.Bubbles;
+            BeamGunBasis = state.BeamGunBasis;
         }
 
         public void Allocate(Ff7BattlePrimaryCallback callback)
@@ -408,7 +493,7 @@ public static partial class Ff7BattlePrimaryEffects
 
         public Ff7BattlePrimaryState Finish(int tick, bool preserveReceipts = false)
         {
-            return new() { Slots = Slots, Tick = tick, Draws = preserveReceipts ? [.. previous.Draws, .. Draws] : Draws, SoundIds = preserveReceipts ? [.. previous.SoundIds, .. SoundIds] : SoundIds, Hitmarks = preserveReceipts ? [.. previous.Hitmarks, .. Hitmarks] : Hitmarks, TargetReactions = preserveReceipts ? [.. previous.TargetReactions, .. TargetReactions] : TargetReactions, ImpactTargets = preserveReceipts ? previous.ImpactTargets : ImpactTargets, SearchScopeCounter = SearchScopeCounter, StageRed = StageRed, StageGreen = StageGreen, StageBlue = StageBlue, StageTransparency = StageTransparency, SilkLines = SilkLines, ActorWrites = preserveReceipts ? [.. previous.ActorWrites, .. ActorWrites] : ActorWrites, ActorSounds = preserveReceipts ? [.. previous.ActorSounds, .. ActorSounds] : ActorSounds, BossDeathShakes = preserveReceipts ? [.. previous.BossDeathShakes, .. BossDeathShakes] : BossDeathShakes };
+            return new() { Slots = Slots, BeamGunBasis = BeamGunBasis, Bubbles = Bubbles, WaveGlobals = Wave.Globals, EnergyBallGlobals = EnergyBallGlobals, PositionedSounds = preserveReceipts ? [.. previous.PositionedSounds, .. PositionedSounds] : PositionedSounds, WaveSparks = preserveReceipts ? [.. previous.WaveSparks, .. Wave.Sparks] : Wave.Sparks, CameraFocusYDelta = preserveReceipts ? previous.CameraFocusYDelta : CameraFocusYDelta, Tick = tick, Draws = preserveReceipts ? [.. previous.Draws, .. Draws] : Draws, SoundIds = preserveReceipts ? [.. previous.SoundIds, .. SoundIds] : SoundIds, Hitmarks = preserveReceipts ? [.. previous.Hitmarks, .. Hitmarks] : Hitmarks, TargetReactions = preserveReceipts ? [.. previous.TargetReactions, .. TargetReactions] : TargetReactions, ActionTitle = ActionTitle ?? (preserveReceipts ? previous.ActionTitle : null), ImpactTargets = preserveReceipts ? previous.ImpactTargets : ImpactTargets, SearchScopeCounter = SearchScopeCounter, StageRed = StageRed, StageGreen = StageGreen, StageBlue = StageBlue, StageTransparency = StageTransparency, SilkLines = SilkLines, ActorWrites = preserveReceipts ? [.. previous.ActorWrites, .. ActorWrites] : ActorWrites, ActorSounds = preserveReceipts ? [.. previous.ActorSounds, .. ActorSounds] : ActorSounds, BossDeathShakes = preserveReceipts ? [.. previous.BossDeathShakes, .. BossDeathShakes] : BossDeathShakes };
         }
     }
 }

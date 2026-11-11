@@ -145,6 +145,24 @@ public static class Ff7NativeBattleActionResolver
         return new(source, next, damage, next.Statuses & ~target.Statuses, target.Statuses & ~next.Statuses);
     }
 
+    internal static Ff7BattleActionReceipt ApplyGuestItem(Ff7BattleActionVitals source, Ff7BattleActionVitals target, Ff7BattleGuestItemEffect effect, Ff7BattleDamageResult? prepared = null)
+    {
+        if (effect.ReviveDivisor is not (0 or 4 or 8) || (effect.RemoveStatuses & ~Ff7GuestBattleStatuses.SupportedHost) != 0 || (effect.RemoveStatuses & Death) != 0)
+        {
+            throw new NotSupportedException("Guest recovery requires an admitted original item effect.");
+        }
+        bool revive = effect.ReviveDivisor != 0;
+        bool dead = target.Hp == 0 || (target.Statuses & Death) != 0;
+        Ff7BattleDamageResult damage = prepared ?? new(dead != revive, false, -(revive ? Math.Max(1, (int)target.MaxHp / effect.ReviveDivisor) : effect.HitPoints));
+        if (damage.Missed || dead != revive)
+        {
+            return new(source, target, new(true, false, 0), 0, 0);
+        }
+        uint statuses = target.Statuses & ~(effect.RemoveStatuses | (revive ? Death : 0u));
+        Ff7BattleActionVitals next = ApplyDamage(target with { Statuses = statuses }, damage.Damage, false);
+        return new(source, next, damage, next.Statuses & ~target.Statuses, target.Statuses & ~next.Statuses);
+    }
+
     private static bool RollStatus(Ff7BattleAttack record, Ff7BattleDamageAction action, Ff7BattleRng random)
     {
         int threshold = (record.StatusChange & 0x3F) * 4;

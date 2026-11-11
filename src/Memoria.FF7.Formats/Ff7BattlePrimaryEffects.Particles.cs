@@ -11,7 +11,10 @@ public enum Ff7BattlePrimaryFamily
     Ice,
     SmokeShot,
     Smog,
-    Rocket
+    Rocket,
+    Wave,
+    EnergyBall,
+    BeamGun
 }
 
 public sealed record Ff7BattlePrimaryTargetGroup(Ff7BattlePrimaryFamily Family, ushort Targets, int Step, Ff7BattleCureKind CureKind = Ff7BattleCureKind.Cure, int NextTarget = 0, int Source = 0) : Ff7BattlePrimaryCallback;
@@ -91,6 +94,15 @@ public static partial class Ff7BattlePrimaryEffects
                             break;
                         case Ff7BattlePrimaryFamily.Fire:
                             pass.Allocate(new Ff7BattlePrimaryFireController(next, context.CollisionRadius(next)) { Owner = group.Owner });
+                            break;
+                        case Ff7BattlePrimaryFamily.EnergyBall:
+                            InitializeEnergyBallTarget(group.Source, next, group.Owner, pass, ref pass.EnergyBallGlobals);
+                            break;
+                        case Ff7BattlePrimaryFamily.BeamGun:
+                            InitializeBeamGunTarget(group, next, pass, context);
+                            break;
+                        case Ff7BattlePrimaryFamily.Wave:
+                            InitializeWaveTarget(group.Source, next, group.Owner, pass, pass.Wave);
                             break;
                         case Ff7BattlePrimaryFamily.Rocket:
                             Func<int, int, Vector3> rocketJoint = context.JointPoint ?? throw new InvalidOperationException("FFVII rocket requires original actor joint selectors.");

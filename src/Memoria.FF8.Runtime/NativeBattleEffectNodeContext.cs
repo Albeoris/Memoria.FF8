@@ -7,7 +7,7 @@ public static class NativeBattleEffectNodeContext
 {
     private const int Context = 0x34;
 
-    public static NativeBattleModulePoolTask Initialize(NativeBattleModulePoolTask task, NativeBattleModulePoolTask root, NativeBattleEffectParameters parameters, NativeBattleActionPacketsState packets, Func<int, NativeBattleGraphicsModel> readModel, Func<int, NativeBattlePoseSource> readPoseSource, uint executableAddress, bool singleSelectedTarget = false, NativeBattleEffectNodeDogOrigins? dogOrigins = null, Action<int, byte>? observeBone = null)
+    public static NativeBattleModulePoolTask Initialize(NativeBattleModulePoolTask task, NativeBattleModulePoolTask root, NativeBattleEffectParameters parameters, NativeBattleActionPacketsState packets, Func<int, NativeBattleGraphicsModel> readModel, Func<int, NativeBattlePoseSource> readPoseSource, uint executableAddress, bool singleSelectedTarget = false, NativeBattleEffectNodeDogOrigins? dogOrigins = null, Action<int, byte>? observeBone = null, Func<int, byte, NativeBattleVector?>? readForeignBone = null)
     {
         WriteWord(0x22, task.ReadWord(0x29A));
         WriteWord(0x24, task.ReadWord(0x29C));
@@ -121,7 +121,7 @@ public static class NativeBattleEffectNodeContext
                 return target ? dogOrigins!.TargetOrigin : dogOrigins!.ActorOrigin;
             }
             observeBone?.Invoke(index, selector);
-            return NativeBattlePoseMatrices.ReadBone(readModel(index), readPoseSource(index), selector, 0);
+            return readForeignBone?.Invoke(index, selector) ?? NativeBattlePoseMatrices.ReadBone(readModel(index), readPoseSource(index), selector, 0);
         }
         uint Read(int offset) => task.ReadDword(Context + offset);
         ushort ReadWord(int offset) => task.ReadWord(Context + offset);
