@@ -13,6 +13,15 @@ public sealed record Ff7BattleGuestLimitState(int Contacts = 0, bool CounterPend
 
 public sealed partial class Ff7BattleSession
 {
+    private void ObserveGuestLimitReady(Ff7BattleActorState source)
+    {
+        if (state.GuestLimitReadyAt is null && IsGuestVitalsSlot(source.Actor.Slot) && CanAct(source) && guestAttack is IFf7BattleGuestLimit limit)
+        {
+            limit.ObserveLimitReady(Tick, source.Actor);
+            state = state with { GuestLimitReadyAt = Tick };
+        }
+    }
+
     public bool SubmitGuestLimit(int slot, int targetSlot)
     {
         if (Outcome != Ff7BattleOutcome.Fighting || guestAttack is not IFf7BattleGuestLimit { LimitReady: true } limit || guestAttack.ActorSlot != slot || ReadyPlayer != slot || !CanAct(Actor(slot)) || !state.Actors.Any(actor => actor.Actor.Slot == targetSlot && GuestLimitTarget(limit, actor)))

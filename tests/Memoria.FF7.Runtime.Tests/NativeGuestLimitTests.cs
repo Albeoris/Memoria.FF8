@@ -25,12 +25,19 @@ internal static class NativeGuestLimitTests
         Guid id = Guid.NewGuid();
         initial.BindGuestVitals(new(id, new('A', 64), 0, 0, 0, 0, 486, 486, 6, 14, 24, 17));
         Ff7BattleSnapshot state = initial.Capture();
-        state.Actors[0] = state.Actors[0] with { Gauge = ushort.MaxValue - 1 };
+        Ff7BattleActorState sleeping = state.Actors[0];
+        state.Actors[0] = sleeping with { Gauge = ushort.MaxValue - 1, Actor = sleeping.Actor with { Statuses = Ff7NativeBattleActionResolver.Sleep }, Timers = new(0, 1, 0) };
         Ff7BattleSession battle = Create(state);
         LimitProbe source = new(id);
         battle.BindGuestAttack(source);
         battle.Advance();
+        Check(source.ReadyCalls == 0 && battle.ReadyPlayer is null, "A sleeping guest must not roll Crisis at the gauge threshold.");
+        for (int tick = 0; tick < 100 && battle.ReadyPlayer is null; tick++)
+        {
+            battle.Advance();
+        }
         Check(source.ReadyCalls == 1 && battle.ReadyPlayer == 0, "The native guest Limit must get one ready admission.");
+        battle.Advance();
         Check(battle.Commands(0).Count(command => command is { Command: Ff7BattleCommand.Limit, Argument: 0, ValidTargets: not 0 }) == 1 && source.ReadyCalls == 1, "Reading the menu consumed or duplicated Limit admission.");
         Check(battle.Submit(0, Ff7BattleCommand.Limit, 0, 0x10), "The host rejected a source-ready Limit.");
         int previous = 0;

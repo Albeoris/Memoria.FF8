@@ -55,6 +55,8 @@ public sealed record Ff7BattleSnapshot(long RequestId, int FormationId, byte Lay
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public Ff7BattleGuestProjection? GuestProjection { get; init; }
     public byte? GuestBaseDexterity { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public long? GuestLimitReadyAt { get; init; }
     public Ff7BattleSoundState? Sounds { get; init; }
     public Ff7BattleSoundReceipt[] SoundRequests { get; init; } = [];
     public short[]? SoundProjectedX { get; init; }
@@ -357,6 +359,7 @@ public sealed partial class Ff7BattleSession
             }
             if (actor.AwaitingTurn)
             {
+                ObserveGuestLimitReady(actor);
                 continue;
             }
             Ff7BattleDamageActor stats = Stats(actor);
@@ -364,14 +367,15 @@ public sealed partial class Ff7BattleSession
             byte? guestDexterity = IsGuestVitalsSlot(slot) ? GuestProjection?.Dexterity : null;
             ushort increment = Ff7NativeAtb.Increment(slot, guestDexterity ?? stats.Dexterity, guestDexterity is not null ? (sbyte)0 : stats.DexterityModifier, actor.Actor.Statuses, speedDenominator, BattleSpeed);
             bool ready = Ff7NativeAtb.Advance(ref gauge, increment, false, false);
-            state.Actors[index] = actor with { Gauge = gauge, AwaitingTurn = ready };
+            actor = actor with { Gauge = gauge, AwaitingTurn = ready };
+            state.Actors[index] = actor;
             if (ready && slot >= 4)
             {
                 state = state with { Queue = Ff7BattleCommandQueue.StageReady(state.Queue, slot, 0xFF) };
             }
-            else if (ready && IsGuestVitalsSlot(slot) && guestAttack is IFf7BattleGuestLimit limit)
+            else if (ready)
             {
-                limit.ObserveLimitReady(Tick, actor.Actor);
+                ObserveGuestLimitReady(actor);
             }
         }
     }
@@ -469,6 +473,10 @@ public sealed partial class Ff7BattleSession
     {
         Ff7BattleActorState actor = Actor(slot);
         Replace(actor with { Gauge = 0, AwaitingTurn = false });
+        if (IsGuestVitalsSlot(slot) && state.GuestLimitReadyAt is not null)
+        {
+            state = state with { GuestLimitReadyAt = null };
+        }
     }
 
     private void FinishTurn(int slot)
@@ -502,7 +510,7 @@ public sealed partial class Ff7BattleSession
         {
             throw new InvalidDataException("FFVII battle snapshot has invalid physical actor ownership.");
         }
-        if (snapshot.Action is { } candidate && ((candidate.GuestLimit is not null) != (candidate.Command is { GuestAttack: true, CommandId: (byte)Ff7BattleCommand.Limit }) || candidate.GuestLimit is { } limit && (limit.Contacts is < 0 or > 9 || candidate.Applied != (limit.Contacts != 0) || limit.KnockedOut && !limit.CounterPending || (limit.PresentationCompleted || limit.CounterPending) && limit.Contacts == 0)))
+        if (snapshot.GuestLimitReadyAt is long readyAt && (readyAt < 0 || readyAt > snapshot.Tick || snapshot.GuestVitals is null) || snapshot.Action is { } candidate && ((candidate.GuestLimit is not null) != (candidate.Command is { GuestAttack: true, CommandId: (byte)Ff7BattleCommand.Limit }) || candidate.GuestLimit is { } limit && (limit.Contacts is < 0 or > 9 || candidate.Applied != (limit.Contacts != 0) || limit.KnockedOut && !limit.CounterPending || (limit.PresentationCompleted || limit.CounterPending) && limit.Contacts == 0)))
         {
             throw new InvalidDataException("The saved guest Limit has an invalid contact cursor.");
         }
