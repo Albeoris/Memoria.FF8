@@ -2945,7 +2945,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                         Assert.Equal((short)0, BinaryPrimitives.ReadInt16LittleEndian(common.Read(0x129C, 2)));
                         Assert.Equal((short)361, BinaryPrimitives.ReadInt16LittleEndian(common.Read(0x129E, 2)));
                         Assert.Equal(NativeBattleJunk44Profile.ArenaAddress + 0x12D4u, BinaryPrimitives.ReadUInt32LittleEndian(common.Read(0x1298, 4)));
-                        Assert.Equal(NativeBattleJunk44Profile.ArenaAddress + 0x12D4u, BinaryPrimitives.ReadUInt32LittleEndian(common.Read(0x12A0, 4)));
+                        Assert.Equal(NativeBattleJunk44Profile.ArenaAddress + NativeBattleJunk44Profile.PacketOffset + NativeBattleJunk44Profile.PacketBankBytes, BinaryPrimitives.ReadUInt32LittleEndian(common.Read(0x12A0, 4)));
                         if (!junk44IoQueued)
                         {
                             ColdNext("junk-two-original-files-queued", current);

@@ -1,3 +1,5 @@
+using static Memoria.FF8.Runtime.NativeBattleJunk44Profile;
+
 namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleJunk44Controller
@@ -62,8 +64,9 @@ public static partial class NativeBattleJunk44Controller
         root = Read(frame, address);
         if (Signed(root, 0x0C) == 115)
         {
-            uint destination = checked(frame.State.ReadDword(0x2545180) + 0x12D4);
-            frame = frame with { Memory = NativeBattleEffectIo.Queue5341D0(NativeBattleEffectIo.Queue5341D0(frame.Memory, 360, destination, 1), 361, destination, 0) };
+            uint destination = checked(frame.State.ReadDword(0x2545180) + PacketOffset);
+            // NG-019: retain each cleanup TIM in its own idle packet bank until the deferred upload consumes it.
+            frame = frame with { Memory = NativeBattleEffectIo.Queue5341D0(NativeBattleEffectIo.Queue5341D0(frame.Memory, 360, destination, 1), 361, checked(destination + PacketBankBytes), 0) };
         }
         if (Read(frame, address).ReadByte(0x0F) != 0)
         {

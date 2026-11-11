@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -10,6 +11,22 @@ public sealed class NativeBattleJunk44PresentationTests
     public void Original_Junk44_native_allocated_caster_preserves_COMMON_IO_and_cold_cycle()
     {
         NativeBattleActorDirectorPresentationTests.RunSelected([44], "MEMORIA_FF8_JUNK44", SelectOriginalFixture, PrepareDeclaredSource);
+        string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_JUNK44_EVIDENCE")!;
+        BattleSnapshot completed = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "completed.battle.json"));
+        byte[] vram = completed.NativeEffectMemory!.Textures!.ReadVram();
+        foreach (NativeBattleEffectFileAsset file in completed.NativeGraphics!.OriginalEffect!.Binding.Junk44Resources!.Files)
+        {
+            ReadOnlySpan<byte> tim = file.Data.AsSpan();
+            int pixels = checked(8 + BinaryPrimitives.ReadInt32LittleEndian(tim.Slice(8)));
+            int x = BinaryPrimitives.ReadUInt16LittleEndian(tim.Slice(pixels + 4));
+            int y = BinaryPrimitives.ReadUInt16LittleEndian(tim.Slice(pixels + 6));
+            int width = BinaryPrimitives.ReadUInt16LittleEndian(tim.Slice(pixels + 8));
+            int height = BinaryPrimitives.ReadUInt16LittleEndian(tim.Slice(pixels + 10));
+            for (int row = 0; row < height; row++)
+            {
+                Assert.True(tim.Slice(pixels + 12 + row * width * 2, width * 2).SequenceEqual(vram.AsSpan(((y + row) * 1024 + x) * 2, width * 2)), $"Cleanup TIM {file.FileId} lost pixel row {row} before its deferred upload.");
+            }
+        }
     }
 
     private static NativeEffectFixtureRequest SelectOriginalFixture(BattleAssets assets, ushort effect)

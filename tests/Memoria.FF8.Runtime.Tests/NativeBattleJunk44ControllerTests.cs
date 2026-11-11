@@ -116,7 +116,7 @@ public sealed class NativeBattleJunk44ControllerTests
         Assert.Equal(BitConverter.GetBytes((short)0), frame.Memory.Arena!.Read(0x129C, 2));
         Assert.Equal(BitConverter.GetBytes((short)361), frame.Memory.Arena!.Read(0x129E, 2));
         Assert.Equal(BitConverter.GetBytes(ArenaAddress + 0x12D4), frame.Memory.Arena!.Read(0x1298, 4));
-        Assert.Equal(BitConverter.GetBytes(ArenaAddress + 0x12D4), frame.Memory.Arena!.Read(0x12A0, 4));
+        Assert.Equal(BitConverter.GetBytes(ArenaAddress + PacketOffset + PacketBankBytes), frame.Memory.Arena!.Read(0x12A0, 4));
         Assert.IsType<NativeBattleJunk44AdvanceIo534210>(Assert.Single(operations));
         var waiting = AdvanceTask(frame, RootBank, Resources(), inputs);
         Assert.Equal(0, waiting.Result);
