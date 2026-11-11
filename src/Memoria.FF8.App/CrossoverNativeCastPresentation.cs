@@ -15,9 +15,9 @@ internal static class CrossoverNativeCastPresentation
 {
     public static CrossoverNativeCastState Begin(NativeBattleGraphicsModel model, NativeBattleGraphicsResource resource, ImmutableArray<byte> commandSequences, byte command)
     {
-        if (command is not (2 or 4) || model is not { Index: 0, ModelId4: 0 } || (model.Flags0 & 2) == 0 || commandSequences.Length != 39 || !resource.Contains(commandSequences[command]))
+        if (command is not (2 or 4 or 5) || model is not { Index: 0, ModelId4: 0 } || (model.Flags0 & 2) == 0 || commandSequences.Length != 39 || !resource.Contains(commandSequences[command]))
         {
-            throw new InvalidDataException("Mixed casting requires loaded Squall and an original Magic or Item source sequence.");
+            throw new InvalidDataException("Mixed casting requires loaded Squall and an original Magic, Item or Limit source sequence.");
         }
         return new(NativeBattleGraphicsModels.SelectSequence(model, commandSequences[command]), 3, false);
     }

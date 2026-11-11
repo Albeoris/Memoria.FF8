@@ -41,6 +41,7 @@ internal static class NativeGuestLimitTests
         Check(battle.Commands(0).Count(command => command is { Command: Ff7BattleCommand.Limit, Argument: 0, ValidTargets: not 0 }) == 1 && source.ReadyCalls == 1, "Reading the menu consumed or duplicated Limit admission.");
         Check(battle.Submit(0, Ff7BattleCommand.Limit, 0, 0x10), "The host rejected a source-ready Limit.");
         int previous = 0;
+        int presented = 0;
         bool death = false;
         bool released = false;
         Ff7BattleSession? cold = null;
@@ -57,12 +58,17 @@ internal static class NativeGuestLimitTests
                 previous = limit.Contacts;
                 uint hp = battle.Actors.Single(actor => actor.Actor.Slot == 4).Actor.HitPoints;
                 Check(previous == 1 ? hp is > 0 and < 30 : previous == 2 && hp == 0, "Guest Limit contacts did not damage their target once each.");
-                Check(battle.DisplayedHit is { Source: 0, Target: 4 }, "A real source contact did not publish its host damage display.");
+                Check(limit.PendingHit is { Source: 0, Target: 4 } && limit.PresentedContacts == previous - 1 && battle.DisplayedHit?.Tick != battle.Tick, "A numerical receipt escaped its pending presentation boundary.");
                 if (previous == 1)
                 {
                     cold = Create(JsonSerializer.Deserialize<Ff7BattleSnapshot>(JsonSerializer.Serialize(battle.Capture())));
                     cold.BindGuestAttack(new LimitProbe(id, source.Invocation, source.HostTick, source.PublishedContacts, source.ReadyCalls));
                 }
+            }
+            if (battle.Action?.GuestLimit is { } publication && publication.PresentedContacts != presented)
+            {
+                presented = publication.PresentedContacts;
+                Check(presented == previous && publication.PendingHit is null && battle.DisplayedHit is { Source: 0, Target: 4 } display && display.Tick == battle.Tick, "A real source contact did not publish its host damage display.");
             }
             death |= battle.HasActorDeathPresentation(4);
             if (previous == 2 && battle.Action is null)
@@ -71,7 +77,7 @@ internal static class NativeGuestLimitTests
                 break;
             }
         }
-        Check(previous == 2 && death && released && source.Invocation is null, "The guest Limit failed to retain the final original KO presentation and release.");
+        Check(previous == 2 && presented == 2 && death && released && source.Invocation is null, "The guest Limit failed to retain the final original KO presentation and release.");
 
         Ff7BattleSession Create(Ff7BattleSnapshot? snapshot = null) => new(formation, original.Progress, kernel, executable.NativeMateriaStatModifiers, 1, snapshot: snapshot, animations: animations);
     }
@@ -119,12 +125,20 @@ internal static class NativeGuestLimitTests
                 Invocation = null;
                 return new(null, true);
             }
-            if (age is not (1 or 4))
+            if (age is 1 or 4)
+            {
+                return new(null, false) { LimitTargetCue = age == 1 ? (byte)4 : (byte)6 };
+            }
+            if (age is 3 or 6)
+            {
+                return new(null, false) { LimitPresentedContact = PublishedContacts };
+            }
+            if (age is not (2 or 5))
             {
                 return new(null, false);
             }
             PublishedContacts++;
-            Ff7BattleGuestPhysicalHit hit = new(new(6, 24, 0, 0, 14, 0, 0, 24, 17), new(0x11, age == 1 ? (byte)1 : byte.MaxValue, 255, UsePhysicalStats: true) { SuppressCritical = true }, 0);
+            Ff7BattleGuestPhysicalHit hit = new(new(6, 24, 0, 0, 14, 0, 0, 24, 17), new(0x11, age == 2 ? (byte)1 : byte.MaxValue, 255, UsePhysicalStats: true) { SuppressCritical = true }, 0);
             return new(hit, false);
         }
 

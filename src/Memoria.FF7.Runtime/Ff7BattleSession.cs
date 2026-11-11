@@ -510,10 +510,7 @@ public sealed partial class Ff7BattleSession
         {
             throw new InvalidDataException("FFVII battle snapshot has invalid physical actor ownership.");
         }
-        if (snapshot.GuestLimitReadyAt is long readyAt && (readyAt < 0 || readyAt > snapshot.Tick || snapshot.GuestVitals is null) || snapshot.Action is { } candidate && ((candidate.GuestLimit is not null) != (candidate.Command is { GuestAttack: true, CommandId: (byte)Ff7BattleCommand.Limit }) || candidate.GuestLimit is { } limit && (limit.Contacts is < 0 or > 9 || candidate.Applied != (limit.Contacts != 0) || limit.KnockedOut && !limit.CounterPending || (limit.PresentationCompleted || limit.CounterPending) && limit.Contacts == 0)))
-        {
-            throw new InvalidDataException("The saved guest Limit has an invalid contact cursor.");
-        }
+        ValidateGuestLimitSnapshot(snapshot);
         if (snapshot.TerminalFrames is < 0 or > 49 || snapshot.Messages is { } messages && (messages.Pending is null || messages.Pending.Length > 64 || messages.Pending.Any(entry => entry?.Text is null || entry.Delay > 1 || entry.Remaining > 67)) || snapshot.Action is { } action && (action.Command is null || action.StartedAt < 0 || action.StartedAt > snapshot.Tick || snapshot.Actors.All(actor => actor.Actor.Slot != action.Command.ActorSlot)))
         {
             throw new InvalidDataException("FFVII battle snapshot has an invalid presentation or action cursor.");

@@ -6,6 +6,10 @@ public readonly record struct BattleCameraBasis(Vector3 Position, Vector3 Right,
 {
     public static BattleCameraBasis Create(SceneCameraPlacement camera)
     {
+        if (camera.Basis is { } basis)
+        {
+            return basis;
+        }
         Vector3 forward = camera.Focus - camera.Position;
         Vector3 right = Vector3.Cross(forward, -Vector3.UnitY);
         if (right.LengthSquared() == 0)

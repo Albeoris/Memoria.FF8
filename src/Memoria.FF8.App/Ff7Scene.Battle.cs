@@ -218,10 +218,21 @@ internal sealed partial class Ff7Scene
             }
         }
         string? message = battle.EscapeBlocked ? "Can't escape!" : battle.Message ?? ActionTitle(battle);
+        int messageColor = 7;
+        if (mixedCombat?.Actions.RenzokukenTrigger is { } trigger)
+        {
+            message ??= "Renzokuken";
+            if (trigger.Widget is { Visible: true, ClosingPhase: 0, Input.Phase: not 8 } widget)
+            {
+                string binding = sharedInput.BindingHint(ControlAction.RotateRight);
+                message = $"Renzokuken  {widget.Input.ContactIndex + 1}/{widget.Block.Timeline.InputThresholds.Length}  {binding} Trigger";
+                messageColor = trigger.TriggerWindowOpen ? 6 : 7;
+            }
+        }
         if (message is { Length: > 0 })
         {
             DrawWindow(batch, new Rectangle(10, 9, 300, 23), bounds);
-            DrawPlain(batch, message, 16, 15, bounds);
+            DrawPlain(batch, message, 16, 15, bounds, messageColor);
         }
         if (battle.DisplayedHit is { } hit && battle.Tick - hit.Tick < Ff7BattleSession.LogicUpdatesPerSecond)
         {

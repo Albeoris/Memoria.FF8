@@ -1,4 +1,6 @@
 ﻿using Memoria.FF7.Resources;
+using System.Text.Json;
+using Memoria.FF7.Formats;
 using Memoria.FF7.Runtime;
 using Memoria.FF7.Events;
 using Memoria.FF8.Assets;
@@ -13,15 +15,26 @@ namespace Memoria.FF8.App.Tests;
 [Collection("GPU rendering")]
 public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
 {
-    [Fact]
-    public void Explicit_guest_option_runs_original_attack_and_combined_settlement_through_the_scene()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Explicit_guest_option_runs_original_command_and_combined_settlement_through_the_scene(bool useLimit)
     {
         string? ff7Root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
         string? ff8Root = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(ff7Root) && !string.IsNullOrWhiteSpace(ff8Root), "Select both original game installations.");
         Ff7Installation installation = Ff7Installation.Discover(ff7Root!);
         using GameAssets game = new(ff8Root!);
-        GameplaySaveComponentDocument document = GameplaySaveSessionLoaderTests.Document(game, false) with { Characters = GameplaySaveCharacters.Capture(game.ReadNewGameCharacterVitals()) };
+        NativeCharacterVitals origin = game.ReadNewGameCharacterVitals();
+        if (useLimit)
+        {
+            origin = origin.WithSavedHitPoints(origin.FindPhysicalRow(0), 60);
+        }
+        GameplaySaveComponentDocument document = GameplaySaveSessionLoaderTests.Document(game, false) with { Characters = GameplaySaveCharacters.Capture(origin) };
+        if (useLimit)
+        {
+            document = document with { Limits = document.Limits with { Options = (ushort)((document.Limits.Options ?? 0) & ~0x8001) } };
+        }
         using MemoryStream payload = new();
         GameplaySaveCodec.Write(payload, document);
         using Ff7Session initial = Ff7Session.NewGame(installation);
@@ -60,35 +73,82 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
         using SpriteBatch batch = new(device.Device);
         using RenderTarget2D target = device.CreateTarget(320, 240);
         Draw();
-        Assert.Equal(486U, session.Battle!.Actors.Single(actor => actor.Actor.Slot == 0).Actor.HitPoints);
+        Assert.Equal(useLimit ? 60U : 486U, session.Battle!.Actors.Single(actor => actor.Actor.Slot == 0).Actor.HitPoints);
         CombinedSessionSave active = scene.Capture();
         Assert.NotEmpty(active.MixedBattlePayload!);
         scene.Continue(active);
         session = scene.Session!;
         bool submitted = false;
         bool triggered = false;
+        bool restoredLimit = false;
+        bool restoredFinisher = false;
+        int presentedContacts = 0;
+        int expectedContacts = 0;
+        HashSet<SceneCameraPlacement> leasedCameras = [];
         for (int frame = 0; frame < 6500 && scene.Session!.Battle is { ResultReady: false }; frame++)
         {
             Ff7BattleSession battle = scene.Session.Battle!;
+            if (useLimit && battle.GuestRenderCameraOutput is { Basis: not null } lease)
+            {
+                leasedCameras.Add(lease);
+            }
+            if (useLimit && restoredLimit && !restoredFinisher && battle.Action?.GuestLimit is { PendingHit: { } finisher, Contacts: int contacts } && contacts == expectedContacts && battle.Tick - finisher.Tick >= 200)
+            {
+                CombinedSessionSave window = scene.Capture();
+                CrossoverMixedBattleSnapshot native = JsonSerializer.Deserialize<CrossoverMixedBattleSnapshot>(window.MixedBattlePayload!)!;
+                Assert.NotNull(native.Actions?.Limit?.Rough);
+                SceneCameraPlacement camera = battle.GuestRenderCameraOutput;
+                ColdContinue(window);
+                battle = scene.Session!.Battle!;
+                Assert.Equal(camera, battle.GuestRenderCameraOutput);
+                Assert.Equal(finisher, battle.Action!.GuestLimit!.PendingHit);
+                restoredFinisher = true;
+            }
             if (battle.ReadyPlayer == 0)
             {
+                if (!submitted && useLimit)
+                {
+                    Assert.Equal(Ff7BattleCommand.Limit, battle.Commands(0).First().Command);
+                }
                 Press(Keys.Enter);
                 Press(Keys.Enter);
                 submitted = true;
             }
             if (scene.MixedTriggerWindowOpen)
             {
+                if (useLimit && !restoredLimit)
+                {
+                    CombinedSessionSave window = scene.Capture();
+                    Assert.NotNull(window.Ff7!.Battle!.Action!.GuestLimit);
+                    CrossoverMixedBattleSnapshot native = JsonSerializer.Deserialize<CrossoverMixedBattleSnapshot>(window.MixedBattlePayload!)!;
+                    CrossoverGuestRenzokukenHostState limit = Assert.IsType<CrossoverGuestRenzokukenHostState>(native.Actions?.Limit);
+                    Assert.Equal((byte)0, limit.Plan.Finisher);
+                    expectedContacts = limit.Plan.Variant == 141 ? 6 : 5;
+                    SceneCameraPlacement camera = battle.GuestRenderCameraOutput;
+                    ColdContinue(window);
+                    Assert.True(scene.MixedTriggerWindowOpen);
+                    Assert.Equal(camera, scene.Session!.Battle!.GuestRenderCameraOutput);
+                    restoredLimit = true;
+                }
                 Press(Keys.G);
                 triggered = true;
             }
             scene.Update(new(TimeSpan.FromSeconds((frame + 1) / 60d), TimeSpan.FromSeconds(1d / 60)), new KeyboardState());
             Assert.Null(scene.Error);
+            presentedContacts = Math.Max(presentedContacts, scene.Session!.Battle!.Action?.GuestLimit?.PresentedContacts ?? 0);
             if (frame % 17 == 0)
             {
                 Draw();
             }
         }
         Assert.True(submitted && triggered);
+        if (useLimit)
+        {
+            Assert.True(restoredLimit && restoredFinisher);
+            Assert.True(presentedContacts >= expectedContacts, $"Expected {expectedContacts} original Limit and finisher contacts, got {presentedContacts}.");
+            Assert.True(leasedCameras.Count > 2 && leasedCameras.Select(camera => camera.FocalLength).Distinct().Count() > 1);
+            Assert.Null(scene.Session!.Battle!.GuestRenderCameraOutput.Basis);
+        }
         Assert.Equal(Ff7BattleOutcome.Victory, scene.Session!.Battle!.Outcome);
         CombinedSessionSave? committed = null;
         scene.MixedCombatSettled += result => committed = result;
@@ -99,14 +159,18 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
         Assert.Null(committed.MixedBattlePayload);
         Assert.True(scene.MixedCombatEnabled);
         output.WriteLine($"Guest scene rendered and settled request {committed.GuestBattleSettlements![0].RequestId}, origin HP {committed.GuestBattleSettlements[0].SettledHp}");
+        if (useLimit)
+        {
+            return;
+        }
         scene.Session.AdvanceTick();
-        string dormant = System.Text.Json.JsonSerializer.Serialize(scene.Session.Progress.Characters.Single(character => character.Id == 0));
+        string dormant = JsonSerializer.Serialize(scene.Session.Progress.Characters.Single(character => character.Id == 0));
         int fieldActor = scene.Session.Host.Process.Actors.Single(actor => actor.PlayerControlled).Entity;
         scene.Session.Host.Execute(new(9000001, fieldActor, 7, 0, new FieldHitPointCommand(0, -100)));
         Assert.Equal((ushort)(committed.GuestBattleSettlements[0].SettledHp - 100), scene.Session.GuestFieldVitals!.Read().Hp);
         scene.Session.Host.Execute(new(9000002, fieldActor, 7, 0, new FieldPartyRecovery(true)));
         Assert.Equal((ushort)486, scene.Session.GuestFieldVitals.Read().Hp);
-        Assert.Equal(dormant, System.Text.Json.JsonSerializer.Serialize(scene.Session.Progress.Characters.Single(character => character.Id == 0)));
+        Assert.Equal(dormant, JsonSerializer.Serialize(scene.Session.Progress.Characters.Single(character => character.Id == 0)));
 
         void Press(Keys key)
         {
@@ -121,6 +185,15 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
             scene.Draw(batch, new(0, 0, 320, 240));
             Assert.Null(scene.Error);
             Assert.True(GpuTestDevice.Read(target).Select(pixel => pixel.PackedValue).Distinct().Count() > 16);
+        }
+
+        void ColdContinue(CombinedSessionSave saved)
+        {
+            using MemoryStream standalone = new();
+            CombinedSessionCodec.Write(standalone, saved);
+            standalone.Position = 0;
+            scene.Continue(CombinedSessionCodec.Read(standalone));
+            Draw();
         }
 
         Ff7MovieSource Movie(int id)

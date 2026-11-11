@@ -3,6 +3,7 @@ using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 using Memoria.FF8.Assets;
+using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
@@ -11,7 +12,9 @@ public sealed class CrossoverNativeRenzokukenEntryTests(ITestOutputHelper output
 {
     [Theory]
     [InlineData((ushort)141, false, 5)]
+    [InlineData((ushort)160, false, 4)]
     [InlineData((ushort)160, true, 4)]
+    [InlineData((ushort)141, true, 5)]
     public void Original_ordinary_Renzokuken_entry_owns_native_control_and_source_replacement_across_cold_restore(ushort variant, bool finisherPending, int contacts)
     {
         string? root = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
@@ -75,31 +78,140 @@ public sealed class CrossoverNativeRenzokukenEntryTests(ITestOutputHelper output
         Ff7BattleActorState enemy = arena.Actors.Single(actor => actor.Actor.Slot == restored.State.HostTarget);
         ushort radius = animations.CollisionRadius(Ff7BattleAnimationResources.ModelPrefix(enemy.Identity, true));
         CrossoverGunbladeHostPlacement placement = new(Ff7BattlePosition.FromVector(source.Position), source.Yaw);
-        (_, short yaw, _, int distance) = placement.ResolveContact(arena.VisualPlacement(restored.State.HostTarget), radius);
-        replaced = replaced with { Rotation14 = yaw };
-        NativeBattleEffectMemory globals = NativeBattleEffectMemory.FromColdProcess();
-        NativeBattleSequenceCue? ab = null;
-        for (int callback = 0; callback < 6 && ab is null; callback++)
+        (NativeBattleVector targetPoint, short yaw, _, int distance) = placement.ResolveContact(arena.VisualPlacement(restored.State.HostTarget), radius);
+        NativeBattleCameraProjection projection = CrossoverNativeSpriteRenderer.Camera(arena.RenderCameraOutput, placement.Matrix);
+        NativeBattleGraphicsRules rules = game.ReadNativeBattleGraphicsRules();
+        CrossoverNativeRenzokukenProgram program = new(game, original, rules);
+        ushort options = game.ReadNewGameLimitProgress().Options978 ?? throw new InvalidDataException("The original limit options are missing.");
+        CrossoverNativeRenzokukenProgramState live = program.Begin(caster with { Flags0 = (ushort)(caster.Flags0 & ~0x800) }, restored.State.HostTarget, variant, finisherPending, distance, yaw, random, options, null);
+        List<NativeBattleTriggerReceipt> timings = [];
+        List<int> contactsAt = [];
+        List<int> timingAt = [];
+        List<(int Frame, byte Sequence)> targetAt = [];
+        int sounds = 0;
+        int triggerSounds = 0;
+        int peakPackets = 0;
+        bool coldEffect = false;
+        bool coldTrigger = false;
+        bool sawWidget = false;
+        for (int callback = 0; callback < 300 && !live.Complete && !live.FinisherReady; callback++)
         {
-            NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(replaced, replacement, new(0, 0)
+            if (!coldEffect && live.Effect.Ordering?.Packets.Count > 0)
             {
-                OriginalResource = original,
-                ReadExternal = variable => variable switch
+                Cold();
+                coldEffect = true;
+            }
+            if (live.Trigger.Widget is { Visible: true } widget)
+            {
+                Assert.Equal(variant, widget.SourceMagicId);
+                Assert.True(restored.State.Resources.ActorResource.Segments.SequenceEqual(widget.Block.Segments));
+                Assert.Equal(6, live.Trigger.Ui.Menu957);
+                sawWidget = true;
+            }
+            if (live.Trigger.TriggerWindowOpen && live.PublishedContacts % 2 == 0)
+            {
+                live = live with { Trigger = live.Trigger.Press() };
+                if (!coldTrigger)
                 {
-                    17 => unchecked((short)distance),
-                    18 or 19 => globals.ReadSequenceGlobal5044B0(variable),
-                    _ => throw new NotSupportedException($"Unowned original sequence read {variable:X2}.")
-                },
-                WriteExternal = (variable, value) => globals = globals.WriteSequenceGlobal5048E0(variable, value)
-            });
-            replaced = step.Model;
-            ab = step.Cues.SingleOrDefault(cue => cue.Kind == NativeBattleSequenceCueKind.TriggerWindow);
+                    Cold();
+                    Assert.True(live.Trigger.Widget!.PendingTrigger);
+                    coldTrigger = true;
+                }
+            }
+            CrossoverNativeRenzokukenProgramStep step = program.Advance(live, projection, 0);
+            live = step.State;
+            peakPackets = Math.Max(peakPackets, live.Effect.Ordering?.Packets.Count ?? 0);
+            if (step.TargetCue is byte targetCue)
+            {
+                targetAt.Add((callback, targetCue));
+            }
+            if (step.Timing is not null)
+            {
+                timingAt.Add(callback);
+            }
+            if (step.Contact is { } timing)
+            {
+                timings.Add(timing);
+                contactsAt.Add(callback);
+            }
+            sounds += step.Sounds.Length;
+            if (step.TriggerSound)
+            {
+                triggerSounds++;
+            }
         }
-        Assert.NotNull(ab);
-        Assert.True(restored.State.Resources.ActorResource.Segments.SequenceEqual(ab.TriggerWindow!.Segments));
+        Assert.True(coldEffect);
+        Assert.True(coldTrigger);
+        Assert.True(sawWidget);
+        Assert.Equal(!finisherPending, live.Complete);
+        Assert.Equal(finisherPending, live.FinisherReady);
+        Assert.Equal(0u, live.Effect.Frame.Effect.ReturnedDescriptor);
+        Assert.Null(live.Trigger.Widget);
+        Assert.Null(live.Trigger.Pending);
+        Assert.Equal(contacts, live.PublishedContacts);
+        Assert.Equal(Enumerable.Range(1, contacts), timings.Select(timing => (int)timing.ContactIndex));
+        Assert.All(timings, timing => Assert.Equal(contacts, timing.TotalContacts));
+        Assert.All(timings, timing => Assert.Equal(timing.ContactIndex % 2 == 1, NativeGunbladeAttack.TriggerSucceeded(timing.Timing)));
+        Assert.Equal((contacts + 1) / 2, triggerSounds);
+        Assert.True(sounds >= 1);
+        Assert.True(peakPackets > 69);
+        Assert.NotEqual(6, live.Trigger.Ui.Menu957);
+        NativeBattleRenzokuken160State finalCore = variant == 141 ? NativeBattleRenzokukenVariantController.ReadState(live.Effect.Frame).Core : live.Effect.Frame.Memory.Renzokuken160!;
+        Assert.Equal(restored.State.Resources.ActorResource.Segments.Sum(segment => (int)segment), finalCore.Duration);
         Assert.Equal(128, Assert.Single(restored.Operations.OfType<NativeBattleRenzokuken160Stage>()).Intensity);
         NativeBattleRenzokuken160Sound sound = Assert.Single(restored.Operations.OfType<NativeBattleRenzokuken160Sound>());
         Assert.Equal((state.Resources.AppearanceSound, 0x8000, 128), (sound.Descriptor, sound.First, sound.Second));
-        output.WriteLine($"Original Renzokuken{variant}: host4/alias3, native descriptor{state.Frame.Effect.ReturnedDescriptor:X}, {contacts} authored windows, replacement sequence{swap.Sequence}, original appearance sound and retained weapon tip {standingTip.Position} across cold prelude.");
+        output.WriteLine($"Original Renzokuken{variant}: host4/alias3, descriptor {state.Frame.Effect.ReturnedDescriptor:X}, replacement {swap.Sequence}, retained tip {standingTip.Position}, MP approach {distance}, timings {string.Join(',', timings.Select(timing => timing.Timing))}, timing callbacks {string.Join(',', timingAt)}, B7 callbacks {string.Join(',', contactsAt)}, AF {string.Join(',', targetAt)}, peak {peakPackets} native packets, return {live.Returned}, finisher handoff {live.FinisherHandoff?.Callback:X}.");
+
+        if (variant == 160 && finisherPending)
+        {
+            CrossoverNativeRoughDivideProgram rough = new(game, original, rules.SummonColors!);
+            NativeBattleContactPresentation nativeContact = NativeBattleContactPresentations.Complete(9, 0, 0, 0, 255);
+            NativeBattleContactHalf contact = NativeBattleContactHalf.FromScratch(3, nativeContact.Sequence, nativeContact.Flags2, nativeContact.HitFlags3, 0, 0, 0);
+            CrossoverNativeRoughDivideState divided = rough.Begin(live, contact);
+            Assert.Equal(0x23CA1C8u, divided.Frame.Effect.ReturnedDescriptor);
+            Assert.Equal(3, divided.Frame.FirstRecipient);
+            Assert.Equal((byte)250, divided.Packets.Headers[1].ReadByte(1));
+            int contactAt = -1;
+            int posedAt = -1;
+            int roughPeak = 0;
+            bool roughCold = false;
+            NativeBattleGraphicsResource prior = program.BindReplacement(live.Effect);
+            for (int callback = 0; callback < 240 && !divided.Complete; callback++)
+            {
+                CrossoverNativeRoughDivideStep step = rough.Advance(divided, prior, () => new(targetPoint.X, targetPoint.Y, targetPoint.Z, 0), projection, 0);
+                divided = step.State;
+                roughPeak = Math.Max(roughPeak, divided.Ordering.Packets.Count);
+                if (step.TargetCue == 6)
+                {
+                    Assert.Equal(-1, posedAt);
+                    posedAt = callback;
+                }
+                if (step.Contact)
+                {
+                    Assert.Equal(-1, contactAt);
+                    contactAt = callback;
+                    string retainedRough = JsonSerializer.Serialize(CrossoverNativeRoughDivideProgram.Capture(divided));
+                    divided = CrossoverNativeRoughDivideProgram.Restore(JsonSerializer.Deserialize<CrossoverNativeRoughDivideState>(retainedRough)!);
+                    Assert.Equal(retainedRough, JsonSerializer.Serialize(CrossoverNativeRoughDivideProgram.Capture(divided)));
+                    roughCold = true;
+                }
+            }
+            Assert.True(roughCold);
+            Assert.Equal(30, posedAt);
+            Assert.Equal(65, contactAt);
+            Assert.True(divided.Complete);
+            Assert.True(roughPeak > 100);
+            Assert.Equal((short)0, divided.StageDepth);
+            Assert.Equal((byte)1, divided.Model.Sequence);
+            output.WriteLine($"Original Rough Divide163: staged sequence and linked Revolver, AF-style cue at {posedAt}, contact at {contactAt}, peak {roughPeak} packets, cold and original common texture loader/return.");
+        }
+
+        void Cold()
+        {
+            string savedProgram = JsonSerializer.Serialize(CrossoverNativeRenzokukenProgram.Capture(live));
+            live = CrossoverNativeRenzokukenProgram.Restore(JsonSerializer.Deserialize<CrossoverNativeRenzokukenProgramState>(savedProgram)!);
+            Assert.Equal(savedProgram, JsonSerializer.Serialize(CrossoverNativeRenzokukenProgram.Capture(live)));
+        }
     }
 }

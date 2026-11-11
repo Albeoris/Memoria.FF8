@@ -63,9 +63,9 @@ internal sealed class CrossoverGunbladeHostAttack : IFf7BattleGuestAttack
     public CrossoverGunbladeHostAttack(CrossoverBattleRoster roster, CrossoverFf8BattleKit kit, BattleAssets assets, GameAssets game, NativeGlobalRandomState globalRandom, Func<SceneCameraPlacement> readHostCamera, Func<Vector3, byte> readHostPan, CrossoverGunbladeHostSnapshot? snapshot = null)
     {
         roster.Validate();
-        if (kit.Statuses.Battle != 0 || (kit.Statuses.Saved & ~Ff7GuestBattleStatuses.SupportedOrigin) != 0 || kit.Attack is not { AttackType: 10, Power: 20, Element: 0, Statuses0: 0, Statuses1: 0 } || kit.Weapon != 0 || kit.Stats.Hit != 255)
+        if (kit.OpeningCombatUnavailableReason() is { } reason)
         {
-            throw new NotSupportedException("The first guest Attack profile requires a status-free Squall with the original Revolver and an opening MP encounter.");
+            throw new NotSupportedException(reason);
         }
         this.roster = roster;
         this.kit = kit;
@@ -210,7 +210,7 @@ internal sealed class CrossoverGunbladeHostAttack : IFf7BattleGuestAttack
     {
         if (state.Invocation is not null || invocation.RequestId != roster.HostRequestId || invocation.FormationId != roster.HostFormationId || invocation.ActorSlot != ActorSlot || invocation.TargetSlot != target.Slot || !Supports(target))
         {
-            throw new InvalidOperationException("Guest Attack requires one free action slot and its admitted original MP occurrence.");
+            throw new InvalidOperationException("Guest Attack requires one free action slot and an admitted original FFVII target occurrence.");
         }
         CrossoverGunbladeHostPlacement placement = new(Ff7BattlePosition.FromVector(source.Position), source.Yaw);
         (_, short yaw, _, int distance) = placement.ResolveContact(target.Placement, target.CollisionRadius);

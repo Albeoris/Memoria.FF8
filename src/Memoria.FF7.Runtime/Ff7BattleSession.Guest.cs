@@ -16,7 +16,11 @@ public sealed record Ff7BattleGuestPhysicalHit(Ff7BattleDamageActor Source, Ff7B
     public Ff7BattleGuestItemEffect? ItemEffect { get; init; }
 }
 public sealed record Ff7BattleGuestPreparedContact(Ff7BattleGuestInvocation Invocation, Ff7BattleActionVitals SourceBefore, Ff7BattleActionVitals TargetBefore, Ff7BattleActionReceipt Receipt);
-public sealed record Ff7BattleGuestAttackUpdate(Ff7BattleGuestPhysicalHit? Hit, bool Completed);
+public sealed record Ff7BattleGuestAttackUpdate(Ff7BattleGuestPhysicalHit? Hit, bool Completed)
+{
+    public int? LimitPresentedContact { get; init; }
+    public byte? LimitTargetCue { get; init; }
+}
 
 /// <summary>Owns one origin-specific physical presentation and its immutable contact description.</summary>
 public interface IFf7BattleGuestAttack
@@ -35,6 +39,7 @@ public interface IFf7BattleGuestAttack
 public interface IFf7BattleGuestCamera
 {
     float ViewTranslationY { get; }
+    SceneCameraPlacement? LeasedCamera => null;
 }
 
 /// <summary>Explicit FFVIII-origin spell IDs and their origin-owned stock, independent of host spell records.</summary>
@@ -183,6 +188,10 @@ public sealed partial class Ff7BattleSession
             throw new InvalidDataException("The guest presentation and active host queue entry disagree about contact ownership.");
         }
         Ff7BattleGuestAttackUpdate update = guest.Advance(Tick);
+        if (update.LimitPresentedContact is not null || update.LimitTargetCue is not null)
+        {
+            throw new InvalidDataException("A guest Limit presentation cue has no active Limit owner.");
+        }
         if (update.Hit is { } hit)
         {
             if (active.Applied)

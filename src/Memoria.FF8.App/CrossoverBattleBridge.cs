@@ -107,6 +107,21 @@ internal sealed record CrossoverFf8BattleKit(int RecordRow, ushort HitPoints, in
     public uint StatusPassives { get; init; }
     public byte RenzokukenPower { get; init; }
 
+    public string? OpeningCombatUnavailableReason()
+    {
+        if (Weapon != 0)
+        {
+            return "Squall must equip his original Revolver for this mixed combat profile.";
+        }
+        if (Statuses.Battle != 0 || (Statuses.Saved & ~Ff7GuestBattleStatuses.SupportedOrigin) != 0)
+        {
+            return "Squall has a status or automatic battle ability outside the mixed combat profile.";
+        }
+        return Attack is { AttackType: 10, Power: 20, Element: 0, Statuses0: 0, Statuses1: 0 } && Stats.Hit == 255
+            ? null
+            : "Squall's current attack or junctions require a different mixed Gunblade profile.";
+    }
+
     public static CrossoverFf8BattleKit ReadSquall(NativeCharacterVitals vitals, BattleAssets resources)
     {
         ArgumentNullException.ThrowIfNull(vitals);

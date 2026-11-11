@@ -23,8 +23,13 @@ public sealed partial class Ff7BattleSession
     {
         get
         {
+            IFf7BattleGuestCamera? guest = guestAttack as IFf7BattleGuestCamera;
+            if (guest?.LeasedCamera is { } lease)
+            {
+                return lease;
+            }
             SceneCameraPlacement camera = RenderCameraOutput;
-            float translation = (guestAttack as IFf7BattleGuestCamera)?.ViewTranslationY ?? 0;
+            float translation = guest?.ViewTranslationY ?? 0;
             Vector3 offset = BattleCameraBasis.Create(camera).Up * translation;
             return new(camera.Position - offset, camera.Focus - offset);
         }

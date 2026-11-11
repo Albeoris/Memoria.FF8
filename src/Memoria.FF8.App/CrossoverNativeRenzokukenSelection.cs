@@ -13,8 +13,13 @@ internal sealed record CrossoverNativeRenzokukenPlan(ushort Variant, byte? Finis
             throw new InvalidDataException("The guest Renzokuken contact requires its original trigger timing and character power.");
         }
         // 485160 command251 takes character byte33. The host profile uses the same 20-to-8 conversion as Gunblade.
-        byte power = (byte)Math.Min(byte.MaxValue, 8 * kit.RenzokukenPower * (timing / 20 + 2) / 20);
-        Ff7BattleDamageAction attack = new(0x11, power, 255, UsePhysicalStats: true) { SuppressCritical = true, AlwaysHits = true };
+        return ProjectPhysicalStrike(kit, kit.RenzokukenPower, timing / 20 + 2, false);
+    }
+
+    internal static Ff7BattleGuestPhysicalHit ProjectPhysicalStrike(CrossoverFf8BattleKit kit, byte nativePower, int multiplier, bool critical)
+    {
+        byte power = (byte)Math.Min(byte.MaxValue, 8 * nativePower * multiplier / 20);
+        Ff7BattleDamageAction attack = new(0x11, power, 255, ForceCritical: critical, UsePhysicalStats: true) { SuppressCritical = true, AlwaysHits = true };
         return new(CrossoverGunbladeHostAttack.ProjectPhysicalSource(kit), attack, 0);
     }
 }
@@ -63,6 +68,19 @@ internal sealed record CrossoverNativeRenzokukenSelection([property: JsonRequire
         }
         plan = new((variant & 1) == 0 ? (ushort)141 : (ushort)160, finisher);
         return new(random);
+    }
+
+    public CrossoverNativeRenzokukenSelection ProjectRoughDivide(CrossoverFf8BattleKit kit, BattleNativeAction action, out Ff7BattleGuestPhysicalHit hit)
+    {
+        if (ReadyTick is not null || action is not { Command: 249, DispatchCommand: 250, ActionId: 0, MagicId: 163, AttackType: 9, Power: 48, HitCount: 1, Hit: null or 255, Critical: null or 0, AttackFlags: 3, TargetFlags: 0x58, Element: 0, StatusAttack: 0, Statuses0: 0, Statuses1: 0 })
+        {
+            throw new NotSupportedException("Guest Rough Divide requires its selected original Revolver finisher record.");
+        }
+        NativeBattleRandomState random = Random.Draw(out byte criticalRoll);
+        bool critical = NativeBattleDamage.PhysicalCritical(action.Critical.GetValueOrDefault(), kit.Stats.Luck, criticalRoll);
+        // The type9 physical formula uses P/16, matching the untriggered type10 multiplier of 2/32.
+        hit = CrossoverNativeRenzokukenPlan.ProjectPhysicalStrike(kit, action.Power, 2, critical);
+        return this with { Random = random };
     }
 
     public void Validate(long hostTick)

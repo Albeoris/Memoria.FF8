@@ -20,7 +20,13 @@ public sealed record Ff7BattleAttack(byte Accuracy, byte ImpactEffect, byte Hurt
 public sealed record SceneBattleAttack(int Slot, ushort Id, ReadOnlyMemory<byte> Name, Ff7BattleAttack Data);
 public sealed record SceneEnemyAttack(int Slot, ushort AttackId, byte ActionAnimation, ushort CameraOverride);
 public sealed record SceneEnemyAffinity(byte Type, byte Rate);
-public sealed record SceneCameraPlacement(Vector3 Position, Vector3 Focus);
+public sealed record SceneCameraPlacement(Vector3 Position, Vector3 Focus)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public BattleCameraBasis? Basis { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public ushort? FocalLength { get; init; }
+}
 public sealed record SceneBattleEnemy(int FormationSlot, SceneEnemyInstance Placement, uint InitialConditionFlags, SceneEnemyReward Rewards, byte Level, byte Speed, byte Luck, byte Evasion, byte Strength, byte Defense, byte Magic, byte MagicDefense, uint MaxHitPoints, ushort MaxMagicPoints, uint NativeStatusMask, IReadOnlyList<SceneEnemyAffinity> Affinities, IReadOnlyList<SceneEnemyAttack> Attacks, IReadOnlyList<ReadOnlyMemory<byte>>? Scripts);
 
 /// <summary>Resource data for one native formation, without simulation or progression side effects.</summary>

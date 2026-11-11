@@ -56,7 +56,9 @@ internal sealed class CrossoverMixedBattle : IDisposable
             NativeGlobalRandomState random = document.Progression?.Clocks.GlobalRandom ?? throw new NotSupportedException("Mixed combat requires the suspended FFVIII global RNG owner.");
             Attack = new(roster, kit, assets, game, random, () => host.Data.Cameras[0], _ => 128, savedAttack);
             Attack.PrepareStanding(host.VisualPlacement(roster.Guest.HostSlot));
-            Actions = new(roster, kit, origin, document.Progression?.Clocks.CrtRandom, Attack, host, game, assets, savedActions, document.Economy);
+            ushort? limitOptions = document.Limits.Options ?? game.ReadNewGameLimitProgress().Options978;
+            NativeBattleUiRandomState limitUiRandom = (document.Progression?.Clocks.Playtime ?? NativePlaytimeState.FromColdProcess()).CreateBattleUiRandom();
+            Actions = new(roster, kit, origin, document.Progression?.Clocks.CrtRandom, Attack, host, game, assets, savedActions, document.Economy, originLimitOptions: limitOptions, originLimitUiRandom: limitUiRandom);
             host.BindGuestAttack(Actions);
             Host = host;
         }

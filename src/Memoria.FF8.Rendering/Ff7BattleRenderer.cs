@@ -542,7 +542,7 @@ public sealed partial class Ff7BattleRenderer
         public static CameraView Create(SceneCameraPlacement camera, int width, int height)
         {
             BattleCameraBasis basis = BattleCameraBasis.Create(camera);
-            return new(basis.Position, basis.Right, basis.Up, basis.Forward, width, height, 512 * height / 240f);
+            return new(basis.Position, basis.Right, basis.Up, basis.Forward, width, height, (camera.FocalLength ?? 512) * height / 240f);
         }
 
         public Vector3 Transform(Vector3 world)

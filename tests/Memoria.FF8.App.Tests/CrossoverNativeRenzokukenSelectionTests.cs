@@ -39,5 +39,14 @@ public sealed class CrossoverNativeRenzokukenSelectionTests
         Assert.Equal(kit.RenzokukenPower * 24 / 20, triggered.Attack.Power);
         Assert.True(triggered.Attack.AlwaysHits);
         Assert.True(triggered.Attack.SuppressCritical);
+
+        BattleNativeAction rough = assets.NativeActions.Single(action => action.Command == 249 && action.ActionId == 0);
+        CrossoverNativeRenzokukenSelection afterCritical = initial.ProjectRoughDivide(kit, rough, out Ff7BattleGuestPhysicalHit criticalFinisher);
+        _ = afterCritical.ProjectRoughDivide(kit, rough, out Ff7BattleGuestPhysicalHit regularFinisher);
+        Assert.Equal(native.Indexes[0] + 1, afterCritical.Random.Indexes[0]);
+        Assert.Equal(38, criticalFinisher.Attack.Power);
+        Assert.True(criticalFinisher.Attack.AlwaysHits);
+        Assert.True(criticalFinisher.Attack.ForceCritical);
+        Assert.Equal(criticalFinisher.Attack with { ForceCritical = false }, regularFinisher.Attack);
     }
 }

@@ -12,7 +12,7 @@ internal sealed partial class Ff7Scene
     public event Action<CombinedSessionSave>? MixedCombatSettled;
     public event Action<CombinedSessionSave>? MixedOriginResumeRequested;
     internal bool MixedCombatEnabled => envelope.MixedCombat is not null;
-    internal bool MixedTriggerWindowOpen => mixedCombat?.Attack.TriggerWindowOpen == true;
+    internal bool MixedTriggerWindowOpen => mixedCombat is { } mixed && (mixed.Actions.RenzokukenTrigger?.TriggerWindowOpen ?? mixed.Attack.TriggerWindowOpen);
     internal bool CanResumeMixedOrigin => Session is null && envelope.Ff8Payload is { Length: > 0 } && envelope.GuestBattleSettlements?.LastOrDefault()?.Outcome == Ff7BattleOutcome.Defeat;
 
     private void ResumeMixedOrigin()
@@ -62,7 +62,12 @@ internal sealed partial class Ff7Scene
                 notice = "Save FFVIII with its current gameplay codec before selecting a combat guest.";
                 return;
             }
-            _ = CrossoverFf8BattleKit.ReadSquall(source.Characters.Restore(origin.ReadNewGameCharacterVitals()), battle);
+            CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.ReadSquall(source.Characters.Restore(origin.ReadNewGameCharacterVitals()), battle);
+            if (kit.OpeningCombatUnavailableReason() is { } unsupported)
+            {
+                notice = unsupported;
+                return;
+            }
             envelope = envelope with { MixedCombat = new(0), MixedBattlePayload = null };
             AttachMixedFieldVitals();
             Session!.SetFullCombatEnabled(true);
@@ -102,7 +107,7 @@ internal sealed partial class Ff7Scene
     {
         if (sharedInput.GunbladeTriggerRequested)
         {
-            mixedCombat?.Attack.PressTrigger();
+            mixedCombat?.Actions.PressTrigger();
         }
     }
 

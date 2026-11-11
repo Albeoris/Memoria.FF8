@@ -40,13 +40,25 @@ public sealed class CrossoverNativeSpriteRenderer(NativeBattlePrimitiveTables ta
             throw new InvalidDataException("Mixed module projection requires an invertible origin placement.");
         }
         Vector3 eye = Vector3.Transform(host.Position, inverse);
-        Vector3 focus = Vector3.Transform(host.Focus, inverse);
-        Vector3 forward = Vector3.Normalize(focus - eye);
-        Vector3 right = Vector3.Normalize(Vector3.Cross(forward, -Vector3.UnitY));
-        Vector3 down = -Vector3.Cross(right, forward);
+        Vector3 forward;
+        Vector3 right;
+        Vector3 down;
+        if (host.Basis is { } basis)
+        {
+            forward = Vector3.Normalize(Vector3.TransformNormal(basis.Forward, inverse));
+            right = Vector3.Normalize(Vector3.TransformNormal(basis.Right, inverse));
+            down = -Vector3.Normalize(Vector3.TransformNormal(basis.Up, inverse));
+        }
+        else
+        {
+            Vector3 focus = Vector3.Transform(host.Focus, inverse);
+            forward = Vector3.Normalize(focus - eye);
+            right = Vector3.Normalize(Vector3.Cross(forward, -Vector3.UnitY));
+            down = -Vector3.Cross(right, forward);
+        }
         ImmutableArray<short> words = [Q(right.X), Q(right.Y), Q(right.Z), Q(down.X), Q(down.Y), Q(down.Z), Q(forward.X), Q(forward.Y), Q(forward.Z)];
         NativeBattleActionMatrix view = new(words, NativePrecision53.RoundInteger(-Vector3.Dot(right, eye)), NativePrecision53.RoundInteger(-Vector3.Dot(down, eye)), NativePrecision53.RoundInteger(-Vector3.Dot(forward, eye)), 4096);
-        return new(view, 512, 160, 120);
+        return new(view, host.FocalLength ?? 512, 160, 120);
 
         static short Q(float value) => checked((short)NativePrecision53.RoundInteger(value * 4096d));
     }

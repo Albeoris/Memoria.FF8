@@ -4,11 +4,15 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
-internal sealed record CrossoverNativeRenzokukenEntryState(int HostTarget, NativeBattleRenzokuken160Frame Frame, NativeBattleActionPacketsState Packets, NativeBattleRenzokuken160Resources Resources, int Callbacks);
+internal sealed record CrossoverNativeRenzokukenEntryState(int HostTarget, NativeBattleRenzokuken160Frame Frame, NativeBattleActionPacketsState Packets, NativeBattleRenzokuken160Resources Resources, int Callbacks)
+{
+    public NativeBattleLogicalOrdering? Ordering { get; init; }
+    public short StageDepth { get; init; }
+}
 internal sealed record CrossoverNativeRenzokukenPrelude(CrossoverNativeRenzokukenEntryState State, ImmutableArray<NativeBattleRenzokuken160Operation> Operations);
 
 /// <summary>Original ordinary Renzokuken control packet, resource entry and prelude for a host-owned occurrence.</summary>
-internal static class CrossoverNativeRenzokukenEntry
+internal static partial class CrossoverNativeRenzokukenEntry
 {
     public static CrossoverNativeRenzokukenEntryState Begin(GameAssets game, int hostTarget, ushort variant, bool finisherPending, NativeCrtRandomState random, NativeBattleEffectTextureState? sharedTextures = null)
     {
@@ -76,6 +80,6 @@ internal static class CrossoverNativeRenzokukenEntry
         return (model, replacement);
     }
 
-    public static CrossoverNativeRenzokukenEntryState Capture(CrossoverNativeRenzokukenEntryState source) => source with { Frame = NativeBattleEffectComponentStorage.Capture(source.Frame) };
-    public static CrossoverNativeRenzokukenEntryState Restore(CrossoverNativeRenzokukenEntryState source) => source with { Frame = NativeBattleEffectComponentStorage.Restore(source.Frame) };
+    public static CrossoverNativeRenzokukenEntryState Capture(CrossoverNativeRenzokukenEntryState source) => source with { Frame = NativeBattleEffectComponentStorage.Capture(source.Frame), Ordering = source.Ordering is { } ordering ? NativeBattleEffectComponentStorage.Capture(ordering) : null };
+    public static CrossoverNativeRenzokukenEntryState Restore(CrossoverNativeRenzokukenEntryState source) => source with { Frame = NativeBattleEffectComponentStorage.Restore(source.Frame), Ordering = source.Ordering is { } ordering ? NativeBattleEffectComponentStorage.Restore(ordering) : null };
 }
