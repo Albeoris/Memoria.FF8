@@ -97,11 +97,13 @@ internal static partial class Program
         {
             EventEngine live = CreateNativeLadder(up);
             ReachNativeLadderIssue(live);
+            Require(!live.RequiresRealTimeFieldInput, "The automatic approach should accept fast-forward.");
             ActorState actor = live.Actors[0];
             NativeLadderState issued = actor.NativeLadder ?? throw new InvalidOperationException("Mode4 ladder did not establish its body owner.");
             Require(issued.Entry == new FieldFixedPosition(4096, 8192, 12288) && issued.Approach == new FieldFixedPosition(65537 << 12, 8192, 12288) && issued.ClimbingEnd == new FieldFixedPosition(65565 << 12, 8192, 12288) && issued.Exit == new FieldFixedPosition(65569 << 12, 8192, 12288) && issued.Up == up && actor.NativeLandingTriangle508 == 9 && actor.WalkmeshTriangle == 7, "Ladder narrowed fullDWORD coordinates to WORDs, reversed its nine operands, snapped entry or changed triangle during setup.");
             Require(actor.NativeMovementCompletion542 == 3 && actor.NativeTurnAccumulator474 == 1 && issued.FixedX == 4096, "Ladder stage0 failed same-callback stage3 evaluation with its original entry and old counter.");
             ReachNativeLadderClimb(live);
+            Require(live.RequiresRealTimeFieldInput, "The controlled climb must sample input at real time.");
             NativeLadderState approach = actor.NativeLadder!;
             Require(approach.Duration == 4 && approach.FixedX == NativeJumpMath.Interpolate(4096, 65537 << 12, 2, 1), "Ladder snapped the approach endpoint or did not derive climb duration from native fixed deltas and speedBYTE28.");
             JsonElement saved = live.Capture();
@@ -134,6 +136,7 @@ internal static partial class Program
                 StepBoth(forward);
             }
             Require(actor.NativeMovementCompletion542 == 4 && actor.NativeTurnAccumulator474 == 0 && actor.NativeLadder!.FixedX == NativeJumpMath.Interpolate(65537 << 12, 65565 << 12, 4, 3) && actor.WalkmeshTriangle == 7, "Forward ladder failed stage4 entry, changed triangle early or snapped its climb endpoint.");
+            Require(!live.RequiresRealTimeFieldInput, "The automatic exit should accept fast-forward.");
             StepBoth(0);
             Require(actor.NativeMovementCompletion542 == 4 && actor.NativeTurnAccumulator474 == 1 && actor.NativeLadder!.FixedX == 65565 << 12, "Exit phase failed its own old-counter origin.");
             StepBoth(0);

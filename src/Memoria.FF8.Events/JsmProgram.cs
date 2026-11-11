@@ -16,6 +16,8 @@ public sealed record EventObject(int Index, int Label, IReadOnlyList<EventScript
 /// <summary>Validated bytecode ranges correlated with Albeoris's source-backed operations.</summary>
 public sealed class JsmProgram
 {
+    private readonly Lazy<bool[]> inputQueryReachability;
+
     private JsmProgram(IReadOnlyList<EventObject> objects, IReadOnlyList<JsmOperation> operations, IReadOnlyList<int> nativeObjects, int nativeActorCount, IReadOnlyList<NativeScriptPointer> nativeScriptPointers)
     {
         Objects = objects;
@@ -23,6 +25,7 @@ public sealed class JsmProgram
         NativeObjects = nativeObjects;
         NativeActorCount = nativeActorCount;
         NativeScriptPointers = nativeScriptPointers;
+        inputQueryReachability = new(BuildInputQueryReachability);
     }
 
     public IReadOnlyList<EventObject> Objects { get; }
@@ -30,6 +33,67 @@ public sealed class JsmProgram
     public IReadOnlyList<int> NativeObjects { get; }
     public int NativeActorCount { get; }
     public IReadOnlyList<NativeScriptPointer> NativeScriptPointers { get; }
+
+    internal static bool IsInputQuery(Jsm.Opcode opcode) => opcode is Jsm.Opcode.KEYSCAN or Jsm.Opcode.KEYSCAN2 or Jsm.Opcode.KEYON or Jsm.Opcode.KEYON2;
+
+    internal bool CanReachInputQuery(int position) => (uint)position < Operations.Count && inputQueryReachability.Value[position];
+
+    private bool[] BuildInputQueryReachability()
+    {
+        List<int>?[] predecessors = new List<int>?[Operations.Count];
+        bool[] reachable = new bool[Operations.Count];
+        Queue<int> pending = new();
+        for (int index = 0; index < Operations.Count; index++)
+        {
+            JsmOperation operation = Operations[index];
+            if (IsInputQuery(operation.Opcode))
+            {
+                reachable[index] = true;
+                pending.Enqueue(index);
+            }
+            if (operation.Opcode is Jsm.Opcode.RET or Jsm.Opcode.HALT)
+            {
+                continue;
+            }
+            if (operation.Opcode is Jsm.Opcode.JMP or Jsm.Opcode.JPF)
+            {
+                AddPredecessor(JumpTarget(index, operation.Parameter), index);
+            }
+            if (operation.Opcode == Jsm.Opcode.GJMP && (uint)operation.Parameter < NativeScriptPointers.Count)
+            {
+                AddPredecessor(NativeScriptPointers[operation.Parameter].Script.Start, index);
+            }
+            // A global call can poll in its target or after returning to the next instruction.
+            if (operation.Opcode != Jsm.Opcode.JMP)
+            {
+                AddPredecessor(index + 1, index);
+            }
+        }
+        while (pending.TryDequeue(out int position))
+        {
+            if (predecessors[position] is not { } incoming)
+            {
+                continue;
+            }
+            foreach (int predecessor in incoming)
+            {
+                if (!reachable[predecessor])
+                {
+                    reachable[predecessor] = true;
+                    pending.Enqueue(predecessor);
+                }
+            }
+        }
+        return reachable;
+
+        void AddPredecessor(int target, int source)
+        {
+            if ((uint)target < predecessors.Length)
+            {
+                (predecessors[target] ??= []).Add(source);
+            }
+        }
+    }
 
     public NativeScriptPointer ResolveNativeRequestPointer(int objectId, int localSelector, IReadOnlyCollection<int> retainedActors)
     {

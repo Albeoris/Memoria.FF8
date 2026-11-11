@@ -1,11 +1,75 @@
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
+using System.Text.Json;
 
 namespace Memoria.FF8.App.Tests;
 
 public sealed class ScriptedInterfaceClockTests
 {
+    [Fact]
+    public void Original_one_shot_climb_runs_the_same_callbacks_at_six_times_speed()
+    {
+        string snapshot = TestResources.FixturePath("App.Tests.ScriptedInterfaceClockTests.4");
+        string directory = TestResources.GameDirectory;
+        GameSession session = new(PlayerStateLoader.Load(snapshot, directory));
+        using GameWorld normal = new(session, directory, validateWorldPresentation: false);
+        normal.EnsureField();
+        Assert.True(normal.Apply(new(PlayerActionKind.FieldButtons, 64)).Accepted);
+        for (int callback = 0; callback < 50 && normal.Events.PlayerActor!.X < 2940; callback++)
+        {
+            Assert.True(normal.Apply(new(PlayerActionKind.Move, Horizontal: -1)).Accepted);
+        }
+
+        bool climbStarted = false;
+        normal.Events.CommandExecuted += command => climbStarted |= command is { ScriptId: 98, Operation: 1131 or 1144, Name: "UCOFF" };
+        for (int callback = 0; callback < 90 && !climbStarted; callback++)
+        {
+            Step(normal);
+        }
+        Assert.True(climbStarted);
+        Assert.False(normal.Events.IsScriptedInterface);
+        Assert.False(normal.Events.IsUserControlEnabled);
+
+        string midpoint = TestResources.ArtifactFile("climb-start.json");
+        session.Save(midpoint, compact: true);
+        using GameWorld accelerated = new(new GameSession(GameSession.Load(midpoint)), directory, validateWorldPresentation: false);
+        accelerated.EnsureField();
+        GameplayClock clock = new();
+        clock.Configure(6, 100);
+        clock.ToggleSpeed();
+        TimeSpan callbackTime = TimeSpan.FromTicks(333334);
+        long initialFrame = normal.Events.Frame;
+        int updates = 0;
+        while (!normal.Events.IsUserControlEnabled && updates < 90)
+        {
+            TimeSpan elapsed = clock.Advance(callbackTime, SceneKind.Field, accelerated.Events.IsScriptedInterface);
+            Assert.Equal(callbackTime * 6, elapsed);
+            updates++;
+            for (int callback = 0; callback < 6 && !normal.Events.IsUserControlEnabled; callback++)
+            {
+                Step(normal);
+                Step(accelerated);
+            }
+        }
+        Assert.True(normal.Events.IsUserControlEnabled);
+        Assert.True(accelerated.Events.IsUserControlEnabled);
+        Assert.Equal(290, normal.Events.Frame - initialFrame);
+        Assert.Equal(49, updates);
+        Assert.True(JsonElement.DeepEquals(normal.Events.Capture(), accelerated.Events.Capture()));
+        Assert.Equal(normal.Render(TimeSpan.Zero), accelerated.Render(TimeSpan.Zero));
+
+        static void Step(GameWorld world)
+        {
+            if (world.Events.CanConfirmDialogue)
+            {
+                Assert.True(world.Apply(new(PlayerActionKind.Confirm)).Accepted);
+            }
+            world.Events.Step();
+            world.CommitFieldPresentation();
+        }
+    }
+
     [Fact]
     public void Original_second_coupling_keeps_button_delays_with_visible_characters()
     {

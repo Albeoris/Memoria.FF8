@@ -680,7 +680,7 @@ internal sealed partial class RecreateGame
             {
                 if (!hostOnly && events?.PartyMenu is not null)
                 {
-                    UpdatePartyMenu(gameplayClock.Advance(elapsed, session.State.Scene, events?.IsScriptedInterface == true), default);
+                    UpdatePartyMenu(gameplayClock.Advance(elapsed, session.State.Scene, events?.RequiresRealTimeFieldInput == true), default);
                 }
                 return true;
             }
@@ -799,7 +799,7 @@ internal sealed partial class RecreateGame
         }
         else if (!hostOnly && !gameMenus.IsNamePrompt && !gameMenus.IsDemo && IsNativeGridMenuActive)
         {
-            UpdatePartyMenu(gameplayClock.Advance(elapsed, session.State.Scene, events?.IsScriptedInterface == true), default);
+            UpdatePartyMenu(gameplayClock.Advance(elapsed, session.State.Scene, events?.RequiresRealTimeFieldInput == true), default);
         }
         SynchronizeUiMoviePause();
         return true;

@@ -12,6 +12,7 @@ internal static partial class Program
         {
             EventEngine live = CreateNativeLadder(up, automatic: true);
             ReachNativeLadderClimb(live);
+            Require(!live.RequiresRealTimeFieldInput, "Automatic mode4 must accept fast-forward during its climb.");
             ActorState actor = live.Actors[0];
             NativeLadderState climb = actor.NativeLadder!;
             Require(!live.IsUserControlEnabled && actor.NativePartyFlags is { AutoAnimation4: false } && actor.NativeMovementCompletion542 == 1 && actor.NativeTurnAccumulator474 == 0 && climb.Duration == 4, "Automatic mode4 fixture did not execute genuine UCOFF, ordinary entry phase and derived climb duration.");

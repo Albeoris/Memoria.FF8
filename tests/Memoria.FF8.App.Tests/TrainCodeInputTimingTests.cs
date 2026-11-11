@@ -22,6 +22,7 @@ public sealed class TrainCodeInputTimingTests
         Assert.Equal(902, engine.FieldId);
         Assert.Contains(engine.Actors, actor => actor.Active && actor.Visible && actor.RenderModelId >= 0);
         GameplayClock clock = new();
+        clock.Configure(6, 100);
         if (accelerated)
         {
             clock.ToggleSpeed();
@@ -90,7 +91,7 @@ public sealed class TrainCodeInputTimingTests
         Assert.Equal(3, engine.EventMemory.Read(1038, 1).RequireExact());
         Assert.True(engine.IsUserControlEnabled);
         Assert.False(engine.IsScriptedInterface);
-        Assert.Equal(accelerated ? 3 : 1, clock.SpeedMultiplier);
+        Assert.Equal(accelerated ? 6 : 1, clock.SpeedMultiplier);
         Assert.Equal(original, File.ReadAllBytes(fixture));
     }
 }

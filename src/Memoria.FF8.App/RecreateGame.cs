@@ -338,7 +338,7 @@ internal sealed partial class RecreateGame : Game
         {
             gameplayClock.ToggleSpeed();
         }
-        fieldAudio?.SetSoundSpeed(gameplayClock.EffectiveSpeed(session.State.Scene, events?.IsScriptedInterface == true, ActiveBattle is not null));
+        fieldAudio?.SetSoundSpeed(gameplayClock.EffectiveSpeed(session.State.Scene, events?.RequiresRealTimeFieldInput == true, ActiveBattle is not null));
         // A capture fences the queue until Draw publishes that exact presented frame.
         if (pendingCapture is null)
         {
@@ -414,7 +414,7 @@ internal sealed partial class RecreateGame : Game
             metrics.Update(updateStarted);
             return;
         }
-        TimeSpan gameplayElapsed = gameplayClock.Advance(gameTime.ElapsedGameTime, session.State.Scene, events?.IsScriptedInterface == true, ActiveBattle is not null);
+        TimeSpan gameplayElapsed = gameplayClock.Advance(gameTime.ElapsedGameTime, session.State.Scene, events?.RequiresRealTimeFieldInput == true, ActiveBattle is not null);
         world?.AdvanceDebug(gameplayElapsed);
         if (UpdateBattle(gameplayElapsed, input, gameTime.ElapsedGameTime))
         {
@@ -470,7 +470,7 @@ internal sealed partial class RecreateGame : Game
         }
         else
         {
-            UpdateField(gameplayElapsed, input);
+            UpdateField(gameplayElapsed, gameTime.ElapsedGameTime, input);
         }
         PreserveCompletedMovieFrame();
         if (session.State.Scene != SceneKind.Movie && movie is not null)
@@ -608,7 +608,7 @@ internal sealed partial class RecreateGame : Game
         }
     }
 
-    private void UpdateField(TimeSpan elapsed, InputFrame input)
+    private void UpdateField(TimeSpan elapsed, TimeSpan realElapsed, InputFrame input)
     {
         if (fieldFaulted && field?.Id == session.State.FieldId)
         {
@@ -629,6 +629,11 @@ internal sealed partial class RecreateGame : Game
             if (SynchronizeNativeNamePrompt())
             {
                 return;
+            }
+            // Loading or restoring a field can reveal an input owner after the clock was sampled.
+            if (elapsed > realElapsed && events!.RequiresRealTimeFieldInput)
+            {
+                elapsed = realElapsed;
             }
             if (events!.PartyMenu is not null)
             {
@@ -709,6 +714,12 @@ internal sealed partial class RecreateGame : Game
                 if (session.State.Scene != SceneKind.Field || session.State.FieldId != field!.Id || events.NextTrigger.Kind is PlayerTriggerKind.FieldTransition or PlayerTriggerKind.NativeGameOver || events.PendingInteractiveBattle is not null || events.PendingTripleTriad is not null || events.Scene.NativeTutorial is not null || events.CurrentDialogue?.IsNamePrompt == true)
                 {
                     SynchronizeNativeNamePrompt();
+                    fieldSeconds = 0;
+                    return;
+                }
+                if (elapsed > realElapsed && events.RequiresRealTimeFieldInput)
+                {
+                    // Let the next host update sample input at real time before advancing this interface.
                     fieldSeconds = 0;
                     return;
                 }

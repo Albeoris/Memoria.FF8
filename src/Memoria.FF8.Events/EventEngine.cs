@@ -81,10 +81,24 @@ public sealed partial class EventEngine
     // Before the first callback, conservatively keep candidate interfaces at real time.
     public bool IsScriptedInterface => !IsUserControlEnabled && program is not null &&
         (inputPollingObserved
-            ? inputPollingFibers.Keys.Any(fiber => !fiber.Complete && fiber.WaitReason != WaitReason.NativeHalt)
+            ? inputPollingFibers.Keys.Any(CanContinueInputPolling)
             : !actors.Any(actor => actor.Active && actor.Visible && actor.RenderModelId >= 0)
-                ? program.Operations.Any(operation => operation.Opcode is Jsm.Opcode.KEYSCAN or Jsm.Opcode.KEYSCAN2 or Jsm.Opcode.KEYON or Jsm.Opcode.KEYON2)
-                : fibers.Any(fiber => !fiber.Complete && fiber.WaitReason != WaitReason.NativeHalt && fiber.Script.ReachableOperations.Any(index => program.Operations[index].Opcode is Jsm.Opcode.KEYSCAN or Jsm.Opcode.KEYSCAN2 or Jsm.Opcode.KEYON or Jsm.Opcode.KEYON2)));
+                ? program.Operations.Any(operation => JsmProgram.IsInputQuery(operation.Opcode))
+                : fibers.Any(CanContinueInputPolling));
+
+    private bool CanContinueInputPolling(Fiber fiber)
+    {
+        // A one-time trigger can hand off to a cutscene and wait there with control disabled.
+        // A polling loop still owns its repeat delays when it can return to a query.
+        return !fiber.Complete && fiber.WaitReason != WaitReason.NativeHalt &&
+            (program!.CanReachInputQuery(fiber.Position) || fiber.NativeGlobalJumps.Any(frame => program.CanReachInputQuery(frame.ReturnOperation)));
+    }
+
+    public bool RequiresRealTimeFieldInput => IsScriptedInterface ||
+        PlayerActor is { NativeMovementCompletion542: 1 } player &&
+        (userControlEnabled && player.NativeLadder is { Active: true } ||
+         player.NativeLadderMode3 is { Active: true } && IsControlledLadderMode3(player));
+
     public IReadOnlyDictionary<int, int> BackgroundStates => backgroundStates;
     public SceneEventState Scene { get; private set; } = new();
     public Func<int, int, int>? AnimationFrameCount { get; set; }
@@ -418,7 +432,7 @@ public sealed partial class EventEngine
         if (!inputPollingObserved)
         {
             // A restored interface may be partway through a repeat delay or instruction budget.
-            foreach (Fiber fiber in fibers.Where(fiber => !fiber.Complete && fiber.WaitReason != WaitReason.NativeHalt && fiber.Script.ReachableOperations.Any(index => program.Operations[index].Opcode is Jsm.Opcode.KEYSCAN or Jsm.Opcode.KEYSCAN2 or Jsm.Opcode.KEYON or Jsm.Opcode.KEYON2)))
+            foreach (Fiber fiber in fibers.Where(CanContinueInputPolling))
             {
                 inputPollingFibers[fiber] = [];
             }
@@ -794,7 +808,7 @@ public sealed partial class EventEngine
             {
                 NativeScalarValue[]? enteringResults = operation.Opcode == Jsm.Opcode.LBL && fiber.NativeGlobalJumps.Count == 0 && HasNativeOperandRecord(fiber.ObjectId) && !fiber.NativeResultFrameEntered ? ReadNativeDoorLiveResults(fiber) : null;
                 Execute(fiber, operation);
-                if (operation.Opcode is Jsm.Opcode.KEYSCAN or Jsm.Opcode.KEYSCAN2 or Jsm.Opcode.KEYON or Jsm.Opcode.KEYON2)
+                if (JsmProgram.IsInputQuery(operation.Opcode))
                 {
                     if (inputPollingFibers.TryGetValue(fiber, out HashSet<int>? polled))
                     {

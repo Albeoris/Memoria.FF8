@@ -126,6 +126,7 @@ internal static partial class Program
             ActorState actor = controlled.Actors[0];
             EventEngine restored = CreateLadderMode3Fixture(vitals, economy, input, up, automatic: false);
             restored.Restore(controlled.Capture());
+            Require(controlled.RequiresRealTimeFieldInput && restored.RequiresRealTimeFieldInput, "Controlled mode3 must sample input at real time, including after restore.");
             void StepHeld(int buttons)
             {
                 NativeLadderButtons(controlled, buttons);
@@ -150,6 +151,7 @@ internal static partial class Program
             Require(actor.NativeMovementCompletion542 == 1, "Controlled mode3 completed at its endpoint without the required forward input.");
             StepHeld(forward);
             Require(actor.NativeMovementCompletion542 == 2 && actor.WalkmeshTriangle == 9 && !LadderMode3HasSuccessor(controlled), "Controlled mode3 did not commit its triangle and completion on held forward equality.");
+            Require(!controlled.RequiresRealTimeFieldInput, "Completed mode3 must release its input pacing before the next operation.");
             StepHeld(0);
             Require(LadderMode3HasSuccessor(controlled), "Controlled mode3 did not release its held instruction on the following VM callback.");
 

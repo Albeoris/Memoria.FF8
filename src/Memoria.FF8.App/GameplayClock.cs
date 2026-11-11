@@ -37,7 +37,7 @@ internal sealed class GameplayClock
     public TimeSpan Advance(TimeSpan elapsed, SceneKind scene, bool scriptedInterface = false, bool battle = false)
     {
         // Movie callbacks follow decoded frames and real PCM playback together.
-        // Scripted interfaces own their held-button repeat delays in field callbacks.
+        // Scripted interfaces and controlled ladder phases sample held buttons at real time.
         double multiplier = EffectiveSpeed(scene, scriptedInterface, battle);
         TimeSpan simulationElapsed = elapsed * multiplier;
         Total += simulationElapsed;

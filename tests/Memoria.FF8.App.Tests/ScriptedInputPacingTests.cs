@@ -77,6 +77,23 @@ public sealed class ScriptedInputPacingTests
     }
 
     [Fact]
+    public void OneShotButtonTriggerReleasesPacingDuringItsWaitAndAfterRestore()
+    {
+        (Jsm.Opcode Opcode, int Parameter)[] commands = [(Jsm.Opcode.PSHN_L, 64), (Jsm.Opcode.KEYSCAN2, 0), (Jsm.Opcode.UCOFF, 0), (Jsm.Opcode.PSHN_L, 30), (Jsm.Opcode.WAIT, 0)];
+        EventEngine live = Create(commands);
+        Assert.False(live.IsUserControlEnabled);
+        Assert.Equal("Frames", DefaultFiber(live.Capture()).GetProperty("WaitReason").GetString());
+        Assert.False(live.IsScriptedInterface);
+
+        EventEngine restored = Create(commands);
+        restored.Restore(live.Capture());
+        Assert.False(restored.IsScriptedInterface);
+        restored.Step();
+        Assert.False(restored.IsScriptedInterface);
+        Assert.Null(restored.LastFault);
+    }
+
+    [Fact]
     public void LeavingThePollingBranchReleasesOwnershipOnTheGuardLoop()
     {
         EventEngine engine = Create([(Jsm.Opcode.UCOFF, 0), (Jsm.Opcode.PSHN_L, 64), (Jsm.Opcode.KEYSCAN2, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.JPF, -3), (Jsm.Opcode.NOP, 0), (Jsm.Opcode.JMP, -1)]);
