@@ -12,6 +12,7 @@ internal static class Ff7PlayerMenuProjection
     {
         MenuData data = new() { Location = location, Currency = checked((int)progress.Gil), PlayTime = elapsed, SaveAvailable = canSave, ShowSeeDRank = false };
         data.SupportedActions.UnionWith(["config", "ff7-save", "ff7-load", "ff7-world", "ff7-close", "ff7-materia-character", "ff7-materia-slot", "ff7-materia-equip", "ff7-character-menu-select", "ff7-order-apply", "ff7-phs-apply"]);
+        data.SupportedActions.UnionWith(["ff7-equip-slot", "ff7-equip-apply", "ff7-limit-select-level", "ff7-limit-apply", "ff7-field-item-select", "ff7-field-magic-select", "ff7-field-recovery-apply"]);
         int[] partyOrder = party.Where(character => character != 255).Distinct().ToArray();
         IEnumerable<Ff7CharacterState> ordered = partyOrder.Select(id => progress.Characters.Single(character => character.Id == id)).Concat(progress.Characters.Where(character => !partyOrder.Contains(character.Id) && (progress.AvailableCharacters & (1 << character.Id)) != 0));
         foreach (Ff7CharacterState character in ordered)

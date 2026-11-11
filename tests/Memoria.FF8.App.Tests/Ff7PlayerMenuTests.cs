@@ -49,11 +49,11 @@ public sealed class Ff7PlayerMenuTests
     public void OrdinaryFieldMenuDoesNotRequireSavePermissionAndRejectsNativeInteractions()
     {
         Ff7FieldProcess idle = new();
-        Assert.True(Ff7Scene.CanOpenFieldPlayerMenu(idle));
-        Assert.False(Ff7Scene.CanOpenFieldPlayerMenu(idle with { MenuDisabled = true }));
-        Assert.False(Ff7Scene.CanOpenFieldPlayerMenu(idle with { PlayerLocked = true }));
-        Assert.False(Ff7Scene.CanOpenFieldPlayerMenu(idle with { GlobalCommand = Ff7GlobalCommand.Menu }));
-        Assert.False(Ff7Scene.CanOpenFieldPlayerMenu(idle with { Dialogues = [new(1, 0, 0, null, null, 0)] }));
+        Assert.True(Ff7Session.CanOpenFieldPlayerMenu(idle));
+        Assert.False(Ff7Session.CanOpenFieldPlayerMenu(idle with { MenuDisabled = true }));
+        Assert.False(Ff7Session.CanOpenFieldPlayerMenu(idle with { PlayerLocked = true }));
+        Assert.False(Ff7Session.CanOpenFieldPlayerMenu(idle with { GlobalCommand = Ff7GlobalCommand.Menu }));
+        Assert.False(Ff7Session.CanOpenFieldPlayerMenu(idle with { Dialogues = [new(1, 0, 0, null, null, 0)] }));
     }
 
     [Fact]
@@ -61,11 +61,11 @@ public sealed class Ff7PlayerMenuTests
     {
         Ff7WorldProcess idle = new(0, 0, 1, null!, [], 0, true, 0, 0, null, [], -1, new(), 0, 0, MainState: 1, FadeAlpha: 0, FadeDisplayedAlpha: 0);
         string before = JsonSerializer.Serialize(idle);
-        Assert.True(Ff7Scene.CanOpenWorldPlayerMenu(idle));
-        Assert.False(Ff7Scene.CanOpenWorldPlayerMenu(idle with { MovementEnabled = false }));
-        Assert.False(Ff7Scene.CanOpenWorldPlayerMenu(idle with { ControlLock = 1 }));
-        Assert.False(Ff7Scene.CanOpenWorldPlayerMenu(idle with { FadeDisplayedAlpha = 1 }));
-        Assert.False(Ff7Scene.CanOpenWorldPlayerMenu(idle with { Dialogue = new(1, 0, 0, null, null, 0) }));
+        Assert.True(Ff7Session.CanOpenWorldPlayerMenu(idle));
+        Assert.False(Ff7Session.CanOpenWorldPlayerMenu(idle with { MovementEnabled = false }));
+        Assert.False(Ff7Session.CanOpenWorldPlayerMenu(idle with { ControlLock = 1 }));
+        Assert.False(Ff7Session.CanOpenWorldPlayerMenu(idle with { FadeDisplayedAlpha = 1 }));
+        Assert.False(Ff7Session.CanOpenWorldPlayerMenu(idle with { Dialogue = new(1, 0, 0, null, null, 0) }));
         Assert.Equal(before, JsonSerializer.Serialize(idle));
     }
 

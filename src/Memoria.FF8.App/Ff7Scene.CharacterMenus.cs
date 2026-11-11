@@ -1,7 +1,4 @@
-using System.Buffers.Binary;
 using System.Globalization;
-using Memoria.FF7.Formats;
-using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 using Memoria.FF8.GameUi;
 
@@ -10,14 +7,15 @@ namespace Memoria.FF8;
 internal sealed partial class Ff7Scene
 {
     private int selectedNativeMenuCharacter;
-    private IReadOnlyList<KernelSection>? nativeMenuKernel;
 
     private void RegisterNativeCharacterMenus(MenuController menu)
     {
-        AddCharacterMenu("ff7-magic", "Magic", "Spells granted by equipped materia. Review spell costs and current MP.", ReadNativeMagic);
-        AddCharacterMenu("ff7-equip", "Equip", "View equipped gear.", ReadNativeEquipment);
+        AddCharacterMenu("ff7-magic", "Magic", "View spell costs or choose a recovery spell.", (_, character) => ReadNativeFieldMagic(character));
+        AddCharacterMenu("ff7-equip", "Equip", "Choose a slot and equip gear from inventory.", ReadNativeEquipment);
+        RegisterNativeEquipmentMenu(menu);
         AddCharacterMenu("ff7-order", "Order", "Choose the first party member.", ReadNativeOrder, includeGuests: true);
-        AddCharacterMenu("ff7-limit", "Limit", "View the saved Limit level, gauge and learned slots.", ReadNativeLimit);
+        AddCharacterMenu("ff7-limit", "Limit", "View learned Limits or change the active Limit level.", ReadNativeLimit);
+        RegisterNativeLimitMenu(menu);
         menu.Register(new()
         {
             Id = "ff7-phs",
@@ -66,39 +64,6 @@ internal sealed partial class Ff7Scene
                 Entries = controller => details(controller, Session!.Progress.Characters.Single(character => character.Id == selectedNativeMenuCharacter))
             });
         }
-    }
-
-    private IReadOnlyList<MenuEntry> ReadNativeMagic(MenuController _, Ff7CharacterState character)
-    {
-        nativeMenuKernel ??= KernelArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.Kernel).Path));
-        return Ff7NativeBattleSpells.Read(character, nativeMenuKernel).Select(spell => new MenuEntry($"spell-{spell.AttackId}", $"{BattleSpellName(spell.AttackId)}   {spell.Attack.CastingCost} MP", $"Current MP {character.MagicPoints}")).ToArray();
-    }
-
-    private IReadOnlyList<MenuEntry> ReadNativeEquipment(MenuController _, Ff7CharacterState character)
-    {
-        return [Gear("Weapon", 28, 128), Gear("Armor", 29, 256), Gear("Accessory", 30, 288)];
-
-        MenuEntry Gear(string label, int offset, int first)
-        {
-            byte index = character.NativeRecord[offset];
-            int item = first + index;
-            string name = index == byte.MaxValue ? "None" : menuText!.ItemNames.GetValueOrDefault(item, "Unavailable");
-            string help = index == byte.MaxValue ? "No gear equipped." : menuText!.ItemDescriptions.GetValueOrDefault(item, "Equipment description unavailable.");
-            return new(label, $"{label}   {name}", help);
-        }
-    }
-
-    private IReadOnlyList<MenuEntry> ReadNativeLimit(MenuController _, Ff7CharacterState character)
-    {
-        byte[] native = character.NativeRecord;
-        ushort learned = BinaryPrimitives.ReadUInt16LittleEndian(native.AsSpan(34));
-        List<MenuEntry> entries = [new("gauge", $"Level {native[14]}   Gauge {native[15] * 100 / 255}%", "Current Limit level and gauge.")];
-        for (int level = 0; level < 4; level++)
-        {
-            int slots = System.Numerics.BitOperations.PopCount((uint)(learned >> (level * 3) & 7));
-            entries.Add(new($"level-{level + 1}", $"Level {level + 1}   {slots} learned", "Learned Limit slots at this level."));
-        }
-        return entries;
     }
 
     private IReadOnlyList<MenuEntry> ReadNativeOrder(MenuController menu, Ff7CharacterState first)
@@ -152,6 +117,6 @@ internal sealed partial class Ff7Scene
             }
             return true;
         }
-        return false;
+        return ApplyNativeEquipmentMenuAction(action) || ApplyNativeLimitMenuAction(action);
     }
 }

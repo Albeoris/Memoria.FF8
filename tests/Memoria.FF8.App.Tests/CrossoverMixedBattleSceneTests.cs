@@ -254,7 +254,7 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
         void VerifyFieldMenu()
         {
             Ff7Session field = scene.Session!;
-            bool FieldMenuAvailable() => !field.HasPendingTick && Ff7Scene.CanOpenFieldPlayerMenu(field.Host.Process);
+            bool FieldMenuAvailable() => field.CanUsePlayerMenu;
             for (int tick = 0; tick < 300 && !FieldMenuAvailable(); tick++)
             {
                 foreach (Ff7Dialogue dialogue in field.Host.Process.Dialogues.Where(dialogue => !dialogue.Completed))

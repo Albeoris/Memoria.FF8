@@ -23,14 +23,6 @@ internal sealed partial class Ff7Scene
     internal bool IsPlayerMenuOpen => ActivePlayerMenu is not null;
     private bool CanUsePlayerMenuPhs => Session?.CanUseMenuPhs == true;
 
-    private bool CanOpenPlayerMenu => Session is { HasPendingTick: false } session && (session.World is { } world
-        ? CanOpenWorldPlayerMenu(world.Process)
-        : CanOpenFieldPlayerMenu(session.Host.Process));
-
-    internal static bool CanOpenFieldPlayerMenu(Ff7FieldProcess process) => !process.MenuDisabled && !process.PlayerLocked && process.GlobalCommand == Ff7GlobalCommand.None && process.Transition is null && process.Movie is not { Playing: true } && process.Dialogues.All(dialogue => dialogue.Completed);
-
-    internal static bool CanOpenWorldPlayerMenu(Ff7WorldProcess process) => process.MainState == 1 && process.FadeRate == 0 && process.FadeDisplayedAlpha == 0 && process.MovementEnabled && process.ControlLock == 0 && process.Dialogue is not { Completed: false };
-
     private void EnsurePlayerMenu()
     {
         if (playerMenu is not null)
@@ -59,13 +51,13 @@ internal sealed partial class Ff7Scene
             Layout = MenuLayout.Main,
             Entries = _ =>
             [
-                new("items", "Item", "View the items carried in this world.", "ff7-items"),
-                new("magic", "Magic", "View spells granted by equipped materia.", "ff7-magic"),
+                new("items", "Item", "View inventory and use available recovery items.", "ff7-items"),
+                new("magic", "Magic", "View spells granted by equipped materia and cast recovery magic.", "ff7-magic"),
                 new("materia", "Materia", "Equip and link materia in the current party.", "ff7-materia"),
-                new("equip", "Equip", "View equipped weapons, armor and accessories.", "ff7-equip"),
+                new("equip", "Equip", "Choose weapons and armor or view accessories.", "ff7-equip"),
                 new("status", "Status", "View the current party.", "ff7-status"),
                 new("order", "Order", "Change the party order or battle row.", "ff7-order"),
-                new("limit", "Limit", "View current Limit levels and learned slots.", "ff7-limit"),
+                new("limit", "Limit", "View learned Limits or change the active level.", "ff7-limit"),
                 new("config", "Config", "Shared controls, graphics, audio and interface preferences.", "config"),
                 new("phs", "PHS", CanUsePlayerMenuPhs ? "Exchange active and reserve party members." : "PHS is unavailable at this location.", "ff7-phs", Enabled: CanUsePlayerMenuPhs),
                 new("save", "Save", "Save the current continuation.", Action: new("ff7-save"), Enabled: CanSave),
@@ -74,7 +66,7 @@ internal sealed partial class Ff7Scene
                 new("close", "Return", "Return to the game.", Action: new("ff7-close"))
             ]
         });
-        playerMenu.Register(new() { Id = "ff7-items", Title = "Items", Help = "Items carried in this world.", Entries = menu => menu.Data.Items.Select(item => new MenuEntry(item.Id, $"{item.Name}   {item.Quantity}", item.Description)).ToArray(), Details = menu => [menu.SelectedEntry?.Help ?? ""] });
+        RegisterNativeFieldRecoveryMenus(playerMenu);
         playerMenu.Register(new() { Id = "ff7-status", Title = "Status", Help = "Current party.", Entries = menu => menu.Data.Characters.Where(character => character.InParty).Select(character => new MenuEntry(character.Id, $"{character.Name}   Lv {character.Level}   HP {character.CurrentHp}", $"MP {character.Stats["MP"]}   EXP {character.Experience}")).ToArray(), Details = menu => [menu.SelectedEntry?.Help ?? ""] });
         RegisterMateriaMenus(playerMenu);
         RegisterNativeCharacterMenus(playerMenu);
@@ -123,7 +115,7 @@ internal sealed partial class Ff7Scene
 
     private void ApplyPlayerMenuAction(MenuAction action)
     {
-        if (ApplyMateriaMenuAction(action) || ApplyNativeCharacterMenuAction(action))
+        if (ApplyMateriaMenuAction(action) || ApplyNativeFieldRecoveryAction(action) || ApplyNativeCharacterMenuAction(action))
         {
             return;
         }
@@ -178,7 +170,7 @@ internal sealed partial class Ff7Scene
                 RefreshPlayerMenuPresentation();
                 return true;
             }
-            if (!CanOpenPlayerMenu)
+            if (Session?.CanUsePlayerMenu != true)
             {
                 pendingPlayerMenuRequest = Session is { } session && (session.HasPendingTick || session.Host.Process.GlobalCommand == Ff7GlobalCommand.Battle);
                 return false;

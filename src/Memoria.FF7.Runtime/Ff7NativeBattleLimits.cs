@@ -43,15 +43,44 @@ public static class Ff7NativeBattleLimits
     public static IReadOnlyList<byte> ReadLearnedIds(Ff7CharacterState character, IReadOnlyList<KernelSection> kernel)
     {
         ReadOnlySpan<byte> data = ReadBattleKernel(character, kernel);
-        ReadOnlySpan<byte> native = character.NativeRecord;
+        return ReadLearnedIds(character, data, character.NativeRecord[14]);
+    }
 
-        int levelStart = (native[14] - 1) * 3;
-        ushort learned = BinaryPrimitives.ReadUInt16LittleEndian(native[34..]);
-        List<byte> result = new(3);
-        for (int index = levelStart; index < levelStart + 3; index++)
+    public static IReadOnlyList<byte> ReadLearnedIds(Ff7CharacterState character, IReadOnlyList<KernelSection> kernel, int level)
+    {
+        ArgumentNullException.ThrowIfNull(character);
+        ArgumentNullException.ThrowIfNull(kernel);
+        ReadOnlySpan<byte> data = kernel.Single(section => section.Type == 2).Data.Span;
+        if (data.Length != 3988 || character.Id is < 0 or > 8)
         {
-            byte id = data[12 + character.Id * 56 + index];
-            if (id != byte.MaxValue && (learned & (1 << index)) != 0)
+            throw new InvalidDataException("FFVII Limit display requires its original character and battle kernel records.");
+        }
+        return ReadLearnedIds(character, data, level);
+    }
+
+    public static int ReadLearnedMask(Ff7CharacterState character, int level)
+    {
+        ArgumentNullException.ThrowIfNull(character);
+        ArgumentOutOfRangeException.ThrowIfLessThan(level, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(level, 4);
+        if (character.NativeRecord.Length != 132)
+        {
+            throw new InvalidDataException("FFVII Limit selection requires the original character record.");
+        }
+
+        ushort learned = BinaryPrimitives.ReadUInt16LittleEndian(character.NativeRecord.AsSpan(34));
+        return (learned >> ((level - 1) * 3)) & 7;
+    }
+
+    private static IReadOnlyList<byte> ReadLearnedIds(Ff7CharacterState character, ReadOnlySpan<byte> data, int level)
+    {
+        int learned = ReadLearnedMask(character, level);
+        int levelStart = 12 + character.Id * 56 + (level - 1) * 3;
+        List<byte> result = new(3);
+        for (int slot = 0; slot < 3; slot++)
+        {
+            byte id = data[levelStart + slot];
+            if (id != byte.MaxValue && (learned & (1 << slot)) != 0)
             {
                 result.Add(id);
             }
