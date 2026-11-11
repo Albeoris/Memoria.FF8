@@ -84,6 +84,17 @@ public sealed class AutoPlayWalkRejectionProofTests
         Assert.False(GameWorld.CanCacheAutoPlayUnavailableSource(program, "600:talk:0", 0));
     }
 
+    [Theory]
+    [InlineData(Jsm.Opcode.ANIME)]
+    [InlineData(Jsm.Opcode.RANIME)]
+    public void FullBodyAnimationWaitsCanPrecedeAProvedWalkingReturn(Jsm.Opcode opcode)
+    {
+        JsmProgram program = JsmProgram.Read(Program([], [], [(opcode, 1)]));
+
+        Assert.True(GameWorld.CanCacheAutoPlayWalkRejectionSource(program, "600:talk:0", 0));
+        Assert.False(GameWorld.CanCacheAutoPlayUnavailableSource(program, "600:talk:0", 0));
+    }
+
     [Fact]
     public void ExistingAbsenceProofKeepsItsOriginalWriteAndMapBehavior()
     {
