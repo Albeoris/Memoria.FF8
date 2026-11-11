@@ -50,7 +50,7 @@ public readonly record struct Ff7ProjectionDepth(float NearPlane, float FarPlane
 }
 
 /// <summary>Native FF7 field resources submitted to the shared triangle backend. It never advances simulation or animation waits.</summary>
-public sealed class Ff7FieldRenderer
+public sealed partial class Ff7FieldRenderer
 {
     private readonly Ff7FieldResources field;
     private readonly IReadOnlyDictionary<int, Ff7FieldModelResources> models;
@@ -80,6 +80,7 @@ public sealed class Ff7FieldRenderer
         {
             throw new InvalidDataException("FF7 field render dimensions, camera or background parameter state is invalid.");
         }
+        frame = PrepareViewport(width, height, frame);
         bool drawBackground = !frame.MovieActive || frame.DrawBackgroundDuringMovie;
         if (drawBackground)
         {
@@ -447,7 +448,7 @@ public sealed class Ff7FieldRenderer
         return new Vector2((width - 320 * scale) / 2 + point.X * scale, point.Y * scale);
     }
 
-    private static Vector4 FieldClip(int width, int height) => new(0, height * 8f / 240, width, height * 232f / 240);
+    private Vector4 FieldClip(int width, int height) => new(viewportLeft, height * 8f / 240, viewportRight, height * 232f / 240);
     private static float Cross(Vector2 first, Vector2 second) => first.X * second.Y - first.Y * second.X;
     private static byte Expand(int channel) => (byte)((channel << 3) | (channel >> 2));
 

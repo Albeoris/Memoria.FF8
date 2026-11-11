@@ -8,6 +8,76 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class Ff7FieldRendererTests
 {
+    [Theory]
+    [InlineData(640, 240, -480, 480, 0, 0, 0, 640)]
+    [InlineData(640, 240, -480, 480, 400, 160, 0, 640)]
+    [InlineData(640, 240, -480, 480, -400, -160, 0, 640)]
+    [InlineData(640, 240, -160, 160, 400, 0, 160, 480)]
+    [InlineData(640, 240, -160, 160, -400, 0, 160, 480)]
+    [InlineData(640, 240, -100, 220, 400, -60, 160, 480)]
+    [InlineData(1280, 720, -160, 160, 400, 0, 160, 1120)]
+    [InlineData(1915, 969, -160, 160, -400, 0, 311.5f, 1603.5f)]
+    [InlineData(320, 240, -480, 480, 400, 400, 0, 320)]
+    public void WidescreenStopsAtCameraBoundsAndCentersNarrowImages(int width, int height, short left, short right, float scroll, float expectedScroll, float clipLeft, float clipRight)
+    {
+        PcFieldCamera camera = new(Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ, 0, new Vector3(0, 0, 1000), 0, 100);
+        PcFieldTriggers triggers = new("viewport", 0, 0, left, -120, right, 120, [], [], [], []);
+        PcFieldTile tile = new(0, 0, 0, 0, 0, 0, 0, 0, 16, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ReadOnlyMemory<byte>.Empty);
+        PcFieldBackground background = new(320, 240, [0], [[tile]], [new(0, 0, 1, new byte[256 * 256])]);
+        PcFieldPalettes palettes = new(0, 0, 1, [[0x7FFF]]);
+        PcFieldModelDescriptor descriptor = new("actor", 0, "actor.hrc", "512", Enumerable.Repeat(new PcFieldLight(0, Vector3.Zero), 3).ToArray(), 0, ["pose"]);
+        Ff7FieldResources field = new("viewport", null!, null!, new PcFieldModels(0, 512, [descriptor]), [camera], [], triggers, palettes, background);
+        Ff7FieldModelResources model = new("actor.hrc", null!, [], new Dictionary<string, PcFieldAnimation>());
+        Ff7FieldRenderer renderer = new(field, new Dictionary<int, Ff7FieldModelResources> { [0] = model }, new(50, 32000), new ViewportAppearance());
+        Albeoris.Games.FF8.Imaging.PixelImage image = new(128, 16);
+        Ff7FieldRenderFrame frame = new(0, new Vector2(scroll, 7), [new(0, 0, 0, 0, 0, 0, 0, 0)], new ushort[256]) { PlayerPointer = new(image, new Vector2(160 + scroll, 127), false, false), QuadColorArgb = 0x80000000 };
+        Capture capture = new();
+        renderer.Render(capture, width, height, frame);
+        float scale = height / 240f;
+        Vector2 origin = new(width / 2f + expectedScroll * scale, 127 * scale);
+        Assert.Equal(origin, capture.Positions[0]);
+        Assert.Equal(origin, capture.Positions[6]);
+        Assert.Equal(origin, capture.Positions[^6]);
+        Assert.All(capture.Clips.Take(capture.Count - 2), clip => Assert.Equal(new Vector4(clipLeft, height * 8f / 240, clipRight, height * 232f / 240), clip));
+        Assert.Equal(new Vector2(scroll, 7), frame.CameraOffsetPixels);
+
+        Capture movie = new();
+        renderer.Render(movie, width, height, frame with { MovieActive = true });
+        Assert.Equal(new Vector2(width / 2f + scroll * scale, 127 * scale), movie.Positions[0]);
+        Assert.Equal(new Vector4(0, height * 8f / 240, width, height * 232f / 240), movie.Clips[0]);
+    }
+
+    private sealed class ViewportAppearance : IFf7ActorAppearance
+    {
+        public bool TryCreate(Ff7ActorVisual actor, PcFieldModelDescriptor descriptor, Ff7FieldModelResources original, out IReadOnlyList<Ff7AppearanceTriangle> triangles)
+        {
+            triangles = [new(new(Vector3.Zero, Vector2.Zero, Vector4.One), new(Vector3.UnitX, Vector2.Zero, Vector4.One), new(Vector3.UnitY, Vector2.Zero, Vector4.One), new TriangleMaterial(null))];
+            return true;
+        }
+    }
+
+    [Theory]
+    [InlineData("nrthmk")]
+    [InlineData("md1stin")]
+    [InlineData("tin_1")]
+    public void InstalledFieldCameraEdgesUseTriggerBoundsInsteadOfBackgroundTileExtents(string fieldName)
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(root), "Set MEMORIA_FF7_GAME_DIR for original widescreen camera bounds.");
+        Ff7FieldResources field = Ff7FieldResources.Load(Ff7Installation.Discover(root!), fieldName);
+        Ff7FieldRenderer renderer = new(field, new Dictionary<int, Ff7FieldModelResources>(), new(50, 32000));
+        PcFieldTile first = field.Background.Layers.SelectMany(layer => layer).First(tile => tile.Blending == 0 && (tile.Layer == 0 || tile.State == 0));
+        float imageWidth = field.Triggers.CameraRight - field.Triggers.CameraLeft;
+        foreach (float scroll in new[] { -10000f, 0, 10000f })
+        {
+            Capture capture = new();
+            renderer.Render(capture, 640, 240, new(0, new Vector2(scroll, 0), [], new ushort[256]));
+            float imageLeft = imageWidth < 640 ? (640 - imageWidth) / 2 : Math.Clamp(320 + field.Triggers.CameraLeft + scroll, 640 - imageWidth, 0);
+            Assert.Equal(imageLeft + first.DestinationX - field.Triggers.CameraLeft, capture.Positions[0].X, 3);
+            Assert.All(capture.Clips, clip => Assert.Equal(new Vector4(Math.Max(0, imageLeft), 8, Math.Min(640, imageLeft + imageWidth), 232), clip));
+        }
+    }
+
     [Fact]
     public void ReplacementRequiresExplicitNativePartOwnershipAndRetainsColorEffectRejection()
     {
@@ -78,12 +148,23 @@ public sealed class Ff7FieldRendererTests
         Assert.True(native.ModelTriangles > 0 && native.Count > native.ModelTriangles);
         float scale = height / 240f;
         float offset = (width - 320 * scale) / 2;
+        float clipLeft = 0;
+        float clipRight = width;
+        if (width > 320 * scale)
+        {
+            float imageWidth = (field.Triggers.CameraRight - field.Triggers.CameraLeft) * scale;
+            float imageLeft = offset + (160 + field.Triggers.CameraLeft + frame.CameraOffsetPixels.X) * scale;
+            float placedLeft = imageWidth >= width ? Math.Clamp(imageLeft, width - imageWidth, 0) : (width - imageWidth) / 2;
+            offset += placedLeft - imageLeft;
+            clipLeft = Math.Max(0, placedLeft);
+            clipRight = Math.Min(width, placedLeft + imageWidth);
+        }
         for (int index = 0; index < native.Positions.Count; index++)
         {
             Assert.InRange(Math.Abs(resized.Positions[index].X - (offset + native.Positions[index].X * scale)), 0, 0.001f);
             Assert.InRange(Math.Abs(resized.Positions[index].Y - native.Positions[index].Y * scale), 0, 0.001f);
         }
-        Assert.All(resized.Clips, clip => Assert.Equal(new Vector4(0, height * 8f / 240, width, height * 232f / 240), clip));
+        Assert.All(resized.Clips, clip => Assert.Equal(new Vector4(clipLeft, height * 8f / 240, clipRight, height * 232f / 240), clip));
         Capture restored = new();
         renderer.Render(restored, 320, 240, frame);
         Assert.Equal(native.Positions, restored.Positions);
