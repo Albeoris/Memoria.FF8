@@ -33,26 +33,32 @@ public sealed class BattleCommandPresentationTests
         Assert.Contains("Localized " + name, hud.Message);
     }
 
-    [Fact]
-    public void Cursor_memory_distinguishes_the_second_native_command_after_dispatch_and_actor_reselection()
+    [Theory]
+    [InlineData(1, 33, "LV Down")]
+    [InlineData(3, 34, "LV Up")]
+    public void Cursor_memory_reopens_native_command_targeting_after_dispatch_and_actor_reselection(int row, byte command, string name)
     {
         BattleSession battle = CreateBattle([new(1, "Attack", 0x40, 0), new(33, "LV Down", 0x40, 0), new(2, "Magic", 0x40, 0), new(34, "LV Up", 0x40, 0)], secondActor: true);
         List<BattleInput> submitted = [];
         BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: submitted.Add) { CursorMemory = true };
-        hud.Choose(3);
-        hud.Choose(0);
+        hud.Choose(row);
+        Assert.True(hud.SelectingTarget);
         hud.Attack();
-        Assert.Equal(34 << 16, Assert.Single(submitted).ActionId);
+        Assert.Equal(command << 16, Assert.Single(submitted).ActionId);
         hud.SelectParty("second");
         hud.SelectParty("party");
-        Assert.Equal(3, hud.ChoiceIndex);
-        Assert.Equal("LV Up", hud.ChoiceLabels[hud.ChoiceIndex]);
+        Assert.Equal(row, hud.ChoiceIndex);
+        Assert.Equal(name, hud.ChoiceLabels[hud.ChoiceIndex]);
         hud.Navigate(MenuInput.Confirm);
-        Assert.Equal((byte)34, Assert.Single(hud.ActionChoices).NativeAction!.Command);
+        Assert.True(hud.SelectingTarget);
+        Assert.False(hud.SelectingAction);
+        Assert.Equal("enemy", hud.SelectedTarget?.Id);
+        Assert.Equal(command, Assert.Single(hud.ActionChoices).NativeAction!.Command);
+        Assert.Single(submitted);
     }
 
     [Fact]
-    public void Installed_command_catalog_preserves_names_numeric_localization_and_level_command_selection()
+    public void Installed_command_catalog_preserves_names_localization_and_ordinary_command_targeting()
     {
         Assert.SkipUnless(Directory.Exists(TestResources.GameDirectory), "Installed battle resources are required.");
         using BattleAssets assets = new(TestResources.GameDirectory);
@@ -63,7 +69,7 @@ public sealed class BattleCommandPresentationTests
         foreach (byte command in commands)
         {
             BattleNativeCommandBinding binding = assets.ReadNativeCommand(command);
-            BattleSession battle = CreateBattle([binding], assets.NativeActions.ToArray());
+            BattleSession battle = CreateBattle([binding], assets.NativeActions.ToArray(), nativeAttack: NativeAction(1, "Attack"));
             BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { });
             hud.ConfigureLocalization(presentation);
             string before = JsonSerializer.Serialize(battle.Capture());
@@ -73,6 +79,17 @@ public sealed class BattleCommandPresentationTests
             Assert.Equal("命令 " + command, Assert.Single(hud.ChoiceLabels));
             resources.Prepare(null, localization: LocalizationCatalog.Empty).Commit();
             Assert.Equal(binding.Name, Assert.Single(hud.ChoiceLabels));
+            if (BattleCommandPresentation.AbilityFor(command) == BattleAbility.NativeCommand)
+            {
+                hud.Choose(0);
+                Assert.True(hud.SelectingTarget);
+                Assert.False(hud.SelectingAction);
+                Assert.Equal(command, Assert.Single(hud.ActionChoices).NativeAction!.Command);
+                hud.Navigate(MenuInput.Cancel);
+                Assert.False(hud.SelectingTarget);
+                Assert.False(hud.SelectingAction);
+                Assert.Equal(binding.Name, Assert.Single(hud.ChoiceLabels));
+            }
             Assert.Equal(before, JsonSerializer.Serialize(battle.Capture()));
         }
         BattleNativeCommandBinding down = assets.ReadNativeCommand(33);
@@ -107,9 +124,11 @@ public sealed class BattleCommandPresentationTests
         BattleActionDefinition action = Assert.Single(hud.ActionChoices);
         Assert.Equal(command, action.NativeAction!.Command);
         Assert.DoesNotContain("NativeCommand", hud.Message);
-        hud.Choose(0);
         Assert.True(hud.SelectingTarget);
-        hud.Attack();
+        Assert.False(hud.SelectingAction);
+        Assert.Empty(submitted);
+        Assert.Equal("enemy", hud.SelectedTarget?.Id);
+        hud.SelectTarget("enemy", confirm: true);
 
         BattleInput input = Assert.Single(submitted);
         Assert.Equal(BattleAbility.NativeCommand, input.Ability);
@@ -162,13 +181,13 @@ public sealed class BattleCommandPresentationTests
         Assert.Equal(before, JsonSerializer.Serialize(battle.Capture()));
     }
 
-    private static BattleSession CreateBattle(BattleNativeCommandBinding[] commands, BattleNativeAction[]? nativeActions = null, bool secondActor = false)
+    private static BattleSession CreateBattle(BattleNativeCommandBinding[] commands, BattleNativeAction[]? nativeActions = null, bool secondActor = false, BattleNativeAction? nativeAttack = null)
     {
         return new(new BattleDefinition
         {
             Combatants =
             [
-                new() { Id = "party", Name = "Party", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, Abilities = commands.Select(command => BattleCommandPresentation.AbilityFor(command.Command)).Distinct().ToArray(), NativeCommands = [.. commands], NativeCommandSlots = [.. commands.Select(command => command.Command).Concat(new byte[4]).Take(4)] },
+                new() { Id = "party", Name = "Party", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, Abilities = commands.Select(command => BattleCommandPresentation.AbilityFor(command.Command)).Distinct().ToArray(), NativeCommands = [.. commands], NativeCommandSlots = [.. commands.Select(command => command.Command).Concat(new byte[4]).Take(4)], NativeAttack = nativeAttack },
                 .. (secondActor ? new BattleCombatantDefinition[] { new() { Id = "second", Name = "Second", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum } } : []),
                 new() { Id = "enemy", Name = "Enemy" }
             ],

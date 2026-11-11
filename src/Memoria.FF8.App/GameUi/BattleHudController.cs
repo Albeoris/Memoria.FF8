@@ -457,7 +457,8 @@ public sealed partial class BattleHudController
         {
             return;
         }
-        if (SelectedCommand != BattleAbility.Attack && !SelectingAction && !SelectingTarget)
+        // An ordinary native command row already identifies its invocation.
+        if (SelectedCommand is not (BattleAbility.Attack or BattleAbility.NativeCommand) && !SelectingAction && !SelectingTarget)
         {
             try
             {
