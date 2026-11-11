@@ -47,7 +47,8 @@ public sealed partial class EventEngine
     {
         bool issued = fibers.Any(fiber => fiber.ObjectId == actor.ObjectId && fiber.NativeMoveOperation is not null);
         bool needed = issued || actor.NativeMovementRequest is not null || actor.NativeScriptMovement is { Active: true } or { Cancelled: true };
-        if (!needed)
+        // An issued MOVE can outlive mode1 and poll the saved jump's completion.
+        if (!needed || actor.NativeJump is not null && actor.NativeScriptMovement is null && actor.NativeMovementRequest is null)
         {
             return null;
         }
@@ -120,7 +121,7 @@ public sealed partial class EventEngine
         ValidateNativeScriptMovements(actors, Scene, current, bySequence);
         ValidateNativeMovementRequests(actors, Scene, current);
         ValidateNativeJoinedPositions(actors, Scene, FieldId, Frame, partyJoin);
-        foreach (ActorState actor in actors.Where(actor => actor.NativeScriptMovement is { Active: true } or { Cancelled: true } || actor.NativeMovementRequest is not null || current.Any(fiber => fiber.ObjectId == actor.ObjectId && fiber.NativeMoveOperation is not null)))
+        foreach (ActorState actor in actors.Where(actor => actor.NativeScriptMovement is { Active: true } or { Cancelled: true } || actor.NativeMovementRequest is not null || actor.NativeJump is null && current.Any(fiber => fiber.ObjectId == actor.ObjectId && fiber.NativeMoveOperation is not null)))
         {
             FieldFixedPosition? raw = ReadNativeScriptPosition(actor);
             if (raw is null || !extractingLegacyGameplay && (CanUseNativeScriptMove?.Invoke(actor) != true || ResolveNativeScriptDirection is null || ResolveNativeScriptMovement is null || CanRestoreNativeScriptMovementPlacement?.Invoke(actor, raw) != true))

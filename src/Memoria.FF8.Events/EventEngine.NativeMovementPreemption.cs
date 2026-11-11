@@ -15,7 +15,7 @@ public sealed partial class EventEngine
 
     private int CurrentNativeRequestSlot(ActorState actor, Fiber? incoming = null) => fibers.Where(fiber => fiber.ObjectId == actor.ObjectId && !fiber.Complete && fiber != incoming).Select(NativeActorRequestSlot).DefaultIfEmpty(0).Max();
 
-    private string? UnsupportedNativeMovementRequest(ActorState actor, int priority, int scriptId, EventScript? physicalScript = null)
+    private string? UnsupportedNativeMovementRequest(ActorState actor, int priority, int scriptId, EventScript? physicalScript = null, bool talk = false)
     {
         //51CD60/51CED0/51D060 back up and stop only physical mode572=1.
         //Modes3/4 keep their current body/phase while the higher VM slot runs;
@@ -30,7 +30,7 @@ public sealed partial class EventEngine
         }
         if (actor.NativeMovementRequest is { RestoreSuppressedByFlush: false } existing)
         {
-            if (CanTransferNativeMovementBackup(actor, existing))
+            if (CanTransferNativeMovementBackup(actor, existing, talk))
             {
                 return UnsupportedNativeRequestResumption(actor, scriptId, physicalScript);
             }
@@ -77,17 +77,16 @@ public sealed partial class EventEngine
         return null;
     }
 
-    private void SuspendNativeMovementForRequest(ActorState actor, Fiber requested)
+    private void SuspendNativeMovementForRequest(ActorState actor, Fiber requested, bool talk = false)
     {
         if (NativeRuntimeProfile is not { IsVerified: true } || requested.Priority <= CurrentNativeRequestSlot(actor, requested))
         {
             return;
         }
-        if (actor.NativeMovementRequest is { } existing && CanTransferNativeMovementBackup(actor, existing))
+        if (actor.NativeMovementRequest is { } existing && CanTransferNativeMovementBackup(actor, existing, talk))
         {
-            //Mode572=0 leaves448..456/540/514 untouched regardless of the
-            //current slot's VM wait. Animation/WAIT/MES/HALT do not own
-            //another backup; the next higher RET consumes this same one.
+            // A request above mode0, or a talk above mode2, leaves
+            // 448..456/540/514 untouched. The next RET consumes this same backup.
             actor.NativeMovementRequest = existing with { RequestSequence = requested.Sequence, RequestScriptId = requested.Script.Id, RequestSlot = (byte)requested.Priority };
             requested.NativeActorSlot = (byte)requested.Priority;
             return;
@@ -126,7 +125,34 @@ public sealed partial class EventEngine
         requested.NativeActorSlot = (byte)requested.Priority;
     }
 
-    private bool CanTransferNativeMovementBackup(ActorState actor, NativeMovementRequestState request) => !request.RestoreSuppressedByFlush && actor.NativeScriptMovement is { Active: false } or { Suspended: true } && actor.NativeJump is not { Active: true } && fibers.Any(fiber => fiber.Sequence == request.RequestSequence && fiber.ObjectId == actor.ObjectId && NativeActorRequestSlot(fiber) == request.RequestSlot && !fiber.Complete);
+    private bool CanTransferNativeMovementBackup(ActorState actor, NativeMovementRequestState request, bool talk)
+    {
+        if (request.RestoreSuppressedByFlush || !fibers.Any(fiber => fiber.Sequence == request.RequestSequence && fiber.ObjectId == actor.ObjectId && NativeActorRequestSlot(fiber) == request.RequestSlot && !fiber.Complete))
+        {
+            return false;
+        }
+        if (actor.NativeJump is { } jump)
+        {
+            // 529FF0 leaves mode2 (or its completed mode0) and the existing
+            // backup bit alone. Talk RET8 (51C5C0) consumes that same backup.
+            return talk && jump.FiberSequence == request.RequestSequence && jump.ScriptId == request.RequestScriptId && IsNativePlainMove(request.SavedMovement);
+        }
+        return actor.NativeScriptMovement is { Active: false } or { Suspended: true };
+    }
+
+    private bool IsNativePlainMove(NativeScriptMovementState movement)
+    {
+        return !movement.Asynchronous && (uint)movement.Operation < program!.Operations.Count && program.Operations[movement.Operation].Opcode == Jsm.Opcode.MOVE;
+    }
+
+    private bool IsNativeJumpBackupOwner(ActorState actor, NativeJumpState jump, NativeMovementRequestState request, IReadOnlyList<Fiber> candidates)
+    {
+        if (request.RequestSequence == jump.FiberSequence && request.RequestScriptId == jump.ScriptId)
+        {
+            return true;
+        }
+        return request.RequestSlot == 7 && program!.Objects[actor.ObjectId].Scripts.Count > 2 && program.Objects[actor.ObjectId].Scripts[2].Id == request.RequestScriptId && IsNativePlainMove(request.SavedMovement) && candidates.Any(fiber => !fiber.Complete && fiber.Sequence == jump.FiberSequence && fiber.ObjectId == actor.ObjectId && fiber.Script.Id == jump.ScriptId && NativeActorRequestSlot(fiber) < request.RequestSlot && (!jump.Active || fiber.WaitReason == WaitReason.NativeJump && fiber.Position == jump.Operation));
+    }
 
     private bool IsNativeMovementRequestIssue(ActorState actor, Fiber fiber) => actor.NativeMovementRequest is { } request && (request.RequestSequence == fiber.Sequence || request.RestoreSuppressedByFlush && NativeActorRequestSlot(fiber) > request.RequestSlot) && actor.NativeScriptMovement is { Suspended: true } movement && movement.FiberSequence == request.SavedMovement.FiberSequence;
 
@@ -198,7 +224,7 @@ public sealed partial class EventEngine
             {
                 throw new InvalidDataException("Saved PMOVEA backup lost its original full DWORD party slot.");
             }
-            bool jumpBody = actor.NativeJump is { AnimationFlag40000: not null, AsyncFlag20000: not null } jump && jump.FiberSequence == request.RequestSequence && jump.ScriptId == request.RequestScriptId && MatchesNativeJumpPlacement(actor, jump) && actor.NativeMotionAuthority is { Version: 1 };
+            bool jumpBody = actor.NativeJump is { AnimationFlag40000: not null, AsyncFlag20000: not null } jump && IsNativeJumpBackupOwner(actor, jump, request, restored) && MatchesNativeJumpPlacement(actor, jump) && actor.NativeMotionAuthority is { Version: 1 };
             if (request.Version != 1 || request.RequestSlot > 7 || !validLower || issuingScript is null || upper is null || upper.Complete || upper.ObjectId != actor.ObjectId || upper.Script.Id != request.RequestScriptId || upper.NativeActorSlot != request.RequestSlot || movement.Version != 1 || !movement.Active || movement.Suspended || !movement.Asynchronous && (movement.Operation != lower!.Position || lower.WaitReason != WaitReason.NativeScriptMovement) || (uint)movement.Operation >= program.Operations.Count || program.Operations[movement.Operation].Opcode is not (Jsm.Opcode.DIRP or Jsm.Opcode.MOVE or Jsm.Opcode.MACCEL or Jsm.Opcode.FMOVE or Jsm.Opcode.MOVEA or Jsm.Opcode.FMOVEA or Jsm.Opcode.FMOVEP or Jsm.Opcode.PMOVEA or Jsm.Opcode.CMOVE or Jsm.Opcode.RMOVE or Jsm.Opcode.RFMOVE or Jsm.Opcode.RCMOVE or Jsm.Opcode.RMOVEA or Jsm.Opcode.RPMOVEA) || movement.TargetNativeObjectId is int target && !movement.Asynchronous && !partyTarget && (lower!.Stack.Count == 0 || lower.Stack.Peek() != target) || actor.NativeScriptMovement is null && !jumpBody && !request.RestoreSuppressedByFlush)
             {
                 throw new InvalidDataException("Saved native movement request lost its single backup, original lower operands or higher-slot owner.");

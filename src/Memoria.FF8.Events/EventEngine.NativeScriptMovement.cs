@@ -65,6 +65,10 @@ public sealed partial class EventEngine
             return "Native MOVE requires schema1 motion authority and known facing hold576";
         }
         bool replacingRequest = IsNativeMovementRequestIssue(actor, fiber);
+        if (CanPollNativeMoveAfterJump(actor, fiber, fiber.Position))
+        {
+            return null;
+        }
         if (fiber.NativeMoveOperation is int issued)
         {
             bool actorTargetIssued = program.Operations[issued].Opcode is Jsm.Opcode.MOVEA or Jsm.Opcode.FMOVEA or Jsm.Opcode.PMOVEA or Jsm.Opcode.FMOVEP;
@@ -219,10 +223,29 @@ public sealed partial class EventEngine
         return Scene.NativeActorObjectIds.Contains(target.ObjectId) ? ReadNativePlayerContactPosition(target) : null;
     }
 
+    private bool CanPollNativeMoveAfterJump(ActorState actor, Fiber fiber, int operation)
+    {
+        return NativeRuntimeProfile is { IsVerified: true } && fiber.NativeMoveOperation == operation && program!.Operations[operation].Opcode == Jsm.Opcode.MOVE && actor.NativeScriptMovement is null && actor.NativeJump is { Active: false, AnimationFlag40000: not null } jump && jump.FiberSequence != fiber.Sequence && actor.NativeMovementCompletion542 == 2 && actor.NativeMotionAuthority is { Version: 1 } && MatchesNativeJumpPlacement(actor, jump);
+    }
+
     private int[] ExecuteNativeScriptMove(Fiber fiber)
     {
         ActorState actor = actors[fiber.ObjectId];
         int[] operands = [];
+        if (CanPollNativeMoveAfterJump(actor, fiber, fiber.Position - 1))
+        {
+            // 523410's already-issued path reads shared completion and clears
+            // animation40000 and facing hold576 without reissuing the move.
+            NativeJumpState jump = actor.NativeJump!;
+            if (jump.AnimationFlag40000 == true)
+            {
+                SelectFullNativeAnimation(actor, actor.BaseAnimationId, true);
+            }
+            actor.NativeJump = jump with { AnimationFlag40000 = false };
+            actor.NativeMotionAuthority = actor.NativeMotionAuthority! with { FacingHold = 0 };
+            fiber.NativeMoveOperation = null;
+            return operands;
+        }
         if (fiber.NativeMoveOperation is int issued && actor.NativeScriptMovement is { } shared && (shared.FiberSequence != fiber.Sequence || shared.Operation != issued))
         {
             // The native373 issued bit belongs to the VM slot, independently of

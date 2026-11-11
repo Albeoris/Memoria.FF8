@@ -276,6 +276,7 @@ internal static partial class Program
                     ["sound-initialization"] = () => NativeSoundInitializationContract(selectedGameDirectory),
                     ["sound-stop"] = NativeSoundStopContract,
                     ["native-talk"] = NativeTalkSelectionContract,
+                    ["native-talk-jump"] = NativeTalkAndJumpContract,
                     ["previous-field"] = NativePreviousFieldContract,
                     ["previous-world-entity"] = NativePreviousWorldEntityContract,
                     ["native-sloped-line"] = () => NativeSlopedLineContract(selectedGameDirectory),

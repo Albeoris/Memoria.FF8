@@ -610,11 +610,13 @@ public sealed partial class EventEngine
                 return false;
             }
             ActorState actor = actors[objectId];
-            if (actor.MovementActorId is not null || actor.MovementTarget is not null && actor.NativeScriptMovement is not { Active: true } || actor.NativeJump is { Active: true })
+            // Native529FF0 selects talk slot7 while mode2 keeps its physical driver;
+            // only mode572=1 receives the target/speed backup and mode0 suspension.
+            if (actor.MovementActorId is not null || actor.MovementTarget is not null && actor.NativeScriptMovement is not { Active: true })
             {
                 throw new NotSupportedException("Native talk action requires proved body-mode suspension; original request preserved.");
             }
-            string? suspension = UnsupportedNativeMovementRequest(actor, 7, obj.Scripts[2].Id);
+            string? suspension = UnsupportedNativeMovementRequest(actor, 7, obj.Scripts[2].Id, talk: true);
             if (suspension is not null)
             {
                 throw new NotSupportedException(suspension);
@@ -623,7 +625,7 @@ public sealed partial class EventEngine
             actor.NativeCardChallenge = cardChallenge;
             action.NativeActorSlot = 7;
             SelectNativeActorRequest(action);
-            SuspendNativeMovementForRequest(actor, action);
+            SuspendNativeMovementForRequest(actor, action, talk: true);
         }
         else
         {
@@ -747,7 +749,11 @@ public sealed partial class EventEngine
             {
                 Scene.NativeBattleWaits!.Remove(fiber.Sequence);
             }
-            fiber.WaitReason = WaitReason.None;
+            // NativeJump is also the issued receipt for its held opcode.
+            if (fiber.WaitReason != WaitReason.NativeJump)
+            {
+                fiber.WaitReason = WaitReason.None;
+            }
             if (fiber.NativeDoorRequestWait is null)
             {
                 fiber.Request = null;

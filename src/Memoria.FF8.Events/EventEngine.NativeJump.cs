@@ -39,6 +39,29 @@ public sealed partial class EventEngine
         return (raw, unchecked((ushort)target.WalkmeshTriangle));
     }
 
+    private bool CanNativeJumpReplaceIssuedMove(ActorState actor, Fiber fiber)
+    {
+        // 525740/5256A0 replace the physical mode, not a lower slot's issued bit.
+        // MOVE 523410 will poll the shared WORD542 when that slot runs again.
+        if (NativeRuntimeProfile is not { IsVerified: true } || actor.NativeScriptMovement is not { Active: true, Asynchronous: false, Suspended: false } movement || actor.NativeMovementRequest is not null || actor.NativeMotionAuthority is not { Version: 1 } || !IsNativePlainMove(movement))
+        {
+            return false;
+        }
+        Fiber? owner = fibers.FirstOrDefault(candidate => candidate.Sequence == movement.FiberSequence && candidate.ObjectId == actor.ObjectId && !candidate.Complete);
+        return owner is not null && owner.NativeMoveOperation == movement.Operation && owner.WaitReason == WaitReason.NativeScriptMovement && NativeActorRequestSlot(owner) < NativeActorRequestSlot(fiber);
+    }
+
+    private bool CanPollDisplacedNativeJump(ActorState actor, Fiber fiber, int operation, IReadOnlyList<Fiber> candidates)
+    {
+        // A higher RET8 can restore the saved mode1 while this slot is still
+        // issued. The original JUMP then only polls the shared completion word.
+        if (NativeRuntimeProfile is not { IsVerified: true } || actor.NativeJump is not null || actor.NativeMovementRequest is not null || actor.NativeMovementCompletion542 is not (<= 2) || actor.NativeScriptMovement is not { Active: true, Suspended: false } movement || !IsNativePlainMove(movement) || (uint)operation >= program!.Operations.Count || program.Operations[operation].Opcode is not (Jsm.Opcode.JUMP or Jsm.Opcode.JUMP3))
+        {
+            return false;
+        }
+        return candidates.Any(owner => !owner.Complete && owner.Sequence == movement.FiberSequence && owner.ObjectId == fiber.ObjectId && owner.NativeMoveOperation == movement.Operation && owner.WaitReason == WaitReason.NativeScriptMovement && NativeActorRequestSlot(owner) < NativeActorRequestSlot(fiber));
+    }
+
     private string? UnsupportedNativeJump(Fiber fiber, int triangle, bool includesZ = false, bool partyTarget = false)
     {
         ActorState actor = actors[fiber.ObjectId];
@@ -54,12 +77,16 @@ public sealed partial class EventEngine
         {
             return current.FiberSequence == fiber.Sequence && current.ScriptId == fiber.Script.Id && current.Operation == fiber.Position && MatchesNativeJumpPlacement(actor, current) ? null : "Native JUMP requires its original held owner and raw mode2 placement";
         }
+        if (fiber.WaitReason == WaitReason.NativeJump)
+        {
+            return CanPollDisplacedNativeJump(actor, fiber, fiber.Position, fibers) ? null : "Issued native JUMP requires its original body or a proved RET8 mode1 restoration";
+        }
         int operandCount = partyTarget ? 2 : includesZ ? 4 : 3;
-        bool replacingRequest = IsNativeMovementRequestIssue(actor, fiber);
+        bool replacingMode1 = IsNativeMovementRequestIssue(actor, fiber) || CanNativeJumpReplaceIssuedMove(actor, fiber);
         bool replacingAsync = actor.NativeScriptMovement is { Active: true, Asynchronous: true, Suspended: false } movement && movement.FiberSequence == fiber.Sequence && movement.ScriptId == fiber.Script.Id;
         // Native525740 preserves independent turn580; native4789A0 samples it before mode2 flight.
         // The issuing slot may replace its running asynchronous mode1; JUMP retains flags20000/40000.
-        if (Scene.NativeActorLayoutVersion != 1 || !Scene.NativeActorObjectIds.Contains(actor.ObjectId) || fiber.Stack.Count < operandCount || !replacingRequest && !replacingAsync && (actor.NativeScriptMovement is { Active: true } && actor.NativeMovementCompletion542 < 2 || actor.MovementTarget is not null) || actor.MovementActorId is not null || actor.RotationTarget is not null && !actor.RotationUsesNativeCosine && !actor.RotationUsesNativeLinear || ReadNativeScriptPosition(actor) is null || ResolveNativeTriangleHeight is null)
+        if (Scene.NativeActorLayoutVersion != 1 || !Scene.NativeActorObjectIds.Contains(actor.ObjectId) || fiber.Stack.Count < operandCount || !replacingMode1 && !replacingAsync && (actor.NativeScriptMovement is { Active: true } && actor.NativeMovementCompletion542 < 2 || actor.MovementTarget is not null) || actor.MovementActorId is not null || actor.RotationTarget is not null && !actor.RotationUsesNativeCosine && !actor.RotationUsesNativeLinear || ReadNativeScriptPosition(actor) is null || ResolveNativeTriangleHeight is null)
         {
             return $"Native JUMP requires {operandCount} original operands, a retained idle or replaceable native body, preserved fixed placement and the original explicit-triangle plane";
         }
@@ -96,6 +123,18 @@ public sealed partial class EventEngine
     {
         ActorState actor = actors[fiber.ObjectId];
         int[] operands = [];
+        if (fiber.WaitReason == WaitReason.NativeJump && actor.NativeJump is not { Active: true })
+        {
+            if (actor.NativeMovementCompletion542 == 2)
+            {
+                WaitFrames(fiber, 1);
+            }
+            else
+            {
+                fiber.Position--;
+            }
+            return operands;
+        }
         if (actor.NativeJump is not { Active: true })
         {
             FieldFixedPosition raw = ReadNativeScriptPosition(actor)!;
@@ -225,7 +264,7 @@ public sealed partial class EventEngine
             bool partyTarget = (uint)jump.Operation < program!.Operations.Count && program.Operations[jump.Operation].Opcode == Jsm.Opcode.PJUMPA;
             bool boundedTarget = actor.NativeLandingTriangle508 is not null && (partyTarget || (jump.TargetX >> 12) is >= short.MinValue and <= short.MaxValue && (jump.TargetY >> 12) is >= short.MinValue and <= short.MaxValue && (jump.TargetX & 4095) == 0 && (jump.TargetY & 4095) == 0);
             int? landingHeight = jump.LandingPlaneTriangle is >= 0 and <= ushort.MaxValue ? ResolveNativeTriangleHeight?.Invoke(jump.LandingPlaneTriangle.Value, jump.TargetX / 4096, jump.TargetY / 4096) : null;
-            if (jump.AsyncFlag20000 == true && (jump.AnimationFlag40000 is null || actor.NativeMotionAuthority is not { Version: 1 }) || actor.NativeMovementRequest is { RestoreSuppressedByFlush: false } request && (request.RequestSequence != jump.FiberSequence || request.RequestScriptId != jump.ScriptId || jump.AsyncFlag20000 is null || jump.AnimationFlag40000 is null))
+            if (jump.AsyncFlag20000 == true && (jump.AnimationFlag40000 is null || actor.NativeMotionAuthority is not { Version: 1 }) || actor.NativeMovementRequest is { RestoreSuppressedByFlush: false } request && (!IsNativeJumpBackupOwner(actor, jump, request, restored) || jump.AsyncFlag20000 is null || jump.AnimationFlag40000 is null))
             {
                 throw new InvalidDataException("Saved native JUMP lost its inherited physical motion flags or the higher request slot's original owner.");
             }
@@ -235,7 +274,7 @@ public sealed partial class EventEngine
                 throw new InvalidDataException("Saved native JUMP has inconsistent raw body, ballistic phase, landing plane or held original instruction.");
             }
         }
-        if (restored.Any(fiber => fiber.WaitReason == WaitReason.NativeJump && savedActors[fiber.ObjectId].NativeJump is not { Active: true }))
+        if (restored.Any(fiber => fiber.WaitReason == WaitReason.NativeJump && !(savedActors[fiber.ObjectId].NativeJump is { Active: true } jump && jump.FiberSequence == fiber.Sequence && jump.Operation == fiber.Position) && !CanPollDisplacedNativeJump(savedActors[fiber.ObjectId], fiber, fiber.Position, restored)))
         {
             throw new InvalidDataException("Saved native JUMP wait has no preserved mode2 body.");
         }

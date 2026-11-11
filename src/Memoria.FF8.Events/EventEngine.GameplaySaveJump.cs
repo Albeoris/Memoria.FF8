@@ -4,9 +4,9 @@ namespace Memoria.FF8.Events;
 
 public sealed partial class EventEngine
 {
-    private static GameplaySaveActorJump? CaptureGameplayJump(ActorState actor)
+    private GameplaySaveActorJump? CaptureGameplayJump(ActorState actor)
     {
-        if (actor.NativeJump is not { } jump || !jump.Active && jump.AsyncFlag20000 != true && actor.NativeMovementRequest is null)
+        if (actor.NativeJump is not { } jump || !jump.Active && jump.AsyncFlag20000 != true && actor.NativeMovementRequest is null && !fibers.Any(fiber => fiber.ObjectId == actor.ObjectId && fiber.NativeMoveOperation is not null && !fiber.Complete))
         {
             return null;
         }
