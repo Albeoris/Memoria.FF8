@@ -992,7 +992,7 @@ internal sealed partial class AutoPlayController
                 if (walk.Interrupted && !contacted)
                 {
                     BeginWalkInterruption(attempt, walk);
-                    RecordUnownedGatewayInterruption(world, source, walk);
+                    RecordGatewayApproachInterruption(world, source, walk);
                     // Settle the native callback, then reconsider this gateway
                     // from the resulting position before reversing course.
                     int resumes = resumedWalk?.Resumes ?? 0;

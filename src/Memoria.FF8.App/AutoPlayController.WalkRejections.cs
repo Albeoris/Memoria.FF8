@@ -15,39 +15,42 @@ internal sealed partial class AutoPlayController
     private sealed record InterruptedGatewayWalk(AutoPlayPlanStep Plan, AutoPlayContactSource Source, FieldFixedPosition Position, int Resumes);
     private InterruptedGatewayWalk? interruptedGatewayWalk;
     private sealed record GatewayApproach(string Navigation, AutoPlayTarget Target, string Conditions);
-    private readonly HashSet<(GatewayApproach Approach, FieldFixedPosition InterruptedAt)> unownedGatewayAttempts = [];
+    private readonly HashSet<(GatewayApproach Approach, FieldFixedPosition InterruptedAt, int? Owner)> interruptedGatewayAttempts = [];
     private readonly HashSet<GatewayApproach> repeatedGatewayApproaches = [];
+    private AutoPlayRunState? gatewayAttemptRun;
     private long gatewayAttemptProgress = -1;
 
     private void RefreshGatewayApproachEvidence()
     {
-        if (gatewayAttemptProgress == run.LastProgressStep)
+        if (ReferenceEquals(gatewayAttemptRun, run) && gatewayAttemptProgress == run.LastProgressStep)
         {
             return;
         }
+        gatewayAttemptRun = run;
         gatewayAttemptProgress = run.LastProgressStep;
-        unownedGatewayAttempts.Clear();
+        interruptedGatewayAttempts.Clear();
         repeatedGatewayApproaches.Clear();
     }
 
-    private void RecordUnownedGatewayInterruption(GameWorld world, AutoPlayContactSource source, AutoPlayWalkResult result)
+    private void RecordGatewayApproachInterruption(GameWorld world, AutoPlayContactSource source, AutoPlayWalkResult result)
     {
-        if (source.Target.Kind != AutoPlayTargetKind.Gateway || result.GatewayIndex is not null || result.InterruptingObjectId is not null || world.Events.FieldId != source.FieldId || world.Events.Scene.NativePlayerPosition is not { } position)
+        if (source.Target.Kind != AutoPlayTargetKind.Gateway || result.GatewayIndex is not null || world.Events.FieldId != source.FieldId || world.Events.Scene.NativePlayerPosition is not { } position)
         {
             return;
         }
         RefreshGatewayApproachEvidence();
         GatewayApproach approach = new(source.NavigationKey, source.Target, source.ConditionSignature);
-        if (unownedGatewayAttempts.Contains((approach, position)))
+        var interruption = (approach, position, result.InterruptingObjectId);
+        if (interruptedGatewayAttempts.Contains(interruption))
         {
             if (repeatedGatewayApproaches.Add(approach))
             {
                 RecordRecentAction("Repeated native interruption at " + source.Target.Id);
             }
         }
-        else if (unownedGatewayAttempts.Count < 256)
+        else if (interruptedGatewayAttempts.Count < 256)
         {
-            unownedGatewayAttempts.Add((approach, position));
+            interruptedGatewayAttempts.Add(interruption);
         }
     }
 
