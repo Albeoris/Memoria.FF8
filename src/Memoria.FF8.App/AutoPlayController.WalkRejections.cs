@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using Memoria.FF8.Events;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
@@ -14,54 +15,57 @@ internal sealed partial class AutoPlayController
 {
     private sealed record InterruptedGatewayWalk(AutoPlayPlanStep Plan, AutoPlayContactSource Source, FieldFixedPosition Position, int Resumes);
     private InterruptedGatewayWalk? interruptedGatewayWalk;
-    private sealed record GatewayApproach(string Navigation, AutoPlayTarget Target, string Conditions);
-    private readonly HashSet<(GatewayApproach Approach, FieldFixedPosition InterruptedAt, int? Owner)> interruptedGatewayAttempts = [];
-    private readonly HashSet<GatewayApproach> repeatedGatewayApproaches = [];
-    private AutoPlayRunState? gatewayAttemptRun;
-    private long gatewayAttemptProgress = -1;
+    private sealed record WalkApproach(string Navigation, AutoPlayTarget Target, string Conditions, FieldTeleportPosition? Position);
+    private readonly HashSet<(WalkApproach Approach, FieldFixedPosition InterruptedAt, int? Owner)> interruptedWalkAttempts = [];
+    private readonly HashSet<WalkApproach> repeatedWalkApproaches = [];
+    private AutoPlayRunState? walkAttemptRun;
+    private long walkAttemptProgress = -1;
 
-    private void RefreshGatewayApproachEvidence()
+    private void RefreshWalkApproachEvidence()
     {
-        if (ReferenceEquals(gatewayAttemptRun, run) && gatewayAttemptProgress == run.LastProgressStep)
+        if (ReferenceEquals(walkAttemptRun, run) && walkAttemptProgress == run.LastProgressStep)
         {
             return;
         }
-        gatewayAttemptRun = run;
-        gatewayAttemptProgress = run.LastProgressStep;
-        interruptedGatewayAttempts.Clear();
-        repeatedGatewayApproaches.Clear();
+        walkAttemptRun = run;
+        walkAttemptProgress = run.LastProgressStep;
+        interruptedWalkAttempts.Clear();
+        repeatedWalkApproaches.Clear();
     }
 
-    private void RecordGatewayApproachInterruption(GameWorld world, AutoPlayContactSource source, AutoPlayWalkResult result)
+    private void RecordWalkApproachInterruption(GameWorld world, AutoPlayContactSource source, AutoPlayWalkResult result)
     {
-        if (source.Target.Kind != AutoPlayTargetKind.Gateway || result.GatewayIndex is not null || world.Events.FieldId != source.FieldId || world.Events.Scene.NativePlayerPosition is not { } position)
+        if (result.GatewayIndex is not null || result.ContactTriggered || result.InterruptingObjectId is null && source.Target.Kind != AutoPlayTargetKind.Gateway ||
+            world.Events.FieldId != source.FieldId || world.Events.Scene.NativePlayerPosition is not { } position)
         {
             return;
         }
-        RefreshGatewayApproachEvidence();
-        GatewayApproach approach = new(source.NavigationKey, source.Target, source.ConditionSignature);
+        RefreshWalkApproachEvidence();
+        FieldTeleportPosition? start = source.Target.Kind == AutoPlayTargetKind.Gateway ? null : source.PlayerPosition with { Direction = 0 };
+        WalkApproach approach = new(source.NavigationKey, source.Target, source.ConditionSignature, start);
         var interruption = (approach, position, result.InterruptingObjectId);
-        if (interruptedGatewayAttempts.Contains(interruption))
+        if (interruptedWalkAttempts.Contains(interruption))
         {
-            if (repeatedGatewayApproaches.Add(approach))
+            if (repeatedWalkApproaches.Add(approach))
             {
                 RecordRecentAction("Repeated native interruption at " + source.Target.Id);
             }
         }
-        else if (interruptedGatewayAttempts.Count < 256)
+        else if (interruptedWalkAttempts.Count < 256)
         {
-            interruptedGatewayAttempts.Add(interruption);
+            interruptedWalkAttempts.Add(interruption);
         }
     }
 
-    private IReadOnlyList<AutoPlayTarget> FilterRepeatedGatewayApproaches(GameWorld world, string navigation, IReadOnlyList<AutoPlayTarget> targets)
+    private IReadOnlyList<AutoPlayTarget> FilterRepeatedWalkApproaches(GameWorld world, string navigation, IReadOnlyList<AutoPlayTarget> targets)
     {
-        RefreshGatewayApproachEvidence();
-        if (repeatedGatewayApproaches.Count == 0)
+        RefreshWalkApproachEvidence();
+        if (repeatedWalkApproaches.Count == 0)
         {
             return targets;
         }
-        return targets.Where(target => target.Kind != AutoPlayTargetKind.Gateway || !repeatedGatewayApproaches.Contains(new(navigation, target, world.ReadAutoPlayConditions(target.CoverageId, target.ObjectId).Fingerprint))).ToArray();
+        FieldTeleportPosition? position = world.Events.PlayerActor is { } player ? new(player.X, player.Y, player.Z, player.WalkmeshTriangle, 0) : null;
+        return targets.Where(target => !repeatedWalkApproaches.Contains(new(navigation, target, world.ReadAutoPlayConditions(target.CoverageId, target.ObjectId).Fingerprint, target.Kind == AutoPlayTargetKind.Gateway ? null : position))).ToArray();
     }
 
     private (InterruptedGatewayWalk? Walk, string? SkippedVariant) ResumeInterruptedGatewayWalk(GameWorld world, string navigation, IReadOnlyList<AutoPlayTarget> targets)
