@@ -186,6 +186,13 @@ internal static class AutoPlayTraversalPolicy
             ("140:874" or "140:876" or "140:878", "140:gateway:1" or "140:line:15") => -7,
             ("233:880", "233:talk:8") => -8,
             ("233:882", "233:gateway:0") => -8,
+            // NG-052: After Seifer the original auditorium route owns the disc conclusion.
+            ("715:895", "715:line:8") => -1,
+            ("714:895", "714:line:8") => -2,
+            ("676:895", "676:gateway:0" or "676:gateway:1" or "676:gateway:2") => -3,
+            ("691:895", "691:gateway:1") => -4,
+            ("692:895", "692:gateway:1" or "692:gateway:2") => -5,
+            ("687:895", "687:line:6") => -6,
             _ => 0
         };
     }
