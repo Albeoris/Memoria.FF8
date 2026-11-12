@@ -544,7 +544,8 @@ public sealed partial class Ff7BattleSession
 
     private void ApplyHit(Ff7BattleQueuedCommand command, int targetSlot, Ff7BattleDamageAction action, Ff7BattleAttack? record, ushort elements)
     {
-        PublishNativeActionContext(command, elements);
+        ushort properties = record?.SpecialFlags ?? (command.ActorSlot < 3 ? party[command.ActorSlot]!.Value.AttackFlags : ushort.MaxValue);
+        PublishNativeActionContext(command, elements, action.NativePhysicalCategory == true ? (ushort)(properties & ~4) : properties);
         PublishNativeStatusContext(record);
         action = action with { NativeElements = elements == ushort.MaxValue ? (ushort)0 : elements, IsItem = command.CommandId == (byte)Ff7BattleCommand.Item };
         ValidateGuestIncoming(command, targetSlot, record);
@@ -620,7 +621,6 @@ public sealed partial class Ff7BattleSession
         {
             InvokeAi(targetSlot, callback);
         }
-        FlushFormationAi();
     }
 
     private (Ff7BattleActorState Source, Ff7BattleDamageAction Action) ProjectPhysicalFacing(Ff7BattleActorState source, Ff7BattleActorState target, Ff7BattleDamageAction action)

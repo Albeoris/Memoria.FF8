@@ -111,7 +111,7 @@ public sealed partial class Ff7BattleSession
             Ff7BattleActorState source = Actor(command.ActorSlot);
             Ff7BattleActorState target = Actor(slot);
             Ff7BattleActionVitals sourceVitals = GuestItemVitals(source);
-            Ff7BattleActionVitals targetVitals = GuestItemVitals(target) with { StatusImmunities = slot >= 4 ? ~Enemy(slot).NativeStatusMask : 0 };
+            Ff7BattleActionVitals targetVitals = GuestItemVitals(target) with { StatusImmunities = (slot >= 4 ? ~Enemy(slot).NativeStatusMask : 0) | target.StatusProtection };
             Ff7BattleDamageAction attack = ProjectGuestOutgoingAttack(slot, description) with { Split = false };
             Ff7BattleActionReceipt receipt = Ff7NativeBattleActionResolver.ResolveGuestContact(description.Source, sourceVitals, Stats(target), targetVitals, attack, description.StatusRecord, candidateRandom, sameActor: slot == command.ActorSlot, originStatusResistances: GetGuestProjection(slot)?.OriginStatusResistances);
             prepared.Add(description with { Attack = attack, PreparedContact = new(invocation with { TargetSlot = slot }, sourceVitals, targetVitals, receipt) });
@@ -158,8 +158,10 @@ public sealed partial class Ff7BattleSession
             {
                 throw new InvalidDataException("The native group completed without settling every selected target exactly once.");
             }
+            PublishGuestSourceInteraction(active.Command, invocation.TargetSlot);
             FinishTurn(active.Command.ActorSlot);
             state = state with { Action = null };
+            FlushFormationAi();
         }
         else
         {

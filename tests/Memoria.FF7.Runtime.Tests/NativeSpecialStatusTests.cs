@@ -53,6 +53,10 @@ internal static class NativeSpecialStatusTests
         Check(release.HitPointDelta == 0, "Capture release must stop HP drain without changing HP by replay.");
 
         Ff7BattleDamageActor source = new(30, 60, 60, 30, 0, 0, 0, 20, 20);
+        Ff7BattleAttack physicalRecord = Capture(0) with { DamageCalculation = 0x11, Power = 16, StatusChange = byte.MaxValue, SpecialFlags = ushort.MaxValue };
+        Ff7BattleDamageAction physical = Ff7BattleDamageAction.FromAttack(physicalRecord) with { AlwaysHits = true };
+        Check(physical.NativePhysicalCategory == true && Ff7NativeBattleDamage.Resolve(source, source with { NativeConditions = 0x100 }, physical, Random()).Damage == 0, "The native formula modifier must force physical immunity classification even when the original property word has bit4 set.");
+        Check(Ff7NativeBattleDamage.Resolve(source, source with { NativeConditions = 0x200 }, physical, Random()).Damage > 0, "A forced physical formula must not use the magical immunity gate.");
         Ff7BattleAttack death = Capture(0) with { StatusMask = 1 };
         Ff7BattleActionVitals living = new(100, 100, 10, 10, 0);
         Ff7BattleActionReceipt protectedTarget = Ff7NativeBattleActionResolver.Resolve(source, living, source with { NativeConditions = 0x1000 }, living, Ff7BattleDamageAction.FromAttack(death), death, Random());

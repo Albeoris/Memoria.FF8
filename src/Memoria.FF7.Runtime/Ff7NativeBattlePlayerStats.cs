@@ -3,7 +3,10 @@ using Memoria.FF7.Formats;
 
 namespace Memoria.FF7.Runtime;
 
-public readonly record struct Ff7BattlePlayerStats(Ff7BattleDamageActor Actor, Ff7BattleDamageAction Attack, byte AttackTargetFlags, ushort AttackElements);
+public readonly record struct Ff7BattlePlayerStats(Ff7BattleDamageActor Actor, Ff7BattleDamageAction Attack, byte AttackTargetFlags, ushort AttackElements)
+{
+    public ushort AttackFlags { get; init; } = ushort.MaxValue;
+}
 
 /// <summary>Projects the equipped PC character record into its native battle damage and weapon inputs.</summary>
 public static class Ff7NativeBattlePlayerStats
@@ -81,9 +84,14 @@ public static class Ff7NativeBattlePlayerStats
         Ff7BattleDamageActor actor = new(record[1], attack, (byte)stats[2], (byte)stats[4], (byte)stats[5], armor[4], armor[5], defense, (ushort)stats[3], weapon[7], statuses, BackRow: backRow);
 
         ushort flags = BinaryPrimitives.ReadUInt16LittleEndian(weapon[40..]);
+        if ((weapon[2] >> 4) is 1 or 3 or 6 or 10 or 11)
+        {
+            flags = (ushort)(flags & ~4);
+        }
         Ff7BattleDamageAction weaponAttack = new(weapon[2], 16, weapon[8], LongRange: (weapon[0] & 0x20) == 0, ForceCritical: (flags & 0x2000) == 0, CanBeBlinded: true);
         ushort elements = BinaryPrimitives.ReadUInt16LittleEndian(weapon[16..]);
-        return new(actor, weaponAttack, weapon[0], elements);
+        weaponAttack = weaponAttack with { NativePhysicalCategory = (flags & 4) == 0, NativeElements = elements == ushort.MaxValue ? (ushort)0 : elements, IgnoreNativeAffinity = (flags & 0x80) == 0 };
+        return new(actor, weaponAttack, weapon[0], elements) { AttackFlags = flags };
     }
 
     private static void AddGearBonuses(Span<byte> bonuses, ReadOnlySpan<byte> modifiers)

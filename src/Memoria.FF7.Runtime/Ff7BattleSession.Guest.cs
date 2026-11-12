@@ -189,6 +189,7 @@ public sealed partial class Ff7BattleSession
         {
             string message = operation.ExecuteOperation(command.GuestAbility, invocation.TargetSlot, random.NextByte);
             PublishGuestSourceInteraction(command, invocation.TargetSlot);
+            FlushFormationAi();
             state = state with { Messages = Ff7NativeBattleMessage.Enqueue(state.Messages ?? Ff7BattleMessageState.Empty, message) };
             FinishTurn(command.ActorSlot);
             return true;
@@ -335,7 +336,7 @@ public sealed partial class Ff7BattleSession
 
     private void ApplyGuestHit(Ff7BattleQueuedCommand command, int targetSlot, Ff7BattleGuestPhysicalHit hit)
     {
-        PublishNativeActionContext(command, hit.Elements);
+        PublishNativeActionContext(command, hit.Elements, hit.Attack.UsePhysicalStats ? (ushort)0 : (ushort)4);
         Ff7BattleActorState source = Actor(command.ActorSlot);
         Ff7BattleActorState target = Actor(targetSlot);
         if (command.CommandId == (byte)Ff7BattleCommand.Item)

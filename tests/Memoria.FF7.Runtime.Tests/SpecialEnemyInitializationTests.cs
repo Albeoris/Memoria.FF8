@@ -37,6 +37,7 @@ internal static class SpecialEnemyInitializationTests
         int sessions = 0;
         int callbacks = 0;
         Attempt("final duel native callback queue and termination", () => CheckFinalDuel(scenes, original.Progress, kernel, executable.NativeMateriaStatModifiers, catalog));
+        Attempt("Schizo pre-action callback continuation", () => CheckPreActionScripts(scenes, original.Progress, kernel, executable.NativeMateriaStatModifiers, catalog));
         foreach (SceneFormation scene in selected)
         {
             Attempt($"formation {scene.FormationId} initialization/restore", () =>
@@ -77,6 +78,20 @@ internal static class SpecialEnemyInitializationTests
                 failures.Add($"{name}: {exception.GetType().Name}: {exception.Message}");
             }
         }
+    }
+
+    private static void CheckPreActionScripts(IReadOnlyList<SceneFormation> scenes, Ff7Progress progress, IReadOnlyList<KernelSection> kernel, IReadOnlyList<short> modifiers, Ff7EnemyExtensionCatalog catalog)
+    {
+        SceneFormation formation = scenes.Single(scene => scene.FormationId == 740);
+        Ff7BattleSession initial = new(formation, progress, kernel, modifiers, 1, enemyExtensions: catalog, enemyExtensionPartyLevels: [100]);
+        Ff7BattleSnapshot before = initial.Capture();
+        Ff7BattleSnapshot queued = before with { Queue = Ff7BattleCommandQueue.Enqueue(before.Queue, new(2, 0, (byte)Ff7BattleCommand.Defend, 0, 1)) };
+        Ff7BattleSession battle = new(formation, progress, kernel, modifiers, 1, snapshot: queued);
+        Ff7BattleSession restored = new(formation, progress, kernel, modifiers, 1, snapshot: RoundTrip(queued));
+        battle.Advance(turnBased: true);
+        restored.Advance(turnBased: true);
+        Check(battle.Actors.Where(actor => actor.Identity is 228 or 229).All(actor => actor.Actor.HurtAction == 1), "The original paired-head callback 7 must run before the queued action.");
+        Check(JsonSerializer.Serialize(battle.Capture()) == JsonSerializer.Serialize(restored.Capture()), "Pre-action scripts changed their continuation after JSON restore.");
     }
 
     private static void CheckFinalDuel(IReadOnlyList<SceneFormation> scenes, Ff7Progress progress, IReadOnlyList<KernelSection> kernel, IReadOnlyList<short> modifiers, Ff7EnemyExtensionCatalog catalog)

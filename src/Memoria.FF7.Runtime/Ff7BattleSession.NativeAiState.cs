@@ -103,7 +103,7 @@ public sealed partial class Ff7BattleSession
         }
     }
 
-    private void PublishNativeActionContext(Ff7BattleQueuedCommand command, ushort elements = 0)
+    private void PublishNativeActionContext(Ff7BattleQueuedCommand command, ushort elements = 0, ushort? attackFlags = null)
     {
         byte[] globals = state.AiGlobalMemory?.ToArray() ?? new byte[64];
         Ff7GuestScriptInteraction? interaction = command.GuestAttack ? (GetGuestAttack(command.ActorSlot) as IFf7BattleGuestScriptActions)?.DescribeScriptInteraction(command.CommandId, command.GuestAbility, System.Numerics.BitOperations.TrailingZeroCount(command.TargetMask)) : null;
@@ -111,13 +111,17 @@ public sealed partial class Ff7BattleSession
         globals[1] = unchecked((byte)(interaction?.ActionId ?? (command.GuestAttack ? ushort.MaxValue : command.AttackId ?? command.Argument)));
         BinaryPrimitives.WriteUInt16LittleEndian(globals.AsSpan(0x24), elements == ushort.MaxValue ? (ushort)0 : elements);
         BinaryPrimitives.WriteUInt16LittleEndian(globals.AsSpan(0x2A), interaction?.ActionId ?? (command.GuestAttack ? ushort.MaxValue : command.AttackId ?? command.Argument));
+        if (attackFlags is ushort properties)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(globals.AsSpan(0x2E), properties);
+        }
         state = state with { AiGlobalMemory = globals };
     }
 
     private void PublishGuestSourceInteraction(Ff7BattleQueuedCommand command, int recipient)
     {
         Ff7GuestScriptInteraction? interaction = (GetGuestAttack(command.ActorSlot) as IFf7BattleGuestScriptActions)?.DescribeScriptInteraction(command.CommandId, command.GuestAbility, recipient);
-        if (interaction?.DrawSourceSlot is not int source || source == recipient && interaction.HasRecipientEffect || !IsAlive(Actor(source)))
+        if (interaction?.DrawSourceSlot is not int source || interaction.HasRecipientEffect && (command.GroupTarget ? (command.TargetMask & 1 << source) != 0 : source == recipient) || !IsAlive(Actor(source)))
         {
             return;
         }

@@ -461,6 +461,13 @@ public sealed partial class Ff7BattleSession
             FinishTurn(command.ActorSlot);
             return;
         }
+        if (command.Priority != 0)
+        {
+            foreach (SceneBattleEnemy enemy in Data.Enemies)
+            {
+                InvokeAi(enemy.FormationSlot + 4, 7);
+            }
+        }
         if (command.CommandId == 0x21)
         {
             string message = ReadBattleText(command.Message ?? throw new InvalidDataException("A FFVII battle message requires its original text."));
@@ -469,6 +476,7 @@ public sealed partial class Ff7BattleSession
             {
                 FinishTurn(command.ActorSlot);
             }
+            FlushFormationAi();
             return;
         }
         if (command.CommandId == 0x22)

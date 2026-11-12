@@ -52,9 +52,9 @@ internal static class NativeBattleDamageTests
         Ff7BattlePlayerStats[] party = initialParty.Select(character => Ff7NativeBattlePlayerStats.Create(character, kernel, materiaModifiers)).ToArray();
 
         Ff7BattlePlayerStats cloud = party[0];
-        Check(cloud == new Ff7BattlePlayerStats(new(6, 36, 23, 6, 14, 0, 0, 24, 17), new(0x11, 16, 96, CanBeBlinded: true), 0x23, 0x400), $"Original Cloud actor and weapon projection changed: {cloud}.");
-        Check(party[1] == new Ff7BattlePlayerStats(new(1, 29, 11, 5, 13, 0, 0, 21, 9), new(0x11, 16, 97, LongRange: true, CanBeBlinded: true), 0x03, 0x2000), $"Original Barret actor and weapon projection changed: {party[1]}.");
-        Check(party[2] == new Ff7BattlePlayerStats(new(1, 24, 11, 7, 14, 0, 0, 19, 10, CriticalBonus: 2), new(0x11, 16, 99, CanBeBlinded: true), 0x23, 0x800), $"Original Tifa actor and weapon projection changed: {party[2]}.");
+        Check(cloud == new Ff7BattlePlayerStats(new(6, 36, 23, 6, 14, 0, 0, 24, 17), new(0x11, 16, 96, CanBeBlinded: true) { NativePhysicalCategory = true, NativeElements = 0x400 }, 0x23, 0x400) { AttackFlags = 0xFFFB }, $"Original Cloud actor and weapon projection changed: {cloud}.");
+        Check(party[1] == new Ff7BattlePlayerStats(new(1, 29, 11, 5, 13, 0, 0, 21, 9), new(0x11, 16, 97, LongRange: true, CanBeBlinded: true) { NativePhysicalCategory = true, NativeElements = 0x2000 }, 0x03, 0x2000) { AttackFlags = 0xFFFB }, $"Original Barret actor and weapon projection changed: {party[1]}.");
+        Check(party[2] == new Ff7BattlePlayerStats(new(1, 24, 11, 7, 14, 0, 0, 19, 10, CriticalBonus: 2), new(0x11, 16, 99, CanBeBlinded: true) { NativePhysicalCategory = true, NativeElements = 0x800 }, 0x23, 0x800) { AttackFlags = 0xFFFB }, $"Original Tifa actor and weapon projection changed: {party[2]}.");
 
         IReadOnlyList<SceneFormation> formations = SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path));
         using Ff7Session original = Ff7Session.NewGame(installation);
