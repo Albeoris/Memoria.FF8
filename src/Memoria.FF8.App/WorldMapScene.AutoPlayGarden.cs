@@ -23,6 +23,7 @@ internal sealed partial class WorldMapScene
         (32000, -44800), (14500, -45500), (6900, -52900), (2898, -56176), (-7339, -64341),
         (-23851, 80167), (-23610, 68104), (-24200, 68100), (-24200, 65700), (-24100, 65600), (-23410, 63204)
     ];
+    private static readonly (int X, int Z)[] OrphanageGardenApproach = [(-24200, 66100), (-24900, 66500)];
 
     internal PlayerAction? PlanAutoPlayGardenLanding(bool releaseConfirm)
     {
@@ -37,6 +38,7 @@ internal sealed partial class WorldMapScene
             750 => BalambGardenApproach,
             765 => TrabiaGardenApproach,
             800 => CentraGardenApproach,
+            912 => OrphanageGardenApproach,
             _ => null
         };
         if (approach is null)
@@ -53,6 +55,8 @@ internal sealed partial class WorldMapScene
         {
             750 => current.X is >= 15400 and <= 16600 && current.Z is >= -25000 and <= -23500,
             765 => SquaredDistance(current.X, current.Z, 46168, -57483) <= 250L * 250,
+            // NG-054: Use the retained Centra parking position and its original landing probes.
+            912 => current.X is >= -25300 and <= -23000 && current.Z is >= 65000 and <= 66900,
             _ => false
         };
         if (atLanding && ResolveGardenFootPlacement(current) is { Accepted: true })
