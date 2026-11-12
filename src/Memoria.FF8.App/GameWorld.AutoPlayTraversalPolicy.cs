@@ -84,6 +84,12 @@ internal static class AutoPlayTraversalPolicy
             // NG-033: Activate the MD console using the center switch, then the left switch.
             ("209:550", "209:line-action:6") => -1,
             ("209:554", "209:line-action:7") => -1,
+            // NG-034: Inspect the exterior before taking the bridge lift.
+            ("254:560", "254:line:9") => -1,
+            ("249:560", "249:line:11") => -2,
+            ("137:560", "137:line:15") => -3,
+            ("139:560", "139:gateway:0") => -4,
+            ("143:560", "143:line:15") => -5,
             _ => 0
         };
     }
