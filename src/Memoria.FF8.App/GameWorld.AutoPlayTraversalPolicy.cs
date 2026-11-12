@@ -231,6 +231,10 @@ internal static class AutoPlayTraversalPolicy
             ("168:1350", "168:line:22") => -2,
             ("167:1350", "167:gateway:0" or "167:gateway:1" or "167:gateway:2") => -3,
             ("163:1350", "163:line:17" or "163:line:18") => -4,
+            // NG-062: Take the original deck passage to the White SeeD leader.
+            ("853:1350", "853:gateway:0" or "853:gateway:1") => -1,
+            ("849:1350", "849:gateway:1") => -2,
+            ("857:1350", "857:talk:7") => -3,
             _ => 0
         };
     }
