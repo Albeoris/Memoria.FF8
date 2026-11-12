@@ -12,7 +12,7 @@ internal static partial class Program
 {
     private static int RunFf7(LaunchOptions options)
     {
-        string directory = options.Ff7GameDirectory ?? throw new ArgumentException("FFVII requires --ff7-game-dir or MEMORIA_FF7_GAME_DIR alongside the primary FFVIII installation.");
+        string directory = options.Ff7GameDirectory ?? throw new ArgumentException("Select an FFVII installation in the launcher or supply --ff7-game-dir or MEMORIA_FF7_GAME_DIR alongside the primary FFVIII installation.");
         Ff7Installation installation = Ff7Installation.Discover(directory);
         Ff7PcExecutableData native = Ff7PcExecutableData.Load(installation);
         if (options.ValidateOnly)

@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Memoria.FF7.Resources;
+using Memoria.FF8.Platform;
 
 namespace Memoria.Launcher;
 

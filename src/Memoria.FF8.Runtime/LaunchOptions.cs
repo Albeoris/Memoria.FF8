@@ -166,6 +166,19 @@ public sealed record LaunchOptions
                 throw new ArgumentException("--control-exclusive requires a save destination distinct from its input --state snapshot.");
             }
         }
+        if (options.Ff7GameDirectory is null)
+        {
+            ApplicationPaths paths = ApplicationPaths.Current;
+            if (options.SettingsDirectory is string settingsDirectory)
+            {
+                paths = paths with { Configuration = settingsDirectory };
+            }
+            string? directory = LauncherSettings.Load(paths.LauncherSettings).Ff7GameDirectory;
+            if (!string.IsNullOrWhiteSpace(directory) && Path.IsPathFullyQualified(directory))
+            {
+                options = options with { Ff7GameDirectory = directory };
+            }
+        }
         if (options.StatePath is not null)
         {
             GameState initial = loadConfiguredState is not null ? loadConfiguredState(options.StatePath, options) : loadState is not null ? loadState(options.StatePath, options.GameDirectory) : GameSession.Load(options.StatePath);
