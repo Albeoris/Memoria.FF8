@@ -86,7 +86,7 @@ public sealed partial class EventEngine
             ActorState retained = actors[objectId];
             retained.NativePartyFlags = new NativeActorPartyFlags(false, false);
         }
-        Scene.FieldPartyNativeActorIds.Clear();
+        int[] bindings = new int[3];
         for (int slot = 0; slot < 3; slot++)
         {
             byte character = (byte)Scene.Party[slot];
@@ -100,8 +100,11 @@ public sealed partial class EventEngine
                     break;
                 }
             }
-            Scene.FieldPartyNativeActorIds.Add(nativeActor);
+            bindings[slot] = nativeActor;
         }
+        PreserveNativePositionOnPlayerRebind(bindings[0]);
+        Scene.FieldPartyNativeActorIds.Clear();
+        Scene.FieldPartyNativeActorIds.AddRange(bindings);
         RecordPartyBindingMemory();
     }
 

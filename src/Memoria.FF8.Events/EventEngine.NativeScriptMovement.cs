@@ -173,6 +173,10 @@ public sealed partial class EventEngine
         {
             return new FieldFixedPosition(copied.FixedX, copied.FixedY, copied.FixedZ);
         }
+        if (actor.NativeReleasedPlayerPosition is { Position: var released, Triangle: var triangle } && actor.X == released.X / 4096f && actor.Y == released.Y / 4096f && actor.Z == released.Z / 4096f && actor.WalkmeshTriangle == triangle)
+        {
+            return released;
+        }
         if (ValidGameplayActorReconstruction(actor, Frame) && actor.GameplayReconstruction!.Position is { } semantic && actor.X == semantic.X / 4096f && actor.Y == semantic.Y / 4096f && actor.Z == semantic.Z / 4096f)
         {
             return semantic;
@@ -270,6 +274,7 @@ public sealed partial class EventEngine
             actor.NativeJoinedPosition = null;
             actor.NativeSplitPosition = null;
             actor.NativeCopiedPosition = null;
+            actor.NativeReleasedPlayerPosition = null;
             actor.NativeJump = null;
             actor.NativeLadder = null;
             actor.NativeLadderMode3 = null;

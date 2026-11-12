@@ -193,6 +193,9 @@ public sealed class ActorState
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeCopiedPosition? NativeCopiedPosition { get; internal set; }
     [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeReleasedPlayerPlacement? NativeReleasedPlayerPosition { get; internal set; }
+    [JsonInclude]
     public int MovementFlags { get; internal set; }
     [JsonInclude]
     public bool MovementIgnoresWalkmesh { get; internal set; }
@@ -371,6 +374,7 @@ public sealed class ActorState
         NativeJoinedPosition = null;
         NativeSplitPosition = null;
         NativeCopiedPosition = null;
+        NativeReleasedPlayerPosition = null;
     }
 
     internal void SetBaseAnimation()

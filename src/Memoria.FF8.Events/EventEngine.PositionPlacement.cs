@@ -49,6 +49,7 @@ public sealed partial class EventEngine
         int y = unchecked(args[1] << 12);
         actor.NativeJoinedPosition = null;
         actor.NativeCopiedPosition = null;
+        actor.NativeReleasedPlayerPosition = null;
         actor.NativeLadder = null;
         actor.NativeLadderMode3 = null;
         actor.X = x / 4096f;

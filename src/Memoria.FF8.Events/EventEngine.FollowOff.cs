@@ -49,6 +49,10 @@ public sealed partial class EventEngine
         int? frames = RequireNativeAnimationHeader(actor).BoundModelId == -1 ? null : AnimationFrameCount!(actor.RenderModelId, idle);
         byte nativeActor = checked((byte)Scene.NativeActorObjectIds.IndexOf(actor.ObjectId));
         // 51EC30 clears only runtime follow mapping1CE4772; saved aliasesB194..196 remain intact.
+        if (slot == 0)
+        {
+            PreserveNativePositionOnPlayerRebind(byte.MaxValue);
+        }
         Scene.FieldPartyNativeActorIds[slot] = 255;
         actor.NativePartyFlags = new NativeActorPartyFlags(false, true);
         //51EC30 resets only the idle header and runtime mapping. Physical

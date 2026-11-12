@@ -578,6 +578,7 @@ public sealed partial class EventEngine
                 actor.NativeJoinedPosition = null;
                 actor.NativeSplitPosition = null;
                 actor.NativeCopiedPosition = null;
+                actor.NativeReleasedPlayerPosition = null;
                 actor.X = args[0];
                 actor.Y = args[1];
                 actor.Z = args[2];

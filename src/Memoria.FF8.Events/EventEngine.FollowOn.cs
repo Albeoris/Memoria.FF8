@@ -20,6 +20,10 @@ public sealed partial class EventEngine
         // runtime1CE4772[slot] from the compact actor BYTE598. B194..196,
         // trace positions, animation, movement and control bytes survive.
         NativeActorPartyFlags flags = actor.NativePartyFlags ?? throw new NotSupportedException("FOLLOWON requires its current actor DWORD352 masks4/64.");
+        if (slot == 0)
+        {
+            PreserveNativePositionOnPlayerRebind(nativeActor);
+        }
         Scene.FieldPartyNativeActorIds[slot] = nativeActor;
         actor.NativePartyFlags = flags with { DetachedFollow64 = false };
     }

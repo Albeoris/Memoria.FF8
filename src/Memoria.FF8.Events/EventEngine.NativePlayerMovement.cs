@@ -5,6 +5,7 @@ namespace Memoria.FF8.Events;
 public sealed record NativePlayerMovementQuery(int ObjectId, int Triangle, int FixedX, int FixedY, int FixedZ, int Direction, short Speed, int Radius, byte? EarlyRetryState = null, Func<NativePlayerGroundProbe, bool>? HasActorCollision = null, int SpeedPercent = 100, int FastSpeed = 0);
 public sealed record NativePlayerGroundProbe(int FixedX, int FixedY, int NativeHeight, bool ActorCollision = false);
 public sealed record NativePlayerMovementResult(int FixedX, int FixedY, int FixedZ, int Triangle, int Direction, IReadOnlyList<NativeJoinMovementProposal> Proposals, IReadOnlyList<IReadOnlyList<NativePlayerGroundProbe>>? ProposalGroundProbes = null, bool Accepted = true);
+public sealed record NativeReleasedPlayerPlacement(FieldFixedPosition Position, int Triangle);
 
 public sealed partial class EventEngine
 {
@@ -15,6 +16,24 @@ public sealed partial class EventEngine
     {
         // Native4789A0 selects the current runtime body, not saved BYTE194.
         return NativeFieldPartyBinding.TryGetObjectId(Scene, 0, out int objectId) && objectId == actor.ObjectId;
+    }
+
+    private void PreserveNativePositionOnPlayerRebind(int nextNativeActor)
+    {
+        if (Scene.NativePartyTraceVersion != 1 || Scene.FieldPartyNativeActorIds.Count != 3 || Scene.FieldPartyNativeActorIds[0] == nextNativeActor)
+        {
+            return;
+        }
+
+        // The original mapping changes the input owner. Each actor keeps its own DWORD400/404/408.
+        if (ResolvePartyActor(0) is { } previous && Scene.NativePlayerPosition is { } raw && previous.X == raw.X / 4096f && previous.Y == raw.Y / 4096f && previous.Z == raw.Z / 4096f)
+        {
+            previous.NativeReleasedPlayerPosition = new(raw, previous.WalkmeshTriangle);
+        }
+        if ((uint)nextNativeActor < Scene.NativeActorObjectIds.Count && ReadNativeScriptPosition(actors[Scene.NativeActorObjectIds[nextNativeActor]]) is { } incoming)
+        {
+            Scene.NativePlayerPosition = incoming;
+        }
     }
 
     private void RecordNativeScriptPlacement(ActorState actor)
