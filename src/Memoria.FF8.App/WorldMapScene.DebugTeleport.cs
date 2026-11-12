@@ -137,6 +137,7 @@ internal sealed partial class WorldMapScene
             int order = field switch
             {
                 774 when IsAutoPlayMissileBaseCar(before, story) => -1,
+                106 when story == 750 && before.NativeFootRuntime?.GardenDismount is not null => -1,
                 159 => 0,
                 106 => 10,
                 136 => 20,
@@ -293,7 +294,8 @@ internal sealed partial class WorldMapScene
             car.Validate();
             return car.EntityType;
         }
-        if (State.NativeFootRuntime is not { } foot || !NativeWorldEntityTypes.IsSupportedFoot(foot.EntityType) || debugPlacement && (foot.EntityType is not (0 or 1) || foot.NormalObjects is not null || foot.StationTrains is not null) || State.NativeCarRuntime is not null || State.NativeGardenRuntime is not null || State.NativeRagnarokRuntime is not null || State.NativeTrainRuntime is not null || State.NativeScriptedRuntime is not null)
+        bool parkedGarden = !debugPlacement && world.NativeGardenRuntime is { Transfer.Counter: 31 } && world.NativeFootRuntime?.GardenDismount is not null;
+        if (world.NativeFootRuntime is not { } foot || !NativeWorldEntityTypes.IsSupportedFoot(foot.EntityType) || debugPlacement && (foot.EntityType is not (0 or 1) || foot.NormalObjects is not null || foot.StationTrains is not null) || world.NativeCarRuntime is not null || world.NativeGardenRuntime is not null && !parkedGarden || world.NativeRagnarokRuntime is not null || world.NativeTrainRuntime is not null || world.NativeScriptedRuntime is not null)
         {
             throw new NotSupportedException(debugPlacement ? "Automatic coordinate travel requires ordinary foot without auxiliary objects, or the current stationary type33 car." : "Automatic world discovery requires a supported native foot owner or an admitted stationary car.");
         }

@@ -622,7 +622,10 @@ internal sealed partial class AutoPlayController
             return;
         }
         int deferred = run.Coverage.Visits.Sum(visit => visit.Events.Sum(item => item.ParticipantPolicyDeferrals.Count));
-        Status = $"{session.State.FieldId}:{session.State.FieldName} · frame {world.Events.Frame} · {run.Coverage.Visits.Count} visits · {run.Steps} steps" + (deferred == 0 ? string.Empty : $" · {deferred} deferred");
+        string location = session.State.World is { } overworld && session.State.Scene == SceneKind.WorldMap
+            ? $"world:{session.State.Variables.GetValueOrDefault(256)} ({overworld.X}, {overworld.Z}) · frame {overworld.Frame}"
+            : $"{session.State.FieldId}:{session.State.FieldName} · frame {world.Events.Frame}";
+        Status = $"{location} · {run.Coverage.Visits.Count} visits · {run.Steps} steps" + (deferred == 0 ? string.Empty : $" · {deferred} deferred");
         if (world.PendingEntityName is not null)
         {
             Apply(new(PlayerActionKind.EnterName));
@@ -1526,6 +1529,24 @@ internal sealed partial class AutoPlayController
             if (run.SceneFrames > 180000)
             {
                 throw new TimeoutException("The native world owner did not return control within 180000 callbacks.");
+            }
+            return;
+        }
+        if (world.WorldScene!.PlanAutoPlayGardenLanding(NeedsWorldConfirmRelease(session.State.WorldProcess?.InputHistory)) is { } gardenAction)
+        {
+            PlayerActionResult movement = Apply(gardenAction);
+            if (!movement.Accepted || movement.FramesAdvanced == 0)
+            {
+                throw new NotSupportedException($"The ordinary Garden control was rejected: {movement.Detail}");
+            }
+            run.SceneFrames += movement.FramesAdvanced;
+            if (run.SceneFrames > 12000)
+            {
+                throw new TimeoutException("The Garden did not reach its native landing boundary within 12000 callbacks.");
+            }
+            if (session.State.World is { } advanced && (advanced.X != current.X || advanced.Z != current.Z || advanced.BodyYaw != current.BodyYaw || advanced.NativeHeight != current.NativeHeight || advanced.NativeFootRuntime is not null))
+            {
+                ResetIdleDeadline();
             }
             return;
         }
