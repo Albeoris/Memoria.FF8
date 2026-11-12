@@ -166,7 +166,7 @@ internal sealed partial class GameWorld
     internal AutoPlayWalkResult? PrepareAutoPlayBridgeLift(AutoPlayTarget target, Action onProgress)
     {
         const string bridgeProgram = "7483B7BF06F1899A2760BA6CFB3310E429D9415AD7223FE62A922F7847EE73C4";
-        if (Field is not { Id: 254 } field || target is not { Kind: AutoPlayTargetKind.Talk, ObjectId: 6 } || Events.Variables.GetValueOrDefault(256) != 560 || ReadAutoPlayFieldProgramHash(field.Id) != bridgeProgram || NativeFieldPartyBinding.ResolveActor(Events.Scene, Events.Actors, 2) is not { ObjectId: 5 } follower)
+        if (Field is not { Id: 254 } field || target is not { Kind: AutoPlayTargetKind.Talk, ObjectId: 6 } || ReadAutoPlayFieldProgramHash(field.Id) != bridgeProgram || NativeFieldPartyBinding.ResolveActor(Events.Scene, Events.Actors, 2) is not { ObjectId: 5 } follower)
         {
             return null;
         }
