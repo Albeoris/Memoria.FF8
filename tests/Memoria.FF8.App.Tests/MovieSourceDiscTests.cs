@@ -23,19 +23,20 @@ public sealed class MovieSourceDiscTests
         session.RequestMovie(0);
         var first = clock.Prepare();
         Assert.Equal(326, first.FrameCount);
-        Assert.EndsWith("disc00_00h.avi", clock.SourcePath, StringComparison.OrdinalIgnoreCase);
+        string firstPath = clock.SourcePath;
+        Assert.Equal(ResourceHash("movies/disc00_00h.avi"), FileHash(firstPath));
         string firstHash = MovieClock.GetSourceHash(directory, session.State);
         var firstCamera = world.Events.ReadMovieCameraFlags!(0, 0);
         session.CompleteMovie(false);
         session.SetDiscProcess(session.DiscProcess!.Assign(2));
-        Assert.EndsWith("disc00_00h.avi", clock.SourcePath, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(firstPath, clock.SourcePath, ignoreCase: true);
         Assert.Equal(firstHash, MovieClock.GetSourceHash(directory, session.State));
         session.SetMovieSource(new NativeMovieSource(1, 0));
         session.RequestMovie(0);
         var second = clock.Prepare();
         Assert.Equal(453, second.FrameCount);
         Assert.NotSame(first, second);
-        Assert.EndsWith("disc01_00h.avi", clock.SourcePath, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(ResourceHash("movies/disc01_00h.avi"), FileHash(clock.SourcePath));
         string secondHash = MovieClock.GetSourceHash(directory, session.State);
         Assert.NotEqual(firstHash, secondHash);
         var secondCamera = world.Events.ReadMovieCameraFlags!(1, 0);
@@ -50,7 +51,7 @@ public sealed class MovieSourceDiscTests
         session.RequestMovie(1);
         var third = clock.Prepare();
         Assert.Equal(278, third.FrameCount);
-        Assert.EndsWith("disc01_01h.avi", clock.SourcePath, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(ResourceHash("movies/disc01_01h.avi"), FileHash(clock.SourcePath));
         Assert.NotEqual(secondHash, MovieClock.GetSourceHash(directory, session.State));
         Assert.Throws<NotSupportedException>(() => MovieClock.GetSourcePath(movieFiles, 255, 0));
         Assert.Throws<NotSupportedException>(() => MovieClock.GetSourcePath(movieFiles, 1, 256));
@@ -58,5 +59,13 @@ public sealed class MovieSourceDiscTests
         unknown.StartNewGame();
         unknown.RequestMovie(0);
         Assert.Throws<NotSupportedException>(() => new MovieClock(unknown, directory).Prepare());
+
+        byte[] ResourceHash(string relativePath) => FileHash(movieFiles.ResolveFile(relativePath));
+
+        static byte[] FileHash(string path)
+        {
+            using FileStream file = File.OpenRead(path);
+            return System.Security.Cryptography.SHA256.HashData(file);
+        }
     }
 }
