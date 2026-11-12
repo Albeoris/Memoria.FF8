@@ -145,7 +145,7 @@ internal sealed partial class WorldMapScene
                 774 when IsAutoPlayMissileBaseCar(before, story) => -1,
                 106 when story == 750 && before.NativeFootRuntime?.GardenDismount is not null => -1,
                 891 when story == 765 && before.NativeGardenRuntime is not null => -1,
-                505 when story == 912 && before.NativeGardenRuntime is not null => -1,
+                505 when story is 912 or 1350 && before.NativeGardenRuntime is not null => -1,
                 159 => 0,
                 106 => 10,
                 136 => 20,

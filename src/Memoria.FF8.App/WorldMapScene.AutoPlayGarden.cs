@@ -39,6 +39,8 @@ internal sealed partial class WorldMapScene
             765 => TrabiaGardenApproach,
             800 => CentraGardenApproach,
             912 => OrphanageGardenApproach,
+            // NG-059: Reuse the Centra landing before Edea's introduction letter.
+            1350 when session.State.EventMemory.Read(390, 1).RequireExact() == 0 => OrphanageGardenApproach,
             _ => null
         };
         if (approach is null)
@@ -56,7 +58,7 @@ internal sealed partial class WorldMapScene
             750 => current.X is >= 15400 and <= 16600 && current.Z is >= -25000 and <= -23500,
             765 => SquaredDistance(current.X, current.Z, 46168, -57483) <= 250L * 250,
             // NG-054: Use the retained Centra parking position and its original landing probes.
-            912 => current.X is >= -25300 and <= -23000 && current.Z is >= 65000 and <= 66900,
+            912 or 1350 => current.X is >= -25300 and <= -23000 && current.Z is >= 65000 and <= 66900,
             _ => false
         };
         if (atLanding && ResolveGardenFootPlacement(current) is { Accepted: true })
