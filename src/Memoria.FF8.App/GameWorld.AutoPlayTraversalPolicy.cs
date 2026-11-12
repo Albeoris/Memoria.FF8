@@ -157,6 +157,11 @@ internal static class AutoPlayTraversalPolicy
             ("249:743", "249:line:12") => -6,
             ("254:743", "254:talk:6") => -7,
             ("257:743", "257:talk:8") => -8,
+            // NG-045: Learn the guard's refusal, then approach the two native contact lines in order.
+            ("107:750", "107:talk:10") => -4,
+            ("107:750", "107:line:13") => -3,
+            ("107:750", "107:line:12") => -2,
+            ("107:750", "107:gateway:0" or "107:gateway:1") => -1,
             _ => 0
         };
     }
