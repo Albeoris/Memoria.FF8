@@ -76,9 +76,14 @@ public sealed partial class EventEngine
         NativeShotAvailabilityState shots = services.ShotAvailability!.Discover(economy);
         NativeSalaryPresentation salary = services.SalaryPresentation!;
         salary.Validate();
-        if (vitals.InitOutSha256 != shots.InitOutSha256 || vitals.KernelSha256 != shots.KernelSha256 || Scene.Party.Count != 3 || Scene.Party.Any(value => value != 255 && (uint)value >= 8))
+        bool dreamNormalMenu = kind == NativeFieldMenuKind.Normal && vitals.DreamEnabled;
+        bool HasFieldIdentity(int identity)
         {
-            throw new NotSupportedException("MENUPHS requires matching original owners and the three native field slots.");
+            return identity == 255 || (uint)identity < NativeCharacterVitals.NativeRecordCount || dreamNormalMenu && identity is >= NativeCharacterVitals.NativeRecordCount and < NativeCharacterVitals.ExtendedRecordCount && vitals.FindPhysicalRow((byte)identity) < NativeCharacterVitals.NativeRecordCount;
+        }
+        if (vitals.InitOutSha256 != shots.InitOutSha256 || vitals.KernelSha256 != shots.KernelSha256 || !HasCanonicalPartySlots(Scene) || !Scene.Party.All(HasFieldIdentity))
+        {
+            throw new NotSupportedException($"Native {kind} menu requires matching original owners and the three native field slots.");
         }
         return (vitals, economy, shots, salary);
     }
