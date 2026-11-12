@@ -7,11 +7,15 @@ internal static class AutoPlayTraversalPolicy
 {
     internal const string MissileLauncherProgram = "89A2114D0D0CE9310CFE1ECE116B57C9DA2C8E608194D3D11CD73C179D5031AC";
 
-    public static int ProgressionEntryOrder(AutoPlayVisit visit, AutoPlayEvent item, int galbadiaKeys = 0)
+    public static int ProgressionEntryOrder(AutoPlayVisit visit, AutoPlayEvent item, int galbadiaKeys = 0, bool hasIntroductionLetter = false)
     {
         if (visit.Key.EndsWith(":894", StringComparison.Ordinal) && GalbadiaKeyRouteOrder(galbadiaKeys, item.Id) is int keyOrder)
         {
             return keyOrder;
+        }
+        if (visit.Key.EndsWith(":1350", StringComparison.Ordinal) && IntroductionLetterRouteOrder(item.Id, hasIntroductionLetter) is int letterOrder)
+        {
+            return letterOrder;
         }
         return (visit.Key, item.Id) switch
         {
@@ -228,6 +232,17 @@ internal static class AutoPlayTraversalPolicy
             ("167:1350", "167:gateway:0" or "167:gateway:1" or "167:gateway:2") => -3,
             ("163:1350", "163:line:17" or "163:line:18") => -4,
             _ => 0
+        };
+    }
+
+    private static int? IntroductionLetterRouteOrder(string eventId, bool hasLetter)
+    {
+        // NG-060: Talk to Edea before retracing the ordinary orphanage exit.
+        return (hasLetter, eventId) switch
+        {
+            (false, "505:gateway:1" or "503:gateway:0" or "502:gateway:1" or "499:talk:7") => -1,
+            (true, "499:gateway:0" or "503:gateway:0" or "502:gateway:2" or "505:gateway:2") => -1,
+            _ => null
         };
     }
 

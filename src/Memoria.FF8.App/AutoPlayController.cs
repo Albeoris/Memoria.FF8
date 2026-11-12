@@ -1662,7 +1662,8 @@ internal sealed partial class AutoPlayController
     private int ProgressionEntryOrder(AutoPlayVisit visit, AutoPlayEvent item)
     {
         int keys = session.State.WorldEntryMemory?.StoryWord == 894 ? session.State.EventMemory.Read(343, 1).RequireExact() & 0x70 : 0;
-        return AutoPlayTraversalPolicy.ProgressionEntryOrder(visit, item, keys);
+        bool hasIntroductionLetter = session.State.WorldEntryMemory?.StoryWord == 1350 && session.State.EventMemory.Read(390, 1).RequireExact() != 0;
+        return AutoPlayTraversalPolicy.ProgressionEntryOrder(visit, item, keys, hasIntroductionLetter);
     }
 
     private void ParkAutoPlayRental(WorldMapScene scene)
