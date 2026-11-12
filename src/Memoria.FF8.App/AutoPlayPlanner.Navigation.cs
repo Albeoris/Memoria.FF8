@@ -1,6 +1,7 @@
 namespace Memoria.FF8;
 
 internal sealed record AutoPlayNavigationVisit(string Key, string VisitKey, IReadOnlyList<AutoPlayEvent> Events);
+internal sealed record AutoPlayNavigationEventSource(string NavigationKey, string EventId, string? ConditionSignature, string TargetId);
 internal sealed record AutoPlayNavigationRoute(string SourceKey, string DestinationKey, string EventId, AutoPlayEventRoute Route);
 internal sealed record AutoPlayRetiredNavigationRoute(AutoPlayNavigationRoute Route, string ActualDestinationKey);
 
@@ -31,7 +32,7 @@ internal sealed partial class AutoPlayPlanner
         }
     }
 
-    public void RecordNavigationRoute(string sourceKey, string destinationKey, string eventId, AutoPlayEventRoute route)
+    public void RecordNavigationRoute(string sourceKey, string destinationKey, string eventId, AutoPlayEventRoute route, AutoPlayNavigationEventSource? executedSource = null)
     {
         ArgumentNullException.ThrowIfNull(route);
         AutoPlayNavigationVisit source = FindNavigationVisit(sourceKey);
@@ -40,9 +41,11 @@ internal sealed partial class AutoPlayPlanner
         AutoPlayEventCoverage aggregate = FindEvent(source.VisitKey, eventId);
         bool observedSource = observed is not null && observed.ConditionSignature == route.ConditionSignature && (route.TargetId is not string target || (observed.Variants is { Count: > 0 } variants ? variants : [observed.Id]).Contains(target, StringComparer.Ordinal));
         bool recordedSource = State.NavigationRoutes.Any(known => known.SourceKey == sourceKey && known.DestinationKey == destinationKey && known.EventId == eventId && SameTravelRoute(known.Route, route));
-        if (!observedSource && !recordedSource || destination.VisitKey != route.DestinationVisitKey || !aggregate.Routes.Any(known => SameTravelRoute(known, route)))
+        bool exactExecution = executedSource is not null && executedSource.NavigationKey == sourceKey && executedSource.EventId == eventId && executedSource.ConditionSignature == route.ConditionSignature && executedSource.TargetId == route.TargetId;
+        bool recordedAggregate = aggregate.Routes.Any(known => SameTravelRoute(known, route));
+        if (!observedSource && !recordedSource && !exactExecution || destination.VisitKey != route.DestinationVisitKey || !recordedAggregate)
         {
-            throw new InvalidOperationException("A navigation edge requires its exact observed source and actual recorded aggregate route and destination.");
+            throw new InvalidOperationException($"A navigation edge requires its exact observed source and actual recorded aggregate route and destination. Source {sourceKey}, event {eventId}, variant {route.TargetId}, entry {route.ConditionSignature}, observed entry {observed?.ConditionSignature}, known variants [{string.Join(",", observed?.Variants ?? [])}], destination {destinationKey}, expected visit {route.DestinationVisitKey}, aggregate recorded {recordedAggregate}.");
         }
         foreach (AutoPlayNavigationRoute previous in State.NavigationRoutes.Where(known => known.SourceKey == sourceKey && known.DestinationKey != destinationKey && known.EventId == eventId && SameTravelRoute(known.Route, route)).ToArray())
         {

@@ -86,9 +86,9 @@ internal sealed partial class AutoPlayController
         {
             if (!choice.Finished)
             {
-                references = references.Concat(new[] { choice.BeforeCheckpoint, choice.ContinuationCheckpoint });
+                references = references.Concat(new[] { choice.BeforeCheckpoint, choice.ContinuationCheckpoint, choice.BeforeContext?.BeforeCheckpoint });
             }
-            references = references.Concat(choice.PolicyCheckpoints.Values.SelectMany(item => new[] { item.BeforeCheckpoint, item.ContinuationCheckpoint }));
+            references = references.Concat(choice.PolicyCheckpoints.Values.SelectMany(item => new[] { item.BeforeCheckpoint, item.ContinuationCheckpoint, item.BeforeContext?.BeforeCheckpoint }));
         }
         IEnumerable<AutoPlayInputSearch> searches = state.InputSearch is { } active ? state.InputSearchHistory.Append(active) : state.InputSearchHistory;
         references = references.Concat(searches.Where(item => !item.Closed).SelectMany(item => item.Frames).SelectMany(frame => new[] { frame.Checkpoint, frame.Context.BeforeCheckpoint }));

@@ -59,6 +59,8 @@ internal sealed class AutoPlayInputSearchContext
 {
     public string? Visit { get; set; }
     public string? Navigation { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public AutoPlayNavigationEventSource? NavigationSource { get; set; }
     public string? Event { get; set; }
     public int Field { get; set; }
     public int? Story { get; set; }
@@ -154,6 +156,7 @@ internal sealed partial class AutoPlayController
             planner.RegisterChoiceCheckpoint(key, checkpoint);
             choice.InputCheckpointPrepared = frame.Prepared;
             choice.BeforeSelections = frame.BeforeSelections?.ToList();
+            choice.BeforeContext = CaptureInputSearchContext();
         }
         if (parent is not null && parent.ActiveTrial is int active)
         {
@@ -445,6 +448,7 @@ internal sealed partial class AutoPlayController
         {
             Visit = run.ActiveVisit,
             Navigation = run.ActiveNavigationKey,
+            NavigationSource = run.ActiveNavigationSource,
             Event = run.ActiveEvent,
             Field = run.ActiveField,
             Story = run.ActiveStory,
@@ -481,9 +485,21 @@ internal sealed partial class AutoPlayController
         {
             throw new InvalidDataException("The restored native dialogue differs from its saved original choice owner.");
         }
-        AutoPlayInputSearchContext context = frame.Context;
+        RestoreInputSearchContext(frame.Context, frame.BeforeSelections);
+        run.InputSearch!.ActiveFrameId = frame.Id;
+        for (AutoPlayInputSearchFrame? child = frame; child.ParentId is string parentId;)
+        {
+            AutoPlayInputSearchFrame parent = run.InputSearch.Frames.Single(candidate => candidate.Id == parentId);
+            parent.ActiveTrial = child.ParentTrial;
+            child = parent;
+        }
+    }
+
+    private void RestoreInputSearchContext(AutoPlayInputSearchContext context, IReadOnlyList<AutoPlayChoiceSelection>? selections)
+    {
         run.ActiveVisit = context.Visit;
         run.ActiveNavigationKey = context.Navigation;
+        run.ActiveNavigationSource = context.NavigationSource;
         run.ActiveEvent = context.Event;
         run.ActiveField = context.Field;
         run.ActiveStory = context.Story;
@@ -495,19 +511,12 @@ internal sealed partial class AutoPlayController
         run.ActiveAvailabilityFingerprint = context.Availability;
         run.ObservedControlLoss = context.ObservedControlLoss;
         run.SceneChoices = context.SceneChoices.ToList();
-        run.ActiveSelections = frame.BeforeSelections?.ToList();
+        run.ActiveSelections = selections?.ToList();
         run.ActiveObservedInput = null;
         run.ObserveContactInput = false;
         run.ActiveTravelRoute = null;
         run.SettleFrames = 0;
         run.SceneFrames = 0;
-        run.InputSearch!.ActiveFrameId = frame.Id;
-        for (AutoPlayInputSearchFrame? child = frame; child.ParentId is string parentId;)
-        {
-            AutoPlayInputSearchFrame parent = run.InputSearch.Frames.Single(candidate => candidate.Id == parentId);
-            parent.ActiveTrial = child.ParentTrial;
-            child = parent;
-        }
     }
 
     private void CompleteInputSearchAtControlReturn()

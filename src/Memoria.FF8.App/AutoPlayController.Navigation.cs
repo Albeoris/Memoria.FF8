@@ -144,7 +144,7 @@ internal sealed partial class AutoPlayController
         AutoPlayEventRoute? route = item.Routes.LastOrDefault(route => route.DestinationVisitKey == destination && route.ConditionSignature == run.ActiveConditionSignature && route.TargetId == run.ActiveTargetId && (route.Selections is null ? run.ActiveSelections is null : run.ActiveSelections is not null && route.Selections.SequenceEqual(run.ActiveSelections)));
         if (route is not null)
         {
-            planner.RecordNavigationRoute(sourceNavigation, destinationNavigation, eventId, route);
+            planner.RecordNavigationRoute(sourceNavigation, destinationNavigation, eventId, route, run.ActiveNavigationSource);
         }
     }
 }

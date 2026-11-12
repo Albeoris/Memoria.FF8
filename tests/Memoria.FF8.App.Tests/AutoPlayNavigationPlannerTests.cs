@@ -637,6 +637,25 @@ public sealed class AutoPlayNavigationPlannerTests
     }
 
     [Fact]
+    public void ExecutedSourceSurvivesAReplacedObservationForTheSameField()
+    {
+        AutoPlayPlanner planner = new();
+        AutoPlayEvent talk = new("talk", AutoPlayEventKind.Interaction, ConditionSignature: "entry", Variants: ["talk:0"]);
+        planner.Observe(new("room", "region"), [talk]);
+        planner.ObserveNavigation("room", "before", [talk]);
+        planner.Completed("room", talk.Id, "room", observedStoryChanged: false, targetId: "talk:0");
+        AutoPlayEventRoute route = planner.State.Visits.Single().Events.Single().Routes.Single();
+        planner.ObserveNavigation("room", "before", []);
+        planner.ObserveNavigation("room", "after", []);
+
+        Assert.Throws<InvalidOperationException>(() => planner.RecordNavigationRoute("before", "after", talk.Id, route, new("before", talk.Id, "entry", "talk:1")));
+        planner.RecordNavigationRoute("before", "after", talk.Id, route, new("before", talk.Id, "entry", "talk:0"));
+
+        Assert.Single(planner.State.NavigationRoutes);
+        Assert.Empty(planner.State.NavigationVisits.Single(visit => visit.Key == "before").Events);
+    }
+
+    [Fact]
     public void AnAuthenticatedDuplicateWithChangedSourceStillRetiresContradictoryEndpoints()
     {
         AutoPlayPlanner planner = CreateTwoComponents();

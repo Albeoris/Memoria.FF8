@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Memoria.FF8;
 
 internal enum AutoPlayEventKind
@@ -76,7 +78,7 @@ internal enum AutoPlayChoiceStepKind
 }
 
 internal sealed record AutoPlayChoiceStep(AutoPlayChoiceStepKind Kind, int? Selection = null, string? Checkpoint = null);
-internal sealed record AutoPlayPolicyChoiceCheckpoint(string? BeforeCheckpoint, bool InputCheckpointPrepared, string? ContinuationCheckpoint, IReadOnlyList<AutoPlayChoiceSelection>? BeforeSelections);
+internal sealed record AutoPlayPolicyChoiceCheckpoint(string? BeforeCheckpoint, bool InputCheckpointPrepared, string? ContinuationCheckpoint, IReadOnlyList<AutoPlayChoiceSelection>? BeforeSelections, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] AutoPlayInputSearchContext? BeforeContext = null);
 
 internal sealed class AutoPlayChoiceCoverage
 {
@@ -91,6 +93,8 @@ internal sealed class AutoPlayChoiceCoverage
     public int? ActiveOption { get; set; }
     public bool Finished { get; set; }
     public List<AutoPlayChoiceSelection>? BeforeSelections { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public AutoPlayInputSearchContext? BeforeContext { get; set; }
     public HashSet<int> PolicyDeferredOptions { get; set; } = [];
     public bool PolicyExhausted { get; set; }
     public string? PolicyScope { get; set; }
@@ -563,6 +567,10 @@ internal sealed partial class AutoPlayPlanner
         AutoPlayChoiceCoverage choice = FindChoice(key);
         choice.PolicyExhausted = choice.PolicyDeferredOptions.Count > 0;
         choice.Finished = !choice.PolicyExhausted;
+        if (choice.Finished)
+        {
+            choice.BeforeContext = null;
+        }
     }
 
     public void FinishPolicyDeferredChoice(string key)
@@ -583,11 +591,12 @@ internal sealed partial class AutoPlayPlanner
         }
         if (choice.PolicyScope is not null && choice.PolicyScope != scope)
         {
-            choice.PolicyCheckpoints[choice.PolicyScope] = new(choice.BeforeCheckpoint, choice.InputCheckpointPrepared, choice.ContinuationCheckpoint, choice.BeforeSelections?.ToArray());
+            choice.PolicyCheckpoints[choice.PolicyScope] = new(choice.BeforeCheckpoint, choice.InputCheckpointPrepared, choice.ContinuationCheckpoint, choice.BeforeSelections?.ToArray(), choice.BeforeContext);
             choice.PolicyCheckpoints.TryGetValue(scope, out AutoPlayPolicyChoiceCheckpoint? checkpoint);
             choice.BeforeCheckpoint = checkpoint?.BeforeCheckpoint;
             choice.ContinuationCheckpoint = checkpoint?.ContinuationCheckpoint;
             choice.BeforeSelections = checkpoint?.BeforeSelections?.ToList();
+            choice.BeforeContext = checkpoint?.BeforeContext;
             choice.InputCheckpointPrepared = checkpoint?.InputCheckpointPrepared ?? false;
         }
         choice.PolicyScope = scope;

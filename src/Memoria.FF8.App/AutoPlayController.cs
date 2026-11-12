@@ -18,6 +18,8 @@ internal sealed class AutoPlayRunState
     public AutoPlayPlannerState Coverage { get; set; } = new();
     public string? ActiveVisit { get; set; }
     public string? ActiveNavigationKey { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public AutoPlayNavigationEventSource? ActiveNavigationSource { get; set; }
     public string? ActiveEvent { get; set; }
     public int ActiveField { get; set; }
     public int? ActiveStory { get; set; }
@@ -326,16 +328,25 @@ internal sealed partial class AutoPlayController
             {
                 AutoPlayPolicyChoiceCheckpoint checkpoint = choice.PolicyCheckpoints[scope];
                 choice.PolicyCheckpoints[scope] = checkpoint with { BeforeCheckpoint = ImportCheckpoint(checkpoint.BeforeCheckpoint), ContinuationCheckpoint = ImportCheckpoint(checkpoint.ContinuationCheckpoint) };
+                if (checkpoint.BeforeContext is { } policyContext)
+                {
+                    policyContext.BeforeCheckpoint = ImportCheckpoint(policyContext.BeforeCheckpoint);
+                }
             }
             if (choice.Finished)
             {
                 choice.BeforeCheckpoint = null;
                 choice.ContinuationCheckpoint = null;
+                choice.BeforeContext = null;
             }
             else
             {
                 choice.BeforeCheckpoint = ImportCheckpoint(choice.BeforeCheckpoint);
                 choice.ContinuationCheckpoint = ImportCheckpoint(choice.ContinuationCheckpoint);
+                if (choice.BeforeContext is { } beforeContext)
+                {
+                    beforeContext.BeforeCheckpoint = ImportCheckpoint(beforeContext.BeforeCheckpoint);
+                }
             }
         }
         ImportInputSearch(saved, directory, ImportCheckpoint, document.RootElement);
@@ -786,6 +797,7 @@ internal sealed partial class AutoPlayController
             }
             run.ActiveVisit = null;
             run.ActiveNavigationKey = null;
+            run.ActiveNavigationSource = null;
             run.ActiveEvent = null;
             run.ActiveStory = null;
             run.ActiveObservedInput = null;
@@ -827,6 +839,7 @@ internal sealed partial class AutoPlayController
             planner.BeginEvent(visit, selected.CoverageId);
             run.ActiveVisit = visit;
             run.ActiveNavigationKey = navigation;
+            run.ActiveNavigationSource = new(navigation, selected.CoverageId, source.ConditionSignature, selected.Id);
             run.ActiveEvent = selected.CoverageId;
             run.ActiveField = source.FieldId;
             run.ActiveStory = source.Story;
@@ -964,6 +977,7 @@ internal sealed partial class AutoPlayController
                 }
                 run.ActiveVisit = null;
                 run.ActiveNavigationKey = null;
+                run.ActiveNavigationSource = null;
                 run.ActiveEvent = null;
                 run.ActiveStory = null;
                 run.ActiveBeforeCheckpoint = null;
@@ -1029,6 +1043,7 @@ internal sealed partial class AutoPlayController
                     }
                     run.ActiveVisit = null;
                     run.ActiveNavigationKey = null;
+                    run.ActiveNavigationSource = null;
                     run.ActiveEvent = null;
                     run.ActiveStory = null;
                     run.ActiveBeforeCheckpoint = null;
@@ -1062,6 +1077,7 @@ internal sealed partial class AutoPlayController
                 }
                 run.ActiveVisit = null;
                 run.ActiveNavigationKey = null;
+                run.ActiveNavigationSource = null;
                 run.ActiveEvent = null;
                 run.ActiveStory = null;
                 run.ActiveBeforeCheckpoint = null;
@@ -1488,7 +1504,8 @@ internal sealed partial class AutoPlayController
         string name = "choice-" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity)))[..16].ToLowerInvariant() + ".json";
         SaveGame(Path.Combine(runDirectory!, name), CaptureState());
         planner.RegisterChoiceCheckpoint(key, name);
-        run.Coverage.Choices.Single(choice => choice.Key == key).BeforeSelections = run.ActiveSelections?.ToList();
+        choice.BeforeSelections = run.ActiveSelections?.ToList();
+        choice.BeforeContext = CaptureInputSearchContext();
     }
 
     private void ExploreWorld(GameWorld world)
@@ -1541,6 +1558,7 @@ internal sealed partial class AutoPlayController
         }
         run.ActiveVisit = null;
         run.ActiveNavigationKey = null;
+        run.ActiveNavigationSource = null;
         run.ActiveEvent = null;
         run.ActiveStory = null;
         run.ActiveObservedInput = null;
@@ -1560,6 +1578,7 @@ internal sealed partial class AutoPlayController
         planner.BeginEvent(visit, target.Id);
         run.ActiveVisit = visit;
         run.ActiveNavigationKey = navigation;
+        run.ActiveNavigationSource = null;
         run.ActiveEvent = target.Id;
         run.ActiveField = session.State.FieldId;
         run.ActiveStory = session.State.Variables.GetValueOrDefault(256);
@@ -1871,8 +1890,9 @@ internal sealed partial class AutoPlayController
             {
                 GameState choiceCheckpoint = ReadCheckpoint(Path.Combine(runDirectory!, next.Checkpoint));
                 restore(choiceCheckpoint);
-                run.ActiveSelections = choice.BeforeSelections?.ToList();
-                run.SettleFrames = 0;
+                RestoreInputSearchContext(choice.BeforeContext ?? new() { Field = choiceCheckpoint.FieldId, ObjectId = -1 }, choice.BeforeSelections);
+                run.SceneChoices.Clear();
+                run.ActiveTravelGoal = null;
                 if (choice.Key.StartsWith("input:", StringComparison.Ordinal))
                 {
                     getWorld().EnsureField();
@@ -1907,7 +1927,8 @@ internal sealed partial class AutoPlayController
             }
         }
         restore(ReadCheckpoint(Path.Combine(runDirectory!, run.PrimaryContinuation)));
-        run.ActiveSelections = run.PrimarySelections?.ToList();
+        RestoreInputSearchContext(new() { Field = session.State.FieldId, ObjectId = -1 }, run.PrimarySelections);
+        run.ActiveTravelGoal = null;
         run.PrimaryContinuation = null;
         run.PrimaryConditionsChanged = false;
         return true;
@@ -2100,6 +2121,7 @@ internal sealed partial class AutoPlayController
     {
         run.ActiveVisit = null;
         run.ActiveNavigationKey = null;
+        run.ActiveNavigationSource = null;
         run.ActiveEvent = null;
         run.ActiveStory = null;
         run.ActiveObjectId = -1;

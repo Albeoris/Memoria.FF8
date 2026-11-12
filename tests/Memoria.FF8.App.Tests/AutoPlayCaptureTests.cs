@@ -87,4 +87,16 @@ public sealed class AutoPlayCaptureTests(ITestOutputHelper output)
         Assert.Equal(new[] { "current.json", "event.json", "root.json", "sibling.json" }, AutoPlayController.CaptureDependencies(state).Order().ToArray());
         Assert.False(open.SnapshotsRetired);
     }
+
+    [Fact]
+    public void OpenChoiceRetainsTheOriginalEventCheckpoint()
+    {
+        AutoPlayChoiceCoverage choice = new() { BeforeCheckpoint = "choice.json", BeforeContext = new() { BeforeCheckpoint = "source.json" } };
+        AutoPlayRunState state = new();
+        state.Coverage.Choices.Add(choice);
+
+        Assert.Equal(new[] { "choice.json", "source.json" }, AutoPlayController.CaptureDependencies(state).Order().ToArray());
+        choice.Finished = true;
+        Assert.Empty(AutoPlayController.CaptureDependencies(state));
+    }
 }
