@@ -2,6 +2,18 @@ namespace Memoria.FF8.Events;
 
 public sealed partial class EventEngine
 {
+    /// <summary>Reports the animation wait that still owns the actor's native talk slot after player control returns.</summary>
+    public bool HasAutoPlayTalkAnimationPending(int objectId)
+    {
+        if (program is null || (uint)objectId >= actors.Count || !IsNativeActorRequest(objectId) || program.Objects[objectId].Scripts.Count < 3)
+        {
+            return false;
+        }
+        int script = program.Objects[objectId].Scripts[2].Id;
+        return fibers.Any(fiber => !fiber.Complete && fiber.ObjectId == objectId && fiber.NativeActorSlot == 7 && fiber.Script.Id == script &&
+            fiber.WaitReason is WaitReason.Animation or WaitReason.NativeAnimationBlocking or WaitReason.NativeAnimationSync);
+    }
+
     /// <summary>Returns the original action query's selected actor without requesting a script.</summary>
     public int? SelectInteractionTarget()
     {

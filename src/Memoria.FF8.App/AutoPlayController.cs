@@ -726,14 +726,15 @@ internal sealed partial class AutoPlayController
         bool fadeBlocksMovement = world.Events.FieldFade?.Physical.Mode == 4;
         bool physicalMovement = world.Events.PlayerActor is { NativeScriptMovement: { Active: true, Suspended: false } } or { NativeJump.Active: true } or { NativeLadder.Active: true } or { NativeLadderMode3.Active: true };
         bool awaitingHeldContact = run.ObserveContactInput && !run.ObservedControlLoss && run.ActiveEvent is not null && run.ActiveField == session.State.FieldId && world.Events.HasAutoPlayHeldContact(run.ActiveObjectId);
-        if (world.NextTrigger.Kind != PlayerTriggerKind.Playable || !world.Events.IsUserControlEnabled || fadeBlocksMovement || physicalMovement || awaitingHeldContact || !run.ObservedControlLoss && run.ActiveField == session.State.FieldId && world.Events.HasPendingAutoPlayInteraction(run.ActiveObjectId) || run.PendingWalkInterruption is { } interrupted && interrupted.Source.FieldId == session.State.FieldId && world.Events.HasPendingAutoPlayInteraction(interrupted.Guard.ObjectId))
+        bool awaitingTalkAnimation = run.ActiveEvent is not null && run.ActiveField == session.State.FieldId && world.Events.HasAutoPlayTalkAnimationPending(run.ActiveObjectId);
+        if (world.NextTrigger.Kind != PlayerTriggerKind.Playable || !world.Events.IsUserControlEnabled || fadeBlocksMovement || physicalMovement || awaitingHeldContact || awaitingTalkAnimation || !run.ObservedControlLoss && run.ActiveField == session.State.FieldId && world.Events.HasPendingAutoPlayInteraction(run.ActiveObjectId) || run.PendingWalkInterruption is { } interrupted && interrupted.Source.FieldId == session.State.FieldId && world.Events.HasPendingAutoPlayInteraction(interrupted.Guard.ObjectId))
         {
             run.SettleFrames = 0;
             if (run.SceneFrames > 180000)
             {
                 throw new TimeoutException("No control-return boundary within 180000 simulation frames. Inspect the saved wait/input contract.");
             }
-            run.SceneFrames += Apply(new(PlayerActionKind.Wait, Frames: fadeBlocksMovement || physicalMovement || awaitingHeldContact ? 1 : 300, WaitWhilePlayable: true)).FramesAdvanced;
+            run.SceneFrames += Apply(new(PlayerActionKind.Wait, Frames: fadeBlocksMovement || physicalMovement || awaitingHeldContact || awaitingTalkAnimation ? 1 : 300, WaitWhilePlayable: true)).FramesAdvanced;
             return;
         }
         if (run.SettleFrames < 4)

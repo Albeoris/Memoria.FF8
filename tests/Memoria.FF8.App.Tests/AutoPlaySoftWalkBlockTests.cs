@@ -248,6 +248,25 @@ public sealed class AutoPlaySoftWalkBlockTests
         Assert.Equal(before, JsonSerializer.Serialize(test.State.Coverage));
     }
 
+    [Fact]
+    public void SearchRevisionReopensTheBlockedExitPredicateAfterAnEarlierInteraction()
+    {
+        var test = Create();
+        test.Blocked.WalkingSearchRevision = AutoPlayPlanner.CurrentWalkingSearchRevision - 1;
+        test.Blocked.Routes.Clear();
+        test.Blocked.ObservedConditionSignature = null;
+        test.Blocked.Conditions!.ConsumedEntries.Add("earlier-entry");
+        test.Blocked.Conditions.ConsumedExits.Add("hub-condition");
+
+        AutoPlayController.RefreshWalkingSearchRevision(test.State, "hub-nav");
+
+        Assert.Null(test.Blocked.BlockedReason);
+        Assert.True(test.Blocked.Completed);
+        Assert.Contains("earlier-entry", test.Blocked.Conditions.ConsumedEntries);
+        Assert.DoesNotContain("hub-condition", test.Blocked.Conditions.ConsumedEntries);
+        Assert.Contains("hub-condition", test.Blocked.Conditions.ConsumedExits);
+    }
+
     private static AutoPlayPlanStep? Plan((AutoPlayRunState State, AutoPlayPlanner Planner, AutoPlayEventCoverage Blocked) test, string fingerprint = "A")
     {
         return AutoPlayController.PlanWithExhaustedSurvey(test.State, test.Planner, "source-nav", _ => false, _ => true, _ => fingerprint);

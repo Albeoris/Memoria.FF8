@@ -138,7 +138,8 @@ internal sealed partial class AutoPlayController
     private static void ReleaseWalkingSearchBlock(AutoPlayEventCoverage item)
     {
         string? signature = item.Event.ConditionSignature;
-        bool completedEntry = item.Completed && (item.ObservedConditionSignature == signature || item.Routes.Any(route => route.ConditionSignature == signature) || item.ObservedConditionSignature is null && item.Routes.Count == 0);
+        bool completedEntry = item.Completed && (item.ObservedConditionSignature == signature || item.Routes.Any(route => route.ConditionSignature == signature) ||
+            item.ObservedConditionSignature is null && item.Routes.Count == 0 && (signature is null || item.Conditions?.ConsumedExits.Contains(signature) != true));
         if (signature is not null && !completedEntry)
         {
             item.Conditions?.ConsumedEntries.Remove(signature);
