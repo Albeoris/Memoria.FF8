@@ -51,7 +51,7 @@ public sealed partial class WorldAssets : IDisposable
     private bool roadsPrepared;
     private byte[]? texl;
     private PixelImage? roads;
-    private readonly Dictionary<byte, FieldModel> footModels = [];
+    private readonly Dictionary<byte, FieldModel> worldCharacterModels = [];
     private WorldFieldEntryReader? fieldEntries;
     private WorldFieldEntryReader? worldEvents;
 
@@ -114,12 +114,21 @@ public sealed partial class WorldAssets : IDisposable
         {
             throw new NotSupportedException($"Native foot entity type {entityType} has no implemented original model path.");
         }
-        int shape = NativeGardenEntityShape(entityType);
-        if (!footModels.TryGetValue(entityType, out FieldModel? model))
+        return GetWorldCharacterModel(NativeGardenEntityShape(entityType));
+    }
+
+    public FieldModel GetChocoboModel(bool companion = false)
+    {
+        return GetWorldCharacterModel(companion ? (byte)3 : (byte)2);
+    }
+
+    private FieldModel GetWorldCharacterModel(byte shape)
+    {
+        if (!worldCharacterModels.TryGetValue(shape, out FieldModel? model))
         {
             model = WorldAssetReader.ReadWorldCharacter(Read("chara.one"), shape);
             model = model with { Textures = textureScope.RegisterList(new ResourceKey("world/chara.one"), model.Textures, "classic-model", $"model/{shape}/texture") };
-            footModels.Add(entityType, model);
+            worldCharacterModels.Add(shape, model);
         }
         return modelOverrides?.Apply($"world/{shape}", model) ?? model;
     }

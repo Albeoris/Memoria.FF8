@@ -93,6 +93,12 @@ public sealed record NativeSavedWorldFootReturn
     public static NativeSavedWorldFootReturn RecordFootDeparture(WorldState world, ushort lastFieldId, ushort storyWord, short mapLocationId)
     {
         ArgumentNullException.ThrowIfNull(world);
+        if (world.NativeChocoboRuntime is { } chocobo)
+        {
+            //549E80 uses the same pose bank for mounted49, retaining its own entity byte.
+            chocobo.Validate(world);
+            return Create(world, lastFieldId, storyWord, mapLocationId, chocobo.Objects.AnimationVariant, chocobo.MapDisplayMode, 49);
+        }
         world.NativeFootRuntime?.Validate();
         return Create(world, lastFieldId, storyWord, mapLocationId, world.NativeFootRuntime?.AnimationVariant, world.NativeFootRuntime?.MapDisplayMode, world.NativeFootRuntime?.EntityType ?? throw new NotSupportedException("Native foot departure requires its executed world-entry entity type."));
     }
@@ -106,7 +112,7 @@ public sealed record NativeSavedWorldFootReturn
 
     public void Validate()
     {
-        if (ProofVersion != CurrentProofVersion || !((Rule == SaveRule || Rule == OriginalSaveRule || Rule == GameplaySaveRule) && WorldMode == 0 || Rule == BattleSaveRule && WorldMode == 3) || SourceWorldFrame < 0 || Rule == GameplaySaveRule && SourceWorldFrame != 0 || !NativeWorldEntityTypes.IsSupportedFoot(EntityType105) || Channel106 != 255 || Channel107 != 255)
+        if (ProofVersion != CurrentProofVersion || !((Rule == SaveRule || Rule == OriginalSaveRule || Rule == GameplaySaveRule) && WorldMode == 0 || Rule == BattleSaveRule && WorldMode == 3) || SourceWorldFrame < 0 || Rule == GameplaySaveRule && SourceWorldFrame != 0 || !NativeWorldEntityTypes.IsSupportedFoot(EntityType105) && !(EntityType105 == 49 && WorldMode == 0) || Channel106 != 255 || Channel107 != 255)
         {
             throw new InvalidDataException("Unsupported or invalid native foot-return provenance.");
         }

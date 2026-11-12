@@ -51,13 +51,14 @@ internal sealed partial class WorldMapScene : IDisposable
         battleReload ??= battleMode2 ? session.State.World?.NativeFootRuntime is { Rule: NativeFootWorldRuntimeState.BattleReloadRule } ? session.State.SavedWorld?.FootReturn : null : null;
         bool parkedCarFoot = session.State.World?.NativeFootRuntime?.ParkedCar is not null;
         bool car = !battleMode2 && !parkedCarFoot && (session.State.World?.NativeCarRuntime is not null || session.State.World is null && NativeCarWorldRuntimeState.IsSupportedEntity(unchecked((byte)arrival.Mode)));
+        bool chocobo = !battleMode2 && (session.State.World?.NativeChocoboRuntime is not null || session.State.World is null && unchecked((byte)arrival.Mode) == 49);
         bool garden = !battleMode2 && !car && !parkedCarFoot && (session.State.World?.NativeGardenRuntime is not null || session.State.World is null && unchecked((byte)arrival.Mode) == 48);
         bool ragnarok = !battleMode2 && !car && !parkedCarFoot && (session.State.World?.NativeRagnarokRuntime is not null || session.State.World is null && unchecked((byte)arrival.Mode) == 50);
         bool stationFoot = !battleMode2 && session.State.World?.NativeFootRuntime?.StationTrains is not null;
         bool ridingTrain = !car && !garden && !ragnarok && !parkedCarFoot && !stationFoot && (session.State.World?.NativeTrainRuntime is not null || session.State.World is null && IsRidingTrainPacket(arrival));
         bool scripted = !battleMode2 && !car && !garden && !ragnarok && !parkedCarFoot && (session.State.World?.NativeScriptedRuntime is not null || session.State.World is null && NativeWorldScriptedPathState.SupportsPacket(arrival) || ridingTrain);
         byte footEntityType = battleMode2 ? battleReload?.EntityType105 ?? session.State.World!.NativeFootRuntime!.EntityType : session.State.World?.NativeFootRuntime?.EntityType ?? unchecked((byte)arrival.Mode);
-        if (!car && !garden && !ragnarok && !scripted && session.State.World is { } restoredFoot)
+        if (!car && !chocobo && !garden && !ragnarok && !scripted && session.State.World is { } restoredFoot)
         {
             NativeFootWorldRuntimeState runtime = restoredFoot.NativeFootRuntime ?? throw new NotSupportedException("Native foot restoration requires executed entity-type loader authority.");
             if (arrival.EntryIndex == 62 && runtime.Rule is not (NativeFootWorldRuntimeState.SavedReloadRule or NativeFootWorldRuntimeState.BattleReloadRule) && !(runtime.Rule == NativeFootWorldRuntimeState.CarDismountRule && runtime.ParkedCar is not null))
@@ -65,7 +66,7 @@ internal sealed partial class WorldMapScene : IDisposable
                 throw new NotSupportedException("Historical entry62 world state has no proved native foot-reload authority.");
             }
         }
-        if (!NativeWorldEntityTypes.IsSupportedFoot(footEntityType) && !car && !garden && !ragnarok && !scripted)
+        if (!NativeWorldEntityTypes.IsSupportedFoot(footEntityType) && !car && !chocobo && !garden && !ragnarok && !scripted)
         {
             throw new NotSupportedException($"World entity type {unchecked((sbyte)arrival.Mode)} has no implemented original model/control path.");
         }
@@ -78,6 +79,13 @@ internal sealed partial class WorldMapScene : IDisposable
         assets = new WorldAssets(gameDirectory, resources, modelOverrides, nativeSourceFieldName);
         try
         {
+            if (chocobo)
+            {
+                storyByte = inputs.StoryByte;
+                replacements = WorldTerrainSelection.Replacements(session.State.World?.ReplacementMask ?? WorldTerrainSelection.ReplacementMask(inputs.ReplacementFlags, storyByte));
+                InitializeChocobo(arrival, inputs);
+                return;
+            }
             bool ordinaryFoot = !parkedCarFoot && !scripted && !stationFoot && !car && !garden && !ragnarok && footEntityType == 0;
             NativeWorldAllocationClause? footClause = ordinaryFoot ? assets.ReadWorldAllocationClause(inputs.StoryWord) : null;
             //544860 establishes vehicle indexes from the selected clause's objects; loader-initialized pose2/3 do not establish vehicle presence.
@@ -417,7 +425,7 @@ internal sealed partial class WorldMapScene : IDisposable
             {
                 previousCallback = candidate;
                 salary = salary.BeginWorldEventCallback();
-                int animationEntityType = candidate.NativeFootRuntime?.EntityType ?? (candidate.NativeRagnarokRuntime is not null ? 50 : 0);
+                int animationEntityType = candidate.NativeFootRuntime?.EntityType ?? (candidate.NativeChocoboRuntime is not null ? 49 : candidate.NativeRagnarokRuntime is not null ? 50 : 0);
                 byte animationScriptMode = candidate.EventUi?.ScriptMode ?? throw new NotSupportedException("World texture animation requires the preceding native script mode.");
                 salary = salary.AdvanceTextureAnimation(animationEntityType, animationScriptMode);
                 bool advanceUi = candidate.NativeScriptedRuntime?.Path.EndpointRequested != true;
@@ -527,7 +535,13 @@ internal sealed partial class WorldMapScene : IDisposable
                     var cameraWords = carCameraTransition.StepWords(false, forest.CameraPitch, -341, -7168, transitioningCar.PriorTerrainOcclusion!.Value, false);
                     candidate = candidate with { NativeCarRuntime = transitioningCar with { CameraTransition = cameraWords.Transition, Forest = forest with { CameraPitch = cameraWords.Pitch } } };
                 }
-                bool samplesMovementProgress = fieldEntry?.ReturnsBeforeMovementProgress != true && (candidate.NativeFootRuntime is not null || candidate.NativeCarRuntime is not null) && candidate.NativeScriptedRuntime is null && candidate.NativeTrainRuntime is null;
+                if (mapScriptMode != 12 && candidate.NativeChocoboRuntime is { CameraTransition: { } chocoboCamera } chocobo)
+                {
+                    NativeGardenWorldRuntimeState objects = chocobo.Objects;
+                    var cameraWords = chocoboCamera.StepWords(objects.AnimationVariant == 1, objects.CameraPitch, -341, -7168, collision: false, collisionRearmsPitch: false);
+                    candidate = candidate with { NativeChocoboRuntime = chocobo with { CameraTransition = cameraWords.Transition, Objects = objects with { CameraPitch = cameraWords.Pitch, Forest = objects.Forest with { CameraPitch = cameraWords.Pitch } } } };
+                }
+                bool samplesMovementProgress = fieldEntry?.ReturnsBeforeMovementProgress != true && (candidate.NativeFootRuntime is not null || candidate.NativeCarRuntime is not null || candidate.NativeChocoboRuntime is not null) && candidate.NativeScriptedRuntime is null && candidate.NativeTrainRuntime is null;
                 if (samplesMovementProgress)
                 {
                     //6519D0 still consumes the retained accepted magnitude when script12 skips the position query.
@@ -566,7 +580,7 @@ internal sealed partial class WorldMapScene : IDisposable
                 salary = salary.Advance(salaryResult, effects.Presentation?.Advance(advanceUi ? 2 : 0), effects.SoundProcess, movementUnits, advanceUi ? 2 : 0);
                 salaryRequests.AddRange(effects.Requests);
                 advanced++;
-                if (mapScriptMode != 12 && fieldEntry is null && ProcessRandomEncounters is not null && (candidate.NativeRagnarokRuntime is null || ragnarokFootAtCallback) && (candidate.NativeGardenRuntime is null || gardenFootAtCallback))
+                if (mapScriptMode != 12 && fieldEntry is null && ProcessRandomEncounters is not null && candidate.NativeChocoboRuntime is null && (candidate.NativeRagnarokRuntime is null || ragnarokFootAtCallback) && (candidate.NativeGardenRuntime is null || gardenFootAtCallback))
                 {
                     var encounterResult = ProcessRandomEncounters(candidate, encounterMovementMagnitude, salary.RandomEncounters);
                     candidate = encounterResult.World;
@@ -718,6 +732,10 @@ internal sealed partial class WorldMapScene : IDisposable
         {
             return PrepareGardenFrame(state);
         }
+        if (state.NativeChocoboRuntime is not null)
+        {
+            return PrepareChocoboFrame(state);
+        }
         EnsureContactCertificate(state);
         WorldCamera camera = FootCamera(state);
         NativeWorldFootCameraState? drawnCamera = state.NativeCarRuntime?.ProjectionCamera ?? state.NativeFootRuntime?.StationTrainProcess?.ProjectionCamera ?? state.NativeFootRuntime?.NormalObjects?.Camera;
@@ -750,7 +768,7 @@ internal sealed partial class WorldMapScene : IDisposable
         NativeWorldGroundSelectionState? selection = session.State.WorldProcess?.GroundSelection;
         if (selection is null && session.State.DepartingWorldState is { } departure)
         {
-            NativeWorldGroundCacheState? retained = departure.NativeFootRuntime?.GroundCache ?? departure.NativeCarRuntime?.GroundCache ?? departure.NativeTrainRuntime?.GroundCache ?? departure.NativeScriptedRuntime?.GroundCache ?? departure.NativeGardenRuntime?.GroundCache ?? departure.NativeRagnarokRuntime?.GroundCache;
+            NativeWorldGroundCacheState? retained = departure.NativeFootRuntime?.GroundCache ?? departure.NativeCarRuntime?.GroundCache ?? departure.NativeTrainRuntime?.GroundCache ?? departure.NativeScriptedRuntime?.GroundCache ?? departure.NativeGardenRuntime?.GroundCache ?? departure.NativeRagnarokRuntime?.GroundCache ?? departure.NativeChocoboRuntime?.GroundCache;
             selection = retained is null ? null : NativeWorldGroundSelectionState.FromCache(retained);
         }
         return NativeWorldGroundCacheState.CreateFresh(ground, processSelection: selection);
@@ -780,6 +798,11 @@ internal sealed partial class WorldMapScene : IDisposable
         {
             // Original5573C0 admits manual vehicle camera offset14 only for variant1.
             return StepCar(before, movementSpeedPercent, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, ref salary, out fieldEntry, out salaryMovementUnits, out graphicsSpeed, mapOnly);
+        }
+        if (before.NativeChocoboRuntime is not null)
+        {
+            fieldEntry = null;
+            return StepChocobo(before, movementSpeedPercent, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, out salaryMovementUnits, out graphicsSpeed, mapOnly);
         }
         if (before.NativeRagnarokRuntime is not null && before.NativeFootRuntime is null)
         {

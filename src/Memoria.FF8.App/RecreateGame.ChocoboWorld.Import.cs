@@ -71,7 +71,7 @@ internal sealed partial class RecreateGame
             ChocoboImportPreview preview = session.PreviewChocoboWorldImport(imported, assets.ReadNativeChocoboWorldTransferTable(), reviewed);
             chocoboTransferPreview = preview;
             EnsureLiveMenuCatalog();
-            return ChocoboWorldPresentation.Import(path, session.State, imported, preview, reviewed, ChocoboWorldBoundaryUnavailableText, itemId => liveMenuCatalog?.ItemName(itemId), itemId => liveMenuCatalog?.ItemIcon(itemId));
+            return ChocoboWorldPresentation.Import(path, session.State, imported, preview, reviewed, ChocoboWorldBoundaryUnavailableText, itemId => liveMenuCatalog?.ItemName(itemId), itemId => liveMenuCatalog?.ItemIcon(itemId), world?.Events.Scene.Names.GetValueOrDefault(GameNames.BokoSubject));
         }
         catch (Exception exception) when (exception is InvalidDataException or IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
         {

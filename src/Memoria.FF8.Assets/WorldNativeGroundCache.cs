@@ -83,14 +83,14 @@ public sealed partial class WorldAssets
         }
     }
 
-    public WorldNativeGroundResult ResolveNativeGround(int beforeX, int beforeZ, int moveX, int graphicsMoveZ, int previousGroundHeight, int? selectedGroup, NativeWorldGroundCacheState prior, IReadOnlyDictionary<int, int> replacements, byte entityType = 33, bool selectionMayRetainGroup = false, Func<int, int, int, bool>? contact = null, Func<IReadOnlyList<WorldNativeGardenProbe>, int, int>? footprintContact = null, bool commitSuppressed = false)
+    public WorldNativeGroundResult ResolveNativeGround(int beforeX, int beforeZ, int moveX, int graphicsMoveZ, int previousGroundHeight, int? selectedGroup, NativeWorldGroundCacheState prior, IReadOnlyDictionary<int, int> replacements, byte entityType = 33, bool selectionMayRetainGroup = false, Func<int, int, int, bool>? contact = null, Func<IReadOnlyList<WorldNativeGardenProbe>, int, int>? footprintContact = null, bool commitSuppressed = false, int? currentBodyHeight = null, int rawSpeed = 0)
     {
         bool foot = entityType < 10 || entityType == 128;
         bool car = entityType is >= 32 and <= 40 or 132;
         bool train = entityType is >= 16 and <= 22 or 65 or 66;
-        if (!foot && !car && !train || selectedGroup is < 0 or > 1 || moveX is < short.MinValue or > short.MaxValue || graphicsMoveZ is < short.MinValue or > short.MaxValue)
+        if (!foot && !car && !train && entityType != 49 || selectedGroup is < 0 or > 1 || moveX is < short.MinValue or > short.MaxValue || graphicsMoveZ is < short.MinValue or > short.MaxValue)
         {
-            throw new NotSupportedException("Native ground query requires the supported normal foot/car/train entity and exact signed-WORD velocity.");
+            throw new NotSupportedException("Native ground query requires a supported world entity and exact signed-WORD velocity.");
         }
         int radius = NativeWorldTerrain.ProbeRadius(entityType);
         byte permission = NativeWorldTerrain.PermissionMask(entityType);
@@ -148,8 +148,8 @@ public sealed partial class WorldAssets
                     if (footprintContact is not null)
                     {
                         NativeGroundProbe[] footprint = blocked ? groups[selection][0] : groups[chosen][acceptedIndex];
-                        int currentHeight = unchecked((short)(-previousGroundHeight + (oldType <= 5 ? 320 : 0)));
-                        short height = unchecked((short)(selected is null ? currentHeight : NativeWorldTerrain.ResolveHeight(entityType, -(int)selected.Ground.Height, selected.Ground.Triangle.GroundType, currentHeight).Height));
+                        int currentHeight = currentBodyHeight ?? unchecked((short)(-previousGroundHeight + (oldType <= 5 ? 320 : 0)));
+                        short height = unchecked((short)(selected is null ? currentHeight : NativeWorldTerrain.ResolveHeight(entityType, -(int)selected.Ground.Height, selected.Ground.Triangle.GroundType, currentHeight, rawSpeed: rawSpeed).Height));
                         primaryContact = footprintContact(PublishNativeGardenProbes(footprint, height), 0);
                         broadContact = primaryContact >= 0 ? primaryContact : footprintContact(PublishNativeGardenProbes(footprint, height), 200);
                         contactBlocked = primaryContact >= 0;
@@ -158,8 +158,8 @@ public sealed partial class WorldAssets
                     {
                         //53BB90 commits the candidate height to all five probes before548CD0.
                         //A blocking contact skips the XYZ/ground-pointer commit, without selecting a later fan.
-                        int currentHeight = unchecked((short)(-previousGroundHeight + (oldType <= 5 ? 320 : 0)));
-                        int height = NativeWorldTerrain.ResolveHeight(entityType, -(int)selected.Ground.Height, selected.Ground.Triangle.GroundType, currentHeight).Height;
+                        int currentHeight = currentBodyHeight ?? unchecked((short)(-previousGroundHeight + (oldType <= 5 ? 320 : 0)));
+                        int height = NativeWorldTerrain.ResolveHeight(entityType, -(int)selected.Ground.Height, selected.Ground.Triangle.GroundType, currentHeight, rawSpeed: rawSpeed).Height;
                         contactBlocked = contact(acceptedProbe!.X, acceptedProbe.Z, height);
                     }
                     bool rejected = blocked || contactBlocked;

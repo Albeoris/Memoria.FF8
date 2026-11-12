@@ -278,6 +278,12 @@ public interface IEventServices
         throw new NotSupportedException("Typed native event memory is not implemented by this event service.");
     }
     NativeExamTimerState? ExamTimer => null;
+    NativePocketStationState? PocketStation => null;
+    bool CanStorePocketStation => false;
+    void SetPocketStation(NativePocketStationState pocketStation)
+    {
+        throw new NotSupportedException("Native saved PocketStation ownership is not implemented by this event service.");
+    }
     NativeCharacterVitals? CharacterVitals => null;
     NativeLimitProgress? LimitProgress => null;
     NativeCharacterAppearance? CharacterAppearance => null;

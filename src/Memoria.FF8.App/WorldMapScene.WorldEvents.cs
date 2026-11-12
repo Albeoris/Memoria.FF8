@@ -17,7 +17,7 @@ internal sealed partial class WorldMapScene
         NativeWorldSalaryState staged = salary;
         NativeSavedWorldState saved = staged.SavedWorldEvents ?? throw new NotSupportedException("Ordinary world callbacks require their saved-world state owner.");
         NativeWorldEventFlags flags = saved.WorldEventFlags116 ?? new NativeWorldEventFlags(0, 0);
-        int entityType = accepted.NativeFootRuntime?.EntityType ?? accepted.NativeCarRuntime?.EntityType ?? accepted.NativeTrainRuntime?.EntityType ?? accepted.NativeScriptedRuntime?.Path.EntityType ?? (accepted.NativeRagnarokRuntime is not null ? 50 : 48);
+        int entityType = accepted.NativeFootRuntime?.EntityType ?? accepted.NativeCarRuntime?.EntityType ?? accepted.NativeTrainRuntime?.EntityType ?? accepted.NativeScriptedRuntime?.Path.EntityType ?? (accepted.NativeChocoboRuntime is not null ? 49 : accepted.NativeRagnarokRuntime is not null ? 50 : 48);
         ushort story = staged.WorldEntryMemory?.StoryWord ?? WorldEntryVariables.Read(session.State).StoryWord;
         NativeWorldInputHistory history = staged.InputHistory ?? throw new NotSupportedException("World event input requires its actual shared input callback publication.");
         if (history.CurrentButtons != currentButtons)
@@ -36,7 +36,7 @@ internal sealed partial class WorldMapScene
         byte modeAfterCommands = accepted.NativeRagnarokRuntime?.Transfer is not null ? scriptMode : staged.EventUi?.ScriptMode ?? scriptMode;
         if (selected is null && modeAfterCommands == 0 && !entryHeld)
         {
-            NativeWorldGroundCacheState cache = accepted.NativeFootRuntime?.GroundCache ?? accepted.NativeCarRuntime?.GroundCache ?? accepted.NativeGardenRuntime?.GroundCache ?? accepted.NativeRagnarokRuntime?.GroundCache ?? throw new NotSupportedException("World terrain entry requires its accepted ground owner.");
+            NativeWorldGroundCacheState cache = accepted.NativeFootRuntime?.GroundCache ?? accepted.NativeCarRuntime?.GroundCache ?? accepted.NativeGardenRuntime?.GroundCache ?? accepted.NativeRagnarokRuntime?.GroundCache ?? accepted.NativeChocoboRuntime?.GroundCache ?? throw new NotSupportedException("World terrain entry requires its accepted ground owner.");
             bool? entrance = null;
             foreach (NativeWorldGroundAlternative alternative in cache.Alternatives)
             {

@@ -55,7 +55,7 @@ public sealed record NativeGardenWorldAllocation([property: JsonRequired] int Ve
             }
         }
         static bool Hash(string? value) => value is { Length: 64 } && value.All(Uri.IsHexDigit);
-        if (Version != 1 || Rule != AllocationRule || !Hash(ProgramHash) || !Hash(CoordinateHash) || !Hash(ClauseHash) || ClauseIndex < 0 || MinimumStory >= MaximumStory || Story < MinimumStory || Story >= MaximumStory || ClauseWords.IsDefaultOrEmpty || Objects.IsDefaultOrEmpty || Objects.Length > 64 || Objects.Any(item => item is null) || Packet is null || ControlledEntityType is not (0 or 48) && !NativeCarWorldRuntimeState.IsSupportedEntity(ControlledEntityType) || (ControlledEntityType == 48 || NativeCarWorldRuntimeState.IsSupportedEntity(ControlledEntityType)) && unchecked((sbyte)Packet.Extra) != -1 || LoadPose is null || LoadPose.X is < -131072 or >= 131072 || LoadPose.RawZ is < -98304 or >= 98304 || LoadPose.Yaw >= 4096 || GardenPose is null || GardenPose.X is < -131072 or >= 131072 || GardenPose.RawZ is < -98304 or >= 98304 || GardenPose.Yaw >= 4096 || CameraYaw >= 4096 || AnimationVariant > 1 || MapDisplayMode > 3)
+        if (Version != 1 || Rule != AllocationRule || !Hash(ProgramHash) || !Hash(CoordinateHash) || !Hash(ClauseHash) || ClauseIndex < 0 || MinimumStory >= MaximumStory || Story < MinimumStory || Story >= MaximumStory || ClauseWords.IsDefaultOrEmpty || Objects.IsDefaultOrEmpty || Objects.Length > 64 || Objects.Any(item => item is null) || Packet is null || ControlledEntityType is not (0 or 48 or 49) && !NativeCarWorldRuntimeState.IsSupportedEntity(ControlledEntityType) || (ControlledEntityType == 48 || NativeCarWorldRuntimeState.IsSupportedEntity(ControlledEntityType)) && unchecked((sbyte)Packet.Extra) != -1 || LoadPose is null || LoadPose.X is < -131072 or >= 131072 || LoadPose.RawZ is < -98304 or >= 98304 || LoadPose.Yaw >= 4096 || GardenPose is null || GardenPose.X is < -131072 or >= 131072 || GardenPose.RawZ is < -98304 or >= 98304 || GardenPose.Yaw >= 4096 || CameraYaw >= 4096 || AnimationVariant > 1 || MapDisplayMode > 3)
         {
             throw new InvalidDataException("Native Garden allocation lacks its original clause, exact loader packet or current pose authority.");
         }
@@ -99,6 +99,17 @@ public sealed record NativeGardenWorldAllocation([property: JsonRequired] int Ve
         if (!Objects.Select(item => item.ShapeId).SequenceEqual(expected) || FootObjectIndex != 0 || Garden64Index != gardenIndex || Garden65Index != gardenIndex + 1 || Objects.Any(item => item.Flags != (item.ShapeId == 65 ? 2 : item.ShapeId == 80 ? 4 : 0)))
         {
             throw new InvalidDataException("Garden dense allocation differs from its exact1536 conditional admission and original object flags.");
+        }
+        if (ControlledEntityType == 49)
+        {
+            NativeWorldPathPosition rider = new(LoadPose.X, LoadPose.Height, -LoadPose.RawZ);
+            short riderYaw = unchecked((short)LoadPose.Yaw);
+            NativeWorldPathPosition garden = new(GardenPose.X, GardenPose.Height, -GardenPose.RawZ);
+            short gardenYaw = unchecked((short)GardenPose.Yaw);
+            if (Objects.Take(Garden64Index).Any(item => item != new NativeGardenWorldObject(item.ShapeId, 0, rider, 0, riderYaw, 0)) || Objects[Garden64Index] != new NativeGardenWorldObject(64, 0, garden, 0, gardenYaw, 0) || Objects[Garden65Index] != new NativeGardenWorldObject(65, 2, garden, 0, gardenYaw, 0))
+            {
+                throw new InvalidDataException("Mounted Garden allocation lost the original rider publication or the parked Garden pose.");
+            }
         }
         if (CactuarIndex >= 0 && Objects[CactuarIndex].Position != CactuarLoadPosition)
         {

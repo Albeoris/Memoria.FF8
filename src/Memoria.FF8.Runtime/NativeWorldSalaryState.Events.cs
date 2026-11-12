@@ -26,7 +26,7 @@ public sealed partial record NativeWorldSalaryState
     private NativeWorldSalaryState PrepareFootCameraToggle(WorldState world, ushort lastFieldId, ushort storyWord, short mapLocationId)
     {
         NativeSavedWorldState saved = SavedWorldEvents ?? throw new NotSupportedException("Camera mode saving requires the actual saved-world owner.");
-        if (world.NativeFootRuntime is null)
+        if (world.NativeFootRuntime is null && world.NativeChocoboRuntime is null)
         {
             if (world.NativeCarRuntime is not null)
             {
@@ -41,7 +41,7 @@ public sealed partial record NativeWorldSalaryState
             NativeSavedWorldRagnarokReturn ragnarok = NativeSavedWorldRagnarokReturn.Create(world, lastFieldId, storyWord, mapLocationId);
             return this with { CameraToggleReturn = null, CameraToggleParkedCar = null, CameraToggleCarReturn = null, CameraToggleGardenReturn = null, CameraToggleRagnarokReturn = ragnarok, SavedWorldEvents = saved.WithRagnarokReturn(ragnarok) };
         }
-        NativeWorldParkedCar? parkedCar = world.NativeFootRuntime.ParkedCar;
+        NativeWorldParkedCar? parkedCar = world.NativeFootRuntime?.ParkedCar;
         if (parkedCar is not null)
         {
             saved = saved.WithCarParking(parkedCar);

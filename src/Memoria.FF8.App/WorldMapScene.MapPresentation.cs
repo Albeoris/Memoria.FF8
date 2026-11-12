@@ -6,7 +6,7 @@ internal sealed partial class WorldMapScene
 {
     internal static byte MapDisplayMode(WorldState state)
     {
-        return state.NativeFootRuntime?.MapDisplayMode ?? state.NativeCarRuntime?.MapDisplayMode ?? state.NativeGardenRuntime?.MapDisplayMode ?? state.NativeRagnarokRuntime?.MapDisplayMode ?? state.NativeTrainRuntime?.MapDisplayMode ?? state.NativeScriptedRuntime?.MapDisplayMode ?? throw new NotSupportedException("World map presentation requires its retained native display mode.");
+        return state.NativeFootRuntime?.MapDisplayMode ?? state.NativeCarRuntime?.MapDisplayMode ?? state.NativeGardenRuntime?.MapDisplayMode ?? state.NativeRagnarokRuntime?.MapDisplayMode ?? state.NativeTrainRuntime?.MapDisplayMode ?? state.NativeScriptedRuntime?.MapDisplayMode ?? state.NativeChocoboRuntime?.MapDisplayMode ?? throw new NotSupportedException("World map presentation requires its retained native display mode.");
     }
 
     private static WorldState PrepareMapDisplay(WorldState state, NativeWorldSalaryState salary, out byte scriptMode)
@@ -38,6 +38,7 @@ internal sealed partial class WorldMapScene
             NativeCarRuntime = state.NativeCarRuntime is { } car ? car with { MapDisplayMode = selection.Mode } : null,
             NativeGardenRuntime = garden,
             NativeRagnarokRuntime = ragnarok,
+            NativeChocoboRuntime = state.NativeChocoboRuntime is { } chocobo ? chocobo with { Objects = chocobo.Objects with { MapDisplayMode = selection.Mode } } : null,
             NativeTrainRuntime = state.NativeTrainRuntime is { } train ? train with { MapDisplayMode = selection.Mode } : null,
             NativeScriptedRuntime = state.NativeScriptedRuntime is { } scripted ? scripted with { MapDisplayMode = selection.Mode } : null
         };

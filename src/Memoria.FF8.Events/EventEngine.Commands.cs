@@ -1020,7 +1020,19 @@ public sealed partial class EventEngine
                 }
                 else
                 {
-                    namingMenuId = nativeNameArgument switch { 0 or 1 or 2 => nativeNameArgument + 2, 20 => 28, _ => throw new NotSupportedException("Native naming requires its original supported menu selector.") };
+                    namingMenuId = nativeNameArgument switch
+                    {
+                        0 or 1 or 2 => nativeNameArgument + 2,
+                        19 => 27,
+                        20 => 28,
+                        _ => throw new NotSupportedException("Native naming requires its original supported menu selector.")
+                    };
+                }
+                if (nativeNameArgument == 19)
+                {
+                    // Native521F9C calls4AD360 to set bit0 of the saved PocketStation flags at issue.
+                    NativePocketStationState pocketStation = services.PocketStation!;
+                    services.SetPocketStation(pocketStation with { Raw = pocketStation.Raw.SetItem(0, (byte)(pocketStation.Flags | 1)) });
                 }
                 PublishNativeScriptMenuRequest((ushort)namingMenuId);
                 string defaultName = GameNames.DefaultName(NativeNamingSubject(nativeNameArgument));

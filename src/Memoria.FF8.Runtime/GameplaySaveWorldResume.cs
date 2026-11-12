@@ -64,7 +64,7 @@ public static class GameplaySaveWorldResume
     {
         return entity switch
         {
-            _ when NativeWorldEntityTypes.IsSupportedFoot(entity) => GameplaySaveWorldReturnKind.Foot,
+            _ when entity == 49 || NativeWorldEntityTypes.IsSupportedFoot(entity) => GameplaySaveWorldReturnKind.Foot,
             _ when NativeCarWorldRuntimeState.IsSupportedEntity(entity) => GameplaySaveWorldReturnKind.Car,
             48 => GameplaySaveWorldReturnKind.Garden,
             50 => GameplaySaveWorldReturnKind.Ragnarok,

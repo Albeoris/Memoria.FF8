@@ -100,6 +100,30 @@ internal static partial class Program
             Require(named.Scene.Names[characterId] == "Chosen name" && !named.IsDialogueOpen, "Existing ordinary character naming stopped accepting its normal action.");
         }
 
+        byte[] chocobo = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 19), (Jsm.Opcode.MENUNAME, 0), (Jsm.Opcode.PSHN_L, 777), (Jsm.Opcode.POPM_W, 384), (Jsm.Opcode.RET, 0));
+        NativePocketStationState originalPocket = assets.ReadNewGamePocketStation();
+        originalPocket = originalPocket with { Raw = originalPocket.Raw.SetItem(0, 4).SetItem(1, 9) };
+        GameSession chocoboSession = GameSession.CreateColdProcess();
+        chocoboSession.StartNewGame();
+        chocoboSession.Restore(chocoboSession.State with { CharacterVitals = initial.DeepCopy(), WorldControls = NativeWorldControlState.CreateNewGame(), InputConfiguration = assets.ReadNewGameInputConfiguration(), PocketStation = originalPocket });
+        EventEngine chocoboEngine = new(chocoboSession);
+        chocoboEngine.LoadField(159, chocobo, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        chocoboEngine.Scene.Names[GameNames.BokoSubject] = "Old name";
+        chocoboEngine.Step();
+        chocoboEngine.Step();
+        JsonElement chocoboPrompt = chocoboEngine.Capture();
+        Require(chocoboEngine.PendingNameSubject == GameNames.BokoSubject && chocoboEngine.PendingNameDefault == "Boko" && chocoboSession.PocketStation!.Raw.SequenceEqual(originalPocket.Raw.SetItem(0, 5)) && !CapturedVariables(chocoboPrompt).TryGetProperty("384", out _), "MENUNAME19 did not initialize the Boko prompt and set only PocketStation bit0 before waiting.");
+        EventEngine restoredChocobo = new(new GameSession(chocoboSession.State));
+        restoredChocobo.LoadField(159, chocobo, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        restoredChocobo.Restore(chocoboPrompt);
+        foreach (EventEngine candidate in new[] { chocoboEngine, restoredChocobo })
+        {
+            Require(candidate.PendingNameSubject == GameNames.BokoSubject && candidate.PendingNameDefault == "Boko", "The restored Chocobo prompt lost its subject or default.");
+            candidate.Apply(new PlayerAction(PlayerActionKind.EnterName, Text: "Koko"));
+            candidate.Apply(new PlayerAction(PlayerActionKind.Wait));
+            Require(candidate.Scene.Names[GameNames.BokoSubject] == "Koko" && !candidate.IsDialogueOpen && CapturedVariables(candidate.Capture()).GetProperty("384").GetInt32() == 777, "Chocobo naming did not write the selected name and resume its successor.");
+        }
+
         foreach (int argument in new[] { -1, 259 })
         {
             EventEngine refused = Create(SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, argument), (Jsm.Opcode.MENUNAME, 0), (Jsm.Opcode.RET, 0)));

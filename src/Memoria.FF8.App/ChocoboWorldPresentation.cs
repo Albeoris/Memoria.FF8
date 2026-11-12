@@ -14,13 +14,13 @@ internal static class ChocoboWorldPresentation
         return Literal((Func<ChocoboPresentationText>)(() => resolve(itemId) is { } text ? Literal(text) : fallback));
     }
 
-    internal static ChocoboImportReview Import(string path, GameState state, NativeChocoboWorldImport imported, ChocoboImportPreview preview, bool reviewed, ChocoboPresentationText? boundary, Func<int, string?> itemName, Func<int, UiImageSource?> itemIcon)
+    internal static ChocoboImportReview Import(string path, GameState state, NativeChocoboWorldImport imported, ChocoboImportPreview preview, bool reviewed, ChocoboPresentationText? boundary, Func<int, string?> itemName, Func<int, UiImageSource?> itemIcon, string? chocoboName = null)
     {
         ChocoboPresentationText association = ChocoboText.Create(preview.RequiresAssociationReview ? reviewed ? "chocobo.association.reviewed" : "chocobo.association.required" : "chocobo.association.compatible");
         ChocoboPresentationText[] header =
         [
             ChocoboText.Create("chocobo.header.container", Path.GetFileName(path), imported.FormatText ?? Literal(imported.Format)),
-            ChocoboText.Create("chocobo.header.name", NativePocketStationText.ChocoboName(state.PocketStation) is { } savedName ? Literal(savedName) : ChocoboText.Create("chocobo.name.default"), imported.BokoId, imported.Level, ChocoboText.Create("chocobo.attack." + imported.AttackTier)),
+            ChocoboText.Create("chocobo.header.name", (chocoboName ?? NativePocketStationText.ChocoboName(state.PocketStation)) is { Length: > 0 } savedName ? Literal(savedName) : ChocoboText.Create("chocobo.name.default"), imported.BokoId, imported.Level, ChocoboText.Create("chocobo.attack." + imported.AttackTier)),
             ChocoboText.Create("chocobo.header.bank", imported.SelectedBank + 1, imported.Revision, imported.BackupRevision is uint backup ? Literal(backup) : ChocoboText.Create("chocobo.backup.none")),
             ChocoboText.Create("chocobo.header.world", imported.WorldId, state.PocketStation?.WorldId ?? 0, association),
             ChocoboText.Create("chocobo.header.level", state.PocketStation?.Level ?? 0, preview.Candidate?.PocketStation?.Level ?? state.PocketStation?.Level ?? 0),

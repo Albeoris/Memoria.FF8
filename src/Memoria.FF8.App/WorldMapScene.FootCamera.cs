@@ -87,6 +87,11 @@ internal sealed partial class WorldMapScene
             {
                 return state with { NativeRagnarokRuntime = ragnarok with { AnimationVariant = ragnarok.AnimationVariant == 0 ? (byte)1 : (byte)0 } };
             }
+            if (state.NativeChocoboRuntime is { } chocobo)
+            {
+                NativeFootCameraTransition transition = new(17, chocobo.CameraTransition?.ProjectionDistance ?? chocobo.Objects.ProjectionCamera!.ProjectionDistance);
+                return state with { NativeChocoboRuntime = chocobo with { CameraTransition = transition, Objects = chocobo.Objects with { AnimationVariant = (byte)(1 - chocobo.Objects.AnimationVariant) } } };
+            }
             throw new NotSupportedException("Camera mode requires a supported native entity owner.");
         }
         NativeFootWorldRuntimeState foot = state.NativeFootRuntime;

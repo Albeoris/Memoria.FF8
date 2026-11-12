@@ -301,7 +301,8 @@ public sealed partial class GameSession : IEventServices
         {
             throw new InvalidOperationException("The prepared field entry no longer matches the current world session.");
         }
-        if (departure.Scene != SceneKind.WorldMap || departure.World is null || departure.WorldArrival is null || finalWorldState.NativeFootRuntime is not NativeFootWorldRuntimeState activeFoot || !NativeWorldEntityTypes.IsSupportedFoot(activeFoot.EntityType) || departure.SavedWorld is null || departure.WorldControls is null)
+        int entity = finalWorldState.NativeFootRuntime?.EntityType ?? (finalWorldState.NativeChocoboRuntime is not null ? 49 : -1);
+        if (departure.Scene != SceneKind.WorldMap || departure.World is null || departure.WorldArrival is null || entity < 0 || entity != 49 && !NativeWorldEntityTypes.IsSupportedFoot((byte)entity) || departure.SavedWorld is null || departure.WorldControls is null)
         {
             throw new NotSupportedException("Native world-to-field entry requires a known normal foot-world departure and saved/control provenance.");
         }
@@ -310,7 +311,7 @@ public sealed partial class GameSession : IEventServices
         {
             throw new ArgumentOutOfRangeException(nameof(transition), "Native world-to-field destination must fit its unsigned WORD.");
         }
-        if (receipt.LastFieldId != departure.FieldId || receipt.SourceWorldFrame != finalWorldState.Frame || receipt.Pose0 != new NativeSavedWorldPose(finalWorldState.X, finalWorldState.Z, checked((short)finalWorldState.NativeHeight), checked((ushort)finalWorldState.BodyYaw)) || receipt.CameraYaw96 != finalWorldState.CameraYaw || receipt.StoryWord != departure.Variables.GetValueOrDefault(256) || receipt.EntityType105 != activeFoot.EntityType)
+        if (receipt.LastFieldId != departure.FieldId || receipt.SourceWorldFrame != finalWorldState.Frame || receipt.Pose0 != new NativeSavedWorldPose(finalWorldState.X, finalWorldState.Z, checked((short)finalWorldState.NativeHeight), checked((ushort)finalWorldState.BodyYaw)) || receipt.CameraYaw96 != finalWorldState.CameraYaw || receipt.StoryWord != departure.Variables.GetValueOrDefault(256) || receipt.EntityType105 != entity)
         {
             throw new InvalidOperationException("The prepared foot save no longer matches the current native world departure.");
         }
@@ -961,6 +962,10 @@ public sealed partial class GameSession : IEventServices
         }
         if (state.World is WorldState world)
         {
+            if (world.NativeChocoboRuntime is { } chocobo && (state.Scene != SceneKind.WorldMap || state.WorldArrival != chocobo.Objects.Allocation.Packet))
+            {
+                throw new InvalidDataException("Mounted Chocobo state requires its original current world packet.");
+            }
             world.EventUi?.Validate();
             ValidateWorldState(world);
             if (world.NativeCarRuntime is { } carGardenBody)
@@ -1032,6 +1037,14 @@ public sealed partial class GameSession : IEventServices
         world.NativeTrainRuntime?.Validate();
         world.NativeGardenRuntime?.Validate();
         world.NativeRagnarokRuntime?.RequireSceneState();
+        if (world.NativeChocoboRuntime is { } chocobo)
+        {
+            if (world.NativeFootRuntime is not null || world.NativeCarRuntime is not null || world.NativeGardenRuntime is not null || world.NativeRagnarokRuntime is not null || world.NativeTrainRuntime is not null || world.NativeScriptedRuntime is not null)
+            {
+                throw new InvalidDataException("Mounted Chocobo requires sole control of the world body.");
+            }
+            chocobo.Validate(world);
+        }
         if (world.NativeRagnarokRuntime is { } ragnarokWorld)
         {
             NativeFootWorldRuntimeState? foot = world.NativeFootRuntime;

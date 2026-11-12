@@ -7,7 +7,7 @@ internal sealed partial class WorldMapScene
 {
     private static NativeGardenWorldRuntimeState? WorldEventGardenObjects(WorldState state)
     {
-        return state.NativeGardenRuntime ?? state.NativeCarRuntime?.GardenObjects ?? state.NativeFootRuntime?.ParkedCar?.Car.GardenObjects;
+        return state.NativeGardenRuntime ?? state.NativeCarRuntime?.GardenObjects ?? state.NativeFootRuntime?.ParkedCar?.Car.GardenObjects ?? state.NativeChocoboRuntime?.Objects;
     }
 
     private static NativeRagnarokWorldRuntimeState? WorldEventRagnarokObjects(WorldState state)
@@ -195,11 +195,11 @@ internal sealed partial class WorldMapScene
                 }
                 return saved.MatchesWorldEventVariable(opcode, operand);
             case 0xFF38:
-                int? acceptedMagnitude = state.NativeFootRuntime is { } movementFoot ? movementFoot.MovementMagnitude20409F4 : state.NativeCarRuntime is { } movementCar ? movementCar.MovementMagnitude20409F4 : state.NativeGardenRuntime?.MovementMagnitude20409F4;
+                int? acceptedMagnitude = state.NativeFootRuntime is { } movementFoot ? movementFoot.MovementMagnitude20409F4 : state.NativeCarRuntime is { } movementCar ? movementCar.MovementMagnitude20409F4 : WorldEventGardenObjects(state)?.MovementMagnitude20409F4;
                 return acceptedMagnitude is int magnitude ? operand == (magnitude != 0 ? 1 : 0) : null;
             case 0xFF32:
             case 0xFF33:
-                NativeWorldGroundCacheState cache = state.NativeFootRuntime?.GroundCache ?? state.NativeCarRuntime?.GroundCache ?? state.NativeTrainRuntime?.GroundCache ?? state.NativeGardenRuntime?.GroundCache ?? state.NativeRagnarokRuntime?.GroundCache ?? throw new NotSupportedException($"World event {opcode:X4} requires the executed accepted-ground owner.");
+                NativeWorldGroundCacheState cache = state.NativeFootRuntime?.GroundCache ?? state.NativeCarRuntime?.GroundCache ?? state.NativeTrainRuntime?.GroundCache ?? state.NativeGardenRuntime?.GroundCache ?? state.NativeRagnarokRuntime?.GroundCache ?? state.NativeChocoboRuntime?.GroundCache ?? throw new NotSupportedException($"World event {opcode:X4} requires the executed accepted-ground owner.");
                 bool? passed = null;
                 foreach (NativeWorldGroundAlternative alternative in cache.Alternatives)
                 {
@@ -300,7 +300,7 @@ internal sealed partial class WorldMapScene
         {
             return NativeWorldPathProjectionCertificate.CreateFoot(NativeWorldFootCameraState.Create(state));
         }
-        if (state.NativeGardenRuntime is { } garden)
+        if (WorldEventGardenObjects(state) is { } garden)
         {
             return NativeWorldPathProjectionCertificate.CreateFoot(garden.ProjectionCamera ?? throw new NotSupportedException("World event projection requires its current Garden camera."));
         }

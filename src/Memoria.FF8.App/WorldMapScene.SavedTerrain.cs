@@ -6,7 +6,7 @@ internal sealed partial class WorldMapScene
 {
     private NativeWorldSalaryState PrepareSavedTerrainFlag(WorldState world, NativeWorldSalaryState salary, bool fieldDeparture = false)
     {
-        NativeWorldGroundCacheState? cache = world.NativeFootRuntime?.GroundCache ?? world.NativeCarRuntime?.GroundCache ?? world.NativeTrainRuntime?.GroundCache ?? world.NativeScriptedRuntime?.GroundCache ?? world.NativeGardenRuntime?.GroundCache ?? world.NativeRagnarokRuntime?.GroundCache;
+        NativeWorldGroundCacheState? cache = world.NativeFootRuntime?.GroundCache ?? world.NativeCarRuntime?.GroundCache ?? world.NativeTrainRuntime?.GroundCache ?? world.NativeScriptedRuntime?.GroundCache ?? world.NativeGardenRuntime?.GroundCache ?? world.NativeRagnarokRuntime?.GroundCache ?? world.NativeChocoboRuntime?.GroundCache;
         if (cache is null)
         {
             return salary;

@@ -22,7 +22,7 @@ public sealed partial class GameSession
         NativeWorldGroundSelectionState? groundSelection = process.GroundSelection;
         if (callbacks > 0)
         {
-            NativeWorldGroundCacheState? groundCache = finalWorld.NativeFootRuntime?.GroundCache ?? finalWorld.NativeCarRuntime?.GroundCache ?? finalWorld.NativeTrainRuntime?.GroundCache ?? finalWorld.NativeScriptedRuntime?.GroundCache ?? finalWorld.NativeGardenRuntime?.GroundCache ?? finalWorld.NativeRagnarokRuntime?.GroundCache;
+            NativeWorldGroundCacheState? groundCache = finalWorld.NativeFootRuntime?.GroundCache ?? finalWorld.NativeCarRuntime?.GroundCache ?? finalWorld.NativeTrainRuntime?.GroundCache ?? finalWorld.NativeScriptedRuntime?.GroundCache ?? finalWorld.NativeGardenRuntime?.GroundCache ?? finalWorld.NativeRagnarokRuntime?.GroundCache ?? finalWorld.NativeChocoboRuntime?.GroundCache;
             groundSelection = groundCache is null ? null : NativeWorldGroundSelectionState.FromCache(groundCache);
         }
         int? forcedAnimation = process.ForcedAnimationC76628;
@@ -39,6 +39,11 @@ public sealed partial class GameSession
         {
             bias = ragnarok.Motor.VerticalBiasAuthority ?? NativeWorldVerticalBiasState.Exact(ragnarok.Motor.VerticalBias204DADC!.Value);
         }
+        else if (before.NativeChocoboRuntime is not null)
+        {
+            // 548080 sets C75D00 to120 for entity49. 557A90 damps by C75D00>>3.
+            bias = (bias ?? NativeWorldVerticalBiasState.UnknownWord).Damp(15, 15, callbacks);
+        }
         else if (before.NativeGardenRuntime is not null || before.NativeFootRuntime is not null || before.NativeCarRuntime is not null)
         {
             // These executed ordinary callbacks all consume557A90. Foot rate2
@@ -46,6 +51,6 @@ public sealed partial class GameSession
             //inside the batch; an older null owner starts with the full WORD domain.
             bias = (bias ?? NativeWorldVerticalBiasState.UnknownWord).Damp(2, 4, callbacks);
         }
-        return process.AdvanceMainLoopCallbacks(callbacks) with { CameraCooldown = finalWorld.NativeFootRuntime?.Forest?.CameraCooldown ?? finalWorld.NativeGardenRuntime?.Forest.CameraCooldown ?? finalWorld.NativeRagnarokRuntime?.Forest?.CameraCooldown ?? process.CameraCooldown, VehicleManualCameraVelocity = finalWorld.NativeCarRuntime?.ManualCameraVelocity ?? finalWorld.NativeGardenRuntime?.ManualCameraVelocity ?? finalWorld.NativeRagnarokRuntime?.ManualCameraVelocity ?? process.VehicleManualCameraVelocity, CarCameraFollowSpeed = finalWorld.NativeCarRuntime?.CameraFollowSpeed ?? finalWorld.NativeGardenRuntime?.CameraFollowSpeed ?? (finalWorld.NativeFootRuntime is null ? finalWorld.NativeRagnarokRuntime?.Motor.CameraFollowSpeed : null) ?? process.CarCameraFollowSpeed, VerticalBias204DADC = bias, ForcedAnimationC76628 = forcedAnimation, GroundSelection = groundSelection };
+        return process.AdvanceMainLoopCallbacks(callbacks) with { CameraCooldown = finalWorld.NativeFootRuntime?.Forest?.CameraCooldown ?? finalWorld.NativeGardenRuntime?.Forest.CameraCooldown ?? finalWorld.NativeRagnarokRuntime?.Forest?.CameraCooldown ?? finalWorld.NativeChocoboRuntime?.Objects.Forest.CameraCooldown ?? process.CameraCooldown, VehicleManualCameraVelocity = finalWorld.NativeCarRuntime?.ManualCameraVelocity ?? finalWorld.NativeGardenRuntime?.ManualCameraVelocity ?? finalWorld.NativeRagnarokRuntime?.ManualCameraVelocity ?? process.VehicleManualCameraVelocity, CarCameraFollowSpeed = finalWorld.NativeCarRuntime?.CameraFollowSpeed ?? finalWorld.NativeGardenRuntime?.CameraFollowSpeed ?? (finalWorld.NativeFootRuntime is null ? finalWorld.NativeRagnarokRuntime?.Motor.CameraFollowSpeed : null) ?? process.CarCameraFollowSpeed, VerticalBias204DADC = bias, ForcedAnimationC76628 = forcedAnimation, GroundSelection = groundSelection };
     }
 }

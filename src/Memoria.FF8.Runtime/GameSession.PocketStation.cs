@@ -2,6 +2,15 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class GameSession
 {
+    public NativePocketStationState? PocketStation => State.PocketStation;
+    public bool CanStorePocketStation => true;
+
+    public void SetPocketStation(NativePocketStationState pocketStation)
+    {
+        pocketStation.Validate();
+        State = State with { PocketStation = pocketStation };
+    }
+
     // TODO(TD-018): When Chocobo World import is implemented, publish its item-group and decoded level facts in the accepted import transaction.
     public void InitializeNewGamePocketStation(NativePocketStationState pocketStation)
     {
@@ -9,7 +18,6 @@ public sealed partial class GameSession
         {
             throw new NotSupportedException("PocketStation initialization requires the untouched authentic New Game template load.");
         }
-        pocketStation.Validate();
-        State = State with { PocketStation = pocketStation };
+        SetPocketStation(pocketStation);
     }
 }
