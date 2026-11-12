@@ -72,7 +72,17 @@ internal sealed partial class RecreateGame
                 return new { ActiveGame = InFf7 ? "FFVII" : "FFVIII", Open = true };
             case "world-snapshot":
                 string path = Path.GetFullPath(request.Path ?? throw new ArgumentException("Snapshot requires Path."));
-                CombinedSessionSave saved = InFf7 ? ff7Scene!.Capture() : (crossover ?? new CombinedSessionSave()) with { ActiveGame = SessionGame.Ff8, Ff8Payload = CaptureFf8Payload(), Ff8PayloadFormat = CrossoverSaveAdapter.Ff8Codec };
+                CombinedSessionSave saved;
+                if (InFf7)
+                {
+                    saved = ff7Scene!.Capture();
+                }
+                else
+                {
+                    byte[] payload = CaptureFf8Payload();
+                    SynchronizeExtendedRosterCrossover();
+                    saved = (crossover ?? new CombinedSessionSave()) with { ActiveGame = SessionGame.Ff8, Ff8Payload = payload, Ff8PayloadFormat = CrossoverSaveAdapter.Ff8Codec };
+                }
                 CombinedSessionCodec.Save(path, saved);
                 return new { Path = path, saved.ActiveGame };
             default:

@@ -250,6 +250,7 @@ internal sealed partial class RecreateGame : Game
             world?.SynchronizeGameplayTuning();
             if ((session.State.CharacterVitals?.ExtendedRosterEnabled == true) != extendedRosterEnabled)
             {
+                SynchronizeExtendedRosterCrossover();
                 gameMenus?.InvalidateLiveData();
             }
             RefreshLocalizationPresentation();
@@ -1036,6 +1037,7 @@ internal sealed partial class RecreateGame : Game
             {
                 saved = saved with { Ff8Payload = crossover.Ff8Payload, Ff8PayloadFormat = crossover.Ff8PayloadFormat, Mappings = crossover.Mappings, CharacterNameOverrides = crossover.CharacterNameOverrides };
             }
+            saved = CrossoverSaveAdapter.RemoveDisabledExtendedRosterBindings(saved);
             Ff7Scene prepared = PrepareFf7Scene(saved);
             StopAutoPlayForPlayerSession();
             ff7Scene?.Dispose();

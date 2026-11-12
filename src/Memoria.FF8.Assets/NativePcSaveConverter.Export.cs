@@ -9,7 +9,6 @@ public static partial class NativePcSaveConverter
 {
     public static byte[] Export(GameState state, NativeCharacterVitals targetSource, bool allowGuardianForceLoss = false, short? originalPlaceId = null)
     {
-        RequireNativeRoster(state);
         NativeGuardianForceLegacyExportPlan plan = NativeGuardianForceLegacyCompatibility.Analyze(state, targetSource);
         if (plan.RequiresConfirmation && !allowGuardianForceLoss)
         {
@@ -21,7 +20,6 @@ public static partial class NativePcSaveConverter
     public static byte[] Export(GameState state)
     {
         ArgumentNullException.ThrowIfNull(state);
-        RequireNativeRoster(state);
         if (state.CharacterVitals is { } vitals && (vitals.GuardianForceProfile is not null || vitals.GuardianForceRecoveryProfile is not null || !vitals.GuardianForceRecoveryProgression.IsDefaultOrEmpty || vitals.GuardianForceOpaqueBaseline || !vitals.MenuDefinitions.Templates.IsDefault || vitals.GuardianForces.Any(gf => gf.Progression is not null)))
         {
             if (vitals.MenuDefinitions.SourceTemplates.IsDefault)
@@ -31,15 +29,7 @@ public static partial class NativePcSaveConverter
             NativeCharacterVitals target = vitals with { MenuDefinitions = vitals.MenuDefinitions with { Templates = vitals.MenuDefinitions.SourceTemplates } };
             return Export(state, target);
         }
-        return ExportCore(state);
-    }
-
-    private static void RequireNativeRoster(GameState state)
-    {
-        if (state.CharacterVitals is { Records.Length: > NativeCharacterVitals.NativeRecordCount })
-        {
-            throw new NotSupportedException("Use a Memoria save to preserve the extended FFVIII character records.");
-        }
+        return ExportCore(state with { CharacterVitals = state.CharacterVitals?.ForOriginalSaveExport() });
     }
 
     private static GameState CompleteOpaqueExportState(GameState state, NativeCharacterVitals targetSource)

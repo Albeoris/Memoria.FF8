@@ -54,6 +54,8 @@ internal static partial class Program
         GameplaySaveComponentDocument document = CrossoverSaveAdapter.ReadFf8ForResume(envelope);
         using GameResourceHost selected = new(options.GameDirectory, watch: false, modsDirectory: options.ModsDirectory, resourceLanguage: options.ResourceLanguage, modelSourceDirectory: options.ModelSourceDirectory);
         GameState ff8 = GameplaySaveSessionLoader.Restore(document, options.GameDirectory, resources: selected.Resources, modelOverrides: selected, readGameplayPolicy: () => selected.GameplayPolicy, prepareCharacterDefinitions: initialized => GameplaySaveGuardianForceDefinitions.Select(initialized, selected));
+        bool extendedRosterEnabled = envelope.ActiveGame == SessionGame.Ff7 ? document.Characters.ExtendedRosterEnabled : ff8.CharacterVitals?.ExtendedRosterEnabled ?? document.Characters.ExtendedRosterEnabled;
+        envelope = CrossoverSaveAdapter.RemoveDisabledExtendedRosterBindings(envelope, extendedRosterEnabled);
         if (ff8.Scene != SceneKind.Movie || ff8.EventState is not null)
         {
             GameSession candidateSession = new(ff8);

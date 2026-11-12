@@ -19,7 +19,7 @@ internal static class CrossoverGuestRecord
 
     public static CharacterAppearanceMapping[] PresentationMappings(CharacterAppearanceMapping[] mappings, GameplaySaveCharacters? characters)
     {
-        return characters is { ExtendedRosterEnabled: false } ? mappings.Where(mapping => !NativeCharacterVitals.IsExtendedRosterCharacter(mapping.AppearanceCharacter)).ToArray() : mappings;
+        return characters is { ExtendedRosterEnabled: false } ? CrossoverSaveAdapter.WithoutExtendedRosterMappings(mappings) : mappings;
     }
 
     public static bool OwnsBattleRow(NativeCharacterVitals vitals, int row, int character)

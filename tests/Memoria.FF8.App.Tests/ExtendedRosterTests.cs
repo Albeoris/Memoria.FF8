@@ -31,12 +31,47 @@ public sealed class ExtendedRosterTests
         Assert.Equal(enabled.Records[8], restored.Records[8]);
     }
 
+    [Theory]
+    [InlineData(6, 7)]
+    [InlineData(7, 6)]
+    public void Disabling_unbinds_all_five_and_keeps_the_story_member(int storyMember, int absentMember)
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        NativeCharacterVitals original = assets.ReadNewGameCharacterVitals();
+        NativeCharacterVitals enabled = original.WithExtendedRoster(true) with { CombatParty = [(byte)absentMember, 8, (byte)storyMember] };
+        enabled.Records[storyMember] = enabled.Records[storyMember] with { MemberFlags = (ushort)(enabled.Records[storyMember].MemberFlags | 1) };
+        enabled.Records[absentMember] = enabled.Records[absentMember] with { MemberFlags = (ushort)(enabled.Records[absentMember].MemberFlags & ~1) };
+        for (int row = 6; row < enabled.Records.Length; row++)
+        {
+            NativeCharacterVital record = enabled.Records[row];
+            record.MagicInventory[0] = new(1, (byte)row);
+            record.Junction.MagicJunctions[0] = 1;
+            enabled.Records[row] = record with { Junction = record.Junction with { GuardianForces = (ushort)(1 << row), Commands = 20, Abilities = 39 }, Experience = (uint)(3000 + row), HitPoints = new(17, 17), HitPointBonus = (ushort)row, Status = 0x80, KillCount = (ushort)row };
+        }
+
+        NativeCharacterVitals disabled = enabled.WithExtendedRoster(false);
+        Assert.Equal(new byte[] { (byte)storyMember, 255, 255 }, disabled.CombatParty);
+        Assert.True(disabled.IsRosterMember(storyMember));
+        Assert.False(disabled.IsRosterMember(absentMember));
+        NativeCharacterVitals reenabled = GameplaySaveCharacters.Capture(disabled).Restore(original).WithExtendedRoster(true);
+        Assert.Equal(disabled.CombatParty, reenabled.CombatParty);
+        for (int row = 6; row < enabled.Records.Length; row++)
+        {
+            NativeCharacterVital source = enabled.Records[row];
+            Assert.Equal((byte)1, source.Junction.MagicJunctions[0]);
+            Assert.Equal(source with { Junction = source.Junction.Reset() }, disabled.Records[row]);
+            Assert.Equal(disabled.Records[row], reenabled.Records[row]);
+        }
+    }
+
     [Fact]
     public void Dream_uses_original_rows_and_restores_the_extended_party()
     {
         using GameAssets assets = new(TestResources.GameDirectory);
         NativeCharacterVitals original = assets.ReadNewGameCharacterVitals();
         NativeCharacterVitals enabled = original.WithExtendedRoster(true) with { CombatParty = [0, 8, 10] };
+        NativeCharacterVital squall = enabled.Records[0];
+        enabled.Records[0] = squall with { Junction = squall.Junction with { GuardianForces = 1 } };
         NativeJunctionResult dream = enabled.PrepareJunction(1, [0, 255, 255], 7);
         Assert.Equal((byte)0, dream.Vitals.FindPhysicalRow(8));
         Assert.Equal(new byte[] { 0, 255, 255 }, dream.Vitals.CombatParty);
@@ -45,7 +80,10 @@ public sealed class ExtendedRosterTests
 
         NativeCharacterVitals restored = GameplaySaveCharacters.Capture(dream.Vitals).Restore(original);
         Assert.Equal(enabled.CombatParty, restored.PrepareJunction(0, [8, 255, 255], 7).Vitals.CombatParty);
-        Assert.Equal(new byte[] { 0, 255, 255 }, restored.WithExtendedRoster(false).PrepareJunction(0, [8, 255, 255], 7).Vitals.CombatParty);
+        NativeCharacterVitals disabled = restored.WithExtendedRoster(false);
+        Assert.Equal((byte)0, disabled.FindPhysicalRow(8));
+        Assert.Equal(restored.Records[0].Junction, disabled.Records[0].Junction);
+        Assert.Equal(new byte[] { 0, 255, 255 }, disabled.PrepareJunction(0, [8, 255, 255], 7).Vitals.CombatParty);
     }
 
     [Fact]

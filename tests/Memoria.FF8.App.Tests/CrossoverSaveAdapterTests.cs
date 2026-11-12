@@ -7,6 +7,58 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class CrossoverSaveAdapterTests
 {
+    [Fact]
+    public void Disabled_roster_removes_all_five_crossover_mappings_and_reduces_idle_combat_bindings()
+    {
+        CharacterAppearanceMapping[] mappings = Enumerable.Range(4, 7).Select(character => new CharacterAppearanceMapping(SessionGame.Ff7, character - 4, SessionGame.Ff8, character, "test")).ToArray();
+        Ff7MixedCombatBinding native = new(0, 4);
+        CombinedSessionSave save = new()
+        {
+            ActiveGame = SessionGame.Ff8,
+            Ff8Payload = [1, 2, 3],
+            Ff8PayloadFormat = CrossoverSaveAdapter.Ff8Codec,
+            Mappings = mappings,
+            MixedCombatBindings = [native, new(2, 6), new(6, 10)],
+            CharacterNameOverrides = new() { [0] = "Cloud" }
+        };
+
+        Assert.Same(save, CrossoverSaveAdapter.RemoveDisabledExtendedRosterBindings(save, extendedRosterEnabled: true));
+        CombinedSessionSave disabled = CrossoverSaveAdapter.RemoveDisabledExtendedRosterBindings(save, extendedRosterEnabled: false);
+        disabled.Validate();
+        Assert.Equal(mappings[..2], disabled.Mappings);
+        Assert.Equal(native, disabled.MixedCombat);
+        Assert.Null(disabled.MixedCombatBindings);
+        Assert.Same(save.Ff8Payload, disabled.Ff8Payload);
+        Assert.Same(save.CharacterNameOverrides, disabled.CharacterNameOverrides);
+        Assert.Same(disabled, CrossoverSaveAdapter.RemoveDisabledExtendedRosterBindings(disabled, extendedRosterEnabled: true));
+    }
+
+    [Fact]
+    public void Disabled_roster_removes_future_mappings_and_keeps_the_active_guest_encounter_owner()
+    {
+        Ff7BattleGuestVitalsBinding owner = new(Guid.NewGuid(), new string('A', 64), 0, 0, 6, 6, 100, 100, 5, 0, 0, 0);
+        Ff7BattleSnapshot battle = new(1, 0, 0, 0, [], new([]), new([], [], [], []), [], GuestVitals: owner);
+        CombinedSessionSave save = new()
+        {
+            ActiveGame = SessionGame.Ff7,
+            Ff8Payload = [1, 2, 3],
+            Ff8PayloadFormat = CrossoverSaveAdapter.Ff8Codec,
+            Ff7 = Ff7Fixture() with { Battle = battle },
+            Mappings = [new(SessionGame.Ff7, 0, SessionGame.Ff8, 6, "test")],
+            MixedCombat = new(0, 6),
+            MixedBattlePayload = [4, 5, 6]
+        };
+
+        CombinedSessionSave disabled = CrossoverSaveAdapter.RemoveDisabledExtendedRosterBindings(save, extendedRosterEnabled: false);
+        Assert.Empty(disabled.Mappings);
+        Assert.Same(save.MixedCombat, disabled.MixedCombat);
+        Assert.Same(save.MixedBattlePayload, disabled.MixedBattlePayload);
+        Assert.Same(battle, disabled.Ff7!.Battle);
+
+        CombinedSessionSave settled = disabled with { Ff7 = disabled.Ff7 with { Battle = null }, MixedBattlePayload = null };
+        Assert.Empty(CrossoverSaveAdapter.RemoveDisabledExtendedRosterBindings(settled, extendedRosterEnabled: false).GetMixedCombatBindings());
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -115,6 +167,8 @@ public sealed class CrossoverSaveAdapterTests
         using MemoryStream payload = new();
         GameplaySaveCodec.Write(payload, document);
         CombinedSessionSave combined = new() { ActiveGame = SessionGame.Ff8, Ff8Payload = payload.ToArray(), Ff8PayloadFormat = CrossoverSaveAdapter.Ff8Codec };
+        CombinedSessionSave staleMapping = combined with { Mappings = [new(SessionGame.Ff7, 0, SessionGame.Ff8, 6, "test")] };
+        Assert.Empty(CrossoverSaveAdapter.RemoveDisabledExtendedRosterBindings(staleMapping).Mappings);
         string directory = Path.Combine(Path.GetTempPath(), "Memoria-crossover-test-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         try

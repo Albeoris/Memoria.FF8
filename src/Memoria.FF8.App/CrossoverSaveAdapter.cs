@@ -34,6 +34,43 @@ internal static class CrossoverSaveAdapter
         return document;
     }
 
+    internal static CombinedSessionSave RemoveDisabledExtendedRosterBindings(CombinedSessionSave save, bool? extendedRosterEnabled = null)
+    {
+        bool hasExtendedMappings = save.Mappings.Any(mapping => NativeCharacterVitals.IsExtendedRosterCharacter(mapping.AppearanceCharacter));
+        IReadOnlyList<Ff7MixedCombatBinding> bindings = save.GetMixedCombatBindings();
+        bool hasExtendedCombatBindings = bindings.Any(binding => NativeCharacterVitals.IsExtendedRosterCharacter(binding.OriginCharacter));
+        if (extendedRosterEnabled == true || !hasExtendedMappings && !hasExtendedCombatBindings)
+        {
+            return save;
+        }
+        extendedRosterEnabled ??= save.Ff8Payload is { Length: > 0 } ? ReadFf8(save).Characters.ExtendedRosterEnabled : null;
+        if (extendedRosterEnabled != false)
+        {
+            return save;
+        }
+        if (hasExtendedMappings)
+        {
+            save = save with { Mappings = WithoutExtendedRosterMappings(save.Mappings) };
+        }
+        if (hasExtendedCombatBindings)
+        {
+            // Native guest slots retain their explicit bindings for battle restoration and settlement.
+            IReadOnlyList<Ff7BattleGuestSlotState> battleOwners = save.Ff7?.Battle?.GetGuestSlotStates() ?? [];
+            Ff7MixedCombatBinding[] retained = bindings.Where(binding => !NativeCharacterVitals.IsExtendedRosterCharacter(binding.OriginCharacter)
+                || battleOwners.Any(owner => owner.Binding.StoryCharacter == binding.StoryCharacter && owner.Binding.OriginCharacter == binding.OriginCharacter)).ToArray();
+            if (retained.Length != bindings.Count)
+            {
+                save = save with { MixedCombat = retained.Length == 1 ? retained[0] : null, MixedCombatBindings = retained.Length > 1 ? retained : null };
+            }
+        }
+        return save;
+    }
+
+    internal static CharacterAppearanceMapping[] WithoutExtendedRosterMappings(CharacterAppearanceMapping[] mappings)
+    {
+        return mappings.Where(mapping => !NativeCharacterVitals.IsExtendedRosterCharacter(mapping.AppearanceCharacter)).ToArray();
+    }
+
     internal static void EnsureOriginalExportAllowed(string path)
     {
         if (ReadEnvelope(path) is not null)

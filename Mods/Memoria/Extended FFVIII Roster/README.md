@@ -6,4 +6,4 @@ Permanent Laguna, Kiros and Ward start at level 1 with their original weapons, f
 
 The mod also enables mapping these five characters to FFVII. The mapping always uses each character's original identity and permanent progress, including when the departure point is in a dream.
 
-Disabling the mod removes these characters from the regular party. Squall returns if it would otherwise be empty. Use a Memoria save to retain their progress while the mod is disabled.
+Disabling the mod clears all five characters' junctions and FFVII mappings and keeps their personal magic and progression. Laguna, Kiros and Ward leave the regular party. Edea and Seifer can stay when the story allows them. Squall returns if the party would otherwise be empty. Export to the original FFVIII save format omits the permanent Laguna, Kiros and Ward records. A Memoria save retains their progression.

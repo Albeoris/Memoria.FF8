@@ -23,7 +23,7 @@ public static class NativeGuardianForceLegacyCompatibility
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(targetSource);
         NativeCharacterVitals current = state.CharacterVitals ?? throw new NotSupportedException("GF export requires initialized characters.");
-        current.Validate();
+        current = current.ForOriginalSaveExport();
         targetSource.Validate();
         if (targetSource.MenuDefinitions.Learning.Any(rules => rules.Length != 21))
         {

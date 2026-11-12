@@ -23,7 +23,7 @@ public sealed partial record NativeCharacterVitals
         {
             return false;
         }
-        return extended && IsExtendedRosterCharacter(row) || (Records[row].MemberFlags & 1) != 0;
+        return extended && IsExtendedRosterCharacter(row) || IsNativeRosterMember(row);
     }
 
     public byte GetBattleWeapon(int row)
@@ -81,17 +81,58 @@ public sealed partial record NativeCharacterVitals
         }
         if (!enabled)
         {
+            NativeCharacterVital[] records = next.Records.ToArray();
+            for (int row = 6; row < records.Length; row++)
+            {
+                NativeCharacterVital record = records[row];
+                records[row] = record with { Junction = record.Junction.Reset() };
+            }
+            next = next with { Records = records };
             if (DreamEnabled || ExtendedRosterPartyBeforeDream is not null)
             {
-                next = next with { ExtendedRosterPartyBeforeDream = RemoveExtendedPartyMembers(ExtendedRosterPartyBeforeDream ?? JunctionPartyBackup.AsSpan(3).ToArray()) };
+                next = next with { ExtendedRosterPartyBeforeDream = RemoveModOnlyPartyMembers(ExtendedRosterPartyBeforeDream ?? JunctionPartyBackup.AsSpan(3).ToArray()) };
             }
             if (!DreamEnabled)
             {
-                next = next with { CombatParty = RemoveExtendedPartyMembers(CombatParty) };
+                next = next with { CombatParty = RemoveModOnlyPartyMembers(CombatParty) };
             }
         }
         next.Validate();
         return next.DeepCopy();
+    }
+
+    public NativeCharacterVitals ForOriginalSaveExport()
+    {
+        Validate();
+        if (Records.Length == NativeRecordCount)
+        {
+            return this;
+        }
+        if (MagicSystem.Reservations.Length != 0)
+        {
+            throw new NotSupportedException("Original FF8 export requires all reserved magic casts to finish first.");
+        }
+        byte[] backup = JunctionPartyBackup.ToArray();
+        if (DreamEnabled)
+        {
+            RemoveModOnlyPartyMembers(ExtendedRosterPartyBeforeDream ?? backup.AsSpan(3).ToArray()).CopyTo(backup, 3);
+        }
+        NativeCharacterVitals native = this with
+        {
+            Records = Records[..NativeRecordCount],
+            CombatParty = DreamEnabled ? CombatParty : RemoveModOnlyPartyMembers(CombatParty),
+            ExtendedRosterEnabled = false,
+            ExtendedRosterPartyBeforeDream = null,
+            JunctionPartyBackup = backup,
+            MagicSystem = MagicSystem with
+            {
+                AttackModes = MagicSystem.AttackModes[..NativeRecordCount],
+                PersonalFieldMasks = MagicSystem.PersonalFieldMasks[..NativeRecordCount],
+                PersonalBattleMasks = MagicSystem.PersonalBattleMasks[..NativeRecordCount]
+            }
+        };
+        native.Validate();
+        return native.DeepCopy();
     }
 
     internal static bool IsSupportedRecordCount(int count) => count is NativeRecordCount or ExtendedRecordCount;
@@ -106,9 +147,19 @@ public sealed partial record NativeCharacterVitals
             && (beforeDream is null || records.Length == ExtendedRecordCount && beforeDream is { Length: 3 } && beforeDream.All(row => row == 255 || row < records.Length));
     }
 
-    private static byte[] RemoveExtendedPartyMembers(IEnumerable<byte> party)
+    private bool IsNativeRosterMember(int row) => row < NativeRecordCount && (Records[row].MemberFlags & 1) != 0;
+
+    private byte[] RemoveModOnlyPartyMembers(byte[] party)
     {
-        byte[] remaining = party.Where(row => row < 6).ToArray();
-        return remaining.Length == 0 ? [0, 255, 255] : [.. remaining, .. Enumerable.Repeat((byte)255, 3 - remaining.Length)];
+        byte[] remaining = party.Where(row => row < 6 || row < NativeRecordCount && IsNativeRosterMember(row)).ToArray();
+        if (remaining.Length == 0)
+        {
+            return [0, 255, 255];
+        }
+        if (remaining.Length == party.Count(row => row != 255))
+        {
+            return party;
+        }
+        return [.. remaining, .. Enumerable.Repeat((byte)255, party.Length - remaining.Length)];
     }
 }

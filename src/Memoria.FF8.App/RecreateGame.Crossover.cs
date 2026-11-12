@@ -94,6 +94,7 @@ internal sealed partial class RecreateGame
         else
         {
             reason = Ff8WorldSwitchUnavailable();
+            SynchronizeExtendedRosterCrossover();
         }
         if (reason is not null)
         {
@@ -101,8 +102,14 @@ internal sealed partial class RecreateGame
         }
         GameplaySaveCharacters? suspended = destination == SessionGame.Ff8 ? CrossoverSaveAdapter.ReadFf8(outgoing!).Characters : null;
         NativeCharacterVitals? live = destination == SessionGame.Ff7 ? session.State.CharacterVitals as NativeCharacterVitals : null;
-        bool extendedRosterEnabled = resourceHost?.GameplayPolicy.ExtendedRosterEnabled ?? live?.ExtendedRosterEnabled ?? suspended?.ExtendedRosterEnabled ?? false;
-        CrossoverMappingMenu menu = new(GraphicsDevice, Ff7Installation.Discover(options.Ff7GameDirectory!), options.GameDirectory, outgoing?.Mappings ?? pendingCrossoverMappings ?? crossover?.Mappings ?? [], physicalInput.ReadKeyboard(), Mouse.GetState(), text, uiCanvas!, () => CreateUiTheme(), destination, suspended?.Records ?? live?.Records, extendedRosterEnabled);
+        bool? configuredRoster = resourceHost?.GameplayPolicy.ExtendedRosterEnabled;
+        bool extendedRosterEnabled = destination == SessionGame.Ff8 ? configuredRoster ?? suspended?.ExtendedRosterEnabled ?? false : live?.ExtendedRosterEnabled == true && configuredRoster != false;
+        CharacterAppearanceMapping[] currentMappings = outgoing?.Mappings ?? pendingCrossoverMappings ?? crossover?.Mappings ?? [];
+        if (!extendedRosterEnabled)
+        {
+            currentMappings = CrossoverSaveAdapter.WithoutExtendedRosterMappings(currentMappings);
+        }
+        CrossoverMappingMenu menu = new(GraphicsDevice, Ff7Installation.Discover(options.Ff7GameDirectory!), options.GameDirectory, currentMappings, physicalInput.ReadKeyboard(), Mouse.GetState(), text, uiCanvas!, () => CreateUiTheme(), destination, suspended?.Records ?? live?.Records, extendedRosterEnabled);
         menu.Cancelled += CloseCrossoverSetup;
         menu.Confirmed += mappings =>
         {
@@ -145,13 +152,11 @@ internal sealed partial class RecreateGame
         Ff7Installation installation = Ff7Installation.Discover(options.Ff7GameDirectory ?? throw new InvalidOperationException("Select a FINAL FANTASY VII installation before loading this world."));
         Ff7PcExecutableData native = Ff7PcExecutableData.Load(installation);
         string tools = movieClock.ToolsDirectory;
-        GameplaySaveCharacters? characters = state.Ff8Payload is { Length: > 0 } && state.Mappings.Length > 0 ? CrossoverSaveAdapter.ReadFf8(state).Characters : null;
-        CharacterAppearanceMapping[] mappings = CrossoverGuestRecord.PresentationMappings(state.Mappings, characters);
-        if (mappings.Length > 0)
+        if (state.Mappings.Length > 0)
         {
             crossoverAssets ??= new GameAssets(options.GameDirectory, resources: resourceHost!.Resources, modelOverrides: resourceHost);
         }
-        IFf7ActorAppearance? appearance = Ff7AppearanceSelection.Create(mappings, installation, crossoverAssets);
+        IFf7ActorAppearance? appearance = Ff7AppearanceSelection.Create(state.Mappings, installation, crossoverAssets);
         Ff7Scene scene = new(GraphicsDevice, installation, tools, new Ff7ProjectionDepth(native.FieldNearPlane, native.FieldFarPlane), movie => Ff7Scene.ResolveMovie(installation, tools, movie), state, appearance, options.AudioEnabled);
         try
         {
@@ -205,6 +210,7 @@ internal sealed partial class RecreateGame
             throw new InvalidOperationException(reason);
         }
         byte[] payload = CaptureFf8Payload();
+        SynchronizeExtendedRosterCrossover();
         CombinedSessionSave current = crossover ?? new CombinedSessionSave { ActiveGame = SessionGame.Ff8, Ff8Payload = payload, Ff8PayloadFormat = CrossoverSaveAdapter.Ff8Codec };
         current = current with { Mappings = pendingCrossoverMappings ?? current.Mappings, TurnBasedBattle = null };
         WorldSwitch transaction = new(current);
@@ -237,14 +243,35 @@ internal sealed partial class RecreateGame
         BeginWorldTransfer(transaction.State);
     }
 
-    private void RestoreCrossover(CombinedSessionSave? saved, Ff7Scene? prepared = null)
+    private void RestoreCrossover(CombinedSessionSave? saved)
     {
-        prepared ??= saved?.ActiveGame == SessionGame.Ff7 ? PrepareFf7Scene(saved) : null;
+        if (saved is not null)
+        {
+            bool? extendedRosterEnabled = saved.ActiveGame == SessionGame.Ff8 ? session.State.CharacterVitals?.ExtendedRosterEnabled : null;
+            saved = CrossoverSaveAdapter.RemoveDisabledExtendedRosterBindings(saved, extendedRosterEnabled);
+        }
+        Ff7Scene? prepared = saved?.ActiveGame == SessionGame.Ff7 ? PrepareFf7Scene(saved) : null;
         ff7Scene?.Dispose();
         ff7Scene = prepared;
         crossover = saved;
         fieldAudio?.SetFocusPaused(InFf7);
         Window.Title = InFf7 ? "Memoria - Final Fantasy VII" : "Memoria - Final Fantasy VIII";
+    }
+
+    private void SynchronizeExtendedRosterCrossover()
+    {
+        if (session.State.CharacterVitals is not { ExtendedRosterEnabled: false })
+        {
+            return;
+        }
+        if (crossover is { ActiveGame: SessionGame.Ff8 } saved)
+        {
+            crossover = CrossoverSaveAdapter.RemoveDisabledExtendedRosterBindings(saved, extendedRosterEnabled: false);
+        }
+        if (pendingCrossoverMappings is { } pending)
+        {
+            pendingCrossoverMappings = CrossoverSaveAdapter.WithoutExtendedRosterMappings(pending);
+        }
     }
 
     private void SaveCrossoverFromFf7(CombinedSessionSave saved)
@@ -376,6 +403,7 @@ internal sealed partial class RecreateGame
         try
         {
             GameState savedState = world!.WriteGameplaySave(temporary, validateContinuation, savedAtUtc, fieldAudio?.CapturePlaybackPositions());
+            SynchronizeExtendedRosterCrossover();
             CombinedSessionSave combined = crossover! with { ActiveGame = SessionGame.Ff8, Ff8Payload = File.ReadAllBytes(temporary), Ff8PayloadFormat = CrossoverSaveAdapter.Ff8Codec };
             CombinedSessionCodec.Save(path, combined);
             crossover = combined;
