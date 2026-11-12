@@ -81,6 +81,9 @@ internal static class AutoPlayTraversalPolicy
             ("205:541", "205:line:9") => -1,
             ("205:542", "205:gateway:0") => -1,
             ("206:542", "206:line-action:7") => -2,
+            // NG-033: Activate the MD console using the center switch, then the left switch.
+            ("209:550", "209:line-action:6") => -1,
+            ("209:554", "209:line-action:7") => -1,
             _ => 0
         };
     }
