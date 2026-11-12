@@ -44,7 +44,7 @@ internal sealed partial class WorldMapScene
         NativeGardenWorldRuntimeState garden = world.NativeGardenRuntime ?? throw new InvalidDataException("Parked Garden restoration lost its executed allocation owner.");
         if (garden.CarBodyPose is not null)
         {
-            ValidateRetainedGardenCarHistory(garden, arrival, inputs);
+            ValidateRetainedGardenAllocation(garden, arrival, inputs);
             world.NativeFootRuntime!.RequireNativeGroundState();
             return;
         }

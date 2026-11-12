@@ -43,6 +43,7 @@ internal sealed partial class WorldMapScene
             throw new NotSupportedException("Car selected from Garden entered train proximity without represented preceding rail phases.");
         }
         assets.ValidateNativeGroundCache(car.GroundCache!, replacements);
+        ValidateChocoboEscapeGround(state.ChocoboDismount);
     }
 
     private int CarGardenContact(WorldState state, NativeCarWorldRuntimeState car, IReadOnlyList<WorldNativeGardenProbe> probes, int selectedEntity, int padding, bool forceCircle = false)

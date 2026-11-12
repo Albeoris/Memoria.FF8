@@ -32,6 +32,8 @@ public sealed record WorldState
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeChocoboWorldRuntimeState? NativeChocoboRuntime { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeChocoboDismountState? ChocoboDismount { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeGardenWorldRuntimeState? NativeGardenRuntime { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeRagnarokWorldRuntimeState? NativeRagnarokRuntime { get; init; }

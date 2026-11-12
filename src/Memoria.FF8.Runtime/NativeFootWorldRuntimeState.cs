@@ -38,6 +38,7 @@ public sealed record NativeWorldGardenDismountReceipt([property: JsonRequired] i
 public sealed partial record NativeFootWorldRuntimeState
 {
     public const int CurrentProofVersion = 1;
+    public const string ChocoboDismountRule = "ff8-en-chocobo-foot-54a7f0-54b460-v1";
     public const string CarDismountRule = "ff8-en-car-foot-54a7f0-54b460-v1";
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeWorldParkedCar? ParkedCar { get; init; }
@@ -82,6 +83,8 @@ public sealed partial record NativeFootWorldRuntimeState
     public bool? PriorTerrainOcclusion { get; init; }
     [JsonRequired]
     public required long? ReloadSourceWorldFrame { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public long? ChocoboDismountStartFrame { get; init; }
 
     [JsonRequired]
     public NativeWorldGroundCacheState? GroundCache { get; init; }
@@ -331,11 +334,15 @@ public sealed partial record NativeFootWorldRuntimeState
         {
             throw new InvalidDataException("Native normal object allocation requires its actual controlled shape0 body.");
         }
+        if (Rule == ChocoboDismountRule ? ChocoboDismountStartFrame is null or < 24 || EntityType != 0 || ReloadSourceWorldFrame is not null || NormalObjects is not null : ChocoboDismountStartFrame is not null)
+        {
+            throw new InvalidDataException("Native foot Chocobo handoff requires its completed world transfer frame.");
+        }
         if (PreviousHorizontalInput is < -1 or > 1 || GroundYaw is < -1120 or > 1120)
         {
             throw new InvalidDataException("Native foot retained input/yaw exceeds its physical word contract.");
         }
-        if (MovementMagnitude20409F4 is < 0 || ProofVersion != CurrentProofVersion || Rule is not (FirstLoadRule or SavedReloadRule or BattleReloadRule or TrainDismountRule or GardenDismountRule or RagnarokDismountRule or CarDismountRule) || !NativeWorldEntityTypes.IsSupportedFoot(EntityType) || AnimationVariant > 1 || MapDisplayMode > 3 || Rule == FirstLoadRule && (AnimationVariant != 0 && CameraTransition is null || ReloadSourceWorldFrame is not null) || Rule is SavedReloadRule or BattleReloadRule && (ReloadSourceWorldFrame is null or < 0))
+        if (MovementMagnitude20409F4 is < 0 || ProofVersion != CurrentProofVersion || Rule is not (FirstLoadRule or SavedReloadRule or BattleReloadRule or TrainDismountRule or GardenDismountRule or RagnarokDismountRule or CarDismountRule or ChocoboDismountRule) || !NativeWorldEntityTypes.IsSupportedFoot(EntityType) || AnimationVariant > 1 || MapDisplayMode > 3 || Rule == FirstLoadRule && (AnimationVariant != 0 && CameraTransition is null || ReloadSourceWorldFrame is not null) || Rule is SavedReloadRule or BattleReloadRule && (ReloadSourceWorldFrame is null or < 0))
         {
             throw new InvalidDataException("Invalid native foot-world loader or saved-reload authority.");
         }

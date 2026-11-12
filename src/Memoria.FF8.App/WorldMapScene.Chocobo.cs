@@ -61,12 +61,18 @@ internal sealed partial class WorldMapScene
             throw new InvalidDataException("Mounted Chocobo allocation differs from the original world packet and selected resources.");
         }
         assets.ValidateNativeGroundCache(current.GroundCache, replacements);
+        ValidateChocoboEscapeGround(State.ChocoboDismount);
     }
 
     private WorldState StepChocobo(WorldState before, int movementSpeedPercent, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, ref NativeWorldSalaryState salary, out uint salaryMovementUnits, out int graphicsSpeed, bool mapOnly)
     {
         NativeChocoboWorldRuntimeState mounted = before.NativeChocoboRuntime!;
         NativeGardenWorldRuntimeState objects = mounted.Objects;
+        NativeChocoboDismountState? transfer = before.ChocoboDismount;
+        if (transfer is not null)
+        {
+            (objects, transfer) = AdvanceChocoboEscape(before, objects, transfer, NativeWorldPathProjectionCertificate.CreateFoot(objects.ProjectionCamera!), mounted.Animation.TrailWriteIndex, mounted.Animation.CompanionTrailIndex);
+        }
         NativeWorldForestState forest = objects.Forest;
         long frame = before.Frame + 1;
         int inputX = Math.Sign(horizontal);
@@ -103,7 +109,7 @@ internal sealed partial class WorldMapScene
         NativeForestCameraResult pitch = objects.AnimationVariant == 0 ? process.StepNormalFootCamera(forest.CameraPitch, previousGroundType, objects.PriorTerrainOcclusion!.Value, held8: moving) : new(forest.CameraPitch, process);
         NativeWorldFootCameraState camera = new(before.X, before.Z, before.NativeHeight, targetX, targetZ, targetHeight, cameraYaw, pitch.Pitch, -341, -7168) { ProjectionDistance = mounted.CameraTransition?.ProjectionDistance ?? objects.ProjectionCamera!.ProjectionDistance };
         NativeWorldPathProjectionCertificate projection = NativeWorldPathProjectionCertificate.CreateFoot(camera);
-        NativeWorldBackgroundRailState rails = StepBackgroundRails(objects.BackgroundRails!, camera, ChocoboEntity, mapOnly ? (byte)12 : (byte)0);
+        NativeWorldBackgroundRailState rails = StepBackgroundRails(objects.BackgroundRails!, camera, ChocoboEntity, before.EventUi!.ScriptMode);
         WorldState after = before with { Frame = frame, BodyYaw = yaw, CameraYaw = cameraYaw, CameraVelocity = velocity, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight };
         objects = objects with { ProjectionCamera = camera, CameraPitch = pitch.Pitch, Forest = forest with { CameraPitch = pitch.Pitch, CameraCooldown = pitch.Process.CameraCooldown } };
         if (mapOnly)
@@ -114,28 +120,32 @@ internal sealed partial class WorldMapScene
             return after with { NativeChocoboRuntime = mounted with { Objects = objects } };
         }
 
+        if (transfer is null)
+        {
+            transfer = PrepareChocoboDismount(after, objects, projection, salary);
+            if (transfer is not null)
+            {
+                salary = salary.WithWorldScriptMode(7);
+            }
+        }
         NativeChocoboWorldAnimation animation = mounted.Animation;
         bool hasCompanion = (objects.Allocation.ChocoboFlags1536 & 3) == 1;
         NativeChocoboTrailPose companion = animation.CompanionPose;
         bool visible = previousGroundType > 5 && IsVisible(camera.Origin);
         bool companionVisible = hasCompanion && animation.CompanionPlaced && !companion.Forest && IsVisible(new(companion.X, companion.Height, -companion.Z));
-        int riderLength = assets.GetFootModel(0).Animations[animation.RiderAnimation].Frames.Count * 16;
-        int companionLength = companionVisible ? assets.GetChocoboModel(companion: true).Animations[animation.CompanionAnimation].Frames.Count * 16 : 0;
-        animation = animation.AdvanceAnimation(moving, visible, visible, companionVisible, riderLength, companionLength, objects.Forest, assets.ForestTables.Random, out forest);
-        // 550070 consumes the updated clips at the bodies and ground pointers retained from the previous callback.
-        NativeWorldForestTables tables = assets.ForestTables;
-        NativeWorldWaterStepResult mountStep = forest.EmitChocoboParticles(17, previousGroundType, animation.MountAnimation, animation.MountCounter, salary.MountWaterStepEdges, new(before.X, before.NativeHeight, -before.Z), checked((short)before.BodyYaw), priorGraphicsSpeed, tables.Random, tables.AllEffects);
-        forest = mountStep.Forest;
-        byte companionEdges = salary.CompanionWaterStepEdges;
-        if (hasCompanion)
+        if (before.ChocoboDismount is null)
         {
-            byte companionGroundType = animation.CompanionPlaced ? ReadChocoboCompanionGround(companion, mounted.GroundCache) : previousGroundType;
-            NativeWorldWaterStepResult companionStep = forest.EmitChocoboParticles(18, companionGroundType, animation.CompanionAnimation, animation.CompanionCounter, companionEdges, new(companion.X, companion.Height, -companion.Z), checked((short)companion.Yaw), priorGraphicsSpeed, tables.Random, tables.AllEffects);
-            forest = companionStep.Forest;
-            companionEdges = companionStep.Edges!.Value;
+            int riderLength = assets.GetFootModel(0).Animations[animation.RiderAnimation].Frames.Count * 16;
+            int companionLength = companionVisible ? assets.GetChocoboModel(companion: true).Animations[animation.CompanionAnimation].Frames.Count * 16 : 0;
+            animation = animation.AdvanceAnimation(moving, visible, visible, companionVisible, riderLength, companionLength, objects.Forest, assets.ForestTables.Random, out forest);
         }
-        salary = salary.WithChocoboWaterStepEdges(mountStep.Edges!.Value, companionEdges);
-        forest = forest.AdvanceParticlesOnly(tables.AllEffects);
+        else
+        {
+            animation = AdvanceDismountAnimation(animation, transfer!, mounted: true);
+            animation = AnimateEscapingCompanion(animation, objects, transfer!, projection, out forest);
+        }
+        forest = EmitChocoboParticles(objects, animation, transfer, previousGroundType, priorGraphicsSpeed, forest, ref salary);
+        forest = forest.AdvanceParticlesOnly(assets.ForestTables.AllEffects);
         int? previousInput = mounted.PreviousHorizontalInput ?? PreviousFootHorizontalInput(process);
         int? group = inputX != 0 && previousInput != inputX ? inputX > 0 ? 0 : 1 : null;
         WorldNativeGroundResult ground = assets.ResolveNativeGround(before.X, before.Z, moveX, moveZ, -objects.CurrentGroundHeight!.Value, group, mounted.GroundCache, replacements, ChocoboEntity, previousInput is null, footprintContact: (probes, padding) => WorldGardenContactCertificate.Evaluate(assets, objects.Allocation, objects.Objects, ChocoboEntity, ChocoboEntity, probes, projection, padding, rails: rails), currentBodyHeight: before.NativeHeight, rawSpeed: priorGraphicsSpeed);
@@ -146,7 +156,8 @@ internal sealed partial class WorldMapScene
         int height = ground.GroundCommitted ? NativeWorldTerrain.ResolveHeight(ChocoboEntity, groundHeight, groundType, before.NativeHeight, rawSpeed: priorGraphicsSpeed).Height : before.NativeHeight;
         int acceptedSpeed = ground.PositionCommitted ? graphicsSpeed : 0;
         salaryMovementUnits = NativeWorldSalaryMovement.AcceptedVectorUnits(ground.PositionCommitted ? moveX : 0, 0, ground.PositionCommitted ? moveZ : 0);
-        animation = animation.AdvanceTrail(x, height, z, yaw, groundType <= 5, acceptedSpeed, hasCompanion);
+        animation = transfer is null ? animation.AdvanceTrail(x, height, z, yaw, groundType <= 5, acceptedSpeed, hasCompanion)
+            : AdvanceEscapeTrail(animation, objects, transfer, acceptedSpeed, hasCompanion);
         WorldNativeTerrainOcclusionResult occlusion = assets.CertifyNativeTerrainCameraOcclusion(camera, objects.CurrentGroundHeight.Value, replacements, ChocoboEntity);
         objects = objects with
         {
@@ -160,7 +171,7 @@ internal sealed partial class WorldMapScene
             PrimaryContact = ground.PrimaryContact!.Value,
             BroadContact = ground.BroadContact!.Value
         };
-        objects = PublishChocoboBodies(objects, animation, x, height, z, yaw);
+        objects = PublishChocoboBodies(objects, animation, x, height, z, yaw, transfer is null);
         return after with
         {
             X = x,
@@ -169,6 +180,7 @@ internal sealed partial class WorldMapScene
             GroundType = groundType,
             AnimationId = animation.RiderAnimation,
             AnimationCounter = animation.RiderCounter,
+            ChocoboDismount = transfer,
             NativeChocoboRuntime = mounted with { Objects = objects, Animation = animation, PreviousHorizontalInput = inputX }
         };
 
@@ -176,6 +188,27 @@ internal sealed partial class WorldMapScene
         {
             return (projection.ProjectNode(position) ?? throw new NotSupportedException(projection.UnsupportedReason)).Visible;
         }
+    }
+
+    private NativeWorldForestState EmitChocoboParticles(NativeGardenWorldRuntimeState objects, NativeChocoboWorldAnimation animation, NativeChocoboDismountState? transfer, byte priorGroundType, int priorGraphicsSpeed, NativeWorldForestState forest, ref NativeWorldSalaryState salary)
+    {
+        // 550070 uses the separate mount and companion body and ground owners.
+        NativeWorldForestTables tables = assets.ForestTables;
+        NativeGardenWorldObject mount = objects.Objects[1];
+        byte mountGroundType = transfer is null ? priorGroundType : assets.ResolveNativeGroundIdentity(transfer.MountGround, replacements).GroundType;
+        NativeWorldWaterStepResult mountStep = forest.EmitChocoboParticles(17, mountGroundType, animation.MountAnimation, animation.MountCounter, salary.MountWaterStepEdges, mount.Position, mount.RotationY, priorGraphicsSpeed, tables.Random, tables.AllEffects);
+        forest = mountStep.Forest;
+        byte companionEdges = salary.CompanionWaterStepEdges;
+        if ((objects.Allocation.ChocoboFlags1536 & 3) == 1)
+        {
+            NativeChocoboTrailPose companion = animation.CompanionPose;
+            byte companionGroundType = animation.CompanionPlaced ? ReadChocoboCompanionGround(companion, objects.GroundCache) : priorGroundType;
+            NativeWorldWaterStepResult companionStep = forest.EmitChocoboParticles(18, companionGroundType, animation.CompanionAnimation, animation.CompanionCounter, companionEdges, new(companion.X, companion.Height, -companion.Z), checked((short)companion.Yaw), priorGraphicsSpeed, tables.Random, tables.AllEffects);
+            forest = companionStep.Forest;
+            companionEdges = companionStep.Edges!.Value;
+        }
+        salary = salary.WithChocoboWaterStepEdges(mountStep.Edges!.Value, companionEdges);
+        return forest;
     }
 
     private byte ReadChocoboCompanionGround(NativeChocoboTrailPose pose, NativeWorldGroundCacheState cache)
@@ -194,17 +227,25 @@ internal sealed partial class WorldMapScene
         return groundType!.Value;
     }
 
-    private static NativeGardenWorldRuntimeState PublishChocoboBodies(NativeGardenWorldRuntimeState objects, NativeChocoboWorldAnimation animation, int x, int height, int z, int yaw)
+    private static NativeGardenWorldRuntimeState PublishChocoboBodies(NativeGardenWorldRuntimeState objects, NativeChocoboWorldAnimation animation, int x, int height, int z, int yaw, bool mountFollowsRider = true)
     {
         NativeWorldPathPosition body = new(x, height, -z);
         objects = objects.PublishBody(body, 0, checked((short)yaw), 0, gardenControlled: false);
-        var allocation = objects.Objects.SetItem(1, objects.Objects[1] with { Position = body, RotationY = checked((short)yaw) });
-        if (animation.CompanionPlaced)
+        if (mountFollowsRider)
         {
-            NativeChocoboTrailPose pose = animation.CompanionPose;
-            allocation = allocation.SetItem(2, allocation[2] with { Position = new(pose.X, pose.Height, -pose.Z), RotationY = checked((short)pose.Yaw) });
+            objects = objects with { Objects = objects.Objects.SetItem(1, objects.Objects[1] with { Position = body, RotationY = checked((short)yaw) }) };
         }
-        return objects with { Objects = allocation };
+        return PublishChocoboCompanion(objects, animation);
+    }
+
+    private static NativeGardenWorldRuntimeState PublishChocoboCompanion(NativeGardenWorldRuntimeState objects, NativeChocoboWorldAnimation animation)
+    {
+        if (!animation.CompanionPlaced)
+        {
+            return objects;
+        }
+        NativeChocoboTrailPose pose = animation.CompanionPose;
+        return objects with { Objects = objects.Objects.SetItem(2, objects.Objects[2] with { Position = new(pose.X, pose.Height, -pose.Z), RotationY = checked((short)pose.Yaw) }) };
     }
 
     private WorldRenderFrame PrepareChocoboFrame(WorldState state)
@@ -212,8 +253,13 @@ internal sealed partial class WorldMapScene
         NativeChocoboWorldRuntimeState mounted = state.NativeChocoboRuntime!;
         NativeChocoboWorldAnimation animation = mounted.Animation;
         WorldRenderFrame frame = PrepareGardenFrame(state with { NativeGardenRuntime = mounted.Objects });
-        List<NativeWorldAnimatedModelDraw> models = [];
         bool visible = state.GroundType is > 5;
+        frame = frame with { AvatarVisible = visible, AvatarModel = assets.GetFootModel(0) };
+        if (state.ChocoboDismount is { } transfer)
+        {
+            return AddDismountModels(frame, mounted.Objects, animation, transfer);
+        }
+        List<NativeWorldAnimatedModelDraw> models = [];
         if (visible)
         {
             models.Add(new NativeWorldAnimatedModelDraw(assets.GetChocoboModel(), frame.Position, frame.Heading, animation.MountAnimation, animation.MountCounter >> 4) { ObjectId = new(WorldRenderObjectKind.Allocation, 1) });
@@ -223,6 +269,6 @@ internal sealed partial class WorldMapScene
         {
             models.Add(new NativeWorldAnimatedModelDraw(assets.GetChocoboModel(companion: true), new Vector3(companion.X, -companion.Height, companion.Z), companion.Yaw * MathF.Tau / 4096, animation.CompanionAnimation, animation.CompanionCounter >> 4) { ObjectId = new(WorldRenderObjectKind.Allocation, 2) });
         }
-        return frame with { AvatarVisible = visible, AvatarModel = assets.GetFootModel(0), AnimatedModels = models };
+        return frame with { AnimatedModels = models };
     }
 }

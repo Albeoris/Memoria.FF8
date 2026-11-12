@@ -33,7 +33,8 @@ internal static class ControllerGameplayInput
             return new PlayerAction(PlayerActionKind.WorldButtons, vehicleButtons, Horizontal: input.Horizontal, Vertical: throttle, CameraHorizontal: input.CameraHorizontal);
         }
         bool parkedVehicle = state.World?.NativeFootRuntime is not null && (state.World.NativeFootRuntime.ParkedCar is not null || state.World.NativeGardenRuntime is not null || state.World.NativeRagnarokRuntime is not null);
-        ushort worldButtons = (ushort)(buttons & (state.Scene == SceneKind.WorldMap ? parkedVehicle ? 0x142 : 0x102 : 0x02));
+        bool worldConfirm = parkedVehicle || state.World?.NativeChocoboRuntime is not null;
+        ushort worldButtons = (ushort)(buttons & (state.Scene == SceneKind.WorldMap ? worldConfirm ? 0x142 : 0x102 : 0x02));
         return input.Horizontal != 0 || input.Vertical != 0 ? new PlayerAction(PlayerActionKind.Move, Horizontal: input.Horizontal, Vertical: input.Vertical, CameraHorizontal: input.CameraHorizontal, WorldButtons: worldButtons) : new PlayerAction(PlayerActionKind.Wait, CameraHorizontal: input.CameraHorizontal, WorldButtons: worldButtons);
     }
 

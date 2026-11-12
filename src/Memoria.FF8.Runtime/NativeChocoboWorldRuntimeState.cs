@@ -22,6 +22,10 @@ public sealed record NativeChocoboWorldRuntimeState(
         Objects.Validate();
         Animation.Validate();
         CameraTransition?.Validate();
+        if (world.ChocoboDismount is null && (Animation.RiderAnimation == 4 || Animation.MountAnimation == 3))
+        {
+            throw new InvalidDataException("Chocobo dismount animation requires its active transfer.");
+        }
         NativeGardenWorldObject rider = Objects.Objects[Objects.Allocation.FootObjectIndex];
         if (unchecked((byte)Objects.Allocation.Packet.Mode) != 49 || Objects.ProjectionCamera is null || Objects.BackgroundRails is null || Objects.PriorTerrainOcclusion is null || world.GroundType is null || PreviousHorizontalInput is < -1 or > 1 || world.AnimationId != Animation.RiderAnimation || world.AnimationCounter != Animation.RiderCounter || rider.Position != new NativeWorldPathPosition(world.X, world.NativeHeight, -world.Z) || rider.RotationY != world.BodyYaw)
         {

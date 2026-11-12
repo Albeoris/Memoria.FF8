@@ -31,7 +31,9 @@ public sealed partial class GameSession
             //54A7F0 clears this global after draw once the normal entry hold ends.
             //Other transfer paths may overwrite it late; an unrepresented writer
             //invalidates this owner rather than retaining a stale known value.
-            forcedAnimation = finalWorld.NativeFootRuntime?.EntityType == 2 ? finalWorld.NativeFootRuntime.NormalObjects?.ForcedAnimationC76628
+            forcedAnimation = finalWorld.NativeChocoboRuntime is not null && finalWorld.ChocoboDismount is { } dismount ? dismount.Counter == 1 ? 4 : -1
+                : finalWorld.NativeFootRuntime?.ChocoboDismountStartFrame == finalWorld.Frame - NativeChocoboDismountState.CallbackCount + 1 ? 0
+                : finalWorld.NativeFootRuntime?.EntityType == 2 ? finalWorld.NativeFootRuntime.NormalObjects?.ForcedAnimationC76628
                 : before.NativeFootRuntime is not null && finalWorld.NativeFootRuntime is not null && finalWorld.Frame >= 24 && finalWorld.NativeRagnarokRuntime?.Transfer is null && (finalWorld.NativeGardenRuntime is null || finalWorld.NativeGardenRuntime.TransferControls.TransitionPhase == 0) ? -1 : null;
         }
         NativeWorldVerticalBiasState? bias = process.VerticalBias204DADC;
@@ -41,8 +43,10 @@ public sealed partial class GameSession
         }
         else if (before.NativeChocoboRuntime is not null)
         {
-            // 548080 sets C75D00 to120 for entity49. 557A90 damps by C75D00>>3.
-            bias = (bias ?? NativeWorldVerticalBiasState.UnknownWord).Damp(15, 15, callbacks);
+            // 548080 sets C75D00 to120. The first mode7 callback switches it to16 after the motor.
+            long? transferFrame = finalWorld.ChocoboDismount?.StartFrame ?? finalWorld.NativeFootRuntime?.ChocoboDismountStartFrame;
+            long mountedCallbacks = transferFrame is long start ? Math.Clamp(start - before.Frame, 0, callbacks) : callbacks;
+            bias = (bias ?? NativeWorldVerticalBiasState.UnknownWord).Damp(15, 15, mountedCallbacks).Damp(2, 2, callbacks - mountedCallbacks);
         }
         else if (before.NativeGardenRuntime is not null || before.NativeFootRuntime is not null || before.NativeCarRuntime is not null)
         {

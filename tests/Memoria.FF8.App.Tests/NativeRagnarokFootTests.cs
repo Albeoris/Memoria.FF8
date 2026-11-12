@@ -2,6 +2,7 @@ using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
+using Microsoft.Xna.Framework.Input;
 
 namespace Memoria.FF8.App.Tests;
 
@@ -188,9 +189,16 @@ public sealed class NativeRagnarokFootTests
     internal static void Land(WorldMapScene scene)
     {
         scene.Apply(new(PlayerActionKind.Wait, Frames: 24));
-        scene.Apply(new(PlayerActionKind.Confirm));
+        KeyboardInput keyboard = new();
+        InputFrame input = keyboard.Read(new KeyboardState(Keys.Enter), true);
+        Assert.True(input.Confirm);
+        PlayerAction action = ControllerGameplayInput.CreateWorldAction(input, new GameState { Scene = SceneKind.WorldMap, World = scene.State }, keyboard.HeldControlButtons);
+        Assert.Equal(PlayerActionKind.WorldButtons, action.Kind);
+        Assert.Equal(0x40, action.Value);
+        Assert.True(scene.Apply(action).Accepted);
         Assert.True(scene.State.NativeRagnarokRuntime!.Transfer is not null, $"Landing not admitted at({scene.State.X},{scene.State.Z},{scene.State.NativeHeight}) ground={scene.State.GroundType}, frame={scene.State.Frame}, groundHeight={scene.State.NativeRagnarokRuntime.CurrentGroundHeight}, contacts={scene.State.NativeRagnarokRuntime.PrimaryContact}/{scene.State.NativeRagnarokRuntime.BroadContact}.");
         Assert.Equal(NativeRagnarokTransferKind.Landing, scene.State.NativeRagnarokRuntime.Transfer.Kind);
+        Assert.Equal(1, scene.State.NativeRagnarokRuntime.Transfer.Counter);
         scene.Apply(new(PlayerActionKind.Wait, Frames: 60));
         Assert.NotNull(scene.State.NativeFootRuntime);
     }

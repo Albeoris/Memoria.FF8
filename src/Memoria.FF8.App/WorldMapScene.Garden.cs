@@ -13,9 +13,15 @@ internal sealed partial class WorldMapScene
         NativeSavedWorldState saved = session.State.SavedWorld!;
         NativeWorldEntryMemory entry = session.State.WorldEntryMemory ?? throw new NotSupportedException("Garden allocation requires the current executed world-entry bytes.");
         NativeCharacterVitals vitals = session.State.CharacterVitals ?? throw new NotSupportedException("Garden allocation requires its actual saved GF13 flags.");
+        if (unchecked((byte)arrival.Mode) == ChocoboEntity && session.State.World?.NativeGardenRuntime is { } formerChocoboAllocation)
+        {
+            ValidateRetainedGardenAllocation(formerChocoboAllocation, arrival, inputs);
+            ValidateChocoboEscapeGround(session.State.World.ChocoboDismount);
+            return;
+        }
         if (session.State.World?.NativeGardenRuntime is { CarBodyPose: not null } retainedGarden)
         {
-            ValidateRetainedGardenCarHistory(retainedGarden, arrival, inputs);
+            ValidateRetainedGardenAllocation(retainedGarden, arrival, inputs);
             return;
         }
         //The allocation packet remains the original foot entry after54B460 reboards
@@ -76,14 +82,16 @@ internal sealed partial class WorldMapScene
         }
     }
 
-    private void ValidateRetainedGardenCarHistory(NativeGardenWorldRuntimeState garden, WorldTransition arrival, WorldEntryVariables inputs)
+    private void ValidateRetainedGardenAllocation(NativeGardenWorldRuntimeState garden, WorldTransition arrival, WorldEntryVariables inputs)
     {
         garden.Validate();
         assets.ValidateGardenAllocationResources(garden.Allocation);
         assets.ValidateNativeGroundCache(garden.GroundCache, replacements);
-        if (garden.Allocation.Packet != arrival || garden.Allocation.Story != inputs.StoryWord || (garden.Allocation.ReplacementFlags264 & 7) != (inputs.ReplacementFlags & 7) || garden.Allocation.SavedCarSlot?.ShapeId != session.State.SavedWorld?.Slot4.ShapeId)
+        NativeSavedWorldState? saved = session.State.SavedWorld;
+        byte? savedCarShape = HasSavedParkedCar(saved) ? saved!.Slot4.ShapeId : null;
+        if (garden.Allocation.Packet != arrival || garden.Allocation.Story != inputs.StoryWord || (garden.Allocation.ReplacementFlags264 & 7) != (inputs.ReplacementFlags & 7) || garden.Allocation.SavedCarSlot?.ShapeId != savedCarShape)
         {
-            throw new InvalidDataException("Garden car-control history differs from its original allocation, current story or actual saved vehicle.");
+            throw new InvalidDataException("Retained Garden allocation differs from its original allocation, current story or actual saved vehicle.");
         }
         if (garden.AuxiliaryEntry is not null)
         {
