@@ -262,6 +262,9 @@ internal static class AutoPlayTraversalPolicy
             "257:912:8:84:2941:67:2:3" => 2,
             // NG-056: Return to the first-floor hall.
             "249:1105:11:89:902:2:2:3" => 2,
+            // NG-057: Retry the original duel and accept the following battle.
+            "948:1210:7:36:381:27:0:1" => 0,
+            "950:1220:15:79:763:8:0:1" => 0,
             // NG-036: Take the elevator to 2F for the approaching ship.
             "172:614:12:98:1227:4:2:4" => 3,
             // NG-039, NG-040: Take the elevator to 2F for Fishermans Horizon.

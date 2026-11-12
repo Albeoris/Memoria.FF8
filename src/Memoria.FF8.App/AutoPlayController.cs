@@ -713,6 +713,10 @@ internal sealed partial class AutoPlayController
         {
             return;
         }
+        if (TryDriveRubyDragonDuel(world))
+        {
+            return;
+        }
         if (TryDriveCurrentLadderInput(world))
         {
             return;
