@@ -115,7 +115,7 @@ public sealed partial class BattleSession
     {
         if (presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true)
         {
-            return foreign.ReadBone(selector, fraction);
+            return NativeBattleGfMatrices.Transform460840(NativeBattleForeignPlacement.Delta(foreign, graphics.Models[index]), foreign.ReadBone(selector, fraction));
         }
         NativeBattleGraphicsModel model = graphics.Models[index];
         if ((model.Flags0 & 2) == 0)
@@ -139,7 +139,9 @@ public sealed partial class BattleSession
     {
         if (presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true)
         {
-            return foreign.Anchor;
+            NativeBattleModuleAnchor anchor = foreign.Anchor;
+            NativeBattleVector point = NativeBattleGfMatrices.Transform460840(NativeBattleForeignPlacement.Delta(foreign, graphics.Models[index]), new(anchor.X, anchor.Y, anchor.Z));
+            return anchor with { X = point.X, Y = point.Y, Z = point.Z };
         }
         NativeBattleGraphicsModel model = graphics.Models[index];
         if ((model.Flags0 & 2) == 0)

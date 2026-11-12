@@ -9,6 +9,8 @@ namespace Memoria.FF8.Rendering;
 public sealed record Ff7BattleActorVisual(string ModelPrefix, Vector3 Position, float FacingRadians, int ClipIndex, int ClipFrame, int? WeaponIndex = null, BattleLimitAnimation? Limit = null)
 {
     public Ff7BattleActorModelModifiers? ModelModifiers { get; init; }
+    public bool ShadowSuppressed { get; init; }
+    public Matrix4x4? PresentationTransform { get; init; }
 }
 public sealed record Ff7BattleRenderFrame(SceneCameraPlacement Camera, IReadOnlyList<Ff7BattleActorVisual> Actors, Ff7BattleFireState? Fire = null, Ff7BattleIceState? Ice = null, Ff7BattleBoltState? Bolt = null, Ff7BattleCureState? Cure = null, Ff7BattleBraverState? Braver = null)
 {
@@ -51,12 +53,13 @@ public sealed partial class Ff7BattleRenderer
     private readonly Dictionary<PcTexture, PixelImage> images = new(ReferenceEqualityComparer.Instance);
     private readonly PcTexture[] arenaTextures;
 
-    public Ff7BattleRenderer(LgpArchive archive, int locationId, LgpArchive? magicArchive = null, PcTexture? cureTexture = null, PcTexture? grenadeTexture = null)
+    public Ff7BattleRenderer(LgpArchive archive, int locationId, LgpArchive? magicArchive = null, PcTexture? cureTexture = null, PcTexture? grenadeTexture = null, Ff7BattleShadowResources? shadow = null)
     {
         this.archive = archive ?? throw new ArgumentNullException(nameof(archive));
         this.magicArchive = magicArchive;
         this.cureTexture = cureTexture;
         this.grenadeTexture = grenadeTexture;
+        this.shadow = shadow;
         arena = Ff7BattleArenaResources.Load(archive, locationId);
         arenaTextures = arena.Textures.Select(entry => entry.Texture).ToArray();
     }
@@ -111,6 +114,14 @@ public sealed partial class Ff7BattleRenderer
             foreach (Ff7BattleArenaPart part in arena.Geometry)
             {
                 DrawModel(renderer, part.Polygon, arenaTextures, Matrix4x4.Identity, view, material, colorBlend: stageTint, guestStageColor: guestStageColor);
+            }
+            foreach (Ff7BattleActorVisual actor in frame.Actors)
+            {
+                DrawActorShadow(renderer, actor, view);
+            }
+            foreach (CrossoverFf8BattleActorVisual shadowActor in guests)
+            {
+                CrossoverFf8BattleActorRenderer.DrawShadow(renderer, shadowActor, view.Transform, width, height, view.Focal);
             }
             foreach (Ff7BattleActorVisual actor in frame.Actors)
             {

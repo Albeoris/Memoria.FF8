@@ -42,7 +42,7 @@ public static class NativeBattleWaterScalarReferenceCommands
                 if ((instruction & 0x200) != 0)
                 {
                     NativeBattleWaterActorAnchorSource source = services.ReadAnchor(frame, actorPointer);
-                    NativeBattleWaterActorAnchorResult anchor = services.ActorAnchor.EvaluateB66B80(frame, source.Skeleton, source.LocalBones, 0, 0x1000, source.Basis);
+                    NativeBattleWaterActorAnchorResult anchor = source.Pose is { } pose ? services.ActorAnchor.Evaluate(frame, pose, 0, 0x1000, source.Basis) : services.ActorAnchor.EvaluateB66B80(frame, source.Skeleton, source.LocalBones, 0, 0x1000, source.Basis);
                     frame = anchor.Frame;
                     NativeBattleEffectLocalBounds bounds = actor.GeometryBounds52 ?? throw new NotSupportedException("Native scalar anchor height requires its actual signed actor bounds.");
                     int lower = unchecked(anchor.Anchor.Y - bounds.Minimum.Y);

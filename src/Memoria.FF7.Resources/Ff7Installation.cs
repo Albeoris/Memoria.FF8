@@ -25,7 +25,8 @@ public enum Ff7ResourceRole
     Window,
     BattleCamera0,
     BattleCamera1,
-    BattleCamera2
+    BattleCamera2,
+    BattleShadow
 }
 
 public sealed record Ff7ResourceLocation(Ff7ResourceRole Role, string Path);
@@ -78,6 +79,7 @@ public sealed class Ff7Installation
         AddFile(Ff7ResourceRole.CharacterArchive, "field", "char.lgp");
         AddFile(Ff7ResourceRole.BattleArchive, "battle", "battle.lgp");
         AddFile(Ff7ResourceRole.MagicArchive, "battle", "magic.lgp");
+        AddFile(Ff7ResourceRole.BattleShadow, "battle", "kage.dat");
         AddFile(Ff7ResourceRole.WorldArchive, "wm", world);
         AddFile(Ff7ResourceRole.MenuArchive, "menu", menu);
         AddFile(Ff7ResourceRole.MovieCameraArchive, "cd", "moviecam.lgp");

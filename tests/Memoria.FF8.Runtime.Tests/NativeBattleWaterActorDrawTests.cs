@@ -13,6 +13,23 @@ public sealed class NativeBattleWaterActorDrawTests
     private static readonly NativeBattleCameraProjection Projection = new(null, 216, 0, 0);
 
     [Fact]
+    public void Host_shadow_uses_actual_posed_segment_endpoints_without_a_native_skeleton_or_bone_publication()
+    {
+        NativeBattlePosedActor pose = new(Identity, [new(0, 0, 0), new(0, 0, 3000)], (_, _) => default);
+        int reads = 0;
+        NativeBattleWaterActorPoseServices services = new((current, _) =>
+        {
+            reads++;
+            return new(current, [], []) { Pose = pose };
+        }, (_, _, _) => throw new InvalidOperationException("Host geometry must not publish a fabricated native skeleton."), NativeBattleActorAnchorRegisterFixture.Services());
+        NativeBattleWaterActorShadowResult result = NativeBattleWaterActorDraw.FloorShadowA9C670(Fixture(), Model(), Identity, default, services, Projection, 0, 0, 0, Resolve);
+        Assert.Equal(2, reads);
+        Assert.Equal(8, result.Packets.Attempts.Length);
+        Assert.Equal(288, result.Packets.AllocationBytes);
+        Assert.Equal((ushort)1750, result.Frame.ReadTemporaryWord(0xB4));
+    }
+
+    [Fact]
     public void Accepted_shadow_has_eight_compound_packets_zero_proxy_depths_and_restores_actual_local_pose()
     {
         NativeBattleWaterExecutionFrame frame = Fixture();

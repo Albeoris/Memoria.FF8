@@ -251,7 +251,7 @@ public sealed partial class BattleSession
             for (int index = 0; index < count; index++)
             {
                 int actor = owner.nativeActionPackets.ReadContact(start + index).Primary.ActorIndex;
-                NativeBattleModuleAnchor anchor = NativeBattlePoseMatrices.ReadAnchor(graphics.Models[actor], PoseSource(actor));
+                NativeBattleModuleAnchor anchor = owner.ReadNativeModelAnchor(graphics, actor);
                 x = unchecked((short)(x + anchor.X));
                 y = unchecked((short)(y + anchor.Y));
                 z = unchecked((short)(z + anchor.Z));
@@ -260,7 +260,6 @@ public sealed partial class BattleSession
             return new((short)(x / count), (short)(y / count), (short)(z / count), w);
         }
 
-        private NativeBattlePoseSource PoseSource(int actor) => owner.NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Tornado requires the actor's actual pose source.");
         private static NativeBattleModulePoolTask CopyPosition(NativeBattleModulePoolTask target, NativeBattleModulePoolTask source) => target.WriteDword(16, source.ReadDword(16)).WriteDword(20, source.ReadDword(20));
 
         private NativeBattleGraphicsState Publish()

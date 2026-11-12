@@ -51,7 +51,7 @@ public sealed partial class BattleSession
                     work.WriteWord(row + 38, (ushort)(Random() % 40 + 15));
                     work.WriteDword(row + 40, 0);
                     work.WriteDword(row + 44, (uint)(Random() % 60 + 20));
-                    work.WriteDword(row + 48, unchecked((uint)NativeBattlePoseMatrices.ReadBone(model, PoseSource(actor), 240, 4096).Y));
+                    work.WriteDword(row + 48, unchecked((uint)owner.ReadNativeGraphicsBone(graphics, actor, 240, 4096).Y));
                     graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { Flags0 = (ushort)(model.Flags0 | 0x1000) }) };
                 }
             }

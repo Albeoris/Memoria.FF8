@@ -7,6 +7,20 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleWaterActorAnchorTests
 {
+    [Fact]
+    public void Host_pose_uses_its_semantic_local_anchor_and_explicit_basis_without_native_resource_bytes()
+    {
+        NativeBattlePosedActor pose = new(Identity(), [new(10, 20, 30)], (selector, fraction) =>
+        {
+            Assert.Equal(241, selector);
+            Assert.Equal(4096, fraction);
+            return new(10, 20, 30);
+        });
+        NativeBattleWaterActorAnchorResult result = NativeBattleActorAnchorRegisterFixture.Services().Evaluate(Frame(), pose, 241, 4096, Identity() with { X = 100, Y = 200, Z = 300 });
+        Assert.Equal(new NativeBattleFullMacVertex(110, 220, 330, 0), result.Anchor);
+        Assert.Equal(330u, result.Frame.ReadTemporaryDword(0xF8));
+    }
+
     [Theory]
     [InlineData(1)]
     [InlineData(0xF1)]

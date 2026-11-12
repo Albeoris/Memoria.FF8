@@ -26,6 +26,26 @@ public static class NativeBattleForeignModelDrawing
         return new(attempts.ToImmutable(), allocated);
     }
 
+    public static NativeBattleGfGeometryBatch DeformLocal(NativeBattleForeignModelGeometry geometry, NativeBattleCameraProjection projection, Func<NativeBattleVector, NativeBattleVector> deform, Func<NativeBattleRawMesh, NativeBattleActionMatrix, NativeBattlePilotVisualIdentity, NativeBattleGfGeometryBatch> emit, NativeBattlePilotVisualIdentity identity)
+    {
+        NativeBattleActionMatrix camera = NativeBattleGfMatrices.Compose56C2F0(projection.View ?? throw new NotSupportedException("Host model deformation requires its current camera."), geometry.World);
+        ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
+        int allocated = 0;
+        for (int index = 0; index < geometry.Faces.Length; index++)
+        {
+            NativeBattleForeignModelFace source = geometry.Faces[index];
+            NativeBattleForeignModelFace face = source with { A = deform(source.A), B = deform(source.B), C = deform(source.C) };
+            NativeBattlePilotVisualIdentity selected = identity with { Primitive = unchecked(identity.Primitive * 397 + index) };
+            NativeBattleGfGeometryBatch batch = emit(face.Triangle(), camera, selected);
+            foreach (NativeBattleGfGeometryAttempt attempt in batch.Attempts)
+            {
+                attempts.Add(attempt with { ByteOffsetRelative = attempt.ByteOffsetRelative + allocated, Primitive = attempt.Primitive is { } primitive ? geometry.BindSurface(primitive, face, selected) : null });
+            }
+            allocated += batch.AllocationBytes;
+        }
+        return new(attempts.ToImmutable(), allocated);
+    }
+
     public static NativeBattleCureActorPacketBatch Cure(NativeBattleForeignModelGeometry geometry, NativeBattleActionMatrix camera, NativeBattleCameraProjection projection, NativeBattleVector center, short verticalOffset, short? contextF4, uint color, NativeBattlePilotVisualIdentity identity, NativeBattleCureTextureProjection? texture = null, uint overlayColor = 0x808080)
     {
         NativeBattleCureActorMatrices matrices = NativeBattlePoseMatrices.CureActorMatrices8D7110(geometry.World, camera, new(0, verticalOffset, 0), 1, center, 8192);

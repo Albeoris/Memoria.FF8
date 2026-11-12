@@ -56,12 +56,17 @@ public static class NativeBattleFlare124ActorPackets
             BinaryPrimitives.WriteUInt16LittleEndian(work.AsSpan(index * 8 + 4), vertices[index].Depth);
             BinaryPrimitives.WriteUInt16LittleEndian(work.AsSpan(index * 8 + 6), unchecked((ushort)vertices[index].Flags));
         }
+        return new(EmitProjected(mesh.Polygons, vertices, color, zsf3, zsf4, pilotIdentity), maximum, work.ToImmutableArray());
+    }
+
+    public static NativeBattleGfGeometryBatch EmitProjected(ImmutableArray<NativeBattleRawPolygon> polygons, IReadOnlyList<NativeBattleModuleProjectedVertex> vertices, uint color, short zsf3, short zsf4, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocation = 0;
-        IEnumerable<int> faceIndices = Enumerable.Range(0, mesh.Polygons.Length).Where(index => !mesh.Polygons[index].Quad && mesh.Polygons[index].Bytes.Length == 16).Concat(Enumerable.Range(0, mesh.Polygons.Length).Where(index => mesh.Polygons[index].Quad && mesh.Polygons[index].Bytes.Length == 20));
+        IEnumerable<int> faceIndices = Enumerable.Range(0, polygons.Length).Where(index => !polygons[index].Quad && polygons[index].Bytes.Length == 16).Concat(Enumerable.Range(0, polygons.Length).Where(index => polygons[index].Quad && polygons[index].Bytes.Length == 20));
         foreach (int faceIndex in faceIndices)
         {
-            NativeBattleRawPolygon face = mesh.Polygons[faceIndex];
+            NativeBattleRawPolygon face = polygons[faceIndex];
             int count = face.Quad ? 4 : 3;
             NativeBattleModuleProjectedVertex[] corners = new NativeBattleModuleProjectedVertex[count];
             uint union = 0;
@@ -103,6 +108,6 @@ public static class NativeBattleFlare124ActorPackets
             attempts.Add(packet.Attempt(primitive));
             allocation = checked(allocation + length);
         }
-        return new(new(attempts.ToImmutable(), allocation), maximum, work.ToImmutableArray());
+        return new(attempts.ToImmutable(), allocation);
     }
 }

@@ -83,6 +83,10 @@ public sealed partial class Ff7BattleRenderer
     {
         ActorModel resource = LoadActor(actor.ModelPrefix);
         Matrix4x4 world = Matrix4x4.CreateRotationY(actor.FacingRadians) * Matrix4x4.CreateTranslation(actor.Position);
+        if (actor.PresentationTransform is { } presentation)
+        {
+            world *= presentation;
+        }
         BattleClipFrame frame = Frame(resource.GetClip(actor.ClipIndex, false, actor.Limit), actor.ClipFrame);
         Span<Matrix4x4> transforms = stackalloc Matrix4x4[resource.Data.Bones.Count];
         BattleRigidPose.WriteTransforms(resource.Data, frame, world, transforms, actor.ModelModifiers?.PoseTransform);

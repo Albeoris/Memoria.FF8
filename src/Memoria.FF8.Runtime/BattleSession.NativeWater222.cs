@@ -85,12 +85,20 @@ public sealed partial class BattleSession
         }, current => checked(current.TemporaryFrame.Address + 0x100), CreateNativeActorAnchorServices()) { MagicTextureBufferAddress = RequireWaterMemory().MagicTextureBufferAddress1D99A88 };
         NativeBattleWaterActorPoseServices actors = new((current, actor) =>
         {
+            if (presentationForeignActors?.TryGetValue(actor.Index, out NativeBattleForeignActor? foreign) == true)
+            {
+                return new(current, [], []) { Pose = foreign.Pose ?? throw new NotSupportedException("The host actor cannot supply its current posed skeleton segments.") };
+            }
             NativeBattlePoseSource source = PoseSource(actor.Index);
             NativeBattleGraphicsModel published = NativeBattleBodyBoneMatrices.Publish508C90(actor, source);
             graphics = graphics with { Models = graphics.Models.SetItem(actor.Index, published) };
             return new(current, source.Skeleton, NativeBattleBodyBoneMatrices.Require(published, source));
         }, (current, actor, matrices) =>
         {
+            if (presentationForeignActors?.ContainsKey(actor.Index) == true)
+            {
+                return current;
+            }
             NativeBattleBodyBoneMatrices owner = graphics.Models[actor.Index].CurrentBodyBoneMatrices ?? throw new NotSupportedException("Native Water actor composition requires its actual body publication.");
             graphics = graphics with { Models = graphics.Models.SetItem(actor.Index, actor with { CurrentBodyBoneMatrices = owner with { Matrices = matrices } }) };
             return current;
@@ -152,6 +160,11 @@ public sealed partial class BattleSession
         NativeBattleWaterActorAnchorSource ActorAnchor(NativeBattleWaterExecutionFrame current, uint pointer)
         {
             int index = PhysicalActor(pointer);
+            if (presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true)
+            {
+                NativeBattleGraphicsModel model = graphics.Models[index];
+                return new([], [], NativeBattleForeignPlacement.World(model.Transform!, model.Rotation12 ?? 0, model.Rotation14 ?? foreign.Facing, model.Rotation16 ?? 0)) { Pose = foreign.Pose ?? throw new NotSupportedException("The host actor cannot supply posed semantic anchors.") };
+            }
             NativeBattlePoseSource source = PoseSource(index);
             NativeBattleGraphicsModel actor = graphics.Models[index];
             return new(source.Skeleton, NativeBattleBodyBoneMatrices.Require(actor, source), actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native Water actor world matrix is unknown."));

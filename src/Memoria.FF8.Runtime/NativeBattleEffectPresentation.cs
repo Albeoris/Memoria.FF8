@@ -9,6 +9,7 @@ public sealed record NativeBattleForeignActor(int Index, NativeBattleModelTransf
     public int BoneCount { get; init; }
     public NativeBattleForeignModelGeometry? Geometry { get; init; }
     public Func<NativeBattleEffectActorGeometry>? ReadGeometry { get; init; }
+    public NativeBattlePosedActor? Pose { get; init; }
 }
 
 public sealed record NativeBattleEffectPresentationInputs(BattleDefinition Resources, NativeBattleGraphicsModel Source, NativeBattleGraphicsResource SourceResource, NativeBattleActionPacketsState Packets, NativeBattleEffectParameters Parameters, ushort Effect, NativeBattleEffectTextureState Textures, NativeCrtRandomState Random, NativeBattleCameraProjection Projection, ImmutableArray<NativeBattleForeignActor> ForeignActors);
@@ -34,6 +35,7 @@ public sealed class NativeBattleEffectPresentation
     public NativeBattleStageColor StageColor => owner.ReadEffectPresentationStageColor();
     public short StageColorDepth => StageColor.Depth;
     public short ViewTranslationY => owner.NativeCamera?.ViewTranslationScratch?.Y ?? 0;
+    public NativeBattleActionMatrix ForeignPlacement(int index) => owner.ReadEffectPresentationForeignPlacement(index);
 
     public NativeBattleEffectPresentationStep Advance(NativeBattleGraphicsModel source, NativeCrtRandomState random, NativeBattleCameraProjection projection, ImmutableArray<NativeBattleForeignActor> foreignActors, NativeBattleEffectTextureState textures)
     {

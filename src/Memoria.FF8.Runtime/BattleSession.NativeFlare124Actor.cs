@@ -7,10 +7,28 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState DrawNativeFlare124Actor(NativeBattleGraphicsState graphics, int index, short centerX, short centerY, short radius, int step, int amplitude, int phase, NativeBattleFlare124Resources resources, out short maximum)
     {
         NativeBattleGraphicsModel actor = graphics.Models[index];
-        NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
         NativeBattleCameraProjection projection = NativeCamera!.Projection!;
-        NativeBattleActionMatrix view = projection.View!;
         graphics = SubmitNativeShadowPackets5088A0(graphics, actor, projection, 4112, false);
+        short zsf3 = NativeEffectMemory!.ScriptedGraphics!.Zsf3 ?? throw new NotSupportedException("Native Flare requires its retained ZSF3.");
+        short zsf4 = NativeEffectMemory.ScriptedGraphics.Zsf4 ?? throw new NotSupportedException("Native Flare requires its retained ZSF4.");
+        if (ReadNativeForeignModel(index) is { } foreign)
+        {
+            short hostExtent = 0;
+            NativeBattleGfGeometryBatch batch = NativeBattleForeignModelDrawing.Deform(foreign, projection, Deform, (mesh, projected, identity) => NativeBattleFlare124ActorPackets.EmitProjected(mesh.Polygons, projected.Select(point => new NativeBattleModuleProjectedVertex(point.Screen, unchecked((ushort)point.DepthAndClip), point.DepthAndClip >> 16)).ToArray(), actor.Color40!.Value, zsf3, zsf4, identity), NativePilotSceneIdentity(0x6BCAD0, actor.Index, 0) ?? new(124, 0x6BCAD0, actor.Index, 0, 0));
+            NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(NativeEffectMemory.PrimitiveProcess!, graphics.PrimitiveFrame!.Pending, batch);
+            NativeEffectMemory = NativeEffectMemory with { PrimitiveProcess = written.Process };
+            maximum = hostExtent;
+            return graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = written.Ordering } };
+
+            NativeBattleProjectedVertex Deform(NativeBattleModuleProjectedVertex point)
+            {
+                NativeBattleModuleProjectedVertex deformed = NativeBattleFlare124ActorPackets.Ripple(point, centerX, centerY, radius, step, amplitude, phase, resources, out short currentExtent);
+                hostExtent = Math.Max(hostExtent, currentExtent);
+                return new(deformed.Screen, deformed.Depth | deformed.Flags << 16);
+            }
+        }
+        NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
+        NativeBattleActionMatrix view = projection.View!;
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native Flare requires its original target skeleton.");
         NativeBattleActionMatrix world = actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native Flare requires its target world matrix.");
         actor = NativeBattleBodyBoneMatrices.Compose5095B0(actor, world);
@@ -19,8 +37,6 @@ public sealed partial class BattleSession
         uint mask = actor.SequenceState!.MeshMask124;
         ushort capacity = NativeModelCpuResources?.ScratchMaximum ?? throw new NotSupportedException("Native Flare requires its loaded vertex capacity.");
         uint workAddress = checked(0x196B018u - (uint)(capacity * 8));
-        short zsf3 = NativeEffectMemory!.ScriptedGraphics!.Zsf3 ?? throw new NotSupportedException("Native Flare requires its retained ZSF3.");
-        short zsf4 = NativeEffectMemory.ScriptedGraphics.Zsf4 ?? throw new NotSupportedException("Native Flare requires its retained ZSF4.");
         short extent = 0;
         for (int mesh = 0; mesh < geometry.Length; mesh++)
         {

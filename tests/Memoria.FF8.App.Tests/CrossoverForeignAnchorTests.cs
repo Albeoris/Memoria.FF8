@@ -10,6 +10,8 @@ public sealed class CrossoverForeignAnchorTests
         NativeBattleVector impact = new(100, -300, 500);
         Assert.Equal(impact, CrossoverNativeForeignTarget.ReadSemanticBone(240, 4096, impact, Missing));
         Assert.Equal(impact, CrossoverNativeForeignTarget.ReadSemanticBone(241, 0, impact, Missing));
+        Assert.Equal(impact, CrossoverNativeForeignTarget.ReadSemanticBone(241, 2048, impact, Missing));
+        Assert.Equal(impact, CrossoverNativeForeignTarget.ReadSemanticBone(241, 4096, impact, Missing));
 
         static NativeBattleVector Missing() => throw new InvalidOperationException("A point-only target has no root mesh.");
     }
@@ -27,7 +29,7 @@ public sealed class CrossoverForeignAnchorTests
     [Theory]
     [InlineData(240, -1)]
     [InlineData(240, 4097)]
-    [InlineData(241, 2048)]
+    [InlineData(241, 4097)]
     [InlineData(2, 0)]
     public void UnmappedSkeletonSegmentsAreExplicitCapabilities(byte selector, short fraction)
     {

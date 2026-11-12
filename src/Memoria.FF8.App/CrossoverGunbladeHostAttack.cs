@@ -29,6 +29,22 @@ internal sealed record CrossoverGunbladeHostPlacement(Ff7BattlePosition Anchor, 
         return (nativeTarget, yaw, scale, distance);
     }
 
+    public Matrix4x4 ResolvePresentationTransform(NativeBattleActionMatrix delta)
+    {
+        if (delta == NativeBattleForeignModelGeometry.Identity)
+        {
+            return Matrix4x4.Identity;
+        }
+        if (!Matrix4x4.Invert(Matrix, out Matrix4x4 hostToOrigin))
+        {
+            throw new InvalidDataException("The guest model has a singular origin-to-host placement.");
+        }
+        delta.Validate();
+        var r = delta.Rotation;
+        Matrix4x4 native = new(r[0] / 4096f, r[3] / 4096f, r[6] / 4096f, 0, r[1] / 4096f, r[4] / 4096f, r[7] / 4096f, 0, r[2] / 4096f, r[5] / 4096f, r[8] / 4096f, 0, delta.X, delta.Y, delta.Z, 1);
+        return hostToOrigin * native * Matrix;
+    }
+
     public NativeBattleVector ResolvePosition(Vector3 position)
     {
         if (!Matrix4x4.Invert(Matrix, out Matrix4x4 hostToOrigin))
@@ -129,7 +145,13 @@ internal sealed partial class CrossoverGunbladeHostAttack : IFf7BattleGuestAttac
     public long HostTick => state.HostTick;
     public bool ContactPublished => Invocation is not null && state.Presentation?.ContactPublished == true;
     public bool TriggerWindowOpen => Invocation is not null && state.Presentation?.TriggerWindowOpen == true;
-    public CrossoverFf8BattleActorVisual? Visual => state.Placement is { } placement && state.Presentation is { } presentation ? new(body, weapon, presentation.Model, placement.Matrix) { BodyTextures = state.IdleTextures is null ? null : presentation.Model.BodyTextureSlots, Textures = state.IdleTextures, DetachedWeapon = state.PhysicalEffects?.WeaponMatrix } : null;
+    public CrossoverFf8BattleActorVisual? Visual => state.Placement is { } placement && state.Presentation is { } presentation ? new(body, weapon, PresentModel(presentation.Model), placement.Matrix) { BodyTextures = state.IdleTextures is null ? null : presentation.Model.BodyTextureSlots, Textures = state.IdleTextures, DetachedWeapon = state.PhysicalEffects?.WeaponMatrix, ShadowSource = graphicsRules.ShadowSource } : null;
+
+    private NativeBattleGraphicsModel PresentModel(NativeBattleGraphicsModel model)
+    {
+        NativeBattleSummonColors colors = graphicsRules.SummonColors ?? throw new NotSupportedException("Guest presentation requires its selected graphics colors.");
+        return model with { Color40 = model.Color40 ?? colors.Transition, Color44 = model.Color44 ?? (colors.Normal & 0xFFFFFFu) | 0x32000000u };
+    }
     public CrossoverGunbladeHostSnapshot Capture() => state with
     {
         IdleTextures = state.IdleTextures is { } textures ? NativeBattleEffectComponentStorage.Capture(textures) : null,

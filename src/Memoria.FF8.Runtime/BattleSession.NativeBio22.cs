@@ -25,7 +25,7 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Native Bio requires its published projection.");
         NativeBattleBio22Frame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Bio requires retained process memory."), effect, effect.Bio22 ?? throw new NotSupportedException("Native Bio requires its executed entry state."));
         short zsf3 = frame.Memory.ScriptedGraphics?.Zsf3 ?? throw new NotSupportedException("Native Bio requires its initialized current ZSF3.");
-        NativeBattleBio22Inputs inputs = new(nativeActionPackets, projection, camera.Roll, zsf3, index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Bio requires its actual body pose source."), _ => NativeStage ?? throw new NotSupportedException("Native Bio requires its four stage groups."), ReadProxyDepth, Execute, FinalActor);
+        NativeBattleBio22Inputs inputs = new(nativeActionPackets, projection, camera.Roll, zsf3, index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Bio requires its actual body pose source."), _ => NativeStage ?? throw new NotSupportedException("Native Bio requires its four stage groups."), ReadProxyDepth, Execute, FinalActor) { ReadForeignTarget = ReadNativeForeignTarget };
         NativeBattleBio22ChildStep step = NativeBattleBio22Controller.Advance89A7B0(frame, resources, inputs, nativeCrtRandom ?? throw new NotSupportedException("Native Bio requires its retained CRT state."));
         NativeEffectMemory = step.Frame.Memory;
         nativeCrtRandom = step.Random;
@@ -82,6 +82,10 @@ public sealed partial class BattleSession
             NativeBattleBio22ActorFrame ReadLocal(NativeBattleBio22ActorFrame actual, int index)
             {
                 graphics = graphics with { Models = actual.Models };
+                if (ReadNativeForeignModel(index) is not null)
+                {
+                    return actual;
+                }
                 NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Bio ReadLocal requires the actual body source.");
                 NativeBattleGraphicsModel published = NativeBattleBodyBoneMatrices.Publish508C90(actual.Models[index], source);
                 return actual with { Models = actual.Models.SetItem(index, published) };
@@ -103,6 +107,22 @@ public sealed partial class BattleSession
             {
                 graphics = graphics with { Models = actual.Models };
                 NativeBattleGraphicsModel model = actual.Models[index];
+                if (ReadNativeForeignModel(index) is { } foreign)
+                {
+                    short hostZsf4 = actual.Memory.ScriptedGraphics?.Zsf4 ?? throw new NotSupportedException("Native Bio body requires its initialized current ZSF4.");
+                    NativeBattleGfGeometryBatch batch = NativeBattleForeignModelDrawing.DeformLocal(foreign, projection, point => NativeBattleBio22ActorPackets.DeformVertex(point, phase, amplitude), Emit, NativeBattlePilotVisualLifetimes.Identity(22, actual.Task, 0));
+                    NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(actual.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Bio body requires its actual COMMON cursor."), graphics.PrimitiveFrame!.Pending, batch);
+                    graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = written.Ordering } };
+                    return actual with { Memory = actual.Memory with { PrimitiveProcess = written.Process } };
+
+                    NativeBattleGfGeometryBatch Emit(NativeBattleRawMesh mesh, NativeBattleActionMatrix camera, NativeBattlePilotVisualIdentity identity)
+                    {
+                        NativeBattleBio22ActorMemory owner = actual.Memory.Bio22ActorMemory ?? throw new NotSupportedException("Native Bio body requires its current physical projected work.");
+                        NativeBattleBio22ActorDraw drawn = NativeBattleBio22ActorPackets.Emit89D780(mesh, [NativeBattleForeignModelGeometry.Identity], camera, projection, model.Color40 ?? throw new NotSupportedException("Native Bio body requires its actual color."), 0, 0, zsf3, hostZsf4, owner.Projected, 0, pilotIdentity: identity);
+                        actual = actual with { Memory = actual.Memory with { Bio22ActorMemory = owner with { Projected = drawn.Work } } };
+                        return drawn.Packets;
+                    }
+                }
                 NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
                 NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native Bio body requires its actual skeleton.");
                 ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(model, source);

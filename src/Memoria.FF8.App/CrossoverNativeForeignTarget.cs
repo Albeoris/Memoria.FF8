@@ -31,11 +31,14 @@ internal sealed record CrossoverNativeForeignTarget(int HostSlot, NativeBattleMo
             throw new NotSupportedException("The host posed geometry has no material-bearing triangle provider.");
         }
         NativeBattleVector anchor = Anchors.Anchor241;
+        NativeBattleActionMatrix poseWorld = NativeBattleForeignPlacement.World(Transform, 0, Facing, 0);
+        NativeBattleActionMatrix inversePose = NativeBattleForeignPlacement.Inverse(poseWorld);
         return new(index, Transform, new(anchor.X, anchor.Y, anchor.Z, checked((short)(Anchors.LocalBounds.Maximum.Y - Anchors.LocalBounds.Minimum.Y))), ReadBone)
         {
             Facing = Facing,
             BoneCount = Geometry.Bones.Length,
-            Geometry = new(World, Anchors, faces)
+            Geometry = new(World, Anchors, faces),
+            Pose = new(poseWorld, Geometry.Bones.SelectMany(bone => new[] { bone.Start, bone.End }).Select(point => NativeBattleGfMatrices.Transform460840(inversePose, Word(Vector3.Transform(point, HostToOrigin)))).ToImmutableArray(), (selector, fraction) => NativeBattleGfMatrices.Transform460840(inversePose, ReadBone(selector, fraction)))
         };
 
         NativeBattleVector ReadBone(byte selector, short fraction)
@@ -59,7 +62,7 @@ internal sealed record CrossoverNativeForeignTarget(int HostSlot, NativeBattleMo
     /// <summary>Foreign F0 is the posed root-to-impact segment; F1 is the host's canonical impact point.</summary>
     public static NativeBattleVector ReadSemanticBone(byte selector, short fraction, NativeBattleVector impact, Func<NativeBattleVector> readRoot)
     {
-        if (selector == 241 && fraction == 0 || selector == 240 && fraction == 4096)
+        if (selector == 241 && fraction is >= 0 and <= 4096 || selector == 240 && fraction == 4096)
         {
             return impact;
         }

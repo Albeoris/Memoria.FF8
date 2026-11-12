@@ -5,10 +5,25 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleWaterActorAnchorResult(NativeBattleWaterExecutionFrame Frame, NativeBattleActionMatrix Matrix, NativeBattleFullMacVertex Anchor, NativeBattleGeometryRegisterStep Registers);
-public sealed record NativeBattleWaterActorAnchorSource(ImmutableArray<byte> Skeleton, ImmutableArray<NativeBattleActionMatrix> LocalBones, NativeBattleActionMatrix Basis);
+public sealed record NativeBattleWaterActorAnchorSource(ImmutableArray<byte> Skeleton, ImmutableArray<NativeBattleActionMatrix> LocalBones, NativeBattleActionMatrix Basis)
+{
+    public NativeBattlePosedActor? Pose { get; init; }
+}
 
 public sealed record NativeBattleWaterActorAnchorServices(Func<NativeBattleWaterExecutionFrame, NativeBattleGeometryRegisterStep> ReadRegisters, Func<NativeBattleWaterExecutionFrame, NativeBattleGeometryRegisterStep, NativeBattleWaterExecutionFrame> PublishRegisters)
 {
+    public NativeBattleWaterActorAnchorResult Evaluate(NativeBattleWaterExecutionFrame frame, NativeBattlePosedActor pose, short selector, int fraction, NativeBattleActionMatrix basis)
+    {
+        if (selector is < 0 or > 255 || fraction is < short.MinValue or > short.MaxValue)
+        {
+            throw new NotSupportedException("The host pose cannot represent the selected anchor operand.");
+        }
+        NativeBattleVector local = pose.ReadLocalBone((byte)selector, (short)fraction);
+        frame = frame.WriteTemporaryWord(0xC0, unchecked((ushort)local.X)).WriteTemporaryWord(0xC2, unchecked((ushort)local.Y)).WriteTemporaryWord(0xC4, unchecked((ushort)local.Z));
+        NativeBattleWaterActorAnchorResult result = NativeBattleWaterActorAnchor.Transform(frame, basis, ReadRegisters(frame));
+        return result with { Frame = PublishRegisters(result.Frame, result.Registers) };
+    }
+
     public NativeBattleWaterActorAnchorResult EvaluateB66B80(NativeBattleWaterExecutionFrame frame, ImmutableArray<byte> skeleton, ImmutableArray<NativeBattleActionMatrix> localBones, short selector, int fraction, NativeBattleActionMatrix basis)
     {
         NativeBattleWaterActorAnchorResult result = NativeBattleWaterActorAnchor.EvaluateB66B80(frame, skeleton, localBones, selector, fraction, basis, ReadRegisters(frame));
@@ -71,6 +86,11 @@ public static class NativeBattleWaterActorAnchor
         }
         frame = frame.WriteTemporaryWord(0xC4, unchecked((ushort)distance));
         NativeBattleActionMatrix composed = NativeBattleGfMatrices.Compose56C2F0(basis, localBones[bone]);
+        return Transform(frame, composed, registers);
+    }
+
+    internal static NativeBattleWaterActorAnchorResult Transform(NativeBattleWaterExecutionFrame frame, NativeBattleActionMatrix composed, NativeBattleGeometryRegisterStep registers)
+    {
         for (int lane = 0; lane < 9; lane++)
         {
             frame = frame.WriteTemporaryWord(0xD0 + lane * 2, unchecked((ushort)composed.Rotation[lane]));
@@ -108,7 +128,7 @@ public static class NativeBattleWaterActorAnchor
         }
         short selector = BinaryPrimitives.ReadInt16LittleEndian(frame.Arena.Read(checked(program.ArenaOffset + (int)relative), 2));
         NativeBattleWaterActorAnchorSource actor = resolveActor(frame, actorPointer) ?? throw new NotSupportedException("Native actor positioning requires its actual captured graphics owner.");
-        NativeBattleWaterActorAnchorResult result = services.EvaluateB66B80(frame, actor.Skeleton, actor.LocalBones, selector, 0x1000, actor.Basis);
+        NativeBattleWaterActorAnchorResult result = actor.Pose is { } pose ? services.Evaluate(frame, pose, selector, 0x1000, actor.Basis) : services.EvaluateB66B80(frame, actor.Skeleton, actor.LocalBones, selector, 0x1000, actor.Basis);
         frame = result.Frame;
         frame = WriteSlotDword(frame, 0x5C, unchecked((uint)result.Anchor.X << 16));
         frame = WriteSlotDword(frame, 0x60, unchecked((uint)result.Anchor.Y << 16));

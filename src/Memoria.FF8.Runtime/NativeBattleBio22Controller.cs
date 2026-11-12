@@ -12,7 +12,10 @@ public sealed record NativeBattleBio22Sprite(NativeBattleModulePacketBatch Batch
 public sealed record NativeBattleBio22Stage(NativeBattleStageState Stage) : NativeBattleBio22Operation;
 public sealed record NativeBattleBio22Sound(uint Sound) : NativeBattleBio22Operation;
 public sealed record NativeBattleBio22Contact(int Index) : NativeBattleBio22Operation;
-public sealed record NativeBattleBio22Inputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, short CameraRoll, short Zsf3, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleBio22Frame, NativeBattleStageState> ReadStage, Func<NativeBattleBio22Frame, int, ImmutableArray<int>> ReadOverlayProxyDepth, Func<NativeBattleBio22Frame, NativeBattleBio22Operation, NativeBattleBio22Frame> Execute, Func<NativeBattleBio22Frame, uint, NativeCrtRandomState, NativeBattleBio22ChildStep> AdvanceFinalActor);
+public sealed record NativeBattleBio22Inputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, short CameraRoll, short Zsf3, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleBio22Frame, NativeBattleStageState> ReadStage, Func<NativeBattleBio22Frame, int, ImmutableArray<int>> ReadOverlayProxyDepth, Func<NativeBattleBio22Frame, NativeBattleBio22Operation, NativeBattleBio22Frame> Execute, Func<NativeBattleBio22Frame, uint, NativeCrtRandomState, NativeBattleBio22ChildStep> AdvanceFinalActor)
+{
+    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeignTarget { get; init; }
+}
 
 public static partial class NativeBattleBio22Controller
 {
@@ -140,11 +143,7 @@ public static partial class NativeBattleBio22Controller
 
             NativeBattleModulePoolTask Update(NativeBattleModulePoolTask task)
             {
-                task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource);
-                int index = task.ReadByte(0x2D);
-                NativeBattlePoseSource source = inputs.ReadPoseSource(index);
-                NativeBattleSequenceState sequence = inputs.ReadModel(index).SequenceState ?? throw new NotSupportedException("Native Bio bounds require the current target sequence.");
-                return NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, source.Sample(sequence.Pose ?? throw new NotSupportedException("Native Bio requires its selected target pose."), sequence.PoseFrame114 ?? throw new NotSupportedException("Native Bio requires its decoded target frame."), sequence.PoseFlags109));
+                return NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource, inputs.ReadForeignTarget);
             }
 
             short CenterY(NativeBattleModulePoolTask task) => unchecked((short)(PositionY(task) + (S(task, 0x52) + S(task, 0x4A)) / 2));

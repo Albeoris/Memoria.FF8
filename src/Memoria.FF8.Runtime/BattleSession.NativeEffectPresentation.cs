@@ -83,11 +83,12 @@ public sealed partial class BattleSession
             throw new InvalidOperationException("This session is not a presentation component.");
         }
         PumpNativeFileIo482590();
+        Dictionary<int, NativeBattleForeignActor> previousForeignActors = presentationForeignActors;
         presentationForeignActors = foreignActors.ToDictionary(actor => actor.Index);
         nativeCrtRandom = randomState;
         NativeCamera = NativeCamera! with { Projection = projection, ViewTranslationScratch = new(0, 0, 0) };
         presentationHostCamera = presentationHostCamera! with { Projection = projection };
-        NativeBattleGraphicsState graphics = NativeGraphics! with { Models = BindPresentationForeignModels(NativeGraphics!.Models.SetItem(0, source)), ModuleDraws = presentationFirstAdvance ? NativeGraphics.ModuleDraws : [], PrimitiveFrame = presentationFirstAdvance ? NativeGraphics.PrimitiveFrame : NativeBattlePrimitiveFrame.Clear() };
+        NativeBattleGraphicsState graphics = NativeGraphics! with { Models = BindPresentationForeignModels(NativeGraphics!.Models.SetItem(0, source), previousForeignActors), ModuleDraws = presentationFirstAdvance ? NativeGraphics.ModuleDraws : [], PrimitiveFrame = presentationFirstAdvance ? NativeGraphics.PrimitiveFrame : NativeBattlePrimitiveFrame.Clear() };
         NativeEffectMemory = NativeEffectMemory! with { PrimitiveProcess = presentationFirstAdvance ? NativeEffectMemory.PrimitiveProcess : NativeEffectMemory.PrimitiveProcess!.Reset500900(graphics.Flags), Textures = textures };
         presentationFirstAdvance = false;
         NativeGraphics = graphics;
@@ -99,7 +100,8 @@ public sealed partial class BattleSession
         NativeGraphics = graphics;
         graphics = ConsumeNativeGraphicsContacts(graphics);
 
-        NativeEffectMemory = NativeEffectMemory! with { Textures = NativeEffectMemory.Textures!.Drain505D20(NativeEffectMemory.Arena).State };
+        NativeBattleEffectMemory memory = NativeEffectMemory!;
+        NativeEffectMemory = memory with { Textures = memory.Textures!.Drain505D20(memory.Arena, NativeFileStaging, address => NativeBattleProcessTim.Resolve(memory, address), memory.ScriptedEffects).State };
         NativeEffectMemory = NativeEffectMemory.PublishSound();
         ValidateEffectPresentationServices();
         NativeGraphics = graphics with { Callback = checked(graphics.Callback + 1) };
@@ -109,7 +111,7 @@ public sealed partial class BattleSession
         return result;
     }
 
-    private ImmutableArray<NativeBattleGraphicsModel> BindPresentationForeignModels(ImmutableArray<NativeBattleGraphicsModel> models)
+    private ImmutableArray<NativeBattleGraphicsModel> BindPresentationForeignModels(ImmutableArray<NativeBattleGraphicsModel> models, Dictionary<int, NativeBattleForeignActor>? previous = null)
     {
         foreach (NativeBattleForeignActor actor in presentationForeignActors!.Values)
         {
@@ -118,8 +120,21 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Foreign presentation actors require a unique physical model slot outside source slot zero.");
             }
             NativeBattleGraphicsModel model = models[actor.Index];
+            NativeBattleModelTransform transform = actor.Transform;
+            short rotationX = 0;
+            short rotationY = actor.Facing;
+            short rotationZ = 0;
+            if (previous?.TryGetValue(actor.Index, out NativeBattleForeignActor? old) == true && model.Transform is { } current)
+            {
+                NativeBattleVector position = new(unchecked((short)(transform.Position28.X + current.Position28.X - old.Transform.Position28.X)), unchecked((short)(transform.Position28.Y + current.Position28.Y - old.Transform.Position28.Y)), unchecked((short)(transform.Position28.Z + current.Position28.Z - old.Transform.Position28.Z)));
+                transform = transform with { Position28 = position, Vertical34 = unchecked((short)(transform.Vertical34 + current.Vertical34 - old.Transform.Vertical34)) };
+                rotationX = model.Rotation12 ?? 0;
+                rotationY = unchecked((short)(actor.Facing + (model.Rotation14 ?? old.Facing) - old.Facing));
+                rotationZ = model.Rotation16 ?? 0;
+            }
             uint normal = definition.NativeGraphics?.Rules.SummonColors?.Normal ?? throw new NotSupportedException("Foreign model presentation requires its selected normal color.");
-            models = models.SetItem(actor.Index, model with { Flags0 = (ushort)(model.Flags0 | 2), Flags2 = model.Flags2 ?? 0, Transform = actor.Transform, Rotation14 = actor.Facing, GeometryWorldMatrix = actor.Geometry?.World, GeometryBounds52 = actor.Geometry?.Anchors.LocalBounds, Color40 = model.Color40 ?? 0x808080, Color44 = model.Color44 ?? (normal & 0xFFFFFFu) | 0x32000000u, HasLinkedModelRing140 = false, LinkedModelIndex140 = null });
+            NativeBattleGraphicsModel bound = model with { Flags0 = (ushort)(model.Flags0 | 2), Flags2 = model.Flags2 ?? 0, Transform = transform, Rotation12 = rotationX, Rotation14 = rotationY, Rotation16 = rotationZ, GeometryBounds52 = actor.Geometry?.Anchors.LocalBounds, Color40 = model.Color40 ?? 0x808080, Color44 = model.Color44 ?? (normal & 0xFFFFFFu) | 0x32000000u, HasLinkedModelRing140 = false, LinkedModelIndex140 = null };
+            models = models.SetItem(actor.Index, bound with { GeometryWorldMatrix = actor.Geometry is { } geometry ? NativeBattleGfMatrices.Compose56C2F0(NativeBattleForeignPlacement.Delta(actor, bound), geometry.World) : null });
         }
         return models;
     }

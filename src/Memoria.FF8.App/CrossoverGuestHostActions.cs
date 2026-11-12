@@ -178,6 +178,25 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
 
     public bool SuppressForeignActor(int slot) => fire?.Presentation.SuppressedForeignSlots.Contains(slot) == true;
 
+    public bool SuppressForeignShadow(int slot)
+    {
+        if (fire is not { Presentation.Effect: { } effect } active)
+        {
+            return false;
+        }
+        CrossoverNativeMagicTarget? target = active.Presentation.BoundTargets.SingleOrDefault(target => target.HostSlot == slot && target.Contact.ActorIndex != 0);
+        return target is not null && (effect.Graphics.Models[target.Contact.ActorIndex].Flags0 & 0x20) != 0;
+    }
+
+    public Matrix4x4? ReadForeignPlacement(int hostSlot)
+    {
+        if (fire is not { Presentation.Effect: { } effect } active)
+        {
+            return null;
+        }
+        CrossoverNativeMagicTarget? target = active.Presentation.BoundTargets.SingleOrDefault(target => target.HostSlot == hostSlot && target.Contact.ActorIndex != 0);
+        return target is null ? null : active.Placement.ResolvePresentationTransform(effect.ForeignPlacement(target.Contact.ActorIndex));
+    }
     public int ActorSlot => attack.ActorSlot;
     public Guid EncounterId => attack.EncounterId;
     public Ff7BattleGuestInvocation? Invocation => limit?.Invocation ?? fire?.Invocation ?? attack.Invocation;

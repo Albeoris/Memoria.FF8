@@ -399,7 +399,7 @@ internal sealed partial class Ff7Scene
             battleMagicArchive ??= LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.MagicArchive).Path);
             battleCureTexture ??= Ff7BattleCureResources.Load(installation);
             battleGrenadeTexture ??= Ff7BattleGrenadeResources.Load(installation);
-            battleRenderer = new(battleArchive, battle.Formation.LocationId, battleMagicArchive, cureTexture: battleCureTexture, grenadeTexture: battleGrenadeTexture);
+            battleRenderer = new(battleArchive, battle.Formation.LocationId, battleMagicArchive, cureTexture: battleCureTexture, grenadeTexture: battleGrenadeTexture, shadow: Ff7BattleShadowResources.Load(installation, battle.Formation.LocationId));
             presentedBattle = battle;
         }
         return battleRenderer!;
@@ -435,7 +435,7 @@ internal sealed partial class Ff7Scene
                     continue;
                 }
             }
-            visuals.Add(BattleActorVisual(battle, actor));
+            visuals.Add(BattleActorVisual(battle, actor) with { PresentationTransform = mixedCombat?.ActiveGuest?.ReadForeignPlacement(slot), ShadowSuppressed = mixedCombat?.ActiveGuest?.SuppressForeignShadow(slot) == true });
         }
         renderer.Render(triangles, bounds.Width, bounds.Height, new(battle.GuestRenderCameraOutput, visuals, battle.Action?.Fire, battle.Action?.Ice, battle.Action?.Bolt, Cure: battle.Action?.Cure, Braver: battle.Action?.Braver) { BeatRush = battle.Action?.BeatRushEffect, BigShot = battle.Action?.BigShot, Hitmarks = battle.Hitmarks, SecondaryEffects = battle.SecondaryEffects, PrimaryEffects = battle.PrimaryEffects, SmokeShot = battle.Action?.SmokeShot, Smog = battle.Action?.Smog, Destroyed = battle.Action?.Destroyed, SearchScope = battle.Action?.SearchScope, Rockets = battle.Action?.Rockets, StageFade = battle.RenderStageFade, Guests = MixedBattleVisuals(battle), GuestEffectLayers = mixedCombat?.Guests.Select(guest => guest.EffectVisual).OfType<CrossoverNativeEffectVisual>().ToArray() ?? [] });
     }

@@ -12,11 +12,43 @@ public sealed record CrossoverFf8BattleActorVisual(BattleModel Body, BattleModel
     public NativeBattleModelTextureBinding? BodyTextures { get; init; }
     public NativeBattleEffectTextureState? Textures { get; init; }
     public NativeBattleActionMatrix? DetachedWeapon { get; init; }
+    public NativeBattleShadowSource? ShadowSource { get; init; }
+    public bool ShadowSuppressed { get; init; }
 }
 
 public static class CrossoverFf8BattleActorRenderer
 {
     private static readonly NativeBattleActionMatrix Identity = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
+
+    public static void DrawShadow(ITriangleRenderer renderer, CrossoverFf8BattleActorVisual visual, Func<Vector3, Vector3> cameraTransform, int width, int height, float focal)
+    {
+        NativeBattleGraphicsModel model = visual.Model;
+        if (visual.ShadowSuppressed || visual.ShadowSource is not { } source || (model.Flags0 & 0x26) != 2 || (model.Flags2 is ushort flags && (flags & 0xA4) != 0) || model.Color44 == 0x32000000)
+        {
+            return;
+        }
+        NativeBattlePoseSource pose = visual.Body.NativePoseSource ?? throw new InvalidDataException("Mixed actor shadow requires its original posed body skeleton.");
+        NativeBattleEffectLocalBounds bounds = NativeBattlePoseMatrices.ShadowBounds5086F0(pose, NativeBattleBodyBoneMatrices.Require(model, pose));
+        NativeBattleShadowGeometry geometry = NativeBattlePoseMatrices.ShadowGeometry5088A0(model, bounds, Identity, source, true);
+        uint color = model.Color44 ?? throw new InvalidDataException("Mixed actor shadow requires the retained native shadow color.");
+        Vector4 center = new((color & 255) / 255f, (color >> 8 & 255) / 255f, (color >> 16 & 255) / 255f, 1);
+        Vector4 edge = new(0, 0, 0, 1);
+        if (!Matrix4x4.Decompose(visual.OriginToHost, out Vector3 scale, out _, out _) || scale.X <= 0 || MathF.Abs(scale.X - scale.Y) > 0.00001f || MathF.Abs(scale.X - scale.Z) > 0.00001f)
+        {
+            throw new NotSupportedException("Mixed native shadow depth requires a uniform positive origin-to-host scale.");
+        }
+        NativeBattlePilotVisualGeometry nativeDepth = new(default, default, default, default, default, 3) { DepthQuantum = 4, DepthOffset = -300 };
+        float Depth(float value) => nativeDepth.SampleDepth(value / scale.X) * scale.X;
+        Vector3 World(int index)
+        {
+            Vector3 transformed = NativeBattlePilotVisualGeometry.Transform(geometry.CameraMatrix, geometry.Vertices[index]);
+            return Vector3.Transform(transformed, visual.OriginToHost);
+        }
+        for (int index = 1; index <= 8; index++)
+        {
+            BattleFloorShadowSubmission.Draw(renderer, World(0), World(index), World(index + 1), center, edge, edge, cameraTransform, width, height, focal, TriangleBlend.Subtract, Depth);
+        }
+    }
 
     public static void Draw(ITriangleRenderer renderer, CrossoverFf8BattleActorVisual visual, Func<Vector3, Vector3> cameraTransform, int width, int height, float focal)
     {

@@ -140,7 +140,15 @@ internal sealed partial class Ff7Scene
     {
         EnsureMixedBattle(battle);
         return mixedCombat is { } mixed
-            ? mixed.Guests.Where(guest => battle.IsActorPresentationReady(guest.ActorSlot) && mixed.ActiveGuest?.SuppressForeignActor(guest.ActorSlot) != true).Select(guest => guest.Visual).OfType<CrossoverFf8BattleActorVisual>().ToArray()
+            ? mixed.Guests.Where(guest => battle.IsActorPresentationReady(guest.ActorSlot) && mixed.ActiveGuest?.SuppressForeignActor(guest.ActorSlot) != true).Select(guest =>
+            {
+                CrossoverFf8BattleActorVisual? visual = guest.Visual;
+                if (visual is not null && mixed.ActiveGuest?.ReadForeignPlacement(guest.ActorSlot) is { } placement)
+                {
+                    visual = visual with { OriginToHost = visual.OriginToHost * placement, ShadowSuppressed = mixed.ActiveGuest.SuppressForeignShadow(guest.ActorSlot) };
+                }
+                return visual;
+            }).OfType<CrossoverFf8BattleActorVisual>().ToArray()
             : [];
     }
 

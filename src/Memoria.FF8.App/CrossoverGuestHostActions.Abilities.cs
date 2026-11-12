@@ -24,7 +24,11 @@ internal sealed partial class CrossoverGuestHostActions
     internal string? AbilityTargetUnsupportedReason(ushort ability, int target)
     {
         CrossoverGuestAbility? choice = ReadOriginAbilities().SingleOrDefault(choice => choice.Key == ability);
-        return choice is null ? "The original ability is not available." : AbilityUnsupportedReason(choice, target);
+        if (choice is null)
+        {
+            return "The original ability is not available.";
+        }
+        return choice.NativeAction?.TargetFlags is byte flags && TargetSelectionUnsupportedReason(flags, target) is { } reason ? reason : AbilityUnsupportedReason(choice, target);
     }
 
     public string? PrepareMagicUnsupportedReason(Ff7BattleGuestPhysicalHit prepared) => PreparedAbilityUnsupportedReason(prepared, false);
@@ -71,7 +75,7 @@ internal sealed partial class CrossoverGuestHostActions
                 {
                     string? lastReason = null;
                     bool supported = false;
-                    foreach (var target in host.Actors.Where(actor => actor.Actor.Slot != 3 && (actor.Actor.HitPoints == 0) == ((flags & 1) != 0) && ((actor.Actor.Conditions & 8) != 0 || (flags & 1) != 0 && actor.Actor.Slot < 3)))
+                    foreach (var target in host.Actors.Where(actor => AbilityTargetIsLegal(flags, actor.Actor)))
                     {
                         int slot = target.Actor.Slot;
                         if (!CanSelectTarget(flags, slot))
@@ -106,9 +110,13 @@ internal sealed partial class CrossoverGuestHostActions
             return SupportsAbility(command, ability, target) ? null : "The selected native Limit process cannot target this actor.";
         }
         CrossoverGuestAbility? choice = ReadOriginAbilities().SingleOrDefault(choice => choice.Key == ability);
-        if (choice?.NativeAction?.TargetFlags is not byte flags || !CanSelectTarget(flags, target.Slot))
+        if (choice?.NativeAction?.TargetFlags is not byte flags)
         {
-            return "The original ability cannot select this side.";
+            return "The original ability has no target selection contract.";
+        }
+        if (TargetSelectionUnsupportedReason(flags, target.Slot) is { } reason)
+        {
+            return reason;
         }
         return AbilityUnsupportedReason(choice, target.Slot);
     }
@@ -127,17 +135,46 @@ internal sealed partial class CrossoverGuestHostActions
         return command == Ff7BattleCommand.Magic && choice?.NativeAction is { TargetFlags: byte flags } && CanSelectTarget(flags, target.Slot) && AbilityUnsupportedReason(choice, target.Slot) is null;
     }
 
-    private bool CanSelectTarget(byte flags, int target)
+    private bool CanSelectTarget(byte flags, int target) => TargetSelectionUnsupportedReason(flags, target) is null;
+
+    private string? TargetSelectionUnsupportedReason(byte flags, int target)
     {
-        if (target is < 0 or 3 or > 9)
+        if (target is < 0 or 3 or > 9 || host.Actors.SingleOrDefault(actor => actor.Actor.Slot == target) is not { } selected)
         {
-            return false;
+            return "The selected actor is not present.";
+        }
+        bool revive = (flags & 1) != 0;
+        bool knockedOut = selected.Actor.HitPoints == 0 || (selected.Actor.Statuses & 1) != 0;
+        if (revive && !knockedOut)
+        {
+            return "The original ability requires a knocked-out target.";
+        }
+        if (revive && target >= 4)
+        {
+            return "The host cannot restore a knocked-out enemy after its removal lifecycle.";
+        }
+        if (!revive && (knockedOut || (selected.Actor.Statuses & 0x4000) != 0))
+        {
+            return "The original ability requires a living, non-petrified target.";
+        }
+        if ((selected.Actor.Conditions & 8) == 0 && !(revive && target < 3))
+        {
+            return "The selected actor is not currently targetable.";
         }
         if ((flags & 0x30) == 0x20 || NativeBattleLimitRules.CanSelectEitherSide(flags))
         {
-            return true;
+            return null;
         }
-        return (flags & 0x40) != 0 ? target >= 4 : target < 3;
+        bool selectedSide = (flags & 0x40) != 0 ? target >= 4 : target < 3;
+        return selectedSide ? null : "The original ability cannot select this side.";
+    }
+
+    private static bool AbilityTargetIsLegal(byte flags, Ff7BattleAiActor actor)
+    {
+        bool revive = (flags & 1) != 0;
+        bool alive = actor.HitPoints != 0 && (actor.Statuses & 0x4001) == 0;
+        bool knockedOut = actor.HitPoints == 0 || (actor.Statuses & 1) != 0;
+        return actor.Slot is >= 0 and < 10 and not 3 && (!revive || actor.Slot < 3) && (revive ? knockedOut : alive) && ((actor.Conditions & 8) != 0 || revive && actor.Slot < 3);
     }
 
     private static string? TargetingUnsupportedReason(BattleNativeAction action)
@@ -230,10 +267,7 @@ internal sealed partial class CrossoverGuestHostActions
         foreach (var actor in host.Actors)
         {
             int slot = actor.Actor.Slot;
-            bool revive = (flags & 1) != 0;
-            bool alive = actor.Actor.HitPoints != 0 && (actor.Actor.Statuses & 0x4001) == 0;
-            bool knockedOut = actor.Actor.HitPoints == 0 || (actor.Actor.Statuses & 1) != 0;
-            if (slot != 3 && (!revive || slot < 3) && (all || (slot < 3) == (target < 3)) && (revive ? knockedOut : alive) && ((actor.Actor.Conditions & 8) != 0 || revive && slot < 3))
+            if (AbilityTargetIsLegal(flags, actor.Actor) && (all || (slot < 3) == (target < 3)))
             {
                 mask |= (ushort)(1 << slot);
             }

@@ -39,6 +39,37 @@ public sealed class NativeBattleBio22ControllerTests
         Assert.Null(fixture.Frame.State.DrawCursor);
     }
 
+    [Fact]
+    public void Foreign_target_uses_host_anchors_and_bounds_without_reading_a_native_pose()
+    {
+        var fixture = Fixture();
+        NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
+        uint root = hierarchy.Address(0, 0);
+        hierarchy = hierarchy.Write(root, hierarchy.Read(root).WriteByte(0x29, 2).WriteByte(0x63, 1));
+        NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(1, 0x89A8D0, 140, root, (_, _, _) => new(0, 3));
+        hierarchy = appended.Hierarchy.Write(appended.Address, appended.Hierarchy.Read(appended.Address).WriteByte(0x29, 10).WriteWord(0x24, 1));
+        NativeBattleEffectActorGeometry target = new(new(10, -600, 30), new(20, -200, 40), 50, new(new(-100, -600, -80), new(140, 0, 90)));
+        int reads = 0;
+        NativeBattleBio22Inputs inputs = fixture.Inputs with
+        {
+            ReadForeignTarget = index =>
+            {
+                Assert.Equal(3, index);
+                reads++;
+                return target;
+            }
+        };
+        NativeBattleBio22Frame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } };
+        NativeBattleBio22ChildStep step = NativeBattleBio22Controller.Advance89A7B0(frame, fixture.Resources, inputs, new(1));
+        NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(step.Frame.Effect.Pools).Read(appended.Address);
+        Assert.Equal(1, reads);
+        Assert.Equal((short)10, unchecked((short)task.ReadWord(0x40)));
+        Assert.Equal((short)-600, unchecked((short)task.ReadWord(0x42)));
+        Assert.Equal((short)50, unchecked((short)task.ReadWord(0x32)));
+        Assert.Equal((short)-100, unchecked((short)task.ReadWord(0x48)));
+        Assert.Equal((short)140, unchecked((short)task.ReadWord(0x50)));
+    }
+
     private static (NativeBattleBio22Frame Frame, NativeBattleBio22Resources Resources, NativeBattleBio22Inputs Inputs, NativeBattleEffectMemory Memory) Fixture()
     {
         var data = NativeBattleBio22GeometryTaskTests.Fixture();

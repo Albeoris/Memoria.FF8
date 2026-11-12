@@ -11,22 +11,34 @@ public static partial class NativeBattleWaterActorDraw
         actor = actor with { Flags0 = (ushort)(actor.Flags0 | 0x20) };
         NativeBattleWaterActorPoseResult local = services.ReadLocal508C90(frame, actor);
         frame = local.Frame;
-        if (local.Skeleton.IsDefaultOrEmpty || local.Skeleton[0] == 0 || local.LocalBones.IsDefault || local.LocalBones.Length != local.Skeleton[0] || local.Skeleton.Length < 0x10 + local.Skeleton[0] * 0x30)
+        if (local.Pose is null && (local.Skeleton.IsDefaultOrEmpty || local.Skeleton[0] == 0 || local.LocalBones.IsDefault || local.LocalBones.Length != local.Skeleton[0] || local.Skeleton.Length < 0x10 + local.Skeleton[0] * 0x30))
         {
             throw new InvalidDataException("Native actor shadow requires its complete current local rig and own bone lengths.");
         }
-        ImmutableArray<NativeBattleActionMatrix> world = NativeBattlePoseMatrices.ComposeStageCamera(local.LocalBones, basis, 0);
-        frame = services.PublishBones5095B0(frame, actor, world);
-        int minX = unchecked(world[0].X - 500);
-        int maxX = unchecked(world[0].X + 500);
-        int minZ = unchecked(world[0].Z - 500);
-        int maxZ = unchecked(world[0].Z + 500);
-        frame = frame.WriteTemporaryDword(0xD0, 0);
-        for (int index = 1; index < world.Length; index++)
+        ImmutableArray<NativeBattleActionMatrix> world = local.Pose is null ? NativeBattlePoseMatrices.ComposeStageCamera(local.LocalBones, basis, 0) : [];
+        if (local.Pose is null)
         {
-            short length = BinaryPrimitives.ReadInt16LittleEndian(local.Skeleton.AsSpan().Slice(0x10 + index * 0x30 + 2));
+            frame = services.PublishBones5095B0(frame, actor, world);
+        }
+        NativeBattleVector hostRoot = local.Pose is { } hostPose ? NativeBattleGfMatrices.Transform460840(basis, hostPose.ReadLocalBone(240, 0)) : default;
+        int rootX = local.Pose is null ? world[0].X : hostRoot.X;
+        int rootZ = local.Pose is null ? world[0].Z : hostRoot.Z;
+        int minX = unchecked(rootX - 500);
+        int maxX = unchecked(rootX + 500);
+        int minZ = unchecked(rootZ - 500);
+        int maxZ = unchecked(rootZ + 500);
+        frame = frame.WriteTemporaryDword(0xD0, 0);
+        int endpointCount = local.Pose?.Endpoints.Length ?? world.Length - 1;
+        if (local.Pose is not null && endpointCount <= 0)
+        {
+            throw new NotSupportedException("Actor floor shadows require current posed skeleton endpoints.");
+        }
+        for (int endpoint = 0; endpoint < endpointCount; endpoint++)
+        {
+            int index = endpoint + 1;
+            short length = local.Pose is null ? BinaryPrimitives.ReadInt16LittleEndian(local.Skeleton.AsSpan().Slice(0x10 + index * 0x30 + 2)) : (short)0;
             frame = frame.WriteTemporaryWord(0xD4, unchecked((ushort)length));
-            NativeBattleFullMacVertex full = NativeBattleGfMatrices.TransformMac460840(world[index], new(0, 0, length));
+            NativeBattleFullMacVertex full = local.Pose is { } pose ? NativeBattleGfMatrices.TransformMac460840(basis, pose.Endpoints[endpoint]) : NativeBattleGfMatrices.TransformMac460840(world[index], new(0, 0, length));
             NativeBattleVector point = Saturate(full);
             frame = TemporaryVector(frame, 0xD8, point).WriteTemporaryDword(0xFC, full.Flags);
             if (point.X < minX)
