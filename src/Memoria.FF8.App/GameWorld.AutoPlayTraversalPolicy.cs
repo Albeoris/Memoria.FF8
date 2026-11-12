@@ -238,6 +238,14 @@ internal static class AutoPlayTraversalPolicy
             // NG-063: Complete the station reunion before leaving for the lake.
             ("547:1600", "547:talk:7") => -1,
             ("547:1650", "547:line:11") => -1,
+            // NG-064: Follow the forward lake passages and the original boss trigger.
+            ("516:1700", "516:gateway:0") => -1,
+            ("512:1700" or "512:1715", "512:gateway:0" or "512:gateway:1") => -2,
+            ("513:1715" or "513:1725", "513:gateway:0" or "513:gateway:1" or "513:gateway:2") => -3,
+            ("511:1715" or "511:1725", "511:gateway:0") => -4,
+            ("517:1715" or "517:1725", "517:gateway:2" or "517:gateway:3") => -5,
+            ("514:1715", "514:line:9") => -6,
+            ("514:1725", "514:gateway:2" or "514:gateway:3") => -6,
             _ => 0
         };
     }
