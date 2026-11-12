@@ -7,6 +7,8 @@ internal sealed record AutoPlayExhaustedSurveyRequest(string NavigationKey, stri
 
 internal sealed partial class AutoPlayController
 {
+    private const int FieldDiscoveryRevision = 1;
+
     internal static string ExhaustedSurveySignature(string navigation, AutoPlayVisitGuard guard, string fingerprint)
     {
         byte[] identity = JsonSerializer.SerializeToUtf8Bytes(new { Navigation = navigation, guard.Version, guard.FieldId, guard.ProgramHash, guard.Reads, Fingerprint = fingerprint }, BeforeSnapshotJsonOptions);
@@ -18,6 +20,7 @@ internal sealed partial class AutoPlayController
         if (guard.Version == AutoPlayVisitGuard.CurrentVersion)
         {
             state.ExhaustedSurveyInspections.Add(ExhaustedSurveySignature(navigation, guard, guard.Fingerprint));
+            state.ExhaustedSurveyInspections.Add(FieldDiscoveryInspectionSignature(navigation, guard));
         }
     }
 
@@ -83,6 +86,15 @@ internal sealed partial class AutoPlayController
                 candidates[visit.Key] = new(visit.Key, signature);
                 return true;
             }
+            if (visit.Region != "world")
+            {
+                string discoverySignature = FieldDiscoveryInspectionSignature(visit.Key, guard);
+                if (!state.ExhaustedSurveyInspections.Contains(discoverySignature))
+                {
+                    candidates[visit.Key] = new(visit.Key, discoverySignature);
+                    return true;
+                }
+            }
             AutoPlayEventCoverage[] blocks = SoftWalkingBlocks(state, visit.Key);
             if (blocks.Length != 0)
             {
@@ -118,6 +130,11 @@ internal sealed partial class AutoPlayController
         }
         UpdateExhaustedSurveyTarget(state, next?.RefreshVisitKey);
         return next ?? planner.PlanNavigation(navigation, isCurrent: isCurrent, allowRemoteConditionRoutes: true, canTravel: canTravel, preferredGoal: preferredGoal);
+    }
+
+    private static string FieldDiscoveryInspectionSignature(string navigation, AutoPlayVisitGuard guard)
+    {
+        return $"field-discovery:{FieldDiscoveryRevision}:{navigation}:{guard.ProgramHash}";
     }
 
     private static AutoPlayEventCoverage[] SoftWalkingBlocks(AutoPlayRunState state, string navigation)

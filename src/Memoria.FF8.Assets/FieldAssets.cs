@@ -93,6 +93,18 @@ public sealed record FieldWalkmesh(IReadOnlyList<WalkmeshTriangle> Triangles)
 {
     public bool TryPosition(float x, float y, out Vector3 position, out int triangle, IReadOnlySet<int>? lockedTriangles = null)
     {
+        return TryPositionCore(x, y, null, float.PositiveInfinity, out position, out triangle, lockedTriangles);
+    }
+
+    public bool TryPosition(float x, float y, float nearHeight, float maximumHeightDifference, out Vector3 position, out int triangle, IReadOnlySet<int>? lockedTriangles = null)
+    {
+        return TryPositionCore(x, y, nearHeight, maximumHeightDifference, out position, out triangle, lockedTriangles);
+    }
+
+    private bool TryPositionCore(float x, float y, float? nearHeight, float bestDifference, out Vector3 position, out int triangle, IReadOnlySet<int>? lockedTriangles)
+    {
+        position = default;
+        triangle = -1;
         Vector2 p = new(x, y);
         for (int i = 0; i < Triangles.Count; i++)
         {
@@ -113,14 +125,22 @@ public sealed record FieldWalkmesh(IReadOnlyList<WalkmeshTriangle> Triangles)
             float v = Cross(b - a, p - a) / determinant;
             if (u >= -0.0001f && v >= -0.0001f && u + v <= 1.0001f)
             {
-                position = new Vector3(x, y, t.A.Z * (1 - u - v) + t.B.Z * u + t.C.Z * v);
+                float height = t.A.Z * (1 - u - v) + t.B.Z * u + t.C.Z * v;
+                float difference = nearHeight is float reference ? Math.Abs(height - reference) : 0;
+                if (difference >= bestDifference)
+                {
+                    continue;
+                }
+                bestDifference = difference;
+                position = new Vector3(x, y, height);
                 triangle = i;
-                return true;
+                if (nearHeight is null || difference == 0)
+                {
+                    return true;
+                }
             }
         }
-        position = default;
-        triangle = -1;
-        return false;
+        return triangle >= 0;
     }
 
     private static float Cross(Vector2 a, Vector2 b) => a.X * b.Y - a.Y * b.X;

@@ -61,7 +61,7 @@ internal sealed partial class GameWorld
         List<AutoPlayTarget> targets = [];
         bool Resolve(float x, float y, float z, out Vector3 position, out int triangle)
         {
-            return field.Walkmesh.TryPosition(x, y, out position, out triangle, excluded) && Math.Abs(position.Z - z) < 256;
+            return field.Walkmesh.TryPosition(x, y, z, 256, out position, out triangle, excluded);
         }
         foreach (int objectId in events.Scene.NativeActorObjectIds)
         {

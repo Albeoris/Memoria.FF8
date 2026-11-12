@@ -7,6 +7,19 @@ namespace Memoria.FF8.App.Tests;
 public sealed class AutoPlayExhaustedSurveyTests
 {
     [Fact]
+    public void SavedDiscoveryIsReinspectedOnceWhenItsRevisionReceiptIsAbsent()
+    {
+        var test = Create();
+        AutoPlayVisitGuard guard = test.State.VisitGuards["remote-nav"];
+        test.State.ExhaustedSurveyInspections.Clear();
+        test.State.ExhaustedSurveyInspections.Add(AutoPlayController.ExhaustedSurveySignature("remote-nav", guard, "A"));
+
+        Assert.Equal("remote-nav", Plan(test, "A")!.RefreshVisitKey);
+        Assert.True(AutoPlayController.CompleteExhaustedSurveyInspection(test.State, "remote-nav", _ => "A"));
+        Assert.Null(Plan(test, "A"));
+    }
+
+    [Fact]
     public void ExhaustionReinspectsEachExactInputOnceEvenWhenInitializationRestoresAnotherObservedInput()
     {
         var test = Create();
@@ -33,7 +46,7 @@ public sealed class AutoPlayExhaustedSurveyTests
         Assert.Contains(requested, test.State.ExhaustedSurveyInspections);
         Assert.Null(Plan(test, "B"));
         Assert.Null(Plan(test, "A"));
-        Assert.Equal(2, test.State.ExhaustedSurveyInspections.Count);
+        Assert.Equal(3, test.State.ExhaustedSurveyInspections.Count);
         Assert.Equal(score, AutoPlayController.ProgressScore(test.State));
         Assert.Equal(before, JsonSerializer.Serialize(test.State.Coverage));
         Assert.Equal(new[] { "remote-nav" }, test.State.InspectedVisitsSinceProgress);
@@ -50,7 +63,7 @@ public sealed class AutoPlayExhaustedSurveyTests
         Assert.True(AutoPlayController.CompleteExhaustedSurveyInspection(test.State, "remote-nav", _ => "post-init"));
 
         Assert.Null(Plan(test, "post-init"));
-        Assert.Equal(3, test.State.ExhaustedSurveyInspections.Count);
+        Assert.Equal(4, test.State.ExhaustedSurveyInspections.Count);
     }
 
     [Fact]
