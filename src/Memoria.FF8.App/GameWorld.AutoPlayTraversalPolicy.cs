@@ -246,6 +246,9 @@ internal static class AutoPlayTraversalPolicy
             ("517:1715" or "517:1725", "517:gateway:2" or "517:gateway:3") => -5,
             ("514:1715", "514:line:9") => -6,
             ("514:1725", "514:gateway:2" or "514:gateway:3") => -6,
+            // NG-065: Reveal and climb the original Esthar ladder.
+            ("518:1725" or "518:1730", "518:line:8" or "518:line-action:8") => -1,
+            ("554:1730", "554:gateway:1") => -2,
             _ => 0
         };
     }
