@@ -15,7 +15,8 @@ internal static partial class Program
         byte[] program = SyntheticObjects([1], [init, main]);
         EventEngine Create(bool native = true, byte[]? content = null)
         {
-            GameSession session = new(new GameState());
+            GameSession session = GameSession.CreateColdProcess();
+            session.Restore(session.State with { WorldControls = NativeWorldControlState.CreateNewGame(), WorldEntryMemory = NativeWorldEntryMemory.CreateNewGame(), EventRandom = session.State.EventRandom!.ClearSavedStateForNewGame() });
             EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) => 4,
@@ -23,12 +24,11 @@ internal static partial class Program
                 ResolveNativeScriptDirection = query => new NativeScriptDirectionResult(NativeScriptDirectionStatus.Stopped, query.FixedX, query.FixedY, query.MovementDirection, query.TurnAccumulator),
                 ResolveNativeScriptMovement = _ => throw new InvalidOperationException("Stopped native motion queried ground geometry.")
             };
-            engine.LoadField(100, content ?? program, []);
+            engine.LoadField(100, content ?? program, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return engine;
         }
         EventEngine fresh = Create();
         Require(fresh.Actors[0].NativeMotionAuthority == new NativeMotionAuthority(1, 0, 0), "Fresh native allocation did not initialize independent575/576 to zero.");
-        Require(JsonSerializer.Deserialize<ActorState>("{\"ObjectId\":0,\"Label\":0}")!.NativeMotionAuthority is null, "Legacy actor deserialization manufactured native motion authority.");
         for (int tick = 0; tick < 2; tick++)
         {
             fresh.Step();
@@ -40,7 +40,7 @@ internal static partial class Program
         independent.Restore(stoppedSaved);
         fresh.Step();
         independent.Step();
-        Require(JsonElement.DeepEquals(fresh.Capture(), independent.Capture()) && fresh.Actors[0].Direction == 200 && fresh.Actors[0].NativeScriptMovement is null && fresh.Actors[0].NativeMotionAuthority == new NativeMotionAuthority(1, 0, 0), "DIR/SET3 changed native direction authority after independently restored completion.");
+        Require(JsonElement.DeepEquals(fresh.Capture(), independent.Capture()) && fresh.Actors[0].Direction == 200 && fresh.Actors[0].NativeScriptMovement is { Active: false, FixedX: 4 * 4096, FixedY: 5 * 4096, FixedZ: 6 * 4096 } && fresh.Actors[0].NativeMotionAuthority == new NativeMotionAuthority(1, 0, 0), "DIR/SET3 changed native direction authority after independently restored completion.");
 
         EventEngine moving = Create();
         int proposals = 0;
@@ -85,21 +85,20 @@ internal static partial class Program
             commands.Add((Jsm.Opcode.PSHN_L, 20));
             commands.Add((Jsm.Opcode.WAIT, 0));
             commands.Add((Jsm.Opcode.RET, 0));
-            byte[] managedProgram = SyntheticObjects([1], [init, commands.ToArray()]);
-            EventEngine managed = Create(false, managedProgram);
-            bool invalidatedAtCommand = false;
-            managed.CommandExecuted += command =>
+            EventEngine unsupported = Create(false, SyntheticObjects([1], [init, commands.ToArray()]));
+            try
             {
-                if (command.Name == opcode.ToString())
+                for (int tick = 0; tick < 3; tick++)
                 {
-                    invalidatedAtCommand = managed.Actors[0].NativeMotionAuthority is null;
+                    unsupported.Step();
                 }
-            };
-            for (int tick = 0; tick < 3; tick++)
-            {
-                managed.Step();
+                throw new InvalidOperationException($"Uncertified {opcode} advanced without native movement authority.");
             }
-            Require(invalidatedAtCommand && managed.Actors[0].NativeMotionAuthority is null, $"Unbound managed {opcode} retained native scalar authority before positional mutation.");
+            catch (EventScriptException)
+            {
+            }
+            JsonElement fiber = unsupported.Capture().GetProperty("Fibers").EnumerateArray().Single(item => item.GetProperty("ScriptId").GetInt32() == 1);
+            Require(unsupported.LastFault?.Opcode == opcode.ToString() && fiber.GetProperty("Position").GetInt32() == init.Length + commands.FindIndex(command => command.Opcode == opcode) && fiber.GetProperty("Stack").GetArrayLength() == (opcode == Jsm.Opcode.MOVEA ? 2 : 4) && unsupported.Actors[0].NativeMotionAuthority == new NativeMotionAuthority(1, 0, 0) && unsupported.Actors[0].NativeScriptMovement is null, $"Uncertified {opcode} consumed its native operands or changed movement authority.");
         }
 
         EventEngine hold = Create();
@@ -107,15 +106,16 @@ internal static partial class Program
         JsonNode held = JsonNode.Parse(hold.Capture().GetRawText())!;
         held["Actors"]![0]!["NativeMotionAuthority"]!["FacingHold"] = 1;
         hold.Restore(JsonSerializer.SerializeToElement(held));
-        try
+        NativeScriptDirectionQuery? heldQuery = null;
+        hold.ResolveNativeScriptDirection = query =>
         {
-            hold.Step();
-            throw new InvalidOperationException("Unsupported facing hold576 was ignored by native MOVE.");
-        }
-        catch (EventScriptException)
-        {
-        }
-        Require(hold.LastFault is { Opcode: "MOVE" } && hold.Actors[0].NativeMotionAuthority is { FacingHold: 1 } && hold.Actors[0].NativeScriptMovement is null && hold.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1).GetProperty("Stack").GetArrayLength() == 4, "Facing hold refusal consumed operands or changed original scalar state.");
+            heldQuery = query;
+            return new NativeScriptDirectionResult(NativeScriptDirectionStatus.Stopped, query.FixedX, query.FixedY, query.MovementDirection, query.TurnAccumulator);
+        };
+        hold.Step();
+        Require(heldQuery is { HoldsFacing: true, FacingDirection: 128 } && hold.Actors[0].NativeMovementCompletion542 == 2 && hold.Actors[0].NativeMotionAuthority is { FacingHold: 1 }, "Native MOVE lost the saved facing hold while publishing physical completion.");
+        hold.Step();
+        Require(hold.Actors[0].NativeMotionAuthority is { FacingHold: 0 }, "Native MOVE did not clear the facing hold when its instruction consumed physical completion.");
         JsonElement valid = moving.Capture();
         JsonNode invalid = JsonNode.Parse(valid.GetRawText())!;
         invalid["Actors"]![0]!["NativeMotionAuthority"]!["Version"] = 2;
@@ -132,6 +132,6 @@ internal static partial class Program
         legacy["Actors"]![0]!.AsObject().Remove("NativeMotionAuthority");
         independent.Restore(JsonSerializer.SerializeToElement(legacy));
         Require(independent.Actors[0].NativeMotionAuthority is null, "Legacy checkpoint restore inferred native575 from its visible body or fresh allocation.");
-        Console.WriteLine("Native motion authority: fresh575/576 zero, DIR/SET3 preserve independent scalars, native blocked/stop/completion restore, unbound managed movement invalidation, nonzero576/schema refusal and legacy unknown retained.");
+        Console.WriteLine("Native motion authority: fresh575/576 zero, DIR/SET3 preserve independent scalars, native blocked/stop/completion restore, uncertified movement refusal, held facing and legacy unknown retained.");
     }
 }

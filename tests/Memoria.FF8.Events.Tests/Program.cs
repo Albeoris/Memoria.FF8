@@ -121,6 +121,7 @@ internal static partial class Program
                     ["dialogue-channel-style"] = DialogueChannelStyleContract,
                     ["native-dialogue-close"] = NativeDialogueCloseContract,
                     ["native-script-move"] = () => NativeScriptMovementAndBoundary(selectedGameDirectory),
+                    ["native-motion-authority"] = NativeMotionAuthorityContract,
                     ["native-rfmove"] = () =>
                     {
                         NativeAsyncRfmMoveContract(selectedGameDirectory);
