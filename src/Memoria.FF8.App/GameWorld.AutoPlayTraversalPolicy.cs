@@ -115,18 +115,28 @@ internal static class AutoPlayTraversalPolicy
             ("171:616", "171:line:20") => -3,
             ("145:616", "145:line:23" or "145:line:24") => -4,
             ("147:616", "147:line:17" or "147:line:18") => -4,
-            // NG-039: Use the second-floor deck to reach Fishermans Horizon.
-            ("163:639", "163:line:16") => -1,
-            ("171:639", "171:line:19") => -1,
-            ("174:639", "174:gateway:0") => -1,
-            ("168:639", "168:line:22") => -2,
-            ("167:639", "167:gateway:5") => -3,
-            ("172:639", "172:line:12") => -4,
-            ("254:639", "254:line:9") => -3,
-            ("249:639", "249:line:11") => -4,
-            ("137:639", "137:line:15") => -5,
-            ("139:639" or "142:639", "139:gateway:0" or "142:gateway:0") => -6,
-            ("143:639", "143:line:15") => -7,
+            // NG-039, NG-040: Use the second-floor deck to reach Fishermans Horizon.
+            ("163:639" or "163:640", "163:line:16") => -1,
+            ("171:639" or "171:640", "171:line:19") => -1,
+            ("174:639" or "174:640", "174:gateway:0") => -1,
+            ("168:639" or "168:640", "168:line:22") => -2,
+            ("167:639" or "167:640", "167:gateway:5") => -3,
+            ("172:639" or "172:640", "172:line:12") => -4,
+            ("254:639" or "254:640", "254:line:9") => -3,
+            ("249:639" or "249:640", "249:line:11") => -4,
+            ("137:639" or "137:640", "137:line:15") => -5,
+            ("139:639" or "142:639" or "139:640" or "142:640", "139:gateway:0" or "142:gateway:0") => -6,
+            ("143:639" or "143:640", "143:line:15") => -7,
+            // NG-040: Follow the dock guide's directions to the mayor.
+            ("601:640", "601:gateway:0") => -8,
+            ("630:640", "630:line:7") => -9,
+            ("625:640", "625:line:16" or "625:talk:18") => -10,
+            ("600:640", "600:gateway:0") => -11,
+            ("610:640", "610:gateway:1") => -12,
+            ("619:640", "619:gateway:0") => -13,
+            ("632:640", "632:gateway:0") => -14,
+            ("636:640", "636:gateway:0") => -15,
+            ("637:640", "637:line:8") => -16,
             _ => 0
         };
     }
@@ -146,8 +156,10 @@ internal static class AutoPlayTraversalPolicy
             "179:610:10:66:1085:17:2:3" => 3,
             // NG-036: Take the elevator to 2F for the approaching ship.
             "172:614:12:98:1227:4:2:4" => 3,
-            // NG-039: Take the elevator to 2F for Fishermans Horizon.
-            "172:639:12:98:1227:4:2:4" or "249:639:11:89:902:2:2:3" => 3,
+            // NG-039, NG-040: Take the elevator to 2F for Fishermans Horizon.
+            "172:639:12:98:1227:4:2:4" or "249:639:11:89:902:2:2:3" or "172:640:12:98:1227:4:2:4" or "249:640:11:89:902:2:2:3" => 3,
+            // NG-040: Take the town elevator down when the operator offers.
+            "625:640:18:207:2293:19:2:3" or "625:640:18:207:2227:19:2:3" => 2,
             _ => null
         };
     }

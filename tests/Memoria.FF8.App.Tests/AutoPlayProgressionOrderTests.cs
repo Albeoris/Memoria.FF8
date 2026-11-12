@@ -36,7 +36,11 @@ public sealed class AutoPlayProgressionOrderTests
     [InlineData("174:639", "174:gateway:0", -1)]
     [InlineData("249:639", "249:line:11", -4)]
     [InlineData("143:639", "143:line:15", -7)]
-    [InlineData("143:640", "143:line:15", 0)]
+    [InlineData("143:640", "143:line:15", -7)]
+    [InlineData("143:641", "143:line:15", 0)]
+    [InlineData("601:640", "601:gateway:0", -8)]
+    [InlineData("601:640", "601:gateway:1", 0)]
+    [InlineData("637:640", "637:line:8", -16)]
     public void ExplicitEntryPriorityAppliesOnlyToItsObservedStoryAndEvent(string visit, string eventId, int expected)
     {
         Assert.Equal(expected, AutoPlayTraversalPolicy.ProgressionEntryOrder(new(visit, "bg"), new(eventId, AutoPlayEventKind.Transition)));
@@ -50,6 +54,15 @@ public sealed class AutoPlayProgressionOrderTests
     [InlineData("770:478:3:19:120:6:3:6", 4)]
     [InlineData("779:462:8:85:1114:22:2:3", null)]
     public void MissileBaseDialogueUsesTheAuthoredSelectionOnlyAtTheExactPrompt(string key, int? expected)
+    {
+        Assert.Equal(expected, AutoPlayTraversalPolicy.ProgressionDialogueSelection(key));
+    }
+
+    [Theory]
+    [InlineData("625:640:18:207:2293:19:2:3", 2)]
+    [InlineData("625:640:18:207:2227:19:2:3", 2)]
+    [InlineData("625:641:18:207:2227:19:2:3", null)]
+    public void FishermansHorizonElevatorSelectsTheVisibleDownOptionAtTheExactPrompt(string key, int? expected)
     {
         Assert.Equal(expected, AutoPlayTraversalPolicy.ProgressionDialogueSelection(key));
     }
