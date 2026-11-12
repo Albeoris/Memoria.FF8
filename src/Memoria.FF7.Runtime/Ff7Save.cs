@@ -169,6 +169,8 @@ public sealed record Ff7GuestBattleSettlementReceipt(Guid EncounterId, long Fiel
 /// <summary>The inactive FFVIII payload retains its own codec and required execution contract.</summary>
 public sealed record CombinedSessionSave
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7EnemyIntegrationContext? EnemyIntegration { get; init; }
     public const string FormatIdentifier = "memoria-crossover-session";
     public string Format { get; init; } = FormatIdentifier;
     public int Version { get; init; } = 1;
@@ -202,6 +204,10 @@ public sealed record CombinedSessionSave
 
     public void Validate()
     {
+        if (EnemyIntegration is { } integration && !Enum.IsDefined(integration.Preference))
+        {
+            throw new InvalidDataException("Invalid FFVII enemy integration preference.");
+        }
         if (Format != FormatIdentifier || Version != 1 || !Enum.IsDefined(ActiveGame) || Mappings is null)
         {
             throw new InvalidDataException("Unsupported crossover save envelope.");

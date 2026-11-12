@@ -40,6 +40,11 @@ internal sealed partial class Ff7Scene
     {
         Ff7Session session = Session!;
         EnsureMixedBattle(battle);
+        if (UpdateEnemyScan())
+        {
+            UpdateAudio();
+            return;
+        }
         if (battle.Outcome != Ff7BattleOutcome.Fighting)
         {
             if (!battle.ResultReady)

@@ -16,7 +16,7 @@ internal sealed partial class CrossoverGuestHostActions
         originLimitProgress = progress;
     }
 
-    private IReadOnlyList<CrossoverGuestAbility> ReadOriginAbilities() => CrossoverGuestAbilityCatalog.Read(assets, encounter.Working, kit, originLimitProgress, limitSelection?.Crisis ?? 0);
+    private IReadOnlyList<CrossoverGuestAbility> ReadOriginAbilities() => ReadIntegratedAbilities(CrossoverGuestAbilityCatalog.Read(assets, encounter.Working, kit, originLimitProgress, limitSelection?.Crisis ?? 0));
 
     private BattleNativeAction NativeAbility(ushort ability) => ReadOriginAbilities().SingleOrDefault(choice => choice.Key == ability)?.NativeAction ?? throw new InvalidOperationException("The selected ability is not available in the original guest's current command state.");
 
@@ -53,6 +53,12 @@ internal sealed partial class CrossoverGuestHostActions
             List<Ff7BattleGuestAbility> result = [];
             foreach (CrossoverGuestAbility choice in ReadOriginAbilities())
             {
+                if (HandlesOperation(choice.Key))
+                {
+                    bool available = host.Actors.Any(actor => actor.Actor.Slot >= 4 && actor.Actor.HitPoints > 0 && OperationAvailable(choice.Key, actor.Actor.Slot));
+                    result.Add(new(Ff7BattleCommand.Magic, choice.Key, choice.Name, 0x12, choice.Stock, available ? null : "No compatible enemy is available.") { Category = choice.Category, RequiresMagic = true });
+                    continue;
+                }
                 if (choice.Command == 5 && choice.NativeAction is null && LimitReady)
                 {
                     result.Add(new(Ff7BattleCommand.Limit, 0, choice.Name, 0x12) { Category = choice.Category, RequiresMagic = false });
@@ -82,7 +88,7 @@ internal sealed partial class CrossoverGuestHostActions
                     reason = supported ? null : lastReason ?? "No valid target is available for this ability.";
                 }
                 byte hostFlags = CrossoverBattleAbilityRules.HostTargetFlags(flags);
-                result.Add(new(Ff7BattleCommand.Magic, choice.Key, choice.Name, hostFlags, choice.Stock, reason) { Category = choice.Category, RequiresMagic = choice.Command is 2 or 15 or 254 });
+                result.Add(new(Ff7BattleCommand.Magic, choice.Key, choice.Name, hostFlags, choice.Stock, reason) { Category = choice.Category, RequiresMagic = choice.Command is 2 or 15 or 254 || IsDrawCast(choice.Key) });
             }
             return result;
         }
@@ -90,6 +96,10 @@ internal sealed partial class CrossoverGuestHostActions
 
     public bool SupportsAbility(Ff7BattleCommand command, ushort ability, Ff7BattleGuestAttackTarget target)
     {
+        if (command == Ff7BattleCommand.Magic && HandlesOperation(ability))
+        {
+            return OperationAvailable(ability, target.Slot);
+        }
         if (command == Ff7BattleCommand.Limit)
         {
             return ability == 0 && LimitReady && SupportsLimit(target);
@@ -134,6 +144,10 @@ internal sealed partial class CrossoverGuestHostActions
 
     private string? AbilityUnsupportedReason(CrossoverGuestAbility choice, int target)
     {
+        if (IsDrawCast(choice.Key) && !OperationAvailable((ushort)(DrawStockKey | DrawMagic(choice.Key)), DrawSource(choice.Key)))
+        {
+            return "The Draw source is no longer available.";
+        }
         if (choice.RuleUnsupportedReason is { } rule)
         {
             return rule;

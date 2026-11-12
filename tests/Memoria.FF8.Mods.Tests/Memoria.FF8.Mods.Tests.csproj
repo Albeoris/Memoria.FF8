@@ -6,6 +6,7 @@
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
   </PropertyGroup>
   <ItemGroup>
+    <Content Include="../../Mods/Memoria/FF7EnemyIntegration/ff7/gameplay/enemy-extensions/enemies.json" Link="Fixtures/Ff7EnemyIntegration.json" CopyToOutputDirectory="PreserveNewest" />
     <Using Include="Xunit" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.runner.visualstudio" />

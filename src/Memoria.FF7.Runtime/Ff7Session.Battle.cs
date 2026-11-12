@@ -21,6 +21,14 @@ public sealed partial class Ff7Session
     private readonly Dictionary<byte, Ff7BattleCameraScriptResources> battleCameraScripts = [];
 
     public Ff7BattleSession? Battle { get; private set; }
+    private Ff7EnemyExtensionCatalog? enemyExtensions;
+    private Func<IReadOnlyList<byte>>? enemyExtensionPartyLevels;
+
+    public void ConfigureEnemyExtensions(Ff7EnemyExtensionCatalog catalog, bool enabled, Func<IReadOnlyList<byte>>? partyLevels = null)
+    {
+        enemyExtensions = enabled ? catalog : null;
+        enemyExtensionPartyLevels = partyLevels;
+    }
 
     public void SetFullCombatEnabled(bool enabled)
     {
@@ -53,7 +61,7 @@ public sealed partial class Ff7Session
         ushort flags = Host.Process.BattleRequestFlags ?? unchecked((ushort)(Host.Process.BattleMode2 != 0 ? Host.Process.BattleMode2 : Host.Process.BattleMode));
         flags |= Host.StartingEncounterInitiative;
         int track = !Host.Process.BattleMusicSuppressed && Host.Process.NextBattleMusicTrack >= 0 ? Host.ResolveNativeMusicTrack(Host.Process.NextBattleMusicTrack) : 0;
-        Battle = new(formation, Progress, battleKernel!, executable.NativeMateriaStatModifiers, request.Id, flags, animations: battleAnimations, limits: battleLimits, beatRushSymbols: beatRushSymbols, requestMode: Host.Process.BattleRequestMode, musicTrack: track > 0 ? track : null, bigShotChargeRotation: battleBigShotChargeRotation, bigShotCounterRotation: battleBigShotCounterRotation, searchScopeScaleCounter: battleSearchScopeScaleCounter, cameraScripts: LoadBattleCameraScripts(Ff7NativeAtb.ResolveLayout(formation.Layout, formation.BattleFlags, (flags & 4) != 0)), cameraPresentationCounter: battleCameraPresentationCounter, silkDirection: battleSilkDirection);
+        Battle = new(formation, Progress, battleKernel!, executable.NativeMateriaStatModifiers, request.Id, flags, animations: battleAnimations, limits: battleLimits, beatRushSymbols: beatRushSymbols, requestMode: Host.Process.BattleRequestMode, musicTrack: track > 0 ? track : null, bigShotChargeRotation: battleBigShotChargeRotation, bigShotCounterRotation: battleBigShotCounterRotation, searchScopeScaleCounter: battleSearchScopeScaleCounter, cameraScripts: LoadBattleCameraScripts(Ff7NativeAtb.ResolveLayout(formation.Layout, formation.BattleFlags, (flags & 4) != 0)), cameraPresentationCounter: battleCameraPresentationCounter, silkDirection: battleSilkDirection, enemyExtensions: enemyExtensions, enemyExtensionPartyLevels: enemyExtensionPartyLevels?.Invoke());
         return new(false);
     }
 

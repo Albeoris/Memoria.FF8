@@ -55,12 +55,23 @@ public interface IFf7BattleGuestCamera
 /// <summary>Explicit FFVIII-origin spell IDs and their origin-owned stock, independent of host spell records.</summary>
 public interface IFf7BattleGuestMagic
 {
+    bool PrepareSource(ushort ability, Func<byte> nextRandomByte, out string? failure)
+    {
+        failure = null;
+        return true;
+    }
     IReadOnlyList<ushort> MagicIds => [];
     string? PrepareMagicUnsupportedReason(Ff7BattleGuestPhysicalHit prepared) => null;
     int MagicStock(ushort ability);
     bool SupportsMagic(ushort ability, Ff7BattleGuestAttackTarget target);
     Ff7BattleGuestPhysicalHit DescribeMagic(ushort ability);
     void PrepareMagic(Ff7BattleGuestPhysicalHit prepared);
+}
+
+public interface IFf7BattleGuestOperation
+{
+    bool HandlesOperation(ushort ability);
+    string ExecuteOperation(ushort ability, int targetSlot, Func<byte> nextRandomByte);
 }
 
 public sealed partial class Ff7BattleSession
@@ -166,9 +177,22 @@ public sealed partial class Ff7BattleSession
             FinishTurn(command.ActorSlot);
             return true;
         }
+        else if (guest is IFf7BattleGuestOperation operation && operation.HandlesOperation(command.GuestAbility))
+        {
+            string message = operation.ExecuteOperation(command.GuestAbility, invocation.TargetSlot, random.NextByte);
+            state = state with { Messages = Ff7NativeBattleMessage.Enqueue(state.Messages ?? Ff7BattleMessageState.Empty, message) };
+            FinishTurn(command.ActorSlot);
+            return true;
+        }
         else if (command.GuestAbility != 0)
         {
             IFf7BattleGuestMagic magic = (IFf7BattleGuestMagic)guest;
+            if (!magic.PrepareSource(command.GuestAbility, random.NextByte, out string? failure))
+            {
+                state = state with { Messages = Ff7NativeBattleMessage.Enqueue(state.Messages ?? Ff7BattleMessageState.Empty, failure ?? "Draw failed.") };
+                FinishTurn(command.ActorSlot);
+                return true;
+            }
             Ff7BattleGuestPhysicalHit hit = magic.DescribeMagic(command.GuestAbility);
             Ff7BattleActorState source = Actor(command.ActorSlot);
             Ff7BattleActionVitals sourceVitals = new(source.Actor.HitPoints, source.Actor.MaxHitPoints, source.Actor.MagicPoints, source.Actor.MaxMagicPoints, source.Actor.Statuses);

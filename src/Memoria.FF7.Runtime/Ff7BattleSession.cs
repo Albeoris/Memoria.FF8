@@ -46,6 +46,7 @@ public sealed record Ff7BattleReaction(int Slot, long Tick);
 public sealed record Ff7BattleLimitSelection(int Slot, ushort Targets, Ff7BeatRushReel Reel);
 public sealed record Ff7BattleSnapshot(long RequestId, int FormationId, byte Layout, long Tick, Ff7BattleActorState[] Actors, Ff7BattleRngState Random, Ff7BattleCommandQueueState Queue, Ff7InventorySlot[] Inventory, Ff7BattleActionState? Action = null, Ff7BattleHit? LastHit = null, Ff7BattleOutcome Outcome = Ff7BattleOutcome.Fighting, Ff7BattleReaction? Reaction = null, Ff7BattleLimitSelection? BeatRush = null, short BeatRushPosition = 0, Ff7BattleEscapeState Escape = default, bool EscapeBlocked = false, ushort RequestFlags = 0, byte RequestMode = 0, int? EntryMusicTrack = null, Ff7BattleMessageState? Messages = null, int TerminalFrames = 0, long? EscapePoseStarted = null, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] Ff7BattleGuestVitalsBinding? GuestVitals = null)
 {
+    public Ff7ResolvedEnemyExtension[]? EnemyExtensions { get; init; }
     public Ff7BattleCameraPresentation? Camera { get; init; }
     public Ff7BattleIntroState? Intro { get; init; }
     public Ff7BattleActorMotionState? ActorMotion { get; init; }
@@ -99,10 +100,13 @@ public sealed partial class Ff7BattleSession
     private const int LogicUpdatesPerPresentation = 4;
     private Ff7BattleSnapshot state;
 
-    public Ff7BattleSession(SceneFormation formation, Ff7Progress progress, IReadOnlyList<KernelSection> kernel, IReadOnlyList<short> materiaModifiers, long requestId, ushort requestFlags = 0, Ff7BattleSnapshot? snapshot = null, Ff7BattleAnimationResources? animations = null, IReadOnlyList<Ff7BattleAttack>? limits = null, IReadOnlyList<byte>? beatRushSymbols = null, byte requestMode = 0, int? musicTrack = null, short bigShotChargeRotation = 0, short bigShotCounterRotation = 0, short searchScopeScaleCounter = 0, Ff7BattleCameraScriptResources? cameraScripts = null, byte cameraPresentationCounter = 0, short silkDirection = 1)
+    public Ff7BattleSession(SceneFormation formation, Ff7Progress progress, IReadOnlyList<KernelSection> kernel, IReadOnlyList<short> materiaModifiers, long requestId, ushort requestFlags = 0, Ff7BattleSnapshot? snapshot = null, Ff7BattleAnimationResources? animations = null, IReadOnlyList<Ff7BattleAttack>? limits = null, IReadOnlyList<byte>? beatRushSymbols = null, byte requestMode = 0, int? musicTrack = null, short bigShotChargeRotation = 0, short bigShotCounterRotation = 0, short searchScopeScaleCounter = 0, Ff7BattleCameraScriptResources? cameraScripts = null, byte cameraPresentationCounter = 0, short silkDirection = 1, Ff7EnemyExtensionCatalog? enemyExtensions = null, IReadOnlyList<byte>? enemyExtensionPartyLevels = null)
     {
         Formation = formation;
-        Data = SceneBattleData.Read(formation);
+        SceneBattleData nativeData = SceneBattleData.Read(formation);
+        Ff7ResolvedEnemyExtension[] resolvedExtensions = snapshot is null ? ResolveEnemyExtensions(nativeData, enemyExtensions, enemyExtensionPartyLevels ?? progress.Party.Where(id => id != 255).Select(id => (byte)progress.Characters.Single(c => c.Id == id).Level).ToArray()) : snapshot.EnemyExtensions ?? [];
+        Data = ApplyEnemyExtensions(nativeData, resolvedExtensions);
+        Formation = formation with { EnemyRewards = formation.EnemyRewards.Select(reward => Data.Enemies.FirstOrDefault(e => e.Placement.EnemyId == reward.EnemyId)?.Rewards ?? reward).ToArray() };
         this.kernel = kernel;
         this.animations = animations;
         this.cameraScripts = cameraScripts;
@@ -154,7 +158,7 @@ public sealed partial class Ff7BattleSession
         }
         byte layout = Ff7NativeAtb.ResolveLayout(formation.Layout, formation.BattleFlags, (requestFlags & 4) != 0);
         Ff7BattleAiActor[] setup = Ff7NativeAtb.ApplyFormationConditions(layout, initialActors.Select(actor => actor.Actor).ToArray(), Data);
-        state = new(requestId, formation.FormationId, layout, 0, initialActors.Select((actor, index) => actor with { Actor = setup[index] }).ToArray(), random.Capture(), Ff7BattleCommandQueueState.Create(), (Ff7InventorySlot[])progress.Inventory.Clone(), Escape: Ff7NativeBattleEscape.Start(formation, Ff7NativeAtb.BattleTypeForLayout(layout)), RequestFlags: requestFlags, RequestMode: requestMode, EntryMusicTrack: musicTrack) { BigShotChargeRotation = bigShotChargeRotation, BigShotCounterRotation = bigShotCounterRotation, SearchScopeScaleCounter = searchScopeScaleCounter, SilkDirection = silkDirection };
+        state = new(requestId, formation.FormationId, layout, 0, initialActors.Select((actor, index) => actor with { Actor = setup[index] }).ToArray(), random.Capture(), Ff7BattleCommandQueueState.Create(), (Ff7InventorySlot[])progress.Inventory.Clone(), Escape: Ff7NativeBattleEscape.Start(formation, Ff7NativeAtb.BattleTypeForLayout(layout)), RequestFlags: requestFlags, RequestMode: requestMode, EntryMusicTrack: musicTrack) { BigShotChargeRotation = bigShotChargeRotation, BigShotCounterRotation = bigShotCounterRotation, SearchScopeScaleCounter = searchScopeScaleCounter, SilkDirection = silkDirection, EnemyExtensions = resolvedExtensions };
         if (Data.FormationScripts is not null)
         {
             throw new NotSupportedException($"FFVII formation {formation.FormationId} requires formation-level battle scripts.");
@@ -579,6 +583,7 @@ public sealed partial class Ff7BattleSession
         {
             Actors = source.Actors.Select(actor => actor with { AiMemory = (byte[])actor.AiMemory.Clone(), AllUses = actor.AllUses is null ? null : new(actor.AllUses) }).ToArray(),
             Inventory = (Ff7InventorySlot[])source.Inventory.Clone(),
+            EnemyExtensions = source.EnemyExtensions?.Select(e => e with { DrawSlots = e.DrawSlots.ToArray(), Items = e.Items.ToArray() }).ToArray(),
             GuestSlots = source.GuestSlots is null ? null : (Ff7BattleGuestSlotState[])source.GuestSlots.Clone(),
             Action = CopyActionPrimaryEffects(CopyActionReactions(source.Action is { Motion: { VerticalSteps: { } steps } motion } action ? action with { Motion = motion with { VerticalSteps = (short[])steps.Clone() } } : source.Action)),
             Queue = queue with

@@ -26,7 +26,7 @@ public sealed class WorldSwitch
         CombinedSessionSave prepared = State with { ActiveGame = SessionGame.Ff7, Ff8Payload = (byte[])outgoingFf8.Clone(), Ff8PayloadFormat = codec, Ff7 = target };
         prepared.Validate();
         prepareDestination(target);
-        State = prepared;
+        State = prepared with { EnemyIntegration = (prepared.EnemyIntegration ?? new()) with { EnteredFromFf8 = true } };
     }
 
     public void ToFf8(WorldSwitchAvailability availability, Ff7SessionSave outgoingFf7, Action<byte[], string> prepareDestination)

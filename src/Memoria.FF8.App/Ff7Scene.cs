@@ -116,6 +116,7 @@ internal sealed partial class Ff7Scene : IDisposable
     {
         RunGuarded(() =>
         {
+            envelope = new CombinedSessionSave { ActiveGame = SessionGame.Ff7 };
             retainedBattleAtbMode = ReadRetainedBattleAtbMode(envelope);
             Attach(Ff7Session.NewGame(installation));
         });
@@ -165,6 +166,7 @@ internal sealed partial class Ff7Scene : IDisposable
                 return;
             }
             noticeWindow.Advance(gameTime.ElapsedGameTime);
+            PumpEnemyIntegration();
             if (playerMenu?.IsCapturingControls != true && PlayerSaveRequested is not null && (semanticInput.Save || semanticInput.QuickLoad || semanticInput.SaveMenu || semanticInput.LoadMenu))
             {
                 PlayerSaveRequested.Invoke(semanticInput);
@@ -394,6 +396,7 @@ internal sealed partial class Ff7Scene : IDisposable
         preparedMovieSource = null;
         preparedMovieIdentity = null;
         Session = session;
+        AttachEnemyIntegration();
         session.PartyChanged += RefreshMappedFieldCombat;
         restoredNativeBattle = session.Battle is { GuestVitalsBindings.Count: 0 } nativeBattle ? nativeBattle : null;
         AttachCharacterIdentity(session);
@@ -706,6 +709,7 @@ internal sealed partial class Ff7Scene : IDisposable
         DisposeShopMenu();
         StopAudio();
         Session?.Dispose();
+        enemyIntegrationMods?.Dispose();
         DisposeDialoguePresentation();
         errorReporter?.Dispose();
         reportClipboard.Dispose();

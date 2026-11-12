@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--enemy-extensions-only", StringComparer.Ordinal))
+{
+    EnemyExtensionTests.Run();
+    return 0;
+}
+
 if (args.Contains("--guest-only", StringComparer.Ordinal))
 {
     NativeGuestLimitTests.Run();

@@ -113,7 +113,7 @@ public sealed partial class BattleSession
 
     private static int NativeDrawQuantity(BattleCombatant actor, BattleCombatant source, int drawResist, int resistance, int random)
     {
-        return Math.Clamp(((((actor.Level - source.Level + 10) >> 1) - drawResist + (random & 31) + 1 + actor.Magic) / 5) - resistance, 0, 9);
+        return NativeBattleDrawRules.Quantity(actor.Level, source.Level, actor.Magic, drawResist, resistance, random);
     }
 
     private void ResolvePlayerDraw(BattleCombatant actor, BattleCombatant source, BattleActionPresentation command)

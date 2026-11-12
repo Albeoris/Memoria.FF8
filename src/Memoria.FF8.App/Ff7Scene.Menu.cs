@@ -59,6 +59,7 @@ internal sealed partial class Ff7Scene
                 new("order", "Order", "Change the party order or battle row.", "ff7-order"),
                 new("limit", "Limit", "View learned Limits or change the active level.", "ff7-limit"),
                 new("config", "Config", "Shared controls, graphics, audio and interface preferences.", "config"),
+                new("mods", "Mods", "Configure FFVII enemy integration and installed packages.", "ff7-enemy-integration"),
                 new("phs", "PHS", CanUsePlayerMenuPhs ? "Exchange active and reserve party members." : "PHS is unavailable at this location.", "ff7-phs", Enabled: CanUsePlayerMenuPhs),
                 new("save", "Save", "Save the current continuation.", Action: new("ff7-save"), Enabled: CanSave),
                 new("load", "Load", "Load a saved continuation.", Action: new("ff7-load"), Enabled: ContinueRequested is not null),
@@ -66,6 +67,7 @@ internal sealed partial class Ff7Scene
                 new("close", "Return", "Return to the game.", Action: new("ff7-close"))
             ]
         });
+        RegisterEnemyIntegrationMenu(playerMenu);
         RegisterNativeFieldRecoveryMenus(playerMenu);
         playerMenu.Register(new() { Id = "ff7-status", Title = "Status", Help = "Current party.", Entries = menu => menu.Data.Characters.Where(character => character.InParty).Select(character => new MenuEntry(character.Id, $"{character.Name}   Lv {character.Level}   HP {character.CurrentHp}", $"MP {character.Stats["MP"]}   EXP {character.Experience}")).ToArray(), Details = menu => [menu.SelectedEntry?.Help ?? ""] });
         RegisterMateriaMenus(playerMenu);
@@ -115,6 +117,10 @@ internal sealed partial class Ff7Scene
 
     private void ApplyPlayerMenuAction(MenuAction action)
     {
+        if (ApplyEnemyIntegrationMenuAction(action))
+        {
+            return;
+        }
         if (ApplyMateriaMenuAction(action) || ApplyNativeFieldRecoveryAction(action) || ApplyNativeCharacterMenuAction(action))
         {
             return;

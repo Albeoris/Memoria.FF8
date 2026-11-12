@@ -82,6 +82,7 @@ internal sealed partial class Ff7Game : Game
     {
         batch = new SpriteBatch(GraphicsDevice);
         scene = new Ff7Scene(GraphicsDevice, installation, mediaToolsDirectory, projection, resolveMovie, initialEnvelope, appearance, launchOptions?.AudioEnabled ?? true);
+        scene.ConfigureEnemyIntegrationMods(launchOptions?.ModsDirectory);
         scene.ConfigureCharacterIdentity(launchOptions?.GameDirectory ?? throw new InvalidOperationException("FFVII character presentation requires its primary game installation."));
         scene.RenderLimit = launchOptions?.WorldRenderLimit ?? 2048;
         Window.TextInput += (_, input) =>

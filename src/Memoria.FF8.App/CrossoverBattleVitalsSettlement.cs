@@ -243,7 +243,7 @@ internal static class CrossoverBattleVitalsSettlement
         return finalRandom;
     }
 
-    private static NativeCharacterVitals RestoreCommittedStock(CrossoverGuestMagicSettlement magic, NativeCharacterVitals original, IReadOnlyCollection<int> rows)
+    internal static NativeCharacterVitals RestoreCommittedStock(CrossoverGuestMagicSettlement magic, NativeCharacterVitals original, IReadOnlyCollection<int> rows)
     {
         NativeCharacterVitals actual = magic.Stock.Restore(magic.Roster, original);
         if (actual.MagicSystem.Reservations.Length != 0 || magic.Costs.IsDefault || magic.Costs.IsEmpty)
@@ -255,12 +255,14 @@ internal static class CrossoverBattleVitalsSettlement
         for (int index = 0; index < magic.Costs.Length; index++)
         {
             CrossoverGuestCommittedSpell cost = magic.Costs[index];
-            if (cost.Ordinal != index + 1 || cost.Spell == 0 || cost.Spell >= original.MagicSystem.SharedBattleMasks.Length || !rows.Contains(cost.OriginRow))
+            if (cost.Ordinal != index + 1 || cost.Spell == 0 || cost.Spell >= original.MagicSystem.SharedBattleMasks.Length || cost.DrawQuantity is < 0 or > 9 || cost.DrawQuantity > 0 && cost.Spell > 56 || !rows.Contains(cost.OriginRow))
             {
                 throw new InvalidDataException("Guest spell settlement contains a foreign cost occurrence.");
             }
             string action = $"{encounter}:{cost.Ordinal.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
-            expected = MagicCastingService.Commit(MagicCastingService.Reserve(expected, cost.OriginRow, cost.Spell, MagicCastContext.Battle, action), action);
+            expected = cost.DrawQuantity > 0
+                ? NativeBattleDrawRules.Resolve(expected, cost.OriginRow, cost.Spell, cost.DrawQuantity, false, out _)
+                : MagicCastingService.Commit(MagicCastingService.Reserve(expected, cost.OriginRow, cost.Spell, MagicCastContext.Battle, action), action);
         }
         if (!actual.Records.SequenceEqual(expected.Records) || JsonSerializer.Serialize(actual.MagicSystem) != JsonSerializer.Serialize(expected.MagicSystem))
         {

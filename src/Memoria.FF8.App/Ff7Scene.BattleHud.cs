@@ -56,6 +56,7 @@ internal sealed partial class Ff7Scene
         {
             DrawBattleUnsupportedAbility(canvas, theme, layout, textScale, unavailable);
         }
+        DrawEnemyScan(canvas, theme, layout, textScale);
     }
 
     internal static string BattleCommandValue(Ff7BattleCommandOption option, bool guest)

@@ -43,14 +43,14 @@ internal sealed class CrossoverGuestEncounter
         string encounter = $"mixed:{roster.EncounterId:N}";
         LegacyBattleMaskContinuation = saved?.LegacyBattleMaskContinuation == true || NextOrdinal > 1 && Working.MagicSystem.EncounterId != encounter;
         Working = NextOrdinal == 1 ? MagicCastingService.BeginEncounter(Working, encounter) : Working with { MagicSystem = Working.MagicSystem with { EncounterId = encounter } };
-        if (NextOrdinal < 1 || NextOrdinal - 1 > Working.MagicSystem.CommittedActionIds.Length || saved is not null && saved.OriginCrtRandom != crt)
+        if (NextOrdinal < 1 || saved is not null && saved.OriginCrtRandom != crt)
         {
             throw new InvalidDataException("The guest action ordinals or CRT state disagree with the suspended origin.");
         }
 
         int[] rows = participants.Select(guest => (int)origin.FindPhysicalRow(checked((byte)guest.Combat.NativeId))).ToArray();
         CommittedSpells = saved?.CommittedSpells ?? (NextOrdinal == 1 ? [] : Enumerable.Range(1, checked((int)(NextOrdinal - 1))).Select(ordinal => new CrossoverGuestCommittedSpell(ordinal, 1, rows.Single())).ToImmutableArray());
-        if (CommittedSpells.IsDefault || CommittedSpells.Length != NextOrdinal - 1 || CommittedSpells.Where((cost, index) => cost is null || cost.Ordinal != index + 1 || cost.Spell == 0 || cost.Spell >= Working.MagicSystem.SharedBattleMasks.Length || !rows.Contains(cost.OriginRow)).Any())
+        if (CommittedSpells.IsDefault || CommittedSpells.Length != NextOrdinal - 1 || CommittedSpells.Count(cost => cost.DrawQuantity == 0) > Working.MagicSystem.CommittedActionIds.Length || CommittedSpells.Where((cost, index) => cost is null || cost.Ordinal != index + 1 || cost.Spell == 0 || cost.Spell >= Working.MagicSystem.SharedBattleMasks.Length || cost.DrawQuantity is < 0 or > 9 || cost.DrawQuantity > 0 && cost.Spell > 56 || !rows.Contains(cost.OriginRow)).Any())
         {
             throw new InvalidDataException("The guest spell cost ledger contradicts its action ordinals or origin characters.");
         }

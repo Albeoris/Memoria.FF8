@@ -11,8 +11,9 @@ namespace Memoria.FF8;
 internal sealed record CrossoverGuestFireHostState(Ff7BattleGuestInvocation Invocation, long HostTick, long Subticks, bool HalfSubtick, CrossoverGunbladeHostPlacement Placement, ushort TargetRadius, Ff7BattleGuestPhysicalHit Prepared, CrossoverBattleAction? StockAction, CrossoverNativeMagicPresentationState Presentation, bool ContactPublished)
 {
     public CrossoverGuestItemDebit? ItemCost { get; init; }
+    public CrossoverDrawCastReceipt? DrawCast { get; init; }
 }
-internal sealed record CrossoverGuestCommittedSpell(long Ordinal, ushort Spell, int OriginRow);
+internal sealed record CrossoverGuestCommittedSpell(long Ordinal, ushort Spell, int OriginRow, int DrawQuantity = 0);
 internal sealed record CrossoverGuestHostActionsSnapshot(CrossoverBattleStockSnapshot Stock, NativeCrtRandomState? OriginCrtRandom, NativeCrtRandomState CrtRandom, long NextOrdinal, CrossoverGuestFireHostState? Fire)
 {
     public ImmutableArray<CrossoverGuestCommittedSpell>? CommittedSpells { get; init; }
@@ -33,7 +34,7 @@ internal sealed record CrossoverGuestHostActionsSnapshot(CrossoverBattleStockSna
 internal sealed record CrossoverGuestActorSnapshot(CrossoverGuestFireHostState? Fire, CrossoverNativeRenzokukenSelection? LimitSelection, CrossoverGuestRenzokukenHostState? Limit, NativeBattleUiRandomState? LimitUiRandom);
 
 /// <summary>One host provider for original attacks and source-owned abilities through the common encounter bridge.</summary>
-internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack, IFf7BattleGuestMagic, IFf7BattleGuestAbilities, IFf7BattleGuestCamera, IFf7BattleGuestItems, IFf7BattleGuestLimit
+internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack, IFf7BattleGuestMagic, IFf7BattleGuestAbilities, IFf7BattleGuestCamera, IFf7BattleGuestItems, IFf7BattleGuestLimit, IFf7BattleGuestOperation
 {
     private readonly CrossoverBattleRoster roster;
     private CrossoverFf8BattleKit kit;
@@ -81,7 +82,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
             BattleNativeAction original = assets.NativeActions.SingleOrDefault(action => action.Command == command && action.ActionId == legacy.Invocation.GuestAbility) ?? throw new InvalidDataException("The recorded guest action has no original source ability.");
             fire = legacy with { Presentation = legacy.Presentation with { Action = original, GlobalRandom = encounter.GlobalRandom } };
         }
-        if (fire is { } active && ((active.Invocation.GuestCommand == 4 && !CrossoverGuestItemInventory.Supports(active.Invocation.GuestAbility)) || active.Presentation.Action is null || (active.Invocation.GuestCommand == 4 ? active.Presentation.Ability : CrossoverGuestAbilityCatalog.Key(active.Presentation.Action.Command, active.Presentation.Ability)) != active.Invocation.GuestAbility || active.Invocation.RequestId != host.RequestId || active.Invocation.FormationId != host.Formation.FormationId || active.Invocation.ActorSlot != ActorSlot || active.Prepared.PreparedContact?.Invocation != active.Invocation || !OwnsActiveCost(active)))
+        if (fire is { } active && ((active.Invocation.GuestCommand == 4 && !CrossoverGuestItemInventory.Supports(active.Invocation.GuestAbility)) || active.Presentation.Action is null || (active.DrawCast is not null ? active.DrawCast.Ability : active.Invocation.GuestCommand == 4 ? active.Presentation.Ability : CrossoverGuestAbilityCatalog.Key(active.Presentation.Action.Command, active.Presentation.Ability)) != active.Invocation.GuestAbility || active.Invocation.RequestId != host.RequestId || active.Invocation.FormationId != host.Formation.FormationId || active.Invocation.ActorSlot != ActorSlot || active.Prepared.PreparedContact?.Invocation != active.Invocation || !OwnsActiveCost(active)))
         {
             throw new InvalidDataException("The saved guest spell owner contradicts its native encounter and committed stock.");
         }
@@ -121,6 +122,10 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
 
     private bool OwnsActiveCost(CrossoverGuestFireHostState active)
     {
+        if (active.DrawCast is { } draw)
+        {
+            return active.StockAction is null && active.ItemCost is null && IsDrawCast(draw.Ability) && draw.SourceSlot == DrawSource(draw.Ability) && draw.SourceSlot is >= 4 and <= 9 && draw.Magic == DrawMagic(draw.Ability) && draw.Magic is >= 1 and <= 56 && draw.Quantity is >= 1 and <= 9 && active.Presentation.Action is { Command: 2 } action && action.ActionId == draw.Magic;
+        }
         if (active.Invocation.GuestCommand == 4)
         {
             return active.StockAction is null && active.Presentation.Command == 4 && active.ItemCost is { Refunded: false } cost &&
@@ -357,7 +362,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         BattleNativeAction original = NativeAbility(invocation.GuestAbility);
         CrossoverBattleAction? stockAction = null;
         NativeCharacterVitals reserved = encounter.Working;
-        if (original.Command == 2)
+        if (original.Command == 2 && !IsDrawCast(invocation.GuestAbility))
         {
             CrossoverBattleAbilityId ability = new(SessionGame.Ff8, CrossoverBattleAbilityKind.Spell, original.ActionId);
             CrossoverBattleActorId targetId = roster.Participants.Single(participant => participant.HostSlot == target.Slot).Combat;
@@ -392,7 +397,12 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
             encounter.ReprojectKits(ActorSlot);
         }
         NativeBattleGraphicsPresentationStep clock = NativeBattleGraphicsPresentationClock.Advance(0, false, TimeSpan.FromTicks(HostTime(invocation.StartedAt)));
-        fire = new(invocation, invocation.StartedAt, clock.Subticks, clock.HalfSubtick, placement, target.CollisionRadius, hit, stockAction, program, false);
+        if (IsDrawCast(invocation.GuestAbility) && preparedDrawCast?.Ability != invocation.GuestAbility)
+        {
+            throw new InvalidDataException("Draw Cast requires its committed source result before presentation.");
+        }
+        fire = new(invocation, invocation.StartedAt, clock.Subticks, clock.HalfSubtick, placement, target.CollisionRadius, hit, stockAction, program, false) { DrawCast = preparedDrawCast };
+        preparedDrawCast = null;
         prepared = null;
     }
 
