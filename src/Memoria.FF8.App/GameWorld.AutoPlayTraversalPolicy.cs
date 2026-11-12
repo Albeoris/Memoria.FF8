@@ -172,6 +172,16 @@ internal static class AutoPlayTraversalPolicy
             ("185:854", "185:line:11") => -4,
             ("188:854", "188:push:1") => -5,
             ("188:856", "188:line:7") => -5,
+            // NG-049: Follow the rescue order through the 2F elevator and classroom.
+            ("164:874" or "164:876" or "164:878", "164:gateway:0" or "164:gateway:1") => -1,
+            ("185:874" or "185:876" or "185:878", "185:line:10" or "185:gateway:1") => -2,
+            ("169:874" or "169:876" or "169:878", "169:gateway:0") => -3,
+            ("166:874" or "166:876" or "166:878", "166:gateway:4") => -4,
+            ("173:874" or "173:876" or "173:878", "173:line:6") => -5,
+            ("138:874" or "138:876" or "138:878", "138:gateway:0") => -6,
+            ("140:874" or "140:876" or "140:878", "140:gateway:1" or "140:line:15") => -7,
+            ("233:880", "233:talk:8") => -8,
+            ("233:882", "233:gateway:0") => -8,
             _ => 0
         };
     }
@@ -189,6 +199,8 @@ internal static class AutoPlayTraversalPolicy
             "770:478:3:19:120:6:3:6" => 4,
             // NG-036: Accept the doctor's offer to speak with Cid now.
             "179:610:10:66:1085:17:2:3" => 3,
+            // NG-049: Go to the second floor to evacuate the classroom.
+            "173:874:6:55:289:3:0:1" or "173:876:6:55:289:3:0:1" or "173:878:6:55:289:3:0:1" => 0,
             // NG-036: Take the elevator to 2F for the approaching ship.
             "172:614:12:98:1227:4:2:4" => 3,
             // NG-039, NG-040: Take the elevator to 2F for Fishermans Horizon.
