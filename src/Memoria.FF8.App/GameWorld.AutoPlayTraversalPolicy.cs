@@ -52,6 +52,28 @@ internal static class AutoPlayTraversalPolicy
             ("778:478", "778:gateway:2") => -1,
             // NG-029: Continue inside Garden after the party returns from the missile base.
             ("159:490", "159:gateway:0") => -1,
+            // NG-030: Follow Xu from the Garden lobby through the second floor to Cid.
+            ("159:510", "159:gateway:0") => -1,
+            ("160:510", "160:gateway:0") => -2,
+            ("161:510", "161:gateway:0" or "161:gateway:1" or "161:gateway:2") => -3,
+            ("162:510", "162:gateway:3" or "162:gateway:4" or "162:gateway:5") => -4,
+            ("163:510", "163:line:16") => -5,
+            ("167:510", "167:gateway:5") => -6,
+            ("172:510", "172:line:12") => -7,
+            ("137:510", "137:line:15") => -8,
+            ("142:510", "142:gateway:0") => -9,
+            ("143:514", "143:line:13") => -1,
+            ("142:514", "142:gateway:1") => -2,
+            ("137:514", "137:line:14") => -3,
+            ("249:518", "249:line:12") => -1,
+            ("251:518", "251:talk:9") => -2,
+            // NG-031: Open the MD level valve before taking the lower ladder.
+            ("194:530", "194:gateway:0") => -1,
+            ("195:530", "195:line-action:7") => -2,
+            ("196:530", "196:gateway:0") => -3,
+            ("197:530", "197:line-action:7" or "197:line-action:8") => -4,
+            ("197:531", "197:gateway:0") => -1,
+            ("196:531", "196:line-action:8") => -2,
             _ => 0
         };
     }

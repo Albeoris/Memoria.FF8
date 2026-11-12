@@ -29,6 +29,20 @@ public sealed partial class EventEngine
         return distance >= 0 && distance < reach * reach;
     }
 
+    public bool IsAutoPlayDoorActionNearby(int objectId)
+    {
+        if (program is null || (uint)objectId >= actors.Count || !program.Objects[objectId].IsDoor || PlayerActor is not { } player || Scene.NativePlayerPosition is not { } position ||
+            actors[objectId] is not { LineEnabled: true, LineStart: Vector3 start, LineEnd: Vector3 end })
+        {
+            return false;
+        }
+        int distance = NativeInfDistance(start, end, new Vector3(position.X >> 12, position.Y >> 12, position.Z >> 12), out _);
+        // The native line callback checks the proposed position even if the
+        // walkmesh rejects the step. Keep the actual facing and action checks native.
+        float reach = (ushort)player.PushRadius + AutoPlayMovementStepDistance;
+        return distance >= 0 && distance < reach * reach;
+    }
+
     public bool IsAutoPlayHeldContactReturn(ScriptCommand command)
     {
         return command.Name == "RET" && AutoPlayHeldContactScript(command.ObjectId)?.Id == command.ScriptId;

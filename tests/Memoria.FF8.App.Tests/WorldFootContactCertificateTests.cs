@@ -87,6 +87,11 @@ public sealed class WorldFootContactCertificateTests
     [InlineData(0, 1, true)]
     [InlineData(33, 1, true)]
     [InlineData(34, 1, false)]
+    [InlineData(225, 1, false)]
+    [InlineData(226, 1, true)]
+    [InlineData(254, 1, true)]
+    [InlineData(227, 2, true)]
+    [InlineData(228, 2, false)]
     [InlineData(17, 255, false)]
     public void StoryWordUsesBothBytesAndExclusiveUpperBound(byte low, byte high, bool certified)
     {

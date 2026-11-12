@@ -162,26 +162,57 @@ internal sealed partial class GameWorld
             }
             Vector2 normal = Vector2.Normalize(new Vector2(-segment.Y, segment.X));
             float distance = Math.Max(1, Math.Min(8, (ushort)player.PushRadius / 2f));
-            for (int sample = 0; sample < 3; sample++)
+            int before = targets.Count;
+            AddSamples(distance, useActionReach: false);
+            if (requiresConfirm && targets.Count == before)
             {
-                Vector3 midpoint = Vector3.Lerp(start, end, (sample + 1) / 4f);
-                for (int side = 0; side < 2; side++)
+                // Wall-mounted actions can be reachable from the floor even
+                // when neither side of the line has a surface at eight units.
+                for (float fraction = 0.25f; fraction < 1 && targets.Count == before; fraction += 0.125f)
                 {
-                    Vector2 offset = normal * distance * (side == 0 ? 1 : -1);
-                    if (!Resolve(MathF.Round(midpoint.X + offset.X), MathF.Round(midpoint.Y + offset.Y), midpoint.Z, out Vector3 position, out int triangle))
+                    float reach = (ushort)player.PushRadius * fraction;
+                    if (reach > distance)
                     {
-                        continue;
+                        AddSamples(reach, useActionReach: true);
                     }
-                    string suffix = string.Empty;
-                    if (!Resolve(MathF.Round(midpoint.X - offset.X), MathF.Round(midpoint.Y - offset.Y), midpoint.Z, out Vector3 approach, out int approachTriangle))
+                }
+            }
+
+            void AddSamples(float offsetDistance, bool useActionReach)
+            {
+                float radius = (ushort)player.PushRadius;
+                for (int sample = 0; sample < 3; sample++)
+                {
+                    Vector3 midpoint = Vector3.Lerp(start, end, (sample + 1) / 4f);
+                    for (int side = 0; side < 2; side++)
                     {
-                        if (!allowSameSideFacing || !Resolve(MathF.Round(midpoint.X + offset.X * 2), MathF.Round(midpoint.Y + offset.Y * 2), midpoint.Z, out approach, out approachTriangle))
+                        Vector2 offset = normal * offsetDistance * (side == 0 ? 1 : -1);
+                        if (!Resolve(MathF.Round(midpoint.X + offset.X), MathF.Round(midpoint.Y + offset.Y), midpoint.Z, out Vector3 position, out int triangle) ||
+                            useActionReach && Vector3.DistanceSquared(position, midpoint) >= radius * radius)
                         {
                             continue;
                         }
-                        suffix = ":facing";
+                        string suffix = string.Empty;
+                        if (useActionReach || !Resolve(MathF.Round(midpoint.X - offset.X), MathF.Round(midpoint.Y - offset.Y), midpoint.Z, out Vector3 approach, out int approachTriangle))
+                        {
+                            if (!allowSameSideFacing)
+                            {
+                                continue;
+                            }
+                            if (useActionReach)
+                            {
+                                approach = position;
+                                approachTriangle = triangle;
+                            }
+                            else if (!Resolve(MathF.Round(midpoint.X + offset.X * 2), MathF.Round(midpoint.Y + offset.Y * 2), midpoint.Z, out approach, out approachTriangle))
+                            {
+                                continue;
+                            }
+                            suffix = ":facing";
+                        }
+                        int direction = useActionReach ? AutoPlayDirection(position, midpoint) : AutoPlayDirection(approach, position);
+                        targets.Add(new AutoPlayTarget($"{field.Id}:{id}:{sample}:{side}{suffix}", kind, position.X, position.Y, position.Z, triangle, objectId, destination ?? scripts.Select(script => AutoPlayScriptDestination(program, script)).FirstOrDefault(value => value is not null), scripts.Any(script => AutoPlayScriptChangesStory(program, script)), sample * 2 + side, approach.X, approach.Y, approach.Z, approachTriangle, direction, requiresConfirm));
                     }
-                    targets.Add(new AutoPlayTarget($"{field.Id}:{id}:{sample}:{side}{suffix}", kind, position.X, position.Y, position.Z, triangle, objectId, destination ?? scripts.Select(script => AutoPlayScriptDestination(program, script)).FirstOrDefault(value => value is not null), scripts.Any(script => AutoPlayScriptChangesStory(program, script)), sample * 2 + side, approach.X, approach.Y, approach.Z, approachTriangle, AutoPlayDirection(approach, position), requiresConfirm));
                 }
             }
         }

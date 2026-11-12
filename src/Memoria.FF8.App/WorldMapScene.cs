@@ -83,7 +83,8 @@ internal sealed partial class WorldMapScene : IDisposable
             //544860 establishes vehicle indexes from the selected clause's objects; loader-initialized pose2/3 do not establish vehicle presence.
             bool parkedRagnarok = footClause?.ContainsShape(1) == true;
             bool parkedGarden = !parkedRagnarok && footClause?.ContainsShape(64) == true && footClause.ContainsShape(65);
-            if (!scripted && !stationFoot && !car && !garden && !ragnarok && !parkedGarden && !parkedRagnarok && !parkedCarFoot && !HasSavedParkedCar(session.State.SavedWorld) && (footEntityType == 2 ? inputs.StoryWord is < 2140 or >= 2500 : footEntityType == 1 ? inputs.StoryWord is < 34 or >= 205 : inputs.StoryWord is >= 34 and < 205 or >= 392))
+            bool singleFootClause = ordinaryFoot && footClause is { Index: 7, MinimumStory: 482, MaximumStory: 740 };
+            if (!scripted && !stationFoot && !car && !garden && !ragnarok && !parkedGarden && !parkedRagnarok && !parkedCarFoot && !HasSavedParkedCar(session.State.SavedWorld) && !singleFootClause && (footEntityType == 2 ? inputs.StoryWord is < 2140 or >= 2500 : footEntityType == 1 ? inputs.StoryWord is < 34 or >= 205 : inputs.StoryWord is >= 34 and < 205 or >= 392))
             {
                 throw new NotSupportedException("World entry story lies outside this entity's proved native object/contact clause.");
             }

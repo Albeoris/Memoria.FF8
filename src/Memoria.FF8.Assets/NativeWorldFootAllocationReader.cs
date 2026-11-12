@@ -10,15 +10,15 @@ public sealed partial class WorldAssets
     /// <summary>Validates the selected original section9 single-foot clause before its controlled record can be excluded from contacts.</summary>
     public NativeWorldFootAllocation ReadFootAllocation(byte entityType, ushort story)
     {
-        (int index, ushort minimum, ushort maximum, byte shape) = (entityType, story) switch
+        (int index, int offset, ushort minimum, ushort maximum, byte shape) = (entityType, story) switch
         {
-            (0, < 34) => (0, (ushort)0, (ushort)34, (byte)0),
-            (1, >= 34 and < 205) => (1, (ushort)34, (ushort)205, (byte)4),
-            (0, >= 205 and < 290) => (2, (ushort)205, (ushort)290, (byte)0),
+            (0, < 34) => (0, 84, (ushort)0, (ushort)34, (byte)0),
+            (1, >= 34 and < 205) => (1, 108, (ushort)34, (ushort)205, (byte)4),
+            (0, >= 205 and < 290) => (2, 132, (ushort)205, (ushort)290, (byte)0),
+            (0, >= 482 and < 740) => (7, 364, (ushort)482, (ushort)740, (byte)0),
             _ => throw new NotSupportedException("Native foot story/entity lies outside the proved original single-record allocation clauses.")
         };
         ReadOnlySpan<byte> program = wmset.AsSpan(sections[9], sections[10] - sections[9]);
-        int offset = 84 + index * 24;
         if (program.Length < offset + 24 || BinaryPrimitives.ReadInt32LittleEndian(program[(index * 4)..]) != offset || BinaryPrimitives.ReadInt32LittleEndian(program[((index + 1) * 4)..]) != offset + 24)
         {
             throw new NotSupportedException("Native foot section9 selected clause pointers differ from the original single-record program.");

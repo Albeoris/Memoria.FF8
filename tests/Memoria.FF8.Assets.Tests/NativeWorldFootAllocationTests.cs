@@ -12,6 +12,9 @@ public sealed class NativeWorldFootAllocationTests
     [InlineData(1, 204, 1, 34, 205, 4)]
     [InlineData(0, 205, 2, 205, 290, 0)]
     [InlineData(0, 289, 2, 205, 290, 0)]
+    [InlineData(0, 482, 7, 482, 740, 0)]
+    [InlineData(0, 510, 7, 482, 740, 0)]
+    [InlineData(0, 739, 7, 482, 740, 0)]
     public void InstalledOriginalClausesSelectOnlyTheirNativeControlledFootShape(byte entity, ushort story, int clause, ushort minimum, ushort maximum, byte shape)
     {
         using var assets = new WorldAssets(TestResources.GameDirectory);
@@ -25,6 +28,9 @@ public sealed class NativeWorldFootAllocationTests
     [InlineData(1, 33)]
     [InlineData(1, 205)]
     [InlineData(2, 205)]
+    [InlineData(0, 481)]
+    [InlineData(0, 740)]
+    [InlineData(1, 510)]
     public void MismatchedEntityAndLaterMultiObjectClausesCannotReuseTheFootExclusion(byte entity, ushort story)
     {
         using var assets = new WorldAssets(TestResources.GameDirectory);
