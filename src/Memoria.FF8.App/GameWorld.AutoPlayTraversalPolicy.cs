@@ -144,6 +144,19 @@ internal static class AutoPlayTraversalPolicy
             ("184:655", "184:talk:4") => -4,
             // NG-042: The original field scripts enable the current performer's approval actor.
             ("633:692", "633:talk:3" or "633:talk:6" or "633:talk:8" or "633:talk:9") => -1,
+            // NG-043: Return to the bridge for the departure briefing.
+            ("245:743", "245:line:13") => -1,
+            ("145:743", "145:line:21") => -1,
+            ("147:743", "147:line:15") => -1,
+            ("174:743", "174:gateway:0") => -2,
+            ("171:743", "171:line:19") => -2,
+            ("168:743", "168:line:22") => -3,
+            ("163:743", "163:line:16") => -3,
+            ("167:743", "167:gateway:5") => -4,
+            ("172:743", "172:line:12") => -5,
+            ("249:743", "249:line:12") => -6,
+            ("254:743", "254:talk:6") => -7,
+            ("257:743", "257:talk:8") => -8,
             _ => 0
         };
     }
@@ -169,6 +182,9 @@ internal static class AutoPlayTraversalPolicy
             "625:640:18:207:2293:19:2:3" or "625:640:18:207:2227:19:2:3" => 2,
             // NG-042: Accept the current performance and continue the original rehearsal.
             "633:692:6:33:848:31:2:3" or "633:692:3:20:190:32:2:3" or "633:692:8:42:1641:33:2:3" or "633:692:9:46:2101:34:2:3" => 2,
+            // NG-043: Select 3F and confirm readiness when Nida asks.
+            "172:743:12:98:1227:4:2:4" => 4,
+            "257:743:8:84:3013:60:2:3" => 2,
             _ => null
         };
     }
