@@ -8,10 +8,22 @@ internal sealed partial class AutoPlayController
     private const int MissileTerminalField = 773;
     private const string MissileTerminalProgram = "17171D657A5C3BFB93AE38EF28C08DFC9174183288724C9D88E584D692420EC5";
 
-    private bool TryDriveMissileTerminal(GameWorld world)
+    private bool TryDriveMissileBaseInput(GameWorld world)
     {
         EventEngine events = world.Events;
-        if (!HasScriptedInputOwner(world, MissileTerminalField, allowControlled: false) || !world.HasCurrentFieldAllocation || events.FieldId != MissileTerminalField || events.NativeRuntimeProfile is not { IsVerified: true } || world.ReadAutoPlayFieldProgramHash(MissileTerminalField) != MissileTerminalProgram)
+        int field = events.FieldId;
+        string? program = field switch
+        {
+            777 when events.Variables.GetValueOrDefault(256) == 467 => AutoPlayTraversalPolicy.MissileLauncherProgram,
+            MissileTerminalField => MissileTerminalProgram,
+            _ => null
+        };
+        if (program is null || !HasScriptedInputOwner(world, field, allowControlled: false) || !world.HasCurrentFieldAllocation || events.NativeRuntimeProfile is not { IsVerified: true } || world.ReadAutoPlayFieldProgramHash(field) != program)
+        {
+            return false;
+        }
+        ScriptedInputQuery? launcherQuery = field == 777 ? new(10, 108, 1422, "KEYON", 128) : null;
+        if (launcherQuery is not null && events.DiscoverScriptedInput(launcherQuery.ObjectId)?.Queries.Contains(launcherQuery) != true)
         {
             return false;
         }
@@ -20,7 +32,7 @@ internal sealed partial class AutoPlayController
         run.ActiveObservedInput = null;
         run.ObserveContactInput = false;
         Apply(new(PlayerActionKind.FieldButtons, 0));
-        if (!HasNeutralScriptedInput(session.State.FieldButtonInput, MissileTerminalField, events.Frame))
+        if (!HasNeutralScriptedInput(session.State.FieldButtonInput, field, events.Frame))
         {
             AdvanceInputFrame(world);
             return true;
@@ -29,7 +41,7 @@ internal sealed partial class AutoPlayController
         List<ScriptedInputQuery> queries = [];
         void ObserveQuery(ScriptCommand command)
         {
-            if (command.FieldId == MissileTerminalField && command.Name is "KEYON" or "KEYSCAN" && command.Arguments.Count == 1)
+            if (command.FieldId == field && command.Name is "KEYON" or "KEYSCAN" && command.Arguments.Count == 1)
             {
                 queries.Add(new(command.ObjectId, command.ScriptId, command.Operation, command.Name, unchecked((ushort)command.Arguments[0])));
             }
@@ -43,11 +55,35 @@ internal sealed partial class AutoPlayController
         {
             events.CommandExecuted -= ObserveQuery;
         }
-        if (!HasScriptedInputOwner(world, MissileTerminalField, allowControlled: false) || events.LastFault is not null || world.CurrentDialogue is { CanConfirm: true } || queries.Count == 0 || queries.Any(query => query.ObjectId != queries[0].ObjectId || query.ScriptId != queries[0].ScriptId))
+        if (!HasScriptedInputOwner(world, field, allowControlled: false) || events.LastFault is not null || world.CurrentDialogue is { CanConfirm: true } || queries.Count == 0)
         {
             return true;
         }
 
+        ScriptedInputQuery? selected = launcherQuery ?? SelectMissileTerminalInput(events, queries);
+        if (selected is null || !queries.Contains(selected))
+        {
+            return true;
+        }
+        ScriptedInputMetadata input = events.DiscoverObservedScriptedInput([selected], selected.ObjectId) ?? throw new NotSupportedException("The missile-base input lost its observed native key query.");
+        if (++run.ScriptedInputSteps > 10000)
+        {
+            throw new TimeoutException("The missile-base sequence exceeded its bounded scripted input steps.");
+        }
+        if (PulseScriptedInput(input.Masks.Single(), input, allowControlled: false, prepared: true))
+        {
+            RecordRecentAction($"Missile-base input {selected.Mask} at {selected.ObjectId}/{selected.ScriptId}/{selected.Operation}");
+            ResetIdleDeadline();
+        }
+        return true;
+    }
+
+    private static ScriptedInputQuery? SelectMissileTerminalInput(EventEngine events, List<ScriptedInputQuery> queries)
+    {
+        if (queries.Any(query => query.ObjectId != queries[0].ObjectId || query.ScriptId != queries[0].ScriptId))
+        {
+            return null;
+        }
         ScriptedInputQuery owner = queries[0];
         int progress = events.EventMemory.Read(484, 1).RequireExact();
         bool ratioSet = (progress & 1) != 0;
@@ -61,24 +97,7 @@ internal sealed partial class AutoPlayController
             (2, 14) => events.EventMemory.Read(1028, 1).RequireExact() == 1 ? (753, 64, "KEYON") : (745, 32768, "KEYON"),
             _ => throw new NotSupportedException("The missile terminal reached an unsupported native input prompt.")
         };
-        ScriptedInputQuery selected = new(owner.ObjectId, owner.ScriptId, request.Operation, request.Opcode, request.Mask);
-        if (!queries.Contains(selected))
-        {
-            return true;
-        }
-
-        ScriptedInputMetadata input = events.DiscoverObservedScriptedInput([selected], owner.ObjectId) ?? throw new NotSupportedException("The missile terminal lost its observed native key query.");
-        ushort raw = (session.State.InputConfiguration ?? throw new NotSupportedException("The missile terminal requires its saved input mapping.")).RawForMappedPulse(checked((ushort)request.Mask));
-        if (++run.ScriptedInputSteps > 10000)
-        {
-            throw new TimeoutException("The missile terminal exceeded its bounded scripted input steps.");
-        }
-        if (PulseScriptedInput(raw, input, allowControlled: false, prepared: true))
-        {
-            RecordRecentAction($"Missile terminal input {request.Mask} at {owner.ObjectId}/{owner.ScriptId}/{request.Operation}");
-            ResetIdleDeadline();
-        }
-        return true;
+        return new(owner.ObjectId, owner.ScriptId, request.Operation, request.Opcode, request.Mask);
     }
 
     private static (int Operation, int Mask, string Opcode) MissileTerminalMenuInput(int current, int desired, int down, int up, int confirm)

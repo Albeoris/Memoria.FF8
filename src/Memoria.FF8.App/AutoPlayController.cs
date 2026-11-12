@@ -690,7 +690,7 @@ internal sealed partial class AutoPlayController
         {
             return;
         }
-        if (TryDriveMissileTerminal(world))
+        if (TryDriveMissileBaseInput(world))
         {
             return;
         }

@@ -56,6 +56,11 @@ internal sealed partial class GameWorld
     public AutoPlayWalkResult WalkAutoPlayApproach(AutoPlayTarget target, Action onProgress, AutoPlayIdleDeadline? idleDeadline = null, IReadOnlySet<int>? avoidedLines = null)
     {
         int field = Events.FieldId;
+        if (field == 777 && target is { ObjectId: 11, Kind: AutoPlayTargetKind.Contact, RequiresConfirm: false } && Events.Variables.GetValueOrDefault(256) == 467 &&
+            TryWalkMissileLauncherApproach(target, onProgress) is { } launcherApproach)
+        {
+            return launcherApproach;
+        }
         HashSet<int> pending = Events.Actors.Where(actor => Events.HasPendingAutoPlayInteraction(actor.ObjectId)).Select(actor => actor.ObjectId).ToHashSet();
         Vector2 destination = new(target.ApproachX ?? target.X, target.ApproachY ?? target.Y);
         WalkmeshPosition waypoint = new(new Vector3(destination, target.ApproachZ ?? target.Z), target.ApproachTriangle ?? target.Triangle);
@@ -136,6 +141,26 @@ internal sealed partial class GameWorld
             onProgress();
         }
         throw new NotSupportedException("Autoplay approach exceeded its bounded movement callback budget.");
+    }
+
+    private AutoPlayWalkResult? TryWalkMissileLauncherApproach(AutoPlayTarget target, Action onProgress)
+    {
+        if (Events.PlayerActor is not { Y: < -450 } || ReadAutoPlayFieldProgramHash(777) != AutoPlayTraversalPolicy.MissileLauncherProgram)
+        {
+            return null;
+        }
+        // NG-028: The west aisle avoids the launcher and the two workers.
+        List<WalkmeshPosition> waypoints = [];
+        foreach (Vector2 point in new Vector2[] { new(-155, -700), new(-350, -450), new(-400, -300), new(-400, -20), new(-280, -20), new(-250, -20) })
+        {
+            if (Events.ResolveWalkmesh?.Invoke(point.X, point.Y) is not { } waypoint)
+            {
+                return null;
+            }
+            waypoints.Add(waypoint);
+        }
+        AutoPlayWalkResult result = WalkAutoPlayRoute(new(waypoints), onProgress, target.ObjectId, approachTarget: target);
+        return result.Interrupted ? result : null;
     }
 
     internal static Vector2? FindAutoPlayWalkingAdvance(FieldFixedPosition position, int triangle, Vector2 destination, Func<FieldFixedPosition, int, Vector2, NativePlayerMovementResult> probe)

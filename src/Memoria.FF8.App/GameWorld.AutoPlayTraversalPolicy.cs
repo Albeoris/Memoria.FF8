@@ -5,6 +5,8 @@ namespace Memoria.FF8;
 /// <summary>Traversal priorities and prerequisites for diagnostic coordinate exploration.</summary>
 internal static class AutoPlayTraversalPolicy
 {
+    internal const string MissileLauncherProgram = "89A2114D0D0CE9310CFE1ECE116B57C9DA2C8E608194D3D11CD73C179D5031AC";
+
     public static int ProgressionEntryOrder(AutoPlayVisit visit, AutoPlayEvent item)
     {
         return (visit.Key, item.Id) switch
@@ -48,6 +50,8 @@ internal static class AutoPlayTraversalPolicy
             ("770:477" or "770:478", "770:line-action:9") => -2,
             ("770:478", "770:gateway:1") => -1,
             ("778:478", "778:gateway:2") => -1,
+            // NG-029: Continue inside Garden after the party returns from the missile base.
+            ("159:490", "159:gateway:0") => -1,
             _ => 0
         };
     }
