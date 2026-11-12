@@ -7,8 +7,12 @@ internal static class AutoPlayTraversalPolicy
 {
     internal const string MissileLauncherProgram = "89A2114D0D0CE9310CFE1ECE116B57C9DA2C8E608194D3D11CD73C179D5031AC";
 
-    public static int ProgressionEntryOrder(AutoPlayVisit visit, AutoPlayEvent item)
+    public static int ProgressionEntryOrder(AutoPlayVisit visit, AutoPlayEvent item, int galbadiaKeys = 0)
     {
+        if (visit.Key.EndsWith(":894", StringComparison.Ordinal) && GalbadiaKeyRouteOrder(galbadiaKeys, item.Id) is int keyOrder)
+        {
+            return keyOrder;
+        }
         return (visit.Key, item.Id) switch
         {
             // NG-009: This authored entry follows the other reachable Garden frontiers.
@@ -183,6 +187,19 @@ internal static class AutoPlayTraversalPolicy
             ("233:880", "233:talk:8") => -8,
             ("233:882", "233:gateway:0") => -8,
             _ => 0
+        };
+    }
+
+    internal static int? GalbadiaKeyRouteOrder(int keys, string eventId)
+    {
+        // NG-051: Use the original approaches gated by the card keys already awarded by the field scripts.
+        return (keys, eventId) switch
+        {
+            (0, "682:gateway:1" or "696:gateway:1" or "695:gateway:3" or "694:gateway:3" or "698:gateway:0" or "707:talk:6") => -1,
+            (0x10, "707:line:7" or "698:gateway:2" or "694:gateway:0" or "695:gateway:0" or "695:gateway:1" or "695:gateway:2" or "696:gateway:3" or "682:gateway:0" or "699:line:6" or "699:gateway:3" or "683:gateway:0" or "683:gateway:1" or "683:gateway:2" or "684:gateway:4" or "700:gateway:2" or "703:talk:9") => -1,
+            (0x30, "703:line:10" or "700:gateway:1" or "684:gateway:0" or "684:gateway:1" or "684:gateway:2" or "683:gateway:3" or "699:gateway:1" or "682:gateway:1" or "696:gateway:1" or "695:gateway:3" or "694:gateway:1" or "693:line:6" or "693:gateway:0" or "709:gateway:1" or "711:line:6" or "680:gateway:1" or "681:gateway:1" or "690:gateway:2" or "686:gateway:1" or "685:gateway:1" or "697:gateway:2" or "706:talk:6") => -1,
+            (0x70, "706:line:7" or "697:gateway:0" or "685:gateway:0" or "686:gateway:0" or "690:gateway:1" or "691:gateway:0" or "676:line:6" or "714:line:9") => -1,
+            _ => null
         };
     }
 

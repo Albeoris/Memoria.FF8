@@ -198,7 +198,7 @@ internal sealed partial class AutoPlayController
             session.SetFullBattlePlaythrough(fullCombat);
             initial = initial with { FullBattlePlaythrough = fullCombat ? true : null };
         }
-        planner = new(run.Coverage, (visit, item) => AutoPlayTraversalPolicy.PhaseOrder(visit.Region, item.Order), AutoPlayTraversalPolicy.ProgressionEntryOrder);
+        planner = new(run.Coverage, (visit, item) => AutoPlayTraversalPolicy.PhaseOrder(visit.Region, item.Order), ProgressionEntryOrder);
         runDirectory = Path.Combine(outputDirectory, time.GetUtcNow().ToString("yyyyMMdd-HHmmss-fffffff"));
         Directory.CreateDirectory(runDirectory);
         latestBundleManifest = null;
@@ -367,7 +367,7 @@ internal sealed partial class AutoPlayController
         }
         run.Error = null;
         run.LastProgressStep = run.Steps;
-        planner = new(run.Coverage, (visit, item) => AutoPlayTraversalPolicy.PhaseOrder(visit.Region, item.Order), AutoPlayTraversalPolicy.ProgressionEntryOrder);
+        planner = new(run.Coverage, (visit, item) => AutoPlayTraversalPolicy.PhaseOrder(visit.Region, item.Order), ProgressionEntryOrder);
         Running = true;
         Paused = false;
         Error = null;
@@ -829,6 +829,15 @@ internal sealed partial class AutoPlayController
         var (resumedWalk, skippedWalkVariant) = ResumeInterruptedGatewayWalk(world, navigation, targets);
         Func<AutoPlayPlanStep, bool>? canTravel = TravelAdmission(navigation);
         AutoPlayPlanStep? next = resumedWalk?.Plan ?? PlanWithExhaustedSurvey(run, planner, navigation, candidate => NeedsVisitRefresh(world, candidate), vertex => IsNavigationResourceCurrent(world, vertex), guard => world.ReadAutoPlayFieldProgramHash(guard.FieldId) == guard.ProgramHash ? world.Events.ReadPersistentPredicateFingerprint(guard.Reads) : null, canTravel, preferredGoal);
+        if (resumedWalk is null && session.State.WorldEntryMemory?.StoryWord == 894)
+        {
+            int keys = session.State.EventMemory.Read(343, 1).RequireExact() & 0x70;
+            AutoPlayEventCoverage? route = run.Coverage.Visits.Single(item => item.Visit.Key == visit).Events.FirstOrDefault(item => item.Available && !item.Unavailable && item.BlockedReason is null && AutoPlayTraversalPolicy.GalbadiaKeyRouteOrder(keys, item.Event.Id) < 0 && (item.Event.Kind == AutoPlayEventKind.Transition || !item.Completed));
+            if (route is not null && next?.Event.Id != route.Event.Id)
+            {
+                next = new(visit, route.Event, false);
+            }
+        }
         if (next is null)
         {
             run.ActiveTravelGoal = null;
@@ -1644,6 +1653,12 @@ internal sealed partial class AutoPlayController
             }
             ClearNativeUnavailableInteraction();
         }
+    }
+
+    private int ProgressionEntryOrder(AutoPlayVisit visit, AutoPlayEvent item)
+    {
+        int keys = session.State.WorldEntryMemory?.StoryWord == 894 ? session.State.EventMemory.Read(343, 1).RequireExact() & 0x70 : 0;
+        return AutoPlayTraversalPolicy.ProgressionEntryOrder(visit, item, keys);
     }
 
     private void ParkAutoPlayRental(WorldMapScene scene)
