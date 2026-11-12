@@ -43,7 +43,8 @@ internal sealed record CrossoverNativeMagicPresentationState(CrossoverNativeCast
     public NativeBattleLogicalOrdering? Ordering => Effect?.Graphics.PrimitiveFrame?.Pending;
     [JsonIgnore]
     public NativeBattleEffectMemory? Memory => Effect?.Memory;
-    public short StageDepth => Effect?.StageColorDepth ?? 0;
+    public NativeBattleStageColor StageColor => Effect?.StageColor ?? default;
+    public short StageDepth => StageColor.Depth;
     public short ViewTranslationY => Effect?.ViewTranslationY ?? 0;
     public ImmutableArray<int> SuppressedForeignSlots => Effect is { } effect ? BoundTargets.Where(target => target.Contact.ActorIndex != 0 && (effect.Graphics.Models[target.Contact.ActorIndex].Flags0 & 4) != 0).Select(target => target.HostSlot).ToImmutableArray() : [];
 }

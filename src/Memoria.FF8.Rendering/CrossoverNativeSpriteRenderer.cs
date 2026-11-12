@@ -6,9 +6,15 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Rendering;
 
-public sealed record CrossoverNativeStageColor(NativeBattleSummonColors Colors, short Depth)
+public sealed record CrossoverNativeStageColor(NativeBattleSummonColors Colors, short Depth, uint TargetRgb = 0)
 {
-    public uint Apply(uint argb) => Colors.Interpolate(argb, Depth, 0);
+    public uint Apply(uint argb)
+    {
+        uint native = SwapRedBlue(argb);
+        return SwapRedBlue(Colors.Interpolate(native, Depth, TargetRgb));
+    }
+
+    private static uint SwapRedBlue(uint color) => (color & 0xFF00FF00u) | ((color & 0x00FF0000u) >> 16) | ((color & 0x000000FFu) << 16);
 }
 
 public sealed record CrossoverNativeEffectVisual(CrossoverNativeSpriteRenderer Renderer, ImmutableArray<NativeBattleModuleDraw> Draws, NativeBattleEffectTextureState Textures, Matrix4x4 OriginToHost, float Scale)

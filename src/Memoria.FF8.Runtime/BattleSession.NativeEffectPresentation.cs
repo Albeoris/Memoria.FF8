@@ -56,7 +56,7 @@ public sealed partial class BattleSession
 
     private void ValidateEffectPresentationServices()
     {
-        _ = ReadEffectPresentationStageDepth();
+        _ = ReadEffectPresentationStageColor();
         NativeCamera = NativeCamera!;
     }
 
@@ -66,14 +66,10 @@ public sealed partial class BattleSession
         return host with { ControlResource = camera.ControlResource, ControlStagingSource = camera.ControlStagingSource, ControlCursor = null, ViewTranslationScratch = new(0, 0, 0) };
     }
 
-    internal short ReadEffectPresentationStageDepth()
+    internal NativeBattleStageColor ReadEffectPresentationStageColor()
     {
-        NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("The host has no native stage color owner.");
-        if (stage.Groups.Length != 4 || stage.Groups.Any(group => group.ColorDepth != stage.Groups[0].ColorDepth || group.ColorFlags != 0))
-        {
-            throw new NotSupportedException("The host can represent only uniform native stage color depth with unflagged colors across all four stage groups.");
-        }
-        return stage.Groups[0].ColorDepth;
+        NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("The host has no native arena color owner.");
+        return NativeBattleStageColor.ReadUniform(stage.Groups);
     }
 
     internal bool HasPendingEffectPresentationEvents => presentationContacts.Count != 0 || presentationSounds.Count != 0;

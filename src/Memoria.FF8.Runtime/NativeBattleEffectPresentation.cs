@@ -30,7 +30,8 @@ public sealed class NativeBattleEffectPresentation
     public NativeGlobalRandomState? GlobalRandom => owner.ReadEffectPresentationGlobalRandom();
     public NativeBattleGraphicsModel Source => Graphics.Models[0];
     public bool Complete => Memory.ReadReturnedTask5044B0() == 0 && Graphics.ModuleEffects.Head is null && Graphics.Auxiliary.Head is null && !owner.HasPendingEffectPresentationEvents;
-    public short StageColorDepth => owner.ReadEffectPresentationStageDepth();
+    public NativeBattleStageColor StageColor => owner.ReadEffectPresentationStageColor();
+    public short StageColorDepth => StageColor.Depth;
     public short ViewTranslationY => owner.NativeCamera?.ViewTranslationScratch?.Y ?? 0;
 
     public NativeBattleEffectPresentationStep Advance(NativeBattleGraphicsModel source, NativeCrtRandomState random, NativeBattleCameraProjection projection, ImmutableArray<NativeBattleForeignActor> foreignActors, NativeBattleEffectTextureState textures)
