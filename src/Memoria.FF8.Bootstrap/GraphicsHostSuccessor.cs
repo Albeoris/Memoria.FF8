@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
@@ -31,7 +32,7 @@ internal static class GraphicsHostSuccessor
                     cancellation.ThrowIfCancellationRequested();
                     Process? previousPending = pending;
                     int? previousPendingId = pending?.Id;
-                    pending = ReadSuccessor(current.Id, started, directory, token, pending, visited);
+                    pending = ReadSuccessor(current.Id, started, directory, token, pending, visited, predecessorRunning: true);
                     if (previousPendingId is int retired && !ReferenceEquals(previousPending, pending))
                     {
                         Retire(retired, directory, relays);
@@ -47,7 +48,7 @@ internal static class GraphicsHostSuccessor
                     await Task.WhenAny(exited, Task.Delay(50, cancellation));
                 }
                 await exited.WaitAsync(cancellation);
-                pending = ReadSuccessor(current.Id, started, directory, token, pending, visited);
+                pending = ReadSuccessor(current.Id, started, directory, token, pending, visited, predecessorRunning: false);
                 foreach (SuccessorOutput relay in relays.Values)
                 {
                     await relay.DrainAsync(stdout, stderr, output, error);
@@ -161,7 +162,7 @@ internal static class GraphicsHostSuccessor
         return root.GetProperty("exitCode").GetInt32();
     }
 
-    private static Process? ReadSuccessor(int processId, long started, string directory, string token, Process? pending, HashSet<int> visited)
+    private static Process? ReadSuccessor(int processId, long started, string directory, string token, Process? pending, HashSet<int> visited, bool predecessorRunning)
     {
         string path = Path.Combine(directory, processId + ".json");
         if (!File.Exists(path))
@@ -194,25 +195,53 @@ internal static class GraphicsHostSuccessor
             return pending;
         }
         pending?.Dispose();
-        Process successor = Process.GetProcessById(receipt.SuccessorProcessId);
+        Process? successor = null;
         try
         {
+            successor = Process.GetProcessById(receipt.SuccessorProcessId);
+            // Acquire a durable operating-system handle before querying process facts or acknowledging.
+            _ = successor.SafeHandle;
+            if (successor.HasExited && predecessorRunning)
+            {
+                successor.Dispose();
+                return null;
+            }
             if (successor.StartTime.ToUniversalTime().Ticks != receipt.SuccessorStarted)
             {
                 throw new InvalidDataException("The replacement game host process identity has changed.");
             }
-            // Open and retain the operating-system handle before acknowledging; the predecessor may now exit.
-            _ = successor.SafeHandle;
             string accepted = Path.Combine(directory, processId + ".accepted.json");
             string temporary = accepted + ".tmp";
             File.WriteAllText(temporary, JsonSerializer.Serialize(new { schemaVersion = 1, processId, successorProcessId = successor.Id, token }));
             File.Move(temporary, accepted, overwrite: true);
             return successor;
         }
+        catch (ArgumentException) when (predecessorRunning && successor is null)
+        {
+            return null;
+        }
+        catch (Exception exception) when (predecessorRunning && (exception is InvalidOperationException or Win32Exception) && SuccessorHasExited(receipt.SuccessorProcessId))
+        {
+            successor?.Dispose();
+            return null;
+        }
         catch
         {
-            successor.Dispose();
+            successor?.Dispose();
             throw;
+        }
+    }
+
+    private static bool SuccessorHasExited(int processId)
+    {
+        try
+        {
+            using Process process = Process.GetProcessById(processId);
+            return process.HasExited;
+        }
+        catch (ArgumentException)
+        {
+            return true;
         }
     }
 }

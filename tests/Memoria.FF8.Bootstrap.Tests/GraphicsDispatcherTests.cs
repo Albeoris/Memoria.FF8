@@ -250,6 +250,66 @@ public sealed class GraphicsDispatcherTests : IDisposable
     }
 
     [Fact]
+    public async Task DeadUnacceptedWorldSuccessorDoesNotTerminateTheRunningPredecessor()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows successor process rollback regression.");
+        string marker = Path.Combine(directory, "dead-successor-published");
+        string finish = Path.Combine(directory, "finish-source-rollback");
+        using StringWriter output = new();
+        using StringWriter error = new();
+        Task<int> run = RunAsync(GraphicsBackend.Vulkan, backend =>
+        {
+            ProcessStartInfo start = Child(backend, ReadyScript + "\n" + """
+                $start = [Diagnostics.ProcessStartInfo]::new('pwsh')
+                $start.UseShellExecute = $false
+                $start.CreateNoWindow = $true
+                foreach ($argument in @('-NoLogo', '-NoProfile', '-NonInteractive', '-Command', 'exit 0'))
+                {
+                    $start.ArgumentList.Add($argument)
+                }
+                $child = [Diagnostics.Process]::Start($start)
+                $childId = $child.Id
+                $childStarted = $child.StartTime.ToUniversalTime().Ticks
+                $child.WaitForExit()
+                $child.Dispose()
+                $request = Join-Path $env:MEMORIA_FF8_HOST_SUCCESSOR_DIRECTORY "$PID.json"
+                $receipt = @{schemaVersion=1; processId=$PID; processStarted=([Diagnostics.Process]::GetCurrentProcess().StartTime.ToUniversalTime().Ticks); token=$env:MEMORIA_FF8_HOST_SUCCESSOR_TOKEN; successorProcessId=$childId; successorStarted=$childStarted}
+                [IO.File]::WriteAllText($request + '.tmp', ($receipt | ConvertTo-Json -Compress))
+                [IO.File]::Move($request + '.tmp', $request)
+                [IO.File]::WriteAllText($env:MEMORIA_TEST_SUCCESSOR_MARKER, "$PID")
+                while (!(Test-Path -LiteralPath $env:MEMORIA_TEST_SUCCESSOR_FINISH))
+                {
+                    Start-Sleep -Milliseconds 10
+                }
+                [IO.File]::Delete($request)
+                [Console]::Out.WriteLine('source continued after rollback')
+                exit 0
+                """);
+            start.Environment["MEMORIA_TEST_SUCCESSOR_MARKER"] = marker;
+            start.Environment["MEMORIA_TEST_SUCCESSOR_FINISH"] = finish;
+            return start;
+        }, output, error);
+        try
+        {
+            await WaitForFileAsync(marker, run);
+            await Task.Delay(250, TestContext.Current.CancellationToken);
+            Assert.False(run.IsCompleted, "A failed preload must leave the running source game alive.");
+            string successors = Assert.Single(Directory.GetDirectories(Path.Combine(directory, "diagnostics"), "successors", SearchOption.AllDirectories));
+            Assert.Empty(Directory.GetFiles(successors, "*.accepted.json"));
+            File.WriteAllText(finish, "finish");
+            Assert.Equal(0, await run.WaitAsync(TimeSpan.FromSeconds(15), TestContext.Current.CancellationToken));
+            Assert.Contains("source continued after rollback", output.ToString());
+            Assert.DoesNotContain("World transfer: following game host", output.ToString());
+            Assert.Empty(failures);
+        }
+        finally
+        {
+            File.WriteAllText(finish, "finish");
+            await run.WaitAsync(TimeSpan.FromSeconds(15), TestContext.Current.CancellationToken);
+        }
+    }
+
+    [Fact]
     public async Task CancellationAfterWorldHandoffStopsTheSuccessor()
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows successor process ownership regression.");
