@@ -507,12 +507,17 @@ internal sealed partial class AutoPlayController
 
     private void Tick()
     {
-        GameWorld world = getWorld();
-        if (session.State.Scene == SceneKind.WorldMap)
+        GameWorld world;
+        using (idleDeadline.Suspend())
+        using (performance.Measure("World.Prepare"))
         {
-            ObserveSurveySegmentChanges(world);
+            world = getWorld();
+            if (session.State.Scene == SceneKind.WorldMap)
+            {
+                ObserveSurveySegmentChanges(world);
+            }
+            world.EnsureField();
         }
-        world.EnsureField();
         ApplyBattlePolicy(world);
         if (TryPlayBattle(world))
         {
