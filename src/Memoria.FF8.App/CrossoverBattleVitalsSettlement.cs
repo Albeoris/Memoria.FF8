@@ -159,9 +159,6 @@ internal static class CrossoverBattleVitalsSettlement
             }
             updated = updated with { Progression = updated.Progression! with { Clocks = updated.Progression!.Clocks with { CrtRandom = crt.Current } } };
         }
-        using MemoryStream ff8 = new();
-        GameplaySaveCodec.Write(ff8, updated);
-        byte[] settledPayload = ff8.ToArray();
         using Ff7Session staged = Ff7Session.Restore(installation, host);
         bool returnsAfterDefeat = staged.Battle!.ReturnsAfterDefeat;
         bool confirmed = battle.Outcome switch
@@ -177,6 +174,26 @@ internal static class CrossoverBattleVitalsSettlement
             throw new InvalidOperationException("The guest result has not reached the native field-result boundary.");
         }
         Ff7SessionSave settledHost = staged.Capture() with { AudioPresentation = host.AudioPresentation };
+        if (battle.Outcome == Ff7BattleOutcome.Victory)
+        {
+            Ff7BattleReward reward = settledHost.Progress.CompletedBattles.Single(receipt => receipt.FieldGeneration == host.FieldGeneration && receipt.RequestId == battle.RequestId).Reward;
+            NativeCharacterVitals rewarded = updated.Characters.Restore(installed);
+            byte[] guestParty = bindings.Select(binding => checked((byte)binding.OriginRow)).Concat(Enumerable.Repeat(byte.MaxValue, 3 - bindings.Length)).ToArray();
+            int[] eligible = BattleResultProjection.EligibleGuardianForces(rewarded with { CombatParty = guestParty });
+            // Native AP saturates the current learning byte without carrying into the next ability.
+            ushort points = checked((ushort)Math.Min(ushort.MaxValue, reward.Ff8AbilityPoints));
+            foreach (int id in eligible)
+            {
+                rewarded = rewarded.AwardGuardianForceAbilityPoints(id, points);
+            }
+            if (reward.Ff8AbilityPoints != 0 && eligible.Length > 0)
+            {
+                updated = updated with { Characters = GameplaySaveCharacters.Capture(rewarded) };
+            }
+        }
+        using MemoryStream ff8 = new();
+        GameplaySaveCodec.Write(ff8, updated);
+        byte[] settledPayload = ff8.ToArray();
         if (guests.Any(guest => CharacterHash(settledHost, guest.StoryCharacter) != guest.DormantCharacterHash))
         {
             throw new InvalidDataException("Guest settlement changed the dormant FFVII story character record.");

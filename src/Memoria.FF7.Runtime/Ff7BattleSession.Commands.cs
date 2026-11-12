@@ -668,7 +668,7 @@ public sealed partial class Ff7BattleSession
     internal Ff7Progress PublishVictory(Ff7Progress progress, long fieldGeneration)
     {
         int[] guestStoryCharacters = state.GetGuestSlotStates().Select(guest => guest.Binding.StoryCharacter).ToArray();
-        return Ff7DebugVictory.ApplyResolved(PublishVitals(progress), Formation, kernel, fieldGeneration, RequestId, random, IsDefeated, guestStoryCharacters: guestStoryCharacters, isBossBattle: IsBossBattle);
+        return Ff7DebugVictory.ApplyResolved(PublishVitals(progress), Formation, kernel, fieldGeneration, RequestId, random, IsDefeated, guestStoryCharacters: guestStoryCharacters);
     }
 
     public Ff7BattleReward PreviewVictory()
@@ -678,7 +678,7 @@ public sealed partial class Ff7BattleSession
             throw new InvalidOperationException("Only a completed FFVII victory has rewards.");
         }
         Ff7BattleRng preview = new(kernel[2].Data.Span, random.Capture());
-        return Ff7DebugVictory.ResolveRewards(Formation, preview, IsDefeated, IsBossBattle);
+        return Ff7DebugVictory.ResolveRewards(Formation, preview, IsDefeated);
     }
 
     private bool IsBossBattle => animations is not null && state.Actors.Any(actor => actor.Actor.Slot >= 4 && Ff7BattleActorDeath.IsBossKind(animations.DeathType(ActorModel(actor.Actor.Slot))));

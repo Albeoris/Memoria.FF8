@@ -66,9 +66,26 @@ public sealed class CrossoverBattleVitalsSettlementTests(ITestOutputHelper outpu
         using GameAssets game = new(ff8Root!);
         using BattleAssets assets = new(ff8Root!);
         NativeCharacterVitals installed = game.ReadNewGameCharacterVitals();
+        NativeCharacterVitals withGuardianForces = installed;
+        for (int id = 0; id < 4; id++)
+        {
+            withGuardianForces = withGuardianForces.AcquireGuardianForce(id);
+            withGuardianForces.GuardianForces[id] = withGuardianForces.GuardianForces[id] with { HitPoints = 1 };
+        }
+        int squallRow = withGuardianForces.FindPhysicalRow(0);
+        int zellRow = withGuardianForces.FindPhysicalRow(1);
+        NativeCharacterVital[] junctioned = withGuardianForces.Records.ToArray();
+        junctioned[squallRow] = junctioned[squallRow] with { Junction = junctioned[squallRow].Junction with { GuardianForces = 7 } };
+        junctioned[zellRow] = junctioned[zellRow] with { Junction = junctioned[zellRow].Junction with { GuardianForces = 8 } };
+        withGuardianForces = withGuardianForces with { Records = junctioned };
+        withGuardianForces.GuardianForces[2] = withGuardianForces.GuardianForces[2] with { HitPoints = 0 };
+        NativeGuardianForceAbility learning = withGuardianForces.GuardianForceAbilities(0).First(ability => !ability.Learned && ability.RequiredPoints > 1);
+        withGuardianForces = withGuardianForces.SelectGuardianForceLearning(0, learning.Ability).AwardGuardianForceAbilityPoints(0, checked((ushort)(learning.RequiredPoints - 1)));
+        NativeGuardianForceAbility secondLearning = withGuardianForces.GuardianForceAbilities(1).First(ability => !ability.Learned && ability.RequiredPoints > 1);
+        withGuardianForces = withGuardianForces.SelectGuardianForceLearning(1, secondLearning.Ability);
         GameplaySaveComponentDocument document = GameplaySaveSessionLoaderTests.Document(game, world: false) with
         {
-            Characters = GameplaySaveCharacters.Capture(installed),
+            Characters = GameplaySaveCharacters.Capture(withGuardianForces),
             Economy = GameplaySaveEconomy.Capture(game.ReadNewGameEconomy()),
             Limits = GameplaySaveLimitProgress.Capture(game.ReadNewGameLimitProgress())
         };
@@ -123,6 +140,7 @@ public sealed class CrossoverBattleVitalsSettlementTests(ITestOutputHelper outpu
             Assert.Equal(Ff7BattleOutcome.Defeat, loss.Receipt.Outcome);
             Assert.Equal(new NativeHpWord(0, 0), CrossoverSaveAdapter.ReadFf8(loss.Save).Characters.Records[binding.OriginRow].HitPoints);
             Assert.Equal((ushort)1, CrossoverSaveAdapter.ReadFf8(loss.Save).Characters.Records[binding.OriginRow].Status);
+            Assert.Equal(JsonSerializer.Serialize(document.Characters.GuardianForces), JsonSerializer.Serialize(CrossoverSaveAdapter.ReadFf8(loss.Save).Characters.GuardianForces));
             Assert.Same(loss.Save, CrossoverBattleVitalsSettlement.PrepareResult(loss.Save, installation, installed).Save);
         }
         for (int tick = 0; tick < 2000 && battle.ReadyPlayer != 0; tick++)
@@ -161,6 +179,7 @@ public sealed class CrossoverBattleVitalsSettlementTests(ITestOutputHelper outpu
         Assert.Equal(Ff7BattleOutcome.Victory, battle.Outcome);
         Assert.True(battle.ResultReady);
         Ff7BattleReward expectedReward = battle.PreviewVictory();
+        Assert.True(expectedReward.Ff8AbilityPoints > 0);
         int potionDrops = expectedReward.Items.Where(item => item.ItemId == 0).Sum(item => item.Quantity);
         Assert.False(cold.ConfirmBattleVictory());
         ushort expectedHp = checked((ushort)GuestHp(battle));
@@ -180,6 +199,15 @@ public sealed class CrossoverBattleVitalsSettlementTests(ITestOutputHelper outpu
         Assert.Equal(originalCloud, JsonSerializer.Serialize(staged.Save.Ff7.Progress.Characters.Single(character => character.Id == 0)));
         Assert.Equal(Math.Min(99, potionBefore - 1 + potionDrops), staged.Save.Ff7.Progress.Inventory.SingleOrDefault(item => item.ItemId == 0)?.Quantity ?? 0);
         GameplaySaveComponentDocument updated = CrossoverSaveAdapter.ReadFf8(staged.Save);
+        NativeCharacterVitals expectedProgress = document.Characters.Restore(installed).AwardGuardianForceAbilityPoints(0, checked((ushort)expectedReward.Ff8AbilityPoints)).AwardGuardianForceAbilityPoints(1, checked((ushort)expectedReward.Ff8AbilityPoints));
+        GameplaySaveCharacters expectedCharacters = GameplaySaveCharacters.Capture(expectedProgress);
+        Assert.Equal(JsonSerializer.Serialize(expectedCharacters.GuardianForces), JsonSerializer.Serialize(updated.Characters.GuardianForces));
+        NativeCharacterVitals rewarded = updated.Characters.Restore(installed);
+        Assert.True(rewarded.GuardianForceAbilities(0).Single(ability => ability.Ability == learning.Ability).Learned);
+        Assert.NotEqual(learning.Ability, rewarded.GuardianForces[0].Learning);
+        Assert.Equal((int)expectedReward.Ff8AbilityPoints, rewarded.GuardianForceAbilities(1).Single(ability => ability.Ability == secondLearning.Ability).Progress);
+        Assert.Equal(JsonSerializer.Serialize(document.Characters.GuardianForces[2]), JsonSerializer.Serialize(updated.Characters.GuardianForces[2]));
+        Assert.Equal(JsonSerializer.Serialize(document.Characters.GuardianForces[3]), JsonSerializer.Serialize(updated.Characters.GuardianForces[3]));
         NativeCharacterVital original = document.Characters.Records[binding.OriginRow];
         NativeCharacterVital changed = updated.Characters.Records[binding.OriginRow];
         Assert.Equal(original with { HitPoints = new(expectedHp, expectedHp) }, changed);
@@ -187,7 +215,7 @@ public sealed class CrossoverBattleVitalsSettlementTests(ITestOutputHelper outpu
         reverted[binding.OriginRow] = original;
         Assert.Equal(gunblade.Capture().GlobalRandom, updated.Progression!.Clocks.GlobalRandom);
         Assert.NotEqual(document.Progression!.Clocks.GlobalRandom, updated.Progression.Clocks.GlobalRandom);
-        Assert.Equal(JsonSerializer.Serialize(document), JsonSerializer.Serialize(updated with { Characters = updated.Characters with { Records = reverted }, Progression = updated.Progression with { Clocks = updated.Progression.Clocks with { GlobalRandom = document.Progression.Clocks.GlobalRandom } } }));
+        Assert.Equal(JsonSerializer.Serialize(document), JsonSerializer.Serialize(updated with { Characters = updated.Characters with { Records = reverted, GuardianForces = document.Characters.GuardianForces }, Progression = updated.Progression with { Clocks = updated.Progression.Clocks with { GlobalRandom = document.Progression.Clocks.GlobalRandom } } }));
         GameState restoredOrigin = GameplaySaveSessionLoader.Restore(updated, ff8Root!, sharedAssets: game);
         Assert.Equal(new NativeHpWord(expectedHp, expectedHp), restoredOrigin.CharacterVitals!.Records[binding.OriginRow].HitPoints);
         Assert.Equal(gunblade.Capture().GlobalRandom, restoredOrigin.GlobalRandom);
@@ -198,6 +226,7 @@ public sealed class CrossoverBattleVitalsSettlementTests(ITestOutputHelper outpu
         CrossoverBattleVitalsSettlementResult retry = CrossoverBattleVitalsSettlement.PrepareVictory(settled, installation, installed, RoundTrip(staged.Receipt));
         Assert.Same(settled, retry.Save);
         Assert.Same(settled, CrossoverBattleVitalsSettlement.PrepareVictory(settled, installation, installed).Save);
+        Assert.Equal(JsonSerializer.Serialize(updated.Characters.GuardianForces), JsonSerializer.Serialize(CrossoverSaveAdapter.ReadFf8(retry.Save).Characters.GuardianForces));
         Assert.Single(settled.GuestBattleSettlements!);
         Assert.Throws<InvalidDataException>(() => (settled with { GuestBattleSettlements = [staged.Receipt, staged.Receipt] }).Validate());
         Assert.Throws<InvalidDataException>(() => (settled with { GuestBattleSettlements = [staged.Receipt with { RequestId = staged.Receipt.RequestId + 1 }] }).Validate());
@@ -225,6 +254,7 @@ public sealed class CrossoverBattleVitalsSettlementTests(ITestOutputHelper outpu
             Assert.Null(escaped.Save.Ff7!.Battle);
             Assert.Equal((ushort)1, escaped.Save.Ff7.Progress.BattleEscapes);
             Assert.Single(escaped.Save.Ff7.Progress.CompletedBattles);
+            Assert.Equal(JsonSerializer.Serialize(updated.Characters.GuardianForces), JsonSerializer.Serialize(CrossoverSaveAdapter.ReadFf8(escaped.Save).Characters.GuardianForces));
             Assert.Equal(originalCloud, JsonSerializer.Serialize(escaped.Save.Ff7.Progress.Characters.Single(character => character.Id == 0)));
             Assert.Same(escaped.Save, CrossoverBattleVitalsSettlement.PrepareResult(escaped.Save, installation, installed).Save);
         }

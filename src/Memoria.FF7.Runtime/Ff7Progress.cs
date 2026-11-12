@@ -4,7 +4,11 @@ public sealed record Ff7CharacterState(int Id, string Name, int Level, uint Expe
 public sealed record Ff7InventorySlot(int ItemId, int Quantity);
 public sealed record Ff7MateriaState(int MateriaId, uint AbilityPoints, int? NativeSlot = null);
 public sealed record Ff7RewardItem(int ItemId, int Quantity);
-public sealed record Ff7BattleReward(uint Gil, uint Experience, uint AbilityPoints, Ff7RewardItem[] Items);
+public sealed record Ff7BattleReward(uint Gil, uint Experience, uint AbilityPoints, Ff7RewardItem[] Items)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public uint Ff8AbilityPoints => AbilityPoints / 2;
+}
 public sealed record Ff7BattleReceipt(long FieldGeneration, long RequestId, ushort Formation, Ff7BattleReward Reward);
 
 /// <summary>FFVII progression has no FFVIII character, item, variable or reward identifiers.</summary>

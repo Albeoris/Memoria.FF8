@@ -22,13 +22,17 @@ internal static class NativeBattleTests
         SceneEnemyReward enemy = new(10, ReadOnlyMemory<byte>.Empty, 16, 10, 2, [new(3, 64), new(0, 0), new(1, 63), new(-1, 255)], ReadOnlyMemory<byte>.Empty);
         SceneFormation formation = new(300, 0, -1, 0, 0, 0, 0, [], [new(10, Vector3.Zero, 0, 0, 0), new(10, Vector3.Zero, 0, 0, 0)], [enemy], ReadOnlyMemory<byte>.Empty);
         Ff7BattleReward rewards = Ff7DebugVictory.ResolveRewards(formation, random);
-        Check(rewards.Gil == 20 && rewards.Experience == 32 && rewards.AbilityPoints == 2, "Every defeated ordinary enemy instance must contribute one AP.");
+        Check(rewards.Gil == 20 && rewards.Experience == 32 && rewards.AbilityPoints == 4 && rewards.Ff8AbilityPoints == 2, "Every defeated enemy instance must contribute its original AP, with half the total for FFVIII.");
         Check(rewards.Items.SequenceEqual(new Ff7RewardItem[] { new(0, 1), new(1, 1) }), "Drop selectors, inclusive zero-rate comparison or first successful slot changed.");
         Check(random.Capture().Indices[0] == 3, "Skipped steal slots must not consume drop randomness.");
-        Ff7BattleReward bossRewards = Ff7DebugVictory.ResolveRewards(formation, new(kernel, new(new byte[8])), isBossBattle: true);
-        Check(bossRewards.AbilityPoints == 20 && bossRewards.Experience == rewards.Experience && bossRewards.Items.SequenceEqual(rewards.Items), "Boss victory must award 20 AP per formation without changing the other rewards.");
+        Ff7BattleReward bossRewards = Ff7DebugVictory.ResolveRewards(formation with { EnemyRewards = [enemy with { AbilityPoints = 75 }] }, new(kernel, new(new byte[8])));
+        Check(bossRewards.AbilityPoints == 150 && bossRewards.Ff8AbilityPoints == 75 && bossRewards.Experience == rewards.Experience && bossRewards.Items.SequenceEqual(rewards.Items), "Boss victory must retain its original AP without changing the other rewards.");
         Ff7BattleReward partial = Ff7DebugVictory.ResolveRewards(formation, new(kernel, new(new byte[8])), defeated: instance => ReferenceEquals(instance, formation.Enemies[1]));
-        Check(partial.AbilityPoints == 1 && partial.Experience == 16, "An enemy that was not defeated must not contribute to ordinary victory AP.");
+        Check(partial.AbilityPoints == 2 && partial.Experience == 16, "An enemy that was not defeated must not contribute to ordinary victory AP.");
+        Ff7BattleReward odd = Ff7DebugVictory.ResolveRewards(formation with { EnemyRewards = [enemy with { AbilityPoints = 5 }] }, new(kernel, new(new byte[8])), defeated: instance => ReferenceEquals(instance, formation.Enemies[0]));
+        Check(odd.AbilityPoints == 5 && odd.Ff8AbilityPoints == 2, "FFVIII conversion must halve the battle total and round down.");
+        Ff7BattleReward empty = Ff7DebugVictory.ResolveRewards(formation, new(kernel, new(new byte[8])), defeated: _ => false);
+        Check(empty.AbilityPoints == 0 && empty.Ff8AbilityPoints == 0, "Undefeated enemies must not award AP.");
         enemy = enemy with { Items = [new(-1, 63), new(1, 63), new(-1, 255), new(-1, 255)] };
         random = new(kernel, new(new byte[8]));
         rewards = Ff7DebugVictory.ResolveRewards(formation with { EnemyRewards = [enemy] }, random);
@@ -143,7 +147,7 @@ internal static class NativeBattleTests
         Ff7Progress result = Ff7DebugVictory.Apply(initial, formation, kernel, 0, 1);
         Check(untouched == JsonSerializer.Serialize(initial), "The battle transaction mutated its incoming saved progression.");
         Ff7BattleReward reward = result.CompletedBattles.Single().Reward;
-        Check(reward.Gil == 20 && reward.Experience == 32 && reward.AbilityPoints == 2 && reward.Items.SequenceEqual(new Ff7RewardItem[] { new(0, 1) }), "Opening formation must award two AP and retain its original EXP, gil and drops.");
+        Check(reward.Gil == 20 && reward.Experience == 32 && reward.AbilityPoints == formation.Enemies.Where(instance => instance.EnemyId != -1).Sum(instance => formation.EnemyRewards.Single(enemy => enemy.EnemyId == instance.EnemyId).AbilityPoints) && reward.Items.SequenceEqual(new Ff7RewardItem[] { new(0, 1) }), "Opening formation must award original AP and retain its original EXP, gil and drops.");
         Ff7CharacterState cloud = result.Characters[0];
         Check(cloud.Level == 7 && cloud.Experience == initial.Characters[0].Experience + 32 && result.Gil == initial.Gil + 20, "Opening native EXP/growth/gil application changed.");
         for (int slot = 0; slot < 16; slot++)
@@ -152,7 +156,7 @@ internal static class NativeBattleTests
             uint after = BinaryPrimitives.ReadUInt32LittleEndian(cloud.NativeRecord.AsSpan(64 + 4 * slot));
             if ((byte)before != 255)
             {
-                Check((byte)before == (byte)after && (after >> 8) == (before >> 8) + 2, "Original equipped materia did not receive the same AP as the reward receipt.");
+                Check((byte)before == (byte)after && (after >> 8) == (before >> 8) + reward.AbilityPoints, "Original equipped materia did not receive the same AP as the reward receipt.");
             }
         }
         Check(ReferenceEquals(result, Ff7DebugVictory.Apply(result, formation, kernel, 0, 1)), "Replayed victory must return the recorded transaction without awarding again.");

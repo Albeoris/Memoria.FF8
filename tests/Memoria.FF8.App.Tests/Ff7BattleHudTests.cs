@@ -10,6 +10,32 @@ namespace Memoria.FF8.App.Tests;
 public sealed class Ff7BattleHudTests
 {
     [Theory]
+    [InlineData(false, 5u)]
+    [InlineData(true, 5u)]
+    [InlineData(true, 0u)]
+    public void VictoryShowsOriginalApAndAnAdditionalFf8RowOnlyForGuestParties(bool hasFf8Characters, uint abilityPoints)
+    {
+        BattleHudLayout layout = new(new(0, 0, 960, 672));
+        BattleUiTests.TestCanvas canvas = new();
+        Ff7BattleReward reward = new(30, 100, abilityPoints, []);
+
+        Ff7Scene.DrawBattleRewards(canvas, new UiTheme(), layout, 1, reward, hasFf8Characters);
+
+        Assert.Single(canvas.TextDraws, draw => draw.Text == "100 EXP   30 Gil");
+        var ap = Assert.Single(canvas.TextDraws, draw => draw.Text == $"{abilityPoints} AP");
+        Assert.Equal(hasFf8Characters ? 3 : 2, canvas.TextDraws.Count);
+        if (hasFf8Characters)
+        {
+            var ff8Ap = Assert.Single(canvas.TextDraws, draw => draw.Text == $"{abilityPoints / 2} AP (FF8)");
+            Assert.True(ff8Ap.Bounds.Y >= ap.Bounds.Bottom);
+        }
+        else
+        {
+            Assert.DoesNotContain(canvas.TextDraws, draw => draw.Text.Contains("AP (FF8)", StringComparison.Ordinal));
+        }
+    }
+
+    [Theory]
     [InlineData(320, 240)]
     [InlineData(960, 540)]
     public void DamageDisplaysOnlyTheValueAndRisesFromTheProjectedTarget(int width, int height)

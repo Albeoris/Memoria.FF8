@@ -232,11 +232,22 @@ internal sealed partial class Ff7Scene
         if (battle.Outcome == Ff7BattleOutcome.Victory)
         {
             Ff7BattleReward reward = battle.PreviewVictory();
-            theme.Panel(canvas, layout.ResultRect(30, 34, 323, 50));
-            canvas.Text($"{reward.Experience} EXP   {reward.AbilityPoints} AP   {reward.Gil} Gil", fontSize, layout.ResultRect(40, 41, 303, 12), theme.Foreground);
+            DrawBattleRewards(canvas, theme, layout, textScale, reward, battle.GuestVitalsBindings.Count != 0);
         }
         theme.Panel(canvas, layout.ResultRect(16, 184, 352, 26));
         canvas.AlignedText("Confirm", fontSize, layout.ResultRect(26, 192, 332, 12), theme.Foreground, UiAlignment.Center);
+    }
+
+    internal static void DrawBattleRewards(IUiCanvas canvas, UiTheme theme, BattleHudLayout layout, float textScale, Ff7BattleReward reward, bool hasFf8Characters)
+    {
+        float fontSize = 20 * layout.Scale * textScale;
+        theme.Panel(canvas, layout.ResultRect(30, 34, 323, hasFf8Characters ? 58 : 43));
+        canvas.Text($"{reward.Experience} EXP   {reward.Gil} Gil", fontSize, layout.ResultRect(40, 41, 303, 12), theme.Foreground);
+        canvas.Text($"{reward.AbilityPoints} AP", fontSize, layout.ResultRect(40, 56, 303, 12), theme.Foreground);
+        if (hasFf8Characters)
+        {
+            canvas.Text($"{reward.Ff8AbilityPoints} AP (FF8)", fontSize, layout.ResultRect(40, 71, 303, 12), theme.Foreground);
+        }
     }
 
     private void DrawBattleMessage(IUiCanvas canvas, UiTheme theme, BattleHudLayout layout, float textScale, Ff7BattleSession battle)

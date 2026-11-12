@@ -6,17 +6,17 @@ namespace Memoria.FF7.Runtime;
 /// <summary>Explicit debug result policy: defeat the formation's original enemies without combat turns, damage, steals or morphs.</summary>
 public static class Ff7DebugVictory
 {
-    public static Ff7Progress Apply(Ff7Progress progress, SceneFormation formation, IReadOnlyList<KernelSection> kernel, long fieldGeneration, long requestId, int? dormantGuestStoryCharacter = null, IReadOnlyCollection<int>? guestStoryCharacters = null, bool isBossBattle = false)
+    public static Ff7Progress Apply(Ff7Progress progress, SceneFormation formation, IReadOnlyList<KernelSection> kernel, long fieldGeneration, long requestId, int? dormantGuestStoryCharacter = null, IReadOnlyCollection<int>? guestStoryCharacters = null)
     {
         if (kernel.Count < 9)
         {
             throw new InvalidDataException("FFVII victory requires its original growth and equipment kernel sections.");
         }
         Ff7BattleRng random = new(kernel[2].Data.Span, Ff7BattleRng.BeginBattle(progress.BattleRng?.CrtSeed ?? 1));
-        return ApplyResolved(progress, formation, kernel, fieldGeneration, requestId, random, dormantGuestStoryCharacter: dormantGuestStoryCharacter, guestStoryCharacters: guestStoryCharacters, isBossBattle: isBossBattle);
+        return ApplyResolved(progress, formation, kernel, fieldGeneration, requestId, random, dormantGuestStoryCharacter: dormantGuestStoryCharacter, guestStoryCharacters: guestStoryCharacters);
     }
 
-    internal static Ff7Progress ApplyResolved(Ff7Progress progress, SceneFormation formation, IReadOnlyList<KernelSection> kernel, long fieldGeneration, long requestId, Ff7BattleRng random, Func<SceneEnemyInstance, bool>? defeated = null, int? dormantGuestStoryCharacter = null, IReadOnlyCollection<int>? guestStoryCharacters = null, bool isBossBattle = false)
+    internal static Ff7Progress ApplyResolved(Ff7Progress progress, SceneFormation formation, IReadOnlyList<KernelSection> kernel, long fieldGeneration, long requestId, Ff7BattleRng random, Func<SceneEnemyInstance, bool>? defeated = null, int? dormantGuestStoryCharacter = null, IReadOnlyCollection<int>? guestStoryCharacters = null)
     {
         ArgumentNullException.ThrowIfNull(progress);
         ArgumentNullException.ThrowIfNull(formation);
@@ -34,7 +34,7 @@ public static class Ff7DebugVictory
         {
             throw new InvalidDataException("FFVII victory requires its original growth and equipment kernel sections.");
         }
-        Ff7BattleReward reward = ResolveRewards(formation, random, defeated, isBossBattle);
+        Ff7BattleReward reward = ResolveRewards(formation, random, defeated);
         Ff7NativeGrowth growth = new(KernelGrowthTables.Read(kernel[2].Data.Span));
         List<Ff7MateriaState> materia = [.. progress.Materia];
         Dictionary<int, Ff7CharacterState> changed = [];
@@ -86,18 +86,18 @@ public static class Ff7DebugVictory
         return result;
     }
 
-    public static Ff7BattleReward ResolveRewards(SceneFormation formation, Ff7BattleRng random, Func<SceneEnemyInstance, bool>? defeated = null, bool isBossBattle = false)
+    public static Ff7BattleReward ResolveRewards(SceneFormation formation, Ff7BattleRng random, Func<SceneEnemyInstance, bool>? defeated = null)
     {
         uint experience = 0;
         uint gil = 0;
-        uint defeatedCount = 0;
+        uint ap = 0;
         List<Ff7RewardItem> items = [];
         foreach (SceneEnemyInstance instance in formation.Enemies.Where(enemy => enemy.EnemyId != -1 && (defeated is null || defeated(enemy))))
         {
             SceneEnemyReward enemy = formation.EnemyRewards.Single(enemy => enemy.EnemyId == instance.EnemyId);
             experience = unchecked(experience + enemy.Experience);
             gil = unchecked(gil + enemy.Gil);
-            defeatedCount++;
+            ap = unchecked(ap + enemy.AbilityPoints);
             foreach (SceneItemSlot slot in enemy.Items)
             {
                 if ((slot.Rate & 192) != 0)
@@ -127,7 +127,7 @@ public static class Ff7DebugVictory
                 break;
             }
         }
-        return new(gil, experience, isBossBattle && defeatedCount > 0 ? 20u : defeatedCount, items.ToArray());
+        return new(gil, experience, ap, items.ToArray());
     }
 
     private static void ApplyMateria(byte[] record, uint ap, IReadOnlyList<KernelSection> kernel, List<Ff7MateriaState> inventory)
