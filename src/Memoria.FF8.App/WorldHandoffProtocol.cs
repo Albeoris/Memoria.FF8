@@ -92,7 +92,14 @@ internal sealed class WorldHandoffProtocol(PipeStream pipe, Task peerExited, Can
     private async Task ExpectAsync(byte expected, string error)
     {
         byte[] message = new byte[1];
-        await pipe.ReadExactlyAsync(message, cancellation);
+        try
+        {
+            await pipe.ReadExactlyAsync(message, cancellation);
+        }
+        catch (EndOfStreamException failure)
+        {
+            throw new EndOfStreamException(error, failure);
+        }
         if (message[0] != expected)
         {
             throw new IOException(error);

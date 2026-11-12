@@ -48,6 +48,21 @@ public sealed class WorldProcessHandoffTests
     }
 
     [Fact]
+    public async Task Destination_disconnect_before_readiness_reports_the_failed_phase()
+    {
+        using PipePair pipes = await PipePair.ConnectAsync();
+        WorldHandoffProtocol source = new(pipes.Server, Task.CompletedTask, pipes.Cancellation.Token);
+        Task ready = source.WaitForReadyAsync();
+
+        pipes.Client.Dispose();
+
+        EndOfStreamException failure = await Assert.ThrowsAsync<EndOfStreamException>(() => ready.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
+        Assert.Equal("The destination game host did not acknowledge readiness.", failure.Message);
+        Assert.False(source.DestinationReady);
+        Assert.False(source.Committed);
+    }
+
+    [Fact]
     public async Task Release_shuts_down_before_peer_receives_permission_and_waits_for_cover()
     {
         using PipePair pipes = await PipePair.ConnectAsync();

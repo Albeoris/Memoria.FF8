@@ -27,6 +27,53 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
     [InlineData(1)]
     public void World_switch_mapping_owns_saved_gear_and_junctions_without_changing_a_restored_native_battle(int characterId) => RunOpeningBattle(useLimit: false, useWorldSwitch: true, characterId);
 
+    [Fact]
+    public void World_switch_rejects_missing_guest_record_and_allows_clearing_the_saved_mapping()
+    {
+        string? ff7Root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        string? ff8Root = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(ff7Root) && !string.IsNullOrWhiteSpace(ff8Root), "Select both original game installations.");
+        Ff7Installation installation = Ff7Installation.Discover(ff7Root!);
+        using GameAssets game = new(ff8Root!);
+        GameplaySaveComponentDocument document = GameplaySaveSessionLoaderTests.Document(game, false);
+        using MemoryStream payload = new();
+        GameplaySaveCodec.Write(payload, document);
+        CharacterAppearanceMapping[] mappings = CharacterMappingAssociations.Assign([], 0, 8);
+        CombinedSessionSave source = new() { ActiveGame = SessionGame.Ff7, Ff8Payload = payload.ToArray(), Ff8PayloadFormat = CrossoverSaveAdapter.Ff8Codec, Mappings = mappings };
+        NotSupportedException failure = Assert.Throws<NotSupportedException>(() => CrossoverFf8BattleKit.ValidateWorldSwitchMappings(source, ff8Root!));
+        Assert.Contains("Laguna record", failure.Message);
+
+        using GpuTestDevice device = new();
+        using SpriteBatch batch = new(device.Device);
+        using Texture2D pixel = new(device.Device, 1, 1);
+        using SystemTextRenderer text = new(device.Device);
+        using MonoGameUiCanvas canvas = new(device.Device, batch, pixel, text, ff8Root!);
+        using CrossoverMappingMenu menu = new(device.Device, installation, ff8Root!, mappings, default, default, text, canvas, () => new UiTheme(), combatRecords: document.Characters.Records);
+        CharacterAppearanceMapping[]? confirmed = null;
+        bool cancelled = false;
+        menu.Confirmed += selected => confirmed = selected;
+        menu.Cancelled += () => cancelled = true;
+        menu.Apply(MenuInput.Confirm);
+        menu.Apply(MenuInput.Confirm);
+        menu.Apply(MenuInput.Cancel);
+        Assert.False(cancelled);
+        menu.Apply(MenuInput.Down);
+        menu.Apply(MenuInput.Down);
+        menu.Apply(MenuInput.Down);
+        menu.Apply(MenuInput.Confirm);
+        Assert.Null(confirmed);
+
+        menu.Apply(MenuInput.Alternate);
+        menu.Apply(MenuInput.Down);
+        menu.Apply(MenuInput.Down);
+        menu.Apply(MenuInput.Down);
+        menu.Apply(MenuInput.Confirm);
+        Assert.NotNull(confirmed);
+        Assert.Empty(confirmed);
+        CrossoverFf8BattleKit.ValidateWorldSwitchMappings(source with { Mappings = confirmed }, ff8Root!);
+        CrossoverFf8BattleKit.ValidateWorldSwitchMappings(source with { Mappings = CharacterMappingAssociations.Assign([], 0, 0) }, ff8Root!);
+    }
+
     private void RunOpeningBattle(bool useLimit, bool useWorldSwitch, int characterId = 0)
     {
         string? ff7Root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
@@ -85,7 +132,9 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
             menu.Confirmed += selectedMappings =>
             {
                 Assert.Equal(mappings, selectedMappings);
-                scene.Continue(source with { Mappings = selectedMappings });
+                CombinedSessionSave destination = source with { Mappings = selectedMappings };
+                CrossoverFf8BattleKit.ValidateWorldSwitchMappings(destination, ff8Root!);
+                scene.Continue(destination);
                 scene.PrepareMappedCombatForSwitch();
             };
             menu.Apply(MenuInput.Down);

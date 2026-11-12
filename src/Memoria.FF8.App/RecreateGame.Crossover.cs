@@ -99,7 +99,8 @@ internal sealed partial class RecreateGame
         {
             throw new InvalidOperationException(reason);
         }
-        CrossoverMappingMenu menu = new(GraphicsDevice, Ff7Installation.Discover(options.Ff7GameDirectory!), options.GameDirectory, outgoing?.Mappings ?? pendingCrossoverMappings ?? crossover?.Mappings ?? [], physicalInput.ReadKeyboard(), Mouse.GetState(), text, uiCanvas!, () => CreateUiTheme(), destination);
+        NativeCharacterVital[]? combatRecords = destination == SessionGame.Ff7 ? (session.State.CharacterVitals as NativeCharacterVitals)?.Records : null;
+        CrossoverMappingMenu menu = new(GraphicsDevice, Ff7Installation.Discover(options.Ff7GameDirectory!), options.GameDirectory, outgoing?.Mappings ?? pendingCrossoverMappings ?? crossover?.Mappings ?? [], physicalInput.ReadKeyboard(), Mouse.GetState(), text, uiCanvas!, () => CreateUiTheme(), destination, combatRecords);
         menu.Cancelled += CloseCrossoverSetup;
         menu.Confirmed += mappings =>
         {
@@ -212,6 +213,7 @@ internal sealed partial class RecreateGame
         {
             // The destination process prepares resources before acknowledging readiness.
         });
+        CrossoverFf8BattleKit.ValidateWorldSwitchMappings(transaction.State, options.GameDirectory);
         BeginWorldTransfer(transaction.State);
     }
 

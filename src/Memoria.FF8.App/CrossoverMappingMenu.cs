@@ -22,6 +22,7 @@ internal sealed class CrossoverMappingMenu : IDisposable
     private readonly MonoGameUiCanvas canvas;
     private readonly Func<UiTheme> theme;
     private readonly SessionGame destinationGame;
+    private readonly NativeCharacterVital[]? combatRecords;
     private readonly Ff7Installation installation;
     private readonly string ff8Directory;
     private readonly CancellationTokenSource lifetime = new();
@@ -37,7 +38,7 @@ internal sealed class CrossoverMappingMenu : IDisposable
     private int missingPage;
     private string? notice;
 
-    public CrossoverMappingMenu(GraphicsDevice device, Ff7Installation installation, string ff8Directory, IEnumerable<CharacterAppearanceMapping> mappings, KeyboardState keys, MouseState mouse, SystemTextRenderer text, MonoGameUiCanvas canvas, Func<UiTheme> theme, SessionGame destinationGame = SessionGame.Ff7)
+    public CrossoverMappingMenu(GraphicsDevice device, Ff7Installation installation, string ff8Directory, IEnumerable<CharacterAppearanceMapping> mappings, KeyboardState keys, MouseState mouse, SystemTextRenderer text, MonoGameUiCanvas canvas, Func<UiTheme> theme, SessionGame destinationGame = SessionGame.Ff7, NativeCharacterVital[]? combatRecords = null)
     {
         Ff7MenuResources menu = Ff7MenuResources.LoadPortraits(installation);
         NativeMenuArtwork artwork = NativeMenuArtwork.Load(ff8Directory);
@@ -47,6 +48,7 @@ internal sealed class CrossoverMappingMenu : IDisposable
         this.canvas = canvas;
         this.theme = theme;
         this.destinationGame = destinationGame;
+        this.combatRecords = combatRecords;
         this.installation = installation;
         this.ff8Directory = ff8Directory;
         this.mappings = CharacterMappingAssociations.Normalize(mappings);
@@ -187,6 +189,10 @@ internal sealed class CrossoverMappingMenu : IDisposable
     {
         if (choosingAppearance)
         {
+            if (AppearanceUnavailableReason(selected) is not null)
+            {
+                return;
+            }
             mappings = CharacterMappingAssociations.Assign(mappings, selectedStory, selected);
             choosingAppearance = false;
             selection = selectedStory;
@@ -194,6 +200,15 @@ internal sealed class CrossoverMappingMenu : IDisposable
         }
         else if (selected == StoryNames.Length)
         {
+            foreach (CharacterAppearanceMapping mapping in mappings)
+            {
+                if (AppearanceUnavailableReason(mapping.AppearanceCharacter) is not null)
+                {
+                    selection = mapping.StoryCharacter;
+                    notice = $"{AppearanceNames[mapping.AppearanceCharacter]} is unavailable in this save. Change the association or clear it with Alternate.";
+                    return;
+                }
+            }
             Confirmed?.Invoke(mappings.ToArray());
         }
         else if (selected >= StoryNames.Length)
@@ -208,6 +223,11 @@ internal sealed class CrossoverMappingMenu : IDisposable
             notice = null;
             RequestCoverage(selectedStory);
         }
+    }
+
+    private string? AppearanceUnavailableReason(int appearance)
+    {
+        return combatRecords is null ? null : CrossoverFf8BattleKit.SavedRecordUnavailableReason(combatRecords, appearance, out _);
     }
 
     private void RequestCoverage(int story)
@@ -324,10 +344,15 @@ internal sealed class CrossoverMappingMenu : IDisposable
                 Rectangle overlay = FitPortrait(mappedPortrait, new Rectangle(portraitBounds.X + portraitBounds.Width * 45 / 100, portraitBounds.Y + portraitBounds.Height / 5, portraitBounds.Width, portraitBounds.Height));
                 batch.Draw(mappedPortrait, overlay, Color.White * 0.9f);
             }
-            Label(choosingAppearance ? AppearanceNames[id] : StoryNames[id], cell.X + 70, cell.Y + 12, Color.White, 15);
+            bool unavailable = choosingAppearance && AppearanceUnavailableReason(id) is not null;
+            Label(choosingAppearance ? AppearanceNames[id] : StoryNames[id], cell.X + 70, cell.Y + 12, unavailable ? Color.Gray : Color.White, 15);
             if (choosingAppearance)
             {
-                if (reports.TryGetValue((selectedStory, id), out CharacterCompatibility? report))
+                if (unavailable)
+                {
+                    Label("Unavailable", cell.X + 70, cell.Y + 37, Color.Gray, 13);
+                }
+                else if (reports.TryGetValue((selectedStory, id), out CharacterCompatibility? report))
                 {
                     Label($"{report.Percentage:0.#}%  {report.SupportedClips}/{report.TotalClips}", cell.X + 70, cell.Y + 37, CoverageColor(report), 13);
                 }
@@ -349,7 +374,8 @@ internal sealed class CrossoverMappingMenu : IDisposable
                 : "Associations affect FFVII appearance. FFVIII keeps its native characters.";
             Label(help, 24, 445, Color.LightGray, 12);
         }
-        Label(notice ?? "Confirm selects; Cancel returns; Alternate clears a selected association.", 24, 462, Color.LightGray, 12);
+        string? unavailableReason = choosingAppearance ? AppearanceUnavailableReason(selection) : null;
+        Label(unavailableReason ?? notice ?? "Confirm selects; Cancel returns; Alternate clears a selected association.", 24, 462, Color.LightGray, 12);
         batch.End();
     }
 

@@ -125,6 +125,42 @@ internal sealed record CrossoverFf8BattleKit(int RecordRow, ushort HitPoints, in
         return Attack.AttackType is 1 or 9 or 10 ? null : $"FFVIII physical attack type {Attack.AttackType} has no mixed battle contract.";
     }
 
+    internal static string? SavedRecordUnavailableReason(NativeCharacterVital[] records, int characterId, out int row)
+    {
+        row = Array.FindIndex(records, record => record.CharacterId == characterId);
+        if (row < 0 || Array.FindLastIndex(records, record => record.CharacterId == characterId) != row)
+        {
+            return $"Mixed combat requires one original {CrossoverCharacterCatalog.AppearanceNames[characterId]} record in the suspended FFVIII world.";
+        }
+        return records[row].HitPoints.Minimum != records[row].HitPoints.Maximum
+            ? "Mixed combat requires the selected FFVIII character's exact saved HP."
+            : null;
+    }
+
+    internal static void ValidateWorldSwitchMappings(CombinedSessionSave destination, string directory)
+    {
+        if (destination.Mappings.Length == 0)
+        {
+            return;
+        }
+        GameplaySaveComponentDocument source = CrossoverSaveAdapter.ReadFf8(destination);
+        if (source.Progression?.Clocks.GlobalRandom is null)
+        {
+            throw new NotSupportedException("Save FFVIII with its current gameplay codec before switching with a combat mapping.");
+        }
+        using GameAssets origin = new(directory);
+        using BattleAssets battle = new(directory);
+        NativeCharacterVitals vitals = source.Characters.Restore(origin.ReadNewGameCharacterVitals());
+        foreach (int characterId in destination.Mappings.Select(mapping => mapping.AppearanceCharacter).Distinct())
+        {
+            CrossoverFf8BattleKit kit = Read(vitals, battle, characterId);
+            if (kit.OpeningCombatUnavailableReason() is { } unsupported)
+            {
+                throw new NotSupportedException(unsupported);
+            }
+        }
+    }
+
     public static CrossoverFf8BattleKit Read(NativeCharacterVitals vitals, BattleAssets resources, int characterId)
     {
         ArgumentNullException.ThrowIfNull(vitals);
@@ -132,16 +168,11 @@ internal sealed record CrossoverFf8BattleKit(int RecordRow, ushort HitPoints, in
         ArgumentOutOfRangeException.ThrowIfNegative(characterId);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(characterId, 10);
         vitals.Validate();
-        int row = vitals.FindPhysicalRow(checked((byte)characterId));
-        if ((uint)row >= vitals.Records.Length || vitals.Records.Count(record => record.CharacterId == characterId) != 1)
+        if (SavedRecordUnavailableReason(vitals.Records, characterId, out int row) is { } unavailable)
         {
-            throw new NotSupportedException($"Mixed combat requires one original {CrossoverCharacterCatalog.AppearanceNames[characterId]} record in the suspended FFVIII world.");
+            throw new NotSupportedException(unavailable);
         }
         NativeCharacterVital saved = vitals.Records[row];
-        if (saved.HitPoints.Minimum != saved.HitPoints.Maximum)
-        {
-            throw new NotSupportedException("Mixed combat requires the selected FFVIII character's exact saved HP.");
-        }
         BattleNativePlayerStatRules rules = resources.ReadPlayerNativeStatRules(vitals, row);
         ImmutableArray<BattleNativeAction> spells = resources.NativeActions.Where(action => action.Command == 2 && action.KernelSection == 1 && action.ActionId != 0).ToImmutableArray();
         byte weapon = vitals.DreamEnabled && characterId >= 8 ? vitals.DreamWeapons[characterId - 8] : saved.Weapon;

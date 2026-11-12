@@ -1,5 +1,4 @@
 using Memoria.FF7.Runtime;
-using Memoria.FF8.Assets;
 using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
 
@@ -83,23 +82,6 @@ internal sealed partial class Ff7Scene
         }
         Ff7Session session = Session ?? throw new InvalidOperationException("Mixed combat requires the destination FFVII session.");
         ResolveMappedCombat(session, requireUnique: true);
-        string directory = identityFf8Directory ?? throw new InvalidOperationException("Select the FFVIII installation before entering mixed combat.");
-        using GameAssets origin = new(directory);
-        using BattleAssets battle = new(directory);
-        GameplaySaveComponentDocument source = CrossoverSaveAdapter.ReadFf8(envelope);
-        if (source.Progression?.Clocks.GlobalRandom is null)
-        {
-            throw new NotSupportedException("Save FFVIII with its current gameplay codec before switching with a combat mapping.");
-        }
-        NativeCharacterVitals vitals = source.Characters.Restore(origin.ReadNewGameCharacterVitals());
-        foreach (int characterId in envelope.Mappings.Select(mapping => mapping.AppearanceCharacter).Distinct())
-        {
-            CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.Read(vitals, battle, characterId);
-            if (kit.OpeningCombatUnavailableReason() is { } unsupported)
-            {
-                throw new NotSupportedException(unsupported);
-            }
-        }
         session.SetFullCombatEnabled(true);
     }
 
