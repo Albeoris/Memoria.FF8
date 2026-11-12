@@ -33,6 +33,10 @@ public sealed class AutoPlayProgressionOrderTests
     [InlineData("147:616", "147:line:18", -4)]
     [InlineData("147:616", "147:line:15", 0)]
     [InlineData("147:618", "147:line:18", 0)]
+    [InlineData("174:639", "174:gateway:0", -1)]
+    [InlineData("249:639", "249:line:11", -4)]
+    [InlineData("143:639", "143:line:15", -7)]
+    [InlineData("143:640", "143:line:15", 0)]
     public void ExplicitEntryPriorityAppliesOnlyToItsObservedStoryAndEvent(string visit, string eventId, int expected)
     {
         Assert.Equal(expected, AutoPlayTraversalPolicy.ProgressionEntryOrder(new(visit, "bg"), new(eventId, AutoPlayEventKind.Transition)));

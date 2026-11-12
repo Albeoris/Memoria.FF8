@@ -115,6 +115,18 @@ internal static class AutoPlayTraversalPolicy
             ("171:616", "171:line:20") => -3,
             ("145:616", "145:line:23" or "145:line:24") => -4,
             ("147:616", "147:line:17" or "147:line:18") => -4,
+            // NG-039: Use the second-floor deck to reach Fishermans Horizon.
+            ("163:639", "163:line:16") => -1,
+            ("171:639", "171:line:19") => -1,
+            ("174:639", "174:gateway:0") => -1,
+            ("168:639", "168:line:22") => -2,
+            ("167:639", "167:gateway:5") => -3,
+            ("172:639", "172:line:12") => -4,
+            ("254:639", "254:line:9") => -3,
+            ("249:639", "249:line:11") => -4,
+            ("137:639", "137:line:15") => -5,
+            ("139:639" or "142:639", "139:gateway:0" or "142:gateway:0") => -6,
+            ("143:639", "143:line:15") => -7,
             _ => 0
         };
     }
@@ -134,6 +146,8 @@ internal static class AutoPlayTraversalPolicy
             "179:610:10:66:1085:17:2:3" => 3,
             // NG-036: Take the elevator to 2F for the approaching ship.
             "172:614:12:98:1227:4:2:4" => 3,
+            // NG-039: Take the elevator to 2F for Fishermans Horizon.
+            "172:639:12:98:1227:4:2:4" or "249:639:11:89:902:2:2:3" => 3,
             _ => null
         };
     }
