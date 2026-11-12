@@ -163,6 +163,34 @@ internal sealed partial class GameWorld
         return result.Interrupted ? result : null;
     }
 
+    internal AutoPlayWalkResult? PrepareAutoPlayBridgeLift(AutoPlayTarget target, Action onProgress)
+    {
+        const string bridgeProgram = "7483B7BF06F1899A2760BA6CFB3310E429D9415AD7223FE62A922F7847EE73C4";
+        if (Field is not { Id: 254 } field || target is not { Kind: AutoPlayTargetKind.Talk, ObjectId: 6 } || Events.Variables.GetValueOrDefault(256) != 560 || ReadAutoPlayFieldProgramHash(field.Id) != bridgeProgram || NativeFieldPartyBinding.ResolveActor(Events.Scene, Events.Actors, 2) is not { ObjectId: 5 } follower)
+        {
+            return null;
+        }
+
+        bool FollowerIsOnWalkmesh()
+        {
+            FieldNativeGroundProbe probe = FieldNativeMovementProbe.Probe(field.Walkmesh, follower.WalkmeshTriangle, (int)(follower.X * 4096), (int)(follower.Y * 4096), 0, 0, Events.Scene.LockedTriangles);
+            return probe.Supported && probe.Steering == 0 && probe.Triangle == follower.WalkmeshTriangle;
+        }
+
+        if (FollowerIsOnWalkmesh())
+        {
+            return null;
+        }
+
+        // NG-037: Walk down the passage so the follower leaves the entry placement before the lift script takes control.
+        if (Events.ResolveWalkmesh?.Invoke(27, 980) is not { } waypoint)
+        {
+            return new(false, false);
+        }
+        AutoPlayWalkResult walk = WalkAutoPlayRoute(new([waypoint]), onProgress, target.ObjectId, allowFast: false);
+        return walk.Arrived && !FollowerIsOnWalkmesh() ? new(false, false) : walk;
+    }
+
     internal static Vector2? FindAutoPlayWalkingAdvance(FieldFixedPosition position, int triangle, Vector2 destination, Func<FieldFixedPosition, int, Vector2, NativePlayerMovementResult> probe)
     {
         Vector2 location = new(position.X / 4096f, position.Y / 4096f);
@@ -189,7 +217,7 @@ internal sealed partial class GameWorld
         return selected;
     }
 
-    public AutoPlayWalkResult WalkAutoPlayRoute(AutoPlayWalkingRoute route, Action onProgress, int approachObjectId = -1, AutoPlayTarget? contact = null, AutoPlayTarget? approachTarget = null, Func<FieldFixedPosition, int, Vector2, NativePlayerMovementResult>? stepProbe = null)
+    public AutoPlayWalkResult WalkAutoPlayRoute(AutoPlayWalkingRoute route, Action onProgress, int approachObjectId = -1, AutoPlayTarget? contact = null, AutoPlayTarget? approachTarget = null, Func<FieldFixedPosition, int, Vector2, NativePlayerMovementResult>? stepProbe = null, bool allowFast = true)
     {
         int field = Events.FieldId;
         HashSet<int> pending = Events.Actors.Where(actor => Events.HasPendingAutoPlayInteraction(actor.ObjectId)).Select(actor => actor.ObjectId).ToHashSet();
@@ -229,7 +257,7 @@ internal sealed partial class GameWorld
                 {
                     return new(false, false);
                 }
-                AutoPlayWalkResult step = StepAutoPlayWalking(delta, field, pending, approachObjectId, contact ?? approachTarget, out bool moved);
+                AutoPlayWalkResult step = StepAutoPlayWalking(delta, field, pending, approachObjectId, contact ?? approachTarget, out bool moved, allowFast);
                 if (step.Interrupted)
                 {
                     return step;

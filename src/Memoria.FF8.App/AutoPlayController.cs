@@ -874,6 +874,25 @@ internal sealed partial class AutoPlayController
                 }
                 string checkpoint = BeforeVariant();
                 AutoPlayWalkAttempt attempt = CaptureWalkAttempt(world, source, targets);
+                if (world.PrepareAutoPlayBridgeLift(variant, ResetIdleDeadline) is { } preparation)
+                {
+                    RecordRecentAction($"Prepare lift {variant.Id}: {preparation}");
+                    if (preparation.Interrupted)
+                    {
+                        PauseTalkWalk(attempt, preparation);
+                        return;
+                    }
+                    if (!preparation.Arrived)
+                    {
+                        continue;
+                    }
+                    if (CaptureContactSourceIfCurrent(world, visit, navigation, variant) is not { } preparedSource)
+                    {
+                        return;
+                    }
+                    source = preparedSource;
+                    attempt = CaptureWalkAttempt(world, source, targets);
+                }
                 int? selectedActor = world.Events.SelectInteractionTarget();
                 if (selectedActor != variant.ObjectId && world.IsAutoPlayTalkInReach(variant.ObjectId))
                 {

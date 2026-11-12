@@ -95,6 +95,20 @@ internal static class AutoPlayTraversalPolicy
             ("167:575", "167:gateway:5") => -2,
             ("172:575", "172:line:12") => -3,
             ("192:600", "192:line:13") => -1,
+            // NG-036: Visit the infirmary after NORG, then return to the lobby for Xu.
+            ("163:610", "163:line:16") => -1,
+            ("167:610", "167:gateway:3") => -2,
+            ("168:610", "168:line:24") => -3,
+            ("179:610", "179:talk:10") => -4,
+            ("179:612", "179:line:12") => -1,
+            ("168:612", "168:line:22") => -2,
+            ("167:612", "167:line:20" or "167:line:21") => -3,
+            ("163:614", "163:line:16") => -1,
+            ("167:614", "167:gateway:5") => -2,
+            ("172:614", "172:line:12") => -3,
+            ("137:614", "137:line:15") => -4,
+            ("139:614" or "142:614", "139:gateway:0" or "142:gateway:0") => -5,
+            ("143:614", "143:line:15") => -6,
             _ => 0
         };
     }
@@ -110,6 +124,10 @@ internal static class AutoPlayTraversalPolicy
             "779:463:8:85:1165:24:1:2" or "779:463:8:85:1195:27:1:3" => 1,
             "782:466:11:116:1042:2:1:3" or "782:466:11:116:1070:3:1:3" => 1,
             "770:478:3:19:120:6:3:6" => 4,
+            // NG-036: Accept the doctor's offer to speak with Cid now.
+            "179:610:10:66:1085:17:2:3" => 3,
+            // NG-036: Take the elevator to 2F for the approaching ship.
+            "172:614:12:98:1227:4:2:4" => 3,
             _ => null
         };
     }
