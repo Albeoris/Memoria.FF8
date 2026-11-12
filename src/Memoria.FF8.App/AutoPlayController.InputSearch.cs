@@ -397,7 +397,7 @@ internal sealed partial class AutoPlayController
             return false;
         }
         receipt.Validate();
-        if (receipt.ExecutableHash != NativeFieldRuntimeProfile.FF8EnExecutableHash)
+        if (!NativeFieldRuntimeProfile.IsSupportedImage(receipt.ExecutableHash))
         {
             throw new NotSupportedException("Local input loss recovery requires an authenticated original native loss receipt.");
         }
@@ -650,7 +650,7 @@ internal sealed partial class AutoPlayController
                     throw new InvalidDataException("A local input search trial has inconsistent sampling, outcome or physical alternative.");
                 }
                 trial.Loss?.Validate();
-                if (trial.Loss is { } loss && loss.ExecutableHash != NativeFieldRuntimeProfile.FF8EnExecutableHash)
+                if (trial.Loss is { } loss && !NativeFieldRuntimeProfile.IsSupportedImage(loss.ExecutableHash))
                 {
                     throw new InvalidDataException("A failed local input trial requires its authenticated original loss receipt.");
                 }

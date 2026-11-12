@@ -26,6 +26,18 @@ public sealed class AutoPlayProgressionOrderTests
         Assert.Equal(expected, AutoPlayTraversalPolicy.ProgressionEntryOrder(new(visit, "bg"), new(eventId, AutoPlayEventKind.Transition)));
     }
 
+    [Theory]
+    [InlineData("771:462:7:44:264:0:2:3", 2)]
+    [InlineData("779:463:8:85:1114:22:2:3", 3)]
+    [InlineData("779:463:8:85:1165:24:1:2", 1)]
+    [InlineData("779:463:8:85:1195:27:1:3", 1)]
+    [InlineData("770:478:3:19:120:6:3:6", 4)]
+    [InlineData("779:462:8:85:1114:22:2:3", null)]
+    public void MissileBaseDialogueUsesTheAuthoredSelectionOnlyAtTheExactPrompt(string key, int? expected)
+    {
+        Assert.Equal(expected, AutoPlayTraversalPolicy.ProgressionDialogueSelection(key));
+    }
+
     [Fact]
     public void MissileBaseReusesTheObservedMaintenanceRouteBeforeTheLauncherEntrance()
     {

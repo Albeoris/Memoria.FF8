@@ -690,6 +690,10 @@ internal sealed partial class AutoPlayController
         {
             return;
         }
+        if (TryDriveMissileTerminal(world))
+        {
+            return;
+        }
         if (run.ActiveObservedInput is { Masks.Count: > 0 } observedInput && run.ActiveField == session.State.FieldId)
         {
             run.ActiveObservedInput = null;
@@ -1682,6 +1686,13 @@ internal sealed partial class AutoPlayController
             return;
         }
         string key = $"{VisitKey()}:{dialogue.ObjectId}:{dialogue.ScriptId}:{dialogue.Operation}:{dialogue.MessageId}:{first}:{last}";
+        if (run.ActiveTravelRoute is null && AutoPlayTraversalPolicy.ProgressionDialogueSelection(key) is int progressionSelection)
+        {
+            run.DialogueSelections[key] = progressionSelection;
+            run.ActiveSelections?.Add(new(key, progressionSelection));
+            ApplyDialogueSelection(progressionSelection);
+            return;
+        }
         if (run.InputSearch is { Closed: false } && run.ActiveTravelRoute is null)
         {
             DriveInputSearchBoundary(null, false, dialogue, key);

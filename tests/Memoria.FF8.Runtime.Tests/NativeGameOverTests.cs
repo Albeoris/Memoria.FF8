@@ -14,12 +14,14 @@ public sealed class NativeGameOverTests
         Assert.Throws<InvalidDataException>(() => (known with { Version = 2 }).WithGameOverRequest());
     }
 
-    [Fact]
-    public void LossAcceptanceRequiresFinalKindFourAndRetainsAllOtherSessionOwners()
+    [Theory]
+    [InlineData(NativeFieldRuntimeProfile.FF8EnExecutableHash)]
+    [InlineData(NativeFieldRuntimeProfile.RemasteredEnImageHash)]
+    public void LossAcceptanceRequiresFinalKindFourAndRetainsAllOtherSessionOwners(string executableHash)
     {
         GameSession session = GameSession.CreateColdProcess();
         session.RequestField(600, 0);
-        NativeGameOverReceipt receipt = Receipt();
+        NativeGameOverReceipt receipt = Receipt() with { ExecutableHash = executableHash };
         GameState before = session.State;
         Assert.Throws<InvalidOperationException>(() => session.SetNativeGameOver(receipt));
         Assert.Same(before, session.State);

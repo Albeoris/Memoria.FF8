@@ -7,7 +7,7 @@ public sealed record NativeGameOverReceipt([property: JsonRequired] int Version,
 {
     public void Validate()
     {
-        if (Version != 1 || FieldId is < 0 or > ushort.MaxValue || ProgramHash is not { Length: 64 } hash || !hash.All(Uri.IsHexDigit) || ExecutableHash is not null && ExecutableHash != NativeFieldRuntimeProfile.FF8EnExecutableHash || ObjectId < 0 || ScriptId < 0 || Operation < 0 || Frame < 1 || RequestKind != 4)
+        if (Version != 1 || FieldId is < 0 or > ushort.MaxValue || ProgramHash is not { Length: 64 } hash || !hash.All(Uri.IsHexDigit) || ExecutableHash is not null && !NativeFieldRuntimeProfile.IsSupportedImage(ExecutableHash) || ObjectId < 0 || ScriptId < 0 || Operation < 0 || Frame < 1 || RequestKind != 4)
         {
             throw new InvalidDataException("Invalid native game-over request receipt.");
         }
