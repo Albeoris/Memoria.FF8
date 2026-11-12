@@ -77,6 +77,10 @@ internal static class AutoPlayTraversalPolicy
             // NG-032: Operate the MD control before descending from the reunion room.
             ("204:539", "204:line-action:8") => -1,
             ("204:540", "204:line-action:7") => -1,
+            ("205:540", "205:line-action:11") => -2,
+            ("205:541", "205:line:9") => -1,
+            ("205:542", "205:gateway:0") => -1,
+            ("206:542", "206:line-action:7") => -2,
             _ => 0
         };
     }
