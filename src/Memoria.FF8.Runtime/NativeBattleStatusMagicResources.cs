@@ -26,4 +26,6 @@ public sealed record NativeBattleStatusMagicClearFlash : NativeBattleStatusMagic
 public sealed record NativeBattleStatusMagicInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, NativeBattleSummonColors Colors, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Action<int, ushort> WriteFlags, Func<NativeBattleStatusMagicFrame, NativeBattleStatusMagicOperation, NativeBattleStatusMagicFrame> Execute)
 {
     public Func<NativeBattleStatusMagicFrame, int, NativeBattleStatusMagicFrame>? ApplyContact { get; init; }
+    public Func<int, byte, short, NativeBattleVector>? ReadBone { get; init; }
+    public Func<int, NativeBattleModuleAnchor>? ReadAnchor { get; init; }
 }

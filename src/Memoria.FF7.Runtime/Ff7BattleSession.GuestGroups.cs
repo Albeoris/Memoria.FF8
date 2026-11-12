@@ -43,7 +43,7 @@ public sealed partial class Ff7BattleSession
     {
         Ff7BattleGuestAbility? choice = (guest as IFf7BattleGuestAbilities)?.Abilities.SingleOrDefault(choice => choice.Command == Ff7BattleCommand.Magic && choice.Ability == ability);
         bool revive = choice?.CanTargetDead == true;
-        return target.Actor.Slot != 3 && (!revive || target.Actor.Slot < 3) && IsAlive(target) != revive && ((target.Actor.Conditions & 8) != 0 || revive && target.Actor.Slot < 3);
+        return target.Actor.Slot != 3 && (!revive || target.Actor.Slot < 3) && (revive ? target.Actor.HitPoints == 0 || (target.Actor.Statuses & 1) != 0 : IsAlive(target)) && ((target.Actor.Conditions & 8) != 0 || revive && target.Actor.Slot < 3);
     }
 
     private bool SubmitGuestMagicTargets(int slot, ushort targets, ushort ability, bool group)
@@ -99,17 +99,15 @@ public sealed partial class Ff7BattleSession
         ValidateGuestMagic(command.GuestAbility, description);
         Ff7BattleRng candidateRandom = new(kernel[2].Data.Span, random.Capture());
         List<Ff7BattleGuestPhysicalHit> prepared = [];
-        Ff7BattleActionVitals projectedSource = GuestItemVitals(Actor(command.ActorSlot));
         foreach (int slot in targets)
         {
             Ff7BattleActorState source = Actor(command.ActorSlot);
             Ff7BattleActorState target = Actor(slot);
-            Ff7BattleActionVitals sourceVitals = projectedSource;
-            Ff7BattleActionVitals targetVitals = (slot == command.ActorSlot ? projectedSource : GuestItemVitals(target)) with { StatusImmunities = slot >= 4 ? ~Enemy(slot).NativeStatusMask : 0 };
+            Ff7BattleActionVitals sourceVitals = GuestItemVitals(source);
+            Ff7BattleActionVitals targetVitals = GuestItemVitals(target) with { StatusImmunities = slot >= 4 ? ~Enemy(slot).NativeStatusMask : 0 };
             Ff7BattleDamageAction attack = ProjectGuestOutgoingAttack(slot, description) with { Split = false };
             Ff7BattleActionReceipt receipt = Ff7NativeBattleActionResolver.ResolveGuestContact(description.Source, sourceVitals, Stats(target), targetVitals, attack, description.StatusRecord, candidateRandom, sameActor: slot == command.ActorSlot, originStatusResistances: GetGuestProjection(slot)?.OriginStatusResistances);
             prepared.Add(description with { Attack = attack, PreparedContact = new(invocation with { TargetSlot = slot }, sourceVitals, targetVitals, receipt) });
-            projectedSource = slot == command.ActorSlot ? receipt.Target : receipt.Source;
         }
         if (group.PrepareGroupUnsupportedReason(prepared) is { } unsupported)
         {

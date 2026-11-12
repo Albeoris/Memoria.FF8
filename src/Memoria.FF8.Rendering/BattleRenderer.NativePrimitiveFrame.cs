@@ -222,7 +222,7 @@ public sealed partial class BattleRenderer
             bool gouraud = (command.Opcode & 16) != 0;
             bool quad = (command.Opcode & 8) != 0;
             bool semi = (command.Opcode & 2) != 0;
-            if (resolved.Pass == 2 && !semi || resolved.Pass == 1 && semi)
+            if (command.PilotGeometry?.ForeignSurface is null && (resolved.Pass == 2 && !semi || resolved.Pass == 1 && semi))
             {
                 continue;
             }
@@ -268,8 +268,9 @@ public sealed partial class BattleRenderer
                 int coordinateWord = 1 + corner * stride;
                 uint coordinate = command.Words[coordinateWord];
                 uint color = command.Words[gouraud ? corner * stride : 0];
-                int mode = resolved.DrawMode.BlendMode ?? throw new NotSupportedException("Native polygon diffuse color requires its executed ABR.");
-                NativeBattlePrimitiveColor diffuse = textured ? colorState.Textured(color, semi, mode, (command.Opcode & 1) != 0) : colorState.Untextured(color, semi, mode);
+                bool foreignMaterial = command.PilotGeometry?.ForeignSurface is not null;
+                int mode = foreignMaterial ? 0 : resolved.DrawMode.BlendMode ?? throw new NotSupportedException("Native polygon diffuse color requires its executed ABR.");
+                NativeBattlePrimitiveColor diffuse = foreignMaterial ? colorState.Textured(color, false, 0, false) : textured ? colorState.Textured(color, semi, mode, (command.Opcode & 1) != 0) : colorState.Untextured(color, semi, mode);
                 uint uv = textured ? command.Words[coordinateWord + 1] : 0;
                 Vector2 coordinates = new((byte)uv, (byte)(uv >> 8));
                 if (textured && resolved.DrawMode.SceneCaptureSample is { } sceneSample)
@@ -303,7 +304,7 @@ public sealed partial class BattleRenderer
                 }
                 return new(position.X, position.Y, selectedDepth.Depth, selectedDepth.ReciprocalW, coordinates, diffuse.Rgb, diffuse.Alpha);
             }
-            int blend = semi && resolved.Pass == 2 ? resolved.DrawMode.BlendMode ?? throw new NotSupportedException("Native semi-transparent polygon requires its inherited ABR.") : -1;
+            int blend = command.PilotGeometry?.ForeignSurface is null && semi && resolved.Pass == 2 ? resolved.DrawMode.BlendMode ?? throw new NotSupportedException("Native semi-transparent polygon requires its inherited ABR.") : -1;
             PrimitiveVertex a = At(0);
             PrimitiveVertex b = At(1);
             PrimitiveVertex c = At(2);

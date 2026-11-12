@@ -26,7 +26,8 @@ public sealed partial class BattleSession
         NativeBattleLifeInputs inputs = new(nativeActionPackets, projection, index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Life requires the target's actual pose source."), nativeCrtRandom ?? throw new NotSupportedException("Native Life requires its55CBD2 random owner."), Execute)
         {
             CameraRoll = camera.Roll,
-            ApplyContact = ApplyContact
+            ApplyContact = ApplyContact,
+            ReadForeignTarget = ReadNativeForeignTarget
         };
         NativeBattleLifeStep step = NativeBattleLifeController.Advance864AB0(frame, resources, inputs);
         NativeEffectMemory = step.Frame.Memory;

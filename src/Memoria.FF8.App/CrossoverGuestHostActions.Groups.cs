@@ -47,27 +47,14 @@ internal sealed partial class CrossoverGuestHostActions
 
     private ImmutableArray<CrossoverNativeMagicTarget> PresentationTargets(IReadOnlyList<Ff7BattleGuestPhysicalHit> values, BattleNativeAction original)
     {
-        int foreignCount = values.Count(hit => hit.PreparedContact!.Invocation.TargetSlot != ActorSlot);
-        if (foreignCount > 6)
+        int[] slots = values.Select(value => value.PreparedContact!.Invocation.TargetSlot).ToArray();
+        return CrossoverNativeMagicTarget.Bind(ActorSlot, slots, (slot, index) =>
         {
-            throw new NotSupportedException("The native presentation model bank can represent at most six foreign targets in one action.");
-        }
-        int foreignIndex = foreignCount <= 4 ? 3 : 1;
-        ImmutableArray<CrossoverNativeMagicTarget>.Builder result = ImmutableArray.CreateBuilder<CrossoverNativeMagicTarget>();
-        HashSet<int> slots = [];
-        foreach (Ff7BattleGuestPhysicalHit hit in values)
-        {
-            Ff7BattleGuestPreparedContact receipt = hit.PreparedContact!;
-            if (!slots.Add(receipt.Invocation.TargetSlot))
-            {
-                throw new InvalidDataException("The group contains the same target occurrence twice.");
-            }
-            byte index = receipt.Invocation.TargetSlot == ActorSlot ? (byte)0 : checked((byte)foreignIndex++);
+            Ff7BattleGuestPreparedContact receipt = values.Single(value => value.PreparedContact!.Invocation.TargetSlot == slot).PreparedContact!;
             byte flags = receipt.Receipt.Damage.Missed ? (byte)1 : original.AttackType is 5 or 6 ? (byte)4 : (byte)0;
             NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(original.DamagePresentation, flags, receipt.Receipt.Damage.Damage < 0 ? (byte)1 : (byte)0, original.AttackType, 255);
             NativeBattleContactHalf contact = NativeBattleContactHalf.FromScratch(index, presentation.Sequence, presentation.Flags2, presentation.HitFlags3, (ushort)(receipt.Receipt.Target.Statuses & 1), Math.Abs(receipt.Receipt.Damage.Damage), 0);
-            result.Add(new(receipt.Invocation.TargetSlot, contact));
-        }
-        return result.ToImmutable();
+            return contact;
+        });
     }
 }

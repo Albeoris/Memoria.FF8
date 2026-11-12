@@ -5,7 +5,24 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
-internal sealed record CrossoverNativeMagicTarget(int HostSlot, NativeBattleContactHalf Contact);
+internal sealed record CrossoverNativeMagicTarget(int HostSlot, NativeBattleContactHalf Contact)
+{
+    public static ImmutableArray<CrossoverNativeMagicTarget> Bind(int caster, IReadOnlyList<int> slots, Func<int, byte, NativeBattleContactHalf> createContact)
+    {
+        int foreignCount = slots.Count(slot => slot != caster);
+        int capacity = NativeBattleGraphicsModels.ClearBank().Count();
+        if (foreignCount >= capacity)
+        {
+            throw new NotSupportedException($"The native presentation model bank can represent at most {capacity - 1} foreign targets in one action.");
+        }
+        if (slots.Count == 0 || slots.Distinct().Count() != slots.Count)
+        {
+            throw new InvalidDataException("The native action requires a nonempty set of distinct target occurrences.");
+        }
+        int foreignIndex = foreignCount <= capacity - 3 ? 3 : 1;
+        return slots.Select(slot => new CrossoverNativeMagicTarget(slot, createContact(slot, slot == caster ? (byte)0 : checked((byte)foreignIndex++)))).ToImmutableArray();
+    }
+}
 
 internal sealed record CrossoverNativeMagicPresentationState(CrossoverNativeCastState Cast, NativeBattleAuxiliaryState Auxiliary, NativeBattleModuleState Modules, NativeBattleEffectTextureState Textures, NativeBattleModelTextureBinding BodyTextures, ImmutableArray<byte> TextureAnimations, NativeCrtRandomState Random, int HostTarget, NativeBattleContactHalf Contact)
 {

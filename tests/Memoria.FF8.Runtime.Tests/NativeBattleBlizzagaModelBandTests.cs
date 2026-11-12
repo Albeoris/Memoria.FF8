@@ -5,6 +5,22 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleBlizzagaModelBandTests
 {
+    [Fact]
+    public void MaterialOwnershipComesFromTheProducerEvenWhenBodyAndBandHaveIdenticalNativeMaterialWords()
+    {
+        byte[] source = Polygon(false, [3, 4, 5, 6]).ToArray();
+        BinaryPrimitives.WriteUInt16LittleEndian(source.AsSpan(10), 0x3D14);
+        BinaryPrimitives.WriteUInt16LittleEndian(source.AsSpan(14), 0xBA);
+        NativeBattleProjectedVertex[] vertices = Vertices();
+        NativeBattleGeometryPrimitive body = NativeBattleBlizzagaModelBand.EmitPolygon(source.ToImmutableArray(), false, vertices, 0x808080)!;
+        vertices[0] = vertices[0] with { DepthAndClip = vertices[0].DepthAndClip | 0x1000000 };
+        NativeBattleGeometryPrimitive band = NativeBattleBlizzagaModelBand.EmitPolygon(source.ToImmutableArray(), false, vertices, 0x808080)!;
+        Assert.Equal(body.Words, band.Words);
+        Assert.Equal(body.VertexPayload4, band.VertexPayload4);
+        Assert.True(body.UsesModelMaterial);
+        Assert.False(band.UsesModelMaterial);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

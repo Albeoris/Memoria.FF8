@@ -110,8 +110,8 @@ public sealed partial class BattleSession
                 if (age >= 19 && (age & 1) == 0 && sparks!.Slots.Any(candidate => (candidate.Flags & 1) == 0))
                 {
                     (sparks, int sparkSlot) = sparks.Append(0x67EF50);
-                    NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Full-cure sparks require their target skeleton.");
-                    NativeBattleModulePoolTask spark = WindStore(sparks.Slots[sparkSlot], 12, ReadNativeGraphicsBone(graphics, actor, checked((byte)(age % source.BoneCount)), 0)).WriteWord(18, 0);
+                    int boneCount = ReadNativeGraphicsBoneCount(graphics, actor);
+                    NativeBattleModulePoolTask spark = WindStore(sparks.Slots[sparkSlot], 12, ReadNativeGraphicsBone(graphics, actor, checked((byte)(age % boneCount)), 0)).WriteWord(18, 0);
                     sparks = sparks.WriteSlot(sparkSlot, spark);
                 }
                 task = task.WriteWord(22, unchecked((ushort)(age + 1)));

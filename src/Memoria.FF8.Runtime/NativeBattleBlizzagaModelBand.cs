@@ -156,7 +156,7 @@ public static class NativeBattleBlizzagaModelBand
         {
             proxies = proxies.Add(0);
         }
-        return new(checked(17 + (int)average), writes.Words(), proxies) { PhysicalWriteMask = writes.Attempt(null).WriteMask };
+        return new(checked(17 + (int)average), writes.Words(), proxies) { PhysicalWriteMask = writes.Attempt(null).WriteMask, UsesModelMaterial = !band };
 
         ushort U16(int offset) => BinaryPrimitives.ReadUInt16LittleEndian(source.AsSpan().Slice(offset, 2));
     }

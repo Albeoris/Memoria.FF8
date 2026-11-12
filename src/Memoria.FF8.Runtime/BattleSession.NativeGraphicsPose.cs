@@ -102,6 +102,15 @@ public sealed partial class BattleSession
         return ReadNativeGraphicsBone(graphics, index, selector, fraction);
     }
 
+    private int ReadNativeGraphicsBoneCount(NativeBattleGraphicsState graphics, int index)
+    {
+        if (presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true)
+        {
+            return foreign.BoneCount > 0 ? foreign.BoneCount : throw new NotSupportedException("The host actor cannot supply its actual skeleton segment count.");
+        }
+        return NativeGraphicsPoseResource(graphics, index).PoseSource?.BoneCount ?? throw new NotSupportedException("The native actor has no selected skeleton.");
+    }
+
     private NativeBattleVector ReadNativeGraphicsBone(NativeBattleGraphicsState graphics, int index, byte selector, short fraction)
     {
         if (presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true)

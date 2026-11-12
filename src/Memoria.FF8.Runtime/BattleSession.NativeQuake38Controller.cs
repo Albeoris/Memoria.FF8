@@ -46,11 +46,7 @@ public sealed partial class BattleSession
 
         private void Emitter(uint address, ref NativeBattleModulePoolTask task)
         {
-            task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, graphics.Models, ReadPose);
-            int target = task.ReadByte(45);
-            NativeBattlePoseSource source = ReadPose(target);
-            NativeBattleSequenceState pose = graphics.Models[target].SequenceState ?? throw new NotSupportedException("Native Quake emitter requires its target's decoded skeleton owner.");
-            task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, source.Sample(pose.Pose ?? throw new NotSupportedException("Native Quake target lacks its selected pose."), pose.PoseFrame114 ?? throw new NotSupportedException("Native Quake target lacks its decoded pose frame."), pose.PoseFlags109));
+            task = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, graphics.Models, ReadPose, session.ReadNativeForeignTarget);
             switch (unchecked((sbyte)task.ReadByte(41)))
             {
                 case 0:

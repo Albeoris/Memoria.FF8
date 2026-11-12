@@ -12,6 +12,7 @@ public sealed partial class BattleSession
         NativeBattleGraphicsModel actor = graphics.Models[target];
         if (ReadNativeForeignModel(target) is { } foreign)
         {
+            graphics = SubmitNativeShadowPackets5088A0(graphics, actor, projection, 4121, false);
             uint hostTint = colors.Interpolate(0x08B0A0, fade, 0);
             short hostZsf3 = NativeEffectMemory!.ScriptedGraphics!.Zsf3 ?? throw new NotSupportedException("Native Sleep requires its current ZSF3.");
             short hostZsf4 = NativeEffectMemory.ScriptedGraphics.Zsf4 ?? throw new NotSupportedException("Native Sleep requires its current ZSF4.");

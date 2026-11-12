@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Memoria.FF7.Runtime;
 using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
@@ -7,7 +8,7 @@ namespace Memoria.FF8;
 internal sealed partial class CrossoverGuestHostActions
 {
     private GameplaySaveLimitProgress? originLimitProgress;
-    private readonly Dictionary<(ushort Ability, int Target, bool Geometry), string?> abilityCapabilities = [];
+    private readonly Dictionary<(ushort Ability, int Target, ushort Targets, bool Geometry), string?> abilityCapabilities = [];
 
     public void BindLimitProgress(GameplaySaveLimitProgress progress)
     {
@@ -41,7 +42,7 @@ internal sealed partial class CrossoverGuestHostActions
         if (reason is not null)
         {
             ushort key = item ? CrossoverGuestAbilityCatalog.Key(4, original.ActionId) : receipt.Invocation.GuestAbility;
-            abilityCapabilities[(key, receipt.Invocation.TargetSlot, readForeignGeometry is not null)] = reason;
+            abilityCapabilities[(key, receipt.Invocation.TargetSlot, AbilityTargetMask(original, receipt.Invocation.TargetSlot), readForeignGeometry is not null)] = reason;
         }
         return reason;
     }
@@ -149,7 +150,7 @@ internal sealed partial class CrossoverGuestHostActions
         {
             return "The bridge cannot yet own the native random target selection process.";
         }
-                return (flags & 0x30) == 0x30 ? "The native command uses an unsupported target selection mode." : null;
+        return (flags & 0x30) == 0x30 ? "The native command uses an unsupported target selection mode." : null;
     }
 
     private string? AbilityUnsupportedReason(CrossoverGuestAbility choice, int target)
@@ -175,8 +176,9 @@ internal sealed partial class CrossoverGuestHostActions
 
     private string? PresentationUnsupportedReason(BattleNativeAction original, ushort ability, int target)
     {
-        var key = (ability, target, readForeignGeometry is not null);
-        if (attack.Visual is null || !host.IsActorPresentationReady(target))
+        ushort targets = AbilityTargetMask(original, target);
+        var key = (ability, target, targets, readForeignGeometry is not null);
+        if (attack.Visual is null || host.Actors.Any(actor => (targets & (1 << actor.Actor.Slot)) != 0 && !host.IsActorPresentationReady(actor.Actor.Slot)))
         {
             return "The original actor presentation is not ready.";
         }
@@ -199,17 +201,44 @@ internal sealed partial class CrossoverGuestHostActions
         NativeBattleContactHalf contact = preparedContact ?? NativeBattleContactHalf.FromScratch(target == ActorSlot ? (byte)0 : (byte)3, presentation.Sequence, presentation.Flags2, presentation.HitFlags3, 0, 0, 0);
         try
         {
-            CrossoverNativeMagicPresentationState state = fireProgram.Begin(visual.Model with { Index = 0 }, target, encounter.CrtRandom, contact, original, encounter.GlobalRandom);
+            ushort mask = AbilityTargetMask(original, target);
+            int[] slots = host.Actors.Where(actor => (mask & (1 << actor.Actor.Slot)) != 0).Select(actor => actor.Actor.Slot).Order().ToArray();
+            ImmutableArray<CrossoverNativeMagicTarget> targets = CrossoverNativeMagicTarget.Bind(ActorSlot, slots, (_, index) => contact with { ActorIndex = index });
+            CrossoverNativeMagicPresentationState state = fireProgram.Begin(visual.Model with { Index = 0 }, target, encounter.CrtRandom, targets[0].Contact, original, encounter.GlobalRandom) with { Targets = targets };
             return fireProgram.TryPreflight(state,
                 () => ReadAbilityAnchor(placement, target),
                 () => ReadAbilityTransform(placement, target),
                 CrossoverNativeSpriteRenderer.Camera(host.RenderCameraOutput, placement.Matrix),
-                readForeignGeometry is null ? null : () => CrossoverNativeForeignTarget.Read(host, target, readForeignGeometry(target), placement.Matrix), out string? reason) ? null : reason;
+                readForeignGeometry is null ? null : () => CrossoverNativeForeignTarget.Read(host, target, readForeignGeometry(target), placement.Matrix), out string? reason,
+                readGroupForeign: readForeignGeometry is null ? null : slot => CrossoverNativeForeignTarget.Read(host, slot, readForeignGeometry(slot), placement.Matrix)) ? null : reason;
         }
         catch (Exception exception) when (exception is NotSupportedException or InvalidDataException or InvalidOperationException or ArgumentException or OverflowException)
         {
             return exception.Message;
         }
+    }
+
+    private ushort AbilityTargetMask(BattleNativeAction action, int target)
+    {
+        byte flags = action.TargetFlags ?? throw new InvalidDataException("The original action has no target contract.");
+        if ((flags & 0x30) == 0x10)
+        {
+            return checked((ushort)(1 << target));
+        }
+        bool all = (flags & 0x30) == 0x20;
+        ushort mask = 0;
+        foreach (var actor in host.Actors)
+        {
+            int slot = actor.Actor.Slot;
+            bool revive = (flags & 1) != 0;
+            bool alive = actor.Actor.HitPoints != 0 && (actor.Actor.Statuses & 0x4001) == 0;
+            bool knockedOut = actor.Actor.HitPoints == 0 || (actor.Actor.Statuses & 1) != 0;
+            if (slot != 3 && (!revive || slot < 3) && (all || (slot < 3) == (target < 3)) && (revive ? knockedOut : alive) && ((actor.Actor.Conditions & 8) != 0 || revive && slot < 3))
+            {
+                mask |= (ushort)(1 << slot);
+            }
+        }
+        return mask;
     }
 
     private NativeBattleModuleAnchor ReadAbilityAnchor(CrossoverGunbladeHostPlacement placement, int target)

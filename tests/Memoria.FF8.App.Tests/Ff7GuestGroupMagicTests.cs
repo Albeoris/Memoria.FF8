@@ -163,6 +163,78 @@ public sealed class Ff7GuestGroupMagicTests
         Assert.Equal(4, fixture.Guest.Stock);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void GroupMagicPointRecoverySettlesTheCasterAndAllyInEitherContactOrder(bool reverseOrder)
+    {
+        using Fixture fixture = new(restoreMagicPoints: true);
+        Ff7BattleSession battle = fixture.Battle;
+        fixture.Guest.ReverseOrder = reverseOrder;
+        Dictionary<int, Ff7BattleAiActor> before = battle.Actors.Where(actor => actor.Actor.Slot < 3).ToDictionary(actor => actor.Actor.Slot, actor => actor.Actor);
+        Assert.True(battle.Submit(0, Ff7BattleCommand.Magic, GroupProbe.Ability, 3));
+        Assert.Equal(4, fixture.Guest.Stock);
+        List<int> publications = [];
+        for (int tick = 0; tick < 1000 && !fixture.Guest.Completed; tick++)
+        {
+            battle.Advance(waitForCommand: true);
+            if (battle.LastHit is { Source: 0 } hit && hit.Tick == battle.Tick)
+            {
+                publications.Add(hit.Target);
+            }
+        }
+        Assert.True(fixture.Guest.Completed);
+        Assert.Equal(reverseOrder ? new[] { 1, 0 } : new[] { 0, 1 }, publications);
+        Assert.Equal(1, fixture.Guest.PrepareCalls);
+        Assert.Equal(1, fixture.Guest.BeginCalls);
+        Assert.Equal(3, fixture.Guest.Stock);
+        Assert.All(battle.Actors.Where(actor => actor.Actor.Slot < 3), actor =>
+        {
+            Assert.Equal((ushort)(before[actor.Actor.Slot].MagicPoints + 20), actor.Actor.MagicPoints);
+            Assert.Equal(before[actor.Actor.Slot].HitPoints, actor.Actor.HitPoints);
+        });
+        Assert.Null(battle.Action);
+        Assert.Null(fixture.Guest.Invocation);
+    }
+
+    [Fact]
+    public void GroupRecoveryKeepsItsPreparedAmountWhenSharedStockReprojectsAnotherGuestBeforeContact()
+    {
+        using Fixture fixture = new(reprojectTarget: true);
+        Ff7BattleSession battle = fixture.Battle;
+        fixture.Guest.BeginAction = () => battle.ReprojectGuestVitals(1, battle.GetGuestProjection(1)! with { MaximumHp = 300 });
+        Assert.True(battle.Submit(0, Ff7BattleCommand.Magic, GroupProbe.Ability, 3));
+        for (int tick = 0; tick < 1000 && fixture.Guest.BeginCalls == 0; tick++)
+        {
+            battle.Advance(waitForCommand: true);
+        }
+        Assert.Equal(1, fixture.Guest.BeginCalls);
+        Ff7BattleGuestPreparedContact prepared = Assert.Single(fixture.Guest.Prepared, hit => hit.PreparedContact!.Invocation.TargetSlot == 1).PreparedContact!;
+        Assert.Equal(486u, prepared.TargetBefore.MaxHp);
+        Assert.Equal(-486, prepared.Receipt.Damage.Damage);
+        Ff7BattleAiActor reprojected = battle.Actors.Single(actor => actor.Actor.Slot == 1).Actor;
+        Assert.Equal(300u, reprojected.MaxHitPoints);
+        Assert.Equal(100u, reprojected.HitPoints);
+        Assert.Null(battle.LastHit);
+        List<int> publications = [];
+        for (int tick = 0; tick < 1000 && !fixture.Guest.Completed; tick++)
+        {
+            battle.Advance(waitForCommand: true);
+            if (battle.LastHit is { Source: 0 } hit && hit.Tick == battle.Tick)
+            {
+                publications.Add(hit.Target);
+            }
+        }
+        Assert.True(fixture.Guest.Completed);
+        Assert.Equal(new[] { 0, 1 }, publications);
+        Ff7BattleAiActor settled = battle.Actors.Single(actor => actor.Actor.Slot == 1).Actor;
+        Assert.Equal(300u, settled.MaxHitPoints);
+        Assert.Equal(300u, settled.HitPoints);
+        Assert.Equal(1, fixture.Guest.PrepareCalls);
+        Assert.Equal(3, fixture.Guest.Stock);
+        Assert.Null(battle.Action);
+    }
+
     private sealed class Fixture : IDisposable
     {
         private readonly Ff7Session original;
@@ -171,7 +243,7 @@ public sealed class Ff7GuestGroupMagicTests
         public Ff7BattleSession Battle { get; }
         public GroupProbe Guest { get; }
 
-        public Fixture(bool revive = false, bool allTargets = false)
+        public Fixture(bool revive = false, bool allTargets = false, bool restoreMagicPoints = false, bool reprojectTarget = false)
         {
             string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
             Assert.SkipUnless(!string.IsNullOrWhiteSpace(directory), "Select the installed original FFVII resources.");
@@ -186,7 +258,14 @@ public sealed class Ff7GuestGroupMagicTests
             Ff7BattleAnimationResources animations = new(archive, Ff7PcExecutableData.LoadBattlePlacement(installation), magic, Ff7PcExecutableData.LoadBattleJumpDeltas(installation), Ff7PcExecutableData.LoadBattleHitmarks(installation), Ff7PcExecutableData.LoadBattleActorModelResources(installation));
             Ff7BattleSession initial = Create();
             Guid encounter = Guid.NewGuid();
-            initial.BindGuestVitals(new(encounter, new('A', 64), 0, 0, 0, 0, 486, 486, 6, 14, 24, 17));
+            if (!restoreMagicPoints)
+            {
+                initial.BindGuestVitals(new(encounter, new('A', 64), 0, 0, 0, 0, 486, 486, 6, 14, 24, 17));
+            }
+            if (reprojectTarget)
+            {
+                initial.BindGuestVitals(new(encounter, new('A', 64), 1, 1, 1, 1, 100, 486, 6, 14, 24, 17));
+            }
             Ff7BattleSnapshot snapshot = initial.Capture();
             snapshot = snapshot with
             {
@@ -199,10 +278,10 @@ public sealed class Ff7GuestGroupMagicTests
                         AwaitingTurn = false,
                         Actor = actor.Actor with { Statuses = revive && actor.Actor.Slot == 1 ? 1u : 0x400u, HitPoints = revive && actor.Actor.Slot == 1 ? 0 : actor.Actor.HitPoints },
                         Timers = Ff7NativeBattleStatusClock.Apply(actor.Timers, actor.Actor.Statuses, revive && actor.Actor.Slot == 1 ? 1u : 0x400u)
-                    }).ToArray()
+                    }).Select(actor => restoreMagicPoints && actor.Actor.Slot < 3 ? actor with { Actor = actor.Actor with { MagicPoints = 10, MaxMagicPoints = 100 } } : actor).ToArray()
             };
             Battle = Create(snapshot);
-            Guest = new(encounter, revive, allTargets);
+            Guest = new(encounter, revive, allTargets, restoreMagicPoints, reprojectTarget);
             Battle.BindGuestAttack(Guest);
             Assert.Equal(0, Battle.ReadyPlayer);
 
@@ -217,7 +296,7 @@ public sealed class Ff7GuestGroupMagicTests
         }
     }
 
-    private sealed class GroupProbe(Guid encounter, bool revive, bool allTargets) : IFf7BattleGuestAttack, IFf7BattleGuestMagic, IFf7BattleGuestAbilities, IFf7BattleGuestGroupMagic
+    private sealed class GroupProbe(Guid encounter, bool revive, bool allTargets, bool restoreMagicPoints, bool reprojectTarget) : IFf7BattleGuestAttack, IFf7BattleGuestMagic, IFf7BattleGuestAbilities, IFf7BattleGuestGroupMagic
     {
         public const ushort Ability = 57;
         public const string Reason = "The host cannot present one selected target contact.";
@@ -232,16 +311,18 @@ public sealed class Ff7GuestGroupMagicTests
         public int? BlockedTarget { get; set; }
         public bool RejectPrepared { get; set; }
         public bool RepeatFirstTarget { get; set; }
+        public bool ReverseOrder { get; set; }
+        public Action? BeginAction { get; set; }
         public bool Completed { get; private set; }
         public IReadOnlyList<Ff7BattleGuestPhysicalHit> Prepared { get; private set; } = [];
         private int published;
-        public IReadOnlyList<Ff7BattleGuestAbility> Abilities => [new(Ff7BattleCommand.Magic, Ability, "Native group", revive ? (byte)0x14 : allTargets ? (byte)0x04 : (byte)0x16, Stock) { CanTargetDead = revive, AllTargets = allTargets }];
+        public IReadOnlyList<Ff7BattleGuestAbility> Abilities => [new(Ff7BattleCommand.Magic, Ability, "Native group", revive || restoreMagicPoints || reprojectTarget ? (byte)0x14 : allTargets ? (byte)0x04 : (byte)0x16, Stock) { CanTargetDead = revive, AllTargets = allTargets }];
         public bool Supports(Ff7BattleGuestAttackTarget target) => true;
         public bool SupportsAbility(Ff7BattleCommand command, ushort ability, Ff7BattleGuestAttackTarget target) => TargetUnsupportedReason(command, ability, target) is null;
         public string? TargetUnsupportedReason(Ff7BattleCommand command, ushort ability, Ff7BattleGuestAttackTarget target) => target.Slot == BlockedTarget ? Reason : null;
         public bool SupportsMagic(ushort ability, Ff7BattleGuestAttackTarget target) => SupportsAbility(Ff7BattleCommand.Magic, ability, target);
         public int MagicStock(ushort ability) => Stock;
-        public Ff7BattleGuestPhysicalHit DescribeMagic(ushort ability) => new(new(6, 24, 0, 0, 14, 0, 0, 24, 17), new(0x22, 1, 100, LongRange: true) { SuppressCritical = true, AlwaysHits = true }, 0);
+        public Ff7BattleGuestPhysicalHit DescribeMagic(ushort ability) => new(new(6, 24, 0, 0, 14, 0, 0, 24, 17), restoreMagicPoints ? new(0x26, 1, 255, LongRange: true, Healing: true, TargetsMagicPoints: true) : reprojectTarget ? new(0x24, 32, 255, LongRange: true, Healing: true) : new(0x22, 1, 100, LongRange: true) { SuppressCritical = true, AlwaysHits = true }, 0);
         public void PrepareMagic(Ff7BattleGuestPhysicalHit prepared) => throw new InvalidOperationException("Group stock belongs to the shared group transaction.");
 
         public string? PrepareGroupUnsupportedReason(IReadOnlyList<Ff7BattleGuestPhysicalHit> prepared)
@@ -262,6 +343,7 @@ public sealed class Ff7GuestGroupMagicTests
             BeginCalls++;
             Invocation = invocation;
             HostTick = invocation.StartedAt;
+            BeginAction?.Invoke();
         }
 
         public Ff7BattleGuestAttackUpdate Advance(long hostTick)
@@ -269,7 +351,7 @@ public sealed class Ff7GuestGroupMagicTests
             HostTick = hostTick;
             if (published < Prepared.Count)
             {
-                Ff7BattleGuestPhysicalHit hit = Prepared[RepeatFirstTarget ? 0 : published];
+                Ff7BattleGuestPhysicalHit hit = Prepared[RepeatFirstTarget ? 0 : ReverseOrder ? Prepared.Count - 1 - published : published];
                 published++;
                 return new(null, false) { GroupHits = [hit] };
             }

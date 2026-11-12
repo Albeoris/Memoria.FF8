@@ -5,6 +5,27 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Shared native actor consumers operating on posed host triangles and their actual material owner.</summary>
 public static class NativeBattleForeignModelDrawing
 {
+    public static NativeBattleGfGeometryBatch Deform(NativeBattleForeignModelGeometry geometry, NativeBattleCameraProjection projection, Func<NativeBattleModuleProjectedVertex, NativeBattleProjectedVertex> deform, Func<NativeBattleRawMesh, IReadOnlyList<NativeBattleProjectedVertex>, NativeBattlePilotVisualIdentity, NativeBattleGfGeometryBatch> emit, NativeBattlePilotVisualIdentity identity)
+    {
+        NativeBattleActionMatrix camera = NativeBattleGfMatrices.Compose56C2F0(projection.View ?? throw new NotSupportedException("Host model projection requires its current camera."), geometry.World);
+        ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
+        int allocated = 0;
+        for (int index = 0; index < geometry.Faces.Length; index++)
+        {
+            NativeBattleForeignModelFace face = geometry.Faces[index];
+            NativeBattleRawMesh mesh = face.Triangle();
+            NativeBattleProjectedVertex[] projected = mesh.Vertices.Select(vertex => deform(NativeBattleModuleProjection.Project45FE10(camera, vertex.Position, projection))).ToArray();
+            NativeBattlePilotVisualIdentity selected = identity with { Primitive = unchecked(identity.Primitive * 397 + index) };
+            NativeBattleGfGeometryBatch batch = emit(mesh, projected, selected);
+            foreach (NativeBattleGfGeometryAttempt attempt in batch.Attempts)
+            {
+                attempts.Add(attempt with { ByteOffsetRelative = attempt.ByteOffsetRelative + allocated, Primitive = attempt.Primitive is { } primitive ? geometry.BindSurface(primitive, face, selected) : null });
+            }
+            allocated += batch.AllocationBytes;
+        }
+        return new(attempts.ToImmutable(), allocated);
+    }
+
     public static NativeBattleCureActorPacketBatch Cure(NativeBattleForeignModelGeometry geometry, NativeBattleActionMatrix camera, NativeBattleCameraProjection projection, NativeBattleVector center, short verticalOffset, short? contextF4, uint color, NativeBattlePilotVisualIdentity identity, NativeBattleCureTextureProjection? texture = null, uint overlayColor = 0x808080)
     {
         NativeBattleCureActorMatrices matrices = NativeBattlePoseMatrices.CureActorMatrices8D7110(geometry.World, camera, new(0, verticalOffset, 0), 1, center, 8192);
@@ -42,8 +63,7 @@ public static class NativeBattleForeignModelDrawing
             maximum = batch.Maximum;
             foreach (NativeBattleGeometryPrimitive primitive in batch.Primitives)
             {
-                bool band = (ushort)(primitive.Words[3] >> 16) == 0x3D14 && (ushort)(primitive.Words[5] >> 16) == 0xBA;
-                primitives.Add(band ? primitive : geometry.BindSurface(primitive, face, selected));
+                primitives.Add(primitive.UsesModelMaterial ? geometry.BindSurface(primitive, face, selected) : primitive);
             }
         }
         return new(minimum, maximum, [], primitives.ToImmutable());

@@ -9,6 +9,7 @@ public sealed partial class BattleSession
         NativeBattleGraphicsModel model = graphics.Models[index];
         if (ReadNativeForeignModel(index) is { } foreign)
         {
+            graphics = SubmitNativeShadowPackets5088A0(graphics, model, NativeCamera!.Projection!, 4112, false);
             NativeBattleBlizzagaModelBandResult batch = NativeBattleForeignModelDrawing.Band(foreign, NativeCamera!.Projection!, model.Color40!.Value, low, high, NativePilotSceneIdentity(0x6D8D80, model.Index, 0) ?? new(104, 0x6D8D80, model.Index, 0, 0));
             return (AppendNativePrimitivePackets(graphics, batch.Primitives), batch.Minimum, batch.Maximum);
         }

@@ -19,7 +19,7 @@ public sealed class CrossoverForeignModelRenderingTests
             OrderingBucket = 100,
             PilotGeometry = new(new(1, 0, 0, 1, 0), default, default, default, default, 3) { ForeignSurface = surface }
         };
-        NativeBattlePrimitiveFrame frame = new(NativeBattleLogicalOrdering.Clear(), [new(command, new(0), 1)], [])
+        NativeBattlePrimitiveFrame frame = new(NativeBattleLogicalOrdering.Clear(), [new(command, new(null), 1)], [])
         {
             LastDescriptorPerspective = false,
             LastDepthState = NativeBattlePrimitiveDepthState.FromColdProcess(),
@@ -36,7 +36,7 @@ public sealed class CrossoverForeignModelRenderingTests
         Assert.Equal(surface.Colors[0], captured.Vertices[0].Color);
         Assert.Equal(surface.Colors[1], captured.Vertices[1].Color);
         Assert.Equal(surface.Colors[2], captured.Vertices[2].Color);
-        Assert.Equal(new Vector2(10, 10), captured.Vertices[0].Position);
+        Assert.Equal(new Vector2(10, 10 * 240f / 216), captured.Vertices[0].Position);
     }
 
     private static uint Point(short x, short y) => unchecked((ushort)x | (uint)(ushort)y << 16);

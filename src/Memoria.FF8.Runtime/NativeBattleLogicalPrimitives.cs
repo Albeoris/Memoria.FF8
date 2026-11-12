@@ -1338,6 +1338,16 @@ public static class NativeBattleLogicalPasses
             SetCache(BeginTexturePass(GetCache(), pass));
             foreach (NativeBattleLogicalCommand command in commands)
             {
+                if (command.PilotGeometry?.ForeignSurface is not null)
+                {
+                    // A host material participates in ordering and depth, but owns no native page, palette or software command.
+                    bool enabled = tables.FlaggedCommands[command.Opcode] == 0 || ((context?.LiveMode ?? drawFlags) & 1) != 0;
+                    if (pass == 1 && enabled && passes[pass][command.Opcode] != 0 && context?.HardwareEnabled != false)
+                    {
+                        executed.Add(new(command, ClearTextureSelection(mode), pass));
+                    }
+                    continue;
+                }
                 if (pass == 0 && context is not null && (context.LiveMode & 2) != 0 && context.SoftwareTable.Handler(command.Opcode) != 0)
                 {
                     context.ExecuteSoftware(command);
@@ -1423,6 +1433,10 @@ public static class NativeBattleLogicalPasses
     private static (NativeBattleLogicalResolvedCommand Command, NativeBattlePcTextureWindowCache Cache) SelectTextureCommand(NativeBattleLogicalResolvedCommand command, NativeBattlePcTextureWindowCache cache)
     {
         NativeBattlePrimitiveDrawMode mode = ClearTextureSelection(command.DrawMode);
+        if (command.Command.PilotGeometry?.ForeignSurface is not null)
+        {
+            return (command with { DrawMode = mode }, cache);
+        }
         bool sprite = command.Command.Opcode is 0x64 or 0x66;
         if ((command.Command.Opcode & 0xE4) == 0x24 || sprite)
         {

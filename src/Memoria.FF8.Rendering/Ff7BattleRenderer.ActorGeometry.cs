@@ -16,6 +16,7 @@ public sealed record Ff7BattleActorGeometry(ImmutableArray<Ff7BattleActorFace> F
     public Vector3? GuestEffectAnchor { get; init; }
     public ImmutableArray<(Vector3 A, Vector3 B, Vector3 C)> GuestFaces { get; init; } = [];
     public ImmutableArray<NativeBattleForeignSurface> GuestSurfaces { get; init; } = [];
+    public ImmutableArray<(Vector3 Start, Vector3 End)> Bones { get; init; } = [];
 
     public IEnumerable<(Vector3 A, Vector3 B, Vector3 C)> FaceVertices()
         => GuestFaces.IsEmpty ? Faces.Select(face => (face.A, face.B, face.C)) : GuestFaces;
@@ -75,7 +76,7 @@ public sealed partial class Ff7BattleRenderer
             }
             part++;
         }, points => skeleton = points);
-        return new(faces.ToImmutable(), skeleton);
+        return new(faces.ToImmutable(), skeleton) { Bones = Enumerable.Range(0, (skeleton.Length - 1) / 2).Select(index => (skeleton[index * 2 + 1], skeleton[index * 2 + 2])).ToImmutableArray() };
     }
 
     private void VisitActorGeometry(Ff7BattleActorVisual actor, Action<PcPolygonModel, IReadOnlyList<PcTexture>, Matrix4x4> visit, Action<ImmutableArray<Vector3>>? captureSkeleton = null)

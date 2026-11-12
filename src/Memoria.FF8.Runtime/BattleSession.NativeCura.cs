@@ -82,6 +82,7 @@ public sealed partial class BattleSession
                     NativeBattleCureActorPacketBatch batch;
                     if (ReadNativeForeignModel(context.Target) is { } foreign)
                     {
+                        graphics = SubmitNativeShadowPackets5088A0(graphics, target, projection, 4112, false);
                         batch = NativeBattleForeignModelDrawing.Cure(foreign, view, projection, actor.Center, actor.VerticalOffset, contextF4, target.Color40!.Value, actor.PilotIdentity ?? new(effect.Binding.Effect, 0, context.Target, 0, 0), NativeBattleCureActorPackets.TextureProjection8D7050(640, 448, 320, 244, 128, 64), 0x404040);
                     }
                     else

@@ -174,11 +174,11 @@ public static class NativeBattleStatusMagicController
         }
         return new(current with { Effect = current.Effect with { Pools = targets is null ? [rootPool] : [rootPool, targets], ReturnedDescriptor = complete ? 0u : resources.RootDescriptor } }, contacts.ToImmutable(), sounds.ToImmutable());
 
-        NativeBattleVector Bone(int index) => NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(index), inputs.ReadPoseSource(index), 0xF0, 0);
+        NativeBattleVector Bone(int index) => inputs.ReadBone?.Invoke(index, 0xF0, 0) ?? NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(index), inputs.ReadPoseSource(index), 0xF0, 0);
 
         NativeBattleVector DefaultPosition(int index)
         {
-            NativeBattleModuleAnchor anchor = NativeBattlePoseMatrices.ReadAnchor(inputs.ReadModel(index), inputs.ReadPoseSource(index));
+            NativeBattleModuleAnchor anchor = inputs.ReadAnchor?.Invoke(index) ?? NativeBattlePoseMatrices.ReadAnchor(inputs.ReadModel(index), inputs.ReadPoseSource(index));
             return new(anchor.X, anchor.Y, anchor.Z);
         }
 

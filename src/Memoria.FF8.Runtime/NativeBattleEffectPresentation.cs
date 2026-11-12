@@ -6,6 +6,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleForeignActor(int Index, NativeBattleModelTransform Transform, NativeBattleModuleAnchor Anchor, Func<byte, short, NativeBattleVector> ReadBone)
 {
     public short Facing { get; init; }
+    public int BoneCount { get; init; }
     public NativeBattleForeignModelGeometry? Geometry { get; init; }
 }
 

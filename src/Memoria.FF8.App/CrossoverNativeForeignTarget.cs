@@ -31,11 +31,30 @@ internal sealed record CrossoverNativeForeignTarget(int HostSlot, NativeBattleMo
             throw new NotSupportedException("The host posed geometry has no material-bearing triangle provider.");
         }
         NativeBattleVector anchor = Anchors.Anchor241;
-        return new(index, Transform, new(anchor.X, anchor.Y, anchor.Z, checked((short)(Anchors.LocalBounds.Maximum.Y - Anchors.LocalBounds.Minimum.Y))), (selector, fraction) => ReadSemanticBone(selector, fraction, anchor, () => Anchors.Anchor240))
+        return new(index, Transform, new(anchor.X, anchor.Y, anchor.Z, checked((short)(Anchors.LocalBounds.Maximum.Y - Anchors.LocalBounds.Minimum.Y))), ReadBone)
         {
             Facing = Facing,
+            BoneCount = Geometry.Bones.Length,
             Geometry = new(World, Anchors, faces)
         };
+
+        NativeBattleVector ReadBone(byte selector, short fraction)
+        {
+            if (selector is 240 or 241)
+            {
+                return ReadSemanticBone(selector, fraction, anchor, () => Anchors.Anchor240);
+            }
+            if (selector >= Geometry.Bones.Length || fraction is < 0 or > 4096)
+            {
+                throw new NotSupportedException("The host skeleton cannot supply the selected posed bone segment.");
+            }
+            (Vector3 start, Vector3 end) = Geometry.Bones[selector];
+            NativeBattleVector first = Word(Vector3.Transform(start, HostToOrigin));
+            NativeBattleVector second = Word(Vector3.Transform(end, HostToOrigin));
+            return new(Interpolate(first.X, second.X), Interpolate(first.Y, second.Y), Interpolate(first.Z, second.Z));
+
+            short Interpolate(short from, short to) => checked((short)(from + ((to - from) * fraction >> 12)));
+        }
     }
     /// <summary>Foreign F0 is the posed root-to-impact segment; F1 is the host's canonical impact point.</summary>
     public static NativeBattleVector ReadSemanticBone(byte selector, short fraction, NativeBattleVector impact, Func<NativeBattleVector> readRoot)

@@ -75,6 +75,7 @@ public static class CrossoverFf8BattleActorRenderer
         ImmutableArray<NativeBattleForeignSurface>.Builder surfaces = ImmutableArray.CreateBuilder<NativeBattleForeignSurface>();
         Dictionary<(ushort Page, ushort Clut), PixelImage> pages = [];
         ImmutableArray<Vector3>.Builder skeleton = ImmutableArray.CreateBuilder<Vector3>();
+        ImmutableArray<(Vector3 Start, Vector3 End)>.Builder segments = ImmutableArray.CreateBuilder<(Vector3 Start, Vector3 End)>();
         NativeBattleGraphicsModel model = visual.Model;
         NativeBattlePoseSource source = visual.Body.NativePoseSource ?? throw new InvalidDataException("Mixed actor geometry requires the original body skeleton.");
         NativeBattleActionMatrix world = model.GeometryWorldMatrix ?? throw new InvalidDataException("Mixed actor geometry requires the published native world matrix.");
@@ -83,6 +84,12 @@ public static class CrossoverFf8BattleActorRenderer
         foreach (NativeBattleActionMatrix bone in NativeBattleBodyBoneMatrices.Require(model, source))
         {
             skeleton.Add(Transform(visual, NativeBattleGfMatrices.Compose56C2F0(world, bone), default));
+        }
+        for (int bone = 0; bone < source.BoneCount; bone++)
+        {
+            NativeBattleVector first = NativeBattlePoseMatrices.ReadBone(model, source, checked((byte)bone), 0);
+            NativeBattleVector second = NativeBattlePoseMatrices.ReadBone(model, source, checked((byte)bone), 4096);
+            segments.Add((Vector3.Transform(new(first.X, first.Y, first.Z), visual.OriginToHost), Vector3.Transform(new(second.X, second.Y, second.Z), visual.OriginToHost)));
         }
         VisitGeometry(visual, (mesh, textures, bones, bodyOwner) =>
         {
@@ -126,7 +133,8 @@ public static class CrossoverFf8BattleActorRenderer
             GuestRoot = root,
             GuestEffectAnchor = EffectAnchor(visual),
             GuestFaces = faces.ToImmutable(),
-            GuestSurfaces = surfaces.ToImmutable()
+            GuestSurfaces = surfaces.ToImmutable(),
+            Bones = segments.ToImmutable()
         };
     }
 

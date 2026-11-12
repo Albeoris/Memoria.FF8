@@ -309,6 +309,17 @@ public sealed partial class BattleSession
     private (NativeBattleGraphicsState Graphics, short Depth) DrawNativeEffect107Model(NativeBattleGraphicsState graphics, int model, short screenX, short screenY, short priorDepth, int intensity, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleGraphicsModel target = graphics.Models[model];
+        if (ReadNativeForeignModel(model) is { } foreign)
+        {
+            NativeBattleEffect107Resources lookup = graphics.OriginalEffect?.Binding.Effect107Resources ?? throw new NotSupportedException("Native6D19A0 requires its original lookup tables.");
+            NativeBattleCameraProjection camera = NativeCamera?.Projection ?? throw new NotSupportedException("Native6D19A0 requires its current projection.");
+            graphics = SubmitNativeShadowPackets5088A0(graphics, target, camera, 4112, false);
+            short maximum = 0;
+            NativeBattleGfGeometryBatch batch = NativeBattleForeignModelDrawing.Deform(foreign, camera, point => NativeBattleEffect107Geometry.Deform6D1C30(point, screenX, screenY, priorDepth, ref maximum, intensity, lookup.Read), (mesh, projected, identity) => NativeBattleEffect107Geometry.Emit6BCB50(mesh.Polygons, projected, target.Color40!.Value, null, pilotIdentity: identity), pilotIdentity ?? new(107, 0x6D19A0, model, 0, 0));
+            NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(NativeEffectMemory!.PrimitiveProcess!, graphics.PrimitiveFrame!.Pending, batch);
+            NativeEffectMemory = NativeEffectMemory with { PrimitiveProcess = written.Process };
+            return (graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = written.Ordering } }, maximum);
+        }
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, model);
         NativeBattleEffect107Resources resources = graphics.OriginalEffect?.Binding.Effect107Resources ?? throw new NotSupportedException("Native6D19A0 requires its original effect107 lookup tables.");
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native6D19A0 requires its prior camera registers.");

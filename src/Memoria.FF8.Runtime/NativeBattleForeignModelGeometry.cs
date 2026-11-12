@@ -43,7 +43,7 @@ public sealed record NativeBattleForeignModelGeometry(NativeBattleActionMatrix W
         Vector3 Point(NativeBattleVector point) => NativeBattlePilotVisualGeometry.Transform(World, point);
         return primitive with
         {
-            PilotGeometry = new(identity, Point(face.A), Point(face.B), Point(face.C), default, 3) { ForeignSurface = face.Surface }
+            PilotGeometry = (primitive.PilotGeometry ?? new(identity, Point(face.A), Point(face.B), Point(face.C), default, 3)) with { ForeignSurface = face.Surface }
         };
     }
 }

@@ -25,7 +25,7 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native restoration callback requires its prior projection registers.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native restoration callback requires the previously published camera matrix.");
         NativeBattleRestorationFrame initial = new(NativeEffectMemory ?? throw new NotSupportedException("Native restoration callback requires its retained process memory."), effect, effect.Restoration ?? throw new NotSupportedException("Native restoration callback requires its executed original entry."));
-        NativeBattleRestorationControllerInputs inputs = new(nativeActionPackets, view, index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native restoration anchors require their original model pose source.")) { ApplyContact = ApplyContact };
+        NativeBattleRestorationControllerInputs inputs = new(nativeActionPackets, view, index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native restoration anchors require their original model pose source.")) { ApplyContact = ApplyContact, ReadForeignTarget = ReadNativeForeignTarget };
         NativeBattleRestorationControllerStep step = NativeBattleRestorationController.Advance(initial, inputs, resources, (current, address) =>
         {
             //The controller's actual clear/previous callback writes must become canonical before the next immediate callback.

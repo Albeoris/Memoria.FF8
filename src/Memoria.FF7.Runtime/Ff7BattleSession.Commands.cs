@@ -64,7 +64,7 @@ public sealed partial class Ff7BattleSession
         }
         commands.Add(new(Ff7BattleCommand.Change, 0, (ushort)(1 << slot), true, false));
         commands.Add(new(Ff7BattleCommand.Defend, 0, (ushort)(1 << slot), true, false));
-        if (IsGuestVitalsSlot(slot))
+        if (IsGuestVitalsSlot(slot) || GetGuestAttack(slot) is not null)
         {
             IFf7BattleGuestAttack? guestAttack = GetGuestAttack(slot);
             IFf7BattleGuestItems? items = guestAttack as IFf7BattleGuestItems;
@@ -89,7 +89,7 @@ public sealed partial class Ff7BattleSession
                         bool enemies = (ability.TargetFlags & 2) != 0;
                         bool locked = (ability.TargetFlags & 0x10) != 0;
                         bool single = (ability.TargetFlags & 4) == 0 || (ability.TargetFlags & 8) != 0;
-                        ushort candidates = Mask(state.Actors.Where(target => target.Actor.Slot != 3 && (!ability.CanTargetDead || target.Actor.Slot < 3) && ((target.Actor.Conditions & 8) != 0 || ability.CanTargetDead && target.Actor.Slot < 3) && IsAlive(target) != ability.CanTargetDead && (!locked || (target.Actor.Slot >= 4) == enemies)));
+                        ushort candidates = Mask(state.Actors.Where(target => target.Actor.Slot != 3 && (!ability.CanTargetDead || target.Actor.Slot < 3) && ((target.Actor.Conditions & 8) != 0 || ability.CanTargetDead && target.Actor.Slot < 3) && (ability.CanTargetDead ? target.Actor.HitPoints == 0 || (target.Actor.Statuses & 1) != 0 : IsAlive(target)) && (!locked || (target.Actor.Slot >= 4) == enemies)));
                         ushort abilityTargets = Mask(state.Actors.Where(target => (candidates & (1 << target.Actor.Slot)) != 0 && abilities.SupportsAbility(ability.Command, ability.Ability, DescribeGuestTarget(target.Actor.Slot))));
                         string? reason = ability.UnsupportedReason;
                         if (reason is null && ability.RequiresMagic && !Ff7GuestBattleStatuses.CanCastMagic(actor.Actor.Statuses))
@@ -135,19 +135,19 @@ public sealed partial class Ff7BattleSession
 
     public bool Submit(int slot, Ff7BattleCommand command, ushort argument, ushort targets, bool group = false)
     {
-        if (IsGuestVitalsSlot(slot) && command == Ff7BattleCommand.Attack && argument == 0 && !group && System.Numerics.BitOperations.IsPow2((uint)targets))
+        if ((IsGuestVitalsSlot(slot) || GetGuestAttack(slot) is not null) && command == Ff7BattleCommand.Attack && argument == 0 && !group && System.Numerics.BitOperations.IsPow2((uint)targets))
         {
             return SubmitGuestAttack(slot, System.Numerics.BitOperations.TrailingZeroCount((uint)targets));
         }
-        if (IsGuestVitalsSlot(slot) && command == Ff7BattleCommand.Limit)
+        if ((IsGuestVitalsSlot(slot) || GetGuestAttack(slot) is not null) && command == Ff7BattleCommand.Limit)
         {
             return argument == 0 && !group && System.Numerics.BitOperations.IsPow2(targets) && SubmitGuestLimit(slot, System.Numerics.BitOperations.TrailingZeroCount(targets));
         }
-        if (IsGuestVitalsSlot(slot) && command == Ff7BattleCommand.Magic)
+        if ((IsGuestVitalsSlot(slot) || GetGuestAttack(slot) is not null) && command == Ff7BattleCommand.Magic)
         {
             return SubmitGuestMagicTargets(slot, targets, argument, group);
         }
-        if (IsGuestVitalsSlot(slot) && command == Ff7BattleCommand.Item && GetGuestAttack(slot) is IFf7BattleGuestItems { HasOriginItems: true })
+        if ((IsGuestVitalsSlot(slot) || GetGuestAttack(slot) is not null) && command == Ff7BattleCommand.Item && GetGuestAttack(slot) is IFf7BattleGuestItems { HasOriginItems: true })
         {
             return !group && System.Numerics.BitOperations.IsPow2((uint)targets) && SubmitGuestItem(slot, System.Numerics.BitOperations.TrailingZeroCount((uint)targets), argument);
         }

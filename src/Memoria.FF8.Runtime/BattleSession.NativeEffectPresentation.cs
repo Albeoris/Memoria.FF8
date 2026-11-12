@@ -29,8 +29,9 @@ public sealed partial class BattleSession
         NativeEffectMemory = NativeBattleGraphicsInitialization.Initialize500520(NativeEffectMemory);
         NativeCamera = NativeBattleCameraState.FromColdProcess() with { Projection = inputs.Projection };
         presentationHostCamera = NativeCamera;
-        NativeFileStaging = NativeBattleFileStaging.FromColdProcess();
+        NativeFileStaging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.FromColdProcess());
         NativeFileIo = NativeBattleFileIoState.FromColdProcess();
+        NativeVibrationProcess = definition.NativeVibrationProcess ?? definition.NativeRetainedMemory?.VibrationProcess ?? NativeVibrationProcessState.FromColdProcess();
         if (inputs.SourceResource.ModelLoadSources is { IsEmpty: false } modelSources)
         {
             ushort maximum = 0;
@@ -121,7 +122,8 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Foreign presentation actors require a unique physical model slot outside source slot zero.");
             }
             NativeBattleGraphicsModel model = models[actor.Index];
-            models = models.SetItem(actor.Index, model with { Flags0 = (ushort)(model.Flags0 | 2), Flags2 = model.Flags2 ?? 0, Transform = actor.Transform, Rotation14 = actor.Facing, GeometryWorldMatrix = actor.Geometry?.World, GeometryBounds52 = actor.Geometry?.Anchors.LocalBounds, Color40 = model.Color40 ?? 0x808080, Color44 = model.Color44 ?? 0x808080, HasLinkedModelRing140 = false, LinkedModelIndex140 = null });
+            uint normal = definition.NativeGraphics?.Rules.SummonColors?.Normal ?? throw new NotSupportedException("Foreign model presentation requires its selected normal color.");
+            models = models.SetItem(actor.Index, model with { Flags0 = (ushort)(model.Flags0 | 2), Flags2 = model.Flags2 ?? 0, Transform = actor.Transform, Rotation14 = actor.Facing, GeometryWorldMatrix = actor.Geometry?.World, GeometryBounds52 = actor.Geometry?.Anchors.LocalBounds, Color40 = model.Color40 ?? 0x808080, Color44 = model.Color44 ?? (normal & 0xFFFFFFu) | 0x32000000u, HasLinkedModelRing140 = false, LinkedModelIndex140 = null });
         }
         return models;
     }
