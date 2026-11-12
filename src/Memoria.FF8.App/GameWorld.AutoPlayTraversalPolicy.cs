@@ -221,6 +221,12 @@ internal static class AutoPlayTraversalPolicy
             ("167:1105", "167:gateway:3") => -6,
             ("168:1105", "168:line:24") => -7,
             ("179:1105", "179:line:13" or "179:line-action:13") => -8,
+            // NG-058: Return to the orphanage for the introduction letter.
+            ("180:1350", "180:line:11") => -1,
+            ("179:1350", "179:line:12") => -1,
+            ("168:1350", "168:line:22") => -2,
+            ("167:1350", "167:gateway:0" or "167:gateway:1" or "167:gateway:2") => -3,
+            ("163:1350", "163:line:17" or "163:line:18") => -4,
             _ => 0
         };
     }
