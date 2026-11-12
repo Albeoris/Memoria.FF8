@@ -31,8 +31,10 @@ internal static class NativeBattleTests
         Check(partial.AbilityPoints == 2 && partial.Experience == 16, "An enemy that was not defeated must not contribute to ordinary victory AP.");
         Ff7BattleReward odd = Ff7DebugVictory.ResolveRewards(formation with { EnemyRewards = [enemy with { AbilityPoints = 5 }] }, new(kernel, new(new byte[8])), defeated: instance => ReferenceEquals(instance, formation.Enemies[0]));
         Check(odd.AbilityPoints == 5 && odd.Ff8AbilityPoints == 2, "FFVIII conversion must halve the battle total and round down.");
+        Check(new Ff7BattleReward(0, 0, 1, []).Ff8AbilityPoints == 1, "One FFVII AP must yield the minimum one FFVIII AP.");
+        Check(new Ff7BattleReward(0, 0, 2, []).Ff8AbilityPoints == 1, "Two FFVII AP must yield one FFVIII AP.");
         Ff7BattleReward empty = Ff7DebugVictory.ResolveRewards(formation, new(kernel, new(new byte[8])), defeated: _ => false);
-        Check(empty.AbilityPoints == 0 && empty.Ff8AbilityPoints == 0, "Undefeated enemies must not award AP.");
+        Check(empty.AbilityPoints == 0 && empty.Ff8AbilityPoints == 1, "FFVII retains zero AP while the FFVIII victory reward has a minimum of one AP.");
         enemy = enemy with { Items = [new(-1, 63), new(1, 63), new(-1, 255), new(-1, 255)] };
         random = new(kernel, new(new byte[8]));
         rewards = Ff7DebugVictory.ResolveRewards(formation with { EnemyRewards = [enemy] }, random);

@@ -7,7 +7,7 @@ public sealed record Ff7RewardItem(int ItemId, int Quantity);
 public sealed record Ff7BattleReward(uint Gil, uint Experience, uint AbilityPoints, Ff7RewardItem[] Items)
 {
     [System.Text.Json.Serialization.JsonIgnore]
-    public uint Ff8AbilityPoints => AbilityPoints / 2;
+    public uint Ff8AbilityPoints => Math.Max(1u, AbilityPoints / 2);
 }
 public sealed record Ff7BattleReceipt(long FieldGeneration, long RequestId, ushort Formation, Ff7BattleReward Reward);
 

@@ -13,6 +13,7 @@ public sealed class Ff7BattleHudTests
     [InlineData(false, 5u)]
     [InlineData(true, 5u)]
     [InlineData(true, 0u)]
+    [InlineData(true, 1u)]
     public void VictoryShowsOriginalApAndAnAdditionalFf8RowOnlyForGuestParties(bool hasFf8Characters, uint abilityPoints)
     {
         BattleHudLayout layout = new(new(0, 0, 960, 672));
@@ -26,7 +27,7 @@ public sealed class Ff7BattleHudTests
         Assert.Equal(hasFf8Characters ? 3 : 2, canvas.TextDraws.Count);
         if (hasFf8Characters)
         {
-            var ff8Ap = Assert.Single(canvas.TextDraws, draw => draw.Text == $"{abilityPoints / 2} AP (FF8)");
+            var ff8Ap = Assert.Single(canvas.TextDraws, draw => draw.Text == $"{Math.Max(1u, abilityPoints / 2)} AP (FF8)");
             Assert.True(ff8Ap.Bounds.Y >= ap.Bounds.Bottom);
         }
         else
