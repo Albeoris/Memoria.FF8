@@ -6,6 +6,7 @@ namespace Memoria.FF8;
 internal sealed partial class WorldMapScene
 {
     private int autoPlayGardenWaypoint;
+    private int? autoPlayWhiteSeeDWaypoint;
     private static readonly (int X, int Z)[] BalambGardenApproach =
     [
         (14000, -24400), (15000, -24000), (15700, -24400), (16000, -24000)
@@ -24,6 +25,28 @@ internal sealed partial class WorldMapScene
         (-23851, 80167), (-23610, 68104), (-24200, 68100), (-24200, 65700), (-24100, 65600), (-23410, 63204)
     ];
     private static readonly (int X, int Z)[] OrphanageGardenApproach = [(-24200, 66100), (-24900, 66500)];
+    private static readonly (int X, int Z)[] WhiteSeeDShipApproach =
+    [
+        (-24200, 69000), (-30036, 71538), (-31544, 71393), (-33000, 61000), (-23662, 45908),
+        (-22879, 45273), (-18771, 43752), (-17069, 43716), (-16562, 44840), (-16732, 45685), (-18900, 46850)
+    ];
+
+    internal PlayerAction? PlanAutoPlayGardenReboarding(bool releaseConfirm)
+    {
+        WorldState current = State;
+        if (WorldEntryVariables.Read(session.State).StoryWord != 1350 || session.State.EventMemory.Read(390, 1).RequireExact() == 0 || current.NativeFootRuntime is null || current.NativeGardenRuntime is not { } garden)
+        {
+            return null;
+        }
+
+        // NG-061: Reboard the retained Garden through its native broad contact.
+        if (garden.BroadContact == garden.Allocation.Garden64Index || garden.BroadContact == garden.Allocation.Garden65Index)
+        {
+            return new(releaseConfirm ? PlayerActionKind.Wait : PlayerActionKind.Confirm);
+        }
+        NativeWorldPathPosition parked = garden.Objects[garden.Allocation.Garden64Index].Position;
+        return WorldNavigationGuide.Next(current, parked.X, -parked.Z);
+    }
 
     internal PlayerAction? PlanAutoPlayGardenLanding(bool releaseConfirm)
     {
@@ -41,6 +64,8 @@ internal sealed partial class WorldMapScene
             912 => OrphanageGardenApproach,
             // NG-059: Reuse the Centra landing before Edea's introduction letter.
             1350 when session.State.EventMemory.Read(390, 1).RequireExact() == 0 => OrphanageGardenApproach,
+            // NG-061: Sail to the original ship contact after obtaining the letter.
+            1350 => WhiteSeeDShipApproach,
             _ => null
         };
         if (approach is null)
@@ -51,6 +76,10 @@ internal sealed partial class WorldMapScene
         {
             return new(PlayerActionKind.Wait);
         }
+        if (approach == WhiteSeeDShipApproach)
+        {
+            autoPlayGardenWaypoint = autoPlayWhiteSeeDWaypoint ?? FindWhiteSeeDWaypoint(current);
+        }
 
         // NG-044, NG-046: Reach the native landing area before attempting the foot transfer.
         bool atLanding = story switch
@@ -58,7 +87,8 @@ internal sealed partial class WorldMapScene
             750 => current.X is >= 15400 and <= 16600 && current.Z is >= -25000 and <= -23500,
             765 => SquaredDistance(current.X, current.Z, 46168, -57483) <= 250L * 250,
             // NG-054: Use the retained Centra parking position and its original landing probes.
-            912 or 1350 => current.X is >= -25300 and <= -23000 && current.Z is >= 65000 and <= 66900,
+            912 => current.X is >= -25300 and <= -23000 && current.Z is >= 65000 and <= 66900,
+            1350 when approach == OrphanageGardenApproach => current.X is >= -25300 and <= -23000 && current.Z is >= 65000 and <= 66900,
             _ => false
         };
         if (atLanding && ResolveGardenFootPlacement(current) is { Accepted: true })
@@ -76,6 +106,10 @@ internal sealed partial class WorldMapScene
             }
             autoPlayGardenWaypoint++;
         }
+        if (approach == WhiteSeeDShipApproach)
+        {
+            autoPlayWhiteSeeDWaypoint = autoPlayGardenWaypoint;
+        }
         if (current.GroundType == 32 && current.NativeHeight > 0)
         {
             return new(PlayerActionKind.Wait);
@@ -87,6 +121,30 @@ internal sealed partial class WorldMapScene
         }
         (int x, int z) = approach[autoPlayGardenWaypoint];
         return SteerAutoPlayGarden(x, z);
+    }
+
+    private static int FindWhiteSeeDWaypoint(WorldState current)
+    {
+        (int X, int Z) start = (-24200, 66100);
+        double bestDistance = double.PositiveInfinity;
+        int waypoint = 0;
+        for (int index = 0; index < WhiteSeeDShipApproach.Length; index++)
+        {
+            (int X, int Z) end = WhiteSeeDShipApproach[index];
+            double dx = end.X - start.X;
+            double dz = end.Z - start.Z;
+            double along = Math.Clamp(((current.X - start.X) * dx + (current.Z - start.Z) * dz) / (dx * dx + dz * dz), 0, 1);
+            double x = current.X - (start.X + along * dx);
+            double z = current.Z - (start.Z + along * dz);
+            double distance = x * x + z * z;
+            if (distance < bestDistance)
+            {
+                bestDistance = distance;
+                waypoint = index;
+            }
+            start = end;
+        }
+        return waypoint;
     }
 
     private PlayerAction SteerAutoPlayGarden(int x, int z)

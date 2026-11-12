@@ -1553,7 +1553,8 @@ internal sealed partial class AutoPlayController
             }
             return;
         }
-        if (world.WorldScene!.PlanAutoPlayGardenLanding(NeedsWorldConfirmRelease(session.State.WorldProcess?.InputHistory)) is { } gardenAction)
+        bool releaseConfirm = NeedsWorldConfirmRelease(session.State.WorldProcess?.InputHistory);
+        if ((world.WorldScene!.PlanAutoPlayGardenReboarding(releaseConfirm) ?? world.WorldScene.PlanAutoPlayGardenLanding(releaseConfirm)) is { } gardenAction)
         {
             PlayerActionResult movement = Apply(gardenAction);
             if (!movement.Accepted || movement.FramesAdvanced == 0)
@@ -1563,7 +1564,7 @@ internal sealed partial class AutoPlayController
             run.SceneFrames += movement.FramesAdvanced;
             if (run.SceneFrames > 12000)
             {
-                throw new TimeoutException("The Garden did not reach its native landing boundary within 12000 callbacks.");
+                throw new TimeoutException("The Garden did not reach its native route boundary within 12000 callbacks.");
             }
             if (session.State.World is { } advanced && (advanced.X != current.X || advanced.Z != current.Z || advanced.BodyYaw != current.BodyYaw || advanced.NativeHeight != current.NativeHeight || advanced.NativeFootRuntime is not null))
             {
