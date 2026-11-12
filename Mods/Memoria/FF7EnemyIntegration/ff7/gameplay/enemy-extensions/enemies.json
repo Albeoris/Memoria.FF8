@@ -11178,19 +11178,6 @@
               "resistance": 0
             }
           ]
-        },
-        {
-          "minimumDelta": 23,
-          "slots": [
-            {
-              "magicId": 46,
-              "resistance": 0
-            },
-            {
-              "magicId": 29,
-              "resistance": 0
-            }
-          ]
         }
       ],
       "rewardGrowth": {
@@ -12808,23 +12795,6 @@
               "resistance": 0
             }
           ]
-        },
-        {
-          "minimumDelta": 22,
-          "slots": [
-            {
-              "magicId": 8,
-              "resistance": 0
-            },
-            {
-              "magicId": 50,
-              "resistance": 0
-            },
-            {
-              "magicId": 44,
-              "resistance": 0
-            }
-          ]
         }
       ],
       "rewardGrowth": {
@@ -12883,19 +12853,6 @@
         },
         {
           "minimumDelta": 15,
-          "slots": [
-            {
-              "magicId": 46,
-              "resistance": 0
-            },
-            {
-              "magicId": 29,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 22,
           "slots": [
             {
               "magicId": 46,
@@ -12968,19 +12925,6 @@
         },
         {
           "minimumDelta": 15,
-          "slots": [
-            {
-              "magicId": 46,
-              "resistance": 0
-            },
-            {
-              "magicId": 29,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 23,
           "slots": [
             {
               "magicId": 46,
@@ -13370,19 +13314,6 @@
         },
         {
           "minimumDelta": 13,
-          "slots": [
-            {
-              "magicId": 46,
-              "resistance": 0
-            },
-            {
-              "magicId": 29,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 20,
           "slots": [
             {
               "magicId": 46,
@@ -13990,23 +13921,6 @@
         },
         {
           "minimumDelta": 15,
-          "slots": [
-            {
-              "magicId": 46,
-              "resistance": 0
-            },
-            {
-              "magicId": 29,
-              "resistance": 0
-            },
-            {
-              "magicId": 17,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 22,
           "slots": [
             {
               "magicId": 46,
@@ -15703,23 +15617,6 @@
               "resistance": 0
             }
           ]
-        },
-        {
-          "minimumDelta": 19,
-          "slots": [
-            {
-              "magicId": 46,
-              "resistance": 0
-            },
-            {
-              "magicId": 29,
-              "resistance": 0
-            },
-            {
-              "magicId": 17,
-              "resistance": 0
-            }
-          ]
         }
       ],
       "rewardGrowth": {
@@ -16095,19 +15992,6 @@
         },
         {
           "minimumDelta": 14,
-          "slots": [
-            {
-              "magicId": 46,
-              "resistance": 0
-            },
-            {
-              "magicId": 29,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 21,
           "slots": [
             {
               "magicId": 46,
@@ -18256,19 +18140,6 @@
               "resistance": 0
             }
           ]
-        },
-        {
-          "minimumDelta": 23,
-          "slots": [
-            {
-              "magicId": 46,
-              "resistance": 0
-            },
-            {
-              "magicId": 29,
-              "resistance": 0
-            }
-          ]
         }
       ],
       "rewardGrowth": {
@@ -18565,23 +18436,6 @@
               "resistance": 0
             }
           ]
-        },
-        {
-          "minimumDelta": 26,
-          "slots": [
-            {
-              "magicId": 22,
-              "resistance": 0
-            },
-            {
-              "magicId": 27,
-              "resistance": 0
-            },
-            {
-              "magicId": 28,
-              "resistance": 0
-            }
-          ]
         }
       ],
       "rewardGrowth": {
@@ -18860,19 +18714,6 @@
         },
         {
           "minimumDelta": 13,
-          "slots": [
-            {
-              "magicId": 46,
-              "resistance": 0
-            },
-            {
-              "magicId": 29,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 20,
           "slots": [
             {
               "magicId": 46,
@@ -19359,23 +19200,6 @@
               "resistance": 0
             }
           ]
-        },
-        {
-          "minimumDelta": 18,
-          "slots": [
-            {
-              "magicId": 46,
-              "resistance": 0
-            },
-            {
-              "magicId": 29,
-              "resistance": 0
-            },
-            {
-              "magicId": 17,
-              "resistance": 0
-            }
-          ]
         }
       ],
       "rewardGrowth": {
@@ -19620,23 +19444,6 @@
         },
         {
           "minimumDelta": 14,
-          "slots": [
-            {
-              "magicId": 40,
-              "resistance": 0
-            },
-            {
-              "magicId": 46,
-              "resistance": 0
-            },
-            {
-              "magicId": 29,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 21,
           "slots": [
             {
               "magicId": 40,
@@ -20150,24 +19957,6 @@
       "drawTiers": [
         {
           "minimumDelta": 0,
-          "slots": [
-            {
-              "magicId": 43,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 15,
-          "slots": [
-            {
-              "magicId": 43,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 22,
           "slots": [
             {
               "magicId": 43,
@@ -20835,19 +20624,6 @@
       "drawTiers": [
         {
           "minimumDelta": 0,
-          "slots": [
-            {
-              "magicId": 29,
-              "resistance": 0
-            },
-            {
-              "magicId": 50,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 16,
           "slots": [
             {
               "magicId": 29,
@@ -22642,27 +22418,6 @@
               "resistance": 0
             }
           ]
-        },
-        {
-          "minimumDelta": 23,
-          "slots": [
-            {
-              "magicId": 35,
-              "resistance": 0
-            },
-            {
-              "magicId": 17,
-              "resistance": 0
-            },
-            {
-              "magicId": 30,
-              "resistance": 0
-            },
-            {
-              "magicId": 31,
-              "resistance": 0
-            }
-          ]
         }
       ],
       "rewardGrowth": {
@@ -22712,40 +22467,6 @@
       "drawTiers": [
         {
           "minimumDelta": 0,
-          "slots": [
-            {
-              "magicId": 30,
-              "resistance": 0
-            },
-            {
-              "magicId": 29,
-              "resistance": 0
-            },
-            {
-              "magicId": 37,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 11,
-          "slots": [
-            {
-              "magicId": 30,
-              "resistance": 0
-            },
-            {
-              "magicId": 29,
-              "resistance": 0
-            },
-            {
-              "magicId": 37,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 16,
           "slots": [
             {
               "magicId": 30,
@@ -23110,40 +22831,6 @@
       "drawTiers": [
         {
           "minimumDelta": 0,
-          "slots": [
-            {
-              "magicId": 43,
-              "resistance": 0
-            },
-            {
-              "magicId": 13,
-              "resistance": 0
-            },
-            {
-              "magicId": 24,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 15,
-          "slots": [
-            {
-              "magicId": 43,
-              "resistance": 0
-            },
-            {
-              "magicId": 13,
-              "resistance": 0
-            },
-            {
-              "magicId": 24,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 20,
           "slots": [
             {
               "magicId": 43,
@@ -24063,19 +23750,6 @@
           ]
         },
         {
-          "minimumDelta": 15,
-          "slots": [
-            {
-              "magicId": 17,
-              "resistance": 0
-            },
-            {
-              "magicId": 11,
-              "resistance": 0
-            }
-          ]
-        },
-        {
           "minimumDelta": 23,
           "slots": [
             {
@@ -24287,48 +23961,6 @@
               "resistance": 0
             }
           ]
-        },
-        {
-          "minimumDelta": 16,
-          "slots": [
-            {
-              "magicId": 12,
-              "resistance": 0
-            },
-            {
-              "magicId": 30,
-              "resistance": 0
-            },
-            {
-              "magicId": 29,
-              "resistance": 0
-            },
-            {
-              "magicId": 46,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 24,
-          "slots": [
-            {
-              "magicId": 12,
-              "resistance": 0
-            },
-            {
-              "magicId": 30,
-              "resistance": 0
-            },
-            {
-              "magicId": 29,
-              "resistance": 0
-            },
-            {
-              "magicId": 46,
-              "resistance": 0
-            }
-          ]
         }
       ],
       "rewardGrowth": {
@@ -24384,48 +24016,6 @@
       "drawTiers": [
         {
           "minimumDelta": 0,
-          "slots": [
-            {
-              "magicId": 12,
-              "resistance": 0
-            },
-            {
-              "magicId": 30,
-              "resistance": 0
-            },
-            {
-              "magicId": 29,
-              "resistance": 0
-            },
-            {
-              "magicId": 46,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 15,
-          "slots": [
-            {
-              "magicId": 12,
-              "resistance": 0
-            },
-            {
-              "magicId": 30,
-              "resistance": 0
-            },
-            {
-              "magicId": 29,
-              "resistance": 0
-            },
-            {
-              "magicId": 46,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 22,
           "slots": [
             {
               "magicId": 12,
@@ -24517,48 +24107,6 @@
               "resistance": 0
             }
           ]
-        },
-        {
-          "minimumDelta": 13,
-          "slots": [
-            {
-              "magicId": 12,
-              "resistance": 0
-            },
-            {
-              "magicId": 30,
-              "resistance": 0
-            },
-            {
-              "magicId": 29,
-              "resistance": 0
-            },
-            {
-              "magicId": 46,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 19,
-          "slots": [
-            {
-              "magicId": 12,
-              "resistance": 0
-            },
-            {
-              "magicId": 30,
-              "resistance": 0
-            },
-            {
-              "magicId": 29,
-              "resistance": 0
-            },
-            {
-              "magicId": 46,
-              "resistance": 0
-            }
-          ]
         }
       ],
       "rewardGrowth": {
@@ -24608,19 +24156,6 @@
       "drawTiers": [
         {
           "minimumDelta": 0,
-          "slots": [
-            {
-              "magicId": 26,
-              "resistance": 0
-            },
-            {
-              "magicId": 18,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 17,
           "slots": [
             {
               "magicId": 26,
@@ -25016,32 +24551,6 @@
               "resistance": 0
             }
           ]
-        },
-        {
-          "minimumDelta": 12,
-          "slots": [
-            {
-              "magicId": 27,
-              "resistance": 0
-            },
-            {
-              "magicId": 28,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 17,
-          "slots": [
-            {
-              "magicId": 27,
-              "resistance": 0
-            },
-            {
-              "magicId": 28,
-              "resistance": 0
-            }
-          ]
         }
       ],
       "rewardGrowth": {
@@ -25188,32 +24697,6 @@
       "drawTiers": [
         {
           "minimumDelta": 0,
-          "slots": [
-            {
-              "magicId": 27,
-              "resistance": 0
-            },
-            {
-              "magicId": 28,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 12,
-          "slots": [
-            {
-              "magicId": 27,
-              "resistance": 0
-            },
-            {
-              "magicId": 28,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 17,
           "slots": [
             {
               "magicId": 27,
@@ -25388,24 +24871,6 @@
               "resistance": 0
             }
           ]
-        },
-        {
-          "minimumDelta": 11,
-          "slots": [
-            {
-              "magicId": 14,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 17,
-          "slots": [
-            {
-              "magicId": 14,
-              "resistance": 0
-            }
-          ]
         }
       ],
       "rewardGrowth": {
@@ -25455,24 +24920,6 @@
       "drawTiers": [
         {
           "minimumDelta": 0,
-          "slots": [
-            {
-              "magicId": 14,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 11,
-          "slots": [
-            {
-              "magicId": 14,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 17,
           "slots": [
             {
               "magicId": 14,
@@ -26107,24 +25554,6 @@
               "resistance": 0
             }
           ]
-        },
-        {
-          "minimumDelta": 11,
-          "slots": [
-            {
-              "magicId": 49,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 16,
-          "slots": [
-            {
-              "magicId": 49,
-              "resistance": 0
-            }
-          ]
         }
       ],
       "rewardGrowth": {
@@ -26279,40 +25708,6 @@
               "resistance": 0
             }
           ]
-        },
-        {
-          "minimumDelta": 10,
-          "slots": [
-            {
-              "magicId": 30,
-              "resistance": 0
-            },
-            {
-              "magicId": 29,
-              "resistance": 0
-            },
-            {
-              "magicId": 27,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 15,
-          "slots": [
-            {
-              "magicId": 30,
-              "resistance": 0
-            },
-            {
-              "magicId": 29,
-              "resistance": 0
-            },
-            {
-              "magicId": 27,
-              "resistance": 0
-            }
-          ]
         }
       ],
       "rewardGrowth": {
@@ -26368,19 +25763,6 @@
       "drawTiers": [
         {
           "minimumDelta": 0,
-          "slots": [
-            {
-              "magicId": 27,
-              "resistance": 0
-            },
-            {
-              "magicId": 35,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 9,
           "slots": [
             {
               "magicId": 27,
@@ -26471,40 +25853,6 @@
       "drawTiers": [
         {
           "minimumDelta": 0,
-          "slots": [
-            {
-              "magicId": 12,
-              "resistance": 0
-            },
-            {
-              "magicId": 17,
-              "resistance": 0
-            },
-            {
-              "magicId": 31,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 9,
-          "slots": [
-            {
-              "magicId": 12,
-              "resistance": 0
-            },
-            {
-              "magicId": 17,
-              "resistance": 0
-            },
-            {
-              "magicId": 31,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 13,
           "slots": [
             {
               "magicId": 12,
@@ -26705,48 +26053,6 @@
               "resistance": 0
             }
           ]
-        },
-        {
-          "minimumDelta": 20,
-          "slots": [
-            {
-              "magicId": 38,
-              "resistance": 0
-            },
-            {
-              "magicId": 41,
-              "resistance": 0
-            },
-            {
-              "magicId": 39,
-              "resistance": 0
-            },
-            {
-              "magicId": 42,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 26,
-          "slots": [
-            {
-              "magicId": 38,
-              "resistance": 0
-            },
-            {
-              "magicId": 41,
-              "resistance": 0
-            },
-            {
-              "magicId": 39,
-              "resistance": 0
-            },
-            {
-              "magicId": 42,
-              "resistance": 0
-            }
-          ]
         }
       ],
       "rewardGrowth": {
@@ -26804,19 +26110,6 @@
       "drawTiers": [
         {
           "minimumDelta": 0,
-          "slots": [
-            {
-              "magicId": 26,
-              "resistance": 0
-            },
-            {
-              "magicId": 18,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 12,
           "slots": [
             {
               "magicId": 26,
@@ -27103,24 +26396,6 @@
               "resistance": 0
             }
           ]
-        },
-        {
-          "minimumDelta": 12,
-          "slots": [
-            {
-              "magicId": 13,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 18,
-          "slots": [
-            {
-              "magicId": 13,
-              "resistance": 0
-            }
-          ]
         }
       ],
       "rewardGrowth": {
@@ -27191,19 +26466,6 @@
         },
         {
           "minimumDelta": 5,
-          "slots": [
-            {
-              "magicId": 43,
-              "resistance": 0
-            },
-            {
-              "magicId": 13,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 7,
           "slots": [
             {
               "magicId": 43,
@@ -27379,27 +26641,6 @@
         },
         {
           "minimumDelta": 16,
-          "slots": [
-            {
-              "magicId": 35,
-              "resistance": 0
-            },
-            {
-              "magicId": 17,
-              "resistance": 0
-            },
-            {
-              "magicId": 30,
-              "resistance": 0
-            },
-            {
-              "magicId": 31,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 22,
           "slots": [
             {
               "magicId": 35,
@@ -28628,19 +27869,6 @@
           ]
         },
         {
-          "minimumDelta": 8,
-          "slots": [
-            {
-              "magicId": 13,
-              "resistance": 0
-            },
-            {
-              "magicId": 17,
-              "resistance": 0
-            }
-          ]
-        },
-        {
           "minimumDelta": 12,
           "slots": [
             {
@@ -28707,19 +27935,6 @@
       "drawTiers": [
         {
           "minimumDelta": 0,
-          "slots": [
-            {
-              "magicId": 13,
-              "resistance": 0
-            },
-            {
-              "magicId": 17,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 8,
           "slots": [
             {
               "magicId": 13,
@@ -28980,24 +28195,6 @@
               "resistance": 0
             }
           ]
-        },
-        {
-          "minimumDelta": 12,
-          "slots": [
-            {
-              "magicId": 35,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 18,
-          "slots": [
-            {
-              "magicId": 35,
-              "resistance": 0
-            }
-          ]
         }
       ],
       "rewardGrowth": {
@@ -29060,27 +28257,6 @@
         },
         {
           "minimumDelta": 12,
-          "slots": [
-            {
-              "magicId": 7,
-              "resistance": 0
-            },
-            {
-              "magicId": 8,
-              "resistance": 0
-            },
-            {
-              "magicId": 21,
-              "resistance": 0
-            },
-            {
-              "magicId": 22,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 18,
           "slots": [
             {
               "magicId": 7,
@@ -29398,24 +28574,6 @@
       "drawTiers": [
         {
           "minimumDelta": 0,
-          "slots": [
-            {
-              "magicId": 35,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 16,
-          "slots": [
-            {
-              "magicId": 35,
-              "resistance": 0
-            }
-          ]
-        },
-        {
-          "minimumDelta": 24,
           "slots": [
             {
               "magicId": 35,
