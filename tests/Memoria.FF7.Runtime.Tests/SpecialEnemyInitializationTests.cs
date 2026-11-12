@@ -338,4 +338,3 @@ internal static class SpecialEnemyInitializationTests
         }
     }
 }
-

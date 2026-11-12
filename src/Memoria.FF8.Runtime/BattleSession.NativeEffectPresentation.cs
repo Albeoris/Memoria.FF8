@@ -25,7 +25,7 @@ public sealed partial class BattleSession
         presentationSourceResource = inputs.SourceResource;
         presentationForeignActors = inputs.ForeignActors.ToDictionary(actor => actor.Index);
         nativeActionPackets = inputs.Packets.ActivateHeader(inputs.Parameters.HeaderIndex7C);
-        NativeEffectMemory = NativeBattleEffectMemory.FromColdProcess() with { Textures = inputs.Textures };
+        NativeEffectMemory = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(definition.NativeRetainedMemory?.EffectMemory ?? NativeBattleEffectMemory.FromColdProcess())) with { Textures = inputs.Textures };
         NativeEffectMemory = NativeBattleGraphicsInitialization.Initialize500520(NativeEffectMemory);
         NativeCamera = NativeBattleCameraState.FromColdProcess() with { Projection = inputs.Projection };
         presentationHostCamera = NativeCamera;

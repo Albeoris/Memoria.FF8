@@ -5,11 +5,15 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7BattleSession
 {
-    private void RestoreNativeAiState(byte[]? initialSaveBank1, uint initialGil)
+    private void RestoreNativeAiState(byte[]? initialSaveBank1, uint initialGil, bool fresh = false)
     {
         if (state.AiGlobalMemory is { Length: not 64 } || state.AiSaveBank1 is { Length: not 256 } || initialSaveBank1 is { Length: not 256 } || state.FormationAiMemory is { Length: not Ff7BattleAi.LocalMemorySize } || state.AiSaveBankDirty?.Distinct().Count() != state.AiSaveBankDirty?.Length)
         {
             throw new InvalidDataException("Native battle AI memory has an invalid shape.");
+        }
+        if (state.ImprisonedType > 3 || state.CounterProcessedMask is ushort processed && (processed & ~0x3FF) != 0 || state.Actors.Any(actor => actor.SuccessorSlot is int successor && (successor is < 0 or 3 or > 9 || !state.Actors.Any(candidate => candidate.Actor.Slot == successor))))
+        {
+            throw new InvalidDataException("Native battle continuation has an invalid actor or status owner.");
         }
         byte[] globals = state.AiGlobalMemory?.ToArray() ?? new byte[64];
         if (state.AiGlobalMemory is null)
@@ -42,7 +46,7 @@ public sealed partial class Ff7BattleSession
                     ElementAbsorb = actor.ElementAbsorb ?? ElementMask(6),
                     ElementWeakness = actor.ElementWeakness ?? ElementMask(2),
                     ExtraElementAbsorb = actor.ExtraElementAbsorb ?? 0,
-                    PreviousStatuses = actor.PreviousStatuses ?? actor.Statuses,
+                    PreviousStatuses = actor.PreviousStatuses ?? (fresh ? 0U : actor.Statuses),
                     CaptureMask = actor.CaptureMask ?? 0,
                     PresentationByte = actor.PresentationByte ?? byte.MaxValue,
                     LastPhysicalAttackerMask = actor.LastPhysicalAttackerMask ?? 0,

@@ -6,7 +6,8 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestScriptA
 {
     public Ff7GuestScriptInteraction DescribeScriptInteraction(byte command, ushort ability, int targetSlot)
     {
-        return ClassifyScriptInteraction(command, ability, targetSlot);
+        Ff7GuestScriptInteraction interaction = ClassifyScriptInteraction(command, ability, targetSlot);
+        return (ability & 0xFF00) == DrawStockKey && completedDrawStock != ability ? interaction with { DrawSourceSlot = null } : interaction;
     }
 
     internal static Ff7GuestScriptInteraction ClassifyScriptInteraction(byte command, ushort ability, int targetSlot)

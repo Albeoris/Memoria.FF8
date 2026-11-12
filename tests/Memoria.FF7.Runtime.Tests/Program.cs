@@ -8,6 +8,7 @@ if (args.Contains("--special-enemies-only", StringComparer.Ordinal))
     NativeSpecialAiTests.RunContracts();
     NativeElixirActionTests.Run();
     NativeSpecialStatusTests.Run();
+    GuestFractionRecoveryTests.Run();
     SpecialEnemyOutcomeTests.Run();
     SpecialEnemyInitializationTests.Run();
     return 0;

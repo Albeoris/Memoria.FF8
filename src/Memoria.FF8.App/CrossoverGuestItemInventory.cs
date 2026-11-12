@@ -139,5 +139,5 @@ internal sealed record CrossoverGuestItemInventory(NativeItemStock[] Slots, Immu
     private static CrossoverGuestItemInventory WithPending(CrossoverGuestItemInventory inventory, CrossoverGuestItemDebit[] pending)
         => inventory with { Pending = pending.FirstOrDefault(), OtherPending = pending.Length <= 1 ? default : pending.Skip(1).ToImmutableArray() };
 
-    public static bool Supports(ushort item) => item is 1 or 7 or 9 or 16;
+    public static bool Supports(ushort item) => item is > 0 and <= byte.MaxValue;
 }

@@ -208,13 +208,13 @@ public static class Ff7NativeBattleActionResolver
 
     internal static Ff7BattleActionReceipt ApplyGuestItem(Ff7BattleActionVitals source, Ff7BattleActionVitals target, Ff7BattleGuestItemEffect effect, Ff7BattleDamageResult? prepared = null, bool nullifyRecovery = false)
     {
-        if (effect.ReviveDivisor is not (0 or 4 or 8) || effect.MaximumHitPointFraction > 16 || effect.MaximumHitPointFraction != 0 && effect.ReviveDivisor != 0 || (effect.RemoveStatuses & ~Ff7GuestBattleStatuses.SupportedHost) != 0 || (effect.RemoveStatuses & Death) != 0)
+        if (effect.ReviveDivisor is not (0 or 4 or 8) || effect.FractionRecoveryLimit is 0 or > 60000 || effect.RecoveryMultiplier is not (1 or 2) || effect.MaximumHitPointFraction == 0 && effect.RecoveryMultiplier != 1 || effect.MaximumHitPointFraction > 16 || effect.MaximumHitPointFraction != 0 && effect.ReviveDivisor != 0 || (effect.RemoveStatuses & ~Ff7GuestBattleStatuses.SupportedHost) != 0 || (effect.RemoveStatuses & Death) != 0)
         {
             throw new NotSupportedException("Guest recovery requires an admitted original item effect.");
         }
         bool revive = effect.ReviveDivisor != 0;
         bool dead = target.Hp == 0 || (target.Statuses & Death) != 0;
-        int recovery = effect.MaximumHitPointFraction != 0 ? (int)Math.Min(int.MaxValue, (long)target.MaxHp * effect.MaximumHitPointFraction / 16) : effect.HitPoints;
+        int recovery = effect.MaximumHitPointFraction != 0 ? (int)Math.Min(effect.FractionRecoveryLimit, (long)target.MaxHp * effect.MaximumHitPointFraction / 16 * effect.RecoveryMultiplier) : effect.HitPoints;
         Ff7BattleDamageResult damage = prepared ?? new(dead != revive, false, -(revive ? Math.Max(1, (int)target.MaxHp / effect.ReviveDivisor) : recovery));
         if (nullifyRecovery)
         {

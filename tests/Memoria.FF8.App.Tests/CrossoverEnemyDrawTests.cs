@@ -133,8 +133,10 @@ public sealed class CrossoverEnemyDrawTests
         Assert.True(healed.Target.Hp > wounded.Hp);
         Assert.Equal(before, JsonSerializer.Serialize(actions.WorkingStock));
         Assert.Equal(100, actions.WorkingStock.GetMagicCount(row, spellId));
+        Assert.Null(actions.DescribeScriptInteraction(2, 0xE001, 4).DrawSourceSlot);
         string result = actions.ExecuteOperation(0xE001, 4, () => 31);
         Assert.Contains("Drew", result);
+        Assert.Equal(4, actions.DescribeScriptInteraction(2, 0xE001, 4).DrawSourceSlot);
         CrossoverGuestHostActionsSnapshot snapshot = JsonSerializer.Deserialize<CrossoverGuestHostActionsSnapshot>(JsonSerializer.Serialize(actions.Capture()))!;
         Assert.Equal(2, snapshot.NextOrdinal);
         Assert.True(Assert.Single(snapshot.CommittedSpells!.Value).DrawQuantity > 0);
@@ -179,6 +181,7 @@ public sealed class CrossoverEnemyDrawTests
         attack = new(roster, kit, assets, game, game.ReadNewGameGlobalRandom(), () => host.Data.Cameras[0], _ => 128, caster);
         actions = new(roster, kit, origin, NativeCrtRandomState.FromColdProcess(), attack, host, game, assets, actionState);
         BindForeignGeometry();
+        Assert.Null(actions.DescribeScriptInteraction(2, 0xE001, 4).DrawSourceSlot);
         host.BindGuestAttack(actions);
         IReadOnlyList<Ff7BattleGuestPhysicalHit> preparedHits = grouped ? active.GroupPrepared : [active.Prepared];
         HashSet<int> healedTargets = [];

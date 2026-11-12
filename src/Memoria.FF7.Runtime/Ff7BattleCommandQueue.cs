@@ -169,8 +169,8 @@ public static class Ff7BattleCommandQueue
         {
             throw new InvalidDataException("FFVII battle command has invalid native fields.");
         }
-        bool guestShape = command is { GuestAbility: 0, CommandId: 1, Argument: 0 } or { GuestAbility: 0, CommandId: 0x14, Argument: 0 } or { GuestAbility: > 0, CommandId: 2 } or { GuestAbility: 1, CommandId: 4, Argument: 1 } or { GuestAbility: 7, CommandId: 4, Argument: 7 } or { GuestAbility: 16, CommandId: 4, Argument: 16 };
-        if (command.GuestAbility != 0 && !command.GuestAttack || command.GuestAttack && (command.Priority != ReadyPriority(command.CommandId) || command is not { ActorSlot: >= 0 and < 3, AttackId: null, Message: null, Callback: null } || !guestShape || command.Argument != command.GuestAbility || (command.TargetMask & 0x3F7) != command.TargetMask || command.CommandId is 1 or 0x14 && (command.TargetMask & 0x3F0) != command.TargetMask || command.CommandId == 4 && (command.TargetMask & 7) != command.TargetMask || (command.GroupTarget ? command.CommandId != 2 || command.TargetMask == 0 : !System.Numerics.BitOperations.IsPow2(command.TargetMask))))
+        bool guestShape = command is { GuestAbility: 0, CommandId: 1, Argument: 0 } or { GuestAbility: 0, CommandId: 0x14, Argument: 0 } or { GuestAbility: > 0, CommandId: 2 } or { GuestAbility: > 0 and <= byte.MaxValue, CommandId: 4 };
+        if (command.GuestAbility != 0 && !command.GuestAttack || command.GuestAttack && (command.Priority != ReadyPriority(command.CommandId) || command is not { ActorSlot: >= 0 and < 3, AttackId: null, Message: null, Callback: null } || !guestShape || command.Argument != command.GuestAbility || (command.TargetMask & 0x3F7) != command.TargetMask || command.CommandId is 1 or 0x14 && (command.TargetMask & 0x3F0) != command.TargetMask || (command.GroupTarget ? command.CommandId != 2 || command.TargetMask == 0 : !System.Numerics.BitOperations.IsPow2(command.TargetMask))))
         {
             throw new InvalidDataException("A guest command requires one selected actor occurrence and the ordinary player queue class.");
         }

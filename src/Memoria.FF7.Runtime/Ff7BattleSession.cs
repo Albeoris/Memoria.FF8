@@ -175,7 +175,7 @@ public sealed partial class Ff7BattleSession
         byte layout = Ff7NativeAtb.ResolveLayout(formation.Layout, formation.BattleFlags, (requestFlags & 4) != 0);
         Ff7BattleAiActor[] setup = Ff7NativeAtb.ApplyFormationConditions(layout, initialActors.Select(actor => actor.Actor).ToArray(), Data);
         state = new(requestId, formation.FormationId, layout, 0, initialActors.Select((actor, index) => actor with { Actor = setup[index] }).ToArray(), random.Capture(), Ff7BattleCommandQueueState.Create(), (Ff7InventorySlot[])progress.Inventory.Clone(), Escape: Ff7NativeBattleEscape.Start(formation, Ff7NativeAtb.BattleTypeForLayout(layout)), RequestFlags: requestFlags, RequestMode: requestMode, EntryMusicTrack: musicTrack) { BigShotChargeRotation = bigShotChargeRotation, BigShotCounterRotation = bigShotCounterRotation, SearchScopeScaleCounter = searchScopeScaleCounter, SilkDirection = silkDirection, EnemyExtensions = resolvedExtensions };
-        RestoreNativeAiState(initialSaveBank1, progress.Gil);
+        RestoreNativeAiState(initialSaveBank1, progress.Gil, fresh: true);
         foreach (SceneBattleEnemy enemy in Data.Enemies)
         {
             InvokeAi(enemy.FormationSlot + 4, 0);

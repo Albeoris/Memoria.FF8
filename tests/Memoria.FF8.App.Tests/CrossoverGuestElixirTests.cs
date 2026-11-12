@@ -50,6 +50,7 @@ public sealed class CrossoverGuestElixirTests
         }
         Assert.Equal(0, host.ReadyPlayer);
         Assert.Equal(0x300u, Gate());
+        string retainedBefore = RecoveryDigest();
         Ff7BattleCommandOption option = Assert.Single(host.Commands(0), option => option.Command == Ff7BattleCommand.Item && option.Argument == 9);
         Assert.Null(option.UnsupportedReason);
         Assert.NotEqual(0, option.ValidTargets & (1 << pot));
@@ -103,8 +104,17 @@ public sealed class CrossoverGuestElixirTests
         Assert.Equal(pot, debit.Selection.TargetSlot);
         Assert.Equal(nativeInventory, JsonSerializer.Serialize(host.Capture().Inventory));
         Assert.Equal(2, economy.Items.Single(item => item.ItemId == 9).Count);
+        Assert.Equal(retainedBefore, RecoveryDigest());
 
         uint Gate() => host.Actors.Single(actor => actor.Actor.Slot == pot).Actor.Conditions & 0x300;
+
+        string RecoveryDigest()
+        {
+            NativeBattleRecoveryExecutableState state = game.ReadColdProcessNativeBattleMemory().EffectMemory!.GetRecoveryExecutable(58) ?? throw new InvalidDataException("No original recovery initialization owner.");
+            byte[] bytes = new byte[state.Data.Length];
+            state.Data.ReadInto(0, bytes);
+            return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)) + ":" + (state.Channels is { } channels ? Convert.ToHexString(channels.AsSpan()) : "missing");
+        }
 
         void Bind()
         {
@@ -155,7 +165,10 @@ public sealed class CrossoverGuestElixirTests
         Assert.NotEqual(0u, effect.RemoveStatuses & Ff7NativeBattleActionResolver.Sleep);
         Assert.NotEqual(0u, effect.RemoveStatuses & Ff7NativeBattleActionResolver.Poison);
         Assert.Equal(0u, effect.RemoveStatuses & Ff7NativeBattleActionResolver.Death);
-        Assert.Equal(effect, CrossoverGuestHostActions.DescribeOriginItem(original, 2));
+        Ff7BattleGuestItemEffect medData = CrossoverGuestHostActions.DescribeOriginItem(original, 2);
+        Assert.Equal(effect.MaximumHitPointFraction, medData.MaximumHitPointFraction);
+        Assert.Equal(2, medData.RecoveryMultiplier);
+        Assert.Equal(9999, medData.FractionRecoveryLimit);
         Assert.Equal(new Ff7GuestScriptInteraction(4, 5), CrossoverGuestHostActions.ClassifyScriptInteraction(4, 9, 4));
     }
 

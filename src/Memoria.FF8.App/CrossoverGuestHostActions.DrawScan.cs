@@ -10,6 +10,7 @@ internal sealed partial class CrossoverGuestHostActions
 {
     private const ushort DrawStockKey = 0xE000;
     private CrossoverDrawCastReceipt? preparedDrawCast;
+    private ushort? completedDrawStock;
     public CrossoverEnemyScan? LastScan { get; private set; }
 
     private IReadOnlyList<CrossoverGuestAbility> ReadIntegratedAbilities(IReadOnlyList<CrossoverGuestAbility> original)
@@ -95,6 +96,7 @@ internal sealed partial class CrossoverGuestHostActions
 
     public string ExecuteOperation(ushort ability, int targetSlot, Func<byte> nextRandomByte)
     {
+        completedDrawStock = null;
         if (!OperationAvailable(ability, targetSlot))
         {
             return "The enemy is no longer available.";
@@ -132,6 +134,7 @@ internal sealed partial class CrossoverGuestHostActions
         if (quantity > 0)
         {
             encounter.CommittedSpells = encounter.CommittedSpells.Add(new(encounter.NextOrdinal++, magic, kit.RecordRow, quantity));
+            completedDrawStock = ability;
         }
         encounter.ReprojectKits(ActorSlot);
         return quantity == 0 ? "Draw failed." : result.Accepted == 0 ? "No room to stock this magic." : $"Drew {result.Accepted} {spell.DisplayName ?? spell.Name}.";

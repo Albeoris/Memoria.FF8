@@ -9,21 +9,39 @@ namespace Memoria.FF8;
 internal sealed partial class CrossoverGuestHostActions
 {
     public bool HasOriginItems => encounter.Items is not null;
-    public IReadOnlyList<ushort> ItemIds => kit.Commands.Contains((byte)4) && HasOriginItems ? [1, 7, 9, 16] : [];
+    public IReadOnlyList<ushort> ItemIds => kit.Commands.Contains((byte)4) && encounter.Items is { } inventory ? ReadOriginItemIds(inventory.Slots, assets.NativeActions) : [];
+
+    internal static IReadOnlyList<ushort> ReadOriginItemIds(IEnumerable<NativeItemStock> stocks, IEnumerable<BattleNativeAction> actions)
+    {
+        HashSet<ushort> battleItems = actions.Where(action => action.Command == 4).Select(action => action.ActionId).ToHashSet();
+        return stocks.Where(stock => stock.ItemId != 0 && stock.Count != 0 && battleItems.Contains(stock.ItemId)).Select(stock => (ushort)stock.ItemId).Distinct().ToArray();
+    }
     public int ItemStock(ushort item) => ItemIds.Contains(item) ? encounter.Items!.Slots.SingleOrDefault(stock => stock.ItemId == item)?.Count ?? 0 : 0;
     public string ItemName(ushort item) => OriginalItem(item).Name ?? throw new InvalidDataException("The original item has no localized source name.");
 
     public bool SupportsItem(ushort item, Ff7BattleGuestAttackTarget target)
-        => ItemIds.Contains(item) && OriginalItem(item).TargetFlags is byte flags && CanSelectTarget(flags, target.Slot) && PresentationUnsupportedReason(OriginalItem(item), CrossoverGuestAbilityCatalog.Key(4, item), target.Slot) is null;
+    {
+        BattleNativeAction? original = assets.NativeActions.SingleOrDefault(action => action.Command == 4 && action.ActionId == item);
+        return kit.Commands.Contains((byte)4) && HasOriginItems && original?.TargetFlags is byte flags && CanSelectTarget(flags, target.Slot) && OriginItemUnsupportedReason(original) is null && ItemOriginStatusUnsupportedReason(original, target.Slot) is null && PresentationUnsupportedReason(original, CrossoverGuestAbilityCatalog.Key(4, item), target.Slot) is null;
+    }
 
-    internal string? ItemTargetUnsupportedReason(ushort item, int target) => PresentationUnsupportedReason(OriginalItem(item), CrossoverGuestAbilityCatalog.Key(4, item), target);
+    internal string? ItemTargetUnsupportedReason(ushort item, int target)
+    {
+        BattleNativeAction original = OriginalItem(item);
+        return OriginItemUnsupportedReason(original) ?? ItemOriginStatusUnsupportedReason(original, target) ?? PresentationUnsupportedReason(original, CrossoverGuestAbilityCatalog.Key(4, item), target);
+    }
 
     public string? ItemUnsupportedReason(ushort item)
     {
-        string? reason = null;
-        foreach (var actor in host.Actors.Where(actor => OriginalItem(item).TargetFlags is byte flags && CanSelectTarget(flags, actor.Actor.Slot)))
+        BattleNativeAction original = OriginalItem(item);
+        if (OriginItemUnsupportedReason(original) is { } unsupported)
         {
-            string? current = PresentationUnsupportedReason(OriginalItem(item), CrossoverGuestAbilityCatalog.Key(4, item), actor.Actor.Slot);
+            return unsupported;
+        }
+        string? reason = null;
+        foreach (var actor in host.Actors.Where(actor => original.TargetFlags is byte flags && CanSelectTarget(flags, actor.Actor.Slot)))
+        {
+            string? current = ItemOriginStatusUnsupportedReason(original, actor.Actor.Slot) ?? PresentationUnsupportedReason(original, CrossoverGuestAbilityCatalog.Key(4, item), actor.Actor.Slot);
             if (current is null)
             {
                 return null;
@@ -38,29 +56,88 @@ internal sealed partial class CrossoverGuestHostActions
         return DescribeOriginItem(OriginalItem(item), kit.StatusPassives);
     }
 
+    internal static string? OriginItemUnsupportedReason(BattleNativeAction original)
+    {
+        if (original.Command != 4 || original.PresentationOnly || original.DispatchCommand is not (null or 4) || original.AttackType is not (4 or 5 or 32))
+        {
+            return "The native item requires a combat or progression operation that the recovery bridge cannot represent.";
+        }
+        if (original.HitCount != 1 || original.TargetFlags is not byte flags || (flags & 2) != 0 || (flags & 0x30) != 0x10 || (flags & 1) != 0 && original.AttackType != 5)
+        {
+            return "The native item requires a target group or selection process outside the single-recipient recovery bridge.";
+        }
+        if (original.Element != 0 || (original.Statuses1 & 0x04008000) != 0)
+        {
+            return "The native item requires elemental or action-control semantics outside the recovery bridge.";
+        }
+        if (original.AttackType == 32 && original.Power > 16)
+        {
+            return "The native fractional recovery exceeds the host recovery profile.";
+        }
+        if (original.AttackType != 5 && original.Hit != 255)
+        {
+            return "The native item's hit chance requires its source random transaction.";
+        }
+        if (original.AttackType != 5 && original.StatusAttack is > 0 and <= 100 && (original.Statuses0 != 0 || original.Statuses1 != 0))
+        {
+            return "The native item's status recovery requires its source random transaction.";
+        }
+        if (original.AttackType != 5 && original.StatusAttack > 100 && (original.Statuses0 & 1) != 0)
+        {
+            return "The native item mixes revival with a different recovery formula.";
+        }
+        if (original.AttackType != 5 && original.Power == 0 && ItemRecoveryStatuses(original) == 0)
+        {
+            return "The native item has no recovery operation in the host status profile.";
+        }
+        return null;
+    }
+
+    private string? ItemOriginStatusUnsupportedReason(BattleNativeAction original, int target)
+    {
+        Ff7BattleGuestVitalsBinding? binding = host.GuestVitalsBindings.SingleOrDefault(binding => binding.HostSlot == target);
+        return binding is null ? null : OriginItemStatusUnsupportedReason(original, binding.OriginStatuses, binding.OriginBattleStatuses);
+    }
+
+    internal static string? OriginItemStatusUnsupportedReason(BattleNativeAction original, ushort savedStatuses, uint battleStatuses)
+    {
+        if ((savedStatuses & 0x40) != 0)
+        {
+            return "The recipient's original Zombie status requires recovery behavior outside the host profile.";
+        }
+        if (original.AttackType == 5 || original.StatusAttack <= 100)
+        {
+            return null;
+        }
+        uint common = ItemRecoveryStatuses(original);
+        ushort unprojectedSaved = (ushort)(original.Statuses0 & ~Ff7GuestBattleStatuses.ToOrigin(common));
+        uint unprojectedBattle = original.Statuses1 & ~Ff7GuestBattleStatuses.ToOriginBattle(common);
+        return (unprojectedSaved & savedStatuses) != 0 || (unprojectedBattle & battleStatuses) != 0 ? "The recipient has an original status that this item cannot remove through the host status profile." : null;
+    }
+
+    private static uint ItemRecoveryStatuses(BattleNativeAction original)
+    {
+        return original.StatusAttack > 100 ? Ff7GuestBattleStatuses.ToHostStatuses((ushort)(original.Statuses0 & Ff7GuestBattleStatuses.SupportedOrigin), original.Statuses1) : 0;
+    }
+
     internal static Ff7BattleGuestItemEffect DescribeOriginItem(BattleNativeAction original, uint statusPassives)
     {
-        ushort item = original.ActionId;
-        if (item == 7)
+        if (OriginItemUnsupportedReason(original) is { } unsupported)
+        {
+            throw new NotSupportedException(unsupported);
+        }
+        if (original.AttackType == 5)
         {
             return new(0, ReviveDivisor: (statusPassives & 2) != 0 ? (byte)4 : (byte)8);
         }
-        if (item == 9)
-        {
-            uint removed = Ff7GuestBattleStatuses.ToHostStatuses((ushort)(original.Statuses0 & Ff7GuestBattleStatuses.SupportedOrigin), original.Statuses1);
-            return new(0, removed, MaximumHitPointFraction: original.Power);
-        }
-        if (item == 16)
-        {
-            uint removed = Ff7GuestBattleStatuses.FromOrigin((ushort)(original.Statuses0 & Ff7GuestBattleStatuses.SupportedOrigin));
-            if ((original.Statuses1 & 1) != 0)
-            {
-                removed |= Ff7NativeBattleActionResolver.Sleep;
-            }
-            return new(0, removed);
-        }
+        uint removed = ItemRecoveryStatuses(original);
         bool medData = (original.AttackFlags & 3) == 2 && (statusPassives & 2) != 0;
-        return new(checked((ushort)(50 * original.Power * (medData ? 2 : 1))));
+        if (original.AttackType == 32)
+        {
+            return new(0, removed, MaximumHitPointFraction: original.Power, FractionRecoveryLimit: (original.AttackFlags & 8) != 0 ? (ushort)60000 : (ushort)9999, RecoveryMultiplier: medData ? (byte)2 : (byte)1);
+        }
+        int maximum = (original.AttackFlags & 8) != 0 ? 60_000 : 9_999;
+        return new(checked((ushort)Math.Min(maximum, 50 * original.Power * (medData ? 2 : 1))), removed);
     }
 
     public void ReserveItem(Ff7BattleGuestItemSelection selection)
@@ -88,16 +165,7 @@ internal sealed partial class CrossoverGuestHostActions
 
     private BattleNativeAction OriginalItem(ushort item)
     {
-        BattleNativeAction? original = assets.NativeActions.SingleOrDefault(action => action.Command == 4 && action.ActionId == item);
-        bool supported = item switch
-        {
-            1 => original is { MagicId: 50, AttackType: 4, Power: 4, TargetFlags: 20, Hit: 255, StatusAttack: 0, Statuses0: 0, Statuses1: 0 },
-            7 => original is { MagicId: 5, AttackType: 5, Power: 0, TargetFlags: 21, Hit: 255, StatusAttack: 200, Statuses0: 1, Statuses1: 0 },
-            9 => original is { AttackType: 32, Power: 16, TargetFlags: 20, AttackFlags: 0xE2, Hit: 255, StatusAttack: 200, Statuses0: 0x7E, Statuses1: 0x0100560D },
-            16 => original is { MagicId: 67, AttackType: 4, Power: 0, TargetFlags: 20, Hit: 255, StatusAttack: 200, Statuses0: 0x7E, Statuses1: 0x5201 },
-            _ => false
-        };
-        return supported ? original! : throw new NotSupportedException("The guest item requires an admitted original battle item record.");
+        return assets.NativeActions.SingleOrDefault(action => action.Command == 4 && action.ActionId == item) ?? throw new InvalidDataException("The selected source inventory item has no original battle action record.");
     }
 
     private void BeginItem(Ff7BattleGuestInvocation invocation, Ff7BattlePlacement source, Ff7BattleGuestAttackTarget target)
