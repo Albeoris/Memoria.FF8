@@ -212,6 +212,15 @@ internal static class AutoPlayTraversalPolicy
             ("502:1092", "502:gateway:1") => -2,
             ("499:1092" or "499:1095", "499:line:8") => -4,
             ("499:1093" or "499:1094", "499:talk:7") => -3,
+            // NG-056: Return to Rinoa's infirmary room after Edea's conversation.
+            ("257:1105", "257:line:16") => -1,
+            ("254:1105", "254:line:9") => -2,
+            ("249:1105", "249:line:11") => -3,
+            ("137:1105", "137:line:14") => -4,
+            ("172:1105", "172:line:13" or "172:line:15") => -5,
+            ("167:1105", "167:gateway:3") => -6,
+            ("168:1105", "168:line:24") => -7,
+            ("179:1105", "179:line:13" or "179:line-action:13") => -8,
             _ => 0
         };
     }
@@ -251,6 +260,8 @@ internal static class AutoPlayTraversalPolicy
             // NG-053: Take the Garden bridge and confirm departure.
             "172:912:12:98:1227:4:2:4" => 4,
             "257:912:8:84:2941:67:2:3" => 2,
+            // NG-056: Return to the first-floor hall.
+            "249:1105:11:89:902:2:2:3" => 2,
             // NG-036: Take the elevator to 2F for the approaching ship.
             "172:614:12:98:1227:4:2:4" => 3,
             // NG-039, NG-040: Take the elevator to 2F for Fishermans Horizon.
