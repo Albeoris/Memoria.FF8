@@ -109,6 +109,12 @@ internal static class AutoPlayTraversalPolicy
             ("137:614", "137:line:15") => -4,
             ("139:614" or "142:614", "139:gateway:0" or "142:gateway:0") => -5,
             ("143:614", "143:line:15") => -6,
+            // NG-038: Follow Cid's request to find Ellone in the library.
+            ("163:616", "163:line:16") => -1,
+            ("167:616", "167:gateway:4") => -2,
+            ("171:616", "171:line:20") => -3,
+            ("145:616", "145:line:23" or "145:line:24") => -4,
+            ("147:616", "147:line:17" or "147:line:18") => -4,
             _ => 0
         };
     }
