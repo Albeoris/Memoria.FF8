@@ -1,3 +1,4 @@
+using Albeoris.Games.FF8.Imaging;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
@@ -9,26 +10,31 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class AngeloPortraitTests
 {
-    [Fact]
-    public void Naming_renders_original_dog_portrait_and_keeps_it_after_changing_the_draft()
+    [Theory]
+    [InlineData(2, UiImageKind.AngeloPortrait, "angelo-name-input.png")]
+    [InlineData(GameNames.BokoSubject, UiImageKind.ChocoboPortrait, "boko-name-input.png")]
+    public void Naming_renders_original_pet_portrait_and_keeps_it_after_changing_the_draft(int subject, UiImageKind kind, string previewFileName)
     {
         string game = TestResources.GameDirectory;
         NativeMenuArtwork artwork = NativeMenuArtwork.Load(game);
-        Assert.Equal(64, artwork.AngeloPortrait.Width);
-        Assert.Equal(96, artwork.AngeloPortrait.Height);
-        Assert.All(artwork.AngeloPortrait.Pixels, pixel => Assert.Equal(byte.MaxValue, pixel.A));
+        PixelImage portrait = subject == GameNames.BokoSubject ? artwork.ChocoboPortrait : artwork.AngeloPortrait;
+        Assert.Equal(64, portrait.Width);
+        Assert.Equal(96, portrait.Height);
+        Assert.All(portrait.Pixels, pixel => Assert.Equal(byte.MaxValue, pixel.A));
+        Assert.False(artwork.ChocoboPortrait.Pixels.SequenceEqual(artwork.AngeloPortrait.Pixels));
         for (int id = 0; id < NativeMenuArtwork.CharacterCount; id++)
         {
-            Assert.False(artwork.AngeloPortrait.Pixels.SequenceEqual(artwork.GetCharacterPortrait(id).Pixels));
+            Assert.False(portrait.Pixels.SequenceEqual(artwork.GetCharacterPortrait(id).Pixels));
         }
         MenuArtworkProvider provider = new(game);
-        UiImageSource source = new(UiImageKind.AngeloPortrait, 0);
-        Assert.True(artwork.AngeloPortrait.Pixels.SequenceEqual(provider.Read(source).Pixels));
+        UiImageSource source = new(kind, 0);
+        Assert.True(MenuArtworkProvider.IsResourceImage(source));
+        Assert.True(portrait.Pixels.SequenceEqual(provider.Read(source).Pixels));
         Assert.Same(provider.Read(source), provider.Read(source));
         MenuController menus = new();
-        menus.OpenNamePrompt(2, "Angelo", _ => { });
+        menus.OpenNamePrompt(subject, GameNames.DefaultName(subject), _ => { });
         menus.Execute(new MenuAction("name-clear"));
-        menus.EnterNameText("Custom dog");
+        menus.EnterNameText("Custom name");
         UiView view = menus.BuildView();
         view.Resize(640, 448);
         UiImage image = Assert.Single(Descendants(view.Root).OfType<UiImage>());
@@ -39,7 +45,7 @@ public sealed class AngeloPortraitTests
         if (Environment.GetEnvironmentVariable("MEMORIA_FF8_NAMING_EVIDENCE") is string directory)
         {
             Directory.CreateDirectory(directory);
-            bitmap.SavePng(Path.Combine(directory, "angelo-name-input.png"));
+            bitmap.SavePng(Path.Combine(directory, previewFileName));
         }
     }
 

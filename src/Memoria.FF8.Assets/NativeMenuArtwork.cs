@@ -18,11 +18,12 @@ public sealed class NativeMenuArtwork
     private readonly byte[] iconIndex;
     private readonly Dictionary<(int Index, int PaletteOffset), PixelImage> icons = [];
 
-    private NativeMenuArtwork(PixelImage[] characters, PixelImage[] guardianForces, PixelImage angeloPortrait, PixelImage[] iconPalettes, byte[] iconIndex)
+    private NativeMenuArtwork(PixelImage[] characters, PixelImage[] guardianForces, PixelImage angeloPortrait, PixelImage chocoboPortrait, PixelImage[] iconPalettes, byte[] iconIndex)
     {
         this.characters = characters;
         this.guardianForces = guardianForces;
         AngeloPortrait = angeloPortrait;
+        ChocoboPortrait = chocoboPortrait;
         this.iconPalettes = iconPalettes;
         this.iconIndex = iconIndex;
         IconCount = ReadCount(iconIndex);
@@ -33,6 +34,8 @@ public sealed class NativeMenuArtwork
     public bool HasControllerArtwork { get; private init; }
 
     public PixelImage AngeloPortrait { get; }
+
+    public PixelImage ChocoboPortrait { get; }
 
     /// <summary>Original controller symbols used in printed Duel combinations, independent of current key bindings.</summary>
     public PixelImage GetOriginalButtonIcon(int buttonBit)
@@ -105,7 +108,9 @@ public sealed class NativeMenuArtwork
         TexFile texture = TexFile.Read(iconTexture);
         PixelImage[] originals = Enumerable.Range(0, texture.Palettes.Count).Select(texture.Decode).ToArray();
         PixelImage[] palettes = Enumerable.Range(0, texture.Palettes.Count).Select(palette => NativeArtworkTexture.Resolve(provider, new ResourceKey("menu/icon.tex"), originals[palette], palette, resources: resources)).ToArray();
-        return new NativeMenuArtwork(characters, guardianForces, DecodePortrait(characterAtlases, faces, 15), palettes, icons) { HasControllerArtwork = resources.Source.Layouts.Contains("classic-ffnx", StringComparer.Ordinal) && !ReferenceEquals(originals[4], palettes[4]) };
+        PixelImage angelo = DecodePortrait(characterAtlases, faces, 15);
+        PixelImage chocobo = DecodePortrait(characterAtlases, faces, 14);
+        return new NativeMenuArtwork(characters, guardianForces, angelo, chocobo, palettes, icons) { HasControllerArtwork = resources.Source.Layouts.Contains("classic-ffnx", StringComparer.Ordinal) && !ReferenceEquals(originals[4], palettes[4]) };
     }
 
     /// <summary>Formats the original current ICON.SP1 parts for the separate native PC UI-immediate path.</summary>

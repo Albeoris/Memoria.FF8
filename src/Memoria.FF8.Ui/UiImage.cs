@@ -21,7 +21,8 @@ public enum UiImageKind
     SilverCrest,
     TripleTriadCapture,
     CharacterPortraitGrayscale,
-    HostArtwork
+    HostArtwork,
+    ChocoboPortrait
 }
 
 /// <summary>Stable artwork identity, independent of translated or player-assigned display names.</summary>

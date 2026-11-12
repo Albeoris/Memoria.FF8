@@ -175,6 +175,19 @@ public sealed class NameInputWindowTests
         Assert.Equal(before + "A", menus.NameDraft);
     }
 
+    [Fact]
+    public void Boko_name_window_places_chocobo_portrait_at_widescreen_resolution()
+    {
+        MenuController menus = new();
+        menus.OpenNamePrompt(GameNames.BokoSubject, GameNames.DefaultName(GameNames.BokoSubject), _ => { });
+        UiView view = menus.BuildView();
+        view.Resize(1920, 1080);
+
+        UiImage portrait = Assert.Single(Descendants(view.Root).OfType<UiImage>());
+        Assert.Equal(new UiImageSource(UiImageKind.ChocoboPortrait, 0), portrait.Source);
+        Assert.False(portrait.Bounds.IsEmpty);
+    }
+
     private static GamePadState Pad(params Buttons[] buttons) => new(Vector2.Zero, Vector2.Zero, 0, 0, buttons);
 
     private static IEnumerable<UiElement> Descendants(UiElement element)
