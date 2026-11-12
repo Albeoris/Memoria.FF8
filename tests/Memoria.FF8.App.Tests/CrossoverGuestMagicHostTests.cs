@@ -187,16 +187,18 @@ public sealed class CrossoverGuestMagicHostTests(ITestOutputHelper output)
     }
 
     [Theory]
-    [InlineData(0u, false, (ushort)1)]
-    [InlineData(0u, false, (ushort)7)]
-    [InlineData(0u, false, (ushort)4)]
-    [InlineData(8u, false, (ushort)1)]
-    [InlineData(0x200u, false, (ushort)1)]
-    [InlineData(0x04000000u, false, (ushort)1)]
-    [InlineData(4u, false, (ushort)1)]
-    [InlineData(0x80u, false, (ushort)1)]
-    [InlineData(0u, true, (ushort)1)]
-    public void Original_elemental_spell_charges_origin_stock_once_and_publishes_one_prepared_host_receipt_through_uninterrupted_casting(uint sourceStatus, bool junctioned, ushort ability)
+    [InlineData(0u, false, (ushort)1, false)]
+    [InlineData(0u, false, (ushort)7, false)]
+    [InlineData(0u, false, (ushort)4, false)]
+    [InlineData(8u, false, (ushort)1, false)]
+    [InlineData(0x200u, false, (ushort)1, false)]
+    [InlineData(0x04000000u, false, (ushort)1, false)]
+    [InlineData(4u, false, (ushort)1, false)]
+    [InlineData(0x80u, false, (ushort)1, false)]
+    [InlineData(0u, true, (ushort)1, false)]
+    [InlineData(0u, false, (ushort)1, true)]
+    [InlineData(0u, true, (ushort)1, true)]
+    public void Original_elemental_spell_charges_origin_stock_once_and_publishes_one_prepared_host_receipt_through_uninterrupted_casting(uint sourceStatus, bool junctioned, ushort ability, bool smart)
     {
         string? ff7Root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
         string? ff8Root = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
@@ -215,6 +217,10 @@ public sealed class CrossoverGuestMagicHostTests(ITestOutputHelper output)
         {
             origin.Records[row].Junction.MagicJunctions[3] = checked((byte)ability);
             origin = origin.WithSavedHitPoints(row, origin.GetMagicMaximumHitPoints(row));
+        }
+        if (smart)
+        {
+            origin = origin with { MagicSystem = origin.MagicSystem with { AttackModes = origin.MagicSystem.AttackModes.Select((mode, index) => index == row ? MagicAttackMode.SmartMagic : mode).ToArray() } };
         }
         CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.Read(origin, assets, 0);
         string immutableOrigin = JsonSerializer.Serialize(origin);
@@ -236,12 +242,12 @@ public sealed class CrossoverGuestMagicHostTests(ITestOutputHelper output)
         {
             host.Advance();
         }
-        if (sourceStatus != 0)
+        if (sourceStatus != 0 || smart)
         {
             Ff7BattleSnapshot statusHost = host.Capture();
             statusHost = statusHost with
             {
-                Actors = statusHost.Actors.Select(actor => actor.Actor.Slot == 0 ? actor with { Actor = actor.Actor with { Statuses = sourceStatus }, Timers = Ff7NativeBattleStatusClock.Apply(actor.Timers, actor.Actor.Statuses, sourceStatus) } : actor).ToArray(),
+                Actors = statusHost.Actors.Select(actor => actor.Actor.Slot == 0 ? actor with { Actor = actor.Actor with { Statuses = sourceStatus }, Timers = Ff7NativeBattleStatusClock.Apply(actor.Timers, actor.Actor.Statuses, sourceStatus) } : smart && actor.Actor.Slot == 4 ? actor with { Actor = actor.Actor with { HitPoints = 30000, MaxHitPoints = 30000, Defense = 510, MagicDefense = 0 } } : actor).ToArray(),
                 Inventory = [.. statusHost.Inventory.Where(item => item.ItemId != 8), new(8, 1)]
             };
             CrossoverGunbladeHostSnapshot statusAttack = attack.Capture();
@@ -271,7 +277,32 @@ public sealed class CrossoverGuestMagicHostTests(ITestOutputHelper output)
         Ff7BattleCommandOption option = Assert.Single(host.Commands(0), option => option.Command == Ff7BattleCommand.Magic);
         Assert.Equal(ability, option.Argument);
         Assert.Equal(initialStock, option.Cost);
-        Assert.True(host.Submit(0, Ff7BattleCommand.Magic, ability, 1 << 4), $"The original spell was rejected: {option}; target reason {actions.AbilityTargetUnsupportedReason(ability, 4)}.");
+        if (smart)
+        {
+            string hostBefore = JsonSerializer.Serialize(host.Capture());
+            string actionsBefore = JsonSerializer.Serialize(actions.Capture());
+            string attackBefore = JsonSerializer.Serialize(attack.Capture());
+            BattleSmartAttackPreview physical = actions.PreviewSmartAttack(4, true);
+            BattleSmartAttackPreview preview = actions.PreviewSmartAttack(4);
+            Assert.Equal(BattleAbility.Attack, physical.Ability);
+            Assert.True(physical.ForcePhysical);
+            Assert.Equal(BattleAbility.Magic, preview.Ability);
+            Assert.Equal(ability, preview.ActionId);
+            Assert.Equal(1, preview.CastCount);
+            Assert.True(preview.ExpectedDamage > physical.ExpectedDamage);
+            Assert.Equal(preview, actions.PreviewSmartAttack(4));
+            Assert.Equal(hostBefore, JsonSerializer.Serialize(host.Capture()));
+            Assert.Equal(actionsBefore, JsonSerializer.Serialize(actions.Capture()));
+            Assert.Equal(attackBefore, JsonSerializer.Serialize(attack.Capture()));
+            Assert.False(actions.SubmitSmartAttack(preview with { Revision = "stale" }));
+            Assert.Equal(hostBefore, JsonSerializer.Serialize(host.Capture()));
+            Assert.Equal(actionsBefore, JsonSerializer.Serialize(actions.Capture()));
+            Assert.True(actions.SubmitSmartAttack(preview));
+        }
+        else
+        {
+            Assert.True(host.Submit(0, Ff7BattleCommand.Magic, ability, 1 << 4), $"The original spell was rejected: {option}; target reason {actions.AbilityTargetUnsupportedReason(ability, 4)}.");
+        }
         for (int tick = 0; tick < 1000 && host.Capture().Action?.Command.GuestAbility != ability && host.GuestAbilityFailure is null; tick++)
         {
             host.Advance();

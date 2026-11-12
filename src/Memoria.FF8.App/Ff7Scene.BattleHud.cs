@@ -206,6 +206,11 @@ internal sealed partial class Ff7Scene
             canvas.Text(battle.Name(slot), fontSize, label, theme.Foreground, UiAlignment.Start, UiTextFlow.SingleLine);
         }
         string title = CommandName(action, ready);
+        displayedGuestSmartPreview = GuestAttackPreview(ready, action, targets[selected].Actor.Slot);
+        if (displayedGuestSmartPreview is { } smart)
+        {
+            title = smart.Name;
+        }
         if (action.GroupUses > 0)
         {
             title += battleTargetGroup ? "   All targets" : "   Single target";
@@ -213,8 +218,15 @@ internal sealed partial class Ff7Scene
         float titleSize = 20 * scale * textScale;
         float titleHeight = canvas.MeasureText("Mg", titleSize, float.PositiveInfinity).Height / scale;
         float titleY = panel.Y - Math.Max(18, UiTheme.DefaultCaptionFontSize * textScale * 0.75f + 8) - titleHeight - 14;
-        theme.Panel(canvas, layout.Rect(54, titleY, 440, titleHeight + 14));
+        float hintHeight = displayedGuestSmartPreview is null ? 0 : titleHeight;
+        titleY -= hintHeight;
+        theme.Panel(canvas, layout.Rect(54, titleY, 440, titleHeight + hintHeight + 14));
         canvas.Text(title, titleSize, layout.Rect(68, titleY + 7, 412, titleHeight), theme.Foreground);
+        if (displayedGuestSmartPreview is not null)
+        {
+            string hint = MagicUiText.Format("PhysicalOverride", sharedInput.BindingPrompt(ControlAction.CameraLeft));
+            canvas.Text(hint, titleSize, layout.Rect(68, titleY + 7 + titleHeight, 412, titleHeight), theme.Foreground);
+        }
     }
 
     private static void DrawBattleResult(IUiCanvas canvas, UiTheme theme, BattleHudLayout layout, float textScale, Ff7BattleSession battle)

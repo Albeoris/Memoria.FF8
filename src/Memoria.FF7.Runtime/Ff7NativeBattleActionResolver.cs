@@ -89,7 +89,7 @@ public static class Ff7NativeBattleActionResolver
     public static Ff7BattleActionReceipt Resolve(Ff7BattleDamageActor sourceStats, Ff7BattleActionVitals source, Ff7BattleDamageActor targetStats, Ff7BattleActionVitals target, Ff7BattleDamageAction action, Ff7BattleAttack? record, Ff7BattleRng random, bool sameActor = false)
         => ResolveCore(sourceStats, source, targetStats, target, action, record, random, sameActor, false, null);
 
-    internal static Ff7BattleActionReceipt ResolveGuestContact(Ff7BattleDamageActor sourceStats, Ff7BattleActionVitals source, Ff7BattleDamageActor targetStats, Ff7BattleActionVitals target, Ff7BattleDamageAction action, Ff7BattleAttack? record, Ff7BattleRng random, bool sameActor = false, IReadOnlyList<byte>? originStatusResistances = null)
+    public static Ff7BattleActionReceipt ResolveGuestContact(Ff7BattleDamageActor sourceStats, Ff7BattleActionVitals source, Ff7BattleDamageActor targetStats, Ff7BattleActionVitals target, Ff7BattleDamageAction action, Ff7BattleAttack? record, Ff7BattleRng random, bool sameActor = false, IReadOnlyList<byte>? originStatusResistances = null)
         => ResolveCore(sourceStats, source, targetStats, target, action, record, random, sameActor, true, originStatusResistances);
 
     private static Ff7BattleActionReceipt ResolveCore(Ff7BattleDamageActor sourceStats, Ff7BattleActionVitals source, Ff7BattleDamageActor targetStats, Ff7BattleActionVitals target, Ff7BattleDamageAction action, Ff7BattleAttack? record, Ff7BattleRng random, bool sameActor, bool guestContact, IReadOnlyList<byte>? originStatusResistances)

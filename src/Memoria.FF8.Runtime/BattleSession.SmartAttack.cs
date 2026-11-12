@@ -101,7 +101,7 @@ public sealed partial class BattleSession
         {
             return result;
         }
-        List<(BattleActionDefinition Action, int Available, int Stock, int Casts, BattleDamageForecast Forecast, BattleCombatant? Source)> candidates = [];
+        List<BattleSmartAttackCandidate> candidates = [];
         foreach (BattleActionDefinition action in definition.ActionDefinitions.Where(IsSmartSpell))
         {
             if (NativeActionReflects(target, action.NativeAction!))
@@ -112,44 +112,17 @@ public sealed partial class BattleSession
             {
                 foreach (BattleCombatant source in combatants.Where(source => source.IsActive && source.IsAlive && !source.IsPlayer && !source.Untargetable && source.NativeDrawSlots.Any(slot => slot.Id == action.Id)))
                 {
-                    candidates.Add((action, 1, 0, 1, ForecastMagic(actor, target, action.NativeAction!, 1, source, action.DrawResist), source));
+                    candidates.Add(new(action, 1, 0, 1, ForecastMagic(actor, target, action.NativeAction!, 1, source, action.DrawResist), source.Id, source.NativeIndex, IsSmartMeltdown(action) && CanSmartApplyMeltdown(actor, target, action.NativeAction!)));
                 }
             }
             int available = actor.Abilities.Contains(BattleAbility.Magic) ? GetAvailableMagicCasts(actor.Id, action.Id, reservation) : 0;
             if (available > 0)
             {
                 int casts = AffordableSmartCasts(actor, action.Id, available);
-                candidates.Add((action, available, actor.MagicStocks.FirstOrDefault(stock => stock.Id == action.Id)?.Count ?? 0, casts, ForecastMagic(actor, target, action.NativeAction!, casts), null));
+                candidates.Add(new(action, available, actor.MagicStocks.FirstOrDefault(stock => stock.Id == action.Id)?.Count ?? 0, casts, ForecastMagic(actor, target, action.NativeAction!, casts), CanApplyMeltdown: IsSmartMeltdown(action) && CanSmartApplyMeltdown(actor, target, action.NativeAction!)));
             }
         }
-        var drawnKill = candidates.Where(candidate => candidate.Source is not null && candidate.Forecast.KillProbability > 0.9).OrderBy(candidate => candidate.Forecast.ExpectedDamage).ThenBy(candidate => candidate.Action.Id).ThenBy(candidate => candidate.Source!.NativeIndex).ToArray();
-        if (drawnKill.Length > 0)
-        {
-            var chosen = drawnKill[0];
-            return result with { Ability = BattleAbility.Draw, ActionId = chosen.Action.Id, Name = "Draw: " + (chosen.Action.DisplayName ?? chosen.Action.Name), CastCount = 1, ExpectedDamage = chosen.Forecast.ExpectedDamage, KillProbability = chosen.Forecast.KillProbability, DrawSourceId = chosen.Source!.Id, DrawSourceIndex = chosen.Source.NativeIndex };
-        }
-        foreach (var group in candidates.Where(candidate => candidate.Source is null).GroupBy(candidate => candidate.Action.NativeAction!.Element).OrderByDescending(group => group.Sum(candidate => candidate.Available)).ThenByDescending(group => group.Sum(candidate => candidate.Stock)).ThenBy(group => group.Key))
-        {
-            var sufficient = group.Where(candidate => candidate.Forecast.KillProbability > 0.9).OrderBy(candidate => candidate.Forecast.ExpectedDamage).ThenBy(candidate => candidate.Action.Id).ToArray();
-            if (sufficient.Length > 0)
-            {
-                var chosen = sufficient[0];
-                return result with { Ability = BattleAbility.Magic, ActionId = chosen.Action.Id, Name = chosen.Action.DisplayName ?? chosen.Action.Name, CastCount = chosen.Casts, ExpectedDamage = chosen.Forecast.ExpectedDamage, KillProbability = chosen.Forecast.KillProbability };
-            }
-        }
-        var meltdown = candidates.Where(candidate => IsSmartMeltdown(candidate.Action) && CanSmartApplyMeltdown(actor, target, candidate.Action.NativeAction!)).OrderByDescending(candidate => candidate.Source is not null).ThenBy(candidate => candidate.Source?.NativeIndex).ToArray();
-        if (meltdown.Length > 0)
-        {
-            var chosen = meltdown[0];
-            return result with { Ability = chosen.Source is null ? BattleAbility.Magic : BattleAbility.Draw, ActionId = chosen.Action.Id, Name = (chosen.Source is null ? "" : "Draw: ") + (chosen.Action.DisplayName ?? chosen.Action.Name), CastCount = chosen.Casts, ExpectedDamage = chosen.Forecast.ExpectedDamage, KillProbability = chosen.Forecast.KillProbability, DrawSourceId = chosen.Source?.Id, DrawSourceIndex = chosen.Source?.NativeIndex };
-        }
-        var strongest = candidates.OrderByDescending(candidate => candidate.Forecast.ExpectedDamage).ThenByDescending(candidate => candidate.Source is not null).ThenByDescending(candidate => candidate.Available).ThenBy(candidate => candidate.Action.Id).ThenBy(candidate => candidate.Source?.NativeIndex).ToArray();
-        if (strongest.Length > 0 && strongest[0].Forecast.ExpectedDamage > 0 && strongest[0].Forecast.ExpectedDamage > physical.ExpectedDamage)
-        {
-            var chosen = strongest[0];
-            return result with { Ability = chosen.Source is null ? BattleAbility.Magic : BattleAbility.Draw, ActionId = chosen.Action.Id, Name = (chosen.Source is null ? "" : "Draw: ") + (chosen.Action.DisplayName ?? chosen.Action.Name), CastCount = chosen.Casts, ExpectedDamage = chosen.Forecast.ExpectedDamage, KillProbability = chosen.Forecast.KillProbability, DrawSourceId = chosen.Source?.Id, DrawSourceIndex = chosen.Source?.NativeIndex };
-        }
-        return result;
+        return BattleSmartAttackSelector.Select(result, candidates);
     }
 
     public static bool IsSmartSpell(BattleActionDefinition action)

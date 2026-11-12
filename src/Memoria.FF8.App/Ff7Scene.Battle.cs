@@ -27,6 +27,14 @@ internal sealed partial class Ff7Scene
     private bool battleTargetGroup;
     private int? battleInputOwner;
     private bool pendingLimitConfirm;
+    private BattleSmartAttackPreview? displayedGuestSmartPreview;
+
+    private bool ForceGuestPhysical => (sharedInput.HeldFieldButtons & 3) == 1;
+
+    private BattleSmartAttackPreview? GuestAttackPreview(int owner, Ff7BattleCommandOption command, int target)
+    {
+        return command.Command == Ff7BattleCommand.Attack ? mixedCombat?.GuestAt(owner)?.PreviewSmartAttack(target, ForceGuestPhysical) : null;
+    }
 
     private void UpdateBattle(GameTime gameTime, Ff7BattleSession battle)
     {
@@ -191,7 +199,22 @@ internal sealed partial class Ff7Scene
             int targetSlot = targets[battleTargetIndex].Actor.Slot;
             bool useAll = battleTargetGroup && current.GroupUses > 0;
             ushort mask = (ushort)(useAll || !current.SelectSingle ? current.ValidTargets & (targetSlot < 3 ? 15 : 0x3F0) : 1 << targetSlot);
-            if (semanticInput.Confirm && battle.Submit(owner, current.Command, current.Argument, mask, useAll))
+            BattleSmartAttackPreview? preview = GuestAttackPreview(owner, current, targetSlot);
+            bool submitted = false;
+            if (semanticInput.Confirm)
+            {
+                if (preview is not null)
+                {
+                    bool displayed = displayedGuestSmartPreview is not { } previous || previous.ActorId != preview.ActorId || previous.TargetIndex != targetSlot || previous.ForcePhysical != preview.ForcePhysical || previous == preview;
+                    displayedGuestSmartPreview = preview;
+                    submitted = displayed && mixedCombat!.GuestAt(owner)!.SubmitSmartAttack(preview);
+                }
+                else
+                {
+                    submitted = battle.Submit(owner, current.Command, current.Argument, mask, useAll);
+                }
+            }
+            if (submitted)
             {
                 selectedBattleCommand = null;
                 battleCommandPage = null;
@@ -269,6 +292,7 @@ internal sealed partial class Ff7Scene
             return;
         }
         selectedBattleCommand = option;
+        displayedGuestSmartPreview = null;
         battleTargetIndex = 0;
         battleTargetGroup = false;
     }
@@ -397,6 +421,7 @@ internal sealed partial class Ff7Scene
         unavailableBattleCommand = null;
         presentedGuestAbilityFailure = null;
         selectedBattleCommand = null;
+        displayedGuestSmartPreview = null;
         battleCommandIndex = 0;
         battleActionIndex = 0;
         battleCommandPage = null;

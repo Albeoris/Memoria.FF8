@@ -23,6 +23,7 @@ public sealed record Ff7BattleGuestPhysicalHit(Ff7BattleDamageActor Source, Ff7B
     public Ff7BattleAttack? StatusRecord { get; init; }
 }
 public sealed record Ff7BattleGuestPreparedContact(Ff7BattleGuestInvocation Invocation, Ff7BattleActionVitals SourceBefore, Ff7BattleActionVitals TargetBefore, Ff7BattleActionReceipt Receipt);
+public sealed record Ff7BattleGuestContactContext(Ff7BattleDamageActor Source, Ff7BattleActionVitals SourceVitals, Ff7BattleDamageActor Target, Ff7BattleActionVitals TargetVitals, Ff7BattleDamageAction Attack, ReadOnlyMemory<byte> RandomKernel);
 public sealed record Ff7BattleGuestAbilityFailure(long Tick, int ActorSlot, ushort Ability, string Reason);
 public sealed record Ff7BattleGuestAttackUpdate(Ff7BattleGuestPhysicalHit? Hit, bool Completed)
 {
@@ -379,6 +380,22 @@ public sealed partial class Ff7BattleSession
     }
 
     public Ff7BattleGuestAttackTarget GuestAbilityTarget(int slot) => DescribeGuestTarget(slot);
+
+    /// <summary>Exports current guest contact inputs without publishing state or drawing randomness.</summary>
+    public Ff7BattleGuestContactContext GuestContactContext(int sourceSlot, int targetSlot, Ff7BattleGuestPhysicalHit hit, bool physical)
+    {
+        Ff7BattleActorState source = Actor(sourceSlot);
+        Ff7BattleActorState target = Actor(targetSlot);
+        Ff7BattleDamageAction attack = ProjectGuestOutgoingAttack(targetSlot, hit);
+        if (physical)
+        {
+            (source, attack) = ProjectPhysicalFacing(source, target, attack);
+        }
+        Ff7BattleDamageActor stats = physical ? hit.Source with { BackRow = (source.Actor.Conditions & 0x40) != 0 } : hit.Source;
+        Ff7BattleActionVitals sourceVitals = new(source.Actor.HitPoints, source.Actor.MaxHitPoints, source.Actor.MagicPoints, source.Actor.MaxMagicPoints, source.Actor.Statuses);
+        Ff7BattleActionVitals targetVitals = new(target.Actor.HitPoints, target.Actor.MaxHitPoints, target.Actor.MagicPoints, target.Actor.MaxMagicPoints, target.Actor.Statuses, targetSlot >= 4 ? ~Enemy(targetSlot).NativeStatusMask : 0);
+        return new(stats, sourceVitals, Stats(target), targetVitals, attack, kernel[2].Data);
+    }
 
     public Vector3 GuestEffectTargetAnchor(int slot)
     {
