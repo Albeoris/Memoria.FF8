@@ -43,11 +43,17 @@ internal sealed partial class WorldMapScene
         AutoPlayTerrain topology = autoPlayTerrain;
         var terrain = topology.Polygons;
         var edges = topology.Edges;
-        WorldGroundSelection start = assets.LookupNativeGround(before.X, before.Z, replacements, []) ?? throw new InvalidOperationException("World discovery requires the actual native starting ground.");
-        LoadSegment(start.Identity.MapId);
-        if (!topology.Indices.TryGetValue(start.Identity, out int startIndex))
+        NativeWorldGroundCacheState groundCache = before.NativeFootRuntime?.GroundCache ?? before.NativeCarRuntime?.GroundCache ?? throw new InvalidOperationException("World discovery requires the controlled owner's native ground cache.");
+        NativeWorldGroundIdentity[] currentGround = groundCache.Alternatives.Select(alternative => alternative.CurrentGround).Distinct().ToArray();
+        if (currentGround.Length != 1)
         {
-            throw new NotSupportedException("The current world polygon is outside its owner's traversable discovery component.");
+            throw new NotSupportedException("Retained native world alternatives disagree on the controlled owner's current polygon.");
+        }
+        NativeWorldGroundIdentity start = currentGround[0];
+        LoadSegment(start.MapId);
+        if (!topology.Indices.TryGetValue(start, out int startIndex))
+        {
+            throw new NotSupportedException($"The controlled world polygon {start} at ({before.X}, {before.Z}) is outside entity {entityType}'s traversable discovery component.");
         }
         HashSet<int> component = [];
         Dictionary<int, (int Parent, (int X, int RawZ) Crossing)> parents = [];
@@ -294,12 +300,12 @@ internal sealed partial class WorldMapScene
             car.Validate();
             return car.EntityType;
         }
-        bool parkedGarden = !debugPlacement && world.NativeGardenRuntime is { Transfer.Counter: 31 } && world.NativeFootRuntime?.GardenDismount is not null;
-        if (world.NativeFootRuntime is not { } foot || !NativeWorldEntityTypes.IsSupportedFoot(foot.EntityType) || debugPlacement && (foot.EntityType is not (0 or 1) || foot.NormalObjects is not null || foot.StationTrains is not null) || world.NativeCarRuntime is not null || world.NativeGardenRuntime is not null && !parkedGarden || world.NativeRagnarokRuntime is not null || world.NativeTrainRuntime is not null || world.NativeScriptedRuntime is not null)
+        if (world.NativeFootRuntime is not { } foot || !NativeWorldEntityTypes.IsSupportedFoot(foot.EntityType) || debugPlacement && (foot.EntityType is not (0 or 1) || foot.NormalObjects is not null || foot.StationTrains is not null || world.NativeGardenRuntime is not null) || world.NativeCarRuntime is not null || world.NativeRagnarokRuntime is not null || world.NativeTrainRuntime is not null || world.NativeScriptedRuntime is not null)
         {
             throw new NotSupportedException(debugPlacement ? "Automatic coordinate travel requires ordinary foot without auxiliary objects, or the current stationary type33 car." : "Automatic world discovery requires a supported native foot owner or an admitted stationary car.");
         }
         foot.RequireNativeGroundState();
+        world.NativeGardenRuntime?.Validate();
         return foot.EntityType;
     }
 
