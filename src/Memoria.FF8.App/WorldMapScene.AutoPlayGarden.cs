@@ -16,6 +16,13 @@ internal sealed partial class WorldMapScene
         (35000, -26000), (35200, -29870), (34475, -40107), (30000, -45000),
         (32900, -47000), (33500, -47000), (44232, -51855), (46168, -57483)
     ];
+    private static readonly (int X, int Z)[] CentraGardenApproach =
+    [
+        (49500, -57500), (50200, -57500), (50300, -56300), (49200, -55200), (47500, -55200),
+        (46500, -56200), (46400, -56400), (46100, -57500), (44200, -51900), (33500, -47000),
+        (32000, -44800), (14500, -45500), (6900, -52900), (2898, -56176), (-7339, -64341),
+        (-23851, 80167), (-23610, 68104), (-24200, 68100), (-24200, 65700), (-24100, 65600), (-23410, 63204)
+    ];
 
     internal PlayerAction? PlanAutoPlayGardenLanding(bool releaseConfirm)
     {
@@ -29,6 +36,7 @@ internal sealed partial class WorldMapScene
         {
             750 => BalambGardenApproach,
             765 => TrabiaGardenApproach,
+            800 => CentraGardenApproach,
             _ => null
         };
         if (approach is null)
@@ -41,9 +49,12 @@ internal sealed partial class WorldMapScene
         }
 
         // NG-044, NG-046: Reach the native landing area before attempting the foot transfer.
-        bool atLanding = story == 750
-            ? current.X is >= 15400 and <= 16600 && current.Z is >= -25000 and <= -23500
-            : SquaredDistance(current.X, current.Z, 46168, -57483) <= 250L * 250;
+        bool atLanding = story switch
+        {
+            750 => current.X is >= 15400 and <= 16600 && current.Z is >= -25000 and <= -23500,
+            765 => SquaredDistance(current.X, current.Z, 46168, -57483) <= 250L * 250,
+            _ => false
+        };
         if (atLanding && ResolveGardenFootPlacement(current) is { Accepted: true })
         {
             return new(garden.Speed == 0 && !releaseConfirm ? PlayerActionKind.Confirm : PlayerActionKind.Wait);
@@ -60,6 +71,11 @@ internal sealed partial class WorldMapScene
             autoPlayGardenWaypoint++;
         }
         if (current.GroundType == 32 && current.NativeHeight > 0)
+        {
+            return new(PlayerActionKind.Wait);
+        }
+        // NG-047: Settle on the Centra shallows before approaching the native Garden encounter.
+        if (story == 800 && current.GroundType == 32 && current.NativeHeight > -128 && SquaredDistance(current.X, current.Z, -24200, 68100) < 300L * 300)
         {
             return new(PlayerActionKind.Wait);
         }
