@@ -137,6 +137,11 @@ internal static class AutoPlayTraversalPolicy
             ("632:640", "632:gateway:0") => -14,
             ("636:640", "636:gateway:0") => -15,
             ("637:640", "637:line:8") => -16,
+            // NG-041: Rejoin Selphie and Irvine on the stage after returning to Garden.
+            ("174:655", "174:gateway:0") => -1,
+            ("168:655", "168:line:23") => -2,
+            ("185:655", "185:line:11") => -3,
+            ("184:655", "184:talk:4") => -4,
             _ => 0
         };
     }
