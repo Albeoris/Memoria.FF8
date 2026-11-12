@@ -1258,21 +1258,35 @@ internal sealed partial class AutoPlayController
 
     private bool TryDriveCurrentLadderInput(GameWorld world)
     {
-        return world.Events.IsUserControlEnabled && world.Events.PlayerActor is { NativeLadder: { Active: true, AutomaticCompletion: false } ladder, NativeMovementCompletion542: 1 } player && TryDriveOwnedLadderInput(world, player, ladder);
+        if (!world.Events.IsUserControlEnabled || world.Events.PlayerActor is not { NativeMovementCompletion542: 1 } player)
+        {
+            return false;
+        }
+        if (player.NativeLadder is { Active: true, AutomaticCompletion: false } ladder)
+        {
+            return TryDriveOwnedLadderInput(world, player, ladder);
+        }
+        return player.NativeLadderMode3 is { Active: true } owner &&
+            DriveLadderInput(world, player, owner.Up, () => player.NativeLadderMode3 is { Active: true } current && current.FiberSequence == owner.FiberSequence && current.ScriptId == owner.ScriptId && current.Operation == owner.Operation && current.Up == owner.Up);
     }
 
     private bool TryDriveOwnedLadderInput(GameWorld world, ActorState player, NativeLadderState owner)
     {
+        return !owner.AutomaticCompletion && DriveLadderInput(world, player, owner.Up, () => player.NativeLadder is { Active: true, AutomaticCompletion: false } current && current.FiberSequence == owner.FiberSequence && current.ScriptId == owner.ScriptId && current.Operation == owner.Operation && current.Up == owner.Up);
+    }
+
+    private bool DriveLadderInput(GameWorld world, ActorState player, bool up, Func<bool> ownsLadder)
+    {
         int field = world.Events.FieldId;
         bool HasOwner()
         {
-            return !owner.AutomaticCompletion && session.State.Scene is SceneKind.Field or SceneKind.Movie && session.State.FieldId == field && world.Events.FieldId == field && world.Events.IsUserControlEnabled && ReferenceEquals(world.Events.PlayerActor, player) && player.NativeMovementCompletion542 == 1 && player.NativeLadder is { Active: true, AutomaticCompletion: false } current && current.FiberSequence == owner.FiberSequence && current.ScriptId == owner.ScriptId && current.Operation == owner.Operation && current.Up == owner.Up && world.CurrentDialogue is null && world.PendingEntityName is null && world.Events.PartyMenu is null && !world.Events.HasPendingBattle && world.Events.PendingTripleTriad is null && world.Events.Scene.NativeTutorial is null && world.Events.Scene.NativeMenuTutorial is null;
+            return session.State.Scene is SceneKind.Field or SceneKind.Movie && session.State.FieldId == field && world.Events.FieldId == field && world.Events.IsUserControlEnabled && ReferenceEquals(world.Events.PlayerActor, player) && player.NativeMovementCompletion542 == 1 && ownsLadder() && world.CurrentDialogue is null && world.PendingEntityName is null && world.Events.PartyMenu is null && !world.Events.HasPendingBattle && world.Events.PendingTripleTriad is null && world.Events.Scene.NativeTutorial is null && world.Events.Scene.NativeMenuTutorial is null;
         }
         if (!HasOwner())
         {
             return false;
         }
-        ushort direction = owner.Up ? (ushort)0x1000 : (ushort)0x4000;
+        ushort direction = up ? (ushort)0x1000 : (ushort)0x4000;
         ushort physical = (session.State.InputConfiguration ?? throw new NotSupportedException("Controlled native ladder input requires its actual saved input mapping.")).RawForMappedPulse(direction);
         bool driven = false;
         try
