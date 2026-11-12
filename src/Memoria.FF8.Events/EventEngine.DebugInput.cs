@@ -18,6 +18,12 @@ public sealed partial class EventEngine
         return DiscoverScriptedInputCore(objectId, null);
     }
 
+    /// <summary>Checks whether the current fiber is executing within an original input loop.</summary>
+    public bool IsAtScriptedInputLoop(int objectId, int scriptId, int firstOperation, int lastOperation)
+    {
+        return fibers.Any(fiber => !fiber.Complete && fiber.ObjectId == objectId && fiber.Script.Id == scriptId && fiber.Position >= firstOperation && fiber.Position <= lastOperation);
+    }
+
     /// <summary>Describes only key queries actually reached by a neutral native callback, using their sampled operands.</summary>
     public ScriptedInputMetadata? DiscoverObservedScriptedInput(IReadOnlyList<ScriptedInputQuery> observedQueries, int? objectId = null)
     {

@@ -717,6 +717,10 @@ internal sealed partial class AutoPlayController
         {
             return;
         }
+        if (TryDriveEstharStationReunion(world))
+        {
+            return;
+        }
         if (TryDriveCurrentLadderInput(world))
         {
             return;

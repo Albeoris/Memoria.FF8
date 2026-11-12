@@ -235,6 +235,9 @@ internal static class AutoPlayTraversalPolicy
             ("853:1350", "853:gateway:0" or "853:gateway:1") => -1,
             ("849:1350", "849:gateway:1") => -2,
             ("857:1350", "857:talk:7") => -3,
+            // NG-063: Complete the station reunion before leaving for the lake.
+            ("547:1600", "547:talk:7") => -1,
+            ("547:1650", "547:line:11") => -1,
             _ => 0
         };
     }
@@ -290,6 +293,8 @@ internal static class AutoPlayTraversalPolicy
             // NG-057: Retry the original duel and accept the following battle.
             "948:1210:7:36:381:27:0:1" => 0,
             "950:1220:15:79:763:8:0:1" => 0,
+            // NG-063: The recollection answers converge on the same reconnaissance scene.
+            "547:1600:9:124:1334:11:1:3" => 1,
             // NG-036: Take the elevator to 2F for the approaching ship.
             "172:614:12:98:1227:4:2:4" => 3,
             // NG-039, NG-040: Take the elevator to 2F for Fishermans Horizon.
