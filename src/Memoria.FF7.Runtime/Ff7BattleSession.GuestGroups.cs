@@ -95,9 +95,16 @@ public sealed partial class Ff7BattleSession
                 return;
             }
         }
+        Ff7BattleRng candidateRandom = new(kernel[2].Data.Span, random.Capture());
+        if (!magic.PrepareSource(command.GuestAbility, candidateRandom.NextByte, out string? failure))
+        {
+            random.Adopt(candidateRandom);
+            state = state with { Messages = Ff7NativeBattleMessage.Enqueue(state.Messages ?? Ff7BattleMessageState.Empty, failure ?? "The source action failed.") };
+            FinishTurn(command.ActorSlot);
+            return;
+        }
         Ff7BattleGuestPhysicalHit description = magic.DescribeMagic(command.GuestAbility);
         ValidateGuestMagic(command.GuestAbility, description);
-        Ff7BattleRng candidateRandom = new(kernel[2].Data.Span, random.Capture());
         List<Ff7BattleGuestPhysicalHit> prepared = [];
         foreach (int slot in targets)
         {
