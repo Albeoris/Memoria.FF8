@@ -7,7 +7,7 @@ public sealed partial class BattleSession
         public BattleCombatant Actor { get; } = actor;
         public BattleCombatant Recipient { get; } = recipient;
         public BattleNativeAction Action { get; } = action;
-        public byte PrimaryIndex { get; } = checked((byte)recipient.NativeIndex);
+        public byte PrimaryIndex { get; } = checked((byte)recipient.EncodeNativeSlot());
         public byte Sequence { get; set; } = action.DamagePresentation;
         public byte Flags { get; set; }
         public byte HitFlags { get; set; }
@@ -33,7 +33,7 @@ public sealed partial class BattleSession
         NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(native.DamagePresentation, 0x31, 4, (byte)(native.AttackFlags & 3), 255);
         RefreshNativePresentationStatus(recipient);
         (ushort saved, uint battle) = NativeContactStatusMirror(recipient);
-        NativeBattleContactHalf primary = new(checked((byte)recipient.NativeIndex), presentation.Sequence, presentation.Flags2, presentation.HitFlags3, saved, 0, battle);
+        NativeBattleContactHalf primary = new(checked((byte)recipient.EncodeNativeSlot()), presentation.Sequence, presentation.Flags2, presentation.HitFlags3, saved, 0, battle);
         return new(primary, new(255, 0, 0, 0, 0, 0, 0));
     }
 
@@ -241,7 +241,7 @@ public sealed partial class BattleSession
         if (nativeContactWorking is { } contact)
         {
             contact.PrimaryStatusSnapshot = NativeContactStatusMirror(contact.Recipient);
-            contact.Secondary = NativeBattleContactHalf.FromScratch(checked((byte)actor.NativeIndex), 0, 0, healing ? (byte)1 : (byte)0, 0, damage, 0);
+            contact.Secondary = NativeBattleContactHalf.FromScratch(checked((byte)actor.EncodeNativeSlot()), 0, 0, healing ? (byte)1 : (byte)0, 0, damage, 0);
             contact.CommittingSecondary = true;
         }
     }

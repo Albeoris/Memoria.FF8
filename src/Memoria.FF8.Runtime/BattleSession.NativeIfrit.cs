@@ -339,7 +339,7 @@ public sealed partial class BattleSession
                     graphics = anchored.Graphics;
                     return anchored.Frame;
                 case 0x46:
-                    return NativeBattleCinematicContactBranch46.Execute(current, program, context.ReadActionBytes, (_, actor) => NativeBattleStatusBits(combatants.Single(combatant => combatant.NativeIndex == actor)));
+                    return NativeBattleCinematicContactBranch46.Execute(current, program, context.ReadActionBytes, (_, actor) => NativeBattleStatusBits(combatants.Single(combatant => combatant.EncodeNativeSlot() == actor)));
                 case 0x49:
                     return NativeBattleCinematicActorStore48.BranchScale49(current, program, address => graphics.Models[PhysicalActorIndex(address)]);
                 case 0x5F:

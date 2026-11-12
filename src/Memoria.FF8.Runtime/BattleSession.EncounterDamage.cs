@@ -314,7 +314,7 @@ public sealed partial class BattleSession
                 else if (NativeGraphics is not null)
                 {
                     (ushort saved, uint battle) = NativeContactStatusMirror(recipient);
-                    NativeBattleContactHalf half = NativeBattleContactHalf.FromScratch(checked((byte)recipient.NativeIndex), recipient.IsAlive ? (byte)0 : (byte)3, recipient.IsAlive ? (byte)0 : (byte)8, 0, saved, receipt.AssignedDamage, battle);
+                    NativeBattleContactHalf half = NativeBattleContactHalf.FromScratch(checked((byte)recipient.EncodeNativeSlot()), recipient.IsAlive ? (byte)0 : (byte)3, recipient.IsAlive ? (byte)0 : (byte)8, 0, saved, receipt.AssignedDamage, battle);
                     extra.Add(new(half, new(255, 0, 0, 0, 0, 0, 0)));
                 }
             }

@@ -33,7 +33,7 @@ public sealed partial class BattleSession
         RequireNoPendingEncounterAllocation();
         BattleCombatantDefinition prototype = definition.Combatants.SingleOrDefault(candidate => !candidate.IsPlayer && candidate.SceneSlot == sceneSlot) ?? throw new InvalidDataException($"Native enemy allocation has no scene resource {sceneSlot}.");
         NativeBattleEnemyTemplate template = prototype.NativeTemplate ?? throw new InvalidDataException("Native enemy allocation lacks its installed resource template.");
-        int physicalIndex = requestedIndex == 0 ? Enumerable.Range(3, 4).FirstOrDefault(index => !combatants.Any(candidate => candidate.IsActive && candidate.NativeIndex == index) && !IsEncounterRetirementPending(index), -1) : requestedIndex;
+        int physicalIndex = requestedIndex == 0 ? Enumerable.Range(3, 4).FirstOrDefault(index => !enemies.Any(candidate => candidate.IsActive && candidate.Slot == NativeBattleSlots.Decode(index)) && !IsEncounterRetirementPending(index), -1) : requestedIndex;
         if (physicalIndex is < 3 or > 6)
         {
             throw new InvalidDataException("Native enemy allocation requires one of physical slots3..6 and an available allocation.");
@@ -43,20 +43,21 @@ public sealed partial class BattleSession
             throw new InvalidOperationException("The selected physical enemy slot is still owned by an accepted encounter retirement.");
         }
         StopTurnAdvance();
-        BattleCombatant? previous = combatants.SingleOrDefault(candidate => !candidate.IsPlayer && candidate.NativeIndex == physicalIndex);
-        foreach (BattleCombatant replaced in combatants.Where(candidate => !candidate.IsPlayer && candidate.NativeIndex == physicalIndex).ToArray())
+        BattleRosterSlot slot = NativeBattleSlots.Decode(physicalIndex);
+        BattleCombatant? previous = enemies.SingleOrDefault(candidate => candidate.Slot == slot);
+        foreach (BattleCombatant replaced in enemies.Where(candidate => candidate.Slot == slot).ToArray())
         {
             if (replaced.IsActive)
             {
                 ReleaseNativeParticipant(replaced);
             }
-            replaced.NativeIndex = -1;
+            replaced.BindRosterSlot(null);
         }
         int generation = checked(nativeAllocations.Count + 1);
         NativeBattleEnemyAllocation allocation = new($"native-allocation-{generation}", sceneSlot, generation);
         BattleCombatant spawned = CreateNativeAllocation(allocation);
         nativeAllocations.Add(allocation);
-        spawned.NativeIndex = physicalIndex;
+        spawned.BindRosterSlot(slot);
         spawned.NativeReturnDamage = 0;
         spawned.NativePendingReaction = previous?.NativePendingReaction ?? new(null, null);
         nativeLastAllocatedIndex = physicalIndex;
@@ -96,7 +97,7 @@ public sealed partial class BattleSession
         NativeBattleEnemyTemplate template = spawned.NativeTemplate ?? throw new InvalidDataException("Native allocation lacks its original level resource.");
         spawned.NativeCombatantFlags = template.NativeCombatantFlags | 0x11;
         spawned.NativePendingReaction = new(0, 0);
-        nativeActionMemory.State = nativeActionMemory.State.InitializeStatistics(spawned.NativeIndex);
+        nativeActionMemory.State = nativeActionMemory.State.InitializeStatistics(spawned.EncodeNativeSlot());
         int drawCount = NativeBattleEnemyLevelRules.RandomByteCount(template.SceneLevel);
         byte firstRoll = drawCount > 0 ? (byte)NextRandomByte() : (byte)0;
         byte? secondRoll = drawCount == 2 ? (byte)NextRandomByte() : null;
@@ -137,6 +138,7 @@ public sealed partial class BattleSession
         actor.NativePresentationStatusOwner = nativePresentationStatusMemory;
         InitializeNativeAtb(actor);
         combatants.Add(actor);
+        enemies.Add(actor);
         byId.Add(actor.Id, actor);
         return actor;
     }

@@ -20,7 +20,7 @@ public sealed partial class BattleSession
 
     private void QueueNativeCallback(BattleCombatant actor, ushort stage, byte bank = 0)
     {
-        BattleNativeCallback callback = new(checked((byte)actor.NativeIndex), stage);
+        BattleNativeCallback callback = new(checked((byte)actor.EncodeNativeSlot()), stage);
         callback.Validate();
         NativeBattlePendingReaction diagnosticPending = actor.NativePendingReaction;
         if (bank == 0)
@@ -41,7 +41,7 @@ public sealed partial class BattleSession
 
     private void QueueNativeInitialParticipants()
     {
-        foreach (BattleCombatant actor in combatants.Where(actor => actor.NativeIndex is >= 0 and < 7 && actor.IsActive && (actor.NativeCombatantFlags & 0x10) != 0 && !actor.Suspended).OrderBy(actor => actor.NativeIndex))
+        foreach (BattleCombatant actor in combatants.Where(actor => actor.EncodeNativeSlot() is >= 0 and < 7 && actor.IsActive && (actor.NativeCombatantFlags & 0x10) != 0 && !actor.Suspended).OrderBy(actor => actor.EncodeNativeSlot()))
         {
             QueueNativeParticipantInitialization(actor);
         }
@@ -54,7 +54,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("Native queued callback cannot recursively drain its serialized packet queue.");
         }
-        BattleCombatant? actor = combatants.SingleOrDefault(candidate => candidate.NativeIndex == callback.ActorIndex && candidate.IsActive);
+        BattleCombatant? actor = combatants.SingleOrDefault(candidate => candidate.EncodeNativeSlot() == callback.ActorIndex && candidate.IsActive);
         //4877F0 tests the physical slot's allocated bit before every callback, including0/7/8.
         if (actor is null)
         {

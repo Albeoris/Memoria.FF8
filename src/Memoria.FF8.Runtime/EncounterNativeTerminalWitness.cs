@@ -18,7 +18,7 @@ public sealed partial class BattleSession
 {
     private void ObserveEncounterNativeTerminal(BattleCombatant actor, byte sequence, NativeBattleGraphicsState graphics)
     {
-        if (definition.EncounterMod is not { NativeEvents: not null } mod || graphics.ActionGraphics is not { } action || action.ActorIndex != actor.NativeIndex || nativeActionPackets.ActiveHeaderIndex != action.HeaderIndex || !EncounterNativeTerminalWitness.Matches(mod.Encounter, mod.OriginalActorId, actor.Id, nativeActionPackets.Headers[action.HeaderIndex], action.ActorIndex, sequence, (NativeSavedStatusBits(actor) & 1) != 0, (actor.NativeCombatantFlags & 0x40) != 0))
+        if (definition.EncounterMod is not { NativeEvents: not null } mod || graphics.ActionGraphics is not { } action || action.ActorIndex != actor.EncodeNativeSlot() || nativeActionPackets.ActiveHeaderIndex != action.HeaderIndex || !EncounterNativeTerminalWitness.Matches(mod.Encounter, mod.OriginalActorId, actor.Id, nativeActionPackets.Headers[action.HeaderIndex], action.ActorIndex, sequence, (NativeSavedStatusBits(actor) & 1) != 0, (actor.NativeCombatantFlags & 0x40) != 0))
         {
             return;
         }

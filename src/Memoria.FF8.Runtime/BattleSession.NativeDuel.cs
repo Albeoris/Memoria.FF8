@@ -64,7 +64,7 @@ public sealed partial class BattleSession
     private void QueueNativeDuelInvocation(BattleCombatant actor, BattleCombatant target, byte crisis)
     {
         _ = RequireNativeDuelProgress();
-        ushort mask = NativeBattleLimitRules.PlayerTargetMask(actor.NativeLimit!.InvocationChoices.Single().TargetFlags, target.NativeIndex);
+        ushort mask = NativeBattleLimitRules.PlayerTargetMask(actor.NativeLimit!.InvocationChoices.Single().TargetFlags, target.EncodeNativeSlot());
         OnNativePlayerCommandSubmitted(actor, 11);
         BattleAttackCommand command = new(actor.Id, target.Id, BattleAbility.LimitBreak, 11 << 16) { NativeQueuedCommand = 11, NativeTargetMask = mask, NativeDuel = new(crisis) };
         EnqueueNativePacket(actor, command, "Duel", playerInput: true);

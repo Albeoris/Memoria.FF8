@@ -53,7 +53,7 @@ public sealed partial class BattleSession
             throw new NotSupportedException("Native Slots input exceeds its three physical target WORDs.");
         }
         ushort mask = NativeAutomaticActionTargetMask(action.TargetFlags!.Value);
-        BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.NativeIndex is >= 0 and < 7 && (mask & (1 << candidate.NativeIndex)) != 0) ?? actor;
+        BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.EncodeNativeSlot() is >= 0 and < 7 && (mask & (1 << candidate.EncodeNativeSlot())) != 0) ?? actor;
         return new(actor.Id, target.Id, BattleAbility.EnemyAbility, action.ActionId) { NativeQueuedCommand = 16, NativeAction = action, NativeTargetMask = mask, NativeSequence = sequence, NativeSlots = roll };
     }
 
@@ -67,7 +67,7 @@ public sealed partial class BattleSession
         for (int repeat = 0; repeat < slots.Repetitions; repeat++)
         {
             ushort mask = SelectNativeSlotsTargetMask(native, packet.ReadWord(6 + 2 * repeat));
-            BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.NativeIndex is >= 0 and < 7 && (mask & (1 << candidate.NativeIndex)) != 0) ?? GetActor(command.TargetId);
+            BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.EncodeNativeSlot() is >= 0 and < 7 && (mask & (1 << candidate.EncodeNativeSlot())) != 0) ?? GetActor(command.TargetId);
             //485610 submits one104 for the group; the effect consumes the following headers itself.
             if (!ResolveInstalledNativeAction(actor, target, command with { NativeSlots = null, NativeTargetMask = mask }, action, queueGraphics: repeat == 0))
             {
@@ -91,15 +91,15 @@ public sealed partial class BattleSession
         {
             return originalMask;
         }
-        IEnumerable<BattleCombatant> candidates = combatants.Where(candidate => candidate.NativeIndex is >= 0 and < 7 && (candidate.NativeIndex < 3) == players && candidate.IsAlive && candidate.IsActive && !candidate.Untargetable);
+        IEnumerable<BattleCombatant> candidates = combatants.Where(candidate => candidate.EncodeNativeSlot() is >= 0 and < 7 && (candidate.EncodeNativeSlot() < 3) == players && candidate.IsAlive && candidate.IsActive && !candidate.Untargetable);
         BattleCombatant? target = candidates.OrderBy(candidate => damaging && ModifyNativeElement(candidate, action, 100, false) < 0 ? 1 : 0)
             .ThenBy(candidate => statuses ? NativeSlotsStatusPriority(candidate, action, !players) : 0)
             .ThenBy(candidate => healing ? candidate.CurrentHp : 0)
-            .ThenBy(candidate => (originalMask & (1 << candidate.NativeIndex)) != 0 ? 0 : 1)
-            .ThenBy(candidate => candidate.NativeIndex)
+            .ThenBy(candidate => (originalMask & (1 << candidate.EncodeNativeSlot())) != 0 ? 0 : 1)
+            .ThenBy(candidate => candidate.EncodeNativeSlot())
             .FirstOrDefault();
         // A selected target must not retain the random-target modifier, which would replace it again.
-        return target is null ? originalMask : (ushort)((originalMask & 0x4000) | (1 << target.NativeIndex));
+        return target is null ? originalMask : (ushort)((originalMask & 0x4000) | (1 << target.EncodeNativeSlot()));
     }
 
     private static int NativeSlotsStatusPriority(BattleCombatant candidate, BattleNativeAction action, bool considerImmunity)

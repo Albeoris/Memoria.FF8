@@ -73,7 +73,7 @@ public sealed partial class BattleSession
         _ = RenzokukenResource(target.NativeRenzokukenMagicIds[crisis + 1]);
         _ = RenzokukenResource(target.NativeRenzokukenMagicIds[crisis + 2]);
         byte targetFlags = actor.NativeLimit!.InvocationChoices.Single().TargetFlags;
-        ushort mask = NativeBattleLimitRules.PlayerTargetMask(targetFlags, target.NativeIndex);
+        ushort mask = NativeBattleLimitRules.PlayerTargetMask(targetFlags, target.EncodeNativeSlot());
         OnNativePlayerCommandSubmitted(actor, 5);
         BattleAttackCommand command = new(actor.Id, target.Id, BattleAbility.LimitBreak, 5 << 16) { NativeQueuedCommand = 5, NativeTargetMask = mask, NativeRenzokuken = new(crisis) };
         EnqueueNativePacket(actor, command, actor.NativeLimit.InvocationChoices.Single().Name, playerInput: true);
@@ -103,7 +103,7 @@ public sealed partial class BattleSession
             finisher = NativeBattleRenzokukenRules.Finisher(actor.NativePlayerStatRules!.WeaponRecord[2], checked((byte)(NextRandomByte() % 4)));
             _ = FindInstalledNativeAction(249, finisher.Value);
         }
-        ushort mask = checked((ushort)(1 << target.NativeIndex));
+        ushort mask = checked((ushort)(1 << target.EncodeNativeSlot()));
         ushort finisherTargets = mask;
         if (finisher is byte selected)
         {
@@ -231,7 +231,7 @@ public sealed partial class BattleSession
         }
         (string actorId, BattleNativeRenzokukenState process) = nativeRenzokukenProcesses.Single();
         NativeBattleTimedAction timed = nativeTimedAction ?? throw new InvalidDataException("Saved Renzokuken process lacks its durable command transaction.");
-        int pending = NativeGraphics?.PendingTrigger is { } receipt && receipt.ActorIndex == GetActor(actorId).NativeIndex && receipt.ContactIndex == process.Input.ContactIndex && receipt.ContactIndex == timed.Contacts + 1 ? 1 : 0;
+        int pending = NativeGraphics?.PendingTrigger is { } receipt && receipt.ActorIndex == GetActor(actorId).EncodeNativeSlot() && receipt.ContactIndex == process.Input.ContactIndex && receipt.ContactIndex == timed.Contacts + 1 ? 1 : 0;
         if (timed.Command.ActorId != actorId || timed.Command.NativeRenzokuken?.CrisisLevel != nativeLimitLevels.GetValueOrDefault(actorId) || timed.Contacts + pending != process.Input.ContactIndex || timed.Command.NativeTargetMask != process.TargetMask)
         {
             throw new InvalidDataException("Saved Renzokuken contact count or target differs from its durable transaction.");
@@ -262,7 +262,7 @@ public sealed partial class BattleSession
         NativeBattleTimedAction timed = nativeTimedAction ?? throw new InvalidDataException("Native Renzokuken receipt lacks its durable event owner.");
         BattleCombatant actor = GetActor(timed.Command.ActorId);
         BattleNativeRenzokukenState process = nativeRenzokukenProcesses.GetValueOrDefault(actor.Id) ?? throw new InvalidDataException("Native Renzokuken receipt lacks its durable input owner.");
-        if (receipt.ActorIndex != actor.NativeIndex || receipt.ContactIndex != timed.Contacts + 1 || receipt.ContactIndex != process.Input.ContactIndex)
+        if (receipt.ActorIndex != actor.EncodeNativeSlot() || receipt.ContactIndex != timed.Contacts + 1 || receipt.ContactIndex != process.Input.ContactIndex)
         {
             throw new InvalidDataException("Native Renzokuken receipt differs from its pending input/contact boundary.");
         }

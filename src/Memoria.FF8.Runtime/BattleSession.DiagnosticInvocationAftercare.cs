@@ -89,7 +89,7 @@ public sealed partial class BattleSession
 
     private void EndDiagnosticInvocationFocalCompletion() => diagnosticFocalCompletionScope = null;
 
-    private static bool IsKnownDiagnosticNoOpPlayer(BattleCombatant actor) => actor.IsActive && actor.IsPlayer && actor.NativeIndex is >= 0 and < 3 && actor.ModelId >= 0 && actor.ModelId != 4 && actor.NativePlayerStatRules?.NativeStatusPassiveFlags == 0;
+    private static bool IsKnownDiagnosticNoOpPlayer(BattleCombatant actor) => actor.IsActive && actor.IsPlayer && actor.EncodeNativeSlot() is >= 0 and < 3 && actor.ModelId >= 0 && actor.ModelId != 4 && actor.NativePlayerStatRules?.NativeStatusPassiveFlags == 0;
 
     private void ObserveDiagnosticInvocationCallbackQueued(BattleCombatant actor, ushort stage, NativeBattleCommandLocation location)
     {
@@ -102,13 +102,13 @@ public sealed partial class BattleSession
             return;
         }
         diagnosticFocalCallbackCount++;
-        if (diagnosticFocalCallbackCount != 1 || stage != 2 || location.Bank != 0 || !IsKnownDiagnosticNoOpPlayer(actor) || scope.Dispatch.NativeTargetMask is not ushort targets || (targets & (1 << actor.NativeIndex)) == 0)
+        if (diagnosticFocalCallbackCount != 1 || stage != 2 || location.Bank != 0 || !IsKnownDiagnosticNoOpPlayer(actor) || scope.Dispatch.NativeTargetMask is not ushort targets || (targets & (1 << actor.EncodeNativeSlot())) == 0)
         {
             diagnosticBornNoOpCallback = null;
             return;
         }
         NativeBattleCommandBank bank = nativeCommandBanks.Banks[location.Bank];
-        diagnosticBornNoOpCallback = new(location.Bank, location.Slot, 0, actor.Id, checked((byte)actor.NativeIndex), actor.ModelId, 0, stage, bank.Packets[2 * location.Slot], bank.Links[location.Slot], scope.Dispatch.NativeHeaderIndex!.Value, scope.Dispatch.NativeHeaderGeneration!.Value);
+        diagnosticBornNoOpCallback = new(location.Bank, location.Slot, 0, actor.Id, checked((byte)actor.EncodeNativeSlot()), actor.ModelId, 0, stage, bank.Packets[2 * location.Slot], bank.Links[location.Slot], scope.Dispatch.NativeHeaderIndex!.Value, scope.Dispatch.NativeHeaderGeneration!.Value);
     }
 
     private static bool DiagnosticNonAftercareOwnersReleased(BattleDiagnosticInvocationOwners owners)

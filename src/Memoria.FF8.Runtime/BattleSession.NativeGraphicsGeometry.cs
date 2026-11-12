@@ -7,29 +7,25 @@ public sealed partial class BattleSession
         int actorIndex = graphics.ActorIds.IndexOf(actor.Id);
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native50D300 requires its retained camera alias memory.");
         NativeBattleActionGeometryGlobals globals = memory.ActionGeometryGlobals ?? NativeBattleActionGeometryGlobals.Unknown();
-        ushort? physical = null;
-        if ((command.NativeTargetMask & 127) != 0)
-        {
-            physical = (ushort)(command.NativeTargetMask & 127);
-        }
-        else if (command.NativeTargetMask == 0 && command.NativeQueuedCommand is 1 or 12 or 28)
+        NativeBattlePhysicalTargets targets = NativeBattlePhysicalTargets.FromNativeWord(command.NativeTargetMask);
+        if (targets.IsEmpty && command.NativeTargetMask == 0 && command.NativeQueuedCommand is 1 or 12 or 28)
         {
             int index = graphics.ActorIds.IndexOf(command.TargetId);
             if (index >= 0)
             {
-                physical = checked((ushort)(1 << index));
+                targets = NativeBattlePhysicalTargets.Single(NativeBattleSlots.Decode(index));
             }
         }
-        if (physical is not ushort mask || mask == 0)
+        if (targets.IsEmpty)
         {
             throw new NotSupportedException("Native50D300 requires a resolved nonempty physical target mask.");
         }
-        NativeBattleGraphicsState prepared = NativeBattleActionGeometryRules.PrepareGeometry50D300(graphics, actorIndex, command.NativeTargetMask, mask, globals, ReadNativeGraphicsBone);
+        NativeBattleGraphicsState prepared = NativeBattleActionGeometryRules.PrepareGeometry50D300(graphics, actorIndex, command.NativeTargetMask, targets.Bits, globals, ReadNativeGraphicsBone);
         NativeBattleActionGeometry context = prepared.ActionContext!;
         NativeBattleCameraAliases aliases = memory.CameraAliases ?? NativeBattleCameraAliases.Unknown();
         NativeEffectMemory = memory with
         {
-            CameraAliases = aliases.Observe50D300(checked((byte)actorIndex), mask),
+            CameraAliases = aliases.Observe50D300(checked((byte)actorIndex), targets.Bits),
             ActionGeometryGlobals = globals.Observe50D300(context)
         };
         return prepared;

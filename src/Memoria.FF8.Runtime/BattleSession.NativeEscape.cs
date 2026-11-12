@@ -53,7 +53,7 @@ public sealed partial class BattleSession
         nativeEscape = held ? nativeEscape with { Held = true } : nativeEscape with { Held = false, HeldFrames = 0, Requested = false };
     }
 
-    private bool HasEscapeParticipant => combatants.Any(actor => actor.IsPlayer && actor.NativeIndex is >= 0 and < 3 && NativeBattleEscapeRules.Eligible(NativeSavedStatusBits(actor), NativeBattleStatusBits(actor), actor.NativeCombatantFlags));
+    private bool HasEscapeParticipant => combatants.Any(actor => actor.IsPlayer && actor.EncodeNativeSlot() is >= 0 and < 3 && NativeBattleEscapeRules.Eligible(NativeSavedStatusBits(actor), NativeBattleStatusBits(actor), actor.NativeCombatantFlags));
 
     private void AdvanceNativeEscapeFrame()
     {
@@ -81,7 +81,7 @@ public sealed partial class BattleSession
             List<byte> information = [];
             if (advantage == 0)
             {
-                BattleCombatant[] enemies = combatants.Where(actor => !actor.IsPlayer && actor.NativeIndex is >= 3 and < 7).ToArray();
+                BattleCombatant[] enemies = combatants.Where(actor => !actor.IsPlayer && actor.EncodeNativeSlot() is >= 3 and < 7).ToArray();
                 bool eligibleEnemy = enemies.Any(actor => (NativeSavedStatusBits(actor) & 0x25) == 0 && (NativeBattleStatusBits(actor) & 0x4001) == 0);
                 if (eligibleEnemy)
                 {

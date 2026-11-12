@@ -15,7 +15,10 @@ public sealed partial class BattleSession
     public const int AttackRecoveryFrames = 12;
     public const int MaximumAdvanceFrames = 18_000;
     private BattleDefinition definition;
+    // Callback and snapshot order follows the original definition and allocation history.
     private readonly List<BattleCombatant> combatants;
+    private readonly List<BattleCombatant> allies = [];
+    private readonly List<BattleCombatant> enemies = [];
     private readonly Dictionary<string, BattleCombatant> byId;
     private readonly Dictionary<BattleStatusKind, IBattleStatusEffectHandler> handlers;
     private readonly Queue<BattleAttackCommand> actions = new();
@@ -62,6 +65,7 @@ public sealed partial class BattleSession
         combatants = this.definition.Combatants.Select(actor => new BattleCombatant(actor)).ToList();
         foreach (BattleCombatant actor in combatants)
         {
+            (actor.IsPlayer ? allies : enemies).Add(actor);
             actor.NativeActionMemoryOwner = nativeActionMemory;
             actor.NativePresentationStatusOwner = nativePresentationStatusMemory;
             InitializeNativeAtb(actor);
@@ -87,14 +91,14 @@ public sealed partial class BattleSession
         Mode = mode;
         InitializeNativeSupportState();
         InitializeNativeBattleClock();
-        int nativePartySlot = 0;
-        int nativeEnemySlot = 3;
+        int allySlot = 0;
+        int enemySlot = 0;
         foreach (BattleCombatant actor in combatants.ToArray())
         {
-            actor.NativeIndex = actor.IsPlayer ? nativePartySlot++ : actor.IsActive ? nativeEnemySlot++ : -1;
-            if (initializeNativeAi && actor.IsActive && actor.NativeIndex is >= 0 and < 7)
+            actor.BindRosterSlot(actor.IsPlayer ? BattleRosterSlot.Ally(allySlot++) : actor.IsActive ? BattleRosterSlot.Enemy(enemySlot++) : null);
+            if (initializeNativeAi && actor.IsActive && actor.EncodeNativeSlot() is >= 0 and < 7)
             {
-                nativeActionMemory.State = nativeActionMemory.State.InitializeStatistics(actor.NativeIndex);
+                nativeActionMemory.State = nativeActionMemory.State.InitializeStatistics(actor.EncodeNativeSlot());
             }
             if (initializeNativeAi)
             {
@@ -926,7 +930,7 @@ public sealed partial class BattleSession
         }
         foreach (BattleCombatant actor in combatants)
         {
-            bool nativeQueued = actor.NativeIndex is >= 0 and < 7 && nativeCommandBanks.CountActor(checked((byte)actor.NativeIndex)) != 0;
+            bool nativeQueued = actor.EncodeNativeSlot() is >= 0 and < 7 && nativeCommandBanks.CountActor(checked((byte)actor.EncodeNativeSlot())) != 0;
             actor.IsBusy = (NativeGraphics is not null || actor.IsAlive || ActiveAction is { } support && IsNativeSupportInvocation(support.NativePlayerReaction) && support.ActorId == actor.Id || actions.Any(command => command.ActorId == actor.Id && IsNativeSupportInvocation(command.NativePlayerReaction))) && (nativeQueued || nativeTimedAction?.Command.ActorId == actor.Id || guardianForceCasts.ContainsKey(actor.Id) || ActiveAction?.ActorId == actor.Id || actions.Any(command => command.NativeCallback is null && command.ActorId == actor.Id));
         }
     }
@@ -964,13 +968,13 @@ public sealed partial class BattleSession
             {
                 return BattleOutcome.Victory;
             }
-            if (!combatants.Any(actor => actor.NativeIndex is >= 0 and < 3 && (actor.NativeCombatantFlags & 1) != 0 && (NativeSavedStatusBits(actor) & 5) == 0))
+            if (!allies.Any(actor => actor.Slot is { Position: < NativeBattleSlots.AllyCount } && (actor.NativeCombatantFlags & 1) != 0 && (NativeSavedStatusBits(actor) & 5) == 0))
             {
                 return BattleOutcome.Defeat;
             }
-            return combatants.Any(actor => !actor.IsPlayer && actor.NativeIndex is >= 3 and < 7 && (NativeSavedStatusBits(actor) & 5) == 0) ? BattleOutcome.Active : BattleOutcome.Victory;
+            return enemies.Any(actor => actor.Slot is { Position: < NativeBattleSlots.EnemyCount } && (NativeSavedStatusBits(actor) & 5) == 0) ? BattleOutcome.Active : BattleOutcome.Victory;
         }
-        if (!combatants.Any(actor => actor.IsPlayer && IsNativeBattleCapable(actor)))
+        if (!allies.Any(IsNativeBattleCapable))
         {
             return BattleOutcome.Defeat;
         }
@@ -978,7 +982,7 @@ public sealed partial class BattleSession
         {
             return BattleOutcome.Victory;
         }
-        return combatants.Any(actor => !actor.IsPlayer && IsNativeBattleCapable(actor) && !actor.Untargetable) ? BattleOutcome.Active : BattleOutcome.Victory;
+        return enemies.Any(actor => IsNativeBattleCapable(actor) && !actor.Untargetable) ? BattleOutcome.Active : BattleOutcome.Victory;
     }
 
     private void CompleteBattleIfNeeded()
@@ -1282,7 +1286,7 @@ public sealed partial class BattleSession
             }
             actor.MutableGuardianForceCompatibility = saved.GuardianForceCompatibility?.ToArray() ?? actor.MutableGuardianForceCompatibility;
             actor.CurrentHp = saved.CurrentHp;
-            if (snapshot.NativePresentationStatusMemory is not null && actor.NativeIndex is >= 0 and < NativeBattlePresentationStatusMemory.PhysicalCount && saved.NativeStatus?.Presentation != actor.NativePresentationStatus)
+            if (snapshot.NativePresentationStatusMemory is not null && actor.EncodeNativeSlot() is >= 0 and < NativeBattlePresentationStatusMemory.PhysicalCount && saved.NativeStatus?.Presentation != actor.NativePresentationStatus)
             {
                 throw new InvalidDataException("Native actor B92/B1C projection contradicts its physical presentation-status bank.");
             }
@@ -1304,7 +1308,7 @@ public sealed partial class BattleSession
         RestoreNativeGraphics(snapshot.NativeGraphics);
         ValidateNativeSupportEntryOwner();
         HashSet<string> busy = new(StringComparer.Ordinal);
-        if (combatants.Where(actor => actor.IsActive).GroupBy(actor => actor.NativeIndex).Any(group => group.Count() != 1))
+        if (combatants.Where(actor => actor.IsActive).GroupBy(actor => actor.Slot).Any(group => group.Count() != 1))
         {
             throw new InvalidDataException("Several active battle allocations occupy the same physical slot.");
         }

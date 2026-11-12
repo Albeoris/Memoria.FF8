@@ -80,12 +80,12 @@ public sealed partial class BattleSession
         }
         if (actor.IsPlayer)
         {
-            if (actor.NativeIndex is < 0 or > 2)
+            if (actor.EncodeNativeSlot() is < 0 or > 2)
             {
                 throw new NotSupportedException("Diagnostic party repair requires its physical party HP owner.");
             }
         }
-        else if (actor.NativeIndex is < 3 or > 6 || actor.NativeTemplate is null || actor.NativeAi is null || actor.NativeAllocationPendingStatistics || nativeAllocations.Any(allocation => allocation.Id == actor.Id) || !definition.Combatants.Any(original => !original.IsPlayer && original.Id == actor.Id) || (actor.NativeCombatantFlags & 0xC3) != 1 || !actor.IsAlive || repair.Revive || repair.HitPoints != actor.CurrentHp || (repair.RemoveStatuses0 & 1) != 0)
+        else if (actor.EncodeNativeSlot() is < 3 or > 6 || actor.NativeTemplate is null || actor.NativeAi is null || actor.NativeAllocationPendingStatistics || nativeAllocations.Any(allocation => allocation.Id == actor.Id) || !definition.Combatants.Any(original => !original.IsPlayer && original.Id == actor.Id) || (actor.NativeCombatantFlags & 0xC3) != 1 || !actor.IsAlive || repair.Revive || repair.HitPoints != actor.CurrentHp || (repair.RemoveStatuses0 & 1) != 0)
         {
             throw new NotSupportedException("Diagnostic enemy repair requires a living active original physical owner and status removal with unchanged HP; allocations, revival and HP changes cannot be repaired.");
         }
@@ -106,7 +106,7 @@ public sealed partial class BattleSession
         }
         if (actor.IsPlayer)
         {
-            NativeBattlePartyPresentedVital presented = RequireNativePartyPresentedRow(actor.NativeIndex);
+            NativeBattlePartyPresentedVital presented = RequireNativePartyPresentedRow(actor.EncodeNativeSlot());
             if (presented.HitPoints != actor.CurrentHp || presented.MaximumHitPoints != actor.MaximumHp)
             {
                 throw new InvalidOperationException("Diagnostic repair requires the normally drained party presentation HP cache to match its current combat owner.");
@@ -138,7 +138,7 @@ public sealed partial class BattleSession
         }
         int before = actor.CurrentHp;
         BattleDiagnosticRepairProjection? previousProjection = diagnosticRepairProjection;
-        diagnosticRepairProjection = DiagnosticResolution is null ? null : new(DiagnosticLifecycleId, Frame, NativeHostCallbacks ?? Frame, repair, checked((byte)actor.NativeIndex));
+        diagnosticRepairProjection = DiagnosticResolution is null ? null : new(DiagnosticLifecycleId, Frame, NativeHostCallbacks ?? Frame, repair, checked((byte)actor.EncodeNativeSlot()));
         try
         {
             if (repair.HitPoints >= before)
@@ -158,10 +158,10 @@ public sealed partial class BattleSession
             diagnosticRepairProjection = previousProjection;
         }
         RefreshNativePresentationStatus(actor);
-        NativeBattlePartyPresentedVital presented = RequireNativePartyPresentedRow(actor.NativeIndex);
+        NativeBattlePartyPresentedVital presented = RequireNativePartyPresentedRow(actor.EncodeNativeSlot());
         int difference = actor.CurrentHp - presented.HitPoints;
-        PublishNativePresentedContact(new(checked((byte)actor.NativeIndex), 0, 0, difference >= 0 ? (byte)1 : (byte)0, NativeSavedStatusBits(actor), checked((ushort)Math.Abs(difference)), NativeBattleStatusBits(actor)));
-        if (actor.CurrentHp != repair.HitPoints || RequireNativePartyPresentedRow(actor.NativeIndex).HitPoints != repair.HitPoints)
+        PublishNativePresentedContact(new(checked((byte)actor.EncodeNativeSlot()), 0, 0, difference >= 0 ? (byte)1 : (byte)0, NativeSavedStatusBits(actor), checked((ushort)Math.Abs(difference)), NativeBattleStatusBits(actor)));
+        if (actor.CurrentHp != repair.HitPoints || RequireNativePartyPresentedRow(actor.EncodeNativeSlot()).HitPoints != repair.HitPoints)
         {
             throw new InvalidOperationException("Diagnostic repair did not produce its exact declared HP in the combat and presentation owners.");
         }

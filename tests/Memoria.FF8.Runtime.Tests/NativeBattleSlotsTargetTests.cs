@@ -16,9 +16,9 @@ public sealed class NativeBattleSlotsTargetTests
             Ally("selphie", 500), Enemy("first") with { NativeStatus0 = 8 }, Enemy("second") with { NativeStatus0 = 8 });
         Queue(ref battle, cards, repetitions);
         ushort originalMask = Assert.Single(battle.QueuedActions).NativeTargetMask;
-        BattleCombatant original = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && (originalMask & (1 << actor.NativeIndex)) != 0);
+        BattleCombatant original = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && (originalMask & (1 << actor.EncodeNativeSlot())) != 0);
         original.MutableNativeStatusResistances[3] = 200;
-        Assert.DoesNotContain((byte)original.NativeIndex, Resolve(battle, repetitions));
+        Assert.DoesNotContain((byte)original.EncodeNativeSlot(), Resolve(battle, repetitions));
     }
 
     [Theory]

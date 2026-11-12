@@ -74,7 +74,7 @@ public sealed partial class BattleSession
             //494410 never writes B99, including its a9=1 secondary death path.
             attackType = recipient.LastNativeAction?.AttackType;
         }
-        recipient.LastNativeAction = new(attackType, checked((byte)NativeModelId(actor)), checked((byte)command), unchecked((byte)id), checked((byte)element), checked((byte)actor.NativeIndex));
+        recipient.LastNativeAction = new(attackType, checked((byte)NativeModelId(actor)), checked((byte)command), unchecked((byte)id), checked((byte)element), checked((byte)actor.EncodeNativeSlot()));
         recipient.LastAttackerId = actor.Id;
         recipient.LastAttackerAbility = ability;
     }

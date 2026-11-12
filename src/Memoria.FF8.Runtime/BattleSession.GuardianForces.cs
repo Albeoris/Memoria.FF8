@@ -36,7 +36,7 @@ public sealed partial class BattleSession
         //48D200 stores the compatibility/speed product as a WORD;4842B0 decrements it by2,3or1.
         ushort ticks = unchecked((ushort)(4 * ((speed + 1) * compatibility[gf.Id] / 35)));
         byte flags = FindAction(BattleAbility.GuardianForce, gf.Id).NativeAction?.TargetFlags ?? throw new NotSupportedException("Native GF summoning requires its original target flags BYTE.");
-        ushort mask = NativeBattleLimitRules.PlayerTargetMask(flags, GetActor(command.TargetId).NativeIndex);
+        ushort mask = NativeBattleLimitRules.PlayerTargetMask(flags, GetActor(command.TargetId).EncodeNativeSlot());
         EnqueueNativeGuardianScriptTask(actor, mask, checked((byte)(64 + gf.Id)));
         guardianForceCasts.Add(actor.Id, new(actor.Id, command, diagnosticInstantGuardianForceCharge ? (ushort)0 : ticks, ticks));
         BeginNativePresentedGuardianForce(actor, gf);
@@ -78,7 +78,7 @@ public sealed partial class BattleSession
     {
         byte index = task.ReadByte(12);
         byte nativeId = task.ReadByte(14);
-        BattleCombatant actor = combatants.Single(actor => actor.NativeIndex == index);
+        BattleCombatant actor = combatants.Single(actor => actor.EncodeNativeSlot() == index);
         BattleGuardianForceCast cast = guardianForceCasts.GetValueOrDefault(actor.Id) ?? throw new InvalidDataException("Native48E620 lacks its character-owned GF charge record.");
         if (nativeId != cast.Command.ActionId + 64 || task.ReadByte(13) != 254)
         {
@@ -224,7 +224,7 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Invalid saved GF cast owner.");
             }
             NativeBattleScriptTasks tasks = saved.NativeScriptState.Tasks;
-            int callbacks = Enumerable.Range(0, 16).Count(index => tasks.Allocated(index) && tasks.Slots[index].ReadDword(0) == 0x48E620 && tasks.Slots[index].ReadByte(12) == actor.NativeIndex && tasks.Slots[index].ReadByte(13) == 254 && tasks.Slots[index].ReadByte(14) == 64 + cast.Command.ActionId);
+            int callbacks = Enumerable.Range(0, 16).Count(index => tasks.Allocated(index) && tasks.Slots[index].ReadDword(0) == 0x48E620 && tasks.Slots[index].ReadByte(12) == actor.EncodeNativeSlot() && tasks.Slots[index].ReadByte(13) == 254 && tasks.Slots[index].ReadByte(14) == 64 + cast.Command.ActionId);
             if (callbacks != 1)
             {
                 throw new InvalidDataException("Saved GF charge requires its single canonical48E620 callback record.");
@@ -243,7 +243,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Saved GF input lacks its equipped living GF and original3/FE command owner.");
         }
-        ushort mask = command.NativeTargetMask != 0 ? command.NativeTargetMask : checked((ushort)(1 << GetActor(command.TargetId).NativeIndex));
+        ushort mask = command.NativeTargetMask != 0 ? command.NativeTargetMask : checked((ushort)(1 << GetActor(command.TargetId).EncodeNativeSlot()));
         if (physical.ReadWord(4) != command.ActionId + 64 || physical.ReadByte(2) != 0 || physical.ReadByte(3) != 0 || physical.ReadWord(6) != mask)
         {
             throw new InvalidDataException("Saved GF input contradicts its original action WORD, target WORD or flag bytes.");

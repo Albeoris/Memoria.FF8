@@ -9,19 +9,19 @@ public sealed partial class BattleSession
 
     private byte ReadNativeElementAttack(BattleCombatant actor)
     {
-        if (actor.NativeIndex is < 0 or >= 7)
+        if (actor.EncodeNativeSlot() is < 0 or >= 7)
         {
             throw new InvalidDataException("Native48FE20 element source lies outside its seven physical participant slots.");
         }
-        return nativeElementAttack[actor.NativeIndex] ?? throw new NotSupportedException("Native48FE20 requires the retained participant BYTE BD5 element attack; migrate the unknown physical byte explicitly.");
+        return nativeElementAttack[actor.EncodeNativeSlot()] ?? throw new NotSupportedException("Native48FE20 requires the retained participant BYTE BD5 element attack; migrate the unknown physical byte explicitly.");
     }
 
     private void PublishNativeElementAttack(BattleCombatant actor)
     {
-        if (actor.NativeIndex is >= 0 and < 3 && actor.NativePlayerStatRules is not null)
+        if (actor.EncodeNativeSlot() is >= 0 and < 3 && actor.NativePlayerStatRules is not null)
         {
             //48B310 writes BD5 from the current junction projection; enemy48BBD0 leaves that byte retained.
-            nativeElementAttack = nativeElementAttack.SetItem(actor.NativeIndex, checked((byte)actor.ElementAttack));
+            nativeElementAttack = nativeElementAttack.SetItem(actor.EncodeNativeSlot(), checked((byte)actor.ElementAttack));
         }
     }
 

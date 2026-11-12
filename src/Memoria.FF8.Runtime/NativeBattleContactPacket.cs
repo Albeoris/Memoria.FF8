@@ -36,7 +36,7 @@ public sealed record NativeBattleContactPacket(NativeBattleContactHalf Primary, 
 
     public void Validate()
     {
-        if (Primary is null || Secondary is null || Primary.ActorIndex >= 7 || Secondary.ActorIndex >= 7 && Secondary.ActorIndex != 255)
+        if (Primary is null || Secondary is null || !NativeBattleSlots.Contains(Primary.ActorIndex) || Secondary.ActorIndex != 255 && !NativeBattleSlots.Contains(Secondary.ActorIndex))
         {
             throw new InvalidDataException("Native contact packet requires its original primary and optional secondary physical model indices.");
         }

@@ -15,7 +15,7 @@ public sealed partial class BattleSession
 
     private void AccumulateNativeReturnDamage(BattleCombatant recipient, BattleCombatant? source, int magnitude)
     {
-        if (!recipient.IsPlayer || source?.NativeIndex is not (>= 3 and < 7) || magnitude == 0 || recipient.NativePlayerStatRules is not { NativeStatusPassiveFlags: uint flags } || (flags & 8) == 0)
+        if (!recipient.IsPlayer || source?.EncodeNativeSlot() is not (>= 3 and < 7) || magnitude == 0 || recipient.NativePlayerStatRules is not { NativeStatusPassiveFlags: uint flags } || (flags & 8) == 0)
         {
             return;
         }
@@ -56,7 +56,7 @@ public sealed partial class BattleSession
         {
             return;
         }
-        BattleCombatant[] party = combatants.Where(candidate => candidate.NativeIndex is >= 0 and < 3 && candidate != actor).OrderBy(candidate => candidate.NativeIndex).ToArray();
+        BattleCombatant[] party = combatants.Where(candidate => candidate.EncodeNativeSlot() is >= 0 and < 3 && candidate != actor).OrderBy(candidate => candidate.EncodeNativeSlot()).ToArray();
         if (party.Any(candidate => candidate.NativeReturnDamage is null))
         {
             throw new NotSupportedException("Native483EF0 requires each retained party Return Damage WORD, including KO rows; unknown old values cannot be replaced with zero.");
@@ -76,7 +76,7 @@ public sealed partial class BattleSession
             return;
         }
         //The original command's header is already published. This synchronous0/5 follows it before the interpreter resumes.
-        QueueNativeCommand(actor, 0, 5, 0, checked((ushort)(1 << actor.NativeIndex)));
+        QueueNativeCommand(actor, 0, 5, 0, checked((ushort)(1 << actor.EncodeNativeSlot())));
     }
 
     private bool TryResolveNativeReturnDamage(BattleCombatant actor, BattleCombatant recipient, BattleActionPresentation command, BattleNativeAction native)

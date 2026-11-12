@@ -28,7 +28,7 @@ public sealed partial class BattleSession
         for (byte index = 0; index < 3; index++)
         {
             commands = commands.Enqueue(index, 18);
-            BattleCombatant? actor = combatants.SingleOrDefault(actor => actor.NativeIndex == index);
+            BattleCombatant? actor = combatants.SingleOrDefault(actor => actor.EncodeNativeSlot() == index);
             if (actor is not null)
             {
                 actor.NativeCombatantFlags &= 0x7FFFFFFFu;

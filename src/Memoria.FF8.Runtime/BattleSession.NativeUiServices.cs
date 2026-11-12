@@ -152,10 +152,10 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState? PrepareNativeUiReadyRemoval(BattleCombatant actor)
     {
-        if (NativeGraphics?.UiServices is { } ui && actor.NativeIndex is >= 0 and < 3)
+        if (NativeGraphics?.UiServices is { } ui && actor.EncodeNativeSlot() is >= 0 and < 3)
         {
             //4BB9E0/4ADDB0 submit18 after accepting the menu command;4AD400 consumes it next service.
-            return NativeGraphics with { UiServices = ui with { Commands = ui.Commands.Enqueue(checked((byte)actor.NativeIndex), 0x12) } };
+            return NativeGraphics with { UiServices = ui with { Commands = ui.Commands.Enqueue(checked((byte)actor.EncodeNativeSlot()), 0x12) } };
         }
         return NativeGraphics;
     }
@@ -185,7 +185,7 @@ public sealed partial class BattleSession
         BattleNativeRenzokukenBlock block = cue.TriggerWindow ?? throw new InvalidDataException("Native AB cue lacks its parsed original timing block.");
         NativeBattleUiServices ui = graphics.UiServices ?? throw new NotSupportedException("Native AB requires its initialized4A94D0 UI service owner.");
         ushort options = definition.LimitProgress?.Options978 ?? throw new NotSupportedException("Native AB requires its actual saved options WORD1CFE978.");
-        NativeBattleTriggerWidget widget = NativeBattleTriggerWidget.Register(checked((byte)actor.NativeIndex), block, options, ui) with { SourceSequence = checked((byte)cue.First), SourceAbOffset = cue.Second, SourceMagicId = graphics.Models[actor.NativeIndex].ResourceMagicId };
+        NativeBattleTriggerWidget widget = NativeBattleTriggerWidget.Register(checked((byte)actor.EncodeNativeSlot()), block, options, ui) with { SourceSequence = checked((byte)cue.First), SourceAbOffset = cue.Second, SourceMagicId = graphics.Models[actor.EncodeNativeSlot()].ResourceMagicId };
         nativeGuardianBoost = null;
         ui = widget.Visible ? ui.SetFlags(0x1800) with { Menu957 = 6, Menu955 = -2 } : ui.SetFlags(0, 0x1800);
         NativeGraphics = graphics with { UiServices = ui, TriggerWidget = widget, PendingTriggerSoundActorIndex = null };

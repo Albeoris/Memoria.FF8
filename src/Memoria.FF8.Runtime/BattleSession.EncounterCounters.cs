@@ -107,7 +107,7 @@ public sealed partial class BattleSession
                     if (pending.SourceHeader is not null)
                     {
                         byte sourceIndex = nativeActionScratch.EventActorB0F ?? throw new InvalidDataException("Deferred counter lacks its native source-event actor.");
-                        BattleCombatant sourceActor = combatants.Single(actor => actor.NativeIndex == sourceIndex);
+                        BattleCombatant sourceActor = combatants.Single(actor => actor.EncodeNativeSlot() == sourceIndex);
                         int sourceHeader = Enumerable.Range(0, nativeActionPackets.ActionCount).FirstOrDefault(index => nativeActionPackets.Headers[index].ReadByte(0) == sourceIndex, -1);
                         if (sourceHeader < 0)
                         {

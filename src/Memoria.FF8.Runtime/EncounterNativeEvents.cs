@@ -116,7 +116,7 @@ public sealed partial class BattleSession
         // Additional policy actors can exhaust the party before the original's next main callback.
         // At that boundary this composed encounter retains its genuine low-HP cinematic body.
         // Party incapacity need not lower Squall's raw HP, so no HP or status owner is rewritten.
-        DispatchNativeCallback(new(checked((byte)actor.NativeIndex), 1), () => QueueEncounterNativeTerminal(actor));
+        DispatchNativeCallback(new(checked((byte)actor.EncodeNativeSlot()), 1), () => QueueEncounterNativeTerminal(actor));
         return true;
     }
 

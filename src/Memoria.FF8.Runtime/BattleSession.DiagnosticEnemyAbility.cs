@@ -74,7 +74,7 @@ public sealed partial class BattleSession
                 actor.Atb = 0;
                 QueueNativeCallback(actor, 1, 2);
             }
-            LastDiagnosticEnemySubmission = new(DiagnosticLifecycleId, frame, callback, actor.Id, actor.NativeIndex, selection, expectedEffect, null);
+            LastDiagnosticEnemySubmission = new(DiagnosticLifecycleId, frame, callback, actor.Id, actor.EncodeNativeSlot(), selection, expectedEffect, null);
             return;
         }
         byte command = 0;
@@ -88,6 +88,6 @@ public sealed partial class BattleSession
         }
         ushort targets = ResolveNativeAiTargetMask(actor, selection.TargetSelector);
         QueuePreparedNativeAiCommand(actor, command, action, sequence, targets);
-        LastDiagnosticEnemySubmission = new(DiagnosticLifecycleId, frame, callback, actor.Id, actor.NativeIndex, selection, expectedEffect, targets);
+        LastDiagnosticEnemySubmission = new(DiagnosticLifecycleId, frame, callback, actor.Id, actor.EncodeNativeSlot(), selection, expectedEffect, targets);
     }
 }

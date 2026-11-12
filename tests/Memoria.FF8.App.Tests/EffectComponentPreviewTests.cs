@@ -71,7 +71,7 @@ public sealed class EffectComponentPreviewTests
             Assert.Same(active, world.Battle);
             Assert.Equal(462, active.Capture().Definition.EncounterId);
             Assert.Equal(source.Definition.StageId, active.Capture().Definition.StageId);
-            Assert.Equal(caster.ModelId, active.Combatants.Single(actor => actor.NativeIndex == 3).ModelId);
+            Assert.Equal(caster.ModelId, active.Combatants.Single(actor => actor.EncodeNativeSlot() == 3).ModelId);
             Assert.NotEqual(request.EnemyId, caster.ModelId);
             Assert.Equal(frozen, JsonSerializer.Serialize(active.Capture()));
             Assert.Null(session.State.PendingBattleEncounter);

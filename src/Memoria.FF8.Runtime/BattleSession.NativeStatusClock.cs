@@ -11,7 +11,7 @@ public sealed partial class BattleSession
         }
         ObserveNativeUnknownStackCallback(0x483470, "admitted status clock");
         // The caller already admitted the earlier DEB/UI gates.
-        foreach (BattleCombatant actor in combatants.Where(candidate => candidate.IsActive && candidate.NativeIndex is >= 0 and < 7))
+        foreach (BattleCombatant actor in combatants.Where(candidate => candidate.IsActive && candidate.EncodeNativeSlot() is >= 0 and < 7))
         {
             if ((NativeSavedStatusBits(actor) & 5) != 0)
             {
@@ -71,7 +71,7 @@ public sealed partial class BattleSession
                     RefreshNativePresentationStatus(actor);
                     if (NativeGraphics is { } graphics)
                     {
-                        byte index = checked((byte)actor.NativeIndex);
+                        byte index = checked((byte)actor.EncodeNativeSlot());
                         (ushort saved, uint battle) = NativeContactStatusMirror(actor);
                         graphics = PublishNativeReadyStatus(graphics, new(index, 0, 0, 0, saved, 0, battle));
                         //483470 ->47E250 refreshes the mirrors and queues50A070 through descriptor117.
@@ -88,7 +88,7 @@ public sealed partial class BattleSession
         BattleDiagnosticPeriodicStatus? previous = diagnosticPeriodicStatus;
         if (DiagnosticResolution is not null)
         {
-            diagnosticPeriodicStatus = new(0x483470, actor.Id, checked((byte)actor.NativeIndex), bit, timer, decrement, timerAfter, NativeSavedStatusBits(actor), battleStatuses ?? NativeBattleStatusBits(actor), actor.MaximumHp, amount, NativeHostCallbacks ?? Frame);
+            diagnosticPeriodicStatus = new(0x483470, actor.Id, checked((byte)actor.EncodeNativeSlot()), bit, timer, decrement, timerAfter, NativeSavedStatusBits(actor), battleStatuses ?? NativeBattleStatusBits(actor), actor.MaximumHp, amount, NativeHostCallbacks ?? Frame);
         }
         try
         {

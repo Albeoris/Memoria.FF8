@@ -21,7 +21,7 @@ public sealed partial class BattleSession
             throw new InvalidOperationException("Raw preview readiness belongs only to its graphical arena.");
         }
         RequireNativeEntryReady();
-        BattleCombatant actor = combatants.Single(actor => actor.NativeIndex == 0 && actor.IsPlayer);
+        BattleCombatant actor = combatants.Single(actor => actor.EncodeNativeSlot() == 0 && actor.IsPlayer);
         NativeBattleAtbState gauge = actor.NativeAtb ?? throw new NotSupportedException("Preview ally requires its initialized native gauge owner.");
         gauge.Validate();
         actor.NativeAtb = gauge with { Current = gauge.Maximum };
@@ -58,7 +58,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("Graphical preview requires its initialized ally0/enemy3 resource owners.");
         }
-        BattleCombatant actor = combatants.Single(actor => actor.NativeIndex == 0);
+        BattleCombatant actor = combatants.Single(actor => actor.EncodeNativeSlot() == 0);
         byte sequence = ResolveNativeDispatchSequence(actor, command, 0, action);
         NativeBattleActionHeaderPreparation header = new(0, command, sequence, -1, action, effect, null);
         (nativeActionPackets, int index) = nativeActionPackets.Prepare(header);

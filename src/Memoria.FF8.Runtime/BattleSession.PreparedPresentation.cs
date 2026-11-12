@@ -59,7 +59,7 @@ public sealed partial class BattleSession
             return null;
         }
         ImmutableDictionary<int, NativeBattlePreparedScanExtra>.Builder extras = ImmutableDictionary.CreateBuilder<int, NativeBattlePreparedScanExtra>();
-        foreach (BattleCombatant actor in combatants.Where(actor => actor.NativeIndex is >= 3 and < 7))
+        foreach (BattleCombatant actor in combatants.Where(actor => actor.EncodeNativeSlot() is >= 3 and < 7))
         {
             NativeBattlePreparedScanExtraFailure failure = NativeBattlePreparedScanExtraFailure.None;
             NativeBattleScanByteOwner row = new(new byte[71].ToImmutableArray(), new bool[71].ToImmutableArray());
@@ -87,7 +87,7 @@ public sealed partial class BattleSession
             {
                 row = row.Write(0, name);
             }
-            extras.Add(actor.NativeIndex, new(failure == NativeBattlePreparedScanExtraFailure.None ? row : null, failure));
+            extras.Add(actor.EncodeNativeSlot(), new(failure == NativeBattlePreparedScanExtraFailure.None ? row : null, failure));
         }
         NativeBattleScanByteOwner? empty = null;
         if (NativeEffectMemory.Effect68 is { } effect68)

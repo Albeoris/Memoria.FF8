@@ -8,13 +8,13 @@ public sealed partial class BattleSession
     {
         NativeBattleActionProductionContext context = nativeProductionContext ?? throw new NotSupportedException("Native command252 requires its original485610 dispatch context.");
         byte sequence = ResolveNativeDispatchSequence(actor, 252, command.NativeSequence ?? 0, 1);
-        NativeBattleActionHeaderPreparation header = new(checked((byte)actor.NativeIndex), 252, sequence, -1, 1, graphic.MagicId, null);
+        NativeBattleActionHeaderPreparation header = new(checked((byte)actor.EncodeNativeSlot()), 252, sequence, -1, 1, graphic.MagicId, null);
         (nativeActionPackets, int headerIndex) = nativeActionPackets.Prepare(header);
         nativeActionScratch = nativeActionScratch with { ActorIndex = header.Actor, Command = 252, Action = 1, DeferredEffectsE00 = false };
 
         //48D200 caseFC leaves AE3=1;48E830 resolves its single target mask before48FE20.
         BattleCombatant[] targets = ResolveNativeActionMask(command.NativeTargetMask);
-        foreach (BattleCombatant recipient in combatants.Where(candidate => candidate.NativeIndex is >= 0 and < 7))
+        foreach (BattleCombatant recipient in combatants.Where(candidate => candidate.EncodeNativeSlot() is >= 0 and < 7))
         {
             recipient.NativeRemainingHits = targets.Contains(recipient) ? (byte)1 : (byte)0;
         }
@@ -23,7 +23,7 @@ public sealed partial class BattleSession
         {
             foreach (BattleCombatant recipient in targets)
             {
-                if ((NativeSavedStatusBits(recipient) & 1) != 0 && ((command.NativeTargetMask & 0x4000) == 0 || recipient.NativeIndex >= 3))
+                if ((NativeSavedStatusBits(recipient) & 1) != 0 && ((command.NativeTargetMask & 0x4000) == 0 || recipient.EncodeNativeSlot() >= 3))
                 {
                     aborted = true;
                     break;

@@ -51,7 +51,7 @@ public sealed partial class BattleSession
     {
         foreach (string id in declaration.PartyActorIds)
         {
-            if (!byId.TryGetValue(id, out BattleCombatant? actor) || !actor.IsPlayer || !actor.IsActive || actor.NativeIndex is < 0 or > 2 || declaration.Candidate == BattleOutcome.Victory && (!actor.IsAlive || (NativeSavedStatusBits(actor) & 5) != 0) || actor.GuardianFormVitals is not null || guardianForceCasts.ContainsKey(id) || (actor.NativeStatus1 & 0x80010000) != 0)
+            if (!byId.TryGetValue(id, out BattleCombatant? actor) || !actor.IsPlayer || !actor.IsActive || actor.Slot is not { Position: < NativeBattleSlots.AllyCount } || declaration.Candidate == BattleOutcome.Victory && (!actor.IsAlive || (NativeSavedStatusBits(actor) & 5) != 0) || actor.GuardianFormVitals is not null || guardianForceCasts.ContainsKey(id) || (actor.NativeStatus1 & 0x80010000) != 0)
             {
                 throw new InvalidDataException("Diagnostic terminal hold targets must retain their actual ordinary party allocation and HP owners.");
             }
@@ -162,7 +162,7 @@ public sealed partial class BattleSession
         long heldCallback = -1;
         foreach (BattleDiagnosticTerminalHoldReceipt receipt in hold.Receipts)
         {
-            if (receipt is null || receipt.HoldId != hold.HoldId || receipt.LifecycleId == Guid.Empty || receipt.Candidate != hold.Declaration.Candidate || receipt.NativeResult is > 0 || receipt.Callback < previous || receipt.Callback < 0 || receipt.Callback > callback || receipt.Frame < previousFrame || receipt.Frame < 0 || receipt.Frame > snapshot.Frame || receipt.ResetCount < 0 || receipt.RestoreCount < 0 || receipt.Party is null || receipt.Random is null || receipt.Party.Any(actor => actor is null) || !receipt.Party.Select(actor => actor.Id).SequenceEqual(hold.Declaration.PartyActorIds) || receipt.Party.Any(actor => actor.NativeIndex is not (>= 0 and < 3) || byId[actor.Id].NativeIndex != actor.NativeIndex || actor.CurrentHp < 0 || actor.CurrentHp > actor.MaximumHp || (actor.Statuses1 & 0x80010000) != 0))
+            if (receipt is null || receipt.HoldId != hold.HoldId || receipt.LifecycleId == Guid.Empty || receipt.Candidate != hold.Declaration.Candidate || receipt.NativeResult is > 0 || receipt.Callback < previous || receipt.Callback < 0 || receipt.Callback > callback || receipt.Frame < previousFrame || receipt.Frame < 0 || receipt.Frame > snapshot.Frame || receipt.ResetCount < 0 || receipt.RestoreCount < 0 || receipt.Party is null || receipt.Random is null || receipt.Party.Any(actor => actor is null) || !receipt.Party.Select(actor => actor.Id).SequenceEqual(hold.Declaration.PartyActorIds) || receipt.Party.Any(actor => actor.NativeIndex is not (>= 0 and < 3) || byId[actor.Id].EncodeNativeSlot() != actor.NativeIndex || actor.CurrentHp < 0 || actor.CurrentHp > actor.MaximumHp || (actor.Statuses1 & 0x80010000) != 0))
             {
                 throw new InvalidDataException("Saved diagnostic terminal hold receipt has inconsistent owner lineage.");
             }

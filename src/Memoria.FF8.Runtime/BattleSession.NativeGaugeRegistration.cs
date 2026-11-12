@@ -4,7 +4,7 @@ public sealed partial class BattleSession
 {
     private void PublishNativeFullGaugeRegistration(BattleCombatant actor)
     {
-        if (NativeGraphics?.UiServices is not { } ui || actor.NativeIndex is < 0 or >= 7 || actor.NativeAtb is not { } gauge)
+        if (NativeGraphics?.UiServices is not { } ui || actor.EncodeNativeSlot() is < 0 or >= 7 || actor.NativeAtb is not { } gauge)
         {
             return;
         }
@@ -18,14 +18,14 @@ public sealed partial class BattleSession
             case NativeBattleGaugeRegistrationKind.None:
                 return;
             case NativeBattleGaugeRegistrationKind.Menu:
-                NativeGraphics = NativeGraphics with { UiServices = ui with { Commands = ui.Commands.Enqueue(checked((byte)actor.NativeIndex), 0x11) } };
+                NativeGraphics = NativeGraphics with { UiServices = ui with { Commands = ui.Commands.Enqueue(checked((byte)actor.EncodeNativeSlot()), 0x11) } };
                 break;
             case NativeBattleGaugeRegistrationKind.ForcedCommand:
                 ObserveNativeUnknownStackCallback(0x483EB0, "forced full-gauge command");
                 //483EB0's non-script branch invokes485030 before486E00 and484D20.
-                NativeGraphics = NativeGraphics with { UiServices = ui with { Commands = ui.Commands.Enqueue(checked((byte)actor.NativeIndex), 0x12) } };
-                BattleCombatant target = ChooseNativeRandomActionTarget(false) ?? combatants.SingleOrDefault(candidate => candidate.NativeIndex == 3) ?? throw new NotSupportedException("Native486E00's no-living-enemy mask8 requires its actual physical slot3 command binding.");
-                EnqueueNativeInputCommand(new(actor.Id, target.Id) { NativeQueuedCommand = 1, NativeTargetMask = checked((ushort)(1 << target.NativeIndex)) });
+                NativeGraphics = NativeGraphics with { UiServices = ui with { Commands = ui.Commands.Enqueue(checked((byte)actor.EncodeNativeSlot()), 0x12) } };
+                BattleCombatant target = ChooseNativeRandomActionTarget(BattleSide.Enemies) ?? combatants.SingleOrDefault(candidate => candidate.EncodeNativeSlot() == 3) ?? throw new NotSupportedException("Native486E00's no-living-enemy mask8 requires its actual physical slot3 command binding.");
+                EnqueueNativeInputCommand(new(actor.Id, target.Id) { NativeQueuedCommand = 1, NativeTargetMask = checked((ushort)(1 << target.EncodeNativeSlot())) });
                 break;
             case NativeBattleGaugeRegistrationKind.DeferredScript:
                 break;
@@ -37,7 +37,7 @@ public sealed partial class BattleSession
 
     private void PublishNativeRegisteredCallbacks4847B0()
     {
-        foreach (BattleCombatant actor in combatants.Where(candidate => candidate.NativeIndex is >= 3 and < 7 && (candidate.NativeCombatantFlags & 0x200) != 0).OrderBy(candidate => candidate.NativeIndex))
+        foreach (BattleCombatant actor in combatants.Where(candidate => candidate.EncodeNativeSlot() is >= 3 and < 7 && (candidate.NativeCombatantFlags & 0x200) != 0).OrderBy(candidate => candidate.EncodeNativeSlot()))
         {
             if (diagnosticHoldEnemyCommands)
             {

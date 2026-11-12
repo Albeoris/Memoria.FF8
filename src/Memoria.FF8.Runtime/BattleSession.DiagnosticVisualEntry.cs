@@ -18,7 +18,7 @@ public sealed partial class BattleSession
             throw new InvalidOperationException("Visual entry must be armed once before its diagnostic action submission.");
         }
         BattleCombatant actor = GetActor(actorId);
-        diagnosticVisualEntry = new(checked((byte)actor.NativeIndex), command, action, effect);
+        diagnosticVisualEntry = new(checked((byte)actor.EncodeNativeSlot()), command, action, effect);
         diagnosticVisualEntryAdmission = admission;
     }
 

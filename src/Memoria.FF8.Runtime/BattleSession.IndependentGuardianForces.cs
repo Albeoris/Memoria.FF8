@@ -88,7 +88,7 @@ public sealed partial class BattleSession
                 SetNativeSavedBattleFlag(4);
             }
         }
-        ushort mask = command.NativeTargetMask != 0 ? command.NativeTargetMask : NativeBattleLimitRules.PlayerTargetMask(item.TargetFlags ?? throw new InvalidDataException("GF summon item lacks its original target flags."), byId[command.TargetId].NativeIndex);
+        ushort mask = command.NativeTargetMask != 0 ? command.NativeTargetMask : NativeBattleLimitRules.PlayerTargetMask(item.TargetFlags ?? throw new InvalidDataException("GF summon item lacks its original target flags."), byId[command.TargetId].EncodeNativeSlot());
         return command with { IndependentGuardian = new(effect, level, failure), NativeTargetMask = mask };
     }
 

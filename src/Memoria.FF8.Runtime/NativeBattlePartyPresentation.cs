@@ -115,7 +115,7 @@ public sealed partial class BattleSession
         //493450 case9 reads WORD1CFF172, before any later493D80 contact updates that cache.
         if (nativePartyPresentation is not null)
         {
-            return RequireNativePartyPresentedRow(actor.NativeIndex).HitPoints;
+            return RequireNativePartyPresentedRow(actor.EncodeNativeSlot()).HitPoints;
         }
         //TODO(TD-009): Declared graphicsless components retain their existing HP projection.
         return actor.CurrentHp;
@@ -134,7 +134,7 @@ public sealed partial class BattleSession
             //TODO(TD-009): Declared graphicsless components retain their existing HUD projection.
             return new(gf?.HitPoints ?? actor.CurrentHp, gf?.MaximumHitPoints ?? actor.MaximumHp);
         }
-        NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(actor.NativeIndex);
+        NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(actor.EncodeNativeSlot());
         return gf is null ? new(unchecked((short)row.HitPoints), unchecked((short)row.MaximumHitPoints)) : new(unchecked((short)(row.GuardianForceHitPoints ?? throw new NotSupportedException("Native HUD lacks the actually started GF cache."))), unchecked((short)row.GuardianForceMaximumHitPoints!.Value));
     }
 
@@ -145,7 +145,7 @@ public sealed partial class BattleSession
         {
             return cached;
         }
-        NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(GetActor(actorId).NativeIndex);
+        NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(GetActor(actorId).EncodeNativeSlot());
         int displayed = guardianForceId is null ? row.DisplayedHitPointsQ12 : row.DisplayedGuardianForceHitPointsQ12 ?? throw new NotSupportedException("Native HUD lacks the actually started GF accumulator.");
         return cached with { HitPoints = displayed / 4096 };
     }
@@ -157,7 +157,7 @@ public sealed partial class BattleSession
         int displayedQ12 = cached.HitPoints << 12;
         if (nativePartyPresentation is not null && !(guardianForceId is null && actor.GuardianFormVitals is not null))
         {
-            NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(actor.NativeIndex);
+            NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(actor.EncodeNativeSlot());
             displayedQ12 = guardianForceId is null ? row.DisplayedHitPointsQ12 : row.DisplayedGuardianForceHitPointsQ12 ?? throw new NotSupportedException("Native HUD lacks the actually started GF accumulator.");
         }
         bool knockedOut = (NativeSavedStatusBits(actor) & 1) != 0;
@@ -171,11 +171,11 @@ public sealed partial class BattleSession
             return;
         }
         ImmutableArray<NativeBattlePartyPresentedVital?> rows = nativePartyPresentation.Rows;
-        foreach (BattleCombatant actor in combatants.Where(actor => actor.IsPlayer && actor.NativeIndex is >= 0 and < 3))
+        foreach (BattleCombatant actor in combatants.Where(actor => actor.IsPlayer && actor.EncodeNativeSlot() is >= 0 and < 3))
         {
-            NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(actor.NativeIndex);
+            NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(actor.EncodeNativeSlot());
             //48E620 clears the GF-panel flag when it removes the charge task, after any earlier logical cancellation.
-            rows = rows.SetItem(actor.NativeIndex, row.AdvanceHud4B0500(guardianForceCasts.ContainsKey(actor.Id)));
+            rows = rows.SetItem(actor.EncodeNativeSlot(), row.AdvanceHud4B0500(guardianForceCasts.ContainsKey(actor.Id)));
         }
         nativePartyPresentation = nativePartyPresentation with { Rows = rows };
     }
@@ -187,9 +187,9 @@ public sealed partial class BattleSession
             return;
         }
         NativeBattlePartyPresentedVital?[] rows = new NativeBattlePartyPresentedVital?[3];
-        foreach (BattleCombatant actor in combatants.Where(actor => actor.IsPlayer && actor.NativeIndex is >= 0 and < 3))
+        foreach (BattleCombatant actor in combatants.Where(actor => actor.IsPlayer && actor.EncodeNativeSlot() is >= 0 and < 3))
         {
-            rows[actor.NativeIndex] = new(checked((ushort)actor.CurrentHp), checked((ushort)actor.MaximumHp), null, null) { DisplayedHitPointsQ12 = actor.CurrentHp << 12, DisplayedGuardianForceHitPointsQ12 = null };
+            rows[actor.EncodeNativeSlot()] = new(checked((ushort)actor.CurrentHp), checked((ushort)actor.MaximumHp), null, null) { DisplayedHitPointsQ12 = actor.CurrentHp << 12, DisplayedGuardianForceHitPointsQ12 = null };
         }
         nativePartyPresentation = new(rows.ToImmutableArray());
     }
@@ -200,8 +200,8 @@ public sealed partial class BattleSession
         {
             return;
         }
-        NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(actor.NativeIndex);
-        nativePartyPresentation = nativePartyPresentation with { Rows = nativePartyPresentation.Rows.SetItem(actor.NativeIndex, row with { GuardianForceHitPoints = gf.HitPoints, GuardianForceMaximumHitPoints = gf.MaximumHitPoints, DisplayedGuardianForceHitPointsQ12 = gf.HitPoints << 12 }) };
+        NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(actor.EncodeNativeSlot());
+        nativePartyPresentation = nativePartyPresentation with { Rows = nativePartyPresentation.Rows.SetItem(actor.EncodeNativeSlot(), row with { GuardianForceHitPoints = gf.HitPoints, GuardianForceMaximumHitPoints = gf.MaximumHitPoints, DisplayedGuardianForceHitPointsQ12 = gf.HitPoints << 12 }) };
     }
 
     private void PublishNativePresentedContact(NativeBattleContactHalf half)
@@ -212,7 +212,7 @@ public sealed partial class BattleSession
         }
         NativeBattlePartyPresentation state = nativePartyPresentation ?? throw new InvalidDataException("Native493D80 lacks the current party presentation cache.");
         NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(half.ActorIndex);
-        BattleCombatant actor = combatants.Single(actor => actor.NativeIndex == half.ActorIndex);
+        BattleCombatant actor = combatants.Single(actor => actor.EncodeNativeSlot() == half.ActorIndex);
         if (actor.GuardianFormVitals is not null && (half.HitFlags3 & 0x20) != 0)
         {
             row = row with { GuardianForceHitPoints = checked((ushort)actor.CurrentHp), GuardianForceMaximumHitPoints = checked((ushort)actor.MaximumHp), DisplayedGuardianForceHitPointsQ12 = actor.CurrentHp << 12 };

@@ -36,7 +36,7 @@ public sealed partial class BattleSession
             ushort control = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(first.Payload.AsSpan()[4..]);
             queued = control == 65534 ? (byte)250 : (byte)5;
         }
-        BattleActionPresentation contact = original with { NativeQueuedCommand = queued, NativeAction = native, NativeTargetMask = checked((ushort)(1 << recipient.NativeIndex)), GunbladeTriggerTiming = timing };
+        BattleActionPresentation contact = original with { NativeQueuedCommand = queued, NativeAction = native, NativeTargetMask = checked((ushort)(1 << recipient.EncodeNativeSlot())), GunbladeTriggerTiming = timing };
         BattleActionDefinition definition = new(contact.Ability, contact.ActionId, native.Name ?? "Gunblade", BattleActionEffect.Native, native.Power, false) { NativeAction = native };
         BattleActionPresentation? previous = resolvingNativeAction;
         nativeActionCommitDepth++;
@@ -76,7 +76,7 @@ public sealed partial class BattleSession
             //TODO(TD-009): The component windup supplies485160 admission until the original AB/UI callbacks are present. Its math/physical contact consumer is shared.
             BattleCombatant actor = GetActor(command.ActorId);
             short timing = ReadGunbladeTiming(actor, command);
-            RecomputeNativeTriggerContact(new(checked((byte)actor.NativeIndex), 1, 1, timing, 32));
+            RecomputeNativeTriggerContact(new(checked((byte)actor.EncodeNativeSlot()), 1, 1, timing, 32));
         }
     }
 
@@ -112,7 +112,7 @@ public sealed partial class BattleSession
                 NativeBattleContactPacket prior = retained[contactIndex];
                 BattleCombatant recipient = FindNativeActor(prior.Primary.ActorIndex);
                 //4850A0 restores its invocation globals directly from header0 before48FE20; no queued presentation is consulted.
-                BattleActionPresentation contact = new(actor.Id, recipient.Id, BattleActionPhase.Recovery, 0, BattleAbility.GuardianForce, id - 64) { NativeHeaderIndex = 0, NativeQueuedCommand = command, NativeAction = native, NativeSequence = sequence, NativeTargetMask = checked((ushort)(1 << recipient.NativeIndex)) };
+                BattleActionPresentation contact = new(actor.Id, recipient.Id, BattleActionPhase.Recovery, 0, BattleAbility.GuardianForce, id - 64) { NativeHeaderIndex = 0, NativeQueuedCommand = command, NativeAction = native, NativeSequence = sequence, NativeTargetMask = checked((ushort)(1 << recipient.EncodeNativeSlot())) };
                 resolvingNativeAction = contact;
                 diagnosticNativeContact = ObserveDiagnosticGuardianContact(submitted, actor, recipient, first, prior, contactIndex, id);
                 NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, recipient, contact, action, native, 255);

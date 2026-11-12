@@ -16,11 +16,11 @@ public sealed partial class BattleSession
             return actor.IsReady && CanNativeBattleActorAct(actor);
         }
         NativeBattleUiServices ui = NativeGraphics!.UiServices ?? throw new InvalidDataException("Native command admission lost its initialized UI owner.");
-        if (lastGuardianFormInvocation != 0 && ui.Commands.Queue.Any(slot => ui.Commands.Packets[slot].Bytes[0] == actor.NativeIndex && ui.Commands.Packets[slot].Command == 0x12))
+        if (lastGuardianFormInvocation != 0 && ui.Commands.Queue.Any(slot => ui.Commands.Packets[slot].Bytes[0] == actor.EncodeNativeSlot() && ui.Commands.Packets[slot].Command == 0x12))
         {
             return false;
         }
-        return !actor.IsBusy && actor.NativeIndex is >= 0 and < 3 && (ui.ReadyMask & (1u << actor.NativeIndex)) != 0;
+        return !actor.IsBusy && actor.EncodeNativeSlot() is >= 0 and < 3 && (ui.ReadyMask & (1u << actor.EncodeNativeSlot())) != 0;
     }
 
     public IReadOnlyList<BattleCombatant> ReadyPlayerCommandOrder
@@ -35,7 +35,7 @@ public sealed partial class BattleSession
             List<BattleCombatant> result = [];
             for (int? next = commands?.ReadyHead; next is int index; next = commands!.ReadyNodes[index].Next)
             {
-                BattleCombatant? actor = combatants.SingleOrDefault(candidate => candidate.NativeIndex == index && candidate.IsPlayer);
+                BattleCombatant? actor = combatants.SingleOrDefault(candidate => candidate.EncodeNativeSlot() == index && candidate.IsPlayer);
                 if (actor is not null && CanChoosePlayerCommand(actor.Id))
                 {
                     result.Add(actor);
@@ -54,7 +54,7 @@ public sealed partial class BattleSession
                 return null;
             }
             sbyte? selected = NativeGraphics!.UiServices?.Commands.SelectedActor;
-            return selected is >= 0 ? combatants.SingleOrDefault(actor => actor.IsPlayer && actor.NativeIndex == selected && CanChoosePlayerCommand(actor.Id))?.Id : null;
+            return selected is >= 0 ? combatants.SingleOrDefault(actor => actor.IsPlayer && actor.EncodeNativeSlot() == selected && CanChoosePlayerCommand(actor.Id))?.Id : null;
         }
     }
 
@@ -77,7 +77,7 @@ public sealed partial class BattleSession
             NativeBattleGraphicsState graphics = RequireNativeGraphics();
             NativeBattleUiServices ui = graphics.UiServices!;
             //4BB9E0 state19 writes byte1D76844 from the ordered4AD370 ready list;957 remains the command menu.
-            NativeGraphics = graphics with { UiServices = ui with { Commands = ui.Commands with { SelectedActor = checked((sbyte)GetActor(actorId).NativeIndex) } } };
+            NativeGraphics = graphics with { UiServices = ui with { Commands = ui.Commands with { SelectedActor = checked((sbyte)GetActor(actorId).EncodeNativeSlot()) } } };
         }
     }
 }

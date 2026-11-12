@@ -56,9 +56,9 @@ public sealed partial class BattleSession
                     left = levelActor.Level;
                     break;
                 case 8:
-                    return CompareNativeConditionBit(combatants.Any(candidate => candidate.NativeIndex is >= 0 and < 7 && NativeModelId(candidate) == value), comparison);
+                    return CompareNativeConditionBit(combatants.Any(candidate => HasNativeRosterSlot(candidate) && NativeModelId(candidate) == value), comparison);
                 case 9:
-                    return CompareNativeConditionBit(combatants.Any(candidate => candidate.NativeIndex is >= 0 and < 7 && (NativeSavedStatusBits(candidate) & 1) == 0 && NativeModelId(candidate) == value), comparison);
+                    return CompareNativeConditionBit(combatants.Any(candidate => HasNativeRosterSlot(candidate) && (NativeSavedStatusBits(candidate) & 1) == 0 && NativeModelId(candidate) == value), comparison);
                 case 10:
                     return EvaluateNativeActionCondition(actor, selector, comparison, value);
                 case 11:
@@ -70,9 +70,9 @@ public sealed partial class BattleSession
                     left = actor.NativeAi?.LevelBand ?? throw new InvalidDataException("Native battle AI level-band condition requires its installed program.");
                     break;
                 case 15:
-                    return CompareNativeConditionBit(combatants.Any(candidate => candidate.NativeIndex == value && candidate.IsActive && (NativeSavedStatusBits(candidate) & 1) == 0), comparison);
+                    return CompareNativeConditionBit(combatants.Any(candidate => candidate.EncodeNativeSlot() == value && candidate.IsActive && (NativeSavedStatusBits(candidate) & 1) == 0), comparison);
                 case 16:
-                    BattleCombatant[] party = combatants.Where(candidate => candidate.NativeIndex is >= 0 and < 3 && candidate.IsActive && (NativeSavedStatusBits(candidate) & 1) == 0).ToArray();
+                    BattleCombatant[] party = allies.Where(candidate => HasNativeRosterSlot(candidate) && candidate.IsActive && (NativeSavedStatusBits(candidate) & 1) == 0).ToArray();
                     if (party.Any(candidate => candidate.NativeCharacterFlag100 is null))
                     {
                         throw new NotSupportedException("Native party characteristic condition requires the original kernel character gender flag.");
@@ -91,7 +91,7 @@ public sealed partial class BattleSession
                 case 19:
                     return CompareNativeConditionBit(NativeConditionTimerIsZero(), comparison);
                 case 20:
-                    return combatants.Where(candidate => candidate.NativeIndex is >= 0 and < 3 && candidate.IsActive && (NativeSavedStatusBits(candidate) & 1) == 0).All(candidate => NativeAiStatusPresent(candidate, value));
+                    return allies.Where(candidate => HasNativeRosterSlot(candidate) && candidate.IsActive && (NativeSavedStatusBits(candidate) & 1) == 0).All(candidate => NativeAiStatusPresent(candidate, value));
                 default:
                     //The native default condition table deliberately consumes these subjects without branching.
                     return true;
@@ -137,7 +137,7 @@ public sealed partial class BattleSession
         else if (selector == 203)
         {
             left = NativeConditionLastAttackerIndex(actor);
-            right = value == 200 ? actor.NativeIndex : NativeConditionActorIndex(value);
+            right = value == 200 ? actor.EncodeNativeSlot() : NativeConditionActorIndex(value);
         }
         else
         {
@@ -174,12 +174,12 @@ public sealed partial class BattleSession
     {
         int index = selector switch
         {
-            200 => actor.NativeIndex,
+            200 => actor.EncodeNativeSlot(),
             203 => NativeConditionLastAttackerIndex(actor),
             >= 220 and <= 227 => checked((int)ReadNativeActorVariable(actor, selector)),
             _ => NativeConditionActorIndex(selector)
         };
-        return combatants.FirstOrDefault(candidate => candidate.NativeIndex == index) ?? throw new NotSupportedException($"Native battle AI condition actor index {index} has no retained allocation.");
+        return combatants.FirstOrDefault(candidate => candidate.EncodeNativeSlot() == index) ?? throw new NotSupportedException($"Native battle AI condition actor index {index} has no retained allocation.");
     }
 
     private int NativeConditionLastAttackerIndex(BattleCombatant actor)
@@ -189,13 +189,13 @@ public sealed partial class BattleSession
 
     private int NativeConditionActorIndex(int model)
     {
-        return combatants.Where(candidate => candidate.NativeIndex is >= 0 and < 7).OrderBy(candidate => candidate.NativeIndex).FirstOrDefault(candidate => NativeModelId(candidate) == model)?.NativeIndex ?? 255;
+        return combatants.Where(candidate => HasNativeRosterSlot(candidate)).OrderBy(candidate => candidate.EncodeNativeSlot()).FirstOrDefault(candidate => NativeModelId(candidate) == model)?.EncodeNativeSlot() ?? 255;
     }
 
     private IEnumerable<BattleCombatant> NativeConditionGroup(int selector)
     {
         //48A830 scans physical slots0..2 or3..6; model selectors inspect exactly the same seven slots.
-        return combatants.Where(candidate => candidate.NativeIndex is >= 0 and < 7 && (selector == 200 ? candidate.NativeIndex < 3 : selector == 201 ? candidate.NativeIndex >= 3 : NativeModelId(candidate) == selector));
+        return combatants.Where(candidate => HasNativeRosterSlot(candidate) && (selector == 200 ? candidate.Side == BattleSide.Allies : selector == 201 ? candidate.Side == BattleSide.Enemies : NativeModelId(candidate) == selector));
     }
 
     private static long NativeConditionHpThreshold(BattleCombatant actor, int value)

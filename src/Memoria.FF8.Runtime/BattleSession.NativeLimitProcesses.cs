@@ -44,8 +44,8 @@ public sealed partial class BattleSession
                 break;
             case 0x10:
                 bool players = (targetFlags & 0x40) == 0;
-                BattleCombatant? selected = ChooseNativeRandomActionTarget(players);
-                targets = selected is null ? players ? (ushort)0 : (ushort)8 : (ushort)(1 << selected.NativeIndex);
+                BattleCombatant? selected = ChooseNativeRandomActionTarget(players ? BattleSide.Allies : BattleSide.Enemies);
+                targets = selected is null ? players ? (ushort)0 : (ushort)8 : (ushort)(1 << selected.EncodeNativeSlot());
                 break;
             case 0x20:
                 targets = 0x80FF;

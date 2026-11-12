@@ -21,7 +21,7 @@ public sealed partial class BattleSession
         }
         foreach (BattleCombatant actor in combatants.Where(actor => actor.IsReady && RequiresNativeCompelledCommand(actor)))
         {
-            BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.IsActive && candidate.NativeIndex is >= 3 and < 7) ?? actor;
+            BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.IsActive && candidate.EncodeNativeSlot() is >= 3 and < 7) ?? actor;
             EnqueueAttack(actor, target);
         }
     }
@@ -48,7 +48,7 @@ public sealed partial class BattleSession
         {
             RefundNativeReservedItem(previousSlot, original.NativeAction?.ActionId ?? original.ActionId);
         }
-        BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.NativeIndex is >= 0 and < 7 && (prepared.TargetMask & (1 << candidate.NativeIndex)) != 0) ?? actor;
+        BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.EncodeNativeSlot() is >= 0 and < 7 && (prepared.TargetMask & (1 << candidate.EncodeNativeSlot())) != 0) ?? actor;
         BattleNativeAction? native = prepared.Command == 1 ? actor.NativeAttack : FindNativeCommandAction(actor, prepared.Command, prepared.ActionId);
         BattleAbility ability = prepared.GuardianFormBinding?.Source == BattleGuardianFormActionSource.Magic ? BattleAbility.Magic : prepared.Command is 1 or 12 ? BattleAbility.Attack : BattleAbility.EnemyAbility;
         return new BattleAttackCommand(actor.Id, target.Id, ability, prepared.ActionId)

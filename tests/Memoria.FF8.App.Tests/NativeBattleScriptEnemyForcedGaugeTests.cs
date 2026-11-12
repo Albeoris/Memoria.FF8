@@ -64,7 +64,7 @@ public sealed class NativeBattleScriptEnemyForcedGaugeTests
         Invoke(battle, "PublishNativeRegisteredCallbacks4847B0");
         BattleSnapshot queued = battle.Capture();
         BattleAttackCommand command = Assert.Single(queued.NativeCommandBanks!.Banks[2].LogicalCommands.OfType<BattleAttackCommand>());
-        Assert.Equal(new BattleNativeCallback(checked((byte)live.NativeIndex), 1), command.NativeCallback);
+        Assert.Equal(new BattleNativeCallback(checked((byte)live.EncodeNativeSlot()), 1), command.NativeCallback);
         Assert.Equal(expectedFlags & ~0x200u, live.NativeCombatantFlags);
         BattleSession restored = Restore(queued);
         Invoke(battle, "PublishNativeRegisteredCallbacks4847B0");

@@ -15,12 +15,6 @@ public sealed partial class BattleSession
 
     private void InitializeNativeParticipants()
     {
-        int partySlot = 0;
-        int enemySlot = 3;
-        foreach (BattleCombatant actor in combatants)
-        {
-            actor.NativeIndex = actor.IsPlayer ? partySlot++ : actor.IsActive ? enemySlot++ : -1;
-        }
         if (NativeGraphics is not null)
         {
             return;
@@ -415,7 +409,7 @@ public sealed partial class BattleSession
         {
             throw new NotSupportedException($"Native battle AI status {status} lies outside its WORD/DWORD banks.");
         }
-        bool present = combatants.Any(candidate => candidate.IsActive && candidate.NativeIndex is >= 0 and < 7 && (selector == 200 ? candidate.NativeIndex < 3 : selector == 201 ? candidate.NativeIndex >= 3 : NativeModelId(candidate) == selector) && (status == 0 || (NativeSavedStatusBits(candidate) & 1) == 0) && NativeAiStatusPresent(candidate, status));
+        bool present = combatants.Any(candidate => candidate.IsActive && HasNativeRosterSlot(candidate) && (selector == 200 ? candidate.Side == BattleSide.Allies : selector == 201 ? candidate.Side == BattleSide.Enemies : NativeModelId(candidate) == selector) && (status == 0 || (NativeSavedStatusBits(candidate) & 1) == 0) && NativeAiStatusPresent(candidate, status));
         // Native forces equality for each candidate, then inverts the group result for any nonzero comparison.
         return comparison == 0 ? present : !present;
     }
@@ -475,7 +469,21 @@ public sealed partial class BattleSession
         id = ability.Id;
         sequence = ability.Sequence;
     }
-    private BattleCombatant FindNativeActor(int index) => combatants.SingleOrDefault(actor => actor.NativeIndex == index && actor.IsActive) ?? throw new NotSupportedException($"Native battle AI actor index {index} has no current allocation.");
+    private BattleCombatant FindNativeActor(int index)
+    {
+        if (NativeBattleSlots.Contains(index))
+        {
+            BattleRosterSlot slot = NativeBattleSlots.Decode(index);
+            BattleCombatant? actor = Roster(slot.Side).SingleOrDefault(candidate => candidate.Slot == slot && candidate.IsActive);
+            if (actor is not null)
+            {
+                return actor;
+            }
+        }
+        throw new NotSupportedException($"Native battle actor index {index} has no current allocation.");
+    }
+
+    private IReadOnlyList<BattleCombatant> Roster(BattleSide side) => side == BattleSide.Allies ? allies : enemies;
     private static int NativeModelId(BattleCombatant actor) => actor.NativeAllocationPendingStatistics ? 255 : actor.IsPlayer ? actor.IsActive ? actor.ModelId : 255 : actor.ModelId + 16;
     private static int ReadAiByte(byte[] code, ref int pc)
     {
@@ -496,7 +504,7 @@ public sealed partial class BattleSession
         return value;
     }
 
-    private static NativeBattleParticipantSnapshot CaptureNativeParticipant(BattleCombatant actor) => new(actor.IsActive, actor.Hidden, actor.Untargetable, actor.Suspended, actor.NativeIndex, actor.ResolvedNativeLevel, actor.AiVariables.ToArray(), actor.AiTurnCount, actor.LastAttackerId, actor.LastAttackerAbility, actor.AiDeathHandled) { MaximumHitPoints = actor.IsPlayer && actor.NativePlayerStatRules is not null && actor.GuardianFormVitals is null ? actor.MaximumHp : null, StatMultipliers = actor.NativeStatMultipliers.ToArray(), LastAction = actor.LastNativeAction, LastHealing = actor.LastNativeHealing, AllocationPendingStatistics = actor.NativeAllocationPendingStatistics, NativeCombatantFlags = actor.NativeCombatantFlags, KillCount = actor.NativeKillCount, DeathCount = actor.NativeDeathCount, Growth = actor.NativeGrowth, DisplayNameIndex = actor.NativeDisplayNameIndex, ElementDefenses = actor.HumanElementDefenses.ToArray(), PreviousTargetMask = actor.NativePreviousTargetMask, DrawnSpell = actor.NativeDrawnSpell, ReturnDamage = actor.NativeReturnDamage, PendingReaction = actor.NativePendingReaction, RemainingHits = actor.NativeRemainingHits };
+    private static NativeBattleParticipantSnapshot CaptureNativeParticipant(BattleCombatant actor) => new(actor.IsActive, actor.Hidden, actor.Untargetable, actor.Suspended, actor.EncodeNativeSlot(), actor.ResolvedNativeLevel, actor.AiVariables.ToArray(), actor.AiTurnCount, actor.LastAttackerId, actor.LastAttackerAbility, actor.AiDeathHandled) { MaximumHitPoints = actor.IsPlayer && actor.NativePlayerStatRules is not null && actor.GuardianFormVitals is null ? actor.MaximumHp : null, StatMultipliers = actor.NativeStatMultipliers.ToArray(), LastAction = actor.LastNativeAction, LastHealing = actor.LastNativeHealing, AllocationPendingStatistics = actor.NativeAllocationPendingStatistics, NativeCombatantFlags = actor.NativeCombatantFlags, KillCount = actor.NativeKillCount, DeathCount = actor.NativeDeathCount, Growth = actor.NativeGrowth, DisplayNameIndex = actor.NativeDisplayNameIndex, ElementDefenses = actor.HumanElementDefenses.ToArray(), PreviousTargetMask = actor.NativePreviousTargetMask, DrawnSpell = actor.NativeDrawnSpell, ReturnDamage = actor.NativeReturnDamage, PendingReaction = actor.NativePendingReaction, RemainingHits = actor.NativeRemainingHits };
 
     private void RestoreNativeParticipant(BattleCombatant actor, NativeBattleParticipantSnapshot? saved)
     {
@@ -511,7 +519,7 @@ public sealed partial class BattleSession
             }
             return;
         }
-        if (saved.Variables is null || saved.Variables.Length != 8 || saved.ActorIndex is < -1 or > 6 || saved.Active && saved.ActorIndex < 0 || saved.Active && actor.IsPlayer != (saved.ActorIndex < 3) || saved.LastAttackerId is not null && !byId.ContainsKey(saved.LastAttackerId) || saved.LastAttackerAbility is { } ability && !Enum.IsDefined(ability))
+        if (saved.Variables is null || saved.Variables.Length != 8 || saved.ActorIndex is < NativeBattleSlots.Unassigned or >= NativeBattleSlots.Count || saved.Active && saved.ActorIndex < 0 || saved.ActorIndex >= 0 && actor.Side != NativeBattleSlots.Decode(saved.ActorIndex).Side || saved.LastAttackerId is not null && !byId.ContainsKey(saved.LastAttackerId) || saved.LastAttackerAbility is { } ability && !Enum.IsDefined(ability))
         {
             throw new InvalidDataException("Battle participant has invalid native allocation or AI owner state.");
         }
@@ -528,7 +536,7 @@ public sealed partial class BattleSession
             }
             actor.NativeCombatantFlags = flags;
         }
-        actor.NativeIndex = saved.ActorIndex;
+        actor.BindRosterSlot(saved.ActorIndex == NativeBattleSlots.Unassigned ? null : NativeBattleSlots.Decode(saved.ActorIndex));
         if (saved.ResolvedLevel is int level)
         {
             if (nativeAllocations.SingleOrDefault(allocation => allocation.Id == actor.Id)?.ResolvedDefinition is { } resolved)

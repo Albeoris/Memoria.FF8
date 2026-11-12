@@ -98,7 +98,7 @@ public static class NativeBattleActionGraphics
         byte actor = first.ReadByte(0);
         int firstContact = first.FirstContactIndex ?? throw new NotSupportedException("Native50BF90 requires its actual header contact pointer.");
         int groups = first.ReadByte(17) + 1;
-        ushort targets = 0;
+        NativeBattlePhysicalTargets targets = default;
         ushort cover = 0;
         byte? source = previous?.CoverSource;
         byte flags = 0;
@@ -119,7 +119,7 @@ public static class NativeBattleActionGraphics
             for (int target = 0; target < count; target++)
             {
                 NativeBattleContactHalf half = packets.ReadContact(checked(contact + target)).Primary;
-                targets |= (ushort)(1 << half.ActorIndex);
+                targets = targets.Add(NativeBattleSlots.Decode(half.ActorIndex));
                 if ((half.HitFlags3 & 8) != 0)
                 {
                     source = (byte)(half.HitFlags3 >> 6);
@@ -134,7 +134,7 @@ public static class NativeBattleActionGraphics
         byte firstCount = first.ReadByte(16);
         byte? firstTarget = firstCount != 0 ? packets.ReadContact(firstContact).Primary.ActorIndex : previous?.FirstTarget;
         NativeBattleActionServiceSelection selection = SelectService(first);
-        return new(headerIndex, actor, firstContact, targets, cover, source, firstTarget, flags, first.Data, selection.Callback) { ActorSelector56 = actor, FirstHeaderTargetCount = first.ReadByte(16) };
+        return new(headerIndex, actor, firstContact, targets.Bits, cover, source, firstTarget, flags, first.Data, selection.Callback) { ActorSelector56 = actor, FirstHeaderTargetCount = first.ReadByte(16) };
     }
 
     public static NativeBattleActionServiceSelection SelectService(NativeBattleActionHeaderSlot header)

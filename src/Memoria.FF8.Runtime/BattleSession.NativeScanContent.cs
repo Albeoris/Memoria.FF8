@@ -6,7 +6,7 @@ public sealed partial class BattleSession
 {
     private NativeBattleScanByteOwner ReadNativeScanDescriptor208(int index)
     {
-        BattleCombatant actor = combatants.SingleOrDefault(candidate => candidate.NativeIndex == index) ?? throw new NotSupportedException("Native Scan requires its allocated physical battle participant.");
+        BattleCombatant actor = combatants.SingleOrDefault(candidate => candidate.EncodeNativeSlot() == index) ?? throw new NotSupportedException("Native Scan requires its allocated physical battle participant.");
         NativeBattleScanByteOwner row = new(new byte[208].ToImmutableArray(), new bool[208].ToImmutableArray());
         row = row.WriteDword(0x18, unchecked((uint)actor.CurrentHp)).WriteDword(0x1C, unchecked((uint)actor.MaximumHp)).WriteDword(0x7C, actor.NativeCombatantFlags).WriteByte(0xBB, checked((byte)NativeModelId(actor))).WriteByte(0xBC, checked((byte)actor.Level));
         if (actor.ElementDefenses.Count != 8)
@@ -50,7 +50,7 @@ public sealed partial class BattleSession
     }
     private NativeBattleScanByteOwner ReadNativeScanExtra71(int index)
     {
-        BattleCombatant actor = combatants.Single(candidate => candidate.NativeIndex == index);
+        BattleCombatant actor = combatants.Single(candidate => candidate.EncodeNativeSlot() == index);
         NativeBattleScanByteOwner bytes = new(new byte[71].ToImmutableArray(), new bool[71].ToImmutableArray());
         if (actor.NativeDisplayNameIndex is not int selected)
         {
@@ -62,7 +62,7 @@ public sealed partial class BattleSession
 
     private NativeBattleScanByteOwner ReadNativeScanName24(int index)
     {
-        byte[] bytes = index >= 3 ? ReadNativeScanEnemyInformation(index)[..24] : definition.NativeScanActorNames.GetValueOrDefault(combatants.Single(actor => actor.NativeIndex == index).Id) ?? throw new NotSupportedException("Native Scan requires its allocated player name bytes.");
+        byte[] bytes = index >= 3 ? ReadNativeScanEnemyInformation(index)[..24] : definition.NativeScanActorNames.GetValueOrDefault(combatants.Single(actor => actor.EncodeNativeSlot() == index).Id) ?? throw new NotSupportedException("Native Scan requires its allocated player name bytes.");
         if (bytes.Length != 24)
         {
             throw new InvalidDataException("Native Scan actor name must retain its actual twenty-four-byte extent.");

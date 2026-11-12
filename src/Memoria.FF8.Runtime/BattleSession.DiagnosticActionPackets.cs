@@ -62,7 +62,7 @@ public sealed partial class BattleSession
         nativeActionPackets.Validate();
         NativeBattleActionHeaderSlot source = nativeActionPackets.Headers[header];
         ushort Word(int offset) => (ushort)(source.ReadByte(offset) | source.ReadByte(offset + 1) << 8);
-        if (dispatch.ActorId is null || !byId.TryGetValue(dispatch.ActorId, out BattleCombatant? actor) || actor.NativeIndex != source.ReadByte(0) || dispatch.NativeActorIndex != source.ReadByte(0) || dispatch.NativeCommand != source.ReadByte(1) || dispatch.ActionId != Word(4) || dispatch.RequestedEffect != Word(6) || dispatch.ExecutedEffect != Word(6) || NativeBattleActionGraphics.Normalize(nativeActionPackets, header).TargetMask != dispatch.NativeTargetMask)
+        if (dispatch.ActorId is null || !byId.TryGetValue(dispatch.ActorId, out BattleCombatant? actor) || actor.EncodeNativeSlot() != source.ReadByte(0) || dispatch.NativeActorIndex != source.ReadByte(0) || dispatch.NativeCommand != source.ReadByte(1) || dispatch.ActionId != Word(4) || dispatch.RequestedEffect != Word(6) || dispatch.ExecutedEffect != Word(6) || NativeBattleActionGraphics.Normalize(nativeActionPackets, header).TargetMask != dispatch.NativeTargetMask)
         {
             throw new InvalidDataException("Diagnostic action packet payload differs from its current dispatch source fields.");
         }
@@ -73,14 +73,14 @@ public sealed partial class BattleSession
     public NativeBattleActionPacketsState ObserveDiagnosticDuelClosingPackets(BattleDiagnosticEffectDispatch dispatch)
     {
         ArgumentNullException.ThrowIfNull(dispatch);
-        if (!ReferenceEquals(dispatch, diagnosticPacketReadDispatch) || diagnosticPacketReadThread != Environment.CurrentManagedThreadId || dispatch.Serial <= 0 || dispatch.Serial != diagnosticDispatchSerial || NativeHostCallbacks != dispatch.Callback || dispatch.NativeHeaderIndex is not int header || header is < 0 or >= NativeBattleActionPacketsState.HeaderCapacity || dispatch.NativeHeaderGeneration is not long generation || generation <= 0 || diagnosticHeaderGenerations is not { } generations || !generations.TryGetValue(header, out long actualGeneration) || actualGeneration != generation || nativeActionPackets.ActiveHeaderIndex != header || dispatch.ActorId is null || !byId.TryGetValue(dispatch.ActorId, out BattleCombatant? actor) || actor.ModelId != 1 || actor.NativeLimit is not { CharacterId: 1, Command: 11 } || nativeDuelProcesses.Count != 1 || !nativeDuelProcesses.TryGetValue(actor.Id, out BattleNativeDuelState? duel) || duel is not { Phase: BattleNativeDuelPhase.Finisher, Selection1D28DEF: 254, RemainingTimer: <= 0 } || dispatch.NativeCommand != 241 || dispatch.ActionId != 65532 || dispatch.RequestedEffect != 274 || dispatch.ExecutedEffect != 274 || diagnosticPacketReadEffect is not { RequestedEffect: 274, Binding.Effect: 274, Parameters: { Parameter80: 8, Parameter82: 0 } parameters } || parameters.Actor78 != actor.NativeIndex || parameters.HeaderIndex7C != header || NativeEffectMemory?.Entry21DFEC4?.Effect != 274)
+        if (!ReferenceEquals(dispatch, diagnosticPacketReadDispatch) || diagnosticPacketReadThread != Environment.CurrentManagedThreadId || dispatch.Serial <= 0 || dispatch.Serial != diagnosticDispatchSerial || NativeHostCallbacks != dispatch.Callback || dispatch.NativeHeaderIndex is not int header || header is < 0 or >= NativeBattleActionPacketsState.HeaderCapacity || dispatch.NativeHeaderGeneration is not long generation || generation <= 0 || diagnosticHeaderGenerations is not { } generations || !generations.TryGetValue(header, out long actualGeneration) || actualGeneration != generation || nativeActionPackets.ActiveHeaderIndex != header || dispatch.ActorId is null || !byId.TryGetValue(dispatch.ActorId, out BattleCombatant? actor) || actor.ModelId != 1 || actor.NativeLimit is not { CharacterId: 1, Command: 11 } || nativeDuelProcesses.Count != 1 || !nativeDuelProcesses.TryGetValue(actor.Id, out BattleNativeDuelState? duel) || duel is not { Phase: BattleNativeDuelPhase.Finisher, Selection1D28DEF: 254, RemainingTimer: <= 0 } || dispatch.NativeCommand != 241 || dispatch.ActionId != 65532 || dispatch.RequestedEffect != 274 || dispatch.ExecutedEffect != 274 || diagnosticPacketReadEffect is not { RequestedEffect: 274, Binding.Effect: 274, Parameters: { Parameter80: 8, Parameter82: 0 } parameters } || parameters.Actor78 != actor.EncodeNativeSlot() || parameters.HeaderIndex7C != header || NativeEffectMemory?.Entry21DFEC4?.Effect != 274)
         {
             throw new InvalidDataException("Duel closing packets require the actual synchronous timed-out native241/FFFC retained274 control owner. " + DescribeDiagnosticDuelClosingGuard(dispatch));
         }
         nativeActionPackets.Validate();
         NativeBattleActionHeaderSlot source = nativeActionPackets.Headers[header];
         ushort Word(int offset) => (ushort)(source.ReadByte(offset) | source.ReadByte(offset + 1) << 8);
-        if (source.ReadByte(0) != actor.NativeIndex || dispatch.NativeActorIndex != actor.NativeIndex || source.ReadByte(1) != 241 || Word(4) != 65532 || Word(6) != 0 || NativeBattleActionGraphics.Normalize(nativeActionPackets, header).TargetMask != dispatch.NativeTargetMask)
+        if (source.ReadByte(0) != actor.EncodeNativeSlot() || dispatch.NativeActorIndex != actor.EncodeNativeSlot() || source.ReadByte(1) != 241 || Word(4) != 65532 || Word(6) != 0 || NativeBattleActionGraphics.Normalize(nativeActionPackets, header).TargetMask != dispatch.NativeTargetMask)
         {
             throw new InvalidDataException("Duel timeout control changed its actual actor, zero-magic header or native target normalization.");
         }
@@ -113,7 +113,7 @@ public sealed partial class BattleSession
             ActualGeneration = generation,
             nativeActionPackets.ActiveHeaderIndex,
             ActorModel = actor?.ModelId,
-            ActorIndex = actor?.NativeIndex,
+            ActorIndex = actor?.EncodeNativeSlot(),
             LimitCharacter = actor?.NativeLimit?.CharacterId,
             LimitCommand = actor?.NativeLimit?.Command,
             DuelOwners = nativeDuelProcesses.Count,

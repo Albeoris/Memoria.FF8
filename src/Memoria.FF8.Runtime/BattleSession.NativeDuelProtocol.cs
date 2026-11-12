@@ -59,7 +59,7 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Saved Duel control requires its original character and produced physical header.");
         }
         NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[index];
-        if (header.ReadByte(0) != actor.NativeIndex || header.ReadByte(1) != 241 || NativeBattleActionGraphics.Word(header, 4) != native.ActionId || NativeBattleActionGraphics.Word(header, 6) != native.MagicId || header.Data is not null)
+        if (header.ReadByte(0) != actor.EncodeNativeSlot() || header.ReadByte(1) != 241 || NativeBattleActionGraphics.Word(header, 4) != native.ActionId || NativeBattleActionGraphics.Word(header, 6) != native.MagicId || header.Data is not null)
         {
             throw new InvalidDataException("Saved Duel control contradicts its produced48D200 header.");
         }
@@ -80,7 +80,7 @@ public sealed partial class BattleSession
     private void ProduceNativeDuel483400(BattleCombatant actor, byte command, ushort actionId, ushort effect, ushort targetMask, NativeLimitCallback? callback)
     {
         BattleNativeAction native = command == 241 && actionId is 65530 or 65532 ? CreateNativeDuelControl241(actionId, effect) : FindInstalledNativeAction(command, actionId);
-        BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.NativeIndex is >= 0 and < 7 && (targetMask & (1 << candidate.NativeIndex)) != 0) ?? actor;
+        BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.EncodeNativeSlot() is >= 0 and < 7 && (targetMask & (1 << candidate.EncodeNativeSlot())) != 0) ?? actor;
         BattleAttackCommand queued = new(actor.Id, target.Id, BattleAbility.EnemyAbility, actionId) { NativeQueuedCommand = command, NativeAction = native, NativeTargetMask = targetMask, NativeLimitCallback = callback, NativeSequence = 0 };
         NativeBattleActionProductionContext? previous = nativeProductionContext;
         nativeProductionContext = new(0, 0, false, 0x47DE70);

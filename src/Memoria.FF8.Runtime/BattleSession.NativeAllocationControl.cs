@@ -38,7 +38,7 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState CompleteNativeAllocationStatistics(NativeBattleGraphicsState graphics)
     {
         NativeBattleAllocationControl control = nativeScriptState.AllocationControl ?? throw new InvalidDataException("Native48AD10 has no current allocation scene owner.");
-        BattleCombatant actor = combatants.Single(candidate => candidate.NativeIndex == nativeLastAllocatedIndex);
+        BattleCombatant actor = combatants.Single(candidate => candidate.EncodeNativeSlot() == nativeLastAllocatedIndex);
         if (control.SceneSlot is null || actor.SceneSlot != control.SceneSlot)
         {
             throw new InvalidDataException("Native allocation globals disagree with the current physical scene resource.");
@@ -46,15 +46,15 @@ public sealed partial class BattleSession
         InitializeNativeAllocatedStatistics(actor);
         if (encounterAllocation is { Phase: BattleEncounterAllocationPhase.Loading })
         {
-            graphics = QueueNativeDescriptor(graphics, 103, NativeParticipantAddress(actor.NativeIndex), checked((ushort)actor.NativeIndex), 0x100);
+            graphics = QueueNativeDescriptor(graphics, 103, NativeParticipantAddress(actor.EncodeNativeSlot()), checked((ushort)actor.EncodeNativeSlot()), 0x100);
             return QueueNativeDescriptor(graphics, 10, 0x4876B0);
         }
-        return QueueNativeDescriptor(graphics, 103, NativeParticipantAddress(actor.NativeIndex), checked((ushort)actor.NativeIndex), (ushort)(1 | (actor.Hidden ? 0x100 : 0)));
+        return QueueNativeDescriptor(graphics, 103, NativeParticipantAddress(actor.EncodeNativeSlot()), checked((ushort)actor.EncodeNativeSlot()), (ushort)(1 | (actor.Hidden ? 0x100 : 0)));
     }
 
     private NativeBattleGraphicsState CompleteNativeActivation(NativeBattleGraphicsState graphics, int index)
     {
-        BattleCombatant actor = combatants.Single(candidate => candidate.NativeIndex == index);
+        BattleCombatant actor = combatants.Single(candidate => candidate.EncodeNativeSlot() == index);
         actor.NativeCombatantFlags &= ~0xC2u;
         QueueNativeParticipantInitialization(actor);
         Log("Activated", actor.Id, null, 0, $"{actor.Name} enters battle.");

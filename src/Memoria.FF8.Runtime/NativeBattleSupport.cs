@@ -43,7 +43,7 @@ public sealed partial class BattleSession
 
     private BattleCombatant NativeSupportActor()
     {
-        return combatants.Where(actor => actor.IsPlayer && actor.IsActive).OrderBy(actor => actor.NativeIndex).FirstOrDefault() ?? throw new NotSupportedException("Native486080 requires an allocated physical party actor for support invocation.");
+        return combatants.Where(actor => actor.IsPlayer && actor.IsActive).OrderBy(actor => actor.EncodeNativeSlot()).FirstOrDefault() ?? throw new NotSupportedException("Native486080 requires an allocated physical party actor for support invocation.");
     }
 
     private byte NativeSupportFlags(byte mask)
@@ -80,7 +80,7 @@ public sealed partial class BattleSession
     {
         for (int slot = 3; slot < 7; slot++)
         {
-            BattleCombatant? actor = combatants.SingleOrDefault(actor => actor.NativeIndex == slot);
+            BattleCombatant? actor = combatants.SingleOrDefault(actor => actor.EncodeNativeSlot() == slot);
             //48C5C0 marks an unallocated physical monster slot KO;482E00 never reads its resistance.
             if (actor is null || (NativeSavedStatusBits(actor) & 1) != 0)
             {
@@ -126,7 +126,7 @@ public sealed partial class BattleSession
             return false;
         }
         //486450 first waits for pending death/revival callbacks;483270 requires an allocated KO, non-Petrify party row and a capable enemy.
-        if (!combatants.Any(actor => !actor.IsPlayer && actor.NativeIndex is >= 3 and < 7 && (NativeSavedStatusBits(actor) & 5) == 0) || !combatants.Any(actor => actor.IsPlayer && actor.IsActive && (NativeSavedStatusBits(actor) & 5) == 1))
+        if (!combatants.Any(actor => !actor.IsPlayer && actor.EncodeNativeSlot() is >= 3 and < 7 && (NativeSavedStatusBits(actor) & 5) == 0) || !combatants.Any(actor => actor.IsPlayer && actor.IsActive && (NativeSavedStatusBits(actor) & 5) == 1))
         {
             return false;
         }

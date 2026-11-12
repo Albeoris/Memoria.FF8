@@ -45,7 +45,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("Encounter allocation cannot overlap another native model allocation.");
         }
-        int[] slots = Enumerable.Range(3, 4).Where(index => !combatants.Any(actor => actor.NativeIndex == index && actor.IsActive) && !IsEncounterRetirementPending(index)).Take(roles.Length).ToArray();
+        int[] slots = Enumerable.Range(3, 4).Where(index => !enemies.Any(actor => actor.Slot == NativeBattleSlots.Decode(index) && actor.IsActive) && !IsEncounterRetirementPending(index)).Take(roles.Length).ToArray();
         if (slots.Length != roles.Length)
         {
             throw new InvalidOperationException($"Encounter allocation requires {roles.Length} free enemy slots; only {slots.Length} are available within physical slots 3–6.");
@@ -65,13 +65,14 @@ public sealed partial class BattleSession
         {
             for (int index = 0; index < prepared.Count; index++)
             {
-                foreach (BattleCombatant previous in combatants.Where(actor => actor.NativeIndex == slots[index]).ToArray())
+                BattleRosterSlot slot = NativeBattleSlots.Decode(slots[index]);
+                foreach (BattleCombatant previous in enemies.Where(actor => actor.Slot == slot).ToArray())
                 {
-                    previous.NativeIndex = -1;
+                    previous.BindRosterSlot(null);
                 }
                 BattleCombatant actor = CreateNativeAllocation(prepared[index]);
                 nativeAllocations.Add(prepared[index]);
-                actor.NativeIndex = slots[index];
+                actor.BindRosterSlot(slot);
                 actor.NativeAllocationPendingStatistics = true;
                 actor.NativeCombatantFlags = 0xC2;
             }
@@ -158,8 +159,8 @@ public sealed partial class BattleSession
     {
         actor.ResolvedNativeLevel = actor.Level;
         actor.NativeCombatantFlags = (actor.SourceDefinition.NativeCombatantFlags & ~0xE3u) | 0xC2;
-        nativeActionMemory.State = nativeActionMemory.State with { Rows = nativeActionMemory.State.Rows.SetItem(actor.NativeIndex, ImmutableArray.CreateRange(new byte?[8] { 0, 0, 0, 0, 0, 0, 0, 0 })) };
-        nativePresentationStatusMemory.State = nativePresentationStatusMemory.State.Observe(actor.NativeIndex, new(0, 0));
+        nativeActionMemory.State = nativeActionMemory.State with { Rows = nativeActionMemory.State.Rows.SetItem(actor.EncodeNativeSlot(), ImmutableArray.CreateRange(new byte?[8] { 0, 0, 0, 0, 0, 0, 0, 0 })) };
+        nativePresentationStatusMemory.State = nativePresentationStatusMemory.State.Observe(actor.EncodeNativeSlot(), new(0, 0));
         actor.NativePendingReaction = new(0, 0);
         actor.NativeReturnDamage = 0;
         actor.NativeRemainingHits = 0;
@@ -177,9 +178,9 @@ public sealed partial class BattleSession
     {
         BattleEncounterAllocationState batch = encounterAllocation!;
         BattleCombatant actor = GetActor(batch.ActorIds[batch.LoadingIndex]);
-        nativeLastAllocatedIndex = actor.NativeIndex;
+        nativeLastAllocatedIndex = actor.EncodeNativeSlot();
         nativeScriptState = nativeScriptState with { AllocationControl = new(checked((byte)actor.SceneSlot!.Value), true, true) };
-        graphics = QueueNativeDescriptor(graphics, 102, NativeParticipantAddress(actor.NativeIndex), checked((ushort)actor.NativeIndex), checked((ushort)(actor.ModelId + 16)));
+        graphics = QueueNativeDescriptor(graphics, 102, NativeParticipantAddress(actor.EncodeNativeSlot()), checked((ushort)actor.EncodeNativeSlot()), checked((ushort)(actor.ModelId + 16)));
         return QueueNativeDescriptor(graphics, 113, 0x48AD10);
     }
 
@@ -187,7 +188,7 @@ public sealed partial class BattleSession
     {
         BattleEncounterAllocationState batch = encounterAllocation!;
         BattleCombatant actor = GetActor(batch.ActorIds[batch.LoadingIndex]);
-        if (actor.NativeAllocationPendingStatistics || graphics.Models[actor.NativeIndex].EffectCounter97 != 2 || (graphics.Models[actor.NativeIndex].Flags0 & 2) == 0)
+        if (actor.NativeAllocationPendingStatistics || graphics.Models[actor.EncodeNativeSlot()].EffectCounter97 != 2 || (graphics.Models[actor.EncodeNativeSlot()].Flags0 & 2) == 0)
         {
             throw new InvalidDataException("Encounter allocation reached completion before its resolved statistics and model were loaded.");
         }
@@ -207,7 +208,7 @@ public sealed partial class BattleSession
         }
         foreach (string id in batch.ActorIds)
         {
-            NativeBattleGraphicsModel model = graphics.Models[GetActor(id).NativeIndex];
+            NativeBattleGraphicsModel model = graphics.Models[GetActor(id).EncodeNativeSlot()];
             if ((model.Flags0 & 2) == 0 || model.EffectCounter97 != 2 || model.Flags2 is not ushort flags || (flags & 0x84) != 0 || model.Kind5 != 0 || model.SequenceState is not { } sequence || model.Sequence != sequence.Default2)
             {
                 return graphics;
@@ -234,7 +235,7 @@ public sealed partial class BattleSession
         {
             foreach (string id in batch.ActorIds)
             {
-                int index = GetActor(id).NativeIndex;
+                int index = GetActor(id).EncodeNativeSlot();
                 graphics = graphics with { Models = graphics.Models.SetItem(index, graphics.Models[index] with { Flags0 = (ushort)(graphics.Models[index].Flags0 & ~4) }) };
             }
             NativeGraphics = graphics;
@@ -282,7 +283,9 @@ public sealed partial class BattleSession
         }
         foreach (NativeBattleEnemyAllocation allocation in nativeAllocations.Skip(rollback.NativeAllocations.Length).ToArray())
         {
-            combatants.Remove(byId[allocation.Id]);
+            BattleCombatant actor = byId[allocation.Id];
+            combatants.Remove(actor);
+            enemies.Remove(actor);
             byId.Remove(allocation.Id);
         }
         nativeAllocations.RemoveRange(rollback.NativeAllocations.Length, nativeAllocations.Count - rollback.NativeAllocations.Length);

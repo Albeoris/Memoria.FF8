@@ -18,12 +18,12 @@ public sealed partial class BattleSession
         byte bank = nativeCommand is 5 or 11 or 14 or 15 or 16 or 17 or 18 or 19 or 20 or 21 or 22 or 254 ? (byte)1 : (byte)2;
         ushort id = checked((ushort)(command.Ability == BattleAbility.GuardianForce ? command.ActionId + 64 : command.NativeRenzokuken is not null || command.NativeDuel is not null ? 0 : command.NativeAction?.ActionId ?? command.ActionId));
         byte flags2 = command.Ability == BattleAbility.Draw ? command.DrawCast ? (byte)9 : (byte)10 : (byte)0;
-        byte flags3 = command.Ability == BattleAbility.Draw ? checked((byte)GetActor(command.TargetId).NativeIndex) : (byte)0;
+        byte flags3 = command.Ability == BattleAbility.Draw ? checked((byte)GetActor(command.TargetId).EncodeNativeSlot()) : (byte)0;
         string selected = command.DrawCast ? command.DrawCastTargetId! : command.TargetId;
-        ushort mask = command.NativeTargetMask != 0 ? command.NativeTargetMask : checked((ushort)(1 << GetActor(selected).NativeIndex));
+        ushort mask = command.NativeTargetMask != 0 ? command.NativeTargetMask : checked((ushort)(1 << GetActor(selected).EncodeNativeSlot()));
         ushort[] targets = command.NativeSlots is { } slots ? Enumerable.Repeat(mask, slots.Repetitions).ToArray() : command.NativeMagicTargets.IsDefaultOrEmpty ? [mask] : command.NativeMagicTargets.ToArray();
         (NativeBattleCommandBanks state, NativeBattleCommandLocation location) = nativeCommandBanks.Allocate(bank);
-        state = state.WriteCommand(location, 0, checked((byte)actor.NativeIndex), nativeCommand, flags2, flags3, id, targets);
+        state = state.WriteCommand(location, 0, checked((byte)actor.EncodeNativeSlot()), nativeCommand, flags2, flags3, id, targets);
         return state.BindCommand(location, 0, command);
     }
 
@@ -36,7 +36,7 @@ public sealed partial class BattleSession
         }
         NativeBattleCommandLocation? location = nativeCommandBanks.FirstEligible(index =>
         {
-            BattleCombatant actor = combatants.Single(candidate => candidate.NativeIndex == index);
+            BattleCombatant actor = combatants.Single(candidate => candidate.EncodeNativeSlot() == index);
             return (NativeSavedStatusBits(actor) & 4) != 0 || (NativeBattleStatusBits(actor) & 9) != 0;
         });
         if (location is null)
@@ -47,13 +47,13 @@ public sealed partial class BattleSession
         NativeBattleCommandPacket packet = bank.Packets[2 * location.Slot];
         if (packet.ReadByte(1) == 255)
         {
-            BattleCombatant actor = combatants.Single(candidate => candidate.NativeIndex == packet.ReadByte(0));
+            BattleCombatant actor = combatants.Single(candidate => candidate.EncodeNativeSlot() == packet.ReadByte(0));
             command = new(actor.Id, actor.Id, BattleAbility.EnemyAbility, 0) { NativeCallback = new(packet.ReadByte(0), packet.ReadWord(4)) };
         }
         else
         {
             command = bank.LogicalCommands[2 * location.Slot] ?? throw new NotSupportedException("Native485610 packet requires its immutable action binding.");
-            if (packet.ReadByte(0) != GetActor(command.ActorId).NativeIndex)
+            if (packet.ReadByte(0) != GetActor(command.ActorId).EncodeNativeSlot())
             {
                 throw new InvalidDataException("Native485610 binding contradicts its physical actor BYTE.");
             }
@@ -85,7 +85,7 @@ public sealed partial class BattleSession
         }
         BattleCombatant actor = GetActor(command.ActorId);
         ushort[] targets = command.NativeMagicTargets.IsDefaultOrEmpty ? [command.NativeTargetMask] : command.NativeMagicTargets.ToArray();
-        nativeCommandBanks = nativeCommandBanks.WriteCommand(location, 1, checked((byte)actor.NativeIndex), command.NativeQueuedCommand ?? command.NativeAction!.Command, 0, 0, checked((byte)(command.NativeAction?.ActionId ?? command.ActionId)), targets).BindCommand(location, 1, command);
+        nativeCommandBanks = nativeCommandBanks.WriteCommand(location, 1, checked((byte)actor.EncodeNativeSlot()), command.NativeQueuedCommand ?? command.NativeAction!.Command, 0, 0, checked((byte)(command.NativeAction?.ActionId ?? command.ActionId)), targets).BindCommand(location, 1, command);
         return true;
     }
 
@@ -132,7 +132,7 @@ public sealed partial class BattleSession
 
     private void RemoveNativeQueuedActorCommands(BattleCombatant actor)
     {
-        byte index = checked((byte)actor.NativeIndex);
+        byte index = checked((byte)actor.EncodeNativeSlot());
         foreach (BattleAttackCommand command in nativeCommandBanks.Banks.Skip(1).SelectMany(bank => Enumerable.Range(0, 11).Where(slot => bank.Packets[2 * slot].ReadByte(0) == index).SelectMany(slot => bank.LogicalCommands.Skip(2 * slot).Take(2))).OfType<BattleAttackCommand>())
         {
             RefundCancelledNativeItem(command);
@@ -187,7 +187,7 @@ public sealed partial class BattleSession
                     }
                     continue;
                 }
-                if (physical.ReadByte(0) != GetActor(command.ActorId).NativeIndex)
+                if (physical.ReadByte(0) != GetActor(command.ActorId).EncodeNativeSlot())
                 {
                     throw new InvalidDataException("Saved native command binding contradicts its physical actor BYTE.");
                 }

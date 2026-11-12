@@ -37,19 +37,19 @@ public sealed partial class BattleSession
         foreach (NativeBattleEnemyAllocation allocation in nativeAllocations.Where(allocation => allocation.EncounterBatchId is not null && allocation.Retirement is null).ToArray())
         {
             BattleCombatant actor = GetActor(allocation.Id);
-            if (!actor.IsActive || actor.IsAlive || actor.NativeIndex is < 3 or > 6)
+            if (!actor.IsActive || actor.IsAlive || actor.EncodeNativeSlot() is < 3 or > 6)
             {
                 continue;
             }
             // A copy retains the source's body sequences, but not its scripted boss death callback.
             // Finish every accepted contact and effect before releasing this summoned allocation through105.
-            if (NativeGraphics is { } graphics && new EncounterAllocationRetirement(actor.NativeIndex).HasAcceptedConsumers(actor.Id, nativeActionPackets, graphics, ActiveAction, NativeEffectMemory?.DetachedReturnedTask))
+            if (NativeGraphics is { } graphics && new EncounterAllocationRetirement(actor.EncodeNativeSlot()).HasAcceptedConsumers(actor.Id, nativeActionPackets, graphics, ActiveAction, NativeEffectMemory?.DetachedReturnedTask))
             {
                 continue;
             }
             RemoveNativeQueuedActorCommands(actor);
             RemoveEncounterQueuedActions([actor.Id]);
-            nativeCommandBanks = nativeCommandBanks.RemoveActorCallbacks(checked((byte)actor.NativeIndex), actor.Id).RemoveAllocationCallbacks(actor.Id);
+            nativeCommandBanks = nativeCommandBanks.RemoveActorCallbacks(checked((byte)actor.EncodeNativeSlot()), actor.Id).RemoveAllocationCallbacks(actor.Id);
             ReleaseNativeParticipant(actor);
             RequestEncounterAllocationRetirement(actor);
             actor.IsBusy = false;
@@ -80,7 +80,7 @@ public sealed partial class BattleSession
         {
             return;
         }
-        int physical = actor.NativeIndex is >= 3 and <= 6 ? actor.NativeIndex : NativeGraphics?.ActorIds.IndexOf(actor.Id) ?? -1;
+        int physical = actor.EncodeNativeSlot() is >= 3 and <= 6 ? actor.EncodeNativeSlot() : NativeGraphics?.ActorIds.IndexOf(actor.Id) ?? -1;
         if (physical is < 3 or > 6 || NativeGraphics is { } graphics && (graphics.Models[physical].Flags0 & 3) == 0)
         {
             return;

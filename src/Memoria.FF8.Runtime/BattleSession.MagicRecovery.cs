@@ -16,7 +16,7 @@ public sealed partial class BattleSession
         }
         BattleActionDefinition[] spells = definition.ActionDefinitions.Where(action => action.Ability == BattleAbility.Magic && action.Available && GetAvailableMagicCasts(actorId, action.Id) > 0).ToArray();
         List<(BattleActionDefinition Action, BattleCombatant Target, int Removed, double Revived, BattleDamageForecast? Healing)> candidates = [];
-        foreach (BattleCombatant target in combatants.Where(target => target.IsPlayer == actor.IsPlayer).OrderBy(target => target.NativeIndex))
+        foreach (BattleCombatant target in combatants.Where(target => target.IsPlayer == actor.IsPlayer).OrderBy(target => target.EncodeNativeSlot()))
         {
             foreach (BattleActionDefinition action in spells.OrderBy(action => action.Id))
             {
@@ -39,17 +39,17 @@ public sealed partial class BattleSession
                 }
             }
         }
-        var revival = candidates.Where(candidate => candidate.Revived > 0).OrderByDescending(candidate => candidate.Revived).ThenBy(candidate => candidate.Target.NativeIndex).ThenBy(candidate => candidate.Action.Id).FirstOrDefault();
+        var revival = candidates.Where(candidate => candidate.Revived > 0).OrderByDescending(candidate => candidate.Revived).ThenBy(candidate => candidate.Target.EncodeNativeSlot()).ThenBy(candidate => candidate.Action.Id).FirstOrDefault();
         if (revival.Action is not null)
         {
             return new(revival.Action.Id, revival.Target.Id, revival.Revived, 1);
         }
-        var status = candidates.Where(candidate => candidate.Removed > 0).OrderByDescending(candidate => candidate.Removed).ThenBy(candidate => candidate.Target.NativeIndex).ThenBy(candidate => candidate.Action.Id).FirstOrDefault();
+        var status = candidates.Where(candidate => candidate.Removed > 0).OrderByDescending(candidate => candidate.Removed).ThenBy(candidate => candidate.Target.EncodeNativeSlot()).ThenBy(candidate => candidate.Action.Id).FirstOrDefault();
         if (status.Action is not null)
         {
             return new(status.Action.Id, status.Target.Id);
         }
-        var injured = candidates.Where(candidate => candidate.Healing?.ExpectedDamage > 0).OrderByDescending(candidate => candidate.Target.MaximumHp - candidate.Target.CurrentHp).ThenBy(candidate => candidate.Target.NativeIndex).FirstOrDefault();
+        var injured = candidates.Where(candidate => candidate.Healing?.ExpectedDamage > 0).OrderByDescending(candidate => candidate.Target.MaximumHp - candidate.Target.CurrentHp).ThenBy(candidate => candidate.Target.EncodeNativeSlot()).FirstOrDefault();
         if (injured.Action is null)
         {
             return null;
@@ -91,7 +91,7 @@ public sealed partial class BattleSession
                     return 0;
                 }
                 damage = native.AttackType == 32 ? -native.Power * target.MaximumHp / 16 : native.AttackType == 25 ? -(actor.MaximumHp - ReadNativeRecoverSourceHp(actor)) : -50 * native.Power;
-                if ((native.AttackFlags & 3) == 2 && actor.NativeIndex < 3)
+                if ((native.AttackFlags & 3) == 2 && actor.EncodeNativeSlot() < 3)
                 {
                     uint passives = actor.NativePlayerStatRules?.NativeStatusPassiveFlags ?? throw new NotSupportedException("Native item healing requires the equipped character-ability flags.");
                     if ((passives & 2) != 0)

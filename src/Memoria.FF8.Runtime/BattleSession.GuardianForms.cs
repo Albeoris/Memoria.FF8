@@ -75,7 +75,7 @@ public sealed partial class BattleSession
         }
         if (nativePartyPresentation is not null)
         {
-            _ = RequireNativePartyPresentedRow(actor.NativeIndex);
+            _ = RequireNativePartyPresentedRow(actor.EncodeNativeSlot());
         }
         PrepareGuardianFormPresentation(actor, guardianForceId);
         if (NativeGraphics is null)
@@ -119,7 +119,7 @@ public sealed partial class BattleSession
             throw new InvalidOperationException("GF form action has an unavailable actor or target.");
         }
         bool finisher = policy.Terminal;
-        ushort mask = policy.Source == BattleGuardianFormActionSource.Physical ? checked((ushort)(1 << target.NativeIndex)) : finisher ? NativeAutomaticActionTargetMask(native.TargetFlags ?? throw new NotSupportedException("GF finisher requires original target rules.")) : NativeBattleLimitRules.PlayerTargetMask(native.TargetFlags ?? throw new NotSupportedException("GF spell requires original target rules."), target.NativeIndex);
+        ushort mask = policy.Source == BattleGuardianFormActionSource.Physical ? checked((ushort)(1 << target.EncodeNativeSlot())) : finisher ? NativeAutomaticActionTargetMask(native.TargetFlags ?? throw new NotSupportedException("GF finisher requires original target rules.")) : NativeBattleLimitRules.PlayerTargetMask(native.TargetFlags ?? throw new NotSupportedException("GF spell requires original target rules."), target.EncodeNativeSlot());
         BattleAttackCommand command = new(actor.Id, target.Id, action.Ability, action.Id)
         {
             NativeAction = finisher ? null : native,
@@ -199,7 +199,7 @@ public sealed partial class BattleSession
         if (NativeGraphics is not null)
         {
             SetNativeActionEvent(actor, 1);
-            nativeActionScratch = nativeActionScratch with { Command = 254, Action = checked((ushort)(64 + form.GuardianForceId)), ActorIndex = checked((byte)actor.NativeIndex) };
+            nativeActionScratch = nativeActionScratch with { Command = 254, Action = checked((ushort)(64 + form.GuardianForceId)), ActorIndex = checked((byte)actor.EncodeNativeSlot()) };
             QueueNativeActionClockCompletion(0x47DE70);
         }
         else
@@ -345,8 +345,8 @@ public sealed partial class BattleSession
     {
         if (nativePartyPresentation is { } presentation)
         {
-            NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(actor.NativeIndex);
-            nativePartyPresentation = presentation with { Rows = presentation.Rows.SetItem(actor.NativeIndex, row with { HitPoints = checked((ushort)actor.CurrentHp), MaximumHitPoints = checked((ushort)actor.MaximumHp), DisplayedHitPointsQ12 = actor.CurrentHp << 12 }) };
+            NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(actor.EncodeNativeSlot());
+            nativePartyPresentation = presentation with { Rows = presentation.Rows.SetItem(actor.EncodeNativeSlot(), row with { HitPoints = checked((ushort)actor.CurrentHp), MaximumHitPoints = checked((ushort)actor.MaximumHp), DisplayedHitPointsQ12 = actor.CurrentHp << 12 }) };
         }
     }
 
@@ -430,7 +430,7 @@ public sealed partial class BattleSession
         {
             return;
         }
-        if (contact.CommittingSecondary && contact.Secondary is { } secondary && secondary.ActorIndex == actor.NativeIndex)
+        if (contact.CommittingSecondary && contact.Secondary is { } secondary && secondary.ActorIndex == actor.EncodeNativeSlot())
         {
             contact.Secondary = secondary with { HitFlags3 = (byte)(secondary.HitFlags3 | 0x20) };
         }
@@ -506,7 +506,7 @@ public sealed partial class BattleSession
             presentation.Validate();
             BattleGuardianFormState owner = GetGuardianForm(presentation.ActorId) ?? throw new InvalidDataException("Saved GF presentation lacks its logical form owner.");
             bool queuedFinisher = owner.Phase == BattleGuardianFormPhase.Finishing && presentation.Mode == GuardianFormInvocationMode.EntryOnly && presentation.Phase == 3 && QueuedActions.Any(command => command.ActorId == owner.ActorId && command.NativeHeaderIndex is null && command.GuardianFormInvocation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry } invocation && invocation.Id == owner.InvocationId);
-            if (owner.InvocationId != presentation.InvocationId || GetActor(owner.ActorId).NativeIndex != presentation.ActorIndex || owner.Phase == BattleGuardianFormPhase.Entering && presentation.Mode != GuardianFormInvocationMode.EntryOnly || owner.Phase == BattleGuardianFormPhase.Finishing && presentation.Mode != GuardianFormInvocationMode.FinisherWithoutEntry && !queuedFinisher)
+            if (owner.InvocationId != presentation.InvocationId || GetActor(owner.ActorId).EncodeNativeSlot() != presentation.ActorIndex || owner.Phase == BattleGuardianFormPhase.Entering && presentation.Mode != GuardianFormInvocationMode.EntryOnly || owner.Phase == BattleGuardianFormPhase.Finishing && presentation.Mode != GuardianFormInvocationMode.FinisherWithoutEntry && !queuedFinisher)
             {
                 throw new InvalidDataException("Saved GF presentation differs from its logical invocation.");
             }

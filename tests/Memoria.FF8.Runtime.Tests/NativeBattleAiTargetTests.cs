@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleAiTargetTests
@@ -106,6 +108,37 @@ public sealed class NativeBattleAiTargetTests
         Assert.Equal((byte)7, battle.ActiveAction.NativeSequence);
     }
 
+    [Fact]
+    public void DirectAiTargetKeepsTheFourthEnemySlotAndContactAcrossJsonRestore()
+    {
+        BattleSession battle = Create([43, 6], fullRosters: true);
+        BattleSnapshot snapshot = battle.Capture();
+        BattleCombatant[] actors = battle.Combatants.ToArray();
+        Assert.Equal(new[] { 0, 3, 1, 4, 2, 5, 6 }, actors.Select(actor => actor.EncodeNativeSlot()));
+        Assert.Equal(BattleRosterSlot.Ally(2), actors[4].Slot);
+        Assert.Equal(BattleRosterSlot.Enemy(3), actors[6].Slot);
+        Assert.Equal((ushort)0x40, ReadPublishedTargetMask(snapshot));
+        int header = snapshot.ActiveAction?.NativeHeaderIndex ?? Assert.Single(snapshot.QueuedActions, action => action.NativeHeaderIndex is not null).NativeHeaderIndex!.Value;
+        NativeBattleContactPacket contact = Assert.Single(snapshot.NativeActionPackets!.ReadHeaderContacts506BA0(header));
+        Assert.Equal((byte)6, contact.Primary.ActorIndex);
+
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
+        Assert.Equal(actors.Select(actor => actor.Slot), restored.Combatants.Select(actor => actor.Slot));
+        Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(restored.Capture()));
+        battle.Tick();
+        restored.Tick();
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+    }
+
+    [Fact]
+    public void ExtraRosterSlotsCannotAliasOriginalActors()
+    {
+        Assert.Null(NativeBattleSlots.TryEncode(BattleRosterSlot.Ally(3)));
+        Assert.Null(NativeBattleSlots.TryEncode(BattleRosterSlot.Enemy(4)));
+        Assert.Throws<NotSupportedException>(() => NativeBattlePhysicalTargets.Single(BattleRosterSlot.Ally(3)));
+        Assert.Equal(BattleRosterSlot.Enemy(0), NativeBattleSlots.Decode(3));
+    }
+
     private static ushort ReadPublishedTargetMask(BattleSnapshot snapshot)
     {
         Assert.Equal((byte)1, snapshot.NativeActionPackets!.ActionCount);
@@ -115,7 +148,7 @@ public sealed class NativeBattleAiTargetTests
         return active ? snapshot.ActiveAction!.NativeTargetMask : Assert.Single(queued).NativeTargetMask;
     }
 
-    private static BattleSession Create(byte[] select, ushort partyStatus = 0, int partyHp = 100)
+    private static BattleSession Create(byte[] select, ushort partyStatus = 0, int partyHp = 100, bool fullRosters = false)
     {
         byte[] initial = [.. select, 3, 1, 6, 0];
         NativeBattleAiDefinition ai = new([initial, [0], [0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray(), 0, []);
@@ -135,6 +168,23 @@ public sealed class NativeBattleAiTargetTests
                 new() { Id = "enemy", Name = "Enemy", ModelId = 1, MaximumHp = 500, CurrentHp = 500, Attack = 200, NativeAi = ai }
             ]
         };
+        if (fullRosters)
+        {
+            BattleCombatantDefinition ally = definition.Combatants[0];
+            BattleCombatantDefinition enemy = definition.Combatants[1];
+            definition = definition with
+            {
+                Combatants = [
+                    ally,
+                    enemy,
+                    ally with { Id = "party-2" },
+                    enemy with { Id = "enemy-2", NativeAi = null },
+                    ally with { Id = "party-3" },
+                    enemy with { Id = "enemy-3", NativeAi = null },
+                    enemy with { Id = "enemy-4", NativeAi = null }
+                ]
+            };
+        }
         BattleSession battle = new(definition, BattleAtbMode.Normal);
         battle.Tick();
         return battle;

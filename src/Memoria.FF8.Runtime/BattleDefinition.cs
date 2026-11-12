@@ -543,37 +543,42 @@ public sealed partial class BattleCombatant
     internal NativeBattleActionMemoryOwner? NativeActionMemoryOwner { get; set; }
     internal byte? LastNativeHealing
     {
-        get => NativeActionMemoryOwner?.State.Healing(NativeIndex);
+        get => NativeActionMemoryOwner?.State.Healing(EncodeNativeSlot());
         set
         {
             NativeBattleActionMemoryOwner owner = NativeActionMemoryOwner ?? throw new InvalidOperationException("Native healing memory has no bound physical bank.");
-            owner.State = owner.State.WithHealing(NativeIndex, value);
+            owner.State = owner.State.WithHealing(EncodeNativeSlot(), value);
         }
     }
     internal bool NativeAllocationPendingStatistics { get; set; }
     internal NativeBattleLastAction? LastNativeAction
     {
-        get => NativeActionMemoryOwner?.State.Action(NativeIndex);
+        get => NativeActionMemoryOwner?.State.Action(EncodeNativeSlot());
         set
         {
             NativeBattleActionMemoryOwner owner = NativeActionMemoryOwner ?? throw new InvalidOperationException("Native action memory has no bound physical bank.");
-            owner.State = owner.State.WithAction(NativeIndex, value);
+            owner.State = owner.State.WithAction(EncodeNativeSlot(), value);
         }
     }
     internal ushort NativePreviousTargetMask { get; set; }
     internal byte? NativeDrawnSpell { get; set; }
     internal BattleAbility? LastAttackerAbility { get; set; }
     internal bool AiDeathHandled { get; set; }
-    private int nativeIndex = -1;
-    internal int NativeIndex
+    internal BattleSide Side => IsPlayer ? BattleSide.Allies : BattleSide.Enemies;
+    internal BattleRosterSlot? Slot { get; private set; }
+
+    internal void BindRosterSlot(BattleRosterSlot? slot)
     {
-        get => nativeIndex;
-        set
+        if (slot is { } assigned && assigned.Side != Side)
         {
-            nativePresentationStatus = NativePresentationStatus;
-            nativeIndex = value;
+            throw new InvalidDataException("The battle slot belongs to a different side.");
         }
+        nativePresentationStatus = NativePresentationStatus;
+        Slot = slot;
     }
+
+    internal int EncodeNativeSlot() => NativeBattleSlots.Encode(Slot);
+
     internal int? ResolvedNativeLevel { get; set; }
     internal byte[] NativeStatMultipliers { get; } = [10, 10, 10, 10, 10, 10];
 

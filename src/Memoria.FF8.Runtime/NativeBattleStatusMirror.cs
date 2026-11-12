@@ -20,14 +20,14 @@ public sealed partial class BattleCombatant
     internal NativeBattlePresentationStatusMemoryOwner? NativePresentationStatusOwner { get; set; }
     internal NativeBattleStatusMirror NativePresentationStatus
     {
-        get => NativePresentationStatusOwner is { } owner && NativeIndex is >= 0 and < NativeBattlePresentationStatusMemory.PhysicalCount ? owner.State.Rows[NativeIndex] : nativePresentationStatus;
+        get => NativePresentationStatusOwner is { } owner && EncodeNativeSlot() is >= 0 and < NativeBattlePresentationStatusMemory.PhysicalCount ? owner.State.Rows[EncodeNativeSlot()] : nativePresentationStatus;
         set
         {
             value.Validate();
             nativePresentationStatus = value;
-            if (NativePresentationStatusOwner is { } owner && NativeIndex is >= 0 and < NativeBattlePresentationStatusMemory.PhysicalCount)
+            if (NativePresentationStatusOwner is { } owner && EncodeNativeSlot() is >= 0 and < NativeBattlePresentationStatusMemory.PhysicalCount)
             {
-                owner.State = owner.State.Observe(NativeIndex, value);
+                owner.State = owner.State.Observe(EncodeNativeSlot(), value);
             }
         }
     }

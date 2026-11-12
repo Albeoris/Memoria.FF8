@@ -68,7 +68,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidOperationException("Every selected magic target must satisfy the original spell's target contract.");
             }
-            masks.Add(NativeBattleLimitRules.PlayerTargetMask(flags, target.NativeIndex));
+            masks.Add(NativeBattleLimitRules.PlayerTargetMask(flags, target.EncodeNativeSlot()));
         }
         return masks.MoveToImmutable();
     }
@@ -99,7 +99,7 @@ public sealed partial class BattleSession
                 break;
             }
             ushort mask = command.NativeMagicTargets[index];
-            BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.IsActive && candidate.NativeIndex >= 0 && (mask & (1 << candidate.NativeIndex)) != 0) ?? byId[command.TargetId];
+            BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.IsActive && candidate.EncodeNativeSlot() >= 0 && (mask & (1 << candidate.EncodeNativeSlot())) != 0) ?? byId[command.TargetId];
             if (!target.IsAlive && (command.SmartAttack is not null || !combatants.Any(candidate => candidate.IsActive && candidate.IsAlive && !candidate.Untargetable && candidate.IsPlayer == target.IsPlayer)))
             {
                 break;

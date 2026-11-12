@@ -23,24 +23,24 @@ public sealed partial class BattleSession
         if (miniMogFailed)
         {
             NativeBattleActionDataReference title = new(0x47EBD0, 38) { FormattedText = definition.NativeCommandNames.ElementAtOrDefault(38) };
-            return new(checked((byte)actor.NativeIndex), 0, 10, -1, 9, 0, title);
+            return new(checked((byte)actor.EncodeNativeSlot()), 0, 10, -1, 9, 0, title);
         }
         if (NativeMagicInvocationSilenced(actor, command, native))
         {
             NativeBattleActionDataReference title = new(0x47E970, native.ActionId) { FormattedText = native.Name };
-            return new(checked((byte)actor.NativeIndex), 0, 10, -1, 9, 0, title);
+            return new(checked((byte)actor.EncodeNativeSlot()), 0, 10, -1, 9, 0, title);
         }
         if (NativeSpecialInvocationFailed(command, native))
         {
             ushort message = native.AttackType == 17 ? (ushort)50 : (ushort)112;
             NativeBattleActionDataReference title = new(0x47EC70, message) { FormattedText = NativeBattleGlobalText(message) };
-            return new(checked((byte)actor.NativeIndex), 0, 10, -1, 9, 0, title);
+            return new(checked((byte)actor.EncodeNativeSlot()), 0, 10, -1, 9, 0, title);
         }
         if (command.IndependentGuardian?.FailureMessage is not null)
         {
             BattleActionDefinition item = FindAction(BattleAbility.Item, command.ActionId);
             NativeBattleActionDataReference title = new(0x47EA30, checked((ushort)command.ActionId)) { FormattedText = item.NativeAction?.Name ?? item.Name };
-            return new(checked((byte)actor.NativeIndex), 0, 10, -1, 9, 0, title);
+            return new(checked((byte)actor.EncodeNativeSlot()), 0, 10, -1, 9, 0, title);
         }
         if (command.NativeDraw is { } draw)
         {
@@ -49,7 +49,7 @@ public sealed partial class BattleSession
             ushort drawAction = draw.Failed ? (ushort)9 : draw.Selection;
             ushort drawEffect = draw.Failed ? (ushort)0 : command.DrawCast ? native.MagicId : (ushort)15;
             NativeBattleActionDataReference drawTitle = command.DrawCast && !draw.Failed ? new(0x495280, 0) { FormattedText = NativeDrawResultText(actor, draw, true) } : new(0x47EBD0, 6) { FormattedText = definition.NativeCommandNames.ElementAtOrDefault(6) };
-            return new(checked((byte)actor.NativeIndex), drawCommand, drawSequence, -1, drawAction, drawEffect, drawTitle);
+            return new(checked((byte)actor.EncodeNativeSlot()), drawCommand, drawSequence, -1, drawAction, drawEffect, drawTitle);
         }
         byte original = NativeHeaderCommand(actor, command, native);
         byte sequence = ResolveNativeDispatchSequence(actor, original, command.NativeSequence ?? 0, native.ActionId);
@@ -142,7 +142,7 @@ public sealed partial class BattleSession
         {
             data = data with { FormattedText = ResolveNativeActionHeaderName(data, native) };
         }
-        return new(checked((byte)actor.NativeIndex), original, sequence, camera, action, effect, data);
+        return new(checked((byte)actor.EncodeNativeSlot()), original, sequence, camera, action, effect, data);
     }
 
     private byte ResolveNativeDispatchSequence(BattleCombatant actor, byte command, byte supplied, ushort action)
@@ -152,7 +152,7 @@ public sealed partial class BattleSession
         {
             sequence = GuardianFormResources(form.GuardianForceId).PhysicalSequence;
         }
-        if (actor.NativeIndex < 3 && actor.GuardianFormVitals is null)
+        if (actor.EncodeNativeSlot() < 3 && actor.GuardianFormVitals is null)
         {
             sequence = NativeBattleActionGraphics.ResolvePlayerSequence(command, supplied, action, definition.NativeCommandSequences);
         }
@@ -210,7 +210,7 @@ public sealed partial class BattleSession
 
     private void ValidateNativeHeaderReference(BattleCombatant actor, int? headerIndex)
     {
-        ValidateNativeHeaderReference(actor.NativeIndex, headerIndex);
+        ValidateNativeHeaderReference(actor.EncodeNativeSlot(), headerIndex);
     }
 
     private void ValidateNativeHeaderReference(int actorIndex, int? headerIndex)

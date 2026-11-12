@@ -50,7 +50,7 @@ public sealed partial class BattleSession
     private (long Serial, int Stage, string Sha)? diagnosticCounterAiScope;
     private bool ObservingDiagnosticCounter => DiagnosticCounterContactPublished is not null || DiagnosticCounterCallbackObserved is not null || DiagnosticCounterCommandQueued is not null;
 
-    private static BattleDiagnosticCounterActor CaptureDiagnosticCounterActor(BattleCombatant actor) => new(actor.Id, checked((byte)actor.NativeIndex), actor.ModelId, actor.CurrentHp, actor.IsActive, actor.NativeCombatantFlags, actor.LastNativeAction, actor.NativePendingReaction, actor.AiVariables.ToImmutableArray()) { SavedStatuses = NativeSavedStatusBits(actor), BattleStatuses = NativeBattleStatusBits(actor) };
+    private static BattleDiagnosticCounterActor CaptureDiagnosticCounterActor(BattleCombatant actor) => new(actor.Id, checked((byte)actor.EncodeNativeSlot()), actor.ModelId, actor.CurrentHp, actor.IsActive, actor.NativeCombatantFlags, actor.LastNativeAction, actor.NativePendingReaction, actor.AiVariables.ToImmutableArray()) { SavedStatuses = NativeSavedStatusBits(actor), BattleStatuses = NativeBattleStatusBits(actor) };
 
     private void ResetDiagnosticCounterOwners()
     {
@@ -86,7 +86,7 @@ public sealed partial class BattleSession
             return;
         }
         byte queued = command.NativeQueuedCommand ?? native.Command;
-        BattleDiagnosticCounterPrimary primary = new(++diagnosticCounterPrimarySerial, NativeHostCallbacks ?? Frame, contact.Actor.Id, checked((byte)contact.Actor.NativeIndex), recipient.Id, checked((byte)recipient.NativeIndex), queued, native.ActionId, native.Command, hp.Before, hp.After, index, generation, CaptureDiagnosticCounterActor(recipient), contact.DiagnosticPreliminary);
+        BattleDiagnosticCounterPrimary primary = new(++diagnosticCounterPrimarySerial, NativeHostCallbacks ?? Frame, contact.Actor.Id, checked((byte)contact.Actor.EncodeNativeSlot()), recipient.Id, checked((byte)recipient.EncodeNativeSlot()), queued, native.ActionId, native.Command, hp.Before, hp.After, index, generation, CaptureDiagnosticCounterActor(recipient), contact.DiagnosticPreliminary);
         contact.DiagnosticPrimary = primary;
         diagnosticCounterPending[(primary.RecipientIndex, order)] = primary.Serial;
     }
@@ -150,8 +150,8 @@ public sealed partial class BattleSession
             return;
         }
         NativeBattleCommandPacket packet = nativeCommandBanks.Banks[location.Bank].Packets[2 * location.Slot];
-        long? primary = stage == 2 && pending is { Stage: 2, Order: byte order } && diagnosticCounterPending.Remove((checked((byte)actor.NativeIndex), order), out long serial) ? serial : null;
-        BattleDiagnosticCounterCallback queue = new(++diagnosticCounterQueueEpoch, NativeHostCallbacks ?? Frame, location with { }, checked((byte)actor.NativeIndex), stage, pending.Order, primary, ImmutableArray.CreateRange(packet.Bytes.AsSpan().ToArray()), packet.UnknownByteMask);
+        long? primary = stage == 2 && pending is { Stage: 2, Order: byte order } && diagnosticCounterPending.Remove((checked((byte)actor.EncodeNativeSlot()), order), out long serial) ? serial : null;
+        BattleDiagnosticCounterCallback queue = new(++diagnosticCounterQueueEpoch, NativeHostCallbacks ?? Frame, location with { }, checked((byte)actor.EncodeNativeSlot()), stage, pending.Order, primary, ImmutableArray.CreateRange(packet.Bytes.AsSpan().ToArray()), packet.UnknownByteMask);
         diagnosticCounterCallbacks[location] = queue;
         DiagnosticCounterCallbackObserved?.Invoke(new(BattleDiagnosticCounterCallbackPhase.Queued, NativeHostCallbacks ?? Frame, queue, CaptureDiagnosticCounterActor(actor)));
     }
@@ -174,7 +174,7 @@ public sealed partial class BattleSession
 
     private void ObserveDiagnosticCounterCallback(BattleCombatant actor, ushort stage, BattleDiagnosticCounterCallbackPhase phase)
     {
-        if (diagnosticCounterCurrentCallback is { } queue && queue.ActorIndex == actor.NativeIndex && queue.Stage == stage)
+        if (diagnosticCounterCurrentCallback is { } queue && queue.ActorIndex == actor.EncodeNativeSlot() && queue.Stage == stage)
         {
             DiagnosticCounterCallbackObserved?.Invoke(new(phase, NativeHostCallbacks ?? Frame, queue, CaptureDiagnosticCounterActor(actor)));
         }
@@ -194,6 +194,6 @@ public sealed partial class BattleSession
         {
             return;
         }
-        observer(new(NativeHostCallbacks ?? Frame, scope.Serial, queue.Epoch, checked((byte)scope.Stage), scope.Sha, actor.Id, checked((byte)actor.NativeIndex), queued, native.ActionId, native.MagicId, sequence, command.NativeTargetMask, selected, native.AttackFlags, header, generation));
+        observer(new(NativeHostCallbacks ?? Frame, scope.Serial, queue.Epoch, checked((byte)scope.Stage), scope.Sha, actor.Id, checked((byte)actor.EncodeNativeSlot()), queued, native.ActionId, native.MagicId, sequence, command.NativeTargetMask, selected, native.AttackFlags, header, generation));
     }
 }

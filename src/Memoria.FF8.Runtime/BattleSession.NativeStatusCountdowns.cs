@@ -45,7 +45,7 @@ public sealed partial class BattleSession
         ushort depth = projected.QuarterDepth;
         if ((flags & 0x60000) == 0)
         {
-            BattleCombatant actor = combatants.SingleOrDefault(candidate => candidate.NativeIndex == model.Index) ?? throw new NotSupportedException("Native50A410 requires the participant mapped to its physical graphics row.");
+            BattleCombatant actor = combatants.SingleOrDefault(candidate => candidate.EncodeNativeSlot() == model.Index) ?? throw new NotSupportedException("Native50A410 requires the participant mapped to its physical graphics row.");
             foreach (NativeBattleCountdownText text in NativeBattleStatusCountdowns.Layout50A410(statuses, unchecked((short)screen), unchecked((short)(screen >> 16)), depth, flags, actor.NativeStatusTimers[12], actor.NativeStatusTimers[10]))
             {
                 ui = ui.DrawString4A93D0(text.Glyphs, text.PackedPosition, text.Color, binding.IconCount, binding.Encode, binding.Opaque, binding.Semi, binding.Rules);

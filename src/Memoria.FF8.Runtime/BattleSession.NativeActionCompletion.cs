@@ -9,7 +9,7 @@ public sealed partial class BattleSession
         if (NativeGraphics is null && nativeTimedAction is null && ActiveAction?.NativeHeaderIndex is null && nativeActionScratch.ComponentCompletion is uint callback)
         {
             BattleAttackCommand[] queuedPresentations = eventActorId is not null && eventActorIndex is byte actorIndex ? CaptureNativeComponentEventPresentations(eventActorId, actorIndex) : [];
-            if (eventActorId is not null && GetActor(eventActorId).NativeIndex == eventActorIndex)
+            if (eventActorId is not null && GetActor(eventActorId).EncodeNativeSlot() == eventActorIndex)
             {
                 //Live component actors keep their declared presentation boundary; retired allocations finish at their observed event tail.
                 queuedPresentations = [];
@@ -57,7 +57,7 @@ public sealed partial class BattleSession
         FlushNativeReactions();
         nativeActionPackets = nativeActionPackets.ResetCounts();
         ResetDiagnosticReflectionHeaders();
-        foreach (BattleCombatant player in combatants.Where(actor => actor.NativeIndex is >= 0 and < 3 && actor.IsActive))
+        foreach (BattleCombatant player in combatants.Where(actor => actor.EncodeNativeSlot() is >= 0 and < 3 && actor.IsActive))
         {
             ReprojectNativePlayerStatistics(player);
         }

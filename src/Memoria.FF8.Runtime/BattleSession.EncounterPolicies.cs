@@ -45,7 +45,7 @@ public sealed partial class BattleSession
 
     private ImmutableArray<EncounterPolicyActor> EncounterPolicyCandidates()
     {
-        return combatants.Where(actor => actor.NativeIndex is >= 0 and < 7).Select(actor => new EncounterPolicyActor(actor.Id, EncounterRoleOf(actor.Id), actor.IsPlayer, actor.IsAlive, actor.IsActive, (NativeBattleStatusBits(actor) & 0x80) != 0, !actor.Untargetable, NativeBattleStatusBits(actor), NativeSavedStatusBits(actor))).ToImmutableArray();
+        return combatants.Where(actor => actor.EncodeNativeSlot() is >= 0 and < 7).Select(actor => new EncounterPolicyActor(actor.Id, EncounterRoleOf(actor.Id), actor.IsPlayer, actor.IsAlive, actor.IsActive, (NativeBattleStatusBits(actor) & 0x80) != 0, !actor.Untargetable, NativeBattleStatusBits(actor), NativeSavedStatusBits(actor))).ToImmutableArray();
     }
 
     private int NextEncounterRandomIndex(int count)
@@ -100,7 +100,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("A summon policy attempted to repeat an already admitted encounter allocation.");
             }
-            if (Enumerable.Range(3, 4).Count(index => !combatants.Any(candidate => candidate.NativeIndex == index && candidate.IsActive)) < decision.Spawns.Length)
+            if (Enumerable.Range(3, 4).Count(index => !combatants.Any(candidate => candidate.EncodeNativeSlot() == index && candidate.IsActive)) < decision.Spawns.Length)
             {
                 throw new InvalidDataException("The authored summon exceeds the available simultaneous enemy capacity.");
             }
@@ -109,7 +109,7 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("An atomic summon batch requires every template to inherit from its acting source allocation.");
             }
             BattleNativeAction control = CreateEncounterSummonControl();
-            BattleAttackCommand command = new(actor.Id, actor.Id, BattleAbility.EnemyAbility, 9) { NativeAiCallbackStage = 1, NativeQueuedCommand = 0, NativeSequence = mod.CastingSequence, NativeAction = control, NativeTargetMask = checked((ushort)(1 << actor.NativeIndex)) };
+            BattleAttackCommand command = new(actor.Id, actor.Id, BattleAbility.EnemyAbility, 9) { NativeAiCallbackStage = 1, NativeQueuedCommand = 0, NativeSequence = mod.CastingSequence, NativeAction = control, NativeTargetMask = checked((ushort)(1 << actor.EncodeNativeSlot())) };
             QueueEncounterNativeEvents(actor, decision.OwnTurn);
             EnqueueNativePacket(actor, command, "Summon");
             encounterPolicies = encounterPolicies with { PendingSummon = decision, Cursors = encounterPolicies.Cursors.SetItem(actor.Id, cursor.Admit()) };
@@ -146,7 +146,7 @@ public sealed partial class BattleSession
             ushort mask = 0;
             foreach (string id in cast.TargetIds)
             {
-                mask |= checked((ushort)(1 << GetActor(id).NativeIndex));
+                mask |= checked((ushort)(1 << GetActor(id).EncodeNativeSlot()));
             }
             return mask;
         }
@@ -181,7 +181,7 @@ public sealed partial class BattleSession
                 string id = preferred[NextEncounterRandomIndex(preferred.Length)];
                 available.Remove(id);
                 selected.Add(id);
-                masks.Add(checked((ushort)(1 << GetActor(id).NativeIndex)));
+                masks.Add(checked((ushort)(1 << GetActor(id).EncodeNativeSlot())));
             }
             targets = selected.Distinct(StringComparer.Ordinal).ToImmutableArray();
             firstMask = masks[0];
@@ -256,7 +256,7 @@ public sealed partial class BattleSession
 
     private BattleNativeAction ValidateEncounterSummonControl(BattleCombatant actor, string targetId, BattleAbility ability, int actionId, ushort targetMask)
     {
-        if (definition.EncounterMod is not { } mod || EncounterPolicyOf(actor) is not string policy || !mod.Policies[policy].Rules.Any(rule => rule.Action.Kind == EncounterCompiledActionKind.SummonGroup) || actor.Id != targetId || ability != BattleAbility.EnemyAbility || actionId != 9 || actor.NativeIndex is < 0 or >= 7 || targetMask != 1 << actor.NativeIndex)
+        if (definition.EncounterMod is not { } mod || EncounterPolicyOf(actor) is not string policy || !mod.Policies[policy].Rules.Any(rule => rule.Action.Kind == EncounterCompiledActionKind.SummonGroup) || actor.Id != targetId || ability != BattleAbility.EnemyAbility || actionId != 9 || actor.EncodeNativeSlot() is < 0 or >= 7 || targetMask != 1 << actor.EncodeNativeSlot())
         {
             throw new InvalidDataException("Saved encounter presentation control requires its declared SummonGroup policy and exact self target.");
         }
@@ -309,14 +309,14 @@ public sealed partial class BattleSession
         {
             NativeGraphics = graphics;
             List<EncounterArrivalTrack> tracks = [];
-            NativeBattleModelTransform original = graphics.Models[GetActor(batch.SourceActorId).NativeIndex].Transform ?? throw new InvalidDataException("Encounter arrival requires the source actor's native placement.");
+            NativeBattleModelTransform original = graphics.Models[GetActor(batch.SourceActorId).EncodeNativeSlot()].Transform ?? throw new InvalidDataException("Encounter arrival requires the source actor's native placement.");
             for (int index = 0; index < batch.ActorIds.Length; index++)
             {
                 EncounterCompiledSpawn spawn = summon.Spawns[index];
                 EncounterCompiledTemplate template = mod.Templates[spawn.Template];
                 EncounterCompiledPresentation presentation = mod.Presentations[template.Arrival];
                 EncounterCompiledPlacement placement = mod.Placements[spawn.Anchor];
-                int physical = GetActor(batch.ActorIds[index]).NativeIndex;
+                int physical = GetActor(batch.ActorIds[index]).EncodeNativeSlot();
                 NativeBattleVector Offset(NativeBattleVector value)
                 {
                     return new(checked((short)(value.X + (int)MathF.Round(placement.X))), checked((short)(value.Y + (int)MathF.Round(placement.Y))), checked((short)(value.Z + (int)MathF.Round(placement.Z))));
@@ -356,10 +356,10 @@ public sealed partial class BattleSession
         foreach (string id in retiring)
         {
             BattleCombatant actor = GetActor(id);
-            if (actor.NativeIndex is >= 0 and < 7)
+            if (actor.EncodeNativeSlot() is >= 0 and < 7)
             {
                 RemoveNativeQueuedActorCommands(actor);
-                nativeCommandBanks = nativeCommandBanks.RemoveActorCallbacks(checked((byte)actor.NativeIndex), actor.Id);
+                nativeCommandBanks = nativeCommandBanks.RemoveActorCallbacks(checked((byte)actor.EncodeNativeSlot()), actor.Id);
             }
             nativeCommandBanks = nativeCommandBanks.RemoveAllocationCallbacks(actor.Id);
             if (actor.IsActive)
@@ -369,10 +369,10 @@ public sealed partial class BattleSession
             RequestEncounterAllocationRetirement(actor);
             actor.IsBusy = false;
             actor.Atb = 0;
-            if (NativeGraphics is { } graphics && actor.NativeIndex is >= 0 and < 7)
+            if (NativeGraphics is { } graphics && actor.EncodeNativeSlot() is >= 0 and < 7)
             {
-                NativeBattleGraphicsModel model = graphics.Models[actor.NativeIndex];
-                NativeGraphics = graphics with { Models = graphics.Models.SetItem(actor.NativeIndex, model with { Flags0 = (ushort)(model.Flags0 | 4) }) };
+                NativeBattleGraphicsModel model = graphics.Models[actor.EncodeNativeSlot()];
+                NativeGraphics = graphics with { Models = graphics.Models.SetItem(actor.EncodeNativeSlot(), model with { Flags0 = (ushort)(model.Flags0 | 4) }) };
             }
         }
         RemoveEncounterQueuedActions(retiring);

@@ -8,19 +8,19 @@ public sealed partial class BattleSession
         switch (selector)
         {
             case 200:
-                return NativeAiIndexMask(actor.NativeIndex);
+                return NativeAiIndexMask(actor.EncodeNativeSlot());
             case 201:
-                if (!NativeTargetActors().Any(candidate => candidate.NativeIndex < 3 && candidate.IsActive && (NativeSavedStatusBits(candidate) & 5) == 0))
+                if (!NativeTargetActors().Any(candidate => candidate.Side == BattleSide.Allies && candidate.IsActive && (NativeSavedStatusBits(candidate) & 5) == 0))
                 {
                     return 0;
                 }
-                return PickNativeAiTarget(0, 3, candidate => (NativeSavedStatusBits(candidate) & 1) == 0);
+                return PickNativeAiTarget(BattleSide.Allies, candidate => (NativeSavedStatusBits(candidate) & 1) == 0);
             case 202:
-                if (!NativeTargetActors().Any(candidate => candidate.NativeIndex >= 3 && (NativeSavedStatusBits(candidate) & 5) == 0))
+                if (!NativeTargetActors().Any(candidate => candidate.Side == BattleSide.Enemies && (NativeSavedStatusBits(candidate) & 5) == 0))
                 {
                     return 8;
                 }
-                return PickNativeAiTarget(3, 4, candidate => (NativeSavedStatusBits(candidate) & 1) == 0);
+                return PickNativeAiTarget(BattleSide.Enemies, candidate => (NativeSavedStatusBits(candidate) & 1) == 0);
             case 203:
                 return NativeAiIndexMask(NativeConditionLastAttackerIndex(actor));
             case 204:
@@ -30,11 +30,11 @@ public sealed partial class BattleSession
             case 206:
                 return 0x80FF;
             case 207:
-                if (NativeTargetActors().Count(candidate => candidate.NativeIndex >= 3 && (NativeSavedStatusBits(candidate) & 1) == 0) == 1)
+                if (NativeTargetActors().Count(candidate => candidate.Side == BattleSide.Enemies && (NativeSavedStatusBits(candidate) & 1) == 0) == 1)
                 {
-                    return NativeAiIndexMask(actor.NativeIndex);
+                    return NativeAiIndexMask(actor.EncodeNativeSlot());
                 }
-                return PickNativeAiTarget(3, 4, candidate => candidate.NativeIndex != actor.NativeIndex && (NativeSavedStatusBits(candidate) & 1) == 0);
+                return PickNativeAiTarget(BattleSide.Enemies, candidate => candidate.EncodeNativeSlot() != actor.EncodeNativeSlot() && (NativeSavedStatusBits(candidate) & 1) == 0);
             case 208:
                 return 0xA007;
             case 209:
@@ -50,7 +50,7 @@ public sealed partial class BattleSession
     {
         //486E70 computes extrema over the physical group, then applies allocation/death and group filtering.
         BattleCombatant[] actors = NativeTargetActors().ToArray();
-        BattleCombatant[] range = actors.Where(candidate => (group == 200 ? candidate.NativeIndex < 3 : group != 201 || candidate.NativeIndex >= 3) && (NativeSavedStatusBits(candidate) & 1) == 0).ToArray();
+        BattleCombatant[] range = actors.Where(candidate => (group == 200 ? candidate.Side == BattleSide.Allies : group != 201 || candidate.Side == BattleSide.Enemies) && (NativeSavedStatusBits(candidate) & 1) == 0).ToArray();
         Func<BattleCombatant, bool> matches;
         if (criterion <= 9 || criterion is >= 16 and <= 42 or 46 or 47)
         {
@@ -90,28 +90,38 @@ public sealed partial class BattleSession
         }
         bool InGroup(BattleCombatant candidate)
         {
-            return group == 200 ? candidate.NativeIndex < 3 : group == 201 ? candidate.NativeIndex >= 3 : NativeModelId(candidate) == group;
+            return group == 200 ? candidate.Side == BattleSide.Allies : group == 201 ? candidate.Side == BattleSide.Enemies : NativeModelId(candidate) == group;
         }
         if (allTargets != 0)
         {
             ushort mask = 0x8000;
             foreach (BattleCombatant candidate in actors.Where(candidate => InGroup(candidate) && Eligible(candidate)))
             {
-                mask |= NativeAiIndexMask(candidate.NativeIndex);
+                mask |= NativeAiIndexMask(candidate.EncodeNativeSlot());
             }
             return mask;
         }
-        return PickNativeAiTarget(group == 201 ? 3 : 0, group == 200 ? 3 : group == 201 ? 4 : 7, candidate => InGroup(candidate) && Eligible(candidate));
+        return PickNativeAiTarget(group == 200 ? BattleSide.Allies : group == 201 ? BattleSide.Enemies : null, candidate => InGroup(candidate) && Eligible(candidate));
     }
+
+    private static bool HasNativeRosterSlot(BattleCombatant actor) =>
+        actor.Slot is { } slot && NativeBattleSlots.TryEncode(slot).HasValue;
 
     private IEnumerable<BattleCombatant> NativeTargetActors()
     {
-        return combatants.Where(candidate => candidate.NativeIndex is >= 0 and < 7);
+        return combatants.Where(HasNativeRosterSlot);
     }
 
-    private ushort PickNativeAiTarget(int first, int count, Func<BattleCombatant, bool> eligible)
+    private ushort PickNativeAiTarget(BattleSide? side, Func<BattleCombatant, bool> eligible)
     {
-        Dictionary<int, BattleCombatant> candidates = NativeTargetActors().Where(candidate => candidate.NativeIndex >= first && candidate.NativeIndex < first + count && eligible(candidate)).ToDictionary(candidate => candidate.NativeIndex);
+        HashSet<BattleRosterSlot> candidates = NativeTargetActors().Where(candidate => (side is null || candidate.Side == side) && eligible(candidate)).Select(candidate => candidate.Slot!.Value).ToHashSet();
+        int count = side switch
+        {
+            BattleSide.Allies => NativeBattleSlots.AllyCount,
+            BattleSide.Enemies => NativeBattleSlots.EnemyCount,
+            _ => NativeBattleSlots.Count
+        };
+        int first = side == BattleSide.Enemies ? NativeBattleSlots.AllyCount : 0;
         if (candidates.Count == 0)
         {
             throw new NotSupportedException("Native random target selection has no eligible physical slot and would not terminate.");
@@ -119,7 +129,7 @@ public sealed partial class BattleSession
         while (true)
         {
             int index = first + NextRandomByte() % count;
-            if (candidates.ContainsKey(index))
+            if (candidates.Contains(NativeBattleSlots.Decode(index)))
             {
                 return NativeAiIndexMask(index);
             }

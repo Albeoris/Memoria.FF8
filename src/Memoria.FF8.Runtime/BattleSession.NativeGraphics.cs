@@ -13,7 +13,7 @@ public sealed partial class BattleSession
         {
             targetMask |= 0x4000;
         }
-        BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.NativeIndex is >= 0 and < 16 && (targetMask & (1 << candidate.NativeIndex)) != 0) ?? actor;
+        BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.EncodeNativeSlot() is >= 0 and < 16 && (targetMask & (1 << candidate.EncodeNativeSlot())) != 0) ?? actor;
         BattleAttackCommand command = new(actor.Id, target.Id, BattleAbility.EnemyAbility, 1) { NativeAiCallbackStage = nativeAiCallbackStage, NativeQueuedCommand = 252, NativeSequence = sequence, NativeTargetMask = targetMask, NativeGraphic = new(magicId) };
         EnqueueNativePacket(actor, command, $"native graphics252/1 effect{magicId}");
     }

@@ -15,7 +15,7 @@ public sealed class SmartAttackDrawTests
         Assert.Equal(1, preview.CastCount);
         Assert.Equal("enemy", preview.TargetId);
         Assert.Equal("source", preview.DrawSourceId);
-        Assert.Equal(battle.Combatants.Single(actor => actor.Id == "source").NativeIndex, preview.DrawSourceIndex);
+        Assert.Equal(battle.Combatants.Single(actor => actor.Id == "source").EncodeNativeSlot(), preview.DrawSourceIndex);
         battle.QueueSmartAttack(preview);
         BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
         Assert.Equal(BattleAbility.Draw, queued.Ability);
@@ -226,7 +226,7 @@ public sealed class SmartAttackDrawTests
         }
         else
         {
-            source.NativeIndex = 7;
+            source.BindRosterSlot(BattleRosterSlot.Enemy(2));
         }
         battle.Tick();
         Assert.Equal(BattleAbility.Attack, battle.ActiveAction!.Ability);
@@ -241,10 +241,10 @@ public sealed class SmartAttackDrawTests
     {
         BattleSession battle = Create([Spell(1, 40)], []);
         BattleSmartAttackPreview original = battle.PreviewSmartAttack("party", "enemy");
-        battle.Combatants.Single(actor => actor.Id == "source").NativeIndex = 7;
+        battle.Combatants.Single(actor => actor.Id == "source").BindRosterSlot(BattleRosterSlot.Enemy(2));
         BattleSmartAttackPreview changed = battle.PreviewSmartAttack("party", "enemy");
         Assert.Equal(BattleAbility.Draw, changed.Ability);
-        Assert.Equal(7, changed.DrawSourceIndex);
+        Assert.Equal(5, changed.DrawSourceIndex);
         Assert.NotEqual(original.Revision, changed.Revision);
         Assert.Throws<InvalidOperationException>(() => battle.QueueSmartAttack(original));
         Assert.Empty(battle.QueuedActions);

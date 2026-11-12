@@ -147,7 +147,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("Native command is not equipped in this character's saved command slots.");
         }
-        if (target.NativeIndex is < 0 or >= 16)
+        if (target.EncodeNativeSlot() is < 0 or >= 16)
         {
             throw new InvalidOperationException("Native player target has no allocated physical battle slot.");
         }
@@ -180,7 +180,7 @@ public sealed partial class BattleSession
             nativeSlotsRolls.Remove(actorId);
             return;
         }
-        ushort targetMask = command == 19 && actionId != 4 ? NativeAutomaticActionTargetMask(targetFlags) : NativeBattleLimitRules.PlayerTargetMask(targetFlags, NativePlayerSelectedTarget(actor, target, targetFlags).NativeIndex);
+        ushort targetMask = command == 19 && actionId != 4 ? NativeAutomaticActionTargetMask(targetFlags) : NativeBattleLimitRules.PlayerTargetMask(targetFlags, NativePlayerSelectedTarget(actor, target, targetFlags).EncodeNativeSlot());
         QueueNativeCommand(actor, command, actionId, sequence, targetMask, crisis, playerInput: true);
         nativeLimitLevels.Remove(actorId);
     }

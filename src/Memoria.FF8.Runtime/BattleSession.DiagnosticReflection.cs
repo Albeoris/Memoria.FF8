@@ -63,7 +63,7 @@ public static class BattleDiagnosticReflectionLineage
             {
                 return false;
             }
-            (int result, _) = NativeBattleActionTargetMask.Resolve(selected, modifiers, resolution.AvailableMask, resolution.DisableAutomaticReplacement);
+            (int result, _) = NativeBattleActionTargetMask.Resolve(new(checked((ushort)(selected | (modifiers << 13)))), NativeBattlePhysicalTargets.FromNativeWord(checked((ushort)resolution.AvailableMask)), resolution.DisableAutomaticReplacement);
             if (resolution.ResultMask != result || (result & ~0x7F) != 0)
             {
                 return false;
@@ -145,7 +145,7 @@ public sealed partial class BattleSession
             return null;
         }
         NativeBattleActionHeaderSlot original = nativeActionPackets.Headers[header];
-        return new(header, generation, actor.Id, checked((byte)actor.NativeIndex), reflector.Id, checked((byte)reflector.NativeIndex), reflector.NativeStatus1, recipient.Id, checked((byte)recipient.NativeIndex), original.ReadByte(1), (ushort)(original.ReadByte(4) | original.ReadByte(5) << 8), source, reflected, targetMask);
+        return new(header, generation, actor.Id, checked((byte)actor.EncodeNativeSlot()), reflector.Id, checked((byte)reflector.EncodeNativeSlot()), reflector.NativeStatus1, recipient.Id, checked((byte)recipient.EncodeNativeSlot()), original.ReadByte(1), (ushort)(original.ReadByte(4) | original.ReadByte(5) << 8), source, reflected, targetMask);
     }
 
     private void ObserveDiagnosticReflectionTargetResolution(ushort input, int selected, int modifiers, int available, int result)

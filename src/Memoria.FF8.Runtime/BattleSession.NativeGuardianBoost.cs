@@ -87,7 +87,7 @@ public sealed partial class BattleSession
     private (ushort ActionId, BattleActionDefinition Action) NativeGuardianBoostBinding(BattleActionPresentation action)
     {
         NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[0];
-        if (action.NativeQueuedCommand != 254 || action.NativeHeaderIndex != 0 || header.ReadByte(1) != 254 || header.ReadByte(0) != GetActor(action.ActorId).NativeIndex)
+        if (action.NativeQueuedCommand != 254 || action.NativeHeaderIndex != 0 || header.ReadByte(1) != 254 || header.ReadByte(0) != GetActor(action.ActorId).EncodeNativeSlot())
         {
             throw new InvalidDataException("Native GF Boost requires its admitted actor and original254 header0.");
         }

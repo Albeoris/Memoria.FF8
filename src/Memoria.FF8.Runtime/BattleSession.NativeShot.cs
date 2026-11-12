@@ -61,7 +61,7 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Original Shot timer cannot be zero.");
         }
         byte flags = (action.TargetFlags!.Value & 0x10) != 0 ? (byte)0x50 : (byte)0x40;
-        ushort mask = NativeBattleLimitRules.PlayerTargetMask(flags, target.NativeIndex);
+        ushort mask = NativeBattleLimitRules.PlayerTargetMask(flags, target.EncodeNativeSlot());
         QueueNativeCommand(actor, 14, action.ActionId, 0, mask, crisis, NativeLimitCallback.ShotOpening, playerInput: true);
         nativeShotProcesses.Add(actor.Id, new((byte)action.ActionId, mask, timer, timer, ammo.Count, BattleNativeShotPhase.Opening) { Ui = new(BattleTimedInputUiPhase.Opening) });
     }

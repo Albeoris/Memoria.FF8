@@ -9,7 +9,7 @@ public sealed partial class BattleSession
 
     private NativeBattleActionProductionResult ProduceNativeActionFacts(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command, BattleActionDefinition action, NativeBattleActionHeaderPreparation header, NativeBattleActionProductionContext context, bool miniMogFailed)
     {
-        if (header.Actor != actor.NativeIndex || header.Command != (miniMogFailed ? 0 : NativeHeaderCommand(actor, command, action.NativeAction!)) || context.CompletionCallback is not (0x47DDA0 or 0x47DE70 or 0x47E120))
+        if (header.Actor != actor.EncodeNativeSlot() || header.Command != (miniMogFailed ? 0 : NativeHeaderCommand(actor, command, action.NativeAction!)) || context.CompletionCallback is not (0x47DDA0 or 0x47DE70 or 0x47E120))
         {
             throw new InvalidDataException("Native contact production contradicts its48D200 header or original completion callback.");
         }
@@ -57,12 +57,12 @@ public sealed partial class BattleSession
             }
             else if ((native.TargetFlags.GetValueOrDefault() & 2) != 0)
             {
-                BattleCombatant? randomTarget = ChooseNativeRandomActionTarget(target.IsPlayer);
+                BattleCombatant? randomTarget = ChooseNativeRandomActionTarget(target.Side);
                 targets = randomTarget is null ? [] : [randomTarget];
             }
             else if (action.AllTargets)
             {
-                targets = combatants.Where(candidate => candidate.IsActive && !candidate.Untargetable && candidate.IsPlayer == target.IsPlayer && (IsNativeRevive(action) ? candidate.CurrentHp == 0 : candidate.IsAlive)).OrderBy(candidate => candidate.NativeIndex).ToArray();
+                targets = combatants.Where(candidate => candidate.IsActive && !candidate.Untargetable && candidate.IsPlayer == target.IsPlayer && (IsNativeRevive(action) ? candidate.CurrentHp == 0 : candidate.IsAlive)).OrderBy(candidate => candidate.EncodeNativeSlot()).ToArray();
             }
             else
             {
@@ -70,7 +70,7 @@ public sealed partial class BattleSession
             }
             plan[hit] = ResolveNativeCover(actor, command, native, targets);
         }
-        foreach (BattleCombatant recipient in combatants.Where(candidate => candidate.NativeIndex is >= 0 and < 7))
+        foreach (BattleCombatant recipient in combatants.Where(candidate => candidate.EncodeNativeSlot() is >= 0 and < 7))
         {
             recipient.NativeRemainingHits = unchecked((byte)plan.Count(hit => hit.Targets.Contains(recipient)));
         }
@@ -96,7 +96,7 @@ public sealed partial class BattleSession
             {
                 foreach (BattleCombatant recipient in targets)
                 {
-                    if ((NativeSavedStatusBits(recipient) & 1) != 0 && (!allowKo || recipient.NativeIndex >= 3))
+                    if ((NativeSavedStatusBits(recipient) & 1) != 0 && (!allowKo || recipient.EncodeNativeSlot() >= 3))
                     {
                         aborted = true;
                         break;
@@ -140,7 +140,7 @@ public sealed partial class BattleSession
                 encounterHitTransaction = null;
             }
         }
-        return new(contacts.ToImmutable(), publishedCount, deferred, firstReflector is null ? null : checked((byte)firstReflector.NativeIndex), aborted);
+        return new(contacts.ToImmutable(), publishedCount, deferred, firstReflector is null ? null : checked((byte)firstReflector.EncodeNativeSlot()), aborted);
     }
 
     private NativeBattleDeferredContactKind NativeDeferredContact(BattleCombatant actor, BattleActionPresentation command, BattleNativeAction native)

@@ -32,7 +32,7 @@ public sealed partial class BattleSession
         graphics = QueueNativeDescriptor(graphics, 9, 0);
         foreach (BattleCombatant actor in combatants.Where(actor => !actor.IsPlayer && actor.IsActive).OrderBy(actor => actor.SceneSlot))
         {
-            graphics = QueueNativeDescriptor(graphics, 102, NativeParticipantAddress(actor.NativeIndex), checked((ushort)actor.NativeIndex), checked((ushort)NativeModelId(actor)));
+            graphics = QueueNativeDescriptor(graphics, 102, NativeParticipantAddress(actor.EncodeNativeSlot()), checked((ushort)actor.EncodeNativeSlot()), checked((ushort)NativeModelId(actor)));
         }
         return QueueNativeDescriptor(graphics, 10, 0x47DD80);
     }
@@ -41,16 +41,16 @@ public sealed partial class BattleSession
     {
         foreach (BattleCombatant actor in combatants.Where(actor => !actor.IsPlayer && actor.IsActive).OrderBy(actor => actor.SceneSlot))
         {
-            graphics = QueueNativeDescriptor(graphics, 103, NativeParticipantAddress(actor.NativeIndex), checked((ushort)actor.NativeIndex), (ushort)(1 | (actor.Hidden ? 0x100 : 0)));
+            graphics = QueueNativeDescriptor(graphics, 103, NativeParticipantAddress(actor.EncodeNativeSlot()), checked((ushort)actor.EncodeNativeSlot()), (ushort)(1 | (actor.Hidden ? 0x100 : 0)));
         }
-        foreach (BattleCombatant actor in combatants.Where(actor => actor.IsPlayer && actor.IsActive).OrderBy(actor => actor.NativeIndex))
+        foreach (BattleCombatant actor in combatants.Where(actor => actor.IsPlayer && actor.IsActive).OrderBy(actor => actor.EncodeNativeSlot()))
         {
-            graphics = QueueNativeDescriptor(graphics, 102, NativeParticipantAddress(actor.NativeIndex), checked((ushort)actor.NativeIndex), checked((ushort)NativeModelId(actor)));
+            graphics = QueueNativeDescriptor(graphics, 102, NativeParticipantAddress(actor.EncodeNativeSlot()), checked((ushort)actor.EncodeNativeSlot()), checked((ushort)NativeModelId(actor)));
         }
         graphics = QueueNativeDescriptor(graphics, 13, 0);
-        foreach (BattleCombatant actor in combatants.Where(actor => actor.IsPlayer && actor.IsActive).OrderBy(actor => actor.NativeIndex))
+        foreach (BattleCombatant actor in combatants.Where(actor => actor.IsPlayer && actor.IsActive).OrderBy(actor => actor.EncodeNativeSlot()))
         {
-            graphics = QueueNativeDescriptor(graphics, 103, NativeParticipantAddress(actor.NativeIndex), checked((ushort)actor.NativeIndex), 0);
+            graphics = QueueNativeDescriptor(graphics, 103, NativeParticipantAddress(actor.EncodeNativeSlot()), checked((ushort)actor.EncodeNativeSlot()), 0);
         }
         graphics = QueueNativeDescriptor(graphics, 10, 0x4A94B0);
         graphics = QueueNativeEntryAdvantageMessage(graphics);
@@ -204,7 +204,7 @@ public sealed partial class BattleSession
                 case NativeBattleDescriptorTaskKind.Load502670:
                     int modelIndex = RequireDescriptorModel(packet.Index);
                     NativeBattleGraphicsModel loading = graphics.Models[modelIndex];
-                    BattleCombatant loadingActor = combatants.Single(candidate => candidate.NativeIndex == modelIndex);
+                    BattleCombatant loadingActor = combatants.Single(candidate => candidate.EncodeNativeSlot() == modelIndex);
                     if (phase == 0)
                     {
                         if ((loading.Flags0 & 1) != 0)
@@ -390,7 +390,7 @@ public sealed partial class BattleSession
 
     private BattleCombatant FindNativeModelLoadOwner(NativeBattleGraphicsState graphics, int index)
     {
-        if ((uint)index >= 7 || graphics.ActorIds[index] is not string id || !byId.TryGetValue(id, out BattleCombatant? actor) || actor.NativeIndex != index)
+        if ((uint)index >= 7 || graphics.ActorIds[index] is not string id || !byId.TryGetValue(id, out BattleCombatant? actor) || actor.EncodeNativeSlot() != index)
         {
             throw new InvalidDataException("Native103 model completion lost its current physical allocation identity.");
         }

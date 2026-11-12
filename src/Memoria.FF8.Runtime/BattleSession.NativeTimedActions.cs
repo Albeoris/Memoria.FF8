@@ -71,7 +71,7 @@ public sealed partial class BattleSession
         {
             if (native.Command == 251)
             {
-                if (target.NativeIndex is < 0 or >= 7 || targetMask != 1 << target.NativeIndex)
+                if (target.EncodeNativeSlot() is < 0 or >= 7 || targetMask != 1 << target.EncodeNativeSlot())
                 {
                     throw new InvalidDataException("Native251 contact must retain its originally selected physical recipient.");
                 }
@@ -81,7 +81,7 @@ public sealed partial class BattleSession
                 {
                     BattleNativeRenzokukenState process = nativeRenzokukenProcesses[actor.Id];
                     short total = checked((short)RenzokukenResource(process.MagicId).Timeline.InputThresholds.Length);
-                    RecomputeNativeTriggerContact(new(checked((byte)actor.NativeIndex), checked((short)(timed.Contacts + 1)), total, timing, 32));
+                    RecomputeNativeTriggerContact(new(checked((byte)actor.EncodeNativeSlot()), checked((short)(timed.Contacts + 1)), total, timing, 32));
                 }
                 finally
                 {
@@ -137,7 +137,7 @@ public sealed partial class BattleSession
         }
         BattleCombatant actor = GetActor(timed.Command.ActorId);
         BattleNativeRenzokukenState process = nativeRenzokukenProcesses.GetValueOrDefault(actor.Id) ?? throw new InvalidDataException("Native Renzokuken final descriptor lacks its input process.");
-        if (nativeActionCommitDepth != 1 || timed.Contacts != RenzokukenResource(process.MagicId).Timeline.InputThresholds.Length || NativeGraphics.PendingTrigger is { } pending && pending.ActorIndex == actor.NativeIndex)
+        if (nativeActionCommitDepth != 1 || timed.Contacts != RenzokukenResource(process.MagicId).Timeline.InputThresholds.Length || NativeGraphics.PendingTrigger is { } pending && pending.ActorIndex == actor.EncodeNativeSlot())
         {
             throw new InvalidDataException("Native Renzokuken final descriptor reached an unfinished contact transaction.");
         }

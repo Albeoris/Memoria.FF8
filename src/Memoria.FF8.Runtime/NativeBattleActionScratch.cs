@@ -48,7 +48,7 @@ public sealed partial class BattleSession
 
     private void SetNativeActionEvent(BattleCombatant actor, byte lane)
     {
-        nativeActionScratch = nativeActionScratch with { EventActorB0F = checked((byte)actor.NativeIndex), EventLane = lane };
+        nativeActionScratch = nativeActionScratch with { EventActorB0F = checked((byte)actor.EncodeNativeSlot()), EventLane = lane };
     }
 
     private bool NativeDeathContactAllowed(BattleCombatant recipient)

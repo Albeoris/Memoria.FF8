@@ -27,7 +27,7 @@ public sealed partial class BattleSession
         }
         if ((flags & 0x10) == 0)
         {
-            BattleCombatant? rinoa = combatants.Where(actor => actor.NativeIndex is >= 0 and < 7 && actor.ModelId == 4).OrderBy(actor => actor.NativeIndex).FirstOrDefault();
+            BattleCombatant? rinoa = combatants.Where(actor => actor.EncodeNativeSlot() is >= 0 and < 7 && actor.ModelId == 4).OrderBy(actor => actor.EncodeNativeSlot()).FirstOrDefault();
             if (rinoa is not null)
             {
                 RunNativePeriodicAngelo(rinoa);
@@ -39,7 +39,7 @@ public sealed partial class BattleSession
     private void RunNativePeriodicAngelo(BattleCombatant rinoa)
     {
         NativeLimitProgress progress = definition.LimitProgress ?? throw new NotSupportedException("Native periodic Angelo support requires the actual saved learned flags.");
-        BattleCombatant[] party = combatants.Where(actor => actor.NativeIndex is >= 0 and < 3).ToArray();
+        BattleCombatant[] party = combatants.Where(actor => actor.EncodeNativeSlot() is >= 0 and < 3).ToArray();
         if ((progress.AngeloFlags & 2) != 0 && party.Any(actor => actor != rinoa && actor.IsActive && (NativeSavedStatusBits(actor) & 0x101) == 0x100) && NextRandomByte() <= 8)
         {
             QueueNativePeriodicAngelo(12, FilterNativeAiTargetMask(0, 200, 0, 8));
@@ -49,7 +49,7 @@ public sealed partial class BattleSession
         {
             if ((NativeSavedStatusBits(rinoa) & 1) != 0 && NextRandomByte() <= 8)
             {
-                QueueNativePeriodicAngelo(13, checked((ushort)((1 << rinoa.NativeIndex) | 0x4000)));
+                QueueNativePeriodicAngelo(13, checked((ushort)((1 << rinoa.EncodeNativeSlot()) | 0x4000)));
                 return;
             }
             if (party.Any(actor => actor != rinoa && actor.IsActive && (NativeSavedStatusBits(actor) & 1) != 0) && NextRandomByte() <= 2)
@@ -60,7 +60,7 @@ public sealed partial class BattleSession
         }
         if ((progress.AngeloFlags & 8) != 0 && (NativeSavedStatusBits(rinoa) & 5) == 0 && (NativeBattleStatusBits(rinoa) & 0x4009) == 0 && NextRandomByte() <= 8)
         {
-            QueueNativePeriodicAngelo(14, checked((ushort)(1 << rinoa.NativeIndex)));
+            QueueNativePeriodicAngelo(14, checked((ushort)(1 << rinoa.EncodeNativeSlot())));
         }
     }
 

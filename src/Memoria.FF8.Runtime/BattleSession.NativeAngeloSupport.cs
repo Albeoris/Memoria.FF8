@@ -41,7 +41,7 @@ public sealed partial class BattleSession
         NativeLimitProgress progress = definition.LimitProgress ?? throw new NotSupportedException("Native Angelo support requires the saved learned flags at1CFE772.");
         if ((progress.AngeloFlags & 2) != 0 && (NativeSavedStatusBits(actor) & 0x100) != 0 && NextRandomByte() <= 16)
         {
-            QueueNativePlayerReaction(actor, BattleNativePlayerReaction.AngeloRecover, 240, 12, checked((ushort)(1 << actor.NativeIndex)));
+            QueueNativePlayerReaction(actor, BattleNativePlayerReaction.AngeloRecover, 240, 12, checked((ushort)(1 << actor.EncodeNativeSlot())));
         }
         else if ((progress.AngeloFlags & 1) != 0 && NextRandomByte() <= 16)
         {
@@ -52,7 +52,7 @@ public sealed partial class BattleSession
     private bool ShouldRunNativePlayerDeathSupport(BattleCombatant actor, BattleCombatant? attacker)
     {
         // NG-005: Original482F10 excludes encounter317.
-        if (actor.ModelId != 4 || attacker?.NativeIndex is not >= 3 || definition.EncounterId == 317 || (NativeBattleStatusBits(actor) & 0x10000) != 0)
+        if (actor.ModelId != 4 || attacker?.EncodeNativeSlot() is not >= 3 || definition.EncounterId == 317 || (NativeBattleStatusBits(actor) & 0x10000) != 0)
         {
             return false;
         }
@@ -67,7 +67,7 @@ public sealed partial class BattleSession
     private void RunNativePlayerDeathSupport(BattleCombatant actor)
     {
         //494410 already admitted482F10;4877F0 stage3 retains the original actor and includes KO targets.
-        QueueNativePlayerReaction(actor, BattleNativePlayerReaction.AngeloReverse, 240, 13, checked((ushort)((1 << actor.NativeIndex) | 0x4000)));
+        QueueNativePlayerReaction(actor, BattleNativePlayerReaction.AngeloReverse, 240, 13, checked((ushort)((1 << actor.EncodeNativeSlot()) | 0x4000)));
         SetNativeReactionActionGate(false);
     }
 }

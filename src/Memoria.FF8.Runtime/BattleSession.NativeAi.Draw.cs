@@ -6,7 +6,7 @@ public sealed partial class BattleSession
     {
         //487DF0 reads the previous queued target WORD B94, rather than the interpreter's local target mask.
         int index = System.Numerics.BitOperations.TrailingZeroCount((uint)actor.NativePreviousTargetMask);
-        BattleCombatant source = combatants.FirstOrDefault(candidate => candidate.NativeIndex == index) ?? throw new NotSupportedException("Native AI Draw requires an allocated actor in its previous queued target mask.");
+        BattleCombatant source = combatants.FirstOrDefault(candidate => candidate.EncodeNativeSlot() == index) ?? throw new NotSupportedException("Native AI Draw requires an allocated actor in its previous queued target mask.");
         bool logical = source.MagicOwner is not null && (source.MagicOwner().MagicSystem.SharedMagicStock || source.MagicOwner().MagicSystem.RecordZeroExtension.Length != 0 && source.MagicRecordId == 0);
         NativeMagicStock[] inventory = logical ? source.MagicStocks.Select(stock => new NativeMagicStock((byte)stock.Id, (byte)stock.Count)).ToArray() : source.NativeMagicInventory;
         int occupied = inventory.Count(stock => stock.SpellId != 0);

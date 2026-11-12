@@ -41,7 +41,7 @@ public sealed partial class BattleSession
             }
         }
         RunNativePlayerDamageSupport(actor);
-        if ((flags & 0x40000) == 0 || attacker == actor.NativeIndex)
+        if ((flags & 0x40000) == 0 || attacker == actor.EncodeNativeSlot())
         {
             return;
         }
@@ -59,7 +59,7 @@ public sealed partial class BattleSession
         int item = choices.FirstOrDefault(id => nativeItems.Any(stock => stock.ItemId == id && stock.Count != 0));
         if (item != 0)
         {
-            QueueNativePlayerReaction(actor, BattleNativePlayerReaction.AutoPotion, 4, checked((ushort)item), checked((ushort)(1 << actor.NativeIndex)));
+            QueueNativePlayerReaction(actor, BattleNativePlayerReaction.AutoPotion, 4, checked((ushort)item), checked((ushort)(1 << actor.EncodeNativeSlot())));
         }
     }
 
@@ -72,7 +72,7 @@ public sealed partial class BattleSession
         {
             mask |= (ushort)(((native.TargetFlags.GetValueOrDefault() & 1) != 0 ? 0x4000 : 0) | ((native.TargetFlags.GetValueOrDefault() & 2) != 0 ? 0x2000 : 0));
         }
-        BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.NativeIndex is >= 0 and < 16 && (mask & (1 << candidate.NativeIndex)) != 0) ?? actor;
+        BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.EncodeNativeSlot() is >= 0 and < 16 && (mask & (1 << candidate.EncodeNativeSlot())) != 0) ?? actor;
         BattleAbility ability = reaction == BattleNativePlayerReaction.Counter ? BattleAbility.Attack : reaction == BattleNativePlayerReaction.AutoPotion ? BattleAbility.Item : BattleAbility.EnemyAbility;
         BattleAttackCommand queued = new(actor.Id, target.Id, ability, id) { NativePlayerReaction = reaction, NativeQueuedCommand = command, NativeAction = native, NativeTargetMask = mask, ReservedNativeItemSlot = command == 4 ? ConsumeNativeItem(id) : null };
         queued = PrepareNativeEventCommand(actor, queued);
