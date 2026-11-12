@@ -90,7 +90,7 @@ public static class NativeBattleShellLifecycle
             NativeBattleEffectNodeBankFixups.Relocate(fixups, NativeBattleShellResources.ActorBankAddress, directory);
             fixups.WriteUInt32(directory, 1);
         }
-        task = NativeBattleEffectNodeContext.Initialize(task, hierarchy.Read(task.ReadDword(0x10)), frame.Effect.Parameters ?? throw new NotSupportedException("Native Shell requires its action context."), inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource, NativeBattleShellResources.ActorDirectory);
+        task = NativeBattleEffectNodeContext.Initialize(task, hierarchy.Read(task.ReadDword(0x10)), frame.Effect.Parameters ?? throw new NotSupportedException("Native Shell requires its action context."), inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource, NativeBattleShellResources.ActorDirectory, readForeignBone: (actor, selector) => inputs.ReadForeignTarget?.Invoke(actor) is { } foreign ? selector switch { 240 => foreign.Anchor240, 241 => foreign.Anchor241, _ => throw new NotSupportedException("The host geometry does not define this target bone selector.") } : null);
         task = task.WriteDword(0x34 + 0x214, 4096).WriteDword(0x34 + 0x218, 4096).WriteDword(0x34 + 0x21C, 4096);
         hierarchy = hierarchy.Write(address, task);
         fixups.Publish(false);

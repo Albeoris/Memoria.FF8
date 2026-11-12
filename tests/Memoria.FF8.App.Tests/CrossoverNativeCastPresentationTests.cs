@@ -71,7 +71,7 @@ public sealed class CrossoverNativeCastPresentationTests(ITestOutputHelper outpu
                 Assert.Equal(new NativeBattleVector(3078, 4096, 3078), ground.MeshScale);
                 castingGround = true;
             }
-            Assert.True(state.ViewTranslationY is 0 or 32);
+            Assert.Equal(0, state.ViewTranslationY);
             renderedShakes += state.ViewTranslationY != 0 ? 1 : 0;
             observedEffect |= state.Effect is not null;
             if (!rejectedLiveCapture && state.Effect is not null)
@@ -100,7 +100,7 @@ public sealed class CrossoverNativeCastPresentationTests(ITestOutputHelper outpu
                 }
                 if (ability == 4)
                 {
-                    Assert.Equal(1, renderedShakes);
+                    Assert.Equal(0, renderedShakes);
                     Assert.Equal(0, state.ViewTranslationY);
                 }
                 Assert.Equal(1, contacts);

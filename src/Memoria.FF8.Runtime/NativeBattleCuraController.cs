@@ -18,6 +18,7 @@ public sealed record NativeBattleCuraFrame(NativeBattleEffectMemory Memory, Nati
 public sealed record NativeBattleCuraControllerInputs(NativeBattleActionPacketsState Packets, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource)
 {
     public Action<int>? ApplyContact { get; init; }
+    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeignTarget { get; init; }
 }
 public sealed record NativeBattleCuraLeafStep(NativeBattleCuraFrame Frame, int Result);
 public sealed record NativeBattleCuraControllerStep(NativeBattleCuraFrame Frame, ImmutableArray<int> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
@@ -150,11 +151,7 @@ public static class NativeBattleCuraController
             {
                 throw new NotSupportedException("Native Cura child task has an unsupported original callback.");
             }
-            task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource);
-            NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadByte(0x2D));
-            NativeBattlePoseSource source = inputs.ReadPoseSource(task.ReadByte(0x2D));
-            NativeBattleSequenceState pose = model.SequenceState ?? throw new NotSupportedException("Native Cura bounds require the current body pose.");
-            task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, source.Sample(pose.Pose ?? throw new NotSupportedException("Native Cura bounds require a selected body pose."), pose.PoseFrame114 ?? throw new NotSupportedException("Native Cura bounds require the current pose frame."), pose.PoseFlags109));
+            task = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource, inputs.ReadForeignTarget);
             state = state.Write(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {

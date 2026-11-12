@@ -156,11 +156,7 @@ public static class NativeBattleShellController
             switch (task.Callback)
             {
                 case 0x866470:
-                    task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, Models(), inputs.ReadPoseSource);
-                    int target = task.ReadByte(0x2D);
-                    NativeBattlePoseSource poseSource = inputs.ReadPoseSource(target);
-                    NativeBattleSequenceState pose = inputs.ReadModel(target).SequenceState ?? throw new NotSupportedException("Native Shell emitter requires its current target pose.");
-                    task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, poseSource, poseSource.Sample(pose.Pose ?? throw new NotSupportedException("Native Shell target pose is unknown."), pose.PoseFrame114 ?? throw new NotSupportedException("Native Shell pose frame is unknown."), pose.PoseFlags109));
+                    task = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, Models(), inputs.ReadPoseSource, inputs.ReadForeignTarget);
                     state = state.Write(address, task);
                     if (phase == 0)
                     {
@@ -232,7 +228,8 @@ public static class NativeBattleShellController
                         NativeBattleEffectLocalBounds bounds = model.GeometryBounds52 ?? throw new NotSupportedException("Native Shell shield requires its current native geometry bounds.");
                         if (task.ReadWord(0x80) == 0)
                         {
-                            NativeBattleVector point = NativeBattlePoseMatrices.ReadBone(model, inputs.ReadPoseSource(task.ReadByte(0x2D)), 0xF1, 0) with { Y = bounds.Maximum.Y };
+                            NativeBattleVector anchor = inputs.ReadBone?.Invoke(task.ReadByte(0x2D), 0xF1, 0) ?? NativeBattlePoseMatrices.ReadBone(model, inputs.ReadPoseSource(task.ReadByte(0x2D)), 0xF1, 0);
+                            NativeBattleVector point = anchor with { Y = bounds.Maximum.Y };
                             task = task.WriteWord(0x1C, unchecked((ushort)point.X)).WriteWord(0x1E, unchecked((ushort)point.Y)).WriteWord(0x20, unchecked((ushort)point.Z));
                         }
                         short height = unchecked((short)(bounds.Maximum.Y - bounds.Minimum.Y));

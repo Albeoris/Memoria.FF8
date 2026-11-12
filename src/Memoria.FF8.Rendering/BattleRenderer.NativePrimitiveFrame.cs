@@ -252,7 +252,7 @@ public sealed partial class BattleRenderer
             ImmutableArray<NativeBattlePrimitiveDepthVertex> projected = state.Project461220(command.OrderingBucket ?? throw new InvalidDataException("Native polygon lacks its original OT bucket."), perspective, command.Flags20, command.VertexPayload4);
             PixelImage? texture = null;
             Vector2 prefixUvScale = Vector2.One;
-            if (textured)
+            if (textured && command.PilotGeometry?.ForeignSurface is null)
             {
                 bool affine = pilotProjection is null || !perspective;
                 for (int corner = 0; corner < (quad ? 4 : 3); corner++)
@@ -276,7 +276,7 @@ public sealed partial class BattleRenderer
                 {
                     coordinates = SceneCaptureUv(sceneSample, resolved.DrawMode.TexturePage!.Value, uv, command.SceneCapture?.SampleCoordinates is { } samples ? samples[corner] : null);
                 }
-                else if (textured)
+                else if (textured && command.PilotGeometry?.ForeignSurface is null)
                 {
                     NativeBattlePcTextureWindowSelection window = resolved.DrawMode.TextureSelection!;
                     coordinates *= new Vector2(window.ScaleU, window.ScaleV);
@@ -307,6 +307,23 @@ public sealed partial class BattleRenderer
             PrimitiveVertex a = At(0);
             PrimitiveVertex b = At(1);
             PrimitiveVertex c = At(2);
+            if (command.PilotGeometry?.ForeignSurface is { } foreign)
+            {
+                if (quad || foreign.Material is not NativeBattleForeignRenderMaterial hostMaterial || foreign.Uv.Length != 3 || foreign.Colors.Length != 3)
+                {
+                    throw new NotSupportedException("A foreign body primitive requires its original host triangle material and corner attributes.");
+                }
+                ITriangleRenderer target = TriangleRenderer ?? throw new NotSupportedException("Foreign actor materials require the host triangle renderer.");
+                TriangleMaterial original = hostMaterial.Material with { ActorOpacity = actorOpacity };
+                TriangleVertex Vertex(PrimitiveVertex vertex, int corner) => new(new(vertex.X, vertex.Y), vertex.Z, vertex.ReciprocalW, foreign.Uv[corner], new Vector4(vertex.Color / 255, vertex.Alpha / 255) * foreign.Colors[corner]);
+                float area = (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
+                if (!hostMaterial.Cull || area >= 0)
+                {
+                    target.Draw(Vertex(a, 0), Vertex(b, 1), Vertex(c, 2), original);
+                    DrawnTriangles++;
+                }
+                continue;
+            }
             int submitted = DrawnTriangles;
             QueueNativePrimitive(a, b, c, texture, blend, resolved.Pass, centroidTextureSampling: textured, actorOpacity: actorOpacity);
             if (DrawnTriangles > submitted)

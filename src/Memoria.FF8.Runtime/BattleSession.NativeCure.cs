@@ -23,7 +23,7 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native8D6B30 requires its prior projection registers.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native8D6B30 requires its previously published camera matrix.");
         NativeBattleCureFrame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native8D6B30 requires retained effect memory."), effect, effect.Cure ?? throw new NotSupportedException("Native8D6B30 requires its executed8D6A00 state."));
-        NativeBattleCureControllerInputs inputs = new(nativeActionPackets, view, index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Cure anchors require the original body pose source.")) { ApplyContact = ApplyContact };
+        NativeBattleCureControllerInputs inputs = new(nativeActionPackets, view, index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Cure anchors require the original body pose source.")) { ApplyContact = ApplyContact, ReadForeignTarget = ReadNativeForeignTarget };
         NativeBattleCureControllerStep step = NativeBattleCureController.Advance8D6B30(frame, inputs, resources, (current, address) =>
         {
             //A contact can enqueue texture writes before this leaf. Keep that canonical process memory and all earlier direct OT writes.
@@ -68,8 +68,18 @@ public sealed partial class BattleSession
                 case NativeBattleCureActorDrawOperation actor:
                     NativeBattleCureActorContext context = current.State.ActorContext ?? throw new NotSupportedException("Native8D7110 requires its executed8D8280 shared actor context.");
                     NativeBattleGraphicsModel target = graphics.Models[context.Target];
-                    graphics = SubmitNativeShadowPackets5088A0(graphics, target, projection, 4112, false);
-                    NativeBattleCureActorPacketBatch batch = NativeBattleCureActorAssembly.Emit8D7110(target, NativeGraphicsPoseResource(graphics, context.Target), current.State.CopiedCamera ?? throw new NotSupportedException("Native8D7110 requires8D6B30's copied camera."), projection, actor.Center, actor.VerticalOffset, effect.Binding.Effect == 50 ? NativeEffectMemory!.Potion50ContextF4 : NativeEffectMemory!.CureContextF4, actor.PilotIdentity);
+                    NativeBattleActionMatrix copiedCamera = current.State.CopiedCamera ?? throw new NotSupportedException("Native8D7110 requires8D6B30's copied camera.");
+                    short? contextF4 = effect.Binding.Effect == 50 ? NativeEffectMemory!.Potion50ContextF4 : NativeEffectMemory!.CureContextF4;
+                    NativeBattleCureActorPacketBatch batch;
+                    if (ReadNativeForeignModel(context.Target) is { } foreign)
+                    {
+                        batch = NativeBattleForeignModelDrawing.Cure(foreign, copiedCamera, projection, actor.Center, actor.VerticalOffset, contextF4, target.Color40!.Value, actor.PilotIdentity ?? new(effect.Binding.Effect, 0, context.Target, 0, 0));
+                    }
+                    else
+                    {
+                        graphics = SubmitNativeShadowPackets5088A0(graphics, target, projection, 4112, false);
+                        batch = NativeBattleCureActorAssembly.Emit8D7110(target, NativeGraphicsPoseResource(graphics, context.Target), copiedCamera, projection, actor.Center, actor.VerticalOffset, contextF4, actor.PilotIdentity);
+                    }
                     foreach (NativeBattleCureAllocatedPrimitive allocation in batch.Primitives)
                     {
                         if (allocation.Bank == NativeBattleCurePacketBank.Process)

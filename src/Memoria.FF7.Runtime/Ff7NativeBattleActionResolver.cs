@@ -95,6 +95,10 @@ public static class Ff7NativeBattleActionResolver
     private static Ff7BattleActionReceipt ResolveCore(Ff7BattleDamageActor sourceStats, Ff7BattleActionVitals source, Ff7BattleDamageActor targetStats, Ff7BattleActionVitals target, Ff7BattleDamageAction action, Ff7BattleAttack? record, Ff7BattleRng random, bool sameActor, bool guestContact, IReadOnlyList<byte>? originStatusResistances)
     {
         ArgumentNullException.ThrowIfNull(random);
+        if (action.RequiresKnockedOutTarget && target.Hp != 0 && (target.Statuses & Death) == 0 || action.RequiredTargetLevelMultiple != 0 && targetStats.Level % action.RequiredTargetLevelMultiple != 0)
+        {
+            return new(source, target, new(true, false, 0), 0, 0);
+        }
         int mode = record is null ? 3 : record.StatusChange >> 6;
         uint mask = ReadStatusMask(record);
         uint supportedStatuses = guestContact ? Ff7GuestBattleStatuses.SupportedHost : SupportedRecordStatuses;
@@ -103,7 +107,7 @@ public static class Ff7NativeBattleActionResolver
             throw new NotSupportedException($"FFVII attack has unsupported additional effect or status mask 0x{mask:X8}.");
         }
         bool admittedStatus = mask != 0 && RollStatus(record!, action, random);
-        if (!admittedStatus && action.Power == 0 && action.Formula is not (0x00 or 0x50))
+        if (!admittedStatus && action.Power == 0 && action.BaseDamage is null && action.FixedDamage is null && action.FractionDenominator == 0 && action.Formula is not (0x00 or 0x50))
         {
             return new(source, target, new(true, false, 0), 0, 0);
         }
@@ -122,11 +126,11 @@ public static class Ff7NativeBattleActionResolver
             admittedMask = Ff7GuestBattleStatuses.ResistIncoming(admittedMask, target.Statuses, originStatusResistances, random);
         }
         uint statuses = ApplyStatuses(target, targetStats.IsEnemy, record, action.Formula, admittedMask, mode, guestContact);
-        if ((target.Statuses & (Petrify | Peerless)) != 0)
+        if (!action.RequiresKnockedOutTarget && (target.Statuses & (Petrify | Peerless)) != 0)
         {
             damage = damage with { Damage = 0 };
         }
-        Ff7BattleActionVitals nextTarget = ApplyDamage(target with { Statuses = statuses }, damage.Damage, action.TargetsMagicPoints);
+        Ff7BattleActionVitals nextTarget = ApplyDamage(target with { Hp = action.RequiresKnockedOutTarget ? 0 : target.Hp, Statuses = statuses }, damage.Damage, action.TargetsMagicPoints);
         if (guestContact && (target.Statuses & Death) == 0 && (nextTarget.Statuses & Death) != 0)
         {
             nextTarget = nextTarget with { Hp = 0 };
@@ -168,7 +172,7 @@ public static class Ff7NativeBattleActionResolver
             return new(source, target, prepared.Damage, 0, 0);
         }
         uint statuses = (target.Statuses & ~prepared.RemovedStatuses) | prepared.AddedStatuses;
-        Ff7BattleActionVitals next = ApplyDamage(target with { Statuses = statuses }, prepared.Damage.Damage, action.TargetsMagicPoints);
+        Ff7BattleActionVitals next = ApplyDamage(target with { Hp = action.RequiresKnockedOutTarget ? 0 : target.Hp, Statuses = statuses }, prepared.Damage.Damage, action.TargetsMagicPoints);
         if ((target.Statuses & Death) == 0 && (next.Statuses & Death) != 0)
         {
             next = next with { Hp = 0 };

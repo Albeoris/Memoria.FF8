@@ -141,11 +141,7 @@ public static class NativeBattleProtectController
             switch (task.Callback)
             {
                 case 0x86BDC0:
-                    task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, Models(), inputs.ReadPoseSource);
-                    int target = task.ReadByte(0x2D);
-                    NativeBattlePoseSource poseSource = inputs.ReadPoseSource(target);
-                    NativeBattleSequenceState pose = inputs.ReadModel(target).SequenceState ?? throw new NotSupportedException("Native Protect emitter requires its current target pose.");
-                    task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, poseSource, poseSource.Sample(pose.Pose ?? throw new NotSupportedException("Native Protect target pose is unknown."), pose.PoseFrame114 ?? throw new NotSupportedException("Native Protect pose frame is unknown."), pose.PoseFlags109));
+                    task = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, Models(), inputs.ReadPoseSource, inputs.ReadForeignTarget);
                     state = state.Write(address, task);
                     if (phase == 0)
                     {
@@ -342,7 +338,7 @@ public static class NativeBattleProtectController
             return value;
         }
         NativeBattleGraphicsModel[] Models() => Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray();
-        NativeBattleVector Bone(NativeBattleModulePoolTask task, byte selector) => NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(task.ReadByte(0x2D)), inputs.ReadPoseSource(task.ReadByte(0x2D)), selector, 0);
+        NativeBattleVector Bone(NativeBattleModulePoolTask task, byte selector) => inputs.ReadBone?.Invoke(task.ReadByte(0x2D), selector, 0) ?? NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(task.ReadByte(0x2D)), inputs.ReadPoseSource(task.ReadByte(0x2D)), selector, 0);
         short Facing(NativeBattleModulePoolTask task) => inputs.ReadModel(task.ReadByte(0x2D)).Rotation14 ?? throw new NotSupportedException("Native Protect requires target facingWORD0E.");
         void PublishFar(uint? color)
         {

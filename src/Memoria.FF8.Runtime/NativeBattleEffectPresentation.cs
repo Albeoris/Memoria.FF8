@@ -3,7 +3,11 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>A host actor exposes the native services it can actually represent. Missing services reject the selected presentation.</summary>
-public sealed record NativeBattleForeignActor(int Index, NativeBattleModelTransform Transform, NativeBattleModuleAnchor Anchor, Func<byte, short, NativeBattleVector> ReadBone);
+public sealed record NativeBattleForeignActor(int Index, NativeBattleModelTransform Transform, NativeBattleModuleAnchor Anchor, Func<byte, short, NativeBattleVector> ReadBone)
+{
+    public short Facing { get; init; }
+    public NativeBattleForeignModelGeometry? Geometry { get; init; }
+}
 
 public sealed record NativeBattleEffectPresentationInputs(BattleDefinition Resources, NativeBattleGraphicsModel Source, NativeBattleGraphicsResource SourceResource, NativeBattleActionPacketsState Packets, NativeBattleEffectParameters Parameters, ushort Effect, NativeBattleEffectTextureState Textures, NativeCrtRandomState Random, NativeBattleCameraProjection Projection, ImmutableArray<NativeBattleForeignActor> ForeignActors);
 

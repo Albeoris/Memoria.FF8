@@ -7,6 +7,11 @@ public sealed partial class BattleSession
     private (NativeBattleGraphicsState Graphics, short Minimum, short Maximum) DrawNativeBlizzagaModelBand(NativeBattleGraphicsState graphics, int index, short low, short high)
     {
         NativeBattleGraphicsModel model = graphics.Models[index];
+        if (ReadNativeForeignModel(index) is { } foreign)
+        {
+            NativeBattleBlizzagaModelBandResult batch = NativeBattleForeignModelDrawing.Band(foreign, NativeCamera!.Projection!, model.Color40!.Value, low, high, NativePilotSceneIdentity(0x6D8D80, model.Index, 0) ?? new(104, 0x6D8D80, model.Index, 0, 0));
+            return (AppendNativePrimitivePackets(graphics, batch.Primitives), batch.Minimum, batch.Maximum);
+        }
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Blizzaga requires its published projection.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Blizzaga requires its retained view matrix.");

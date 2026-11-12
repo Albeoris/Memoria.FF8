@@ -10,6 +10,7 @@ namespace Memoria.FF8;
 
 internal sealed record CrossoverGuestFireHostState(Ff7BattleGuestInvocation Invocation, long HostTick, long Subticks, bool HalfSubtick, CrossoverGunbladeHostPlacement Placement, ushort TargetRadius, Ff7BattleGuestPhysicalHit Prepared, CrossoverBattleAction? StockAction, CrossoverNativeMagicPresentationState Presentation, bool ContactPublished)
 {
+    public ImmutableArray<Ff7BattleGuestPhysicalHit> GroupPrepared { get; init; } = [];
     public CrossoverGuestItemDebit? ItemCost { get; init; }
     public CrossoverDrawCastReceipt? DrawCast { get; init; }
 }
@@ -34,7 +35,7 @@ internal sealed record CrossoverGuestHostActionsSnapshot(CrossoverBattleStockSna
 internal sealed record CrossoverGuestActorSnapshot(CrossoverGuestFireHostState? Fire, CrossoverNativeRenzokukenSelection? LimitSelection, CrossoverGuestRenzokukenHostState? Limit, NativeBattleUiRandomState? LimitUiRandom);
 
 /// <summary>One host provider for original attacks and source-owned abilities through the common encounter bridge.</summary>
-internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack, IFf7BattleGuestMagic, IFf7BattleGuestAbilities, IFf7BattleGuestCamera, IFf7BattleGuestItems, IFf7BattleGuestLimit, IFf7BattleGuestOperation
+internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack, IFf7BattleGuestMagic, IFf7BattleGuestGroupMagic, IFf7BattleGuestAbilities, IFf7BattleGuestCamera, IFf7BattleGuestItems, IFf7BattleGuestLimit, IFf7BattleGuestOperation
 {
     private readonly CrossoverBattleRoster roster;
     private CrossoverFf8BattleKit kit;
@@ -223,7 +224,8 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         {
             throw new InvalidOperationException("The FFVIII guest has no available stock for this original spell.");
         }
-        return CrossoverBattleAbilityRules.Describe(kit, NativeAbility(ability));
+        CrossoverGuestAbility choice = ReadOriginAbilities().Single(choice => choice.Key == ability);
+        return CrossoverBattleAbilityRules.Describe(kit, NativeAbility(ability), choice.AbilityLevel, choice.DamagePercent);
     }
 
     public void PrepareMagic(Ff7BattleGuestPhysicalHit value)
@@ -372,14 +374,11 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         }
         CrossoverGunbladeHostPlacement placement = new(Ff7BattlePosition.FromVector(source.Position), source.Yaw);
         NativeBattleGraphicsModel model = attack.Visual?.Model ?? throw new InvalidDataException("The mixed spell has no loaded native caster.");
-        byte flags = receipt.Receipt.Damage.Missed ? (byte)1 : (byte)0;
-        byte hitFlags = receipt.Receipt.Damage.Damage < 0 ? (byte)1 : (byte)0;
-        NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(original.DamagePresentation, flags, hitFlags, original.AttackType, 255);
-        NativeBattleContactHalf contact = NativeBattleContactHalf.FromScratch(invocation.TargetSlot == invocation.ActorSlot ? (byte)0 : (byte)3, presentation.Sequence, presentation.Flags2, presentation.HitFlags3, (ushort)(receipt.Receipt.Target.Statuses & 1), Math.Abs(receipt.Receipt.Damage.Damage), 0);
         CrossoverNativeMagicPresentationState program;
         try
         {
-            program = fireProgram.Begin(model with { Index = 0 }, target.Slot, encounter.CrtRandom, contact, original, encounter.GlobalRandom);
+            ImmutableArray<CrossoverNativeMagicTarget> targets = PresentationTargets(preparedGroup.IsEmpty ? [hit] : preparedGroup, original);
+            program = fireProgram.Begin(model with { Index = 0 }, target.Slot, encounter.CrtRandom, targets[0].Contact, original, encounter.GlobalRandom) with { Targets = targets };
         }
         catch
         {
@@ -401,9 +400,10 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         {
             throw new InvalidDataException("Draw Cast requires its committed source result before presentation.");
         }
-        fire = new(invocation, invocation.StartedAt, clock.Subticks, clock.HalfSubtick, placement, target.CollisionRadius, hit, stockAction, program, false) { DrawCast = preparedDrawCast };
+        fire = new(invocation, invocation.StartedAt, clock.Subticks, clock.HalfSubtick, placement, target.CollisionRadius, hit, stockAction, program, false) { DrawCast = preparedDrawCast, GroupPrepared = preparedGroup };
         preparedDrawCast = null;
         prepared = null;
+        preparedGroup = [];
     }
 
     public Ff7BattleGuestAttackUpdate Advance(long hostTick)
@@ -451,6 +451,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         }
         NativeBattleGraphicsPresentationStep clock = NativeBattleGraphicsPresentationClock.Advance(current.Subticks, current.HalfSubtick, TimeSpan.FromTicks(HostTime(hostTick) - HostTime(current.HostTick)));
         Ff7BattleGuestPhysicalHit? hit = null;
+        ImmutableArray<Ff7BattleGuestPhysicalHit> groupHits = [];
         if (clock.Callbacks != 0)
         {
             if (clock.Callbacks != 1)
@@ -466,7 +467,8 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
                 NativeBattleVector point = current.Placement.ResolvePosition(host.RenderActorPlacement(current.Invocation.TargetSlot).Position);
                 short scale = checked((short)NativePrecision53.RoundInteger(current.TargetRadius / CrossoverGunbladeHostPlacement.OriginToHostScale * 4096 / 2000));
                 return new(point, point, 0, 0, scale);
-            }, CrossoverNativeSpriteRenderer.Camera(host.RenderCameraOutput, current.Placement.Matrix), () => CrossoverNativeForeignTarget.Read(host, current.Invocation.TargetSlot, (readForeignGeometry ?? throw new InvalidDataException("The host ally geometry owner is unavailable."))(current.Invocation.TargetSlot), current.Placement.Matrix));
+            }, CrossoverNativeSpriteRenderer.Camera(host.RenderCameraOutput, current.Placement.Matrix), readForeignGeometry is null ? null : () => CrossoverNativeForeignTarget.Read(host, current.Invocation.TargetSlot, readForeignGeometry(current.Invocation.TargetSlot), current.Placement.Matrix),
+                readGroupForeign: readForeignGeometry is null ? null : slot => CrossoverNativeForeignTarget.Read(host, slot, readForeignGeometry(slot), current.Placement.Matrix));
             current = current with { Presentation = next.State, ContactPublished = current.ContactPublished || next.Contact };
             encounter.CrtRandom = next.State.Random;
             encounter.GlobalRandom = next.State.GlobalRandom ?? encounter.GlobalRandom;
@@ -481,7 +483,14 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
             }
             if (next.Contact)
             {
-                hit = current.Prepared;
+                if (current.GroupPrepared.IsEmpty)
+                {
+                    hit = current.Prepared;
+                }
+                else
+                {
+                    groupHits = next.ContactTargets.Select(slot => current.GroupPrepared.Single(value => value.PreparedContact!.Invocation.TargetSlot == slot)).ToImmutableArray();
+                }
             }
         }
         current = current with { HostTick = hostTick, Subticks = clock.Subticks, HalfSubtick = clock.HalfSubtick };
@@ -491,7 +500,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
             attack.ResumeStandingFromCast(current.Presentation.Cast.Model with { Index = ActorSlot }, hostTick, clock.Subticks, clock.HalfSubtick);
             fire = null;
         }
-        return new(hit, fire is null);
+        return new(hit, fire is null) { GroupHits = groupHits };
     }
 
     public void AdvanceIdle(long hostTick, uint statuses, long? reactionTick) => attack.AdvanceIdle(hostTick, statuses, reactionTick);

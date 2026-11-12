@@ -25,7 +25,7 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native87DC50 requires its prior projection registers.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native87DC50 requires the previously published1D97778 matrix.");
         NativeBattleCuragaFrame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native87DC50 requires retained effect memory."), effect, effect.Curaga ?? throw new NotSupportedException("Native87DC50 requires its executed87DB10 state."));
-        NativeBattleCuragaControllerInputs inputs = new(nativeActionPackets, view, index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Curaga anchors require the original model pose source.")) { ApplyContact = ApplyContact };
+        NativeBattleCuragaControllerInputs inputs = new(nativeActionPackets, view, index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Curaga anchors require the original model pose source.")) { ApplyContact = ApplyContact, ReadForeignTarget = ReadNativeForeignTarget };
         NativeBattleCuragaControllerStep step = NativeBattleCuragaController.Advance87DC50(frame, inputs, resources, (current, address) =>
         {
             NativeEffectMemory = current.Memory;

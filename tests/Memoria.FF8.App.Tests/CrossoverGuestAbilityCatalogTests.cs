@@ -33,7 +33,8 @@ public sealed class CrossoverGuestAbilityCatalogTests
         vitals = vitals with
         {
             Records = [new(0, new(1, 1), 0, new(7, 0, 0, new byte[19]), 0, 0, 0, new byte[6], [], 0, 0)],
-            GuardianForces = [new(0, 1, 20, null!, 100, [], 0, 0), new(0, 0, 20, null!, 100, [], 0, 0), new(0, 1, 0, null!, 100, [], 0, 0)]
+            GuardianForces = [new(100, 1, 20, new(0, 1ul << 19), 100, [], 0, 0), new(0, 0, 20, new(0, 0), 100, [], 0, 0), new(0, 1, 0, new(0, 0), 100, [], 0, 0)],
+            Definitions = new([], [], [], [new(10, 0, 0, 1, 0), new(10, 0, 0, 1, 0), new(10, 0, 0, 1, 0)], [new(0, 0, 20), .. Enumerable.Range(0, 8).Select(_ => new NativeStatModifier(0, 0, 0))])
         };
         BattleActionDefinition[] definitions = Enumerable.Range(0, 3).Select(id => new BattleActionDefinition(BattleAbility.GuardianForce, id, $"GF {id}", BattleActionEffect.Native, 0, false) { NativeAction = Action(254, (ushort)(64 + id), 0) }).ToArray();
         CrossoverFf8BattleKit kit = Kit(0, 5) with { Commands = [3] };
@@ -41,6 +42,8 @@ public sealed class CrossoverGuestAbilityCatalogTests
         Assert.Equal((ushort)0xFE40, choice.Key);
         Assert.Equal("GF", choice.Category);
         Assert.Equal("GF 0", choice.Name);
+        Assert.Equal(2, choice.AbilityLevel);
+        Assert.Equal(20, choice.DamagePercent);
         Assert.Empty(CrossoverGuestAbilityCatalog.Read([], definitions, Binding, vitals, kit with { Commands = [] }, null, 0));
         vitals = vitals with { Records = [vitals.Records[0] with { Junction = vitals.Records[0].Junction with { GuardianForces = 0 } }] };
         Assert.Empty(CrossoverGuestAbilityCatalog.Read([], definitions, Binding, vitals, kit, null, 0));

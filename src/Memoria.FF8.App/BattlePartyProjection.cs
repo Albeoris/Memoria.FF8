@@ -17,23 +17,28 @@ internal static class BattlePartyProjection
             {
                 return action with { Statuses = action.Statuses?.ToArray() };
             }
-            NativeGuardianForceVital gf = vitals.GuardianForces[action.Id];
-            int percent = 0;
-            byte flags = 0;
-            for (int bit = 19; bit < 28; bit++)
-            {
-                NativeStatModifier modifier = vitals.Definitions.GuardianForceModifiers[bit - 19];
-                if (gf.HasLearnedAbility(bit + 64) && modifier.Selector == 0)
-                {
-                    percent += modifier.Percentage;
-                }
-                if (gf.HasLearnedAbility(bit + 64))
-                {
-                    flags |= modifier.Flags;
-                }
-            }
-            return action with { Level = NativeStatDefinitions.Level(gf.Experience, vitals.Definitions.GuardianForces[action.Id]), DamagePercent = unchecked((byte)percent), Available = gf.HitPoints > 0 && (gf.Flags & 1) != 0, Statuses = action.Statuses?.ToArray(), NativeGuardianBoostAvailable = (flags & 1) != 0 };
+            return ProjectGuardianForceAction(vitals, action);
         }).ToArray();
+    }
+
+    internal static BattleActionDefinition ProjectGuardianForceAction(NativeCharacterVitals vitals, BattleActionDefinition action)
+    {
+        NativeGuardianForceVital gf = vitals.GuardianForces[action.Id];
+        int percent = 0;
+        byte flags = 0;
+        for (int bit = 19; bit < 28; bit++)
+        {
+            NativeStatModifier modifier = vitals.Definitions.GuardianForceModifiers[bit - 19];
+            if (gf.HasLearnedAbility(bit + 64) && modifier.Selector == 0)
+            {
+                percent += modifier.Percentage;
+            }
+            if (gf.HasLearnedAbility(bit + 64))
+            {
+                flags |= modifier.Flags;
+            }
+        }
+        return action with { Level = NativeStatDefinitions.Level(gf.Experience, vitals.Definitions.GuardianForces[action.Id]), DamagePercent = unchecked((byte)percent), Available = gf.HitPoints > 0 && (gf.Flags & 1) != 0, Statuses = action.Statuses?.ToArray(), NativeGuardianBoostAvailable = (flags & 1) != 0 };
     }
 
     public static BattleCombatantDefinition[] Create(GameState state, IReadOnlyDictionary<int, string>? names, LiveMenuCatalog catalog, BattleAssets resources)

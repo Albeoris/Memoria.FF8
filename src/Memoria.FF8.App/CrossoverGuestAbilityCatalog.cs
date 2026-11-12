@@ -4,7 +4,11 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
-internal sealed record CrossoverGuestAbility(ushort Key, byte Command, string Category, string Name, BattleNativeAction? NativeAction, int Stock, string? RuleUnsupportedReason);
+internal sealed record CrossoverGuestAbility(ushort Key, byte Command, string Category, string Name, BattleNativeAction? NativeAction, int Stock, string? RuleUnsupportedReason)
+{
+    public int? AbilityLevel { get; init; }
+    public int DamagePercent { get; init; }
+}
 
 internal static class CrossoverGuestAbilityCatalog
 {
@@ -38,9 +42,9 @@ internal static class CrossoverGuestAbilityCatalog
                 {
                     continue;
                 }
-                BattleActionDefinition definition = actionDefinitions.Single(action => action.Ability == BattleAbility.GuardianForce && action.Id == id);
+                BattleActionDefinition definition = BattlePartyProjection.ProjectGuardianForceAction(vitals, actionDefinitions.Single(action => action.Ability == BattleAbility.GuardianForce && action.Id == id));
                 BattleNativeAction action = definition.NativeAction ?? throw new InvalidDataException("The assigned GF has no original action record.");
-                choices.Add(Choice(action, "GF", 1) with { Name = definition.DisplayName ?? definition.Name });
+                choices.Add(Choice(action, "GF", 1) with { Name = definition.DisplayName ?? definition.Name, AbilityLevel = definition.Level, DamagePercent = definition.DamagePercent });
             }
         }
         foreach (byte command in kit.Commands.Distinct().Where(command => command is not (0 or 1 or 2 or 3 or 4 or 12)))

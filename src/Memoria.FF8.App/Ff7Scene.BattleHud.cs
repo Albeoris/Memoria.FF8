@@ -12,6 +12,7 @@ namespace Memoria.FF8;
 internal sealed partial class Ff7Scene
 {
     internal readonly record struct BattleChoiceRow(string Name, string Value = "", bool Unsupported = false);
+    internal readonly record struct BattleTargetRow(int Slot, string Name, string? UnsupportedReason = null);
 
     private void DrawBattle(Rectangle bounds, Rectangle sceneBounds, Ff7BattleSession battle)
     {
@@ -185,27 +186,10 @@ internal sealed partial class Ff7Scene
             return;
         }
         int selected = Math.Min(battleTargetIndex, targets.Length - 1);
-        bool enemies = targets[selected].Actor.Slot >= 4;
+        BattleTargetRow[] rows = targets.Select(target => new BattleTargetRow(target.Actor.Slot, battle.Name(target.Actor.Slot), battle.GuestAbilityTargetUnsupportedReason(ready, action.Command, action.Argument, target.Actor.Slot))).ToArray();
+        bool group = battleTargetGroup && action.GroupUses > 0 || !action.SelectSingle;
+        UiRect panel = DrawBattleTargetChoices(canvas, theme, layout, textScale, rows, selected, group, action.AllTargets);
         float scale = layout.Scale;
-        float fontSize = 24 * scale * textScale;
-        float captionSize = UiTheme.DefaultCaptionFontSize * scale * textScale;
-        int columns = (targets.Length + 3) / 4;
-        (UiRect panel, float columnWidth, float rowHeight, float contentOffset) = layout.MeasureTargets(canvas, theme, targets.Select(target => battle.Name(target.Actor.Slot)), columns, textScale);
-        string caption = enemies ? "TARGET  < ENEMIES >" : "TARGET  < ALLIES >";
-        theme.Panel(canvas, layout.Rect(panel.X, panel.Y, panel.Width, panel.Height), caption, captionSize);
-        for (int index = 0; index < targets.Length; index++)
-        {
-            int slot = targets[index].Actor.Slot;
-            float x = panel.X + index / 4 * columnWidth;
-            float rowY = panel.Y + contentOffset + index % 4 * rowHeight;
-            float inset = columns > 1 ? 54 : 30;
-            if (index == selected || (battleTargetGroup && action.GroupUses > 0 || !action.SelectSingle) && (slot >= 4) == enemies)
-            {
-                theme.Pointer(canvas, layout.Left + (x + (columns > 1 ? 3 : -48)) * scale, layout.Top + (rowY + 5) * scale, 24 * scale);
-            }
-            UiRect label = layout.Rect(x + inset, rowY, columnWidth - inset - 12, rowHeight);
-            canvas.Text(battle.Name(slot), fontSize, label, theme.Foreground, UiAlignment.Start, UiTextFlow.SingleLine);
-        }
         string title = CommandName(action, ready);
         displayedGuestSmartPreview = GuestAttackPreview(ready, action, targets[selected].Actor.Slot);
         if (displayedGuestSmartPreview is { } smart)
@@ -228,6 +212,34 @@ internal sealed partial class Ff7Scene
             string hint = MagicUiText.Format("PhysicalOverride", sharedInput.BindingPrompt(ControlAction.CameraLeft));
             canvas.Text(hint, titleSize, layout.Rect(68, titleY + 7 + titleHeight, 412, titleHeight), theme.Foreground);
         }
+    }
+
+    internal static UiRect DrawBattleTargetChoices(IUiCanvas canvas, UiTheme theme, BattleHudLayout layout, float textScale, IReadOnlyList<BattleTargetRow> targets, int selected, bool group, bool allTargets = false)
+    {
+        selected = Math.Clamp(selected, 0, targets.Count - 1);
+        bool enemies = targets[selected].Slot >= 4;
+        float scale = layout.Scale;
+        float fontSize = 24 * scale * textScale;
+        float captionSize = UiTheme.DefaultCaptionFontSize * scale * textScale;
+        int columns = (targets.Count + 3) / 4;
+        (UiRect panel, float columnWidth, float rowHeight, float contentOffset) = layout.MeasureTargets(canvas, theme, targets.Select(target => target.Name), columns, textScale);
+        string caption = group && allTargets ? "TARGET  < ALL >" : enemies ? "TARGET  < ENEMIES >" : "TARGET  < ALLIES >";
+        theme.Panel(canvas, layout.Rect(panel.X, panel.Y, panel.Width, panel.Height), caption, captionSize);
+        for (int index = 0; index < targets.Count; index++)
+        {
+            BattleTargetRow target = targets[index];
+            float x = panel.X + index / 4 * columnWidth;
+            float rowY = panel.Y + contentOffset + index % 4 * rowHeight;
+            float inset = columns > 1 ? 54 : 30;
+            if (index == selected || group && (allTargets || (target.Slot >= 4) == enemies))
+            {
+                theme.Pointer(canvas, layout.Left + (x + (columns > 1 ? 3 : -48)) * scale, layout.Top + (rowY + 5) * scale, 24 * scale);
+            }
+            UiRect label = layout.Rect(x + inset, rowY, columnWidth - inset - 12, rowHeight);
+            UiColor color = target.UnsupportedReason is null ? theme.Foreground : new(255, 80, 80);
+            canvas.Text(target.Name, fontSize, label, color, UiAlignment.Start, UiTextFlow.SingleLine);
+        }
+        return panel;
     }
 
     private static void DrawBattleResult(IUiCanvas canvas, UiTheme theme, BattleHudLayout layout, float textScale, Ff7BattleSession battle)

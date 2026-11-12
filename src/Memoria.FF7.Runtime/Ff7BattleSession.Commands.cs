@@ -16,6 +16,8 @@ public enum Ff7BattleCommand : byte
 
 public sealed record Ff7BattleCommandOption(Ff7BattleCommand Command, ushort Argument, ushort ValidTargets, bool SelectSingle, bool DefaultsToEnemies, int Cost = 0, int GroupUses = 0)
 {
+    public bool AllTargets { get; init; }
+    public ushort? CandidateTargets { get; init; }
     public string? DisplayName { get; init; }
     public string? Category { get; init; }
     public string? UnsupportedReason { get; init; }
@@ -87,17 +89,18 @@ public sealed partial class Ff7BattleSession
                         bool enemies = (ability.TargetFlags & 2) != 0;
                         bool locked = (ability.TargetFlags & 0x10) != 0;
                         bool single = (ability.TargetFlags & 4) == 0 || (ability.TargetFlags & 8) != 0;
-                        ushort abilityTargets = Mask(state.Actors.Where(target => ((target.Actor.Conditions & 8) != 0 || ability.CanTargetDead && target.Actor.Slot < 3) && (ability.CanTargetDead || IsAlive(target)) && (!locked || (target.Actor.Slot >= 4) == enemies) && abilities.SupportsAbility(ability.Command, ability.Ability, DescribeGuestTarget(target.Actor.Slot))));
+                        ushort candidates = Mask(state.Actors.Where(target => target.Actor.Slot != 3 && (!ability.CanTargetDead || target.Actor.Slot < 3) && ((target.Actor.Conditions & 8) != 0 || ability.CanTargetDead && target.Actor.Slot < 3) && IsAlive(target) != ability.CanTargetDead && (!locked || (target.Actor.Slot >= 4) == enemies)));
+                        ushort abilityTargets = Mask(state.Actors.Where(target => (candidates & (1 << target.Actor.Slot)) != 0 && abilities.SupportsAbility(ability.Command, ability.Ability, DescribeGuestTarget(target.Actor.Slot))));
                         string? reason = ability.UnsupportedReason;
                         if (reason is null && ability.RequiresMagic && !Ff7GuestBattleStatuses.CanCastMagic(actor.Actor.Statuses))
                         {
                             reason = "The character's current status prevents using this ability.";
                         }
-                        if (reason is null && abilityTargets == 0)
+                        if (reason is null && candidates == 0)
                         {
                             reason = "No valid target is available for this ability.";
                         }
-                        guest.Insert(abilityIndex++, new(ability.Command, ability.Ability, abilityTargets, single, enemies, ability.Stock) { DisplayName = ability.Name, Category = ability.Category, UnsupportedReason = reason });
+                        guest.Insert(abilityIndex++, new(ability.Command, ability.Ability, abilityTargets, single, enemies, ability.Stock) { AllTargets = ability.AllTargets, CandidateTargets = candidates, DisplayName = ability.Name, Category = ability.Category, UnsupportedReason = reason });
                     }
                 }
                 else if (guestAttack is IFf7BattleGuestMagic magic && Ff7GuestBattleStatuses.CanCastMagic(actor.Actor.Statuses))
@@ -142,7 +145,7 @@ public sealed partial class Ff7BattleSession
         }
         if (IsGuestVitalsSlot(slot) && command == Ff7BattleCommand.Magic)
         {
-            return !group && System.Numerics.BitOperations.IsPow2((uint)targets) && SubmitGuestMagic(slot, System.Numerics.BitOperations.TrailingZeroCount((uint)targets), argument);
+            return SubmitGuestMagicTargets(slot, targets, argument, group);
         }
         if (IsGuestVitalsSlot(slot) && command == Ff7BattleCommand.Item && GetGuestAttack(slot) is IFf7BattleGuestItems { HasOriginItems: true })
         {

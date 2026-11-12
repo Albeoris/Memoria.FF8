@@ -1,15 +1,21 @@
 using System.Collections.Immutable;
 using System.Numerics;
 using Memoria.FF7.Formats;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Rendering;
 
-public sealed record Ff7BattleActorFace(Vector3 A, Vector3 B, Vector3 C, int Part, int Group, int Polygon, PcRenderState Material);
+public sealed record Ff7BattleActorFace(Vector3 A, Vector3 B, Vector3 C, int Part, int Group, int Polygon, PcRenderState Material)
+{
+    public NativeBattleForeignSurface? Surface { get; init; }
+}
+public sealed record NativeBattleForeignRenderMaterial(TriangleMaterial Material, bool Cull) : INativeBattleForeignMaterial;
 public sealed record Ff7BattleActorGeometry(ImmutableArray<Ff7BattleActorFace> Faces, ImmutableArray<Vector3> SkeletonPoints)
 {
     public Vector3? GuestRoot { get; init; }
     public Vector3? GuestEffectAnchor { get; init; }
     public ImmutableArray<(Vector3 A, Vector3 B, Vector3 C)> GuestFaces { get; init; } = [];
+    public ImmutableArray<NativeBattleForeignSurface> GuestSurfaces { get; init; } = [];
 
     public IEnumerable<(Vector3 A, Vector3 B, Vector3 C)> FaceVertices()
         => GuestFaces.IsEmpty ? Faces.Select(face => (face.A, face.B, face.C)) : GuestFaces;
@@ -21,6 +27,7 @@ public sealed partial class Ff7BattleRenderer
     {
         ImmutableArray<Ff7BattleActorFace>.Builder faces = ImmutableArray.CreateBuilder<Ff7BattleActorFace>();
         int part = 0;
+        Ff7ModelMaterialState materialState = new();
         ImmutableArray<Vector3> skeleton = [];
         VisitActorGeometry(actor, (model, textures, transform) =>
         {
@@ -32,12 +39,39 @@ public sealed partial class Ff7BattleRenderer
             {
                 PcModelGroup group = model.Groups[groupIndex];
                 PcRenderState material = PcRenderState.Read(model.RenderStates[groupIndex].Span);
+                materialState.Apply(material);
+                Albeoris.Games.FF8.Imaging.PixelImage? image = null;
+                if (group.TexturesUsed != 0)
+                {
+                    if ((uint)group.TextureNumber >= textures.Count)
+                    {
+                        throw new InvalidDataException("The posed host polygon references an absent texture.");
+                    }
+                    PcTexture texture = textures[group.TextureNumber];
+                    if (!images.TryGetValue(texture, out image))
+                    {
+                        image = Ff7FieldRenderer.DecodeTexture(texture);
+                        images.Add(texture, image);
+                    }
+                }
+                NativeBattleForeignRenderMaterial surfaceMaterial = new(new(image, materialState.Blend, materialState.DepthTest ? TriangleDepthComparison.GreaterEqual : TriangleDepthComparison.Always, materialState.DepthWrite, materialState.AlphaReference, materialState.Sampler) { PreserveTargetAlpha = false, TextureSelectsAlpha = false }, materialState.Cull);
                 for (int polygonIndex = group.PolygonStart; polygonIndex < group.PolygonStart + group.PolygonCount; polygonIndex++)
                 {
                     PcModelPolygon polygon = model.Polygons[polygonIndex];
-                    faces.Add(new(Vertex(polygon.A), Vertex(polygon.B), Vertex(polygon.C), part, groupIndex, polygonIndex, material));
+                    Vector4 first = Color(polygon.A);
+                    faces.Add(new(Vertex(polygon.A), Vertex(polygon.B), Vertex(polygon.C), part, groupIndex, polygonIndex, material)
+                    {
+                        Surface = new(surfaceMaterial, [Uv(polygon.A), Uv(polygon.B), Uv(polygon.C)], [first, materialState.Gouraud ? Color(polygon.B) : first, materialState.Gouraud ? Color(polygon.C) : first])
+                    });
                 }
                 Vector3 Vertex(int local) => Vector3.Transform(model.Vertices[group.VertexStart + local], transform);
+                Vector2 Uv(int local) => image is null ? default : model.TextureCoordinates[group.TextureCoordinateStart + local];
+                Vector4 Color(int local)
+                {
+                    int vertex = group.VertexStart + local;
+                    uint argb = vertex < model.VertexColors.Count ? model.VertexColors[vertex] : uint.MaxValue;
+                    return new((argb >> 16 & 255) / 255f, (argb >> 8 & 255) / 255f, (argb & 255) / 255f, (argb >> 24) / 255f * material.VertexAlpha / 255f);
+                }
             }
             part++;
         }, points => skeleton = points);

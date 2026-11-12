@@ -20,6 +20,20 @@ public readonly record struct Ff7BattleDamageAction(byte Formula, byte Power, by
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public bool AlwaysHits { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public int? BaseDamage { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public int? FixedDamage { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public int MinimumDamage { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public int FractionNumerator { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public int FractionDenominator { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public byte RequiredTargetLevelMultiple { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool RequiresKnockedOutTarget { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     internal byte? GuestElementPercent { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     internal int GuestElementAdjustment { get; init; }
@@ -96,7 +110,16 @@ public static class Ff7NativeBattleDamage
         {
             return new(false, false, 0);
         }
-        if (action.Power == 0 && !action.HasStatusOperation)
+        if (action.BaseDamage is < 0 || action.FixedDamage is < 0 || action.MinimumDamage < 0 || action.FractionDenominator < 0 || action.FractionNumerator < 0 || action.FractionDenominator == 0 && action.FractionNumerator != 0)
+        {
+            throw new InvalidDataException("Battle damage operands must describe nonnegative damage and a valid fraction.");
+        }
+        if (action.RequiredTargetLevelMultiple != 0 && target.Level % action.RequiredTargetLevelMultiple != 0)
+        {
+            return new(true, false, 0);
+        }
+        bool hasDamage = action.Power != 0 || action.BaseDamage is not null || action.FixedDamage is not null || action.FractionDenominator != 0;
+        if (!hasDamage && !action.HasStatusOperation)
         {
             return new(true, false, 0);
         }
@@ -119,7 +142,7 @@ public static class Ff7NativeBattleDamage
 
         bool physical = action.Formula is 0x11 or 0xB1;
         bool hit = physical ? PhysicalHit(attacker, target, action, accuracy, random) : (action.Formula >> 4) != 2 || MagicHit(attacker, target, action, accuracy, random);
-        if (action.Power == 0)
+        if (!hasDamage)
         {
             return new(!hit, false, 0);
         }
@@ -134,9 +157,13 @@ public static class Ff7NativeBattleDamage
         }
         else
         {
-            damage = action.Formula is 0x04 or 0x23 or 0x24 ? unchecked((int)fractionBasis.Value * action.Power) / 32 : MagicDamage(attacker, target, action);
+            damage = action.Formula is 0x04 or 0x23 or 0x24 ? action.FractionDenominator == 0 ? unchecked((int)fractionBasis.Value * action.Power) / 32 : checked((int)((long)fractionBasis.Value * action.FractionNumerator / action.FractionDenominator)) : MagicDamage(attacker, target, action);
         }
 
+        if (action.MinimumDamage != 0)
+        {
+            damage = Math.Max(action.MinimumDamage, damage);
+        }
         if (action.Formula is not (0x04 or 0x23 or 0x24 or 0x26))
         {
             damage = Math.Max(1, damage * (3841 + random.NextByte()) >> 12);
@@ -219,7 +246,7 @@ public static class Ff7NativeBattleDamage
     {
         int evadeRoll = ScaleByteToPercent(random.NextByte());
         int hitRoll = ScaleByteToPercent(random.NextByte()) + 1;
-        if (accuracy >= 255 || GuaranteesHit(action) || (!action.AddsStatuses && (target.Statuses & GuaranteedStatusMagicHit) != 0))
+        if (action.AlwaysHits || accuracy >= 255 || GuaranteesHit(action) || (!action.AddsStatuses && (target.Statuses & GuaranteedStatusMagicHit) != 0))
         {
             return true;
         }
@@ -265,7 +292,7 @@ public static class Ff7NativeBattleDamage
     {
         if (action.Formula == 0x26)
         {
-            return action.Power * 20;
+            return action.FixedDamage ?? action.Power * 20;
         }
         int stat = action.UsePhysicalStats ? ApplyModifier(attacker.Attack, attacker.AttackModifier) : ApplyModifier(attacker.Magic, attacker.MagicModifier);
         int basis = 6 * (stat + attacker.Level);
@@ -280,7 +307,7 @@ public static class Ff7NativeBattleDamage
         {
             return (512 - defense) * action.Power / 32;
         }
-        int damage = basis * (512 - defense) * action.Power / 8192;
+        int damage = action.BaseDamage is int supplied ? checked((int)((long)supplied * (512 - defense) / 512)) : basis * (512 - defense) * action.Power / 8192;
         return ApplyDamageModifiers(damage, target.Statuses, barrier, action.Split);
     }
 

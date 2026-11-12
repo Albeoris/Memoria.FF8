@@ -43,7 +43,7 @@ public sealed partial class BattleSession
         NativeStage = NativeBattleStageState.FromColdProcess();
         ImmutableArray<NativeBattleGraphicsModel> models = NativeBattleGraphicsModels.ClearBank().ToImmutableArray().SetItem(0, inputs.Source);
         models = BindPresentationForeignModels(models);
-        NativeGraphics = InitializeNativePrimitiveFrame500400(new(models, ["source", null, null, "target", null, null, null], 0, 0));
+        NativeGraphics = InitializeNativePrimitiveFrame500400(new(models, Enumerable.Range(0, models.Length).Select(index => index == 0 ? "source" : presentationForeignActors.ContainsKey(index) ? $"host-{index}" : null).ToImmutableArray(), 0, 0));
         InitializeNativePrimitiveDepth47CE10();
         NativeGraphics = BeginNativeOriginalEffect(NativeGraphics!, inputs.Effect);
         NativeGraphics = NativeGraphics with { OriginalEffect = NativeGraphics.OriginalEffect! with { Parameters = inputs.Parameters } };
@@ -56,15 +56,13 @@ public sealed partial class BattleSession
     private void ValidateEffectPresentationServices()
     {
         _ = ReadEffectPresentationStageDepth();
-        ValidateEffectPresentationCamera(NativeCamera!, presentationHostCamera!);
+        NativeCamera = NativeCamera!;
     }
 
-    internal static void ValidateEffectPresentationCamera(NativeBattleCameraState camera, NativeBattleCameraState host)
+    /// <summary>The mixed host acknowledges camera requests without moving its view or running native camera tracks.</summary>
+    internal static NativeBattleCameraState HoldEffectPresentationCamera(NativeBattleCameraState camera, NativeBattleCameraState host)
     {
-        if (camera.Tasks.Any(task => task is not null) || camera.CurrentPose != host.CurrentPose || camera.FocalLength != host.FocalLength || camera.Roll != host.Roll || camera.Projection != host.Projection)
-        {
-            throw new NotSupportedException("The selected native presentation requires a camera control lease that the host bridge cannot supply.");
-        }
+        return host with { ControlResource = camera.ControlResource, ControlStagingSource = camera.ControlStagingSource, ControlCursor = null, ViewTranslationScratch = new(0, 0, 0) };
     }
 
     internal short ReadEffectPresentationStageDepth()
@@ -123,7 +121,7 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Foreign presentation actors require a unique physical model slot outside source slot zero.");
             }
             NativeBattleGraphicsModel model = models[actor.Index];
-            models = models.SetItem(actor.Index, model with { Flags0 = (ushort)(model.Flags0 | 2), Transform = actor.Transform });
+            models = models.SetItem(actor.Index, model with { Flags0 = (ushort)(model.Flags0 | 2), Flags2 = model.Flags2 ?? 0, Transform = actor.Transform, Rotation14 = actor.Facing, GeometryWorldMatrix = actor.Geometry?.World, GeometryBounds52 = actor.Geometry?.Anchors.LocalBounds, Color40 = model.Color40 ?? 0x808080, Color44 = model.Color44 ?? 0x808080, HasLinkedModelRing140 = false, LinkedModelIndex140 = null });
         }
         return models;
     }

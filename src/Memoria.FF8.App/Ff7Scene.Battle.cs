@@ -90,12 +90,8 @@ internal sealed partial class Ff7Scene
             UpdateAudio();
             return;
         }
-        if (unavailableBattleCommand is not null)
+        if (ReadUnavailableBattleCommand())
         {
-            if (semanticInput.Confirm || semanticInput.Cancel)
-            {
-                unavailableBattleCommand = null;
-            }
             UpdateAudio();
             return;
         }
@@ -136,6 +132,19 @@ internal sealed partial class Ff7Scene
         ReadMixedTrigger();
         AdvanceBattleTime(gameTime, battle, escapeHeld);
         ShowGuestAbilityFailure(battle);
+    }
+
+    private bool ReadUnavailableBattleCommand()
+    {
+        if (unavailableBattleCommand is null)
+        {
+            return false;
+        }
+        if (semanticInput.Confirm || semanticInput.Cancel)
+        {
+            unavailableBattleCommand = null;
+        }
+        return true;
     }
 
     private bool ShowGuestAbilityFailure(Ff7BattleSession battle)
@@ -189,7 +198,7 @@ internal sealed partial class Ff7Scene
                 unavailableBattleCommand = current;
                 return;
             }
-            if (current is null || current.ValidTargets == 0)
+            if (current is null || (current.CandidateTargets ?? current.ValidTargets) == 0)
             {
                 selectedBattleCommand = null;
                 return;
@@ -203,11 +212,25 @@ internal sealed partial class Ff7Scene
             battleTargetIndex = (Math.Min(battleTargetIndex, targets.Length - 1) + Math.Sign(direction) + targets.Length) % targets.Length;
             int targetSlot = targets[battleTargetIndex].Actor.Slot;
             bool useAll = battleTargetGroup && current.GroupUses > 0;
-            ushort mask = (ushort)(useAll || !current.SelectSingle ? current.ValidTargets & (targetSlot < 3 ? 15 : 0x3F0) : 1 << targetSlot);
+            ushort mask = (ushort)(1 << targetSlot);
+            if (useAll || !current.SelectSingle)
+            {
+                mask = current.CandidateTargets ?? current.ValidTargets;
+                if (!current.AllTargets)
+                {
+                    mask &= (ushort)(targetSlot < 3 ? 15 : 0x3F0);
+                }
+            }
             BattleSmartAttackPreview? preview = GuestAttackPreview(owner, current, targetSlot);
             bool submitted = false;
             if (semanticInput.Confirm)
             {
+                string? reason = targets.Where(target => (mask & 1 << target.Actor.Slot) != 0).Select(target => battle.GuestAbilityTargetUnsupportedReason(owner, current.Command, current.Argument, target.Actor.Slot)).FirstOrDefault(reason => reason is not null);
+                if (reason is not null)
+                {
+                    unavailableBattleCommand = current with { UnsupportedReason = reason };
+                    return;
+                }
                 if (preview is not null)
                 {
                     bool displayed = displayedGuestSmartPreview is not { } previous || previous.ActorId != preview.ActorId || previous.TargetIndex != targetSlot || previous.ForcePhysical != preview.ForcePhysical || previous == preview;
@@ -276,7 +299,7 @@ internal sealed partial class Ff7Scene
 
     private static Ff7BattleCommandOption[] AvailableBattleCommands(Ff7BattleSession battle, int owner)
     {
-        return battle.Commands(owner).Where(option => option.ValidTargets != 0 || option.UnsupportedReason is not null).ToArray();
+        return battle.Commands(owner).Where(option => (option.CandidateTargets ?? option.ValidTargets) != 0 || option.UnsupportedReason is not null).ToArray();
     }
 
     private static (Ff7BattleCommand Command, string Name) BattleCategory(Ff7BattleCommandOption option)
@@ -365,7 +388,7 @@ internal sealed partial class Ff7Scene
 
     private static Ff7BattleActorState[] BattleTargets(Ff7BattleSession battle, Ff7BattleCommandOption command)
     {
-        return battle.Actors.Where(actor => (command.ValidTargets & 1 << actor.Actor.Slot) != 0).OrderByDescending(actor => (actor.Actor.Slot >= 4) == command.DefaultsToEnemies).ToArray();
+        return battle.Actors.Where(actor => ((command.CandidateTargets ?? command.ValidTargets) & 1 << actor.Actor.Slot) != 0).OrderByDescending(actor => (actor.Actor.Slot >= 4) == command.DefaultsToEnemies).ToArray();
     }
 
     private Ff7BattleRenderer BattleRenderer(Ff7BattleSession battle)

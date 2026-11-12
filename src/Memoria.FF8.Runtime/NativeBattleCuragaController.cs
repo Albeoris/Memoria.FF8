@@ -27,6 +27,7 @@ public sealed record NativeBattleCuragaControllerInputs(NativeBattleActionPacket
 {
     public Func<NativeBattleCuragaFrame, int, NativeBattleCuragaFrame>? ApplyContact { get; init; }
     public Func<NativeBattleCuragaFrame, int, byte, NativeBattleCuragaFrame>? ObserveBoneAnchor { get; init; }
+    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeignTarget { get; init; }
 }
 public sealed record NativeBattleCuragaLeafStep(NativeBattleCuragaFrame Frame, int Result);
 public sealed record NativeBattleCuragaControllerStep(NativeBattleCuragaFrame Frame, ImmutableArray<int> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
@@ -224,11 +225,7 @@ public static class NativeBattleCuragaController
             {
                 throw new NotSupportedException("Native Curaga child pool has an unsupported callback.");
             }
-            task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource);
-            NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadByte(0x2D));
-            NativeBattleSequenceState pose = model.SequenceState ?? throw new NotSupportedException("Native8DC870 requires the target's current decoded pose.");
-            NativeBattlePoseSource source = inputs.ReadPoseSource(task.ReadByte(0x2D));
-            task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, source.Sample(pose.Pose ?? throw new NotSupportedException("Native8DC870 requires its selected pose."), pose.PoseFrame114 ?? throw new NotSupportedException("Native8DC870 requires its decoded frame."), pose.PoseFlags109));
+            task = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource, inputs.ReadForeignTarget);
             state = state.Write(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {

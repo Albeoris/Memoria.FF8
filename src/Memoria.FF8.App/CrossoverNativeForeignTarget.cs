@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Collections.Immutable;
 using Memoria.FF7.Runtime;
 using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
@@ -8,6 +9,34 @@ namespace Memoria.FF8;
 /// <summary>The host's posed actor geometry in the current source effect's coordinate space.</summary>
 internal sealed record CrossoverNativeForeignTarget(int HostSlot, NativeBattleModelTransform Transform, NativeBattleActionMatrix World, NativeBattleEffectActorGeometry Anchors, Ff7BattleActorGeometry Geometry, Matrix4x4 HostToOrigin)
 {
+    public short Facing { get; init; }
+
+    public NativeBattleForeignActor ToActor(int index)
+    {
+        ImmutableArray<NativeBattleForeignModelFace> faces;
+        if (!Geometry.GuestFaces.IsDefaultOrEmpty)
+        {
+            if (Geometry.GuestSurfaces.IsDefault || Geometry.GuestSurfaces.Length != Geometry.GuestFaces.Length)
+            {
+                throw new NotSupportedException("The host guest geometry has no original material provider.");
+            }
+            faces = Geometry.GuestFaces.Select((face, index) => new NativeBattleForeignModelFace(LocalVertex(face.A), LocalVertex(face.B), LocalVertex(face.C), Geometry.GuestSurfaces[index])).ToImmutableArray();
+        }
+        else
+        {
+            faces = Geometry.Faces.Select(face => new NativeBattleForeignModelFace(LocalVertex(face.A), LocalVertex(face.B), LocalVertex(face.C), face.Surface ?? throw new NotSupportedException("The host posed geometry has no original material provider."))).ToImmutableArray();
+        }
+        if (faces.IsEmpty)
+        {
+            throw new NotSupportedException("The host posed geometry has no material-bearing triangle provider.");
+        }
+        NativeBattleVector anchor = Anchors.Anchor241;
+        return new(index, Transform, new(anchor.X, anchor.Y, anchor.Z, checked((short)(Anchors.LocalBounds.Maximum.Y - Anchors.LocalBounds.Minimum.Y))), (selector, fraction) => ReadSemanticBone(selector, fraction, anchor, () => Anchors.Anchor240))
+        {
+            Facing = Facing,
+            Geometry = new(World, Anchors, faces)
+        };
+    }
     /// <summary>Foreign F0 is the posed root-to-impact segment; F1 is the host's canonical impact point.</summary>
     public static NativeBattleVector ReadSemanticBone(byte selector, short fraction, NativeBattleVector impact, Func<NativeBattleVector> readRoot)
     {
@@ -37,7 +66,9 @@ internal sealed record CrossoverNativeForeignTarget(int HostSlot, NativeBattleMo
         NativeBattleVector[] joints = geometry.SkeletonPoints.Select(point => Local(point, inverse, position)).ToArray();
         NativeBattleEffectLocalBounds bounds = new(new(joints.Min(point => point.X), joints.Min(point => point.Y), joints.Min(point => point.Z)), new(joints.Max(point => point.X), joints.Max(point => point.Y), joints.Max(point => point.Z)));
         NativeBattleActionMatrix world = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], position.X, position.Y, position.Z, 4096);
-        return new(slot, new(position, position, 0, position.Y, 4096), world, new(first, second, position.Y, bounds), geometry, inverse);
+        float yaw = host.RenderActorPlacement(slot).Yaw * MathF.Tau / 4096;
+        Vector3 facing = Vector3.TransformNormal(new(MathF.Sin(yaw), 0, MathF.Cos(yaw)), inverse);
+        return new(slot, new(position, position, 0, position.Y, 4096), world, new(first, second, position.Y, bounds), geometry, inverse) { Facing = unchecked((short)NativePrecision53.RoundInteger(Math.Atan2(facing.X, facing.Z) * 4096 / (2 * Math.PI))) };
     }
 
     public NativeBattleVector LocalVertex(Vector3 point) => Local(point, HostToOrigin, Transform.Position28);

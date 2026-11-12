@@ -117,7 +117,7 @@ public sealed class CrossoverNativeSpriteRenderer(NativeBattlePrimitiveTables ta
 
         public void Draw(in TriangleVertex a, in TriangleVertex b, in TriangleVertex c, in TriangleMaterial material)
         {
-            TriangleMaterial mapped = material with { DepthComparison = TriangleDepthComparison.GreaterEqual };
+            TriangleMaterial mapped = material with { DepthComparison = material.DepthComparison == TriangleDepthComparison.Always ? TriangleDepthComparison.Always : TriangleDepthComparison.GreaterEqual };
             host.Draw(Map(a), Map(b), Map(c), mapped);
         }
 

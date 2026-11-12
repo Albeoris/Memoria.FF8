@@ -72,6 +72,8 @@ public static class CrossoverFf8BattleActorRenderer
     public static Ff7BattleActorGeometry CaptureActorGeometry(CrossoverFf8BattleActorVisual visual)
     {
         ImmutableArray<(Vector3 A, Vector3 B, Vector3 C)>.Builder faces = ImmutableArray.CreateBuilder<(Vector3 A, Vector3 B, Vector3 C)>();
+        ImmutableArray<NativeBattleForeignSurface>.Builder surfaces = ImmutableArray.CreateBuilder<NativeBattleForeignSurface>();
+        Dictionary<(ushort Page, ushort Clut), PixelImage> pages = [];
         ImmutableArray<Vector3>.Builder skeleton = ImmutableArray.CreateBuilder<Vector3>();
         NativeBattleGraphicsModel model = visual.Model;
         NativeBattlePoseSource source = visual.Body.NativePoseSource ?? throw new InvalidDataException("Mixed actor geometry requires the original body skeleton.");
@@ -82,7 +84,7 @@ public static class CrossoverFf8BattleActorRenderer
         {
             skeleton.Add(Transform(visual, NativeBattleGfMatrices.Compose56C2F0(world, bone), default));
         }
-        VisitGeometry(visual, (mesh, _, bones, _) =>
+        VisitGeometry(visual, (mesh, textures, bones, bodyOwner) =>
         {
             Vector3[] vertices = WorldVertices(visual, mesh, bones);
             for (int index = 0; index < mesh.Faces.Count; index++)
@@ -91,15 +93,31 @@ public static class CrossoverFf8BattleActorRenderer
                 Vector3 a = vertices[face.Vertices[0]];
                 Vector3 b = vertices[face.Vertices[1]];
                 Vector3 c = vertices[face.Vertices[2]];
+                NativeBattleFaceMaterial? nativeMaterial = bodyOwner && visual.BodyTextures is { } binding ? NativeBattleFaceMaterialBinding.Apply507550(face.NativeMaterial ?? throw new InvalidDataException("Mixed actor geometry requires its original material."), binding) : null;
+                PixelImage texture = textures[face.Texture];
+                if (nativeMaterial is not null && !pages.TryGetValue((nativeMaterial.TexturePage, nativeMaterial.Clut), out texture!))
+                {
+                    texture = NativeBattleEffectTextureReader.DecodePcRegion(visual.Textures ?? throw new InvalidDataException("Mixed actor geometry requires its texture owner."), nativeMaterial.TexturePage, nativeMaterial.Clut, 0, 0, 256, 256);
+                    pages.Add((nativeMaterial.TexturePage, nativeMaterial.Clut), texture);
+                }
+                Vector2 textureSize = new(texture.Width, texture.Height);
+                Vector4 tint = new(face.Color.R / 128f, face.Color.G / 128f, face.Color.B / 128f, face.Color.A / 255f);
+                NativeBattleForeignRenderMaterial material = new(new(texture, TriangleBlend.Replace, TriangleDepthComparison.GreaterEqual, true, 1f / 255, TriangleSampler.PointClamp) { PreserveTargetAlpha = false, TextureSelectsAlpha = false }, true);
+                Vector2 Uv(int corner) => (nativeMaterial?.Uv ?? face.Uv)[corner] / textureSize;
+                Vector4 Color(int corner) => tint * (face.VertexColors?[corner] ?? Vector4.One);
+                NativeBattleForeignSurface Surface(int first, int second, int third) => new(material, [Uv(first), Uv(second), Uv(third)], [Color(first), Color(second), Color(third)]);
                 if (face.Vertices.Length == 4)
                 {
                     Vector3 d = vertices[face.Vertices[3]];
                     faces.Add((a, b, d));
                     faces.Add((d, c, a));
+                    surfaces.Add(Surface(0, 1, 3));
+                    surfaces.Add(Surface(3, 2, 0));
                 }
                 else
                 {
                     faces.Add((a, b, c));
+                    surfaces.Add(Surface(0, 1, 2));
                 }
             }
         });
@@ -107,7 +125,8 @@ public static class CrossoverFf8BattleActorRenderer
         {
             GuestRoot = root,
             GuestEffectAnchor = EffectAnchor(visual),
-            GuestFaces = faces.ToImmutable()
+            GuestFaces = faces.ToImmutable(),
+            GuestSurfaces = surfaces.ToImmutable()
         };
     }
 

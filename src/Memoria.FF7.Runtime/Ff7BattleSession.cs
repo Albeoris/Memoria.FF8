@@ -15,6 +15,7 @@ public enum Ff7BattleOutcome
 public sealed record Ff7BattleActorState(int Identity, Ff7BattleAiActor Actor, ushort Gauge, byte[] AiMemory, bool AwaitingTurn = false, bool Defending = false, Ff7BattleStatusTimers Timers = default, byte LimitGauge = 0, Dictionary<byte, int>? AllUses = null);
 public sealed record Ff7BattleActionState(Ff7BattleQueuedCommand Command, long StartedAt, int Animation, bool Applied = false, BattleActionPoseState? Pose = null, Ff7BattleTargetCallbacks? Reactions = null, Ff7BattleMotion? Motion = null, Ff7BattleFireState? Fire = null, Ff7BattleIceState? Ice = null, Ff7BattleBoltState? Bolt = null, Ff7BattleCureState? Cure = null, Ff7BattleBraverState? Braver = null)
 {
+    public ushort GuestAppliedTargets { get; init; }
     public int? FacingYaw { get; init; }
     public Ff7BattleReactionState? TargetReactions { get; init; }
     public Ff7BattleHit? PendingDisplayHit { get; init; }

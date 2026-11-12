@@ -70,7 +70,7 @@ internal sealed partial class CrossoverGuestHostActions
                 {
                     string? lastReason = null;
                     bool supported = false;
-                    foreach (var target in host.Actors.Where(actor => actor.Actor.Slot != 3 && actor.Actor.HitPoints > 0 && (actor.Actor.Conditions & 8) != 0))
+                    foreach (var target in host.Actors.Where(actor => actor.Actor.Slot != 3 && (actor.Actor.HitPoints == 0) == ((flags & 1) != 0) && ((actor.Actor.Conditions & 8) != 0 || (flags & 1) != 0 && actor.Actor.Slot < 3)))
                     {
                         int slot = target.Actor.Slot;
                         if (!CanSelectTarget(flags, slot))
@@ -88,10 +88,28 @@ internal sealed partial class CrossoverGuestHostActions
                     reason = supported ? null : lastReason ?? "No valid target is available for this ability.";
                 }
                 byte hostFlags = CrossoverBattleAbilityRules.HostTargetFlags(flags);
-                result.Add(new(Ff7BattleCommand.Magic, choice.Key, choice.Name, hostFlags, choice.Stock, reason) { Category = choice.Category, RequiresMagic = choice.Command is 2 or 15 or 254 || IsDrawCast(choice.Key) });
+                result.Add(new(Ff7BattleCommand.Magic, choice.Key, choice.Name, hostFlags, choice.Stock, reason) { Category = choice.Category, RequiresMagic = choice.Command is 2 or 15 or 254 || IsDrawCast(choice.Key), CanTargetDead = (flags & 1) != 0, AllTargets = (flags & 0x30) == 0x20 });
             }
             return result;
         }
+    }
+
+    public string? TargetUnsupportedReason(Ff7BattleCommand command, ushort ability, Ff7BattleGuestAttackTarget target)
+    {
+        if (command == Ff7BattleCommand.Magic && HandlesOperation(ability))
+        {
+            return OperationAvailable(ability, target.Slot) ? null : "The selected operation is unavailable for this target.";
+        }
+        if (command == Ff7BattleCommand.Limit)
+        {
+            return SupportsAbility(command, ability, target) ? null : "The selected native Limit process cannot target this actor.";
+        }
+        CrossoverGuestAbility? choice = ReadOriginAbilities().SingleOrDefault(choice => choice.Key == ability);
+        if (choice?.NativeAction?.TargetFlags is not byte flags || !CanSelectTarget(flags, target.Slot))
+        {
+            return "The original ability cannot select this side.";
+        }
+        return AbilityUnsupportedReason(choice, target.Slot);
     }
 
     public bool SupportsAbility(Ff7BattleCommand command, ushort ability, Ff7BattleGuestAttackTarget target)
@@ -114,7 +132,7 @@ internal sealed partial class CrossoverGuestHostActions
         {
             return false;
         }
-        if (NativeBattleLimitRules.CanSelectEitherSide(flags))
+        if ((flags & 0x30) == 0x20 || NativeBattleLimitRules.CanSelectEitherSide(flags))
         {
             return true;
         }
@@ -131,15 +149,7 @@ internal sealed partial class CrossoverGuestHostActions
         {
             return "The bridge cannot yet own the native random target selection process.";
         }
-        if ((flags & 1) != 0)
-        {
-            return "The bridge cannot yet represent this command's native knocked-out target selection.";
-        }
-        if ((flags & 0x30) != 0x10 && (flags & 2) == 0)
-        {
-            return "The bridge cannot yet publish this command to a native target group.";
-        }
-        return null;
+                return (flags & 0x30) == 0x30 ? "The native command uses an unsupported target selection mode." : null;
     }
 
     private string? AbilityUnsupportedReason(CrossoverGuestAbility choice, int target)
@@ -194,7 +204,7 @@ internal sealed partial class CrossoverGuestHostActions
                 () => ReadAbilityAnchor(placement, target),
                 () => ReadAbilityTransform(placement, target),
                 CrossoverNativeSpriteRenderer.Camera(host.RenderCameraOutput, placement.Matrix),
-                () => CrossoverNativeForeignTarget.Read(host, target, (readForeignGeometry ?? throw new NotSupportedException("The host has not supplied posed foreign actor geometry."))(target), placement.Matrix), out string? reason) ? null : reason;
+                readForeignGeometry is null ? null : () => CrossoverNativeForeignTarget.Read(host, target, readForeignGeometry(target), placement.Matrix), out string? reason) ? null : reason;
         }
         catch (Exception exception) when (exception is NotSupportedException or InvalidDataException or InvalidOperationException or ArgumentException or OverflowException)
         {

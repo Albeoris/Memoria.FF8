@@ -10,6 +10,16 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix view = projection.View!;
         NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors!;
         NativeBattleGraphicsModel actor = graphics.Models[target];
+        if (ReadNativeForeignModel(target) is { } foreign)
+        {
+            uint hostTint = colors.Interpolate(0x08B0A0, fade, 0);
+            short hostZsf3 = NativeEffectMemory!.ScriptedGraphics!.Zsf3 ?? throw new NotSupportedException("Native Sleep requires its current ZSF3.");
+            short hostZsf4 = NativeEffectMemory.ScriptedGraphics.Zsf4 ?? throw new NotSupportedException("Native Sleep requires its current ZSF4.");
+            NativeBattleGfGeometryBatch batch = NativeBattleForeignModelDrawing.Tint(foreign, projection, actor.Color40!.Value, hostTint, colors, (positions, factors) => NativeBattleSleep145.WriteTintFactors619B70(positions, factors, center), hostZsf3, hostZsf4, identity);
+            NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(NativeEffectMemory.PrimitiveProcess!, graphics.PrimitiveFrame!.Pending, batch);
+            NativeEffectMemory = NativeEffectMemory with { PrimitiveProcess = written.Process };
+            return graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = written.Ordering } };
+        }
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, target);
         if ((actor.Flags0 & 0x20) == 0)
         {

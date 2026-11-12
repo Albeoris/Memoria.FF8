@@ -4,7 +4,12 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    public NativeBattleCameraState? NativeCamera { get; private set; }
+    private NativeBattleCameraState? nativeCamera;
+    public NativeBattleCameraState? NativeCamera
+    {
+        get => nativeCamera;
+        private set => nativeCamera = value is not null && presentationHostCamera is not null ? HoldEffectPresentationCamera(value, presentationHostCamera) : value;
+    }
     public byte NativeCameraTaskMask => unchecked((byte)(NativeCamera ?? throw new NotSupportedException("Native camera completion requires the original two-slot camera task owner.")).Mask);
 
     private void InitializeNativeStageCamera()

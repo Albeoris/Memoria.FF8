@@ -6,6 +6,18 @@ public sealed record NativeBattleEffectActorGeometry(NativeBattleVector Anchor24
 /// <summary>The shared8DC610/8DC740 anchors and8DC870 local posed-skeleton bounds.</summary>
 public static class NativeBattleEffectModelHelpers
 {
+    public static NativeBattleModulePoolTask UpdateTargetWithBounds8DC610(NativeBattleModulePoolTask task, IReadOnlyList<NativeBattleGraphicsModel> models, Func<int, NativeBattlePoseSource> readSource, Func<int, NativeBattleEffectActorGeometry?>? readForeign = null)
+    {
+        int target = task.ReadByte(0x2D);
+        if (readForeign?.Invoke(target) is { } foreign)
+        {
+            return UpdateTarget8DC610(task, foreign);
+        }
+        task = UpdateTarget8DC610(task, models, readSource);
+        NativeBattlePoseSource source = readSource(target);
+        NativeBattleSequenceState pose = models[target].SequenceState ?? throw new NotSupportedException("Target bounds require its current decoded pose.");
+        return UpdateBounds8DC870(task, source, source.Sample(pose.Pose ?? throw new NotSupportedException("Target bounds require its selected pose."), pose.PoseFrame114 ?? throw new NotSupportedException("Target bounds require its decoded frame."), pose.PoseFlags109));
+    }
     public static NativeBattleModulePoolTask UpdateTarget8DC610(NativeBattleModulePoolTask task, IReadOnlyList<NativeBattleGraphicsModel> models, Func<int, NativeBattlePoseSource> readSource, Action<NativeBattleBoneAnchorProducer>? observeAnchor = null)
     {
         return WriteAnchors(task, models, task.ReadByte(0x2D), readSource, observeAnchor);
