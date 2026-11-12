@@ -1376,6 +1376,14 @@ internal sealed partial class AutoPlayController
         }
         if (input.ObservedQueriesProven && run.ActiveTravelRoute is null)
         {
+            // NG-042: A single mapped confirmation ends the original music audition.
+            if (session.State.FieldId == 633 && session.State.Variables.GetValueOrDefault(256) == 692 &&
+                input.Queries.Count == 1 && input.Queries[0] == new ScriptedInputQuery(2, 12, 88, "KEYSCAN", ushort.MaxValue))
+            {
+                ushort confirm = (session.State.InputConfiguration ?? throw new NotSupportedException("The audition requires its saved input mapping.")).RawForMappedPulse(64);
+                PulseScriptedInput(confirm, input, allowControlled, prepared: true);
+                return;
+            }
             DriveInputSearchBoundary(input, allowControlled, preparedCheckpoint: preparedCheckpoint);
             return;
         }
@@ -1747,7 +1755,14 @@ internal sealed partial class AutoPlayController
             return;
         }
         string key = $"{VisitKey()}:{dialogue.ObjectId}:{dialogue.ScriptId}:{dialogue.Operation}:{dialogue.MessageId}:{first}:{last}";
-        if (run.ActiveTravelRoute is null && AutoPlayTraversalPolicy.ProgressionDialogueSelection(key) is int progressionSelection)
+        int? authoredSelection = AutoPlayTraversalPolicy.ProgressionDialogueSelection(key);
+        if (run.ActiveTravelRoute is null && AutoPlayTraversalPolicy.ConcertInstrumentSlot(key) is int instrumentSlot)
+        {
+            EventEngine events = getWorld().Events;
+            int[] accepted = Enumerable.Range(346, instrumentSlot).Select(address => events.EventMemory.Read(address, 1).RequireExact()).ToArray();
+            authoredSelection = AutoPlayTraversalPolicy.ConcertInstrumentSelection(accepted);
+        }
+        if (run.ActiveTravelRoute is null && authoredSelection is int progressionSelection)
         {
             run.DialogueSelections[key] = progressionSelection;
             run.ActiveSelections?.Add(new(key, progressionSelection));

@@ -72,6 +72,17 @@ public sealed class AutoPlayProgressionOrderTests
     }
 
     [Fact]
+    public void RehearsalSelectsDistinctInstrumentsFromTheNativePrefix()
+    {
+        Assert.Equal(0, AutoPlayTraversalPolicy.ConcertInstrumentSlot("635:692:5:42:398:27:1:8"));
+        Assert.Equal(2, AutoPlayTraversalPolicy.ConcertInstrumentSlot("633:692:3:20:212:29:1:8"));
+        Assert.Null(AutoPlayTraversalPolicy.ConcertInstrumentSlot("633:693:3:20:212:29:1:8"));
+        Assert.Equal(5, AutoPlayTraversalPolicy.ConcertInstrumentSelection([1, 8]));
+        Assert.Equal(6, AutoPlayTraversalPolicy.ConcertInstrumentSelection([1, 5, 8]));
+        Assert.Equal(2, AutoPlayTraversalPolicy.ProgressionDialogueSelection("633:692:9:46:2101:34:2:3"));
+    }
+
+    [Fact]
     public void MissileBaseReusesTheObservedMaintenanceRouteBeforeTheLauncherEntrance()
     {
         AutoPlayPlanner planner = new(progressionOrder: AutoPlayTraversalPolicy.ProgressionEntryOrder);

@@ -142,6 +142,8 @@ internal static class AutoPlayTraversalPolicy
             ("168:655", "168:line:23") => -2,
             ("185:655", "185:line:11") => -3,
             ("184:655", "184:talk:4") => -4,
+            // NG-042: The original field scripts enable the current performer's approval actor.
+            ("633:692", "633:talk:3" or "633:talk:6" or "633:talk:8" or "633:talk:9") => -1,
             _ => 0
         };
     }
@@ -165,8 +167,29 @@ internal static class AutoPlayTraversalPolicy
             "172:639:12:98:1227:4:2:4" or "249:639:11:89:902:2:2:3" or "172:640:12:98:1227:4:2:4" or "249:640:11:89:902:2:2:3" => 3,
             // NG-040: Take the town elevator down when the operator offers.
             "625:640:18:207:2293:19:2:3" or "625:640:18:207:2227:19:2:3" => 2,
+            // NG-042: Accept the current performance and continue the original rehearsal.
+            "633:692:6:33:848:31:2:3" or "633:692:3:20:190:32:2:3" or "633:692:8:42:1641:33:2:3" or "633:692:9:46:2101:34:2:3" => 2,
             _ => null
         };
+    }
+
+    internal static int? ConcertInstrumentSlot(string key)
+    {
+        // NG-042: The original scripts store visible instrument values at bytes346–349.
+        return key switch
+        {
+            "635:692:5:42:398:27:1:8" or "633:692:6:33:917:27:1:8" => 0,
+            "633:692:6:33:870:28:1:8" or "633:692:3:20:269:28:1:8" => 1,
+            "633:692:3:20:212:29:1:8" or "633:692:8:42:1726:29:1:8" => 2,
+            "633:692:8:42:1663:30:1:8" or "633:692:9:46:2151:30:1:8" => 3,
+            _ => null
+        };
+    }
+
+    internal static int ConcertInstrumentSelection(IReadOnlyCollection<int> accepted)
+    {
+        int[] preferred = [1, 5, 6, 8, 2, 3, 4, 7];
+        return preferred.First(instrument => !accepted.Contains(instrument));
     }
 
     public static int PhaseOrder(string region, int eventOrder = 0)
