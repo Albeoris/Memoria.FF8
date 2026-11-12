@@ -638,6 +638,10 @@ internal sealed partial class AutoPlayController
             {
                 return;
             }
+            if (TryDriveAirborneRescueMovie())
+            {
+                return;
+            }
             // NG-020: the bridge collapse checks Squall's position after the controllable movie.
             if (world.Events.FieldId == 809 && session.State.MovieSource is { DiscIndex: 1, MovieIndex: 3 })
             {
@@ -703,6 +707,10 @@ internal sealed partial class AutoPlayController
         if (!world.Events.IsUserControlEnabled && session.State.FieldButtonInput is { PhysicalHeld: 0 } buttons && (buttons.PendingPulse != 0 || buttons.RawHeld != 0))
         {
             AdvanceInputFrame(world);
+            return;
+        }
+        if (TryDriveAirborneRescueInput(world))
+        {
             return;
         }
         if (TryDriveCurrentLadderInput(world))

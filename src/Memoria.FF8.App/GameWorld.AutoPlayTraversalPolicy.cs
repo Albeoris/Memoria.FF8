@@ -201,6 +201,10 @@ internal static class AutoPlayTraversalPolicy
             "179:610:10:66:1085:17:2:3" => 3,
             // NG-049: Go to the second floor to evacuate the classroom.
             "173:874:6:55:289:3:0:1" or "173:876:6:55:289:3:0:1" or "173:878:6:55:289:3:0:1" => 0,
+            // NG-050: Open the emergency exit and use the original assisted retry if needed.
+            "144:892:9:70:1307:9:1:3" => 3,
+            "144:892:9:70:1357:11:0:3" or "95:892:9:37:379:8:0:2" => 1,
+            "675:892:0:13:147:26:2:3" or "675:893:0:13:147:26:2:3" => 3,
             // NG-036: Take the elevator to 2F for the approaching ship.
             "172:614:12:98:1227:4:2:4" => 3,
             // NG-039, NG-040: Take the elevator to 2F for Fishermans Horizon.
