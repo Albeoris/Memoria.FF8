@@ -162,6 +162,16 @@ internal static class AutoPlayTraversalPolicy
             ("107:750", "107:line:13") => -3,
             ("107:750", "107:line:12") => -2,
             ("107:750", "107:gateway:0" or "107:gateway:1") => -1,
+            // NG-048: Follow the battle orders to the quad, then meet Zell and return by the native bridge event.
+            ("173:852", "173:gateway:0" or "173:gateway:1" or "173:gateway:2") => -1,
+            ("166:852", "166:gateway:3") => -2,
+            ("169:852", "169:gateway:1") => -3,
+            ("173:854", "173:gateway:0" or "173:gateway:1" or "173:gateway:2") => -1,
+            ("166:854", "166:gateway:3") => -2,
+            ("169:854", "169:gateway:1") => -3,
+            ("185:854", "185:line:11") => -4,
+            ("188:854", "188:push:1") => -5,
+            ("188:856", "188:line:7") => -5,
             _ => 0
         };
     }
