@@ -118,17 +118,14 @@ public sealed class NativeGardenTransferTests
     }
 
     [Fact]
-    public void ReboardCompletionCertifiesEveryActiveCameraBitBeforeClearingItsPhase()
+    public void PhysicalTransferWaitsForCameraPhaseToFinish()
     {
-        NativeGardenTransferControlState controls = new(1, NativeGardenTransferControlState.CurrentRule, 0, -1, false);
-        NativeGardenCameraDefaults defaults = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, -112, 0, -341, -7168);
-        NativeGardenReboardCompletion result = controls.CompleteReboarding(1032, 5344, -128, -853, -7680, defaults);
-        Assert.Equal((0, (short)-112, 0, 32, (short)-341, (short)-7168), (result.Controls.TransitionPhase, result.Pitch, result.Speed, result.SpeedParameter, result.OffsetY, result.OffsetZ));
-        Assert.Throws<NotSupportedException>(() => controls.CompleteReboarding(1033, 5216, -112, -341, -7168, defaults));
-        Assert.Throws<NotSupportedException>(() => controls.CompleteReboarding(1024, 5345, -112, -341, -7168, defaults));
-        Assert.Throws<NotSupportedException>(() => controls.CompleteReboarding(1024, 5216, -129, -341, -7168, defaults));
-        Assert.Throws<NotSupportedException>(() => controls.CompleteReboarding(1024, 5216, -112, -854, -7168, defaults));
-        Assert.Throws<NotSupportedException>(() => controls.CompleteReboarding(1024, 5216, -112, -341, -7681, defaults));
+        NativeGardenTransferControlState controls = new(1, NativeGardenTransferControlState.CurrentRule, 17, -1, false);
+        NativeWorldEntryMemory memory = NativeWorldEntryMemory.CreateNewGame();
+        NativeWorldInputHistory buttons = NativeWorldInputHistory.Sample(NativeWorldInputHistory.FromColdProcess(), 0x40);
+        Assert.False(NativeGardenTransferState.EvaluateInput(controls.PrepareInput(buttons, 48, 24, null, memory)).Action);
+        Assert.True(NativeGardenTransferState.EvaluateInput((controls with { TransitionPhase = 0 }).PrepareInput(buttons, 48, 24, null, memory)).Action);
+        Assert.Throws<NotSupportedException>(() => (controls with { TransitionPhase = 4 }).Validate());
     }
 
     [Theory]

@@ -41,11 +41,16 @@ internal sealed partial class WorldMapScene
         NativeGardenWorldRuntimeState garden = after.NativeGardenRuntime!;
         NativeFootWorldRuntimeState foot = after.NativeFootRuntime!;
         NativeWorldForestState forest = foot.Forest!;
-        //558D70 must finish its actual183 transition here; a longer transition
-        //requires its retained camera phase rather than an invented completion.
-        NativeGardenReboardCompletion completion = garden.TransferControls.CompleteReboarding(1024, 5216, forest.CameraPitch, foot.CameraOffsetY, foot.CameraOffsetZ, garden.CameraDefaults);
-        forest = forest with { CameraPitch = completion.Pitch };
-        garden = garden with { Speed = completion.Speed, AnimationVariant = 0, CameraPitch = forest.CameraPitch, Forest = forest, Transfer = null, TransferControls = completion.Controls };
+        garden = garden with
+        {
+            Speed = 0,
+            AnimationVariant = 0,
+            CameraPitch = forest.CameraPitch,
+            Forest = forest,
+            Transfer = null,
+            ReboardCamera = new(foot.CameraTransition?.ProjectionDistance ?? 1024, foot.CameraOffsetY, foot.CameraOffsetZ)
+        };
+        garden = garden.StepReboardingCamera();
         garden = garden.PublishBody(target.Position, target.RotationX, target.RotationY, target.RotationZ);
         //54A7F0 captured this shape64 pose before the foot query. Only late
         //54B460, after encounters/auxiliary AI, restores the selected entity.
@@ -72,7 +77,7 @@ internal sealed partial class WorldMapScene
         NativeWorldFootCameraState camera = NativeWorldFootCameraState.Create(cameraState);
         _ = NativeWorldPathProjectionCertificate.CreateFoot(camera);
         garden = garden with { AnimationVariant = foot.AnimationVariant, Forest = foot.Forest!, CameraPitch = foot.Forest!.CameraPitch, ProjectionCamera = camera, GroundCache = foot.GroundCache!, GroundYaw = checked((short)foot.GroundYaw!.Value) };
-        NativeGardenTransferInput input = garden.TransferControls.PrepareInput(buttons, foot.EntityType, cameraState.Frame + 1, null, callback.Memory, cameraState.EventUi?.ScriptMode ?? 0);
+        NativeGardenTransferInput input = garden.TransferControls.PrepareInput(buttons, foot.EntityType, cameraState.Frame + 1, null, callback.Memory, cameraState.EventUi?.ScriptMode ?? 0) with { TransitionPhase = foot.CameraTransition?.Flags ?? 0 };
         NativeGardenTransferAdmission admission = NativeGardenTransferState.EvaluateInput(input);
         callback.ConsumeScriptRequest = admission.ConsumeScriptRequest;
         garden = garden with { Buttons = garden.Buttons.Observe(buttons.CurrentButtons) };

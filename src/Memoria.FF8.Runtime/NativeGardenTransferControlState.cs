@@ -2,8 +2,6 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeGardenReboardCompletion(NativeGardenTransferControlState Controls, short Pitch, int Speed, int SpeedParameter, short OffsetY, short OffsetZ);
-
 /// <summary>Post-loader54A7F0 gates, retained until an executed world transition changes their owner.</summary>
 public sealed record NativeGardenTransferControlState([property: JsonRequired] int Version, [property: JsonRequired] string Rule, [property: JsonRequired] int TransitionPhase, [property: JsonRequired] int ActiveWorldScript, [property: JsonRequired] bool ViewToggleBlocked)
 {
@@ -20,7 +18,7 @@ public sealed record NativeGardenTransferControlState([property: JsonRequired] i
 
     public void Validate()
     {
-        if (Version != 1 || Rule != CurrentRule || TransitionPhase is not (0 or int.MinValue) || ActiveWorldScript != -1 || ViewToggleBlocked)
+        if (Version != 1 || Rule != CurrentRule || TransitionPhase != int.MinValue && (TransitionPhase & ~(1 | 16 | 32 | 128)) != 0 || ActiveWorldScript != -1 || ViewToggleBlocked)
         {
             throw new NotSupportedException("Garden transfer controls reached an unrepresented world script, camera path or transition phase.");
         }
@@ -49,19 +47,5 @@ public sealed record NativeGardenTransferControlState([property: JsonRequired] i
         // First54B460 case8 replaces its negative first-execution marker
         // with0; its counter keeps subsequent callbacks distinct.
         return this with { TransitionPhase = 0 };
-    }
-
-    public NativeGardenReboardCompletion CompleteReboarding(int actualProjectionDistance, int actualFarClip, short currentPitch, short currentOffsetY, short currentOffsetZ, NativeGardenCameraDefaults defaults)
-    {
-        Validate();
-        defaults.Validate();
-        // 54B460 applies the accepted boarding packet, then558D70 maps
-        // its negative marker to183. Certify all active bits completing
-        // in that same callback; a longer transition needs its live owner.
-        if (Math.Abs((long)actualProjectionDistance - 1024) > 8 || Math.Abs((long)actualFarClip - 5216) > 128 || Math.Abs((int)unchecked((short)(currentPitch - defaults.Pitch))) > 16 || Math.Abs((int)unchecked((short)(currentOffsetY - defaults.OffsetY))) > 512 || Math.Abs((int)unchecked((short)(currentOffsetZ - defaults.OffsetZ))) > 512)
-        {
-            throw new NotSupportedException("Garden reboarding reached a multi-callback558D70 camera transition requiring its actual projection/camera phase owner.");
-        }
-        return new NativeGardenReboardCompletion(this with { TransitionPhase = 0 }, defaults.Pitch, 0, 32, defaults.OffsetY, defaults.OffsetZ);
     }
 }

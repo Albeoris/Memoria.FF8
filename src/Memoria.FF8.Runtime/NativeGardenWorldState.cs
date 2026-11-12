@@ -3,6 +3,8 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
+public sealed record NativeGardenReboardCamera([property: JsonRequired] int ProjectionDistance, [property: JsonRequired] short OffsetY, [property: JsonRequired] short OffsetZ);
+
 public sealed record NativeGardenWorldObject([property: JsonRequired] byte ShapeId, [property: JsonRequired] byte Flags, [property: JsonRequired] NativeWorldPathPosition Position, [property: JsonRequired] short RotationX, [property: JsonRequired] short RotationY, [property: JsonRequired] short RotationZ)
 {
     public int EntityType => NativeTrainWorldObject.ClassifyShape(ShapeId);
@@ -170,6 +172,8 @@ public sealed record NativeGardenWorldRuntimeState
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeWorldFootCameraState? ProjectionCamera { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeGardenReboardCamera? ReboardCamera { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeGardenTransferState? Transfer { get; init; }
 
     public byte EntityType => 48;
@@ -253,6 +257,12 @@ public sealed record NativeGardenWorldRuntimeState
         GroundCache.Validate();
         Buttons.Validate();
         TransferControls.Validate();
+        if (TransferControls.TransitionPhase > 0 && (ReboardCamera is null || Transfer is not null) ||
+            TransferControls.TransitionPhase == 0 && ReboardCamera is not null && Transfer is null ||
+            ReboardCamera is { ProjectionDistance: < 640 or > 1024 } or { OffsetZ: >= 0 })
+        {
+            throw new InvalidDataException("Garden reboarding lost its live camera words or phase.");
+        }
         Forest.Validate();
         if (process is not null && (CameraFollowSpeed != process.CarCameraFollowSpeed || ManualCameraVelocity != process.VehicleManualCameraVelocity || Forest.CameraCooldown != process.CameraCooldown))
         {
@@ -260,6 +270,23 @@ public sealed record NativeGardenWorldRuntimeState
         }
         ProjectionCamera?.Validate();
         Transfer?.Validate();
+    }
+
+    public NativeGardenWorldRuntimeState StepReboardingCamera()
+    {
+        NativeGardenReboardCamera camera = ReboardCamera ?? throw new InvalidOperationException("Garden reboarding requires the outgoing camera words.");
+        // 54B460 has already selected entity 48. 558D70 expands the negative
+        // marker to 183 and uses the Garden targets without foot collision XOR.
+        int phase = TransferControls.TransitionPhase;
+        NativeFootCameraTransition transition = new(phase == int.MinValue ? 183 : phase, camera.ProjectionDistance);
+        var next = transition.StepWords(CameraPitch, camera.OffsetY, camera.OffsetZ, 1024, CameraDefaults.Pitch, CameraDefaults.OffsetY, CameraDefaults.OffsetZ, false);
+        return this with
+        {
+            TransferControls = TransferControls with { TransitionPhase = next.Transition.Flags },
+            ReboardCamera = next.Transition.Flags == 0 ? null : new(next.Transition.ProjectionDistance, next.OffsetY, next.OffsetZ),
+            CameraPitch = next.Pitch,
+            Forest = Forest with { CameraPitch = next.Pitch }
+        };
     }
 
     public NativeGardenWorldRuntimeState PublishBody(NativeWorldPathPosition position, short pitch, short yaw, short roll, bool gardenControlled = true)

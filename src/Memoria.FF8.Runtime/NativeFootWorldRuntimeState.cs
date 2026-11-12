@@ -134,6 +134,7 @@ public sealed partial record NativeFootWorldRuntimeState
             MapDisplayMode = garden.MapDisplayMode,
             CameraOffsetY = camera.OffsetY,
             CameraOffsetZ = camera.OffsetZ,
+            CameraTransition = camera.ProjectionDistance == 1024 ? null : new NativeFootCameraTransition(0, camera.ProjectionDistance),
             ReloadSourceWorldFrame = null,
             GroundCache = cache,
             GroundYaw = garden.GroundYaw,

@@ -145,12 +145,14 @@ internal sealed partial class WorldMapScene
             NativeWorldPathAngles angles = WorldStaticModelTransform.AllocationAngles(item.ShapeId, item.RotationX, item.RotationY, item.RotationZ);
             models.Add(new NativeWorldStaticModelDraw(assets.ReadScriptedStaticModel(item.ShapeId), new NativeWorldStaticModelPose(projection.CanonicalModelAnchor(draw), angles)) { ObjectId = new(WorldRenderObjectKind.Allocation, index) });
         }
-        WorldCamera camera = state.NativeFootRuntime is not null ? FootCamera(state) : WorldCamera.Foot(state.CameraYaw, 2048) with
+        // 558D70 updates live words after the callback has drawn the terrain.
+        NativeWorldFootCameraState drawn = garden.ProjectionCamera!;
+        WorldCamera camera = state.NativeFootRuntime is not null ? FootCamera(state) : WorldCamera.Foot(drawn.Yaw, 2048, projectionDistance: drawn.ProjectionDistance) with
         {
-            TargetPosition = new Vector3(state.CameraTargetX, -state.CameraTargetNativeHeight, state.CameraTargetZ),
-            NativePitch = garden.CameraPitch,
-            NativeOffsetY = garden.CameraDefaults.OffsetY,
-            NativeOffsetZ = garden.CameraDefaults.OffsetZ
+            TargetPosition = new Vector3(drawn.TargetX, -drawn.TargetNativeHeight, drawn.TargetRawZ),
+            NativePitch = drawn.Pitch,
+            NativeOffsetY = drawn.OffsetY,
+            NativeOffsetZ = drawn.OffsetZ
         };
         camera = camera with { ParticleProjection = projection };
         Vector3 position = new(state.X, -state.NativeHeight, state.Z);

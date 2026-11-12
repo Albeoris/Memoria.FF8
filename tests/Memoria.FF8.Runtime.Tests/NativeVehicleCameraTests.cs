@@ -34,6 +34,10 @@ public sealed class NativeVehicleCameraTests
         Assert.Equal(648, first.Transition.ProjectionDistance);
         Assert.Equal((short)-496, first.Pitch);
         Assert.Equal(17, first.Transition.Flags);
+        var offsetRamp = new NativeFootCameraTransition(183, 1024).StepWords(false, -128, -854, -7681, false, false);
+        Assert.Equal((160, (short)-112, (short)-342, (short)-7169), (offsetRamp.Transition.Flags, offsetRamp.Pitch, offsetRamp.OffsetY, offsetRamp.OffsetZ));
+        var complete = offsetRamp.Transition.StepWords(false, offsetRamp.Pitch, offsetRamp.OffsetY, offsetRamp.OffsetZ, false, false);
+        Assert.Equal((0, (short)-341, (short)-7168), (complete.Transition.Flags, complete.OffsetY, complete.OffsetZ));
         var vehicleClamp = new NativeFootCameraTransition(16, 1024).StepWords(false, -120, -341, -7168, true, false);
         var footClamp = new NativeFootCameraTransition(16, 1024).StepWords(false, -120, -341, -7168, true, true);
         Assert.Equal(0, vehicleClamp.Transition.Flags);

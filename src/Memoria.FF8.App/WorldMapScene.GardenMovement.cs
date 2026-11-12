@@ -59,7 +59,10 @@ internal sealed partial class WorldMapScene
             CameraFollowSpeed = motor.CameraFollowSpeed,
             CameraPitch = cameraStep.Pitch,
             Forest = forest,
-            ProjectionCamera = new NativeWorldFootCameraState(before.X, before.Z, before.NativeHeight, targetX, targetZ, targetHeight, motor.CameraYaw, cameraStep.Pitch, garden.CameraDefaults.OffsetY, garden.CameraDefaults.OffsetZ)
+            ProjectionCamera = new NativeWorldFootCameraState(before.X, before.Z, before.NativeHeight, targetX, targetZ, targetHeight, motor.CameraYaw, cameraStep.Pitch, garden.ReboardCamera?.OffsetY ?? garden.CameraDefaults.OffsetY, garden.ReboardCamera?.OffsetZ ?? garden.CameraDefaults.OffsetZ)
+            {
+                ProjectionDistance = garden.ReboardCamera?.ProjectionDistance ?? 1024
+            }
         };
         WorldState cameraState = before with { BodyYaw = motor.BodyYaw, CameraYaw = motor.CameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeGardenRuntime = garden };
         if (garden.BackgroundRails is { } background)
@@ -144,9 +147,13 @@ internal sealed partial class WorldMapScene
                 NativeWorldProcess process = GameSession.PrepareWorldProcess(session.State, after);
                 NativeFootWorldRuntimeState foot = NativeFootWorldRuntimeState.CreateGardenDismount(garden, lower.State, process, null);
                 NativeWorldPathPosition target = lower.State.TargetPosition;
-                garden = (garden with { GroundCache = foot.GroundCache!, AnimationVariant = 0 }).PublishBody(target, 0, body.RotationY, 0, gardenControlled: false);
+                garden = (garden with { GroundCache = foot.GroundCache!, AnimationVariant = 0, ReboardCamera = null }).PublishBody(target, 0, body.RotationY, 0, gardenControlled: false);
                 after = after with { X = WrapCoordinate(target.X, 262144), Z = WrapCoordinate(-target.Z, 196608), NativeHeight = target.Y, BodyYaw = WrapYaw(body.RotationY), AnimationId = 0, AnimationCounter = 0, NativeFootRuntime = foot, NativeGardenRuntime = garden };
             }
+        }
+        else if (fieldEntry is null && garden.TransferControls.TransitionPhase > 0)
+        {
+            garden = garden.StepReboardingCamera();
         }
         salaryMovementUnits = NativeWorldSalaryMovement.AcceptedVectorUnits(ground.PositionCommitted ? moveX : 0, 0, ground.PositionCommitted ? graphicsZ : 0);
         return after with { NativeGardenRuntime = garden };
