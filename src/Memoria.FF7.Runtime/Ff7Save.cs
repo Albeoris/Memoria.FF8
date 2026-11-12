@@ -140,7 +140,7 @@ public sealed record Ff7SessionSave
 
 public sealed record Ff7GuestBattleSettlementCharacter(int StoryCharacter, int OriginRow, ushort SettledHp, string DormantCharacterHash)
 {
-    internal bool IsValid => StoryCharacter is >= 0 and <= 8 && OriginRow is >= 0 and <= 7 && SettledHp <= 9999 && IsHash(DormantCharacterHash);
+    internal bool IsValid => StoryCharacter is >= 0 and <= 8 && OriginRow is >= 0 and <= 10 && SettledHp <= 9999 && IsHash(DormantCharacterHash);
 
     internal static bool IsHash(string hash) => hash is { Length: 64 } && hash.All(Uri.IsHexDigit);
 }

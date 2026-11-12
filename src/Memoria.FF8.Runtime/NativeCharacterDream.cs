@@ -8,7 +8,7 @@ public sealed partial record NativeCharacterVitals
     public byte FindPhysicalRow(byte identity)
     {
         Validate();
-        int row = Array.FindIndex(Records, record => record.CharacterId == identity);
+        int row = Array.FindIndex(Records, 0, NativeRecordCount, record => record.CharacterId == identity);
         return row < 0 ? byte.MaxValue : (byte)row;
     }
 
@@ -19,6 +19,16 @@ public sealed partial record NativeCharacterVitals
         {
             throw new InvalidDataException("Native JUNCTION needs the actual three raw field character bytes.");
         }
+        if ((rawOperand & 1) != 0 && !DreamEnabled && ExtendedRosterEnabled && CombatParty.Any(row => IsExtendedRosterCharacter(row)))
+        {
+            NativeCharacterVitals native = this with { CombatParty = ProjectNativeCombatParty(fieldParty), ExtendedRosterPartyBeforeDream = CombatParty.ToArray() };
+            return native.PrepareNativeJunction(rawOperand, fieldParty, guestFlags);
+        }
+        return PrepareNativeJunction(rawOperand, fieldParty, guestFlags);
+    }
+
+    private NativeJunctionResult PrepareNativeJunction(int rawOperand, IReadOnlyList<int> fieldParty, uint guestFlags)
+    {
         if ((rawOperand & 3) == 3)
         {
             NativeCharacterVitals requested = DeepCopy();
@@ -33,11 +43,11 @@ public sealed partial record NativeCharacterVitals
         {
             // Native4ACAE0 clears the dream flag and resets every identity;
             // native51EFB0 then restores raw bytes188..193 without a rebuild.
-            for (int row = 0; row < records.Length; row++)
+            for (int row = 0; row < NativeRecordCount; row++)
             {
                 records[row] = records[row] with { CharacterId = (byte)row };
             }
-            next = next with { DreamEnabled = false, Records = records, CombatParty = JunctionPartyBackup.Skip(3).ToArray() };
+            next = next with { DreamEnabled = false, Records = records, CombatParty = ExtendedRosterPartyBeforeDream ?? JunctionPartyBackup.Skip(3).ToArray(), ExtendedRosterPartyBeforeDream = null };
             next.Validate();
             return new NativeJunctionResult(next.DeepCopy(), JunctionPartyBackup.Take(3).ToArray());
         }

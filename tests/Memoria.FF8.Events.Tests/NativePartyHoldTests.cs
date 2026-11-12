@@ -63,4 +63,34 @@ internal static partial class Program
         JsonElement fiber = rejected.Capture().GetProperty("Fibers").EnumerateArray().Single();
         Require(fiber.GetProperty("Position").GetInt32() == 4 && fiber.GetProperty("Stack").GetArrayLength() == 3 && JsonElement.DeepEquals(JsonSerializer.SerializeToElement(initial), JsonSerializer.SerializeToElement(rejectedSession.CharacterVitals)), "Rejected negative physical-row HOLD consumed operands or mutated its saved owner.");
     }
+
+    private static void ExtendedRosterStoryLocks(string gameDirectory)
+    {
+        using GameAssets assets = new(gameDirectory);
+        NativeCharacterVitals initial = assets.ReadNewGameCharacterVitals();
+        GameSession session = GameSession.CreateColdProcess();
+        session.StartNewGame();
+        session.InitializeNewGameCharacterVitals(initial);
+        EventEngine engine = new(session);
+        engine.ConfigureExtendedRoster(true);
+        session.SetCharacterVitals(session.CharacterVitals! with { CombatParty = [0, 8, 9] });
+        byte[] content = SyntheticProgram(
+            (Jsm.Opcode.LBL, 0),
+            (Jsm.Opcode.PSHN_L, 6), (Jsm.Opcode.ADDPARTY, 0),
+            (Jsm.Opcode.PSHN_L, 6), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.HOLD, 0),
+            (Jsm.Opcode.PSHN_L, 6), (Jsm.Opcode.SUBPARTY, 0),
+            (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.ADDPARTY, 0),
+            (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.HOLD, 0),
+            (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.SUBMEMBER, 0),
+            (Jsm.Opcode.RET, 8));
+        engine.LoadField(100, content, []);
+        engine.Scene.Party.Clear();
+        engine.Scene.Party.AddRange([0, 255, 255]);
+        engine.Step();
+        NativeCharacterVitals vitals = session.CharacterVitals!;
+        Require(engine.LastFault is null && engine.Scene.Party.SequenceEqual([0, 7, 255]) && vitals.CombatParty.SequenceEqual(new byte[] { 0, 8, 7 }), "The native story add/remove sequence did not retain a valid field and combat party with the extended roster.");
+        Require(vitals.IsRosterMember(6) && vitals.IsRosterMember(7) && (vitals.Records[6].MemberFlags & 6) == 0 && (vitals.Records[7].MemberFlags & 7) == 0, "Native story removal left an extended reserve unavailable or story-locked.");
+        engine.ConfigureExtendedRoster(false);
+        Require(session.CharacterVitals!.CombatParty.SequenceEqual(new byte[] { 0, 255, 255 }) && engine.Scene.Party.SequenceEqual([0, 7, 255]), "Disabling the extended roster changed the authored field party or left optional combat members active.");
+    }
 }

@@ -5,12 +5,12 @@ public sealed partial record NativeCharacterVitals
     /// <summary>Validates persisted logical banks and ownership at publication boundaries, after transactional reconciliation.</summary>
     public void ValidateMagicSystemConsistency()
     {
-        MagicSystem.Validate();
+        MagicSystem.Validate(Records.Length);
         if (!MagicSystem.RequiresMemoriaFormat)
         {
             return;
         }
-        for (int row = 0; row < 8; row++)
+        for (int row = 0; row < Records.Length; row++)
         {
             HashSet<int> ids = [];
             foreach (NativeMagicStock stock in Records[row].MagicInventory.Concat(row == 0 ? MagicSystem.RecordZeroExtension : Array.Empty<NativeMagicStock>()))
@@ -36,7 +36,7 @@ public sealed partial record NativeCharacterVitals
         if (MagicSystem.SharedMagicStock)
         {
             HashSet<int> owners = [];
-            for (int row = 0; row < 8; row++)
+            for (int row = 0; row < Records.Length; row++)
             {
                 foreach (int slot in Enumerable.Range(0, 19).Where(slot => Records[row].Junction.MagicJunctions[slot] != 0))
                 {

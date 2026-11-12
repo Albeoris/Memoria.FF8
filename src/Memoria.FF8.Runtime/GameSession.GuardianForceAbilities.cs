@@ -125,7 +125,7 @@ public sealed partial class GameSession
                 }
             }
         }
-        for (int row = 0; row < 8; row++)
+        for (int row = 0; row < source.Records.Length; row++)
         {
             NativeCharacterJunction before = source.Records[row].Junction;
             NativeCharacterJunction after = result.Records[row].Junction;

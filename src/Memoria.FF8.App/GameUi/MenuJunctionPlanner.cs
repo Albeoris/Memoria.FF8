@@ -342,7 +342,7 @@ public sealed class MenuJunctionPlanner
 
     private static int CharacterRow(string id)
     {
-        if (!id.StartsWith("character-", StringComparison.Ordinal) || !int.TryParse(id.AsSpan(10), NumberStyles.None, CultureInfo.InvariantCulture, out int row) || (uint)row >= 8)
+        if (!id.StartsWith("character-", StringComparison.Ordinal) || !int.TryParse(id.AsSpan(10), NumberStyles.None, CultureInfo.InvariantCulture, out int row) || (uint)row >= NativeCharacterVitals.ExtendedRecordCount)
         {
             throw new ArgumentException("Select a stable saved character record.", nameof(id));
         }

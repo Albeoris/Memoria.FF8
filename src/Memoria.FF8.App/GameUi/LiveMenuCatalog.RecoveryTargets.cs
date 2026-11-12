@@ -31,10 +31,10 @@ public sealed partial class LiveMenuCatalog
         {
             return result;
         }
-        for (int row = 0; row < Math.Min(8, vitals.Records.Length); row++)
+        for (int row = 0; row < vitals.Records.Length; row++)
         {
             NativeCharacterVital target = vitals.Records[row];
-            if ((target.MemberFlags & 1) == 0 || vitals.DreamEnabled && !vitals.CombatParty.Contains((byte)row) || target.HitPoints.Minimum != target.HitPoints.Maximum)
+            if (!vitals.IsRosterMember(row) || vitals.DreamEnabled && !vitals.CombatParty.Contains((byte)row) || target.HitPoints.Minimum != target.HitPoints.Maximum)
             {
                 continue;
             }

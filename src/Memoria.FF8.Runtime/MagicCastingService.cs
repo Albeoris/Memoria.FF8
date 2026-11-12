@@ -19,7 +19,7 @@ public static class MagicCastingService
         return !bound ? 1 : actorId is 3 or 4 or 5 or 7 ? 1 + (stock - 1) / 33 : 1 + stock / 50;
     }
 
-    public static MagicCastQuote Quote(NativeCharacterVitals vitals, int row, int spellId, MagicCastContext context, string? actionId = null)
+    public static MagicCastQuote Quote(NativeCharacterVitals vitals, int row, int spellId, MagicCastContext context, string? actionId = null, int? characterId = null)
     {
         if (!MagicJunctionPolicy.CanAccess(vitals, row, spellId))
         {
@@ -29,7 +29,7 @@ public static class MagicCastingService
         int bank = state.SharedMagicStock ? -1 : row;
         int stock = vitals.GetMagicCount(row, spellId);
         bool bound = Enumerable.Range(0, 19).Any(slot => vitals.Records[row].Junction.MagicJunctions[slot] == spellId && vitals.JunctionMagicSlotAvailable(row, slot));
-        int capacity = Capacity(stock, bound, vitals.Records[row].CharacterId);
+        int capacity = Capacity(stock, bound, characterId ?? vitals.Records[row].CharacterId);
         MagicCastReservation[] others = state.Reservations.Where(r => r.BankId == bank && r.SpellId == spellId && r.Context == context && r.ActionId != actionId).ToArray();
         int available;
         if (state.UnlimitedMagic)
@@ -57,7 +57,7 @@ public static class MagicCastingService
         return new(available, capacity, available > 0, available > 0 ? null : "No unreserved casts remain.");
     }
 
-    public static NativeCharacterVitals Reserve(NativeCharacterVitals vitals, int row, int spellId, MagicCastContext context, string actionId, int count = 1)
+    public static NativeCharacterVitals Reserve(NativeCharacterVitals vitals, int row, int spellId, MagicCastContext context, string actionId, int count = 1, int? characterId = null)
     {
         if (string.IsNullOrWhiteSpace(actionId) || count < 1)
         {
@@ -77,7 +77,7 @@ public static class MagicCastingService
             }
             return vitals;
         }
-        MagicCastQuote quote = Quote(vitals, row, spellId, context);
+        MagicCastQuote quote = Quote(vitals, row, spellId, context, characterId: characterId);
         if (quote.Available < count)
         {
             throw new InvalidOperationException("The requested magic casts are no longer affordable.");
@@ -150,7 +150,7 @@ public static class MagicCastingService
                 }
                 if (reservation.BankId == -1)
                 {
-                    for (int bank = 0; bank < 8; bank++)
+                    for (int bank = 0; bank < state.PersonalFieldMasks.Length; bank++)
                     {
                         SpendShadow(state, bank, reservation.SpellId);
                     }
@@ -188,7 +188,7 @@ public static class MagicCastingService
         {
             return vitals;
         }
-        return vitals with { MagicSystem = vitals.MagicSystem with { EncounterId = encounterId, PersonalBattleMasks = Enumerable.Range(0, 8).Select(_ => new byte[57]).ToArray(), SharedBattleMasks = new byte[57], Reservations = [] } };
+        return vitals with { MagicSystem = vitals.MagicSystem with { EncounterId = encounterId, PersonalBattleMasks = MagicSystemState.EmptyMasks(vitals.Records.Length), SharedBattleMasks = new byte[57], Reservations = [] } };
     }
 
     public static NativeCharacterVitals RecoverVictory(NativeCharacterVitals vitals, string resultId)

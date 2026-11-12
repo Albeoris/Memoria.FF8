@@ -11,6 +11,7 @@
     <EmbeddedResource Include="GameplaySaveRuntimeSchema.txt" LogicalName="GameplaySaveRuntimeSchema.txt" />
     <Compile Remove="WindowModeControllerTests.cs" Condition="'$(MemoriaNativeGraphics)' == 'true'" />
     <Content Include="../../Mods/Memoria/Depixelation/fields/*.json" Link="BundledMods/Memoria/Depixelation/fields/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../Mods/Memoria/Extended FFVIII Roster/*" Link="BundledMods/Memoria/Extended FFVIII Roster/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../Mods/Memoria/Reorientation/fields/*.json" Link="BundledMods/Memoria/Reorientation/fields/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="../Shared/NativeBattleCommandSequenceFixture.cs" Link="NativeBattleCommandSequenceFixture.cs" />
     <Compile Include="../../tools/Memoria.FF8.BattleEffects/FreshEntryRecipeCanonicalization.cs" Link="FreshEntryRecipeCanonicalization.cs" />

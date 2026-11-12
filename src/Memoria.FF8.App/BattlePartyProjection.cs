@@ -56,9 +56,9 @@ internal static class BattlePartyProjection
                 throw new NotSupportedException("Interactive combat requires exact current HP.");
             }
             int character = saved.CharacterId;
-            int weapon = character >= 8 ? vitals.DreamWeapons[character - 8] : saved.Weapon;
+            int weapon = vitals.GetBattleWeapon(row);
             int level = NativeStatDefinitions.Level(saved.Experience, vitals.Definitions.Characters[character]);
-            int costume = appearance.Records[row].Dress;
+            int costume = row < appearance.Records.Length ? appearance.Records[row].Dress : 0;
             _ = resources.LoadPlayer(character, costume);
             string name = LiveMenuData.CharacterName(state, saved.CharacterId, names, catalog);
             BattlePlayerStats stats = resources.ReadPlayerStats(vitals, row);

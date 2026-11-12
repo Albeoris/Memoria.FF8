@@ -106,7 +106,7 @@ internal sealed class CrossoverMixedBattle : IDisposable
             foreach (Ff7BattleGuestVitalsBinding binding in vitals)
             {
                 host.BindGuestVitals(binding);
-                CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.Read(origin, assets, binding.OriginCharacter);
+                CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.Read(origin, assets, binding.OriginCharacter, binding.OriginRow);
                 savedActors.TryGetValue(binding.HostSlot, out var saved);
                 CrossoverGunbladeHostAttack attack = new(roster, kit, assets, game, originRandom, () => host.RenderCameraOutput, _ => 128, saved.Attack, host.GuestEffectTargetAnchor, host.GuestEffectTargetBone);
                 attack.GlobalRandom = encounter.GlobalRandom;

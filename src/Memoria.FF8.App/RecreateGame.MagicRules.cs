@@ -24,7 +24,7 @@ internal sealed partial class RecreateGame
             }
             List<MagicJunctionChange> removed = [];
             List<MagicHitPointChange> hp = [];
-            for (int row = 0; row < 8; row++)
+            for (int row = 0; row < source.Records.Length; row++)
             {
                 for (int slot = 0; slot < 19; slot++)
                 {

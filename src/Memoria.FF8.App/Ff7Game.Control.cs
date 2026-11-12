@@ -1,4 +1,5 @@
 using Memoria.FF7.Runtime;
+using Memoria.FF8.Runtime;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
 
@@ -14,11 +15,13 @@ internal sealed partial class Ff7Game
 
     private void RestoreStandalone(CombinedSessionSave saved)
     {
-        if (saved.Mappings.Length > 0)
+        GameplaySaveCharacters? characters = saved.Ff8Payload is { Length: > 0 } && saved.Mappings.Length > 0 ? CrossoverSaveAdapter.ReadFf8(saved).Characters : null;
+        CharacterAppearanceMapping[] mappings = CrossoverGuestRecord.PresentationMappings(saved.Mappings, characters);
+        if (mappings.Length > 0)
         {
             controlAppearanceAssets ??= new Memoria.FF8.Assets.GameAssets(launchOptions!.GameDirectory);
         }
-        Memoria.FF8.Rendering.IFf7ActorAppearance? selected = Ff7AppearanceSelection.Create(saved.Mappings, installation, controlAppearanceAssets);
+        Memoria.FF8.Rendering.IFf7ActorAppearance? selected = Ff7AppearanceSelection.Create(mappings, installation, controlAppearanceAssets);
         scene.Continue(saved);
         scene.SetAppearance(saved.Mappings, selected);
     }

@@ -26,7 +26,7 @@ internal sealed partial class CrossoverGuestHostActions
             foreach (BattleActionDefinition definition in assets.ActionDefinitions.Where(BattleSession.IsSmartSpell))
             {
                 BattleNativeAction native = definition.NativeAction!;
-                MagicCastQuote quote = MagicCastingService.Quote(encounter.Working, kit.RecordRow, definition.Id, MagicCastContext.Battle);
+                MagicCastQuote quote = MagicCastingService.Quote(encounter.Working, kit.RecordRow, definition.Id, MagicCastContext.Battle, characterId: kit.CharacterId);
                 if (!quote.Allowed || quote.Available <= 0 || AbilityTargetUnsupportedReason((ushort)definition.Id, targetSlot) is not null)
                 {
                     continue;

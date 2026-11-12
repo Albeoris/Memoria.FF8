@@ -43,7 +43,12 @@ internal sealed partial class Ff7Scene
         {
             return [];
         }
-        Ff7MixedCombatBinding[] active = envelope.Mappings.Where(mapping => session.Progress.Party.Contains(mapping.StoryCharacter)).OrderBy(mapping => mapping.StoryCharacter).Select(mapping => new Ff7MixedCombatBinding(mapping.StoryCharacter, mapping.AppearanceCharacter)).ToArray();
+        if (envelope.Mappings.Length == 0)
+        {
+            return [];
+        }
+        GameplaySaveCharacters characters = CrossoverSaveAdapter.ReadFf8(envelope).Characters;
+        Ff7MixedCombatBinding[] active = envelope.Mappings.Where(mapping => session.Progress.Party.Contains(mapping.StoryCharacter) && CrossoverGuestRecord.FindOriginalRow(characters.Records, characters.ExtendedRosterEnabled, mapping.AppearanceCharacter) >= 0).OrderBy(mapping => mapping.StoryCharacter).Select(mapping => new Ff7MixedCombatBinding(mapping.StoryCharacter, mapping.AppearanceCharacter)).ToArray();
         if (active.Select(binding => binding.OriginCharacter).Distinct().Count() != active.Length)
         {
             if (requireUnique)

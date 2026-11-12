@@ -26,7 +26,7 @@ internal static class CrossoverGuestAbilityCatalog
         {
             foreach (BattleNativeAction action in nativeActions.Where(action => action.Command == 2 && action.ActionId != 0))
             {
-                MagicCastQuote quote = MagicCastingService.Quote(vitals, kit.RecordRow, action.ActionId, MagicCastContext.Battle);
+                MagicCastQuote quote = MagicCastingService.Quote(vitals, kit.RecordRow, action.ActionId, MagicCastContext.Battle, characterId: kit.CharacterId);
                 if (quote.Allowed && quote.Available > 0)
                 {
                     choices.Add(Choice(action, "Magic", quote.Available));

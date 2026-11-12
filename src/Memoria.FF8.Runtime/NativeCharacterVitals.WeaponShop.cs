@@ -27,13 +27,12 @@ public sealed partial record NativeCharacterVitals
         {
             throw new NotSupportedException("Native menu rebuild requires a retained physical character row.");
         }
-        byte[] priorParty = CombatParty.ToArray();
-        NativeCharacterVitals temporary = (this with { CombatParty = [(byte)physicalRow, 255, 255] }).RebuildParty();
+        NativeCharacterVitals temporary = RebuildSelectedRows([(byte)physicalRow]);
         NativeCharacterVital row = temporary.Records[physicalRow];
         ushort maximum = temporary.GetMagicMaximumHitPoints(physicalRow);
         NativeCharacterVital[] records = temporary.Records.ToArray();
         records[physicalRow] = row with { Status = MenuRowStatus(row.Status, row.HitPoints, maximum) };
-        return (temporary with { Records = records, CombatParty = priorParty }).RebuildParty();
+        return (temporary with { Records = records }).RebuildParty();
     }
 
     /// <summary>4BE790 normalizes all32 stocks and clears all20 junction bytes whose spell is absent, before4BFCF0.</summary>

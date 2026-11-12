@@ -26,7 +26,7 @@ public sealed partial record NativeCharacterVitals
 
     public IReadOnlyList<NativeMagicStock> GetMagicInventory(int physicalRow)
     {
-        if ((uint)physicalRow >= 8)
+        if ((uint)physicalRow >= Records.Length)
         {
             throw new ArgumentOutOfRangeException(nameof(physicalRow));
         }
@@ -77,7 +77,7 @@ public sealed partial record NativeCharacterVitals
             int? affectedRow = MagicSystem.SharedMagicStock ? null : bank;
             next = count == accepted ? MagicJunctionPolicy.Reconcile(next, out removed, affectedRow) : MagicJunctionPolicy.ClampHitPoints(next, affectedRow);
         }
-        result = result with { AffectedRecords = Array.AsReadOnly(Enumerable.Range(0, 8).Where(row => row == bank || MagicSystem.SharedMagicStock && Records[row].Junction.MagicJunctions.Take(19).Contains((byte)spellId)).ToArray()), RemovedJunctions = Array.AsReadOnly(removed) };
+        result = result with { AffectedRecords = Array.AsReadOnly(Enumerable.Range(0, Records.Length).Where(row => row == bank || MagicSystem.SharedMagicStock && Records[row].Junction.MagicJunctions.Take(19).Contains((byte)spellId)).ToArray()), RemovedJunctions = Array.AsReadOnly(removed) };
         return next;
     }
 

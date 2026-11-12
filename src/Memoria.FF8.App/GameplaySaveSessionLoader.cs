@@ -35,7 +35,8 @@ internal static class GameplaySaveSessionLoader
         {
             throw new InvalidOperationException(GameResourceHost.GameplayDifficultyProfilePending);
         }
-        GameplayTuningPolicy policy = readGameplayPolicy?.Invoke() ?? GameplayTuningPolicy.Empty;
+        GameplayTuningPolicy? policy = readGameplayPolicy?.Invoke() ?? (modelOverrides as GameResourceHost)?.GameplayPolicy;
+        Func<GameplayTuningPolicy>? selectedPolicy = policy is null ? null : () => policy;
         GameSession initializer;
         if (executionEnvironment is null)
         {
@@ -56,7 +57,7 @@ internal static class GameplaySaveSessionLoader
         GameplaySaveRules rules = document.Progression!.Rules;
         initializer.Restore(initializer.State with { GameplayPreferences = rules.Preferences, ConfiguredGameplayTuning = rules.ConfiguredTuning });
         using (MovieClock initialClock = new(initializer, gameDirectory))
-        using (GameWorld initialWorld = new(initializer, gameDirectory, initialClock, selectedResources, sharedAssets: assets, modelOverrides: modelOverrides, readGameplayPolicy: () => policy))
+        using (GameWorld initialWorld = new(initializer, gameDirectory, initialClock, selectedResources, sharedAssets: assets, modelOverrides: modelOverrides, readGameplayPolicy: selectedPolicy))
         {
             // Constructor initialization selects current definitions; no field VM is loaded or advanced.
         }
@@ -82,7 +83,7 @@ internal static class GameplaySaveSessionLoader
         }
         GameSession candidateSession = new(restored);
         using MovieClock clock = new(candidateSession, gameDirectory);
-        using GameWorld candidate = new(candidateSession, gameDirectory, clock, selectedResources, sharedAssets: assets, modelOverrides: modelOverrides, readGameplayPolicy: () => policy, gameplaySaveFacts: facts);
+        using GameWorld candidate = new(candidateSession, gameDirectory, clock, selectedResources, sharedAssets: assets, modelOverrides: modelOverrides, readGameplayPolicy: selectedPolicy, gameplaySaveFacts: facts);
         candidate.EnsureField();
         if (document.Resume.Kind == GameplaySaveResumeKind.Field)
         {

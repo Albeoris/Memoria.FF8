@@ -41,14 +41,14 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
         CharacterAppearanceMapping[] mappings = CharacterMappingAssociations.Assign([], 0, 8);
         CombinedSessionSave source = new() { ActiveGame = SessionGame.Ff7, Ff8Payload = payload.ToArray(), Ff8PayloadFormat = CrossoverSaveAdapter.Ff8Codec, Mappings = mappings };
         NotSupportedException failure = Assert.Throws<NotSupportedException>(() => CrossoverFf8BattleKit.ValidateWorldSwitchMappings(source, ff8Root!));
-        Assert.Contains("Laguna record", failure.Message);
+        Assert.Contains("extended FFVIII roster", failure.Message);
 
         using GpuTestDevice device = new();
         using SpriteBatch batch = new(device.Device);
         using Texture2D pixel = new(device.Device, 1, 1);
         using SystemTextRenderer text = new(device.Device);
         using MonoGameUiCanvas canvas = new(device.Device, batch, pixel, text, ff8Root!);
-        using CrossoverMappingMenu menu = new(device.Device, installation, ff8Root!, mappings, default, default, text, canvas, () => new UiTheme(), combatRecords: document.Characters.Records);
+        using CrossoverMappingMenu menu = new(device.Device, installation, ff8Root!, mappings, default, default, text, canvas, () => new UiTheme(), SessionGame.Ff7, document.Characters.Records, document.Characters.ExtendedRosterEnabled);
         CharacterAppearanceMapping[]? confirmed = null;
         bool cancelled = false;
         menu.Confirmed += selected => confirmed = selected;
@@ -72,6 +72,15 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
         Assert.Empty(confirmed);
         CrossoverFf8BattleKit.ValidateWorldSwitchMappings(source with { Mappings = confirmed }, ff8Root!);
         CrossoverFf8BattleKit.ValidateWorldSwitchMappings(source with { Mappings = CharacterMappingAssociations.Assign([], 0, 0) }, ff8Root!);
+
+        using CrossoverMappingMenu returning = new(device.Device, installation, ff8Root!, mappings, default, default, text, canvas, () => new UiTheme(), SessionGame.Ff8, document.Characters.Records, document.Characters.ExtendedRosterEnabled);
+        returning.Confirmed += selected => confirmed = selected;
+        returning.Apply(MenuInput.Down);
+        returning.Apply(MenuInput.Down);
+        returning.Apply(MenuInput.Down);
+        returning.Apply(MenuInput.Confirm);
+        Assert.Equal(mappings, confirmed);
+        Assert.Equal("Cloud", Ff7CharacterPresentationIdentity.FromSave(source).Resolve(0, "Cloud").Name);
     }
 
     private void RunOpeningBattle(bool useLimit, bool useWorldSwitch, int characterId = 0)
@@ -128,7 +137,7 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
             using Texture2D pixel = new(device.Device, 1, 1);
             using SystemTextRenderer text = new(device.Device);
             using MonoGameUiCanvas canvas = new(device.Device, batch, pixel, text, ff8Root!);
-            using CrossoverMappingMenu menu = new(device.Device, installation, ff8Root!, mappings, default, default, text, canvas, () => new UiTheme());
+            using CrossoverMappingMenu menu = new(device.Device, installation, ff8Root!, mappings, default, default, text, canvas, () => new UiTheme(), SessionGame.Ff7, document.Characters.Records, document.Characters.ExtendedRosterEnabled);
             menu.Confirmed += selectedMappings =>
             {
                 Assert.Equal(mappings, selectedMappings);

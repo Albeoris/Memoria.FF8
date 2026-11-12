@@ -125,12 +125,12 @@ internal sealed record CrossoverFf8BattleKit(int RecordRow, ushort HitPoints, in
         return Attack.AttackType is 1 or 9 or 10 ? null : $"FFVIII physical attack type {Attack.AttackType} has no mixed battle contract.";
     }
 
-    internal static string? SavedRecordUnavailableReason(NativeCharacterVital[] records, int characterId, out int row)
+    internal static string? SavedRecordUnavailableReason(NativeCharacterVital[] records, bool extendedRosterEnabled, int characterId, out int row)
     {
-        row = Array.FindIndex(records, record => record.CharacterId == characterId);
-        if (row < 0 || Array.FindLastIndex(records, record => record.CharacterId == characterId) != row)
+        row = CrossoverGuestRecord.FindOriginalRow(records, extendedRosterEnabled, characterId);
+        if (row < 0)
         {
-            return $"Mixed combat requires one original {CrossoverCharacterCatalog.AppearanceNames[characterId]} record in the suspended FFVIII world.";
+            return "Enable the extended FFVIII roster to map this character.";
         }
         return records[row].HitPoints.Minimum != records[row].HitPoints.Maximum
             ? "Mixed combat requires the selected FFVIII character's exact saved HP."
@@ -161,21 +161,38 @@ internal sealed record CrossoverFf8BattleKit(int RecordRow, ushort HitPoints, in
         }
     }
 
-    public static CrossoverFf8BattleKit Read(NativeCharacterVitals vitals, BattleAssets resources, int characterId)
+    public static CrossoverFf8BattleKit Read(NativeCharacterVitals vitals, BattleAssets resources, int characterId, int? admittedRow = null)
     {
         ArgumentNullException.ThrowIfNull(vitals);
         ArgumentNullException.ThrowIfNull(resources);
         ArgumentOutOfRangeException.ThrowIfNegative(characterId);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(characterId, 10);
         vitals.Validate();
-        if (SavedRecordUnavailableReason(vitals.Records, characterId, out int row) is { } unavailable)
+        int row;
+        if (admittedRow is int savedRow)
         {
-            throw new NotSupportedException(unavailable);
+            if (!CrossoverGuestRecord.OwnsBattleRow(vitals, savedRow, characterId))
+            {
+                throw new InvalidDataException("The suspended FFVIII record differs from the admitted battle guest.");
+            }
+            row = savedRow;
         }
+        else
+        {
+            if (SavedRecordUnavailableReason(vitals.Records, vitals.ExtendedRosterEnabled, characterId, out row) is { } unavailable)
+            {
+                throw new NotSupportedException(unavailable);
+            }
+        }
+        vitals = CrossoverGuestRecord.ProjectIdentity(vitals, row, characterId);
         NativeCharacterVital saved = vitals.Records[row];
+        if (saved.HitPoints.Minimum != saved.HitPoints.Maximum)
+        {
+            throw new InvalidDataException("Mixed combat requires the admitted guest's exact saved HP.");
+        }
         BattleNativePlayerStatRules rules = resources.ReadPlayerNativeStatRules(vitals, row);
         ImmutableArray<BattleNativeAction> spells = resources.NativeActions.Where(action => action.Command == 2 && action.KernelSection == 1 && action.ActionId != 0).ToImmutableArray();
-        byte weapon = vitals.DreamEnabled && characterId >= 8 ? vitals.DreamWeapons[characterId - 8] : saved.Weapon;
+        byte weapon = vitals.GetBattleWeapon(row);
         return new(row, saved.HitPoints.Minimum, vitals.GetMagicMaximumHitPoints(row), rules.Level, weapon, resources.ReadPlayerStats(vitals, row), resources.ReadPlayerNativeStatusData(vitals, row), resources.ReadPlayerNativeAttackData(vitals, row), resources.ReadNativeLimitDefinition(characterId), rules.WeaponRecord[2], resources.ReadPlayerNativeCommandSlots(vitals, row), spells)
         {
             CharacterId = (byte)characterId,
@@ -206,7 +223,7 @@ internal sealed record CrossoverBattleStockSnapshot(Guid EncounterId, string Ini
         ArgumentNullException.ThrowIfNull(suspendedOrigin);
         roster.Validate();
         suspendedOrigin.Validate();
-        if (EncounterId != roster.EncounterId || Records is not { Length: 8 } || Magic is null || !Records.Select(record => record?.CharacterId).SequenceEqual(suspendedOrigin.Records.Select(record => (byte?)record.CharacterId)))
+        if (EncounterId != roster.EncounterId || Records is null || Magic is null || !Records.Select(record => record?.CharacterId).SequenceEqual(suspendedOrigin.Records.Select(record => (byte?)record.CharacterId)))
         {
             throw new InvalidDataException("Mixed magic continuation does not match its suspended world and physical character owners.");
         }
@@ -270,12 +287,12 @@ internal static class CrossoverBattleBridge
             {
                 return Denied("This mixed action already owns an active stock reservation.");
             }
-            MagicCastQuote quote = MagicCastingService.Quote(vitals, kit.RecordRow, ability.NativeId, MagicCastContext.Battle, reservation);
+            MagicCastQuote quote = MagicCastingService.Quote(vitals, kit.RecordRow, ability.NativeId, MagicCastContext.Battle, reservation, kit.CharacterId);
             if (!quote.Allowed)
             {
                 return Denied(quote.Reason ?? "The FFVIII guest has no available stock for this spell.");
             }
-            working = MagicCastingService.Reserve(vitals, kit.RecordRow, ability.NativeId, MagicCastContext.Battle, reservation);
+            working = MagicCastingService.Reserve(vitals, kit.RecordRow, ability.NativeId, MagicCastContext.Battle, reservation, characterId: kit.CharacterId);
         }
         return new(new(ordinal, guest.Combat, targetId, ability, kit.RecordRow, reservation), action, working, null);
 
@@ -321,7 +338,7 @@ internal static class CrossoverBattleBridge
 
     private static void ValidateGuestOwner(NativeCharacterVitals vitals, int row, int characterId)
     {
-        if ((uint)row >= vitals.Records.Length || vitals.Records[row].CharacterId != characterId || vitals.Records.Count(record => record.CharacterId == characterId) != 1)
+        if (!CrossoverGuestRecord.OwnsBattleRow(vitals, row, characterId))
         {
             throw new InvalidDataException("The mixed guest requires one original character record in the suspended FFVIII world.");
         }

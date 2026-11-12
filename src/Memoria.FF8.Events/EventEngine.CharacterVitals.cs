@@ -39,10 +39,6 @@ public sealed partial class EventEngine
         {
             return "ADDPARTY guest flags require their current event-word owner and atomic publication";
         }
-        if (operation.Opcode == Jsm.Opcode.ADDPARTY && fiber.Stack.Count > 0 && !Scene.Party.Contains(unchecked((byte)fiber.Stack.Peek())) && Scene.Party.Contains(255) && Array.IndexOf(state.CombatParty, (byte)255) < 0)
-        {
-            return "ADDPARTY has no original empty combat slot; native overflow branch is unsupported";
-        }
         if (operation.Opcode == Jsm.Opcode.ADDPARTY)
         {
             if (fiber.Stack.Count == 0 || !fiber.Stack.PeekValue().IsExact)
@@ -81,13 +77,20 @@ public sealed partial class EventEngine
         byte[] slots = state.CombatParty.ToArray();
         if (insert)
         {
-            int empty = Array.IndexOf(slots, (byte)255);
             byte row = state.FindPhysicalRow(unchecked((byte)character));
-            if (empty < 0)
+            if (row == 255 || !slots.Contains(row) || !HasExtendedCombatParty(state))
             {
-                throw new NotSupportedException("ADDPARTY insertion requires its native empty combat slot and actual identity lookup.");
+                int empty = Array.IndexOf(slots, (byte)255);
+                if (empty < 0)
+                {
+                    empty = Array.FindLastIndex(slots, slot => IsNonStoryRosterMember(state, slot));
+                }
+                if (empty < 0)
+                {
+                    throw new NotSupportedException("ADDPARTY has no original empty combat slot; native overflow branch is unsupported.");
+                }
+                slots[empty] = row;
             }
-            slots[empty] = row;
         }
         if (character >= 8)
         {
@@ -97,6 +100,11 @@ public sealed partial class EventEngine
         // Native51E160 performs membership and rebuild even with a full field
         // party, provided the requested character was not already present.
         return (state.WithPartyMemberFlags(character) with { CombatParty = slots }).RebuildParty();
+    }
+
+    private bool IsNonStoryRosterMember(NativeCharacterVitals state, byte row)
+    {
+        return state.ExtendedRosterEnabled && !state.DreamEnabled && NativeCharacterVitals.IsExtendedRosterCharacter(row) && !Scene.Party.Contains(state.Records[row].CharacterId);
     }
 
     private int[] ExecuteAddPartyCharacter(Fiber fiber)
@@ -139,7 +147,12 @@ public sealed partial class EventEngine
             return (state with { CombatParty = [mapped[1], mapped[0], mapped[2]] }).RebuildParty().RepairDyingParty();
         }
         // Original51E400 writes combat slots in field order1,0,2, using BYTEs.
-        return (state with { CombatParty = [unchecked((byte)fieldParty[1]), unchecked((byte)fieldParty[0]), unchecked((byte)fieldParty[2])] }).RebuildParty().RepairDyingParty();
+        byte[] slots = [unchecked((byte)fieldParty[1]), unchecked((byte)fieldParty[0]), unchecked((byte)fieldParty[2])];
+        if (state.ExtendedRosterEnabled && slots.Any(row => row != 255 && row >= NativeCharacterVitals.NativeRecordCount))
+        {
+            throw new NotSupportedException("SETPARTY requires its original physical combat rows outside dream mode.");
+        }
+        return (state with { CombatParty = slots }).RebuildParty().RepairDyingParty();
     }
 
     private int[] ExecuteSetParty(Fiber fiber)
@@ -154,6 +167,10 @@ public sealed partial class EventEngine
     private NativeCharacterVitals PrepareRemovedCombatCharacter(byte character)
     {
         NativeCharacterVitals state = services.CharacterVitals!;
+        if (state.ExtendedRosterEnabled && !state.DreamEnabled && character is 6 or 7)
+        {
+            state = state.WithHoldFlags(character, false);
+        }
         byte[] slots = state.CombatParty.ToArray();
         int slot = Array.FindIndex(slots, index => index != 255 && state.Records[index].CharacterId == character);
         if (slot >= 0)

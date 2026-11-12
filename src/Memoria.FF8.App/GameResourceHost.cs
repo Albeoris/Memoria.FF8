@@ -325,6 +325,10 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         usable.AddRange(encodedResources.Select(resource => catalog.Files.First(file => $"{file.PackageId}:{file.RelativePath}" == resource.Content.Provenance).PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(behaviorPackages.Select(package => package.Id));
         usable.AddRange(catalog.Files.Where(file => file.Format == ModFormat.Memoria && file.RelativePath.Equals(BehaviorMods.PayloadPath, StringComparison.OrdinalIgnoreCase)).Select(file => file.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
+        if (gameplayPolicy.ExtendedRosterEnabled)
+        {
+            usable.Add(GameplayTuningPolicy.ExtendedRosterPackageId);
+        }
         DemasterInspection demaster = DemasterTextureResolver.Inspect(source.Descriptor, catalog, (source as SelectedModelResourceSource)?.ModelSourceDescriptor);
         if (catalog.Files.Any(file => file.Format == ModFormat.Demaster))
         {

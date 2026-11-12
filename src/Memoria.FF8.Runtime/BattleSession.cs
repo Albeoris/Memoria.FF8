@@ -1104,7 +1104,7 @@ public sealed partial class BattleSession
         (source.Tuning ?? throw new InvalidDataException("Battle tuning is missing.")).Validate();
         source.MagicVitals?.Validate();
         source.MagicVitals?.ValidateMagicSystemConsistency();
-        if (source.Combatants.Any(actor => actor.MagicRecordId is int row && ((uint)row >= 8 || !actor.IsPlayer)) || source.Combatants.Where(actor => actor.IsPlayer && actor.MagicRecordId is not null).Select(actor => actor.MagicRecordId).Distinct().Count() != source.Combatants.Count(actor => actor.IsPlayer && actor.MagicRecordId is not null))
+        if (source.Combatants.Any(actor => actor.MagicRecordId is int row && ((uint)row >= (source.MagicVitals?.Records.Length ?? NativeCharacterVitals.NativeRecordCount) || !actor.IsPlayer)) || source.Combatants.Where(actor => actor.IsPlayer && actor.MagicRecordId is not null).Select(actor => actor.MagicRecordId).Distinct().Count() != source.Combatants.Count(actor => actor.IsPlayer && actor.MagicRecordId is not null))
         {
             throw new InvalidDataException("Battle magic banks require distinct stable physical player record identities.");
         }

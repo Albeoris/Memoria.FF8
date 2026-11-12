@@ -55,9 +55,9 @@ public sealed partial class EventEngine
         {
             NativeRefinementInput.Validate(action);
         }
-        if (action.Kind == PlayerActionKind.UseFieldItem && (action.Value is <= 0 or > 255 || action.Quantity is null or < 0 or >= 8 and < 16 or > 31 || action.Text is not null && (!int.TryParse(action.Text, out int forgotten) || forgotten is < 0 or > 127) || action.Frames != 1 || action.Horizontal != 0 || action.Vertical != 0))
+        if (action.Kind == PlayerActionKind.UseFieldItem && (action.Value is <= 0 or > 255 || action.Quantity is null or < 0 or >= NativeCharacterVitals.ExtendedRecordCount and < 16 or > 31 || action.Text is not null && (!int.TryParse(action.Text, out int forgotten) || forgotten is < 0 or > 127) || action.Frames != 1 || action.Horizontal != 0 || action.Vertical != 0))
         {
-            throw new ArgumentException("Field item use requires an item BYTE and a physical character row0..7.", nameof(action));
+            throw new ArgumentException("Field item use requires an item BYTE and a character0..10 or GF16..31 target.", nameof(action));
         }
         if (action.Kind == PlayerActionKind.SwitchPartyMembers)
         {

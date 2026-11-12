@@ -5,6 +5,7 @@ using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.App.Tests;
 
@@ -78,9 +79,9 @@ public sealed class NativePartySwitchTests
 
     [Theory]
     [InlineData(-1, 0)]
-    [InlineData(8, 0)]
+    [InlineData(11, 0)]
     [InlineData(0, -1)]
-    [InlineData(0, 8)]
+    [InlineData(0, 11)]
     public void MalformedPhysicalRowsFailBeforeMutation(int source, int target)
     {
         GameSession session = GameSession.CreateColdProcess();
@@ -99,6 +100,47 @@ public sealed class NativePartySwitchTests
         Assert.False(NativePartySwitchInput.CanExchange(source with { CombatParty = [0, 1, 255] }, 1, 3, 2));
         NativeCharacterVital[] records = source.Records.Select(record => record with { Status = (ushort)(record.Status | 1) }).ToArray();
         Assert.False(NativePartySwitchInput.CanExchange(source with { Records = records }, 1, 3, 2));
+    }
+
+    [Fact]
+    public void ExtendedRosterSwitchProjectsEveryReserveAndCanFillAnEmptySlot()
+    {
+        NativeCharacterVitals party = CreateParty(locked: 0).WithExtendedRoster(true);
+        party.Records[4] = party.Records[4] with { MemberFlags = 1 };
+        party.Records[5] = party.Records[5] with { MemberFlags = 1 };
+        party = party with { CombatParty = [0, 255, 255] };
+        NativeWorldControlState controls = NativeWorldControlState.CreateNewGame() with { Menu209 = 2 };
+        MenuData ReadData() => LiveMenuData.Build(new GameState { Scene = SceneKind.Field, CharacterVitals = party, WorldControls = controls });
+        List<PlayerAction> actions = [];
+        MenuController controller = new(ReadData, action =>
+        {
+            PlayerAction input = NativePartySwitchMenuProjection.PlayerAction(action);
+            actions.Add(input);
+            party = NativePartySwitchInput.Apply(party, input, controls.Menu209);
+        });
+
+        controller.Open("switch-party");
+        Assert.Equal(11, controller.Data.Characters.Count);
+        Assert.DoesNotContain(controller.Data.Characters, character => character.Id == MenuController.EmptySwitchSlotId);
+        controller.SelectEntry("switch-party", MenuController.EmptySwitchSlotId);
+        controller.Navigate(MenuInput.Confirm);
+        controller.SelectEntry("switch-party-target", "character-10");
+        UiElement root = controller.BuildView().Root;
+        UiButton ward = Assert.Single(Descendants(root).OfType<UiButton>(), button => button.Id == "character-10");
+        Assert.True(ward.Bounds.Width > 0 && ward.Bounds.Height > 0);
+        controller.Navigate(MenuInput.Confirm);
+        Assert.Equal(new PlayerAction(PlayerActionKind.SwitchPartyMembers, 255, Quantity: 10), Assert.Single(actions));
+        Assert.Equal(new byte[] { 0, 10, 255 }, party.CombatParty);
+        Assert.True(controller.Data.Characters.Single(character => character.Id == "character-10").InParty);
+
+        static IEnumerable<UiElement> Descendants(UiElement element)
+        {
+            yield return element;
+            foreach (UiElement child in element.Children.SelectMany(Descendants))
+            {
+                yield return child;
+            }
+        }
     }
 
     [Fact]
@@ -121,26 +163,8 @@ public sealed class NativePartySwitchTests
     [Fact]
     public void NativeNormalSwitchPublishesItsResultAndRestoresBeforeReturn()
     {
-        NativeCharacterVitals vitals = CreateParty();
-        using GameAssets assets = new(TestResources.GameDirectory);
-        GameSession session = GameSession.CreateColdProcess();
-        session.StartNewGame();
-        session.InitializeNewGameCharacterVitals(vitals);
-        session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
-        session.InitializeNewGameShotAvailability(assets.ReadNewGameShotAvailability());
-        session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
-        session.SetNativeEventOwners(session.WorldControls! with { Menu209 = 2 });
-        EventEngine engine = new(session);
         byte[] program = NormalMenuProgram();
-        engine.LoadField(74, program, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
-        session.SetNativeEventOwners(session.WorldControls! with { Menu209 = 2 });
-        engine.Scene.Party.Clear();
-        engine.Scene.Party.AddRange([0, 1, 2]);
-        for (int callback = 0; engine.PartyMenu?.Phase != NativePartyMenuPhase.Active; callback++)
-        {
-            Assert.True(callback < 8, engine.LastFault?.ToString());
-            engine.Step();
-        }
+        (GameSession session, EventEngine engine) = OpenNormalMenu(CreateParty(), program);
         PlayerAction action = new(PlayerActionKind.SwitchPartyMembers, 1, Quantity: 3);
         PlayerActionResult result = engine.Apply(JsonSerializer.Deserialize<PlayerAction>(JsonSerializer.Serialize(action))!);
         Assert.True(result.Accepted, result.Detail ?? $"menu entry {engine.PartyMenu?.NativeEntrySelection}; party {string.Join(",", session.CharacterVitals!.CombatParty)}");
@@ -174,6 +198,52 @@ public sealed class NativePartySwitchTests
         Assert.NotNull(engine.Scene.PartyBindingMemory);
         Assert.Equal(new[] { 0, 3, 2 }, engine.Scene.Party);
         Assert.Null(engine.LastFault);
+    }
+
+    [Fact]
+    public void ExtendedNormalSwitchKeepsNativeFieldBindingsOnCheckpointRestore()
+    {
+        byte[] program = NormalMenuProgram();
+        (GameSession session, EventEngine engine) = OpenNormalMenu(CreateParty(), program);
+        engine.ConfigureExtendedRoster(true);
+
+        PlayerActionResult result = engine.Apply(new PlayerAction(PlayerActionKind.SwitchPartyMembers, 1, Quantity: 10));
+        Assert.True(result.Accepted, result.Detail);
+        Assert.Equal(new byte[] { 0, 10, 2 }, session.CharacterVitals!.CombatParty);
+        Assert.Equal(new[] { 0, 1, 2 }, engine.Scene.Party);
+        Assert.Equal((ushort)0, engine.PartyMenu!.NativeReturnResult);
+
+        JsonElement checkpoint = engine.Capture();
+        GameSession resumedSession = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
+        EventEngine resumed = new(resumedSession);
+        resumed.LoadField(74, program, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        resumed.Restore(checkpoint);
+        Assert.True(JsonElement.DeepEquals(checkpoint, resumed.Capture()));
+        Assert.Equal(new byte[] { 0, 10, 2 }, resumedSession.CharacterVitals!.CombatParty);
+        Assert.Equal(new[] { 0, 1, 2 }, resumed.Scene.Party);
+    }
+
+    private static (GameSession Session, EventEngine Engine) OpenNormalMenu(NativeCharacterVitals vitals, byte[] program)
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        GameSession session = GameSession.CreateColdProcess();
+        session.StartNewGame();
+        session.InitializeNewGameCharacterVitals(vitals);
+        session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
+        session.InitializeNewGameShotAvailability(assets.ReadNewGameShotAvailability());
+        session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
+        session.SetNativeEventOwners(session.WorldControls! with { Menu209 = 2 });
+        EventEngine engine = new(session);
+        engine.LoadField(74, program, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        session.SetNativeEventOwners(session.WorldControls! with { Menu209 = 2 });
+        engine.Scene.Party.Clear();
+        engine.Scene.Party.AddRange([0, 1, 2]);
+        for (int callback = 0; engine.PartyMenu?.Phase != NativePartyMenuPhase.Active; callback++)
+        {
+            Assert.True(callback < 8, engine.LastFault?.ToString());
+            engine.Step();
+        }
+        return (session, engine);
     }
 
     private static byte[] NormalMenuProgram()

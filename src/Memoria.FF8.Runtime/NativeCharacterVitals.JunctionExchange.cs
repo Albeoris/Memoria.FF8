@@ -6,8 +6,8 @@ public sealed partial record NativeCharacterVitals
     public NativeCharacterVitals ExchangeJunctions(int sourceRow, int targetRow)
     {
         Validate();
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)sourceRow, 8u);
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)targetRow, 8u);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)sourceRow, (uint)Records.Length);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)targetRow, (uint)Records.Length);
         if (sourceRow == targetRow)
         {
             throw new ArgumentException("Junction exchange requires distinct saved character rows.", nameof(targetRow));

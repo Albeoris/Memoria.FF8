@@ -20,7 +20,8 @@ public static class LiveMenuData
 
     internal static MenuData BuildJunctionSnapshot(GameState state, IReadOnlyDictionary<int, string>? names, LiveMenuCatalog? catalog, int? placeId, MenuData? baseline = null, IReadOnlySet<int>? changedRows = null, Func<int, BattleNativePlayerStatRules>? readRules = null)
     {
-        return BuildCore(state, names, catalog, Enumerable.Range(0, 8).ToHashSet(), placeId, false, new JunctionReadOptions(baseline, changedRows, readRules));
+        int visibleRows = state.CharacterVitals is { ExtendedRosterEnabled: true, DreamEnabled: false } vitals ? vitals.Records.Length : NativeCharacterVitals.NativeRecordCount;
+        return BuildCore(state, names, catalog, Enumerable.Range(0, visibleRows).ToHashSet(), placeId, false, new JunctionReadOptions(baseline, changedRows, readRules));
     }
 
     private sealed record JunctionReadOptions(MenuData? Baseline, IReadOnlySet<int>? ChangedRows, Func<int, BattleNativePlayerStatRules>? ReadRules);
@@ -92,14 +93,20 @@ public static class LiveMenuData
             if (junction is null && state.Scene is SceneKind.Field or SceneKind.WorldMap && !vitals.DreamEnabled && ((state.WorldControls?.Menu209 ?? 0) & 2) != 0)
             {
                 result.SupportedActions.Add("party-switch");
-                for (int source = 0; source < 8; source++)
+                for (int source = 0; source < vitals.Records.Length; source++)
                 {
-                    for (int target = 0; target < 8; target++)
+                    for (int target = 0; target < vitals.Records.Length; target++)
                     {
                         if (Memoria.FF8.Events.NativePartySwitchInput.CanExchange(vitals, source, target, state.WorldControls!.Menu209))
                         {
                             result.SupportedActions.Add($"party-switch:character-{source}:character-{target}");
                         }
+                    }
+                    if (Memoria.FF8.Events.NativePartySwitchInput.CanExchange(vitals, source, Memoria.FF8.Events.NativePartySwitchInput.EmptySlot, state.WorldControls!.Menu209))
+                    {
+                        result.SupportedActions.Add($"party-switch:character-{source}:{MenuController.EmptySwitchSlotId}");
+                        result.SupportedActions.Add($"party-switch:{MenuController.EmptySwitchSlotId}:character-{source}");
+                        result.SupportedActions.Add("party-switch-empty-slot");
                     }
                 }
             }
@@ -116,7 +123,8 @@ public static class LiveMenuData
             {
                 NativeCharacterVital native = vitals.Records[row];
                 bool inParty = vitals.CombatParty.Contains((byte)row);
-                bool member = native.CharacterId < 8 ? (native.MemberFlags & 1) != 0 : state.WorldControls is { } controls && (controls.EventFlags104 & (1u << (native.CharacterId - 8))) != 0;
+                bool dreamAlias = row < NativeCharacterVitals.NativeRecordCount && native.CharacterId >= NativeCharacterVitals.NativeRecordCount;
+                bool member = dreamAlias ? state.WorldControls is { } controls && (controls.EventFlags104 & (1u << (native.CharacterId - NativeCharacterVitals.NativeRecordCount))) != 0 : vitals.IsRosterMember(row);
                 if (!inParty && !member && visibleCharacterRows?.Contains(row) != true)
                 {
                     continue;
@@ -135,11 +143,12 @@ public static class LiveMenuData
                 }
                 else
                 {
+                    int weapon = vitals.GetBattleWeapon(row);
                     character = new()
                     {
                         SavedStatuses = native.Status,
                         AttackMode = vitals.MagicSystem.AttackModes[row].ToString(),
-                        NativeFieldItemTargetAllowed = (native.MemberFlags & 1) != 0 && (!vitals.DreamEnabled || inParty),
+                        NativeFieldItemTargetAllowed = vitals.IsRosterMember(row) && (!vitals.DreamEnabled || inParty),
                         Id = $"character-{row}",
                         NativeId = native.CharacterId,
                         Name = CharacterName(state, native.CharacterId, names, catalog),
@@ -149,11 +158,11 @@ public static class LiveMenuData
                         HpDisplay = native.HitPoints.Minimum == native.HitPoints.Maximum ? native.HitPoints.Minimum.ToString(System.Globalization.CultureInfo.InvariantCulture) : $"{native.HitPoints.Minimum}..{native.HitPoints.Maximum}",
                         MaximumHp = vitals.GetMagicMaximumHitPoints(row),
                         Experience = native.Experience <= int.MaxValue ? (int)native.Experience : null,
-                        Weapon = catalog?.WeaponName(vitals.DreamEnabled && native.CharacterId >= 8 ? vitals.DreamWeapons[native.CharacterId - 8] : native.Weapon) ?? Format("fallback.weapon.name", "Weapon {0}", (vitals.DreamEnabled && native.CharacterId >= 8 ? vitals.DreamWeapons[native.CharacterId - 8] : native.Weapon))
+                        Weapon = catalog?.WeaponName(weapon) ?? Format("fallback.weapon.name", "Weapon {0}", weapon)
                     };
                     if (junction is null)
                     {
-                        catalog?.ProjectLimit(character, native.Weapon, state, textNames);
+                        catalog?.ProjectLimit(character, weapon, state, textNames);
                     }
                     (int Mask, string Key, string Name)[] savedConditions = [(1, "ko", "KO"), (2, "poison", "Poison"), (4, "petrify", "Petrify"), (8, "blind", "Blind"), (16, "silence", "Silence"), (32, "berserk", "Berserk"), (64, "zombie", "Zombie")];
                     foreach (var condition in savedConditions)
@@ -300,7 +309,7 @@ public static class LiveMenuData
                 }
                 result.Characters.Add(character);
             }
-            bool reuseGuardianForces = junction?.Baseline is { } prior && Enumerable.Range(0, 8).All(row => prior.Characters.First(character => character.Id == $"character-{row}").GuardianForceIds.SequenceEqual(result.Characters.First(character => character.Id == $"character-{row}").GuardianForceIds));
+            bool reuseGuardianForces = junction?.Baseline is { } prior && prior.Characters.Count == result.Characters.Count && result.Characters.All(character => prior.Characters.FirstOrDefault(previous => previous.Id == character.Id) is { } previous && previous.GuardianForceIds.SequenceEqual(character.GuardianForceIds));
             if (reuseGuardianForces)
             {
                 result.GuardianForces.AddRange(junction!.Baseline!.GuardianForces);

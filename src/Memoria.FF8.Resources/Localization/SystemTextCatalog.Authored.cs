@@ -604,6 +604,8 @@ public static partial class SystemTextCatalog
         defaults["movie.skip.hold"] = "Hold to skip";
         defaults["name.validation.character-limit"] = "Use at most 20 characters without control characters.";
         defaults["party.switch.member"] = "Switch Member";
+        defaults["party.switch.empty-slot"] = "Empty slot";
+        defaults["mods.extended-roster.description"] = "Adds Laguna, Kiros, Ward, Edea and Seifer to Switch Member when party changes are available.";
         defaults["projection.ability.description-unavailable"] = "Ability description unavailable.";
         defaults["projection.action.unsupported"] = "The current engine does not support this native menu action.";
         defaults["projection.card.description-unavailable"] = "Card description unavailable.";

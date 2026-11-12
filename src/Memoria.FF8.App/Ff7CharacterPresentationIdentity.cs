@@ -25,19 +25,19 @@ internal sealed class Ff7CharacterPresentationIdentity
     internal static Ff7CharacterPresentationIdentity FromSave(CombinedSessionSave save)
     {
         Dictionary<int, string> names = [];
-        if (save.Ff8Payload is { Length: > 0 })
+        GameplaySaveComponentDocument? document = save.Ff8Payload is { Length: > 0 } ? CrossoverSaveAdapter.ReadFf8(save) : null;
+        if (document is { Progression: { } progression })
         {
-            GameplaySaveProgression? progression = CrossoverSaveAdapter.ReadFf8(save).Progression;
-            foreach ((int subject, string name) in progression?.OriginalResidue?.Names ?? [])
+            foreach ((int subject, string name) in progression.OriginalResidue?.Names ?? [])
             {
                 names[subject] = name;
             }
-            foreach ((int subject, string name) in progression?.SceneFacts?.Names ?? [])
+            foreach ((int subject, string name) in progression.SceneFacts?.Names ?? [])
             {
                 names[subject] = name;
             }
         }
-        return new(save.Mappings, save.CharacterNameOverrides, names);
+        return new(CrossoverGuestRecord.PresentationMappings(save.Mappings, document?.Characters), save.CharacterNameOverrides, names);
     }
 
     internal Ff7CharacterDisplayIdentity Resolve(int storyCharacter, string nativeName)

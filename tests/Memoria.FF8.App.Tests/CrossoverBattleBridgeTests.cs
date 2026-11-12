@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Memoria.FF7.Events;
 using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
@@ -32,6 +33,108 @@ public sealed class CrossoverBattleBridgeTests
         Assert.Equal(roster.Guest, restored.Guest);
         Assert.Equal(roster.Participants.ToArray(), restored.Participants.ToArray());
         Assert.Throws<NotSupportedException>(() => (roster with { Version = 2 }).Validate());
+    }
+
+    [Fact]
+    public void World_switch_uses_permanent_guest_rows_and_original_Squall_during_a_dream()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(root), "Select the original FFVIII installation.");
+        using GameAssets game = new(root!);
+        using BattleAssets assets = new(root!);
+        NativeCharacterVitals initial = game.ReadNewGameCharacterVitals();
+        NativeCharacterVitals dream = initial.PrepareJunction(3, [0, 255, 255], 1).Vitals;
+        Assert.Equal(8, dream.Records[0].CharacterId);
+
+        CrossoverFf8BattleKit squall = CrossoverFf8BattleKit.Read(initial, assets, 0);
+        CrossoverFf8BattleKit dreamSquall = CrossoverFf8BattleKit.Read(dream, assets, 0);
+        Assert.Equal(0, dreamSquall.RecordRow);
+        Assert.Equal(0, dreamSquall.Attack.CharacterId);
+        Assert.Equal(squall.Weapon, dreamSquall.Weapon);
+        Assert.Equal(squall.MaximumHitPoints, dreamSquall.MaximumHitPoints);
+        Assert.Equal(squall.Stats.Strength, dreamSquall.Stats.Strength);
+        Assert.Equal(8, dream.Records[0].CharacterId);
+
+        for (int character = 6; character <= 10; character++)
+        {
+            Assert.Throws<NotSupportedException>(() => CrossoverFf8BattleKit.Read(dream, assets, character));
+        }
+        CrossoverFf8BattleKit legacyLaguna = CrossoverFf8BattleKit.Read(dream, assets, 8, admittedRow: 0);
+        Assert.Equal(0, legacyLaguna.RecordRow);
+        Assert.Equal(dream.DreamWeapons[0], legacyLaguna.Weapon);
+
+        NativeCharacterVitals extended = dream.WithExtendedRoster(true);
+        Assert.Throws<InvalidDataException>(() => CrossoverFf8BattleKit.Read(extended, assets, 8, admittedRow: 0));
+        for (int character = 6; character <= 10; character++)
+        {
+            CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.Read(extended, assets, character);
+            Assert.Equal(character, kit.RecordRow);
+            Assert.Equal(character, kit.Attack.CharacterId);
+            Assert.Equal(extended.Records[character].Weapon, kit.Weapon);
+            Assert.Null(kit.OpeningCombatUnavailableReason());
+        }
+
+        GameplaySaveComponentDocument document = GameplaySaveSessionLoaderTests.Document(game, world: false) with { Characters = GameplaySaveCharacters.Capture(extended) };
+        using MemoryStream payload = new();
+        GameplaySaveCodec.Write(payload, document);
+        CombinedSessionSave envelope = new() { ActiveGame = SessionGame.Ff8, Ff8Payload = payload.ToArray(), Ff8PayloadFormat = CrossoverSaveAdapter.Ff8Codec, MixedCombatBindings = [new(0, 0), new(1, 8)] };
+        using CrossoverGuestFieldVitals field = new(root!, () => envelope, updated => envelope = updated);
+        field.AddHitPoints(1, -1);
+        field.AddHitPoints(0, -2);
+        NativeCharacterVital[] updatedRows = CrossoverSaveAdapter.ReadFf8(envelope).Characters.Records;
+        Assert.Equal(8, updatedRows[0].CharacterId);
+        Assert.Equal(8, updatedRows[8].CharacterId);
+        Assert.Equal(extended.Records[0].HitPoints.Minimum - 2, updatedRows[0].HitPoints.Minimum);
+        Assert.Equal(extended.Records[8].HitPoints.Minimum - 1, updatedRows[8].HitPoints.Minimum);
+    }
+
+    [Fact]
+    public void Mixed_battle_cold_restore_keeps_dream_Squall_and_permanent_Laguna_on_separate_rows()
+    {
+        string? ff8Root = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        string? ff7Root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(ff8Root) && !string.IsNullOrWhiteSpace(ff7Root), "Select the installed original FFVII and FFVIII resources.");
+        using GameAssets game = new(ff8Root!);
+        NativeCharacterVitals origin = game.ReadNewGameCharacterVitals().PrepareJunction(3, [0, 255, 255], 1).Vitals.WithExtendedRoster(true);
+        origin.Records[0] = origin.Records[0] with { HitPoints = new(9999, 9999) };
+        GameplaySaveComponentDocument document = GameplaySaveSessionLoaderTests.Document(game, world: false) with { Characters = GameplaySaveCharacters.Capture(origin) };
+        using MemoryStream payload = new();
+        GameplaySaveCodec.Write(payload, document);
+
+        Ff7Installation installation = Ff7Installation.Discover(ff7Root!);
+        using Ff7Session host = Ff7Session.NewGame(installation);
+        host.SetFullCombatEnabled(true);
+        host.Host.Execute(new(1L << 59, 0, 7, 0, new FieldPartyCommand(FieldPartyOperation.Replace, 0, 1, 2)));
+        host.Host.StartEncounter(new(host.Progress.NextEncounterRequestId, 0, 7, 0, new FieldBattleCommand(364)), 0);
+        Ff7BattleSession battle = Assert.IsType<Ff7BattleSession>(host.Battle);
+        CombinedSessionSave source = new()
+        {
+            ActiveGame = SessionGame.Ff7,
+            Ff7 = host.Capture(),
+            Ff8Payload = payload.ToArray(),
+            Ff8PayloadFormat = CrossoverSaveAdapter.Ff8Codec,
+            Mappings = CharacterMappingAssociations.Assign(CharacterMappingAssociations.Assign([], 0, 0), 1, 8),
+            MixedCombatBindings = [new(0, 0), new(1, 8)]
+        };
+        CrossoverFf8BattleKit.ValidateWorldSwitchMappings(source, ff8Root!);
+        using CrossoverMixedBattle mixed = new(ff8Root!, source, battle);
+        Assert.Equal(new[] { (0, 0, 0), (1, 8, 8) }, battle.GuestVitalsBindings.Select(binding => (binding.StoryCharacter, binding.OriginCharacter, binding.OriginRow)));
+        Ff7BattleGuestVitalsBinding squall = battle.GuestVitalsBindings[0];
+        Assert.Equal(squall.MaximumHp, squall.InitialHp);
+        Assert.True(squall.InitialHp < 9999);
+
+        using MemoryStream envelope = new();
+        CombinedSessionCodec.Write(envelope, source with { Ff7 = host.Capture(), MixedBattlePayload = mixed.Capture() });
+        envelope.Position = 0;
+        CombinedSessionSave restored = CombinedSessionCodec.Read(envelope);
+        Assert.Equal(source.Ff8Payload, restored.Ff8Payload);
+        using Ff7Session cold = Ff7Session.Restore(installation, restored.Ff7!);
+        Ff7BattleSession coldBattle = Assert.IsType<Ff7BattleSession>(cold.Battle);
+        using CrossoverMixedBattle coldMixed = new(ff8Root!, restored, coldBattle);
+        Assert.Equal(battle.GuestVitalsBindings.ToArray(), coldBattle.GuestVitalsBindings.ToArray());
+        Assert.Equal(new[] { 0, 1, 2 }, coldBattle.Actors.Where(actor => actor.Actor.Slot < 3).Select(actor => actor.Identity));
+        Assert.Equal(11, coldMixed.GuestAt(1)!.WorkingStock.Records.Length);
+        Assert.Equal(8, coldMixed.GuestAt(1)!.WorkingStock.Records[0].CharacterId);
     }
 
     [Fact]

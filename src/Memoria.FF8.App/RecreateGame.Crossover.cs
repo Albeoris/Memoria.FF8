@@ -99,8 +99,10 @@ internal sealed partial class RecreateGame
         {
             throw new InvalidOperationException(reason);
         }
-        NativeCharacterVital[]? combatRecords = destination == SessionGame.Ff7 ? (session.State.CharacterVitals as NativeCharacterVitals)?.Records : null;
-        CrossoverMappingMenu menu = new(GraphicsDevice, Ff7Installation.Discover(options.Ff7GameDirectory!), options.GameDirectory, outgoing?.Mappings ?? pendingCrossoverMappings ?? crossover?.Mappings ?? [], physicalInput.ReadKeyboard(), Mouse.GetState(), text, uiCanvas!, () => CreateUiTheme(), destination, combatRecords);
+        GameplaySaveCharacters? suspended = destination == SessionGame.Ff8 ? CrossoverSaveAdapter.ReadFf8(outgoing!).Characters : null;
+        NativeCharacterVitals? live = destination == SessionGame.Ff7 ? session.State.CharacterVitals as NativeCharacterVitals : null;
+        bool extendedRosterEnabled = resourceHost?.GameplayPolicy.ExtendedRosterEnabled ?? live?.ExtendedRosterEnabled ?? suspended?.ExtendedRosterEnabled ?? false;
+        CrossoverMappingMenu menu = new(GraphicsDevice, Ff7Installation.Discover(options.Ff7GameDirectory!), options.GameDirectory, outgoing?.Mappings ?? pendingCrossoverMappings ?? crossover?.Mappings ?? [], physicalInput.ReadKeyboard(), Mouse.GetState(), text, uiCanvas!, () => CreateUiTheme(), destination, suspended?.Records ?? live?.Records, extendedRosterEnabled);
         menu.Cancelled += CloseCrossoverSetup;
         menu.Confirmed += mappings =>
         {
@@ -143,12 +145,13 @@ internal sealed partial class RecreateGame
         Ff7Installation installation = Ff7Installation.Discover(options.Ff7GameDirectory ?? throw new InvalidOperationException("Select a FINAL FANTASY VII installation before loading this world."));
         Ff7PcExecutableData native = Ff7PcExecutableData.Load(installation);
         string tools = movieClock.ToolsDirectory;
-        IFf7ActorAppearance? appearance = null;
-        if (state.Mappings.Length > 0)
+        GameplaySaveCharacters? characters = state.Ff8Payload is { Length: > 0 } && state.Mappings.Length > 0 ? CrossoverSaveAdapter.ReadFf8(state).Characters : null;
+        CharacterAppearanceMapping[] mappings = CrossoverGuestRecord.PresentationMappings(state.Mappings, characters);
+        if (mappings.Length > 0)
         {
             crossoverAssets ??= new GameAssets(options.GameDirectory, resources: resourceHost!.Resources, modelOverrides: resourceHost);
         }
-        appearance = Ff7AppearanceSelection.Create(state.Mappings, installation, crossoverAssets);
+        IFf7ActorAppearance? appearance = Ff7AppearanceSelection.Create(mappings, installation, crossoverAssets);
         Ff7Scene scene = new(GraphicsDevice, installation, tools, new Ff7ProjectionDepth(native.FieldNearPlane, native.FieldFarPlane), movie => Ff7Scene.ResolveMovie(installation, tools, movie), state, appearance, options.AudioEnabled);
         try
         {

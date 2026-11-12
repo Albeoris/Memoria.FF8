@@ -93,7 +93,7 @@ public sealed partial class GameSession
 
     public void SetAttackMode(int row, MagicAttackMode mode)
     {
-        if ((uint)row >= 8 || !Enum.IsDefined(mode) || State.CharacterVitals is not { } vitals || HasActiveBattle)
+        if (!Enum.IsDefined(mode) || State.CharacterVitals is not { } vitals || (uint)row >= vitals.Records.Length || HasActiveBattle)
         {
             throw new InvalidOperationException("Attack modes require an available field party record.");
         }

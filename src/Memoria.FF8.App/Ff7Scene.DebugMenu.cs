@@ -1,5 +1,6 @@
 using Memoria.FF7.Runtime;
 using Memoria.FF8.GameUi;
+using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
@@ -16,7 +17,8 @@ internal sealed partial class Ff7Scene
 
     internal CrossoverMappingMenu CreateMappingMenu(string ff8Directory, KeyboardState keys, MouseState mouse)
     {
-        return new CrossoverMappingMenu(device, installation, ff8Directory, envelope.Mappings, keys, mouse, dialogueText!, dialogueCanvas!, SharedTheme, SessionGame.Ff8);
+        GameplaySaveCharacters? characters = envelope.Ff8Payload is { Length: > 0 } ? CrossoverSaveAdapter.ReadFf8(envelope).Characters : null;
+        return new CrossoverMappingMenu(device, installation, ff8Directory, envelope.Mappings, keys, mouse, dialogueText!, dialogueCanvas!, SharedTheme, SessionGame.Ff8, characters?.Records, characters?.ExtendedRosterEnabled ?? false);
     }
 
     private UiTheme SharedTheme()

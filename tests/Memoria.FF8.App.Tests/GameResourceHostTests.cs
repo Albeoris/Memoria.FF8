@@ -12,6 +12,34 @@ public sealed class GameResourceHostTests : IDisposable
     private static readonly Rgba32 BaseColor = new(24, 48, 72);
 
     [Fact]
+    public void BundledExtendedRosterRequiresAnExplicitOptInAndPublishesTheToggle()
+    {
+        string bundled = Path.Combine("BundledMods", GameplayTuningPolicy.ExtendedRosterPackageId);
+        string application = Path.Combine(root, "application");
+        string package = Path.Combine(application, bundled);
+        Directory.CreateDirectory(package);
+        foreach (string file in Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, bundled)))
+        {
+            File.Copy(file, Path.Combine(package, Path.GetFileName(file)));
+        }
+        using GameResourceHost host = new(root, application, watch: false);
+        string id = GameplayTuningPolicy.ExtendedRosterPackageId;
+        Assert.True(host.Mods.AutoEnableNewMods);
+        Assert.Equal(ModEffectiveStatus.Disabled, Assert.Single(host.Mods.Catalog.Packages).Status);
+        Assert.False(host.GameplayPolicy.ExtendedRosterEnabled);
+
+        Assert.True(host.Mods.SetEnabled(id, true).Success);
+        Assert.True(host.Pump(true));
+        Assert.Equal(ModEffectiveStatus.Active, Assert.Single(host.Mods.Catalog.Packages).Status);
+        Assert.True(host.GameplayPolicy.ExtendedRosterEnabled);
+        Assert.True(File.Exists(Path.Combine(application, "Mods", id, "mod.ini")));
+
+        Assert.True(host.Mods.SetEnabled(id, false).Success);
+        Assert.True(host.Pump(true));
+        Assert.False(host.GameplayPolicy.ExtendedRosterEnabled);
+    }
+
+    [Fact]
     public void EncounterOnlyPublicationRetainsLastValidGenerationAndDisableClearsIt()
     {
         using GameResourceHost host = Host();

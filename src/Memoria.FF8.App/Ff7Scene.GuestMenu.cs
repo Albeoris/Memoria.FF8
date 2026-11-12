@@ -77,19 +77,20 @@ internal sealed partial class Ff7Scene
         int[] active = ActiveGuestCharacters(envelope.GetMixedCombatBindings(), Session!.Progress.Party);
         for (int index = 0; index < active.Length; index++)
         {
-            int row = vitals.FindPhysicalRow(checked((byte)active[index]));
-            if ((uint)row >= vitals.Records.Length)
+            int row = CrossoverGuestRecord.FindOriginalRow(vitals, active[index]);
+            if (row < 0)
             {
                 throw new InvalidDataException("The guest menu requires the retained FFVIII record for each active guest.");
             }
             party[index] = checked((byte)row);
         }
+        NativeCharacterVital[] rows = vitals.Records.Select((record, row) => record with { CharacterId = checked((byte)row) }).ToArray();
         return new()
         {
             Scene = document.Resume.Kind == GameplaySaveResumeKind.Field ? SceneKind.Field : SceneKind.WorldMap,
             FieldId = document.Resume.FieldId,
             GameplaySceneFacts = progress.SceneFacts,
-            CharacterVitals = vitals with { CombatParty = party },
+            CharacterVitals = vitals with { CombatParty = party, DreamEnabled = false, Records = rows },
             Economy = document.Economy.Restore(assets.ReadNewGameEconomy()),
             LimitProgress = document.Limits.Restore(assets.ReadNewGameLimitProgress()),
             WorldControls = controls,
@@ -179,7 +180,8 @@ internal sealed partial class Ff7Scene
 
     private static GameplaySaveCharacters CaptureGuestMenuCharacters(GameplaySaveComponentDocument document, NativeCharacterVitals vitals)
     {
-        return GameplaySaveCharacters.Capture(vitals with { CombatParty = document.Characters.CombatParty });
+        NativeCharacterVital[] rows = vitals.Records.Select((record, row) => record with { CharacterId = document.Characters.Records[row].CharacterId }).ToArray();
+        return GameplaySaveCharacters.Capture(vitals with { CombatParty = document.Characters.CombatParty, DreamEnabled = document.Characters.DreamEnabled, Records = rows });
     }
 
     private void VisitGuestMenuScreen(string screen)

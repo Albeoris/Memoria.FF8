@@ -6,10 +6,12 @@ namespace Memoria.FF8;
 /// <summary>Composition of reviewed package rules in catalog priority order.</summary>
 internal sealed class GameplayTuningPolicy
 {
+    internal const string ExtendedRosterPackageId = "Memoria/Extended FFVIII Roster";
     private readonly Dictionary<JunctionGameplaySetting, (decimal Value, string Owner)> settings = [];
     private readonly Dictionary<string, (int Value, string Owner)> behaviorSettings = [];
     private bool hardcoreMeltdown;
     public static GameplayTuningPolicy Empty { get; } = new();
+    public bool ExtendedRosterEnabled { get; private init; }
 
     public static GameplayTuningPolicy FromCatalog(ModCatalogSnapshot catalog, BehaviorMods? behaviorMods = null, string sourceLanguage = "en")
     {
@@ -21,7 +23,10 @@ internal sealed class GameplayTuningPolicy
         {
             throw new InvalidDataException("Hardcore requires the installed Meltdown package to declare both VitalityReductionPercent and SpiritReductionPercent.");
         }
-        GameplayTuningPolicy policy = new();
+        GameplayTuningPolicy policy = new()
+        {
+            ExtendedRosterEnabled = catalog.Packages.Any(package => package.IsBundled && package.Status == ModEffectiveStatus.Active && package.Id.Equals(ExtendedRosterPackageId, StringComparison.OrdinalIgnoreCase))
+        };
         AddBehavior(nameof(GameplayTuning.MeltdownVitalityReductionPercent), behaviorMods.MeltdownVitalityReductionPercent, behaviorMods.MeltdownVitalityPackageId, BehaviorMods.HardcoreVitalityReductionPercent);
         AddBehavior(nameof(GameplayTuning.MeltdownSpiritReductionPercent), behaviorMods.MeltdownSpiritReductionPercent, behaviorMods.MeltdownSpiritPackageId, BehaviorMods.HardcoreSpiritReductionPercent);
 

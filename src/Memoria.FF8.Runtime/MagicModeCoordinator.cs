@@ -12,7 +12,7 @@ public static class MagicJunctionPolicy
 {
     public static int? GetOwner(NativeCharacterVitals vitals, int spellId)
     {
-        for (int row = 0; row < 8; row++)
+        for (int row = 0; row < vitals.Records.Length; row++)
         {
             if (Enumerable.Range(0, 19).Any(slot => vitals.Records[row].Junction.MagicJunctions[slot] == spellId && vitals.JunctionMagicSlotAvailable(row, slot) && vitals.GetMagicCount(row, spellId) > 0))
             {
@@ -36,7 +36,7 @@ public static class MagicJunctionPolicy
 
     public static NativeCharacterVitals Assign(NativeCharacterVitals vitals, int row, int slot, int spellId, bool reassign = false)
     {
-        if ((uint)row >= 8 || (uint)slot >= 19 || spellId is < 0 or > 56)
+        if ((uint)row >= vitals.Records.Length || (uint)slot >= 19 || spellId is < 0 or > 56)
         {
             throw new ArgumentOutOfRangeException(nameof(slot));
         }
@@ -52,7 +52,7 @@ public static class MagicJunctionPolicy
         NativeCharacterVitals next = vitals.DeepCopy();
         if (spellId != 0)
         {
-            for (int record = 0; record < 8; record++)
+            for (int record = 0; record < next.Records.Length; record++)
             {
                 if (record != row && !next.MagicSystem.SharedMagicStock)
                 {
@@ -75,12 +75,12 @@ public static class MagicJunctionPolicy
     {
         if (physicalRow.HasValue)
         {
-            ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)physicalRow.Value, 8u);
+            ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)physicalRow.Value, (uint)vitals.Records.Length);
         }
         NativeCharacterVitals next = vitals.DeepCopy();
         List<MagicJunctionChange> changes = [];
         HashSet<int> claimed = [];
-        IEnumerable<int> order = next.CombatParty.Where(row => row < 8).Select(row => (int)row).Concat(Enumerable.Range(0, 8)).Distinct().Where(row => !physicalRow.HasValue || row == physicalRow.Value);
+        IEnumerable<int> order = next.CombatParty.Where(row => row < next.Records.Length).Select(row => (int)row).Concat(Enumerable.Range(0, vitals.Records.Length)).Distinct().Where(row => !physicalRow.HasValue || row == physicalRow.Value);
         foreach (int row in order)
         {
             HashSet<int> local = [];
@@ -116,7 +116,7 @@ public static class MagicJunctionPolicy
 
     internal static NativeCharacterVitals ClampHitPoints(NativeCharacterVitals vitals, int? physicalRow = null)
     {
-        foreach (int row in Enumerable.Range(physicalRow ?? 0, physicalRow.HasValue ? 1 : 8))
+        foreach (int row in Enumerable.Range(physicalRow ?? 0, physicalRow.HasValue ? 1 : vitals.Records.Length))
         {
             ushort maximum = (ushort)Maximum(vitals, row);
             NativeCharacterVital record = vitals.Records[row];
@@ -136,7 +136,7 @@ public static class MagicModeCoordinator
             throw new InvalidOperationException("Magic rules cannot change while casts are reserved.");
         }
         NativeCharacterVitals next = vitals.DeepCopy();
-        for (int row = 0; row < 8; row++)
+        for (int row = 0; row < vitals.Records.Length; row++)
         {
             HashSet<int> ids = [];
             for (int slot = 0; slot < 32; slot++)
@@ -163,7 +163,7 @@ public static class MagicModeCoordinator
         next = next with { MagicSystem = next.MagicSystem with { SharedMagicStock = preferences.SharedMagicStock, InfiniteMagic = preferences.InfiniteMagic, UnlimitedMagic = preferences.Tuning.UnlimitedMagic, HistoriesInitialized = next.MagicSystem.HistoriesInitialized || preferences.InfiniteMagic } };
         if (enabling)
         {
-            for (int donor = 1; donor < 8; donor++)
+            for (int donor = 1; donor < next.Records.Length; donor++)
             {
                 foreach (NativeMagicStock stock in next.Records[donor].MagicInventory.Where(stock => stock.SpellId > 0 && stock.Count > 0).ToArray())
                 {
@@ -182,7 +182,7 @@ public static class MagicModeCoordinator
             }
         }
         next = MagicJunctionPolicy.Reconcile(next, out MagicJunctionChange[] removed);
-        MagicHitPointChange[] hp = Enumerable.Range(0, 8).Select(row => new MagicHitPointChange(row, MagicJunctionPolicy.Maximum(vitals, row), MagicJunctionPolicy.Maximum(next, row))).Where(change => change.PreviousMaximum != change.Maximum).ToArray();
+        MagicHitPointChange[] hp = Enumerable.Range(0, vitals.Records.Length).Select(row => new MagicHitPointChange(row, MagicJunctionPolicy.Maximum(vitals, row), MagicJunctionPolicy.Maximum(next, row))).Where(change => change.PreviousMaximum != change.Maximum).ToArray();
         next.Validate();
         next.ValidateMagicSystemConsistency();
         return new(next, preferences, moves.ToArray(), overflow.ToArray(), removed, hp) { Source = vitals.DeepCopy() };

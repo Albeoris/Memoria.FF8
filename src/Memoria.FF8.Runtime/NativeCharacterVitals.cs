@@ -53,7 +53,7 @@ public sealed record NativeCharacterVital([property: JsonRequired] byte Characte
     }
 }
 
-/// <summary>Eight original save records and three raw combat slots, initialized only by authentic New Game resources.</summary>
+/// <summary>Saved character records and three combat slots. The first eight rows retain their original physical meaning.</summary>
 public sealed partial record NativeCharacterVitals
 {
     public const string InitializationRule = "ff8-en-init-out-56da10-saved-stat-inputs-495ef0-v1";
@@ -88,9 +88,9 @@ public sealed partial record NativeCharacterVitals
     public void Validate()
     {
         static bool Hash(string value) => value is { Length: 64 } && value.All(Uri.IsHexDigit);
-        if (Version != 1 || Rule != InitializationRule || !Hash(InitOutSha256) || !Hash(KernelSha256) || Records is not { Length: 8 } || CombatParty is not { Length: 3 } || Records.Where((record, index) => record is null || record.HitPoints is null || record.CharacterId > 10 || record.StatBonuses is not { Length: 6 } || record.MagicInventory is not { Length: 32 } || record.MagicInventory.Any(stock => stock is null) || record.GuardianForceCompatibility is { Length: not 16 }).Any() || CombatParty.Any(slot => slot != 255 && slot >= 8))
+        if (Version != 1 || Rule != InitializationRule || !Hash(InitOutSha256) || !Hash(KernelSha256) || Records is null || !IsValidRosterShape(Records, CombatParty, ExtendedRosterEnabled, DreamEnabled, ExtendedRosterPartyBeforeDream) || Records.Any(record => record is null || record.HitPoints is null || record.CharacterId > 10 || record.StatBonuses is not { Length: 6 } || record.MagicInventory is not { Length: 32 } || record.MagicInventory.Any(stock => stock is null) || record.GuardianForceCompatibility is { Length: not 16 }))
         {
-            throw new InvalidDataException("Native character vitals lack their original initialization, eight records or raw combat slots.");
+            throw new InvalidDataException("Native character vitals lack their original initialization, valid character records or combat slots.");
         }
         if (Definitions is null || MenuDefinitions is null || GuardianForces is not { Length: 16 } || GuardianForces.Any(row => row is null || row.LearnedBank is null || row.AbilityProgress.IsDefault || row.AbilityProgress.Length != 21 || row.ForgottenAbilities > 0xFFFFFF) || DreamWeapons is not { Length: 3 } || JunctionPartyBackup is not { Length: 6 })
         {
@@ -120,7 +120,7 @@ public sealed partial record NativeCharacterVitals
         {
             (MenuDefinitions with { Templates = profile.Source }).Validate();
         }
-        MagicSystem.Validate();
+        MagicSystem.Validate(Records.Length);
         Definitions.Validate();
         MenuDefinitions.Validate();
         foreach (NativeCharacterVital record in Records)
@@ -136,7 +136,7 @@ public sealed partial record NativeCharacterVitals
 
     public NativeCharacterVitals DeepCopy()
     {
-        return this with { MagicSystem = MagicSystem.DeepCopy(), Records = Records.Select(record => record with { Junction = record.Junction with { MagicJunctions = record.Junction.MagicJunctions.ToArray() }, StatBonuses = record.StatBonuses.ToArray(), MagicInventory = record.MagicInventory.ToArray(), GuardianForceCompatibility = record.GuardianForceCompatibility?.ToArray() }).ToArray(), CombatParty = CombatParty.ToArray(), GuardianForces = GuardianForces.ToArray(), DreamWeapons = DreamWeapons.ToArray(), JunctionPartyBackup = JunctionPartyBackup.ToArray() };
+        return this with { MagicSystem = MagicSystem.DeepCopy(), Records = Records.Select(record => record with { Junction = record.Junction with { MagicJunctions = record.Junction.MagicJunctions.ToArray() }, StatBonuses = record.StatBonuses.ToArray(), MagicInventory = record.MagicInventory.ToArray(), GuardianForceCompatibility = record.GuardianForceCompatibility?.ToArray() }).ToArray(), CombatParty = CombatParty.ToArray(), GuardianForces = GuardianForces.ToArray(), DreamWeapons = DreamWeapons.ToArray(), JunctionPartyBackup = JunctionPartyBackup.ToArray(), ExtendedRosterPartyBeforeDream = ExtendedRosterPartyBeforeDream?.ToArray() };
     }
 
     /// <summary>Native522110 writes the HP WORD at its wrapped full-DWORD physical row address.</summary>
@@ -191,8 +191,13 @@ public sealed partial record NativeCharacterVitals
     public NativeCharacterVitals RebuildParty()
     {
         Validate();
+        return RebuildSelectedRows(CombatParty.Where(slot => slot != 255));
+    }
+
+    private NativeCharacterVitals RebuildSelectedRows(IEnumerable<byte> selectedRows)
+    {
         NativeCharacterVital[] records = Records.ToArray();
-        foreach (byte slot in CombatParty.Where(slot => slot != 255))
+        foreach (byte slot in selectedRows)
         {
             NativeCharacterVital current = records[slot];
             ushort maximum = MagicMaximumHitPoints(current);
@@ -241,7 +246,7 @@ public sealed partial record NativeCharacterVitals
         NativeCharacterVitals next = DeepCopy();
         for (int row = 0; row < Records.Length; row++)
         {
-            if ((next.Records[row].MemberFlags & 1) == 0 || DreamEnabled && !CombatParty.Contains((byte)row))
+            if (!IsRosterMember(row) || DreamEnabled && !CombatParty.Contains((byte)row))
             {
                 continue;
             }

@@ -23,6 +23,7 @@ internal sealed class CrossoverMappingMenu : IDisposable
     private readonly Func<UiTheme> theme;
     private readonly SessionGame destinationGame;
     private readonly NativeCharacterVital[]? combatRecords;
+    private readonly bool extendedRosterEnabled;
     private readonly Ff7Installation installation;
     private readonly string ff8Directory;
     private readonly CancellationTokenSource lifetime = new();
@@ -38,7 +39,7 @@ internal sealed class CrossoverMappingMenu : IDisposable
     private int missingPage;
     private string? notice;
 
-    public CrossoverMappingMenu(GraphicsDevice device, Ff7Installation installation, string ff8Directory, IEnumerable<CharacterAppearanceMapping> mappings, KeyboardState keys, MouseState mouse, SystemTextRenderer text, MonoGameUiCanvas canvas, Func<UiTheme> theme, SessionGame destinationGame = SessionGame.Ff7, NativeCharacterVital[]? combatRecords = null)
+    public CrossoverMappingMenu(GraphicsDevice device, Ff7Installation installation, string ff8Directory, IEnumerable<CharacterAppearanceMapping> mappings, KeyboardState keys, MouseState mouse, SystemTextRenderer text, MonoGameUiCanvas canvas, Func<UiTheme> theme, SessionGame destinationGame, NativeCharacterVital[]? combatRecords, bool extendedRosterEnabled)
     {
         Ff7MenuResources menu = Ff7MenuResources.LoadPortraits(installation);
         NativeMenuArtwork artwork = NativeMenuArtwork.Load(ff8Directory);
@@ -49,6 +50,7 @@ internal sealed class CrossoverMappingMenu : IDisposable
         this.theme = theme;
         this.destinationGame = destinationGame;
         this.combatRecords = combatRecords;
+        this.extendedRosterEnabled = extendedRosterEnabled;
         this.installation = installation;
         this.ff8Directory = ff8Directory;
         this.mappings = CharacterMappingAssociations.Normalize(mappings);
@@ -200,13 +202,16 @@ internal sealed class CrossoverMappingMenu : IDisposable
         }
         else if (selected == StoryNames.Length)
         {
-            foreach (CharacterAppearanceMapping mapping in mappings)
+            if (destinationGame == SessionGame.Ff7)
             {
-                if (AppearanceUnavailableReason(mapping.AppearanceCharacter) is not null)
+                foreach (CharacterAppearanceMapping mapping in mappings)
                 {
-                    selection = mapping.StoryCharacter;
-                    notice = $"{AppearanceNames[mapping.AppearanceCharacter]} is unavailable in this save. Change the association or clear it with Alternate.";
-                    return;
+                    if (AppearanceUnavailableReason(mapping.AppearanceCharacter) is not null)
+                    {
+                        selection = mapping.StoryCharacter;
+                        notice = $"{AppearanceNames[mapping.AppearanceCharacter]} is unavailable in this save. Change the association or clear it with Alternate.";
+                        return;
+                    }
                 }
             }
             Confirmed?.Invoke(mappings.ToArray());
@@ -227,7 +232,15 @@ internal sealed class CrossoverMappingMenu : IDisposable
 
     private string? AppearanceUnavailableReason(int appearance)
     {
-        return combatRecords is null ? null : CrossoverFf8BattleKit.SavedRecordUnavailableReason(combatRecords, appearance, out _);
+        if (combatRecords is null)
+        {
+            return "The suspended FFVIII roster is unavailable.";
+        }
+        if (destinationGame == SessionGame.Ff8)
+        {
+            return NativeCharacterVitals.IsExtendedRosterCharacter(appearance) && !extendedRosterEnabled ? "Enable the extended FFVIII roster to map this character." : null;
+        }
+        return CrossoverFf8BattleKit.SavedRecordUnavailableReason(combatRecords, extendedRosterEnabled, appearance, out _);
     }
 
     private void RequestCoverage(int story)

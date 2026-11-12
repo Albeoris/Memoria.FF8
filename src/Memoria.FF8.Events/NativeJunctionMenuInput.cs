@@ -16,7 +16,7 @@ public static class NativeJunctionMenuInput
         }
         if (action.Kind == PlayerActionKind.ExchangeJunctions)
         {
-            if ((uint)action.Value >= 8u || !int.TryParse(action.Text, NumberStyles.None, CultureInfo.InvariantCulture, out int target) || (uint)target >= 8u || target == action.Value || action.Quantity is not null || action.Frames != 1 || action.Horizontal != 0 || action.Vertical != 0 || action.CameraHorizontal != 0 || action.WorldButtons != 0 || action.WaitWhilePlayable)
+            if ((uint)action.Value >= NativeCharacterVitals.ExtendedRecordCount || !int.TryParse(action.Text, NumberStyles.None, CultureInfo.InvariantCulture, out int target) || (uint)target >= NativeCharacterVitals.ExtendedRecordCount || target == action.Value || action.Quantity is not null || action.Frames != 1 || action.Horizontal != 0 || action.Vertical != 0 || action.CameraHorizontal != 0 || action.WorldButtons != 0 || action.WaitWhilePlayable)
             {
                 throw new ArgumentException("Junction exchange requires two distinct saved character rows and one ordinary menu callback.", nameof(action));
             }
@@ -41,7 +41,7 @@ public static class NativeJunctionMenuInput
         }
         if (action.Kind == PlayerActionKind.ReassignGuardianForce)
         {
-            if ((uint)action.Value >= 8u || action.Quantity is not (>= 0 and < 8) || action.Quantity == action.Value || !int.TryParse(action.Text, NumberStyles.None, CultureInfo.InvariantCulture, out int guardianForce) || (uint)guardianForce >= 16u || action.Frames != 1 || action.Horizontal != 0 || action.Vertical != 0 || action.CameraHorizontal != 0 || action.WorldButtons != 0 || action.WaitWhilePlayable)
+            if ((uint)action.Value >= NativeCharacterVitals.ExtendedRecordCount || action.Quantity is not (>= 0 and < NativeCharacterVitals.ExtendedRecordCount) || action.Quantity == action.Value || !int.TryParse(action.Text, NumberStyles.None, CultureInfo.InvariantCulture, out int guardianForce) || (uint)guardianForce >= 16u || action.Frames != 1 || action.Horizontal != 0 || action.Vertical != 0 || action.CameraHorizontal != 0 || action.WorldButtons != 0 || action.WaitWhilePlayable)
             {
                 throw new ArgumentException("GF reassignment requires a destination character, a different confirmed owner, a GF and one ordinary menu action.", nameof(action));
             }
@@ -59,13 +59,13 @@ public static class NativeJunctionMenuInput
         if (action.Kind is PlayerActionKind.RemoveJunctions or PlayerActionKind.AutoJunction)
         {
             bool validChoice = action.Text is "0" or "1" || action.Kind == PlayerActionKind.AutoJunction && action.Text == "2";
-            if ((uint)action.Value >= 8u || !validChoice || action.Quantity is not null || action.Frames != 1 || action.Horizontal != 0 || action.Vertical != 0 || action.CameraHorizontal != 0)
+            if ((uint)action.Value >= NativeCharacterVitals.ExtendedRecordCount || !validChoice || action.Quantity is not null || action.Frames != 1 || action.Horizontal != 0 || action.Vertical != 0 || action.CameraHorizontal != 0)
             {
                 throw new ArgumentException("Junction input requires an explicit character row, a valid category or Auto priority and one ordinary menu action.", nameof(action));
             }
             return;
         }
-        if ((uint)action.Value >= (learning ? 16u : 8u) || !int.TryParse(action.Text, NumberStyles.None, CultureInfo.InvariantCulture, out int choice) || choice < 0 || choice >= (action.Kind == PlayerActionKind.JunctionGuardianForce ? 16 : action.Kind is PlayerActionKind.SetJunctionMagic or PlayerActionKind.ReassignJunctionMagic ? 57 : 128) || action.Kind == PlayerActionKind.SetJunctionCommand && action.Quantity is not (>= 0 and < 3) || action.Kind == PlayerActionKind.SetJunctionAbility && action.Quantity is not (>= 0 and < 4) || action.Kind is PlayerActionKind.SetJunctionMagic or PlayerActionKind.ReassignJunctionMagic && action.Quantity is not (>= 0 and < 19) || action.Kind is PlayerActionKind.JunctionGuardianForce or PlayerActionKind.SelectGuardianForceLearning && action.Quantity is not null || action.Frames != 1 || action.Horizontal != 0 || action.Vertical != 0 || action.CameraHorizontal != 0)
+        if ((uint)action.Value >= (learning ? 16u : NativeCharacterVitals.ExtendedRecordCount) || !int.TryParse(action.Text, NumberStyles.None, CultureInfo.InvariantCulture, out int choice) || choice < 0 || choice >= (action.Kind == PlayerActionKind.JunctionGuardianForce ? 16 : action.Kind is PlayerActionKind.SetJunctionMagic or PlayerActionKind.ReassignJunctionMagic ? 57 : 128) || action.Kind == PlayerActionKind.SetJunctionCommand && action.Quantity is not (>= 0 and < 3) || action.Kind == PlayerActionKind.SetJunctionAbility && action.Quantity is not (>= 0 and < 4) || action.Kind is PlayerActionKind.SetJunctionMagic or PlayerActionKind.ReassignJunctionMagic && action.Quantity is not (>= 0 and < 19) || action.Kind is PlayerActionKind.JunctionGuardianForce or PlayerActionKind.SelectGuardianForceLearning && action.Quantity is not null || action.Frames != 1 || action.Horizontal != 0 || action.Vertical != 0 || action.CameraHorizontal != 0)
         {
             throw new ArgumentException("Menu input requires explicit native row/GF, numeric choice, valid slot and one ordinary menu action.", nameof(action));
         }

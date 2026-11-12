@@ -24,7 +24,7 @@ public sealed partial record NativeCharacterVitals
         bool forgotten = template is { NativeLearningSlots: not 0 } ? result.NativeGuardianForceForgotten(id, ability) : true;
         result.GuardianForces[id] = gf with { Progression = gf.Progression! with { Abilities = gf.Progression.Abilities.Select(entry => entry.Ability == ability ? entry with { Learned = false, Forgotten = forgotten } : entry).ToImmutableArray() } };
         result.GuardianForces[id] = result.SynchronizeGuardianForce(id);
-        for (int row = 0; row < 8; row++)
+        for (int row = 0; row < Records.Length; row++)
         {
             bool retained = result.JunctionLearnedAbilities(row).Contains(ability);
             NativeCharacterVital character = result.Records[row];

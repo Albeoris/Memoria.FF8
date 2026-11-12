@@ -48,7 +48,7 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Gameplay script-menu membership masks or timer display contradict their canonical owners.");
         }
-        GameplaySaveScriptMenu result = new(1, menu.Kind == NativeFieldMenuKind.Normal ? GameplaySaveScriptMenuKind.Normal : GameplaySaveScriptMenuKind.Save, MenuPhase(menu.Phase), menu.OwnerSequence, menu.ObjectId, menu.ScriptId, menu.Operation, menu.Callbacks, menu.NativeEntrySelection, menu.NativeReturnResult, menu.TimerDisplayBeforeMenu.Value, location.PreviousFieldId, location.Slots.ToArray(), menu.SavePanel?.Fade70);
+        GameplaySaveScriptMenu result = new(1, menu.Kind == NativeFieldMenuKind.Normal ? GameplaySaveScriptMenuKind.Normal : GameplaySaveScriptMenuKind.Save, MenuPhase(menu.Phase), menu.OwnerSequence, menu.ObjectId, menu.ScriptId, menu.Operation, menu.Callbacks, menu.NativeEntrySelection, menu.NativeReturnResult, menu.TimerDisplayBeforeMenu.Value, location.PreviousFieldId, location.Slots.ToArray(), menu.SavePanel?.Fade70) { CombatPartyIndependent = menu.CombatPartyIndependent };
         if (menu.Kind == NativeFieldMenuKind.Normal && (menu.NativeReturnResult > 1 || menu.NativeReturnResult == 1 && (menu.NativeEntrySelection & 2) == 0) || menu.Kind == NativeFieldMenuKind.Save && menu.NativeReturnResult != 0)
         {
             throw new NotSupportedException("Gameplay script-menu result requires a separately supported native return contract.");
@@ -82,7 +82,11 @@ public sealed partial class EventEngine
             throw new InvalidDataException("Gameplay script-menu timer display contradicts its current close phase.");
         }
         NativeFieldMenuKind kind = saved.Kind == GameplaySaveScriptMenuKind.Normal ? NativeFieldMenuKind.Normal : NativeFieldMenuKind.Save;
-        if (saved.PendingPartyRefresh)
+        if (saved.CombatPartyIndependent && vitals.Records.Length != NativeCharacterVitals.ExtendedRecordCount)
+        {
+            throw new InvalidDataException("An independent combat lineup requires saved extended roster records.");
+        }
+        if (saved.PendingPartyRefresh && !saved.CombatPartyIndependent)
         {
             int[] entryParty = saved.EntryLocation.Select(slot => slot.RuntimeBinding == 255 ? 255 : actors[Scene.NativeActorObjectIds[slot.RuntimeBinding!.Value]].CharacterId).ToArray();
             byte[] currentParty = vitals.PreparePartyMenuFieldSlots(entryParty, vitals.CombatParty);
@@ -93,7 +97,7 @@ public sealed partial class EventEngine
         }
         (byte eligible, byte locked, byte forced) = GameplayMenuMasks(vitals, kind);
         NativeSavePanelState? panel = kind == NativeFieldMenuKind.Save ? new(saved.Phase == GameplaySaveScriptMenuPhase.Active ? 15 : saved.Phase == GameplaySaveScriptMenuPhase.Closing && saved.SaveFade == 4096 ? 82 : 83, saved.SaveFade!.Value) : null;
-        NativePartyMenuState restored = new(FieldId, programHash, NativeRuntimeProfile.ExecutableHash, Frame, saved.ObjectId, saved.ScriptId, saved.Operation, saved.OwnerSequence, NativeMenuPhase(saved.Phase), saved.Callbacks, kind == NativeFieldMenuKind.Normal ? vitals.CombatParty.ToArray() : null, eligible, locked, forced, saved.TimerDisplayBeforeMenu, kind, saved.EntrySelection, saved.ReturnResult, null, null, null, null, null, panel);
+        NativePartyMenuState restored = new(FieldId, programHash, NativeRuntimeProfile.ExecutableHash, Frame, saved.ObjectId, saved.ScriptId, saved.Operation, saved.OwnerSequence, NativeMenuPhase(saved.Phase), saved.Callbacks, kind == NativeFieldMenuKind.Normal ? vitals.CombatParty.ToArray() : null, eligible, locked, forced, saved.TimerDisplayBeforeMenu, kind, saved.EntrySelection, saved.ReturnResult, null, null, null, null, null, panel) { CombatPartyIndependent = saved.CombatPartyIndependent };
         ValidateGameplayMenuOwner(restored);
         ValidateSaveMenuCheckpoint(restored);
         NativeFieldLocation location = new(checked((ushort)FieldId), saved.PreviousField, 1, saved.EntryLocation.ToImmutableArray(), programHash, NativeRuntimeProfile.ExecutableHash, Frame, saved.ObjectId, saved.ScriptId, saved.Operation) { Origin = NativeFieldLocationOrigin.GameplayContinuation };

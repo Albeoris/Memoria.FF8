@@ -80,7 +80,7 @@ public static class MenuCatalog
         Add("ability-card-result", "Ability · Card Mod Result", "Confirm the card conversion.", true, c => [Action(c, "refine", c.SystemText("ui.register.entry.help.refine.alternate", "Refine"), c.SystemText("ui.register.entry.help.convert.one.recipe.batch.into.items", "Convert one recipe batch into items."), "card-mod", c.Card?.Id ?? "")], c => [c.FormatSystemText("ui.register.details.card", "Card: {0} \u00D7{1}", c.Card?.Name ?? c.SystemText("ui.register.value.unavailable", "Unavailable"), c.Card?.Quantity.ToString() ?? "?"), c.FormatSystemText("ui.register.details.required", "Required: {0}", c.Card?.RefinementRequiredCards?.ToString() ?? "1"), c.FormatSystemText("ui.register.details.result", "Result: {0} \u00D7 {1}", c.Card?.RefinementQuantity.ToString() ?? "?", c.Card?.RefinementItemName ?? c.Data.Items.FirstOrDefault(i => i.Id == c.Card?.RefinementItemId)?.Name ?? c.SystemText("ui.register.value.unavailable", "Unavailable")), c.IsDemo ? c.SystemText("ui.register.details.synthetic.demonstration.recipe", "Synthetic demonstration recipe.") : c.SystemText("ui.register.details.original.card.mod.recipe", "Original Card Mod recipe.")]);
 
         Add("switch", "Switch", "Change party members or exchange junction packages.", true, c => [new MenuEntry("switch-party", c.SystemText("ui.register.entry.label.party", "Party"), c.IsDemo || c.Data.SupportedActions.Contains("party-switch") ? c.SystemText("ui.register.entry.help.choose.source.and.target.party.members", "Choose source and target party members.") : c.SystemText("ui.register.entry.help.party.changes.are.unavailable.in.this.menu", "Party changes are unavailable in this menu."), "switch-party", Enabled: c.IsDemo || c.Data.SupportedActions.Contains("party-switch")), Link(c, "switch-junction", c.SystemText("ui.register.entry.help.junction.exchange", "Junction Exchange"), c.SystemText("ui.register.entry.help.exchange.gf.magic.commands.and.abilities", "Exchange GF, magic, commands and abilities."))], CharacterDetails, main: true);
-        Add("switch-party", "Switch · Party", "Select the source character.", true, c => c.Data.Characters.Select(ch => new MenuEntry(ch.Id, $"{ch.Name} {(ch.InParty ? "[Party]" : "[Reserve]")}", c.SystemText("ui.register.entry.help.select.the.other.member.next", "Select the other member next."), "switch-party-target", new MenuAction("select-exchange", ch.Id))).ToArray(), CharacterDetails);
+        Add("switch-party", "Switch · Party", "Select the source character.", true, SwitchSources, CharacterDetails);
         Add("switch-party-target", "Switch · Target", "Choose the other party / reserve member.", true, c => Targets(c, "party-switch"), CharacterDetails);
         Add("switch-junction", "Switch · Junction Exchange", "Choose the source junction package.", true, c => c.Data.Characters.Select(ch => new MenuEntry(ch.Id, ch.Name, c.SystemText("ui.register.entry.help.choose.the.destination.character.next", "Choose the destination character next."), "switch-junction-target", new MenuAction("select-exchange", ch.Id))).ToArray(), CharacterDetails);
         Add("switch-junction-target", "Switch · Junction Target", "Choose the destination for the exchange.", true, c => Targets(c, "junction-exchange"), CharacterDetails);
@@ -175,6 +175,18 @@ public static class MenuCatalog
     }
 
     private static IReadOnlyList<MenuEntry> Slots(MenuController c, string[] slots) => slots.Select(slot => new MenuEntry(slot, $"{c.StatText(slot)}   {c.Character?.Junctions.GetValueOrDefault(slot, "--") ?? "--"}", c.IsDemo || c.Character?.AvailableJunctionSlots.Contains(slot) == true ? c.SystemText("ui.slots.entry.help.choose.stocked.magic.for.this.slot", "Choose stocked magic for this slot.") : c.SystemText("ui.slots.entry.help.learn.this.junction.ability.from.an.equipped.gf", "Learn this junction ability from an equipped GF to unlock the slot."), "junction-stock", new MenuAction("select-slot", slot), c.IsDemo || c.Character?.AvailableJunctionSlots.Contains(slot) == true)).ToArray();
+
+    private static IReadOnlyList<MenuEntry> SwitchSources(MenuController c)
+    {
+        string help = c.SystemText("ui.register.entry.help.select.the.other.member.next", "Select the other member next.");
+        List<MenuEntry> entries = c.Data.Characters.Select(ch => new MenuEntry(ch.Id, $"{ch.Name} {(ch.InParty ? "[Party]" : "[Reserve]")}", help, "switch-party-target", new MenuAction("select-exchange", ch.Id))).ToList();
+        if (c.Data.SupportedActions.Contains("party-switch-empty-slot"))
+        {
+            entries.Add(new(MenuController.EmptySwitchSlotId, c.SwitchEmptySlotLabel, help, "switch-party-target", new MenuAction("select-exchange", MenuController.EmptySwitchSlotId)));
+        }
+        return entries;
+    }
+
     private static IReadOnlyList<MenuEntry> Targets(MenuController c, string kind)
     {
         if (kind == "item-use" && c.Item?.NativeFieldNameConfirmation == true)
@@ -193,7 +205,13 @@ public static class MenuCatalog
         {
             return c.Data.GuardianForces.Select(gf => Action(c, gf.Id, c.FormatSystemText("ui.targets.entry.label.hp", "{0}   HP {1} / {2}", gf.Name, MenuController.Number(gf.CurrentHp), MenuController.Number(gf.MaximumHp)), c.SystemText("ui.targets.entry.help.use.the.selected.item.on.this.gf", "Use the selected item on this GF."), kind, target: $"item-target-{gf.NativeId + 16}")).ToArray();
         }
-        return c.Data.Characters.Where(ch => kind != "item-use" || c.IsDemo || ch.NativeFieldItemTargetAllowed && (c.Item?.NativeFieldQuistisOnly != true || ch.NativeId == 3)).Select(ch => new MenuEntry(ch.Id, c.FormatSystemText("ui.targets.entry.label.hp.alternate", "{0}   HP {1}", ch.Name, MenuController.Hp(ch)), c.SystemText("ui.targets.entry.help.request.this.action.on.the.selected.target", "Request this action on the selected target."), Action: new MenuAction(kind, TargetId: ch.Id), Enabled: (kind != "junction-exchange" || ch.Id != c.ExchangeId && (c.IsDemo || c.Data.SupportedActions.Contains(kind))) && (c.IsDemo || (kind != "magic-use" || ch.CurrentHp is not null) && (kind != "party-switch" || c.Data.SupportedActions.Contains($"party-switch:{c.ExchangeId}:{ch.Id}"))))).ToArray();
+        List<MenuEntry> entries = c.Data.Characters.Where(ch => kind != "item-use" || c.IsDemo || ch.NativeFieldItemTargetAllowed && (c.Item?.NativeFieldQuistisOnly != true || ch.NativeId == 3)).Select(ch => new MenuEntry(ch.Id, c.FormatSystemText("ui.targets.entry.label.hp.alternate", "{0}   HP {1}", ch.Name, MenuController.Hp(ch)), c.SystemText("ui.targets.entry.help.request.this.action.on.the.selected.target", "Request this action on the selected target."), Action: new MenuAction(kind, TargetId: ch.Id), Enabled: (kind != "junction-exchange" || ch.Id != c.ExchangeId && (c.IsDemo || c.Data.SupportedActions.Contains(kind))) && (c.IsDemo || (kind != "magic-use" || ch.CurrentHp is not null) && (kind != "party-switch" || c.Data.SupportedActions.Contains($"party-switch:{c.ExchangeId}:{ch.Id}"))))).ToList();
+        if (kind == "party-switch" && c.Data.SupportedActions.Contains("party-switch-empty-slot"))
+        {
+            string id = MenuController.EmptySwitchSlotId;
+            entries.Add(new(id, c.SwitchEmptySlotLabel, c.SystemText("ui.targets.entry.help.request.this.action.on.the.selected.target", "Request this action on the selected target."), Action: new MenuAction(kind, TargetId: id), Enabled: c.Data.SupportedActions.Contains($"party-switch:{c.ExchangeId}:{id}")));
+        }
+        return entries;
     }
     private static IReadOnlyList<string> CharacterDetails(MenuController c)
     {

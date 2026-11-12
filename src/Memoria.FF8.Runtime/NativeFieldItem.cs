@@ -80,7 +80,7 @@ public sealed record NativeFieldItem(byte Type, byte TargetFlags, byte Power, by
         vitals.Validate();
         economy.Validate();
         progress.Validate();
-        if (!SupportsBlueMagicUse || (uint)row >= 8 || vitals.InitOutSha256 != economy.InitOutSha256 || progress.InitOutSha256 != economy.InitOutSha256)
+        if (!SupportsBlueMagicUse || (uint)row >= vitals.Records.Length || vitals.InitOutSha256 != economy.InitOutSha256 || progress.InitOutSha256 != economy.InitOutSha256)
         {
             throw new NotSupportedException("Blue Magic items require their original metadata and matching saved owners.");
         }
@@ -118,11 +118,11 @@ public sealed record NativeFieldItem(byte Type, byte TargetFlags, byte Power, by
             throw new InvalidOperationException("The current native menu context forbids revival items.");
         }
         bool guardian = SupportsGuardianForceUse && row is >= 16 and < 32;
-        if ((!SupportsCharacterUse || (uint)row >= 8) && !guardian || itemId is <= 0 or > 255 || vitals.InitOutSha256 != economy.InitOutSha256)
+        if ((!SupportsCharacterUse || (uint)row >= vitals.Records.Length) && !guardian || itemId is <= 0 or > 255 || vitals.InitOutSha256 != economy.InitOutSha256)
         {
             throw new NotSupportedException("Field item requires its original supported character record and matching saved owners.");
         }
-        if (guardian ? (vitals.GuardianForces[row - 16].Flags & 1) == 0 : (vitals.Records[row].MemberFlags & 1) == 0 || vitals.DreamEnabled && !vitals.CombatParty.Contains((byte)row))
+        if (guardian ? (vitals.GuardianForces[row - 16].Flags & 1) == 0 : !vitals.IsRosterMember(row) || vitals.DreamEnabled && !vitals.CombatParty.Contains((byte)row))
         {
             throw new InvalidOperationException("The selected item target is absent from the original native menu mask.");
         }
@@ -132,7 +132,7 @@ public sealed record NativeFieldItem(byte Type, byte TargetFlags, byte Power, by
             NativeCharacterVitals current = vitals;
             NativeEconomy groupInventory = economy;
             bool changed = false;
-            IEnumerable<int> targets = guardian ? Enumerable.Range(0, 16).Where(id => (vitals.GuardianForces[id].Flags & 1) != 0).Select(id => id + 16) : Enumerable.Range(0, 8).Where(id => (vitals.Records[id].MemberFlags & 1) != 0 && (!vitals.DreamEnabled || vitals.CombatParty.Contains((byte)id)));
+            IEnumerable<int> targets = guardian ? Enumerable.Range(0, 16).Where(id => (vitals.GuardianForces[id].Flags & 1) != 0).Select(id => id + 16) : Enumerable.Range(0, vitals.Records.Length).Where(id => vitals.IsRosterMember(id) && (!vitals.DreamEnabled || vitals.CombatParty.Contains((byte)id)));
             foreach (int groupTarget in targets)
             {
                 var result = single.Use(current, economy, itemId, groupTarget, context: context);
@@ -150,10 +150,6 @@ public sealed record NativeFieldItem(byte Type, byte TargetFlags, byte Power, by
             return UseGuardianForce(vitals, economy, itemId, row - 16, forgottenAbility);
         }
         NativeCharacterVital target = vitals.Records[row];
-        if ((target.MemberFlags & 1) == 0 || vitals.DreamEnabled && !vitals.CombatParty.Contains((byte)row))
-        {
-            throw new InvalidOperationException("The selected character is not a current menu member.");
-        }
         int slot = Array.FindIndex(economy.Items, stock => stock.ItemId == itemId && stock.Count > 0);
         if (slot < 0)
         {
@@ -350,10 +346,10 @@ public sealed record NativeFieldItem(byte Type, byte TargetFlags, byte Power, by
         bool changed = false;
         if ((TargetFlags & 2) != 0)
         {
-            for (int row = 0; row < 8; row++)
+            for (int row = 0; row < vitals.Records.Length; row++)
             {
                 NativeCharacterVital character = next.Records[row];
-                if ((character.MemberFlags & 1) == 0 || vitals.DreamEnabled && !vitals.CombatParty.Contains((byte)row) || (context.MenuFlags & 0x40) != 0 && (character.Status & 1) != 0)
+                if (!vitals.IsRosterMember(row) || vitals.DreamEnabled && !vitals.CombatParty.Contains((byte)row) || (context.MenuFlags & 0x40) != 0 && (character.Status & 1) != 0)
                 {
                     continue;
                 }

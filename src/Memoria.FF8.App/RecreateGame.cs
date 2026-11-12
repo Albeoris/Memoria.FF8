@@ -246,7 +246,12 @@ internal sealed partial class RecreateGame : Game
             SynchronizeGuardianModProfile();
             resourceHost?.SetGameplayDifficulty(session.State.Scene == SceneKind.Title ? uiPreferences.Difficulty : session.State.GameplayPreferences.Difficulty);
             resourceHost?.Pump();
+            bool extendedRosterEnabled = session.State.CharacterVitals?.ExtendedRosterEnabled == true;
             world?.SynchronizeGameplayTuning();
+            if ((session.State.CharacterVitals?.ExtendedRosterEnabled == true) != extendedRosterEnabled)
+            {
+                gameMenus?.InvalidateLiveData();
+            }
             RefreshLocalizationPresentation();
             gameMenus?.RefreshModView();
             UpdateModLibraryNotifications();

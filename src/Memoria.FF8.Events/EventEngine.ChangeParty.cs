@@ -41,9 +41,19 @@ public sealed partial class EventEngine
         state.Validate();
         byte[] combat = state.CombatParty.ToArray();
         int combatSlot = Array.FindIndex(combat, row => row != 255 && state.Records[row].CharacterId == Scene.Party[fieldSlot]);
+        byte newRow = state.FindPhysicalRow(character);
+        int existing = newRow != 255 && HasExtendedCombatParty(state) ? Array.IndexOf(combat, newRow) : -1;
+        if (combatSlot < 0 && existing >= 0)
+        {
+            return state.RebuildParty();
+        }
         if (combatSlot < 0)
         {
             combatSlot = Array.IndexOf(combat, (byte)255);
+            if (combatSlot < 0)
+            {
+                combatSlot = Array.FindLastIndex(combat, row => IsNonStoryRosterMember(state, row));
+            }
             if (combatSlot < 0)
             {
                 combatSlot = fieldSlot;
@@ -51,7 +61,11 @@ public sealed partial class EventEngine
         }
         //51E350 uses52CC50(old identity),52CC00(FF),then the original slot;
         //52CC20 maps the new BYTE identity to its actual physical saved row.
-        combat[combatSlot] = state.FindPhysicalRow(character);
+        if (existing >= 0)
+        {
+            combat[existing] = 255;
+        }
+        combat[combatSlot] = newRow;
         return (state with { CombatParty = combat }).RebuildParty();
     }
 

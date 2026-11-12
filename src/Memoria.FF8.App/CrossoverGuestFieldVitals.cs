@@ -49,15 +49,14 @@ internal sealed class CrossoverGuestFieldVitals : IFf7GuestFieldVitals, IDisposa
         {
             int row = ReadGuestRow(vitals, binding.OriginCharacter);
             NativeCharacterVital saved = vitals.Records[row];
-            ushort maximum = vitals.GetMagicMaximumHitPoints(row);
+            ushort maximum = CrossoverGuestRecord.MaximumHitPoints(vitals, row, binding.OriginCharacter);
             ushort hp = amount is short delta ? checked((ushort)Math.Clamp((int)saved.HitPoints.Minimum + delta, 0, maximum)) : maximum;
-            NativeHpWord exact = vitals.WithSavedHitPoints(row, hp).Records[row].HitPoints;
             ushort statuses = (ushort)(saved.Status & ~(clearStatuses ? Ff7GuestBattleStatuses.SupportedOrigin : 1));
             if (hp == 0)
             {
                 statuses |= 1;
             }
-            rows[row] = saved with { HitPoints = exact, Status = statuses };
+            rows[row] = saved with { HitPoints = new(hp, hp), Status = statuses };
         }
         using MemoryStream destination = new();
         GameplaySaveCodec.Write(destination, document with { Characters = document.Characters with { Records = rows } });
@@ -68,16 +67,19 @@ internal sealed class CrossoverGuestFieldVitals : IFf7GuestFieldVitals, IDisposa
     {
         int row = ReadGuestRow(vitals, binding.OriginCharacter);
         NativeCharacterVital saved = vitals.Records[row];
-        return new(binding.StoryCharacter, ReadGuestName(document, binding.OriginCharacter), NativeStatDefinitions.Level(saved.Experience, vitals.Definitions.Characters[binding.OriginCharacter]), saved.HitPoints.Minimum, vitals.GetMagicMaximumHitPoints(row));
+        return new(binding.StoryCharacter, ReadGuestName(document, binding.OriginCharacter), NativeStatDefinitions.Level(saved.Experience, vitals.Definitions.Characters[binding.OriginCharacter]), saved.HitPoints.Minimum, CrossoverGuestRecord.MaximumHitPoints(vitals, row, binding.OriginCharacter));
     }
 
     internal static string ReadGuestName(GameplaySaveComponentDocument document, int character)
-        => document.Progression?.SceneFacts?.Names.GetValueOrDefault(character) ?? CrossoverCharacterCatalog.AppearanceNames[character];
+    {
+        int subject = GameNames.CharacterSubject(character);
+        return document.Progression?.SceneFacts?.Names.GetValueOrDefault(subject) ?? document.Progression?.OriginalResidue?.Names.GetValueOrDefault(subject) ?? GameNames.DefaultName(subject);
+    }
 
     private static int ReadGuestRow(NativeCharacterVitals vitals, int character)
     {
-        int row = vitals.FindPhysicalRow(checked((byte)character));
-        if ((uint)row >= vitals.Records.Length)
+        int row = CrossoverGuestRecord.FindOriginalRow(vitals, character);
+        if (row < 0)
         {
             throw new NotSupportedException($"The suspended FFVIII save has no {CrossoverCharacterCatalog.AppearanceNames[character]} record.");
         }

@@ -10,7 +10,7 @@ public sealed record BattleMagicSystemReceipt(MagicSystemState Before, MagicSyst
     {
         Before.Validate();
         After.Validate();
-        if (Before.SharedMagicStock != After.SharedMagicStock || Before.InfiniteMagic != After.InfiniteMagic || Before.UnlimitedMagic != After.UnlimitedMagic || !Before.AttackModes.SequenceEqual(After.AttackModes) || Before.HistoriesInitialized != After.HistoriesInitialized || !Before.SharedFieldMasks.SequenceEqual(After.SharedFieldMasks) || !Before.PersonalFieldMasks.Zip(After.PersonalFieldMasks).All(pair => pair.First.SequenceEqual(pair.Second)) || BanksBefore is not { Length: 8 } || BanksAfter is not { Length: 8 })
+        if (Before.SharedMagicStock != After.SharedMagicStock || Before.InfiniteMagic != After.InfiniteMagic || Before.UnlimitedMagic != After.UnlimitedMagic || !Before.AttackModes.SequenceEqual(After.AttackModes) || Before.HistoriesInitialized != After.HistoriesInitialized || !Before.SharedFieldMasks.SequenceEqual(After.SharedFieldMasks) || !Before.PersonalFieldMasks.Zip(After.PersonalFieldMasks).All(pair => pair.First.SequenceEqual(pair.Second)) || BanksBefore?.Length != Before.AttackModes.Length || BanksAfter?.Length != After.AttackModes.Length)
         {
             throw new InvalidDataException("Battle magic receipt changes field histories or rules during an encounter.");
         }
@@ -22,7 +22,7 @@ public sealed record BattleMagicSystemReceipt(MagicSystemState Before, MagicSyst
         {
             throw new InvalidDataException("Battle magic receipt duplicates extension stock in its native bank.");
         }
-        if (Before.SharedMagicStock && Enumerable.Range(1, 7).Any(bank => !BanksBefore[bank].SequenceEqual(BanksAfter[bank])))
+        if (Before.SharedMagicStock && Enumerable.Range(1, BanksBefore.Length - 1).Any(bank => !BanksBefore[bank].SequenceEqual(BanksAfter[bank])))
         {
             throw new InvalidDataException("Shared battle magic receipt modifies dormant personal stock.");
         }
@@ -47,7 +47,7 @@ public static partial class BattleResultProjection
             return vitals;
         }
         receipt.Validate();
-        if (!JsonElement.DeepEquals(JsonSerializer.SerializeToElement(receipt.Before), JsonSerializer.SerializeToElement(vitals.MagicSystem)) || Enumerable.Range(0, 8).Any(row => !vitals.Records[row].MagicInventory.SequenceEqual(receipt.BanksBefore[row])))
+        if (!JsonElement.DeepEquals(JsonSerializer.SerializeToElement(receipt.Before), JsonSerializer.SerializeToElement(vitals.MagicSystem)) || Enumerable.Range(0, vitals.Records.Length).Any(row => !vitals.Records[row].MagicInventory.SequenceEqual(receipt.BanksBefore[row])))
         {
             throw new InvalidDataException("Battle magic receipt disagrees with its canonical saved banks or histories.");
         }

@@ -26,7 +26,7 @@ public sealed record MagicSystemState
     // Historical availability flag; attack mode now determines the action without a global switch.
     public bool SmartAttack { get; init; }
     [JsonRequired]
-    public MagicAttackMode[] AttackModes { get; init; } = new MagicAttackMode[8];
+    public MagicAttackMode[] AttackModes { get; init; } = new MagicAttackMode[NativeCharacterVitals.NativeRecordCount];
     [JsonRequired]
     public NativeMagicStock[] RecordZeroExtension { get; init; } = [];
     [JsonRequired]
@@ -49,7 +49,18 @@ public sealed record MagicSystemState
     [JsonIgnore]
     public bool RequiresMemoriaFormat => SharedMagicStock || InfiniteMagic || UnlimitedMagic || HistoriesInitialized || RecordZeroExtension.Length != 0 || AttackModes.Any(mode => mode != MagicAttackMode.PhysicalOnly);
 
-    private static byte[][] EmptyMasks() => Enumerable.Range(0, 8).Select(_ => new byte[57]).ToArray();
+    internal static byte[][] EmptyMasks(int count = NativeCharacterVitals.NativeRecordCount) => Enumerable.Range(0, count).Select(_ => new byte[57]).ToArray();
+
+    internal MagicSystemState WithRecordCount(int count)
+    {
+        int additional = count - AttackModes.Length;
+        return this with
+        {
+            AttackModes = [.. AttackModes, .. new MagicAttackMode[additional]],
+            PersonalFieldMasks = [.. PersonalFieldMasks, .. EmptyMasks(additional)],
+            PersonalBattleMasks = [.. PersonalBattleMasks, .. EmptyMasks(additional)]
+        };
+    }
     public MagicSystemState DeepCopy() => this with
     {
         AttackModes = AttackModes.ToArray(),
@@ -65,8 +76,13 @@ public sealed record MagicSystemState
 
     public void Validate()
     {
-        static bool Masks(byte[][]? value) => value is { Length: 8 } && value.All(row => row is { Length: 57 } && row.All(mask => mask <= 15));
-        if (Version != 1 || AttackModes is not { Length: 8 } || AttackModes.Any(mode => !Enum.IsDefined(mode)) || !Masks(PersonalFieldMasks) || !Masks(PersonalBattleMasks) || SharedFieldMasks is not { Length: 57 } || SharedBattleMasks is not { Length: 57 } || SharedFieldMasks.Concat(SharedBattleMasks).Any(mask => mask > 15) || InfiniteMagic && !HistoriesInitialized)
+        Validate(AttackModes?.Length ?? 0);
+    }
+
+    internal void Validate(int recordCount)
+    {
+        bool Masks(byte[][]? value) => value?.Length == recordCount && value.All(row => row is { Length: 57 } && row.All(mask => mask <= 15));
+        if (Version != 1 || !NativeCharacterVitals.IsSupportedRecordCount(recordCount) || AttackModes?.Length != recordCount || AttackModes.Any(mode => !Enum.IsDefined(mode)) || !Masks(PersonalFieldMasks) || !Masks(PersonalBattleMasks) || SharedFieldMasks is not { Length: 57 } || SharedBattleMasks is not { Length: 57 } || SharedFieldMasks.Concat(SharedBattleMasks).Any(mask => mask > 15) || InfiniteMagic && !HistoriesInitialized)
         {
             throw new InvalidDataException("Invalid or unsupported saved magic-system state.");
         }
@@ -74,7 +90,7 @@ public sealed record MagicSystemState
         {
             throw new InvalidDataException("Invalid record-zero magic extension.");
         }
-        if (Reservations is null || CommittedActionIds is null || RecoveredResultIds is null || Reservations.Any(r => string.IsNullOrWhiteSpace(r.ActionId) || r.BankId is < -1 or > 7 || r.ActorRow is < 0 or > 7 || r.SpellId is < 1 or > 56 || !Enum.IsDefined(r.Context) || r.Count < 1 || r.CommittedCount < 0 || r.CommittedCount > r.Count || r.TicketMask is < 0 or > 15) || Reservations.Select(r => r.ActionId).Distinct(StringComparer.Ordinal).Count() != Reservations.Length)
+        if (Reservations is null || CommittedActionIds is null || RecoveredResultIds is null || Reservations.Any(r => string.IsNullOrWhiteSpace(r.ActionId) || r.BankId < -1 || r.BankId >= recordCount || (uint)r.ActorRow >= recordCount || r.SpellId is < 1 or > 56 || !Enum.IsDefined(r.Context) || r.Count < 1 || r.CommittedCount < 0 || r.CommittedCount > r.Count || r.TicketMask is < 0 or > 15) || Reservations.Select(r => r.ActionId).Distinct(StringComparer.Ordinal).Count() != Reservations.Length)
         {
             throw new InvalidDataException("Invalid saved magic reservations.");
         }

@@ -7,9 +7,9 @@ internal sealed partial class WorldMapScene
 {
     public PlayerActionResult UseFieldItem(PlayerAction action, NativeFieldItem item, Func<NativeCharacterVitals, int, BattleNativePlayerStatRules> statRules)
     {
-        if (action.Value is <= 0 or > 255 || action.Quantity is null or < 0 or >= 8 and < 16 or > 31 || action.Text is not null && (item.Type != 18 || !int.TryParse(action.Text, out int forgotten) || forgotten is < 0 or > 127) || action.Frames != 1 || action.Horizontal != 0 || action.Vertical != 0 || action.CameraHorizontal != 0)
+        if (action.Value is <= 0 or > 255 || action.Quantity is null or < 0 or >= NativeCharacterVitals.ExtendedRecordCount and < 16 or > 31 || action.Text is not null && (item.Type != 18 || !int.TryParse(action.Text, out int forgotten) || forgotten is < 0 or > 127) || action.Frames != 1 || action.Horizontal != 0 || action.Vertical != 0 || action.CameraHorizontal != 0)
         {
-            throw new ArgumentException("World item use requires an item BYTE and a character0..7 or GF16..31 target.", nameof(action));
+            throw new ArgumentException("World item use requires an item BYTE and a character0..10 or GF16..31 target.", nameof(action));
         }
         if (HasPendingBattle?.Invoke() == true || CurrentDialogue is not null)
         {

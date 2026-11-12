@@ -464,6 +464,10 @@ internal sealed partial class GameWorld : IDisposable
             Events.ValidateNativeBattleFieldRegistrationMemory(memory);
         }
         Field = next;
+        if (snapshot is not null && !restoreDeparting)
+        {
+            SynchronizeExtendedRoster(GameplayPolicy);
+        }
         if (snapshot is null && session.State.RandomEncounters is { } encounter)
         {
             session.SetRandomEncounters(encounter with { Native = encounter.Native with { WorldInitialized = false } });

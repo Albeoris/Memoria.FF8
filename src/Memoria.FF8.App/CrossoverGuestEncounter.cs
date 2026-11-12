@@ -48,7 +48,11 @@ internal sealed class CrossoverGuestEncounter
             throw new InvalidDataException("The guest action ordinals or CRT state disagree with the suspended origin.");
         }
 
-        int[] rows = participants.Select(guest => (int)origin.FindPhysicalRow(checked((byte)guest.Combat.NativeId))).ToArray();
+        int[] rows = participants.Select(guest => host.GuestVitalsBindings.SingleOrDefault(binding => binding.HostSlot == guest.HostSlot)?.OriginRow ?? CrossoverGuestRecord.FindOriginalRow(origin, guest.Combat.NativeId)).ToArray();
+        if (participants.Where((guest, index) => !CrossoverGuestRecord.OwnsBattleRow(origin, rows[index], guest.Combat.NativeId)).Any())
+        {
+            throw new InvalidDataException("Mixed combat requires the admitted FFVIII owner for each guest.");
+        }
         CommittedSpells = saved?.CommittedSpells ?? (NextOrdinal == 1 ? [] : Enumerable.Range(1, checked((int)(NextOrdinal - 1))).Select(ordinal => new CrossoverGuestCommittedSpell(ordinal, 1, rows.Single())).ToImmutableArray());
         if (CommittedSpells.IsDefault || CommittedSpells.Length != NextOrdinal - 1 || CommittedSpells.Count(cost => cost.DrawQuantity == 0) > Working.MagicSystem.CommittedActionIds.Length || CommittedSpells.Where((cost, index) => cost is null || cost.Ordinal != index + 1 || cost.Spell == 0 || cost.Spell >= Working.MagicSystem.SharedBattleMasks.Length || cost.DrawQuantity is < 0 or > 9 || cost.DrawQuantity > 0 && cost.Spell > 56 || !rows.Contains(cost.OriginRow)).Any())
         {

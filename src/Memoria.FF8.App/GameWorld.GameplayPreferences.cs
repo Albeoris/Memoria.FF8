@@ -5,7 +5,7 @@ namespace Memoria.FF8;
 internal sealed partial class GameWorld
 {
     private readonly Func<GameplayTuningPolicy>? readGameplayPolicy;
-    private GameplayTuningPolicy GameplayPolicy => readGameplayPolicy?.Invoke() ?? GameplayTuningPolicy.Empty;
+    private GameplayTuningPolicy GameplayPolicy => readGameplayPolicy?.Invoke() ?? (modelOverrides as GameResourceHost)?.GameplayPolicy ?? GameplayTuningPolicy.Empty;
 
     public GameplayTuning ReadGameplayTuning() => (session.State.PendingGameplayPreferences ?? session.State.GameplayPreferences).Tuning;
 
@@ -30,13 +30,25 @@ internal sealed partial class GameWorld
                 throw new InvalidOperationException(GameResourceHost.GameplayDifficultyProfilePending);
             }
         }
+        GameplayTuningPolicy policy = GameplayPolicy;
+        SynchronizeExtendedRoster(policy);
         GameplayTuning configured = session.State.ConfiguredGameplayTuning ?? session.State.GameplayPreferences.Tuning;
-        GameplayTuning effective = GameplayPolicy.Apply(configured);
+        GameplayTuning effective = policy.Apply(configured);
         if (ReadGameplayTuning() == effective || session.MagicMutationUnavailableReason is not null)
         {
             return;
         }
         session.ConfigureGameplayTuning(configured, effective);
+    }
+
+    private void SynchronizeExtendedRoster(GameplayTuningPolicy policy)
+    {
+        GameState state = session.State;
+        if (legacyGameplayProjection || readGameplayPolicy is null && modelOverrides is not GameResourceHost || state.Scene is not (SceneKind.Field or SceneKind.WorldMap) || state.Scene == SceneKind.Field && state.EventState is not null && !HasCurrentFieldAllocation || session.HasActiveBattle || state.PendingBattleEncounter is not null || session.MagicMutationUnavailableReason is not null)
+        {
+            return;
+        }
+        Events.ConfigureExtendedRoster(policy.ExtendedRosterEnabled);
     }
 
     public void ConfigureGameplayPreferences(GameplayPreferences preferences)

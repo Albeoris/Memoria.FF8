@@ -1,4 +1,5 @@
 using Memoria.FF7.Runtime;
+using Memoria.FF8.Runtime;
 using Microsoft.Xna.Framework.Input;
 
 namespace Memoria.FF8;
@@ -52,7 +53,7 @@ internal sealed partial class RecreateGame
                     else
                     {
                         int target = Array.FindIndex(CrossoverCharacterCatalog.AppearanceNames, name => name.Equals(appearance, StringComparison.OrdinalIgnoreCase));
-                        if (target < 0)
+                        if (target < 0 || NativeCharacterVitals.IsExtendedRosterCharacter(target) && resourceHost?.GameplayPolicy.ExtendedRosterEnabled != true)
                         {
                             throw new NotSupportedException("Choose an available character in the world association editor.");
                         }

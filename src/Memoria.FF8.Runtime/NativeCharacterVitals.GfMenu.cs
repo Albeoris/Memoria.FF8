@@ -164,7 +164,7 @@ public sealed partial record NativeCharacterVitals
     public IReadOnlySet<int> JunctionLearnedAbilities(int row)
     {
         Validate();
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)row, 8u);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)row, (uint)Records.Length);
         HashSet<int> learned = [];
         ImmutableArray<ImmutableArray<GuardianForceAbilityTemplate>> templates = default;
         foreach (int id in Records[row].Junction.GuardianForceAssignments)
@@ -233,7 +233,7 @@ public sealed partial record NativeCharacterVitals
     public NativeCharacterVitals SetJunctionMagic(int row, int slot, int spell, bool reassign = false)
     {
         Validate();
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)row, 8u);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)row, (uint)Records.Length);
         if ((uint)slot >= 19 || (uint)spell >= Definitions.MagicHitPoints.Length)
         {
             throw new ArgumentOutOfRangeException(nameof(slot), "Magic junction requires one of the nineteen native slots and an actual kernel spell.");
@@ -249,9 +249,9 @@ public sealed partial record NativeCharacterVitals
     public NativeCharacterVitals ReassignGuardianForceJunction(int row, int id, int expectedOwner)
     {
         Validate();
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)row, 8u);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)row, (uint)Records.Length);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)id, 16u);
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)expectedOwner, 8u);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)expectedOwner, (uint)Records.Length);
         ushort mask = (ushort)(1 << id);
         if (row == expectedOwner || (Records[expectedOwner].Junction.GuardianForces & mask) == 0 || Records.Where((record, index) => index != expectedOwner).Any(record => (record.Junction.GuardianForces & mask) != 0))
         {
@@ -263,7 +263,7 @@ public sealed partial record NativeCharacterVitals
     public NativeCharacterVitals ToggleGuardianForceJunction(int row, int id)
     {
         Validate();
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)row, 8u);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)row, (uint)Records.Length);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)id, 16u);
         if ((GuardianForces[id].Flags & 1) == 0)
         {

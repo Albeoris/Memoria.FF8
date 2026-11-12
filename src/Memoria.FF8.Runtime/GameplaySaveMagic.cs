@@ -40,7 +40,7 @@ public sealed record GameplaySaveMagic
 
     internal MagicSystemState Restore()
     {
-        return new MagicSystemState { SharedMagicStock = SharedMagicStock, InfiniteMagic = InfiniteMagic, UnlimitedMagic = UnlimitedMagic, SmartAttack = SmartAttack, AttackModes = AttackModes, RecordZeroExtension = RecordZeroExtension, HistoriesInitialized = HistoriesInitialized, PersonalFieldMasks = PersonalFieldMasks, SharedFieldMasks = SharedFieldMasks, CommittedActionIds = CommittedActionIds, RecoveredResultIds = RecoveredResultIds };
+        return new MagicSystemState { SharedMagicStock = SharedMagicStock, InfiniteMagic = InfiniteMagic, UnlimitedMagic = UnlimitedMagic, SmartAttack = SmartAttack, AttackModes = AttackModes, RecordZeroExtension = RecordZeroExtension, HistoriesInitialized = HistoriesInitialized, PersonalFieldMasks = PersonalFieldMasks, PersonalBattleMasks = MagicSystemState.EmptyMasks(AttackModes?.Length ?? 0), SharedFieldMasks = SharedFieldMasks, CommittedActionIds = CommittedActionIds, RecoveredResultIds = RecoveredResultIds };
     }
 
     public void Validate()

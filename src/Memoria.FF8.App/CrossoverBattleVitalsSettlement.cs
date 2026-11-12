@@ -38,7 +38,8 @@ internal static class CrossoverBattleVitalsSettlement
         int character = guest.Combat.NativeId;
         CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.Read(vitals, assets, character);
         Ff7BattleGuestProjection projection = CrossoverGuestHostActions.Projection(kit);
-        return new(encounter, sourceHash, guest.HostSlot, guest.Story.NativeId, character, kit.RecordRow, kit.HitPoints, projection.MaximumHp, projection.Level, projection.Luck, projection.Defense, projection.MagicDefense)
+        ushort initialHp = Math.Min(kit.HitPoints, projection.MaximumHp);
+        return new(encounter, sourceHash, guest.HostSlot, guest.Story.NativeId, character, kit.RecordRow, initialHp, projection.MaximumHp, projection.Level, projection.Luck, projection.Defense, projection.MagicDefense)
         {
             OriginStatuses = kit.Statuses.Saved,
             OriginBattleStatuses = kit.Statuses.Battle,
@@ -118,14 +119,13 @@ internal static class CrossoverBattleVitalsSettlement
             Ff7BattleGuestVitalsBinding binding = slot.Binding;
             int row = binding.OriginRow;
             Ff7BattleAiActor projected = battle.Actors.Single(actor => actor.Actor.Slot == binding.HostSlot && actor.Identity == binding.StoryCharacter).Actor;
-            ushort maximumHp = finalStock.GetMagicMaximumHitPoints(row);
+            ushort maximumHp = CrossoverGuestRecord.MaximumHitPoints(finalStock, row, binding.OriginCharacter);
             ushort hp = checked((ushort)projected.HitPoints);
             if (maximumHp != (slot.Projection?.MaximumHp ?? binding.MaximumHp) || projected.MaxHitPoints != maximumHp || hp > maximumHp || (projected.Statuses & ~Ff7GuestBattleStatuses.SupportedHost) != 0 || (hp == 0) != ((projected.Statuses & 1) != 0))
             {
                 throw new InvalidDataException("Guest settlement requires consistent HP and mapped statuses for every admitted slot.");
             }
-            NativeHpWord exactHp = finalStock.WithSavedHitPoints(row, hp).Records[row].HitPoints;
-            rows[row] = rows[row] with { HitPoints = exactHp, Status = Ff7GuestBattleStatuses.ToOrigin(projected.Statuses, original.Records[row].Status) };
+            rows[row] = rows[row] with { HitPoints = new(hp, hp), Status = Ff7GuestBattleStatuses.ToOrigin(projected.Statuses, original.Records[row].Status) };
             guests.Add(new(binding.StoryCharacter, row, hp, CharacterHash(host, binding.StoryCharacter)));
         }
         GameplaySaveComponentDocument updated = document with { Characters = characters with { Records = rows } };
@@ -219,9 +219,14 @@ internal static class CrossoverBattleVitalsSettlement
 
     private static void ValidateOrigin(NativeCharacterVitals original, Ff7BattleGuestVitalsBinding binding)
     {
-        int row = original.FindPhysicalRow(checked((byte)binding.OriginCharacter));
-        if (row != binding.OriginRow || (uint)row >= original.Records.Length || original.Records[row].HitPoints != new NativeHpWord(binding.InitialHp, binding.InitialHp)
-            || original.Records[row].Status != binding.OriginStatuses || original.GetMagicMaximumHitPoints(row) != binding.MaximumHp)
+        int row = binding.OriginRow;
+        if (!CrossoverGuestRecord.OwnsBattleRow(original, row, binding.OriginCharacter))
+        {
+            throw new InvalidDataException("The suspended FFVIII character record no longer belongs to the admitted guest.");
+        }
+        NativeCharacterVital record = original.Records[row];
+        if (record.HitPoints.Minimum != record.HitPoints.Maximum || Math.Min(record.HitPoints.Minimum, binding.MaximumHp) != binding.InitialHp
+            || record.Status != binding.OriginStatuses || CrossoverGuestRecord.MaximumHitPoints(original, row, binding.OriginCharacter) != binding.MaximumHp)
         {
             throw new InvalidDataException("The suspended FFVIII character record no longer matches the admitted guest vitals.");
         }
@@ -260,9 +265,10 @@ internal static class CrossoverBattleVitalsSettlement
                 throw new InvalidDataException("Guest spell settlement contains a foreign cost occurrence.");
             }
             string action = $"{encounter}:{cost.Ordinal.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+            int character = magic.Roster.Guests.Single(guest => CrossoverGuestRecord.OwnsBattleRow(original, cost.OriginRow, guest.Combat.NativeId)).Combat.NativeId;
             expected = cost.DrawQuantity > 0
                 ? NativeBattleDrawRules.Resolve(expected, cost.OriginRow, cost.Spell, cost.DrawQuantity, false, out _)
-                : MagicCastingService.Commit(MagicCastingService.Reserve(expected, cost.OriginRow, cost.Spell, MagicCastContext.Battle, action), action);
+                : MagicCastingService.Commit(MagicCastingService.Reserve(expected, cost.OriginRow, cost.Spell, MagicCastContext.Battle, action, characterId: character), action);
         }
         if (!actual.Records.SequenceEqual(expected.Records) || JsonSerializer.Serialize(actual.MagicSystem) != JsonSerializer.Serialize(expected.MagicSystem))
         {

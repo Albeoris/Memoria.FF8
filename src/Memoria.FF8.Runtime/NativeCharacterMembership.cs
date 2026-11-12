@@ -24,6 +24,10 @@ public sealed partial record NativeCharacterVitals
         else
         {
             flags = (ushort)(flags & 0xFFF6);
+            if (ExtendedRosterEnabled && !DreamEnabled && rawCharacter is 6 or 7)
+            {
+                flags = (ushort)(flags & ~6);
+            }
         }
         records[row] = records[row] with { MemberFlags = flags };
         if (!state.MagicSystem.SharedMagicStock && !enabled && rawCharacter == 6)
@@ -42,7 +46,7 @@ public sealed partial record NativeCharacterVitals
         if (!state.MagicSystem.SharedMagicStock && !enabled && rawCharacter is 6 or 7)
         {
             int source = rawCharacter;
-            for (int target = 0; target < records.Length; target++)
+            for (int target = 0; target < 8; target++)
             {
                 if (target == source)
                 {
@@ -91,7 +95,7 @@ public sealed partial record NativeCharacterVitals
 
     private NativeCharacterVitals RedistributeNativeSeiferMagic(NativeCharacterVital[] records)
     {
-        NativeMagicStock[][] inventories = records.Select((record, row) => row == 0 ? record.MagicInventory.Concat(MagicSystem.RecordZeroExtension).ToArray() : record.MagicInventory.ToArray()).ToArray();
+        NativeMagicStock[][] inventories = records.Take(8).Select((record, row) => row == 0 ? record.MagicInventory.Concat(MagicSystem.RecordZeroExtension).ToArray() : record.MagicInventory.ToArray()).ToArray();
         foreach (NativeMagicStock stock in records[7].MagicInventory)
         {
             if (stock.SpellId == 0)
@@ -100,7 +104,7 @@ public sealed partial record NativeCharacterVitals
             }
             int remaining = stock.Count;
             bool consumed = false;
-            for (int row = 0; row < records.Length; row++)
+            for (int row = 0; row < inventories.Length; row++)
             {
                 if ((records[row].MemberFlags & 1) == 0)
                 {
@@ -125,7 +129,7 @@ public sealed partial record NativeCharacterVitals
             {
                 continue;
             }
-            for (int row = 0; row < records.Length; row++)
+            for (int row = 0; row < inventories.Length; row++)
             {
                 if ((records[row].MemberFlags & 1) == 0 || inventories[row].Any(candidate => candidate.SpellId == stock.SpellId))
                 {
@@ -139,7 +143,7 @@ public sealed partial record NativeCharacterVitals
                 }
             }
         }
-        for (int row = 0; row < records.Length; row++)
+        for (int row = 0; row < inventories.Length; row++)
         {
             records[row] = records[row] with { MagicInventory = row == 7 ? EmptyNativeMagicInventory() : inventories[row].Take(32).ToArray() };
         }

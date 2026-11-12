@@ -39,7 +39,7 @@ public sealed partial class EventEngine
         NativeCharacterVitals next = (current.DeepCopy() with
         {
             CombatParty = current.JunctionPartyBackup.Skip(3).ToArray(),
-            JunctionPartyBackup = [.. Scene.Party.Select(identity => checked((byte)identity)), .. current.CombatParty]
+            JunctionPartyBackup = [.. Scene.Party.Select(identity => checked((byte)identity)), .. current.ProjectNativeCombatParty(Scene.Party)]
         }).RebuildParty();
         return (next, fieldParty);
     }

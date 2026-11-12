@@ -64,7 +64,7 @@ public sealed record Ff7BattleGuestVitalsBinding(Guid EncounterId, string Source
 
     internal void Validate()
     {
-        if (EncounterId == Guid.Empty || SourcePayloadSha256 is not { Length: 64 } || !SourcePayloadSha256.All(Uri.IsHexDigit) || HostSlot is < 0 or > 2 || StoryCharacter is < 0 or > 8 || OriginCharacter is < 0 or > 10 || OriginRow is < 0 or > 7 || InitialHp > MaximumHp || MaximumHp == 0 || MaximumHp > 9999 || Level > 99 || string.IsNullOrWhiteSpace(OriginName))
+        if (EncounterId == Guid.Empty || SourcePayloadSha256 is not { Length: 64 } || !SourcePayloadSha256.All(Uri.IsHexDigit) || HostSlot is < 0 or > 2 || StoryCharacter is < 0 or > 8 || OriginCharacter is < 0 or > 10 || OriginRow is < 0 or > 10 || OriginRow >= 8 && OriginRow != OriginCharacter || InitialHp > MaximumHp || MaximumHp == 0 || MaximumHp > 9999 || Level > 99 || string.IsNullOrWhiteSpace(OriginName))
         {
             throw new InvalidDataException("Guest vitals lack their original save and host slot binding.");
         }
@@ -144,7 +144,7 @@ public sealed partial class Ff7BattleSession
         {
             throw new NotSupportedException("The guest vitals profile requires an occupied story slot before the first encounter tick.");
         }
-        if (state.GetGuestSlotStates().Any(current => !SharesGuestEncounter(current.Binding, binding) || current.Binding.OriginCharacter == binding.OriginCharacter))
+        if (state.GetGuestSlotStates().Any(current => !SharesGuestEncounter(current.Binding, binding) || current.Binding.OriginCharacter == binding.OriginCharacter || current.Binding.OriginRow == binding.OriginRow))
         {
             throw new InvalidDataException("Guest slots disagree about the source encounter or reuse an origin character.");
         }
@@ -233,11 +233,12 @@ public sealed partial class Ff7BattleSession
         HashSet<int> hostSlots = [];
         HashSet<int> storyCharacters = [];
         HashSet<int> originCharacters = [];
+        HashSet<int> originRows = [];
         for (int index = 0; index < guests.Count; index++)
         {
             Ff7BattleGuestSlotState guest = guests[index];
             Ff7BattleGuestVitalsBinding binding = guest.Binding ?? throw new InvalidDataException("A saved guest projection is missing its source identity.");
-            if (!hostSlots.Add(binding.HostSlot) || !storyCharacters.Add(binding.StoryCharacter) || !originCharacters.Add(binding.OriginCharacter) || index != 0 && !SharesGuestEncounter(guests[0].Binding, binding))
+            if (!hostSlots.Add(binding.HostSlot) || !storyCharacters.Add(binding.StoryCharacter) || !originCharacters.Add(binding.OriginCharacter) || !originRows.Add(binding.OriginRow) || index != 0 && !SharesGuestEncounter(guests[0].Binding, binding))
             {
                 throw new InvalidDataException("Saved guest slots disagree about the source encounter or reuse a character.");
             }

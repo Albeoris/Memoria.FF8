@@ -26,13 +26,13 @@ public static class NativeJunctionEdits
     {
         source.Validate();
         intended.Validate();
-        NativeJunctionEditRow[] rows = Enumerable.Range(0, 8).Where(row => source.Records[row].Junction != intended.Records[row].Junction).Select(row => new NativeJunctionEditRow(row, intended.Records[row].Junction with { MagicJunctions = intended.Records[row].Junction.MagicJunctions.ToArray() })).ToArray();
+        NativeJunctionEditRow[] rows = Enumerable.Range(0, source.Records.Length).Where(row => source.Records[row].Junction != intended.Records[row].Junction).Select(row => new NativeJunctionEditRow(row, intended.Records[row].Junction with { MagicJunctions = intended.Records[row].Junction.MagicJunctions.ToArray() })).ToArray();
         return new(1, Fingerprint(source), rows, operation, isUndo);
     }
 
     public static void Validate(NativeJunctionEditPlan plan)
     {
-        if (!Enum.IsDefined(plan.Operation) || plan.Version != 1 || plan.SourceFingerprint is not { Length: 64 } || !plan.SourceFingerprint.All(Uri.IsHexDigit) || plan.Rows is not { Length: > 0 and <= 8 } || plan.Rows.Any(row => row is null || (uint)row.Record >= 8u || row.Junction is null) || plan.Rows.Select(row => row.Record).Distinct().Count() != plan.Rows.Length)
+        if (!Enum.IsDefined(plan.Operation) || plan.Version != 1 || plan.SourceFingerprint is not { Length: 64 } || !plan.SourceFingerprint.All(Uri.IsHexDigit) || plan.Rows is not { Length: > 0 and <= NativeCharacterVitals.ExtendedRecordCount } || plan.Rows.Any(row => row is null || (uint)row.Record >= NativeCharacterVitals.ExtendedRecordCount || row.Junction is null) || plan.Rows.Select(row => row.Record).Distinct().Count() != plan.Rows.Length)
         {
             throw new ArgumentException("Invalid junction edit version, source fingerprint or affected records.");
         }
@@ -46,7 +46,7 @@ public static class NativeJunctionEdits
     {
         Validate(plan);
         source.Validate();
-        if (!string.Equals(Fingerprint(source), plan.SourceFingerprint, StringComparison.Ordinal))
+        if (plan.Rows.Any(row => row.Record >= source.Records.Length) || !string.Equals(Fingerprint(source), plan.SourceFingerprint, StringComparison.Ordinal))
         {
             throw new InvalidOperationException("Junction review is stale; review the current configuration before applying.");
         }
@@ -63,7 +63,7 @@ public static class NativeJunctionEdits
         }
         HashSet<int> guardianForces = [];
         HashSet<int> sharedSpells = [];
-        for (int row = 0; row < 8; row++)
+        for (int row = 0; row < next.Records.Length; row++)
         {
             NativeCharacterJunction junction = next.Records[row].Junction;
             foreach (int gf in junction.GuardianForceAssignments)
@@ -152,7 +152,7 @@ public static class NativeJunctionEdits
     public static NativeJunctionEditPlan CreateUndo(NativeCharacterVitals before, NativeCharacterVitals applied, NativeJunctionEditOperation operation = NativeJunctionEditOperation.Assignments)
     {
         NativeCharacterVitals intended = applied.DeepCopy();
-        for (int row = 0; row < 8; row++)
+        for (int row = 0; row < applied.Records.Length; row++)
         {
             if (before.Records[row].Junction != applied.Records[row].Junction)
             {

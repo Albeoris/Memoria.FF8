@@ -96,7 +96,7 @@ public sealed record NativeRefinementDefinitions(string ExecutableHash, string K
         {
             return 0;
         }
-        if (kind is 0 or 2 && (uint)row >= 8)
+        if (kind is 0 or 2 && (uint)row >= vitals.Records.Length)
         {
             return 0;
         }

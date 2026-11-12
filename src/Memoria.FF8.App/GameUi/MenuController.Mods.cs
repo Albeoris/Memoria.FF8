@@ -249,6 +249,10 @@ public sealed partial class MenuController
             details.Add(view.Package.Format.ToString());
             details.Add(FormatSystemText("ui.moddetails.details.enabled.in.settings.template", "Enabled in settings: {0}", (view.Package.RequestedEnabled ? SystemText("ui.moddetails.details.on", "On") : SystemText("ui.moddetails.details.off", "Off"))));
             details.Add(FormatSystemText("ui.moddetails.details.in.use.template", "In use: {0}", ModStatusText(view)));
+            if (view.Package.IsBundled && view.Package.Id.Equals(GameplayTuningPolicy.ExtendedRosterPackageId, StringComparison.OrdinalIgnoreCase))
+            {
+                details.Add(SystemText("mods.extended-roster.description", "Adds Laguna, Kiros, Ward, Edea and Seifer to Switch Member when party changes are available."));
+            }
             if (modService?.GetPackageLockReason(view.Package.Id) is { } lockReason)
             {
                 details.Add(lockReason);

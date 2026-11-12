@@ -53,6 +53,7 @@ internal static partial class Program
                     ["native-event-random"] = () => NativeEventRandomContract(selectedGameDirectory),
                     ["native-event-memory-ownership"] = NativeEventMemoryOwnershipContract,
                     ["native-party-hold"] = () => NativePartyHoldContract(selectedGameDirectory),
+                    ["extended-roster-story-locks"] = () => ExtendedRosterStoryLocks(selectedGameDirectory),
                     ["native-disc-save"] = () => NativeDiscSaveContract(selectedGameDirectory),
                     ["native-party-menu"] = () => NativePartyMenuContract(selectedGameDirectory),
                     ["native-menu-battle"] = () => NativeMenuBattleContract(selectedGameDirectory),

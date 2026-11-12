@@ -10,7 +10,7 @@ public static class NativeMagicMenuInput
     public static (int Source, int Spell, int Target) Validate(PlayerAction action)
     {
         string[] fields = action.Text?.Split(':') ?? [];
-        if (!IsMenuAction(action.Kind) || fields.Length != 3 || !int.TryParse(fields[0], NumberStyles.None, CultureInfo.InvariantCulture, out int source) || !int.TryParse(fields[1], NumberStyles.None, CultureInfo.InvariantCulture, out int spell) || !int.TryParse(fields[2], NumberStyles.None, CultureInfo.InvariantCulture, out int target) || (uint)source >= 8 || (uint)target >= 8 || spell is < 1 or > 56 || action.Value is < 1 or > 100 || action.Kind == PlayerActionKind.UseFieldMagic && action.Value != 1 || action.Quantity is not null || action.Frames != 1 || action.Horizontal != 0 || action.Vertical != 0 || action.CameraHorizontal != 0)
+        if (!IsMenuAction(action.Kind) || fields.Length != 3 || !int.TryParse(fields[0], NumberStyles.None, CultureInfo.InvariantCulture, out int source) || !int.TryParse(fields[1], NumberStyles.None, CultureInfo.InvariantCulture, out int spell) || !int.TryParse(fields[2], NumberStyles.None, CultureInfo.InvariantCulture, out int target) || (uint)source >= NativeCharacterVitals.ExtendedRecordCount || (uint)target >= NativeCharacterVitals.ExtendedRecordCount || spell is < 1 or > 56 || action.Value is < 1 or > 100 || action.Kind == PlayerActionKind.UseFieldMagic && action.Value != 1 || action.Quantity is not null || action.Frames != 1 || action.Horizontal != 0 || action.Vertical != 0 || action.CameraHorizontal != 0)
         {
             throw new ArgumentException("Magic input requires explicit physical source/spell/target identities, a valid quantity and one ordinary menu action.", nameof(action));
         }

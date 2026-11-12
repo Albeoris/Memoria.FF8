@@ -12,6 +12,10 @@ public sealed record GameplaySaveCharacters
     public required byte[] CombatParty { get; init; }
     [JsonRequired]
     public required bool DreamEnabled { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ExtendedRosterEnabled { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte[]? ExtendedRosterPartyBeforeDream { get; init; }
     [JsonRequired]
     public required GameplaySaveGuardianForce[] GuardianForces { get; init; }
     [JsonRequired]
@@ -35,6 +39,8 @@ public sealed record GameplaySaveCharacters
             Records = source.Records,
             CombatParty = source.CombatParty,
             DreamEnabled = source.DreamEnabled,
+            ExtendedRosterEnabled = source.ExtendedRosterEnabled,
+            ExtendedRosterPartyBeforeDream = source.ExtendedRosterPartyBeforeDream,
             GuardianForces = source.GuardianForces.Select((gf, id) => GameplaySaveGuardianForce.Capture(gf) with { AbilityBindings = source.MenuDefinitions.ResolveLearning(id).Select(rule => rule.Ability).ToImmutableArray() }).ToArray(),
             DreamWeapons = source.DreamWeapons,
             JunctionPartyBackup = source.JunctionPartyBackup,
@@ -60,6 +66,8 @@ public sealed record GameplaySaveCharacters
             Records = detached.Records,
             CombatParty = detached.CombatParty,
             DreamEnabled = detached.DreamEnabled,
+            ExtendedRosterEnabled = detached.ExtendedRosterEnabled,
+            ExtendedRosterPartyBeforeDream = detached.ExtendedRosterPartyBeforeDream,
             GuardianForces = guardianForces,
             DreamWeapons = detached.DreamWeapons,
             JunctionPartyBackup = detached.JunctionPartyBackup,
@@ -74,9 +82,9 @@ public sealed record GameplaySaveCharacters
 
     public void Validate()
     {
-        if (Records is not { Length: 8 } || CombatParty is not { Length: 3 } || CombatParty.Any(slot => slot != 255 && slot >= 8) || GuardianForces is not { Length: 16 } || DreamWeapons is not { Length: 3 } || JunctionPartyBackup is not { Length: 6 } || Magic is null)
+        if (Records is null || !NativeCharacterVitals.IsValidRosterShape(Records, CombatParty, ExtendedRosterEnabled, DreamEnabled, ExtendedRosterPartyBeforeDream) || GuardianForces is not { Length: 16 } || DreamWeapons is not { Length: 3 } || JunctionPartyBackup is not { Length: 6 } || Magic is null || Magic.AttackModes?.Length != Records.Length)
         {
-            throw new InvalidDataException("Gameplay characters require eight records, three party slots, sixteen GFs and complete dream/junction state.");
+            throw new InvalidDataException("Gameplay characters require valid character records, party slots, sixteen GFs and complete dream/junction state.");
         }
         foreach (NativeCharacterVital record in Records)
         {

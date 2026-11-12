@@ -47,9 +47,10 @@ public sealed partial class EventEngine
 
     private int? FindAvailableDrawPointReceiver(int magicId, NativeCharacterVitals vitals, byte eligible)
     {
-        for (int selection = 0; selection < Scene.Party.Count() && Scene.Party[selection] != 255; selection++)
+        IReadOnlyList<int> party = DrawPointParty(Scene.Party, vitals);
+        for (int selection = 0; selection < party.Count && party[selection] != 255; selection++)
         {
-            int combat = FindDrawPointCombatSlot(Scene.Party[selection]);
+            int combat = FindDrawPointCombatSlot(party[selection]);
             if ((eligible & (1 << combat)) != 0 && vitals.GetMagicCapacity(vitals.CombatParty[combat], magicId) == 0)
             {
                 // Point quantity is sampled once and does not depend on character stats.
@@ -95,6 +96,8 @@ public sealed partial class EventEngine
         try
         {
             NativeDrawPointInteraction? pending = Scene.DrawPointInteraction;
+            NativeCharacterVitals vitals = services.CharacterVitals ?? throw new NotSupportedException("DRAWPOINT requires its saved character and GF inputs.");
+            IReadOnlyList<int> party = DrawPointParty(Scene.Party, vitals);
             if (pending is null)
             {
                 (NativeDrawPointCatalog catalog, _, byte eligible) = PrepareDrawPointParty();
@@ -115,18 +118,18 @@ public sealed partial class EventEngine
             }
             else if (actors[fiber.ObjectId].NativeMovementAccelerationTarget == 2)
             {
-                _ = ReadNativeDrawPointCatalog!().FormatSelection(Scene.Party.ToArray(), services.CharacterVitals!, pending.PointByte & 63, pending.EligibleCombatSlots);
+                _ = ReadNativeDrawPointCatalog!().FormatSelection(party.ToArray(), services.CharacterVitals!, pending.PointByte & 63, pending.EligibleCombatSlots);
             }
-            else if (actors[fiber.ObjectId].NativeMovementAccelerationTarget == 3 && (pending.Selection is null or < 0 || pending.Selection > Scene.Party.TakeWhile(identity => identity != 255).Count()))
+            else if (actors[fiber.ObjectId].NativeMovementAccelerationTarget == 3 && (pending.Selection is null or < 0 || pending.Selection > party.TakeWhile(identity => identity != 255).Count()))
             {
                 return "DRAWPOINT selection closed without its actual channel6 result";
             }
             else if (actors[fiber.ObjectId].NativeMovementAccelerationTarget == 4)
             {
-                int slot = FindDrawPointCombatSlot(Scene.Party[pending.Selection!.Value]);
+                int slot = FindDrawPointCombatSlot(party[pending.Selection!.Value]);
                 if ((pending.EligibleCombatSlots & (1 << slot)) != 0)
                 {
-                    ActorState receiver = ResolveNativeIndexedPartyBody(pending.Selection.Value, out _, out _) ?? throw new NotSupportedException("DRAWPOINT receiver has no retained native body.");
+                    ActorState receiver = ResolveDrawPointBody(party[pending.Selection.Value]) ?? throw new NotSupportedException("DRAWPOINT receiver has no retained native body.");
                     _ = PrepareNativeDrawPointAcquisition(receiver);
                     _ = PrepareDrawPointSound(67);
                 }
@@ -265,10 +268,11 @@ public sealed partial class EventEngine
                     actor.NativeMovementAccelerationTarget = 4;
                     break;
                 case 4:
-                    int combatSlot = FindDrawPointCombatSlot(Scene.Party[current.Selection!.Value]);
+                    int identity = DrawPointParty(Scene.Party, services.CharacterVitals!)[current.Selection!.Value];
+                    int combatSlot = FindDrawPointCombatSlot(identity);
                     if ((current.EligibleCombatSlots & (1 << combatSlot)) != 0)
                     {
-                        ActorState receiver = ResolveNativeIndexedPartyBody(current.Selection.Value, out _, out _) ?? throw Fault(fiber, "DRAWPOINT receiver has no retained native body.");
+                        ActorState receiver = ResolveDrawPointBody(identity) ?? throw Fault(fiber, "DRAWPOINT receiver has no retained native body.");
                         PreparedGlobalSoundEmission sound = PrepareDrawPointSound(67);
                         StartNativeDrawPointAcquisition(receiver);
                         services.SetNativeEventOwners(services.WorldControls!, globalSoundProcess: sound.Process);
@@ -344,6 +348,23 @@ public sealed partial class EventEngine
         }
     }
 
+    private static IReadOnlyList<int> DrawPointParty(IReadOnlyList<int> fieldParty, NativeCharacterVitals vitals)
+    {
+        if (!vitals.ExtendedRosterEnabled || vitals.DreamEnabled)
+        {
+            return fieldParty;
+        }
+        int[] combatParty = vitals.CombatParty.Where(row => row != 255).Select(row => (int)vitals.Records[row].CharacterId).ToArray();
+        return fieldParty.Where(identity => identity != 255).ToHashSet().SetEquals(combatParty) ? fieldParty : combatParty;
+    }
+
+    private ActorState? ResolveDrawPointBody(int identity)
+    {
+        int slot = Scene.Party.IndexOf(identity);
+        // An optional combat member can receive stock through the field leader's acquisition animation.
+        return ResolveNativeIndexedPartyBody(slot >= 0 ? slot : 0, out _, out _);
+    }
+
     private int FindDrawPointCombatSlot(int identity)
     {
         NativeCharacterVitals vitals = services.CharacterVitals!;
@@ -361,7 +382,7 @@ public sealed partial class EventEngine
     private void ShowDrawPointMessage(Fiber fiber, NativeDrawPointCatalog catalog, int message)
     {
         NativeDrawPointInteraction current = Scene.DrawPointInteraction!;
-        string text = catalog.FormatMessage(message, current.PointByte & 63, current.Selection is int selected ? Scene.Party[selected] : 0);
+        string text = catalog.FormatMessage(message, current.PointByte & 63, current.Selection is int selected ? DrawPointParty(Scene.Party, services.CharacterVitals!)[selected] : 0);
         Scene.DrawPointInteraction = current with { Message = message };
         ShowDialogue(fiber, new DialogueState(6, -1, text, 0, 0), false);
     }
@@ -370,12 +391,13 @@ public sealed partial class EventEngine
     {
         NativeDrawPointCatalog catalog = ReadNativeDrawPointCatalog!();
         NativeDrawPointInteraction current = Scene.DrawPointInteraction!;
-        int count = Scene.Party.TakeWhile(identity => identity != 255).Count();
+        IReadOnlyList<int> party = DrawPointParty(Scene.Party, services.CharacterVitals!);
+        int count = party.TakeWhile(identity => identity != 255).Count();
         if (count == 0)
         {
             throw Fault(fiber, "DRAWPOINT has no field-party selection entries.");
         }
-        string text = current.SharedSelection ? catalog.FormatSharedSelection(FindAvailableDrawPointReceiver(current.PointByte & 63, services.CharacterVitals!, current.EligibleCombatSlots) is not null) : catalog.FormatSelection(Scene.Party.ToArray(), services.CharacterVitals!, current.PointByte & 63, current.EligibleCombatSlots);
+        string text = current.SharedSelection ? catalog.FormatSharedSelection(FindAvailableDrawPointReceiver(current.PointByte & 63, services.CharacterVitals!, current.EligibleCombatSlots) is not null) : catalog.FormatSelection(party.ToArray(), services.CharacterVitals!, current.PointByte & 63, current.EligibleCombatSlots);
         if (current.SharedSelection)
         {
             count = 1;
@@ -456,14 +478,15 @@ public sealed partial class EventEngine
             throw new InvalidDataException("Saved DRAWPOINT lost its issued operand, sampled random/depletion quantity, common message or shared phase.");
         }
         short phase = saved.Actors[current.ObjectId].NativeMovementAccelerationTarget!.Value;
-        int count = saved.Scene.Party.TakeWhile(identity => identity != 255).Count();
+        IReadOnlyList<int> party = DrawPointParty(saved.Scene.Party, saved.CharacterVitals!);
+        int count = party.TakeWhile(identity => identity != 255).Count();
         if (current.Selection is < 0 || phase == 3 && current.Selection > count || phase >= 4 && (current.Selection is null || current.Selection >= count) || phase is 5 or 6 or 7 && (current.CombatSlot is null or < 0 or > 2) || phase == 7 && (current.Message != 5 || current.Acquired is null or <= 0 || current.Acquired > current.Quantity) || phase == 3 && current.Message != 4 || phase == 2 && dialogue is not null || current.Acquired is < 0 || current.Acquired > current.Quantity)
         {
             throw new InvalidDataException("Saved DRAWPOINT lost its native selection, combat slot or acquired quantity.");
         }
         if (dialogue is not null)
         {
-            string expected = current.Message == 4 && current.SharedSelection ? catalog.FormatSharedSelection(false) : current.Message == 4 ? catalog.FormatSelection(saved.Scene.Party.ToArray(), saved.CharacterVitals!, current.PointByte & 63, current.EligibleCombatSlots) : catalog.FormatMessage(current.Message, current.PointByte & 63, current.Selection is int selected ? saved.Scene.Party[selected] : 0);
+            string expected = current.Message == 4 && current.SharedSelection ? catalog.FormatSharedSelection(false) : current.Message == 4 ? catalog.FormatSelection(party.ToArray(), saved.CharacterVitals!, current.PointByte & 63, current.EligibleCombatSlots) : catalog.FormatMessage(current.Message, current.PointByte & 63, current.Selection is int selected ? party[selected] : 0);
             if (dialogue.MessageId != -1 || dialogue.Text != expected || !dialogue.CanConfirm || dialogue.IsNamePrompt || dialogue.ObjectId != current.ObjectId || dialogue.ScriptId != current.ScriptId || dialogue.Operation != current.Operation || current.Message == 4 && (dialogue.FirstChoice != 1 || dialogue.LastChoice != (current.SharedSelection ? 2 : count + 1) || dialogue.InitialChoice != 2 || dialogue.CancelChoice != 1 || phase != 3 || current.Selection is not null) || current.Message != 4 && (dialogue.FirstChoice is not null || phase is not (1 or 7)))
             {
                 throw new InvalidDataException("Saved DRAWPOINT lost its authenticated common text or channel6 choice metadata.");

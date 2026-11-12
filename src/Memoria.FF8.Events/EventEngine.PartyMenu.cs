@@ -30,6 +30,9 @@ public enum NativeFieldMenuKind
 /// <summary>Executed521D40 request and the4CB880 temporary party; the minimal interactive panel does not claim original raster parity.</summary>
 public sealed record NativePartyMenuState([property: JsonRequired] int FieldId, [property: JsonRequired] string ProgramHash, [property: JsonRequired] string ExecutableHash, [property: JsonRequired] long Frame, [property: JsonRequired] int ObjectId, [property: JsonRequired] int ScriptId, [property: JsonRequired] int Operation, [property: JsonRequired] long OwnerSequence, [property: JsonRequired] NativePartyMenuPhase Phase, [property: JsonRequired] long Callbacks, [property: JsonRequired] byte[]? TemporaryCombatParty, [property: JsonRequired] byte EligibleMask, [property: JsonRequired] byte LockedMask, [property: JsonRequired] byte ForcedFieldMask, [property: JsonRequired] bool? TimerDisplayBeforeMenu, [property: JsonRequired] NativeFieldMenuKind Kind, [property: JsonRequired] byte NativeEntrySelection, [property: JsonRequired] ushort NativeReturnResult, [property: JsonRequired] int? ShopRawArgument, [property: JsonRequired] NativeShopTransaction? Shop, [property: JsonRequired] NativeWeaponShopTransaction? WeaponShop, [property: JsonRequired] byte[]? TemporaryReserveParty, [property: JsonRequired] int? SelectedPartySlot, [property: JsonRequired] NativeSavePanelState? SavePanel = null, int? JunctionRawArgument = null)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool CombatPartyIndependent { get; init; }
+
     [JsonIgnore]
     public int NativeMode => 5;
     [JsonIgnore]
@@ -68,7 +71,7 @@ public sealed partial class EventEngine
 
     private (NativeCharacterVitals Vitals, NativeEconomy Economy, NativeShotAvailabilityState Shots, NativeSalaryPresentation Salary) PreparePartyMenuEntry(NativeFieldMenuKind kind)
     {
-        NativeCharacterVitals vitals = kind == NativeFieldMenuKind.GuestSelection ? services.CharacterVitals!.EnterGuestSelectionMenu() : kind == NativeFieldMenuKind.PartySelection ? services.CharacterVitals!.EnterNormalPartyMenu() : PrepareNormalMenuVitals();
+        NativeCharacterVitals vitals = kind == NativeFieldMenuKind.GuestSelection ? services.CharacterVitals!.EnterGuestSelectionMenu() : kind == NativeFieldMenuKind.PartySelection ? PrepareScriptedPartySelectionVitals() : PrepareNormalMenuVitals();
         NativeEconomy economy = services.Economy! with { Gil = Math.Min(services.Economy!.Gil, NativeEconomy.GilCeiling), PastGil = Math.Min(services.Economy.PastGil, NativeEconomy.GilCeiling) };
         NativeShotAvailabilityState shots = services.ShotAvailability!.Discover(economy);
         NativeSalaryPresentation salary = services.SalaryPresentation!;
@@ -80,11 +83,22 @@ public sealed partial class EventEngine
         return (vitals, economy, shots, salary);
     }
 
+    private NativeCharacterVitals PrepareScriptedPartySelectionVitals()
+    {
+        NativeCharacterVitals vitals = services.CharacterVitals!;
+        if (HasExtendedCombatParty(vitals) && HasCanonicalPartySlots(Scene))
+        {
+            // Scripted MENUPHS keeps its original eight-row pane and field party inputs.
+            vitals = vitals with { CombatParty = vitals.ProjectNativeCombatParty(Scene.Party) };
+        }
+        return vitals.EnterNormalPartyMenu();
+    }
+
     private NativeCharacterVitals PrepareNormalMenuVitals()
     {
         NativeCharacterVitals vitals = services.CharacterVitals!.RebuildParty();
         //4C23D0 filters each existing slot through4AD030; an unchanged slot has exactly the eligible bit1.
-        if (vitals.CombatParty.Any(row => row != 255 && (vitals.Records[row].MemberFlags & 1) == 0))
+        if (vitals.CombatParty.Any(row => row != 255 && !vitals.IsRosterMember(row)))
         {
             throw new NotSupportedException("Normal menu entry would filter an ineligible combat slot; its post-filter saved-stat projection requires a separate proved producer.");
         }
@@ -314,6 +328,10 @@ public sealed partial class EventEngine
             }
             return;
         }
+        if (menu.CombatPartyIndependent && (menu.Kind != NativeFieldMenuKind.Normal || menu.NativeReturnResult != 1 || saved.CharacterVitals?.Records.Length != NativeCharacterVitals.ExtendedRecordCount))
+        {
+            throw new InvalidDataException("An independent combat lineup requires an extended roster and a pending native field selection.");
+        }
         if (menu.Kind == NativeFieldMenuKind.GuestSelection)
         {
             ValidateGuestSelectionCheckpoint(saved, menu, bySequence);
@@ -327,7 +345,8 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Saved party menu changed its original request, owner or suspended field frame.");
         }
-        if (menu.Phase is NativePartyMenuPhase.Requested or NativePartyMenuPhase.Entering ? (menu.Kind == NativeFieldMenuKind.Save && menu.Phase == NativePartyMenuPhase.Entering ? menu.Callbacks < 1 : menu.Callbacks != (menu.Phase == NativePartyMenuPhase.Requested ? 0 : 1)) || menu.TemporaryCombatParty is not null || menu.EligibleMask != 0 || menu.LockedMask != 0 || menu.ForcedFieldMask != 0 || (menu.TimerDisplayBeforeMenu is null) != (menu.Phase == NativePartyMenuPhase.Requested) : menu.Kind is NativeFieldMenuKind.Shop or NativeFieldMenuKind.WeaponShop or NativeFieldMenuKind.Save ? menu.Callbacks < 2 || menu.TimerDisplayBeforeMenu is null || saved.CharacterVitals is null : menu.Callbacks < 2 || menu.TimerDisplayBeforeMenu is null || menu.TemporaryCombatParty is not { Length: 3 } || menu.TemporaryCombatParty.Any(row => row != 255 && row >= 8) || menu.TemporaryCombatParty.Where(row => row != 255).Distinct().Count() != menu.TemporaryCombatParty.Count(row => row != 255) || (menu.LockedMask & ~menu.EligibleMask) != 0 || (menu.ForcedFieldMask & ~menu.LockedMask) != 0 || saved.CharacterVitals is null || menu.Kind == NativeFieldMenuKind.PartySelection && saved.CharacterVitals.DreamEnabled)
+        int combatRowCount = menu.Kind == NativeFieldMenuKind.Normal ? saved.CharacterVitals?.Records.Length ?? 8 : 8;
+        if (menu.Phase is NativePartyMenuPhase.Requested or NativePartyMenuPhase.Entering ? (menu.Kind == NativeFieldMenuKind.Save && menu.Phase == NativePartyMenuPhase.Entering ? menu.Callbacks < 1 : menu.Callbacks != (menu.Phase == NativePartyMenuPhase.Requested ? 0 : 1)) || menu.TemporaryCombatParty is not null || menu.EligibleMask != 0 || menu.LockedMask != 0 || menu.ForcedFieldMask != 0 || (menu.TimerDisplayBeforeMenu is null) != (menu.Phase == NativePartyMenuPhase.Requested) : menu.Kind is NativeFieldMenuKind.Shop or NativeFieldMenuKind.WeaponShop or NativeFieldMenuKind.Save ? menu.Callbacks < 2 || menu.TimerDisplayBeforeMenu is null || saved.CharacterVitals is null : menu.Callbacks < 2 || menu.TimerDisplayBeforeMenu is null || menu.TemporaryCombatParty is not { Length: 3 } || menu.TemporaryCombatParty.Any(row => row != 255 && row >= combatRowCount) || menu.TemporaryCombatParty.Where(row => row != 255).Distinct().Count() != menu.TemporaryCombatParty.Count(row => row != 255) || (menu.LockedMask & ~menu.EligibleMask) != 0 || (menu.ForcedFieldMask & ~menu.LockedMask) != 0 || saved.CharacterVitals is null || menu.Kind == NativeFieldMenuKind.PartySelection && saved.CharacterVitals.DreamEnabled)
         {
             throw new InvalidDataException("Saved party menu lacks its actual native entry/temporary selection.");
         }
@@ -374,7 +393,8 @@ public sealed partial class EventEngine
                     }
                 }
             }
-            if (menu.EligibleMask != eligible || menu.LockedMask != locked || menu.ForcedFieldMask != forced || menu.TemporaryCombatParty!.Any(row => row != 255 && (eligible & 1 << row) == 0) || saved.CharacterVitals!.CombatParty.Any(row => row != 255 && (locked & 1 << row) != 0 && !menu.TemporaryCombatParty.Contains(row)))
+            bool IsEligible(byte row) => menu.Kind == NativeFieldMenuKind.Normal ? saved.CharacterVitals!.IsRosterMember(row) : (eligible & 1 << row) != 0;
+            if (menu.EligibleMask != eligible || menu.LockedMask != locked || menu.ForcedFieldMask != forced || menu.TemporaryCombatParty!.Any(row => row != 255 && !IsEligible(row)) || saved.CharacterVitals!.CombatParty.Any(row => row != 255 && (locked & 1 << row) != 0 && !menu.TemporaryCombatParty.Contains(row)))
             {
                 throw new InvalidDataException("Saved menu masks or locked members disagree with the canonical membership WORDs.");
             }
