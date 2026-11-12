@@ -33,6 +33,13 @@ public sealed record NativeWorldProcess([property: JsonRequired] int Version, [p
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public byte? WaterStepEdges2045C7C { get; init; }
 
+    // Older snapshots predate Chocobo particle emission and restore these edges clear.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public byte MountWaterStepEdges { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public byte CompanionWaterStepEdges { get; init; }
+
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public int FuelMessageMovementCallbacks2045C78 { get; init; }
 
@@ -55,7 +62,7 @@ public sealed record NativeWorldProcess([property: JsonRequired] int Version, [p
         {
             throw new InvalidDataException("Native fuel message movement counter is outside its callback range.");
         }
-        if (VehicleManualCameraVelocity is < -128 or > 128 || Version != 1 || Rule != CurrentRule || MainLoopCallbacks < 0 || MainLoopCounter != unchecked((uint)MainLoopCallbacks) || InputHistory?.Samples > MainLoopCallbacks || CarCameraFollowSpeed is < 0 or > 128 || ForcedAnimationC76628 is not (null or -1 or 0 or 4) || PreviousContactC76784 is < -1 || WaterStepEdges2045C7C is > 3)
+        if (VehicleManualCameraVelocity is < -128 or > 128 || Version != 1 || Rule != CurrentRule || MainLoopCallbacks < 0 || MainLoopCounter != unchecked((uint)MainLoopCallbacks) || InputHistory?.Samples > MainLoopCallbacks || CarCameraFollowSpeed is < 0 or > 128 || ForcedAnimationC76628 is not (null or -1 or 0 or 4) || PreviousContactC76784 is < -1 || WaterStepEdges2045C7C is > 3 || MountWaterStepEdges > 3 || CompanionWaterStepEdges > 3)
         {
             throw new InvalidDataException("Native world process state lacks its exact cold-process callback history.");
         }

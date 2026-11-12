@@ -63,7 +63,7 @@ internal sealed partial class WorldMapScene
         assets.ValidateNativeGroundCache(current.GroundCache, replacements);
     }
 
-    private WorldState StepChocobo(WorldState before, int movementSpeedPercent, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, out uint salaryMovementUnits, out int graphicsSpeed, bool mapOnly)
+    private WorldState StepChocobo(WorldState before, int movementSpeedPercent, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, ref NativeWorldSalaryState salary, out uint salaryMovementUnits, out int graphicsSpeed, bool mapOnly)
     {
         NativeChocoboWorldRuntimeState mounted = before.NativeChocoboRuntime!;
         NativeGardenWorldRuntimeState objects = mounted.Objects;
@@ -122,7 +122,20 @@ internal sealed partial class WorldMapScene
         int riderLength = assets.GetFootModel(0).Animations[animation.RiderAnimation].Frames.Count * 16;
         int companionLength = companionVisible ? assets.GetChocoboModel(companion: true).Animations[animation.CompanionAnimation].Frames.Count * 16 : 0;
         animation = animation.AdvanceAnimation(moving, visible, visible, companionVisible, riderLength, companionLength, objects.Forest, assets.ForestTables.Random, out forest);
-        forest = forest.Advance(previousGroundType, before.X, before.NativeHeight, before.Z, yaw, priorGraphicsSpeed, assets.ForestTables.Random, assets.ForestTables.AllEffects);
+        // 550070 consumes the updated clips at the bodies and ground pointers retained from the previous callback.
+        NativeWorldForestTables tables = assets.ForestTables;
+        NativeWorldWaterStepResult mountStep = forest.EmitChocoboParticles(17, previousGroundType, animation.MountAnimation, animation.MountCounter, salary.MountWaterStepEdges, new(before.X, before.NativeHeight, -before.Z), checked((short)before.BodyYaw), priorGraphicsSpeed, tables.Random, tables.AllEffects);
+        forest = mountStep.Forest;
+        byte companionEdges = salary.CompanionWaterStepEdges;
+        if (hasCompanion)
+        {
+            byte companionGroundType = animation.CompanionPlaced ? ReadChocoboCompanionGround(companion, mounted.GroundCache) : previousGroundType;
+            NativeWorldWaterStepResult companionStep = forest.EmitChocoboParticles(18, companionGroundType, animation.CompanionAnimation, animation.CompanionCounter, companionEdges, new(companion.X, companion.Height, -companion.Z), checked((short)companion.Yaw), priorGraphicsSpeed, tables.Random, tables.AllEffects);
+            forest = companionStep.Forest;
+            companionEdges = companionStep.Edges!.Value;
+        }
+        salary = salary.WithChocoboWaterStepEdges(mountStep.Edges!.Value, companionEdges);
+        forest = forest.AdvanceParticlesOnly(tables.AllEffects);
         int? previousInput = mounted.PreviousHorizontalInput ?? PreviousFootHorizontalInput(process);
         int? group = inputX != 0 && previousInput != inputX ? inputX > 0 ? 0 : 1 : null;
         WorldNativeGroundResult ground = assets.ResolveNativeGround(before.X, before.Z, moveX, moveZ, -objects.CurrentGroundHeight!.Value, group, mounted.GroundCache, replacements, ChocoboEntity, previousInput is null, footprintContact: (probes, padding) => WorldGardenContactCertificate.Evaluate(assets, objects.Allocation, objects.Objects, ChocoboEntity, ChocoboEntity, probes, projection, padding, rails: rails), currentBodyHeight: before.NativeHeight, rawSpeed: priorGraphicsSpeed);
@@ -163,6 +176,22 @@ internal sealed partial class WorldMapScene
         {
             return (projection.ProjectNode(position) ?? throw new NotSupportedException(projection.UnsupportedReason)).Visible;
         }
+    }
+
+    private byte ReadChocoboCompanionGround(NativeChocoboTrailPose pose, NativeWorldGroundCacheState cache)
+    {
+        byte? groundType = null;
+        foreach (NativeWorldGroundAlternative alternative in cache.Alternatives)
+        {
+            WorldGroundSelection ground = assets.LookupNativeGround(pose.X, pose.Z, replacements, alternative.Entries) ?? throw new NotSupportedException("Mounted Chocobo companion has no original ground polygon.");
+            byte candidate = ground.Ground.Triangle.GroundType;
+            if (groundType is byte previous && candidate != previous)
+            {
+                throw new NotSupportedException("Mounted Chocobo companion ground differs between retained native cache alternatives.");
+            }
+            groundType = candidate;
+        }
+        return groundType!.Value;
     }
 
     private static NativeGardenWorldRuntimeState PublishChocoboBodies(NativeGardenWorldRuntimeState objects, NativeChocoboWorldAnimation animation, int x, int height, int z, int yaw)

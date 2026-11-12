@@ -802,7 +802,7 @@ internal sealed partial class WorldMapScene : IDisposable
         if (before.NativeChocoboRuntime is not null)
         {
             fieldEntry = null;
-            return StepChocobo(before, movementSpeedPercent, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, out salaryMovementUnits, out graphicsSpeed, mapOnly);
+            return StepChocobo(before, movementSpeedPercent, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, ref salary, out salaryMovementUnits, out graphicsSpeed, mapOnly);
         }
         if (before.NativeRagnarokRuntime is not null && before.NativeFootRuntime is null)
         {

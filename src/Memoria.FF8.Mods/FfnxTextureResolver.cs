@@ -149,7 +149,7 @@ public sealed partial class FfnxTextureResolver(ModCatalogSnapshot catalog) : IT
             || System.Text.RegularExpressions.Regex.IsMatch(stem, @"^world/dat/wmset/section42/texture[0-9]+_[0-9]{2}$")
             || System.Text.RegularExpressions.Regex.IsMatch(stem, @"^world/dat/wmset/section39/texture[0-9]+_[0-9]{2}$")
             || System.Text.RegularExpressions.Regex.IsMatch(stem, @"^world/dat/wmset/section40/texture0_00$")
-            || System.Text.RegularExpressions.Regex.IsMatch(stem, @"^world/dat/wmset/section38/texture([0-7]|1[0-9]|2[0-8]|30|31|32|35)_[0-9]{2}$");
+            || System.Text.RegularExpressions.Regex.IsMatch(stem, @"^world/dat/wmset/section38/texture([0-7]|1[0-9]|2[0-9]|30|31|32|35)_[0-9]{2}$");
     }
 
     private static string? NativeName(TextureBuildContext context)

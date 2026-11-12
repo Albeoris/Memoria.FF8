@@ -167,7 +167,7 @@ public sealed class FfnxTextureTests
         WorldTriangle triangle = new(Vector3.Zero, Vector3.UnitX, Vector3.UnitZ, Vector2.Zero, Vector2.Zero, Vector2.Zero, 0, 0, 0, 0, 0);
         Assert.Equal(512, world.GetTexture(triangle).Width);
         Assert.Equal(64, world.GetForestTexture(4, 0).Width);
-        foreach (byte type in new byte[] { 0, 12, 13, 15, 16, 19, 20, 21 })
+        foreach (byte type in new byte[] { 0, 12, 13, 15, 16, 17, 18, 19, 20, 21 })
         {
             var effect = world.ForestTables.GetEffect(type);
             Assert.True(world.GetForestTexture(type, 0).Width > effect.Width, $"Native world effect {type} did not consume its selected external source.");

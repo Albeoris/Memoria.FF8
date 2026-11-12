@@ -122,9 +122,20 @@ public sealed partial record NativeWorldForestState
         byte cursor = RandomCursor;
         byte offset = RandomOffset;
         List<NativeWorldForestParticle> particles = [.. Particles];
+        EmitForestDust(particles, groundType, new(x, nativeHeight, -rawZ), bodyYaw - 2048, priorGraphicsSpeed, random, effects, ref cursor, ref offset);
+        if (contactSpark is not null)
+        {
+            EmitContactSpark(particles, contactSpark, random, effects, ref cursor, ref offset);
+        }
+        NativeWorldForestParticle[] advanced = AdvanceParticles(particles, effects);
+        return this with { RandomCursor = cursor, RandomOffset = offset, Particles = advanced };
+    }
+
+    private static void EmitForestDust(List<NativeWorldForestParticle> particles, byte groundType, NativeWorldPathPosition position, int bodyYaw, int priorGraphicsSpeed, ReadOnlySpan<byte> random, IReadOnlyList<NativeWorldForestEffect> effects, ref byte cursor, ref byte offset)
+    {
         if (groundType <= 5 && 8 * priorGraphicsSpeed > NextRandom(random, ref cursor, ref offset))
         {
-            short yaw = unchecked((short)(bodyYaw - 2048 + 8 * NextRandom(random, ref cursor, ref offset) - 1024));
+            short yaw = unchecked((short)(bodyYaw + 8 * NextRandom(random, ref cursor, ref offset) - 1024));
             short roll = unchecked((short)(4 * NextRandom(random, ref cursor, ref offset) - 512));
             int slot = Enumerable.Range(0, 64).FirstOrDefault(candidate => !particles.Any(particle => particle.Slot == candidate && particle.Age < particle.Lifetime), -1);
             if (slot >= 0)
@@ -133,15 +144,9 @@ public sealed partial record NativeWorldForestState
                 ushort scale = unchecked((ushort)(4096 + NextRandom(random, ref cursor, ref offset) - 128));
                 byte lifetime = unchecked((byte)(effect.Lifetime + (NextRandom(random, ref cursor, ref offset) & 7) - 4));
                 particles.RemoveAll(particle => particle.Slot == slot);
-                particles.Add(new(slot, effect.Type, x, nativeHeight - 320, -rawZ, yaw, roll, scale, 0, lifetime, true));
+                particles.Add(new(slot, effect.Type, position.X, position.Y - 320, position.Z, yaw, roll, scale, 0, lifetime, true));
             }
         }
-        if (contactSpark is not null)
-        {
-            EmitContactSpark(particles, contactSpark, random, effects, ref cursor, ref offset);
-        }
-        NativeWorldForestParticle[] advanced = AdvanceParticles(particles, effects);
-        return this with { RandomCursor = cursor, RandomOffset = offset, Particles = advanced };
     }
 
     public NativeWorldForestState AdvanceGarden(byte groundType, NativeGardenWorldObject garden, int groundHeight, int priorGraphicsSpeed, ReadOnlySpan<byte> random, IReadOnlyList<NativeWorldForestEffect> effects)

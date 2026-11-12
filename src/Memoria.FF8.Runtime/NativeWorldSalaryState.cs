@@ -21,6 +21,8 @@ public sealed partial record NativeWorldSalaryState
         TextureAnimation = departure.WorldProcess?.TextureAnimation;
         ForcedAnimationC76628 = departure.WorldProcess?.ForcedAnimationC76628;
         WaterStepEdges2045C7C = departure.WorldProcess?.WaterStepEdges2045C7C;
+        MountWaterStepEdges = departure.WorldProcess?.MountWaterStepEdges ?? 0;
+        CompanionWaterStepEdges = departure.WorldProcess?.CompanionWaterStepEdges ?? 0;
         PreviousContactC76784 = departure.WorldProcess?.PreviousContactC76784;
         FuelMessageMovementCallbacks = departure.WorldProcess?.FuelMessageMovementCallbacks2045C78 ?? 0;
         CarCameraCooldown = departure.World?.NativeCarRuntime is null ? null : departure.WorldProcess?.CameraCooldown ?? throw new NotSupportedException("Native car callbacks require the actual shared camera cooldown owner.");
@@ -45,6 +47,8 @@ public sealed partial record NativeWorldSalaryState
     public NativeWorldTextureAnimationState? TextureAnimation { get; private init; }
     public int? ForcedAnimationC76628 { get; private init; }
     public byte? WaterStepEdges2045C7C { get; private init; }
+    public byte MountWaterStepEdges { get; private init; }
+    public byte CompanionWaterStepEdges { get; private init; }
     public int? PreviousContactC76784 { get; private init; }
     public int FuelMessageMovementCallbacks { get; private init; }
 
@@ -73,6 +77,11 @@ public sealed partial record NativeWorldSalaryState
             throw new InvalidDataException("Native footprint edge flags are outside their two-bit owner.");
         }
         return this with { WaterStepEdges2045C7C = edges };
+    }
+
+    public NativeWorldSalaryState WithChocoboWaterStepEdges(byte mount, byte companion)
+    {
+        return this with { MountWaterStepEdges = mount, CompanionWaterStepEdges = companion };
     }
 
     public static NativeWorldSalaryState Begin(GameState departure)
@@ -153,7 +162,7 @@ public sealed partial record NativeWorldSalaryState
         NativeWorldProcess? process = candidate.WorldProcess;
         if (process is not null)
         {
-            process = process with { ForcedAnimationC76628 = ForcedAnimationC76628, TextureAnimation = TextureAnimation, WaterStepEdges2045C7C = WaterStepEdges2045C7C, PreviousContactC76784 = PreviousContactC76784, FuelMessageMovementCallbacks2045C78 = FuelMessageMovementCallbacks };
+            process = process with { ForcedAnimationC76628 = ForcedAnimationC76628, TextureAnimation = TextureAnimation, WaterStepEdges2045C7C = WaterStepEdges2045C7C, MountWaterStepEdges = MountWaterStepEdges, CompanionWaterStepEdges = CompanionWaterStepEdges, PreviousContactC76784 = PreviousContactC76784, FuelMessageMovementCallbacks2045C78 = FuelMessageMovementCallbacks };
         }
         if (InputHistory is not null)
         {

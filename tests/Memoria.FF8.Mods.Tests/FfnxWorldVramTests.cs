@@ -40,7 +40,7 @@ public sealed class FfnxWorldVramTests
     [Fact]
     public void InspectionPreservesUnsupportedWorldMemberBoundary()
     {
-        ModFile[] files = [Sheet("0_832_233", 1), new("unknown", ModFormat.Junction, "mods/textures/world/dat/wmset/section38/texture29_0_0_0.png", 1, () => throw new InvalidOperationException())];
+        ModFile[] files = [Sheet("0_832_233", 1), new("unknown", ModFormat.Junction, "mods/textures/world/dat/wmset/section38/texture33_0_0_0.png", 1, () => throw new InvalidOperationException())];
         DemasterInspection result = FfnxTextureResolver.Inspect(Source(), new(1, [], files));
         Assert.Contains("test", result.UsablePackageIds);
         Assert.DoesNotContain("unknown", result.UsablePackageIds);
