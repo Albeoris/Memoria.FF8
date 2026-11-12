@@ -19,6 +19,14 @@ internal sealed partial class RecreateGame
         nativeInputWindow = OperatingSystem.IsWindows() ? NativeWindowsGameWindow.ResolveHandle(Window.Title) : 0;
         nativeBackBuffer = new NativeWindowBackBufferSynchronizer(Window, graphics, nativeInputWindow);
 #endif
+        if (WorldProcessHandoff.Current is { } transfer)
+        {
+            windowMode!.RestoreTransfer(transfer.Specification.Window);
+#if MEMORIA_NATIVE
+            nativeBackBuffer.Synchronize();
+#endif
+            return;
+        }
         IGameWindowPlatform platform = WindowModeController.CreatePlatform(Window, graphics);
         if (!options.IsDiagnosticGraphicalHost)
         {

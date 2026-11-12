@@ -68,6 +68,8 @@ public static class GraphicsDispatcher
 
     public static async Task<int> RunAsync(string dataDirectory, string[] args, TextWriter output, TextWriter error, CancellationToken token, Func<GraphicsBackend, ProcessStartInfo>? createStart = null, TimeSpan? initializationTimeout = null, Action<BootstrapFailure>? captureFailure = null)
     {
+        output = TextWriter.Synchronized(output);
+        error = TextWriter.Synchronized(error);
         string launchId = Environment.GetEnvironmentVariable("MEMORIA_FF8_REPORT_LAUNCH_ID") ?? Guid.NewGuid().ToString("N");
         List<GraphicsAttemptEvidence> attempts = [];
         string requestedBackend = "Unavailable: backend selection failed or was not reached.";
@@ -137,6 +139,9 @@ public static class GraphicsDispatcher
             string failurePath = Path.Combine(attempt, "failure.json");
             string restartPath = Path.Combine(attempt, "restart.json");
             string restartToken = Guid.NewGuid().ToString("N");
+            string successorDirectory = Path.Combine(attempt, "successors");
+            Directory.CreateDirectory(successorDirectory);
+            string successorToken = Guid.NewGuid().ToString("N");
             ProcessStartInfo start = createStart?.Invoke(backend) ?? CreateStartInfo(dataDirectory, backend, args);
             start.Environment[ApplicationInstallation.DirectoryVariable] = Path.GetFullPath(dataDirectory);
             start.Environment["MEMORIA_FF8_REPORT_LAUNCH_ID"] = launchId;
@@ -145,6 +150,8 @@ public static class GraphicsDispatcher
             start.Environment["MEMORIA_FF8_REQUESTED_GRAPHICS_BACKEND"] = requested.ToString();
             start.Environment["MEMORIA_GRAPHICS_RESTART_REQUEST"] = restartPath;
             start.Environment["MEMORIA_GRAPHICS_RESTART_TOKEN"] = restartToken;
+            start.Environment[GraphicsHostSuccessor.DirectoryVariable] = successorDirectory;
+            start.Environment[GraphicsHostSuccessor.TokenVariable] = successorToken;
             bool unixSession = !OperatingSystem.IsWindows() && createStart is null;
             if (unixSession)
             {
@@ -155,10 +162,11 @@ public static class GraphicsDispatcher
             bool initializationFailure = false;
             bool cancelled = false;
             int exitCode = 1;
+            int finalProcessId = 0;
             string? failure = null;
             Exception? originalException = null;
-            using StreamWriter stdout = new(Path.Combine(attempt, "stdout.log")) { AutoFlush = true };
-            using StreamWriter stderr = new(Path.Combine(attempt, "stderr.log")) { AutoFlush = true };
+            using TextWriter stdout = TextWriter.Synchronized(new StreamWriter(Path.Combine(attempt, "stdout.log")) { AutoFlush = true });
+            using TextWriter stderr = TextWriter.Synchronized(new StreamWriter(Path.Combine(attempt, "stderr.log")) { AutoFlush = true });
             using Process process = new() { StartInfo = start };
             Task? outputPump = null;
             Task? errorPump = null;
@@ -196,8 +204,9 @@ public static class GraphicsDispatcher
                     await output.WriteLineAsync($"Graphics ready: requested={requested} actual={backend}");
                     // After readiness this is a running game. Its exit must never trigger a fallback/restart.
                 }
-                await exited.WaitAsync(token);
-                exitCode = process.ExitCode;
+                GraphicsHostSuccessor.HostExit completed = await GraphicsHostSuccessor.WaitAsync(process, successorDirectory, successorToken, stdout, stderr, output, error, token);
+                finalProcessId = completed.ProcessId;
+                exitCode = completed.ExitCode;
                 if (graphical && !ready)
                 {
                     failure = $"{backend} exited before graphics readiness (exit {exitCode}).";
@@ -234,7 +243,7 @@ public static class GraphicsDispatcher
                     await Task.WhenAll(outputPump, errorPump).WaitAsync(TimeSpan.FromSeconds(10));
                 }
             }
-            await File.WriteAllTextAsync(Path.Combine(attempt, "result.json"), JsonSerializer.Serialize(new { schemaVersion = 1, requested = requested.ToString(), actual = backend.ToString(), ready, exitCode, initializationFailure, cancelled, failure }, new JsonSerializerOptions { WriteIndented = true }));
+            await File.WriteAllTextAsync(Path.Combine(attempt, "result.json"), JsonSerializer.Serialize(new { schemaVersion = 1, requested = requested.ToString(), actual = backend.ToString(), ready, exitCode, finalProcessId, initializationFailure, cancelled, failure }, new JsonSerializerOptions { WriteIndented = true }));
             if (cancelled)
             {
                 throw new OperationCanceledException(token);
@@ -242,7 +251,7 @@ public static class GraphicsDispatcher
             attempts.Add(new(backend.ToString(), ready, exitCode, initializationFailure, failure, originalException is null ? null : ErrorIncident.Capture(originalException, "Graphics host attempt").Exception, ReadReceipt(readyPath), ReadReceipt(failurePath), Array.AsReadOnly(new[] { Path.Combine(attempt, "stdout.log"), Path.Combine(attempt, "stderr.log"), Path.Combine(attempt, "result.json"), readyPath, failurePath }.Where(File.Exists).ToArray())));
             if (ready || !graphical)
             {
-                string[]? restartArguments = ready && exitCode == 0 ? GraphicsRestart.ReadArguments(restartPath, restartToken, process.Id, args) : null;
+                string[]? restartArguments = ready && exitCode == 0 ? GraphicsRestart.ReadArguments(restartPath, restartToken, finalProcessId, args) : null;
                 if (graphical && exitCode != 0)
                 {
                     report($"{backend} host terminated after graphics readiness (exit {exitCode}).", originalException);

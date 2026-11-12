@@ -7,10 +7,20 @@ public static class GamePlatformContextResolver
 {
     public static GamePlatformContext Resolve(string installationDirectory, bool localOnly = false)
     {
+        return Resolve(installationDirectory, localOnly, ff7: false);
+    }
+
+    public static GamePlatformContext ResolveFf7(string installationDirectory, bool localOnly = false)
+    {
+        return Resolve(installationDirectory, localOnly, ff7: true);
+    }
+
+    private static GamePlatformContext Resolve(string installationDirectory, bool localOnly, bool ff7)
+    {
         string directory = Path.GetFullPath(installationDirectory);
         List<string> evidence = [];
-        bool classic = File.Exists(Path.Combine(directory, "FF8_EN.exe"));
-        bool remastered = File.Exists(Path.Combine(directory, "main.zzz")) && File.Exists(Path.Combine(directory, "other.zzz")) && File.Exists(Path.Combine(directory, "FFVIII_EN.exe.dat"));
+        bool classic = ff7 ? Directory.Exists(Path.Combine(directory, "ff7", "workingdir", "data")) || Directory.Exists(Path.Combine(directory, "data")) : File.Exists(Path.Combine(directory, "FF8_EN.exe"));
+        bool remastered = !ff7 && File.Exists(Path.Combine(directory, "main.zzz")) && File.Exists(Path.Combine(directory, "other.zzz")) && File.Exists(Path.Combine(directory, "FFVIII_EN.exe.dat"));
         GameDataEdition? edition = classic == remastered ? null : classic ? GameDataEdition.Classic : GameDataEdition.Remastered;
         GameDistributionProvider provider = GameDistributionProvider.Unknown;
         string? product = null;
@@ -22,7 +32,8 @@ public static class GamePlatformContextResolver
             DirectoryInfo? parent = Directory.GetParent(directory);
             if (parent?.Name.Equals("common", StringComparison.OrdinalIgnoreCase) == true && parent.Parent is DirectoryInfo steamApps)
             {
-                foreach ((string appId, GameDataEdition expectedEdition) in new[] { ("39150", GameDataEdition.Classic), ("1026680", GameDataEdition.Remastered) })
+                (string, GameDataEdition)[] products = ff7 ? [("3837340", GameDataEdition.Classic), ("39140", GameDataEdition.Classic)] : [("39150", GameDataEdition.Classic), ("1026680", GameDataEdition.Remastered)];
+                foreach ((string appId, GameDataEdition expectedEdition) in products)
                 {
                     string manifest = Path.Combine(steamApps.FullName, $"appmanifest_{appId}.acf");
                     if (!File.Exists(manifest))
@@ -44,7 +55,10 @@ public static class GamePlatformContextResolver
                     evidence.Add($"Steam appmanifest {appId}, selected installation matched");
                 }
             }
-            AddGogIdentity(directory, identities, evidence);
+            if (!ff7)
+            {
+                AddGogIdentity(directory, identities, evidence);
+            }
             if (identities.Count > 1 || classic && remastered)
             {
                 return Unknown("Conflicting installation identities or resource editions; external achievements are disabled.");

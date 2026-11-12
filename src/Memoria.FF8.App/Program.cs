@@ -8,16 +8,37 @@ internal static partial class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        Console.OutputEncoding = new UTF8Encoding(false);
+        using IDisposable? output = WorldProcessHandoff.RedirectOutput(args);
+        int result = Run(args);
+        WorldProcessHandoff.RecordExit(result);
+        return result;
+    }
+
+    private static int Run(string[] args)
+    {
 #if MEMORIA_VULKAN
         if (OperatingSystem.IsMacOS())
         {
             Environment.SetEnvironmentVariable("SDL_VULKAN_LIBRARY", Path.Combine(AppContext.BaseDirectory, "libMoltenVK.dylib"));
         }
 #endif
-        Console.OutputEncoding = new UTF8Encoding(false);
         Console.SetError(new ConsoleErrorWriter(Console.Error, !Console.IsErrorRedirected));
         try
         {
+            if (args.Length == 2 && args[0] == "--world-handoff")
+            {
+                using WorldProcessHandoff transfer = WorldProcessHandoff.Connect(args[1]);
+                LaunchOptions destination = transfer.Specification.Options;
+                Directory.SetCurrentDirectory(destination.GameDirectory);
+                SystemFontCatalog.PrepareAsync().GetAwaiter().GetResult();
+                Memoria.FF7.Runtime.CombinedSessionSave envelope;
+                using (FileStream save = File.OpenRead(destination.CrossoverStatePath!))
+                {
+                    envelope = Memoria.FF7.Runtime.CombinedSessionCodec.Read(save);
+                }
+                return RunCombined(destination, envelope, destination.MediaToolsDirectory ?? MediaToolsInstallation.ResolveDirectory(null));
+            }
             if (args.Length > 0 && args[0] == "--probe-steam-achievements")
             {
                 return SteamAchievementProbe.Run(args[1..]);

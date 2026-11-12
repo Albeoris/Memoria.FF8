@@ -7,6 +7,30 @@ namespace Memoria.FF8.App.Tests;
 public sealed class FocusPauseTests
 {
     [Fact]
+    public void Hidden_world_transfer_can_draw_and_activation_keeps_movies_paused()
+    {
+        using RecreateGame game = CreateGame();
+        WorldTransferPresentation transfer = new(null!, incoming: true, NoOperation, NoOperation, NoOperation, NoOperation);
+        FieldInfo field = typeof(RecreateGame).GetField("worldTransfer", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        field.SetValue(game, transfer);
+        try
+        {
+            game.SetWindowActive(false);
+            Assert.True((bool)Invoke(game, "BeginDraw")!);
+            game.SetWindowActive(true);
+            Assert.True(Get<bool>(game, "uiMovieSuspended"));
+        }
+        finally
+        {
+            field.SetValue(game, null);
+        }
+    }
+
+    private static void NoOperation()
+    {
+    }
+
+    [Fact]
     public void Closing_the_window_cannot_resume_disposed_outputs()
     {
         RecreateGame game = CreateGame();

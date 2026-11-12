@@ -42,6 +42,6 @@ internal sealed partial class Ff7Game
         mappingMenu?.Dispose();
         mappingMenu = null;
         scene.SuppressInitialPresses(ReadControlKeys());
-        scene.SetFocusPaused(!IsActive);
+        scene.SetFocusPaused(worldTransfer is not null || !IsActive);
     }
 }

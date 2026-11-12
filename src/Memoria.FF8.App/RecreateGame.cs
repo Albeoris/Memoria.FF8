@@ -111,6 +111,11 @@ internal sealed partial class RecreateGame : Game
         InactiveSleepTime = TimeSpan.Zero;
         Window.TextInput += OnTextInput;
         session.StateChanged += LogSessionState;
+        achievementsSuspended = WorldProcessHandoff.Current is not null;
+        if (achievementsSuspended)
+        {
+            windowMode = WindowModeController.PrepareTransferChild(Window, graphics);
+        }
         InitializeAchievements();
     }
 
@@ -154,6 +159,7 @@ internal sealed partial class RecreateGame : Game
         {
             StartEffectPreviewHost();
         }
+        PrepareIncomingWorldTransfer();
         Console.WriteLine($"graphics={GraphicsDevice.Adapter.Description} scene-renderer={(options.SoftwareRenderer ? "software-diagnostic" : "gpu")} cwd={Environment.CurrentDirectory}");
     }
 
@@ -164,6 +170,10 @@ internal sealed partial class RecreateGame : Game
 
     protected override void Update(GameTime gameTime)
     {
+        if (worldTransferIncoming && UpdateWorldTransfer(gameTime))
+        {
+            return;
+        }
         presentationTiming.BeginPresentationFrame(ActiveBattle, CanAdvanceBattleRenderPhase);
         SynchronizationContext.SetSynchronizationContext(dialogContext);
         dialogContext.Drain();
@@ -172,6 +182,10 @@ internal sealed partial class RecreateGame : Game
         if (authoringWorkspaceInitialized)
         {
             PollAuthoringWorkspace();
+        }
+        if (UpdateWorldTransfer(gameTime))
+        {
+            return;
         }
         // Keep launcher handoff and recovery responsive during native pickers and exit confirmation.
         updateControls?.Poll();
@@ -1022,7 +1036,6 @@ internal sealed partial class RecreateGame : Game
             ff7Scene?.Dispose();
             ff7Scene = prepared;
             crossover = saved;
-            suspendedFf8PayloadChanged = true;
             return;
         }
         Memoria.FF7.Runtime.CombinedSessionSave? savedCrossover = CrossoverSaveAdapter.ReadEnvelope(playerSaves.GetPath(slot));
@@ -1452,7 +1465,7 @@ internal sealed partial class RecreateGame : Game
         metrics.Render(renderMilliseconds, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
     }
 
-    protected override void Draw(GameTime gameTime)
+    private void DrawGameFrame(GameTime gameTime)
     {
         if (DrawCrossover(gameTime))
         {
@@ -1725,6 +1738,7 @@ internal sealed partial class RecreateGame : Game
             world?.Dispose();
             movieClock.Dispose();
             DisposeAchievements();
+            worldTransfer?.Dispose();
             DisposeDiagnosticBattleImage();
             diagnosticTelemetry?.Dispose();
             presentationPacer.Dispose();

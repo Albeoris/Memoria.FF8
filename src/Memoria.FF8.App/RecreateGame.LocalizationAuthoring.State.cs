@@ -20,6 +20,10 @@ internal sealed partial class RecreateGame
 
     private void InitializeAuthoringWorkspace()
     {
+        if (authoringWorkspaceInitialized || WorldProcessHandoff.Current is not null)
+        {
+            return;
+        }
         authoringWorkspaceInitialized = true;
         string path = AuthoringStatePath;
         authoringWorkspaceLoading = Task.Run(async () =>
@@ -114,7 +118,7 @@ internal sealed partial class RecreateGame
             authoringExitNeedsFinalSave = false;
             SaveAuthoringWorkspace();
         }
-        if (authoringWorkspaceLoading is null && authoringWorkspaceSaving is null && DateTime.UtcNow - authoringWorkspaceSavedAt >= TimeSpan.FromSeconds(2))
+        if (worldTransfer is null && authoringWorkspaceLoading is null && authoringWorkspaceSaving is null && DateTime.UtcNow - authoringWorkspaceSavedAt >= TimeSpan.FromSeconds(2))
         {
             SaveAuthoringWorkspace();
         }

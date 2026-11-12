@@ -68,8 +68,8 @@ internal sealed partial class RecreateGame
         presentationTiming.DiscardPendingTime();
         presentationPacer.Reset();
         ResetElapsedTime();
-        fieldAudio?.SetFocusPaused(pause || InFf7);
-        ff7Scene?.SetFocusPaused(pause || updateSave.Paused);
+        fieldAudio?.SetFocusPaused(worldTransfer is not null || pause || InFf7);
+        ff7Scene?.SetFocusPaused(worldTransfer is not null || pause || updateSave.Paused);
         SynchronizeUiMoviePause();
         controllerFeedback?.Update(session.State.VibrationProcess, false, keyboard.Profile.Controller.VibrationEnabled);
         if (!pause)
@@ -104,6 +104,6 @@ internal sealed partial class RecreateGame
 
     protected override bool BeginDraw()
     {
-        return !focusPaused && base.BeginDraw();
+        return (worldTransfer is not null || !focusPaused) && base.BeginDraw();
     }
 }

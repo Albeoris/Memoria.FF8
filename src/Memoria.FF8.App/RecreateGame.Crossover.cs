@@ -17,9 +17,6 @@ internal sealed partial class RecreateGame
     private GameAssets? crossoverAssets;
     private CrossoverMappingMenu? crossoverSetup;
     private CharacterAppearanceMapping[]? pendingCrossoverMappings;
-    private GameSession? suspendedFf8Session;
-    private GameWorld? suspendedFf8World;
-    private bool suspendedFf8PayloadChanged;
     private CombinedSessionSave? pendingMixedOriginResume;
     private bool InFf7 => crossover?.ActiveGame == SessionGame.Ff7;
 
@@ -135,7 +132,7 @@ internal sealed partial class RecreateGame
         crossoverSetup = null;
         pendingCrossoverMappings = null;
         ff7Scene?.SuppressInitialPresses(physicalInput.ReadKeyboard());
-        ff7Scene?.SetFocusPaused(focusPaused || updateSave.Paused);
+        ff7Scene?.SetFocusPaused(worldTransfer is not null || focusPaused || updateSave.Paused);
         keyboard.SuppressHeldUiInput();
         drainUiButtons = true;
     }
@@ -184,7 +181,6 @@ internal sealed partial class RecreateGame
             scene.MixedCombatSettled += saved =>
             {
                 crossover = saved;
-                suspendedFf8PayloadChanged = true;
             };
             scene.MixedOriginResumeRequested += saved => pendingMixedOriginResume = saved;
             return scene;
@@ -207,46 +203,20 @@ internal sealed partial class RecreateGame
         CombinedSessionSave current = crossover ?? new CombinedSessionSave { ActiveGame = SessionGame.Ff8, Ff8Payload = payload, Ff8PayloadFormat = CrossoverSaveAdapter.Ff8Codec };
         current = current with { Mappings = pendingCrossoverMappings ?? current.Mappings, TurnBasedBattle = null };
         WorldSwitch transaction = new(current);
-        Ff7Scene? prepared = null;
-        try
+        transaction.ToFf7(new(true), payload, CrossoverSaveAdapter.Ff8Codec, () =>
         {
-            transaction.ToFf7(new(true), payload, CrossoverSaveAdapter.Ff8Codec, () =>
-            {
-                using Ff7Session firstVisit = Ff7Session.NewGame(Ff7Installation.Discover(options.Ff7GameDirectory!));
-                return firstVisit.Capture();
-            }, target => prepared = PrepareFf7Scene(current with { ActiveGame = SessionGame.Ff7, Ff8Payload = payload, Ff8PayloadFormat = CrossoverSaveAdapter.Ff8Codec, Ff7 = target }));
-            prepared!.PrepareMappedCombatForSwitch();
-            CommitPreparedFf7Scene(prepared.Capture(), prepared);
-        }
-        catch
+            using Ff7Session firstVisit = Ff7Session.NewGame(Ff7Installation.Discover(options.Ff7GameDirectory!));
+            return firstVisit.Capture();
+        }, _ =>
         {
-            prepared?.Dispose();
-            throw;
-        }
-    }
-
-    private void CommitPreparedFf7Scene(CombinedSessionSave state, Ff7Scene prepared)
-    {
-        ff7Scene?.Dispose();
-        ff7Scene = prepared;
-        crossover = state;
-        suspendedFf8Session = session;
-        suspendedFf8World = world;
-        suspendedFf8PayloadChanged = false;
-        gameMenus?.Close();
-        fieldAudio?.SetFocusPaused(true);
-        Window.Title = "Memoria - Final Fantasy VII";
-        ResetElapsedTime();
+            // The destination process prepares resources before acknowledging readiness.
+        });
+        BeginWorldTransfer(transaction.State);
     }
 
     private GameState RestoreFf8Payload(CombinedSessionSave saved)
     {
-        GameplaySaveComponentDocument document = CrossoverSaveAdapter.ReadFf8(saved);
-        if (Ff7Scene.ReadBattleAtbMode(saved.TurnBasedBattle) is { } mode && document.Progression is { Rules: var rules } progression)
-        {
-            GameplayPreferences? pending = rules.PendingPreferences is { } preferences ? preferences with { AtbMode = mode } : null;
-            document = document with { Progression = progression with { Rules = rules with { Preferences = rules.Preferences with { AtbMode = mode }, PendingPreferences = pending } } };
-        }
+        GameplaySaveComponentDocument document = CrossoverSaveAdapter.ReadFf8ForResume(saved);
         return GameplaySaveSessionLoader.Restore(document, options.GameDirectory, world?.ValidationAssets, resourceHost!.Resources, resourceHost, () => resourceHost.GameplayPolicy, initialized => GameplaySaveGuardianForceDefinitions.Select(initialized, resourceHost));
     }
 
@@ -257,39 +227,8 @@ internal sealed partial class RecreateGame
             throw new InvalidOperationException("No combined game is active.");
         }
         WorldSwitch transaction = new(outgoing);
-        GameState? prepared = null;
-        transaction.ToFf8(new(ff7Scene?.CanSave == true), outgoing.Ff7!, (payload, codec) =>
-        {
-            CombinedSessionSave target = outgoing with { Ff8Payload = payload, Ff8PayloadFormat = codec };
-            CrossoverSaveAdapter.ReadFf8(target);
-            if (!suspendedFf8PayloadChanged && outgoing.TurnBasedBattle is null && (suspendedFf8Session is not null || suspendedFf8World is not null))
-            {
-                if (!ReferenceEquals(suspendedFf8Session, session) || !ReferenceEquals(suspendedFf8World, world))
-                {
-                    throw new InvalidOperationException("The suspended FFVIII session was replaced while its world was inactive.");
-                }
-            }
-            else
-            {
-                prepared = RestoreFf8Payload(target);
-                ValidatePlayerState(prepared);
-            }
-        });
-        if (prepared is not null)
-        {
-            RestorePlayerState(prepared);
-        }
-        crossover = transaction.State with { TurnBasedBattle = null };
-        ff7Scene?.Dispose();
-        ff7Scene = null;
-        suspendedFf8Session = null;
-        suspendedFf8World = null;
-        suspendedFf8PayloadChanged = false;
-        fieldAudio?.SetFocusPaused(false);
-        Window.Title = "Memoria - Final Fantasy VIII";
-        keyboard.SuppressHeldUiInput();
-        drainUiButtons = true;
-        ResetElapsedTime();
+        transaction.ToFf8(new(ff7Scene?.CanSave == true), outgoing.Ff7!, (payload, codec) => CrossoverSaveAdapter.ReadFf8(outgoing with { Ff8Payload = payload, Ff8PayloadFormat = codec }));
+        BeginWorldTransfer(transaction.State);
     }
 
     private void RestoreCrossover(CombinedSessionSave? saved, Ff7Scene? prepared = null)
@@ -298,9 +237,6 @@ internal sealed partial class RecreateGame
         ff7Scene?.Dispose();
         ff7Scene = prepared;
         crossover = saved;
-        suspendedFf8Session = null;
-        suspendedFf8World = null;
-        suspendedFf8PayloadChanged = false;
         fieldAudio?.SetFocusPaused(InFf7);
         Window.Title = InFf7 ? "Memoria - Final Fantasy VII" : "Memoria - Final Fantasy VIII";
     }
@@ -317,6 +253,10 @@ internal sealed partial class RecreateGame
 
     private bool UpdateCrossover(GameTime time)
     {
+        if (InFf7)
+        {
+            UpdateAchievements();
+        }
         if (InFf7 || crossoverSetup is not null)
         {
             controls?.Poll();
@@ -381,20 +321,7 @@ internal sealed partial class RecreateGame
 
     private void ResumeFf8AfterMixedDefeat(CombinedSessionSave saved)
     {
-        GameState restored = RestoreFf8Payload(saved);
-        ValidatePlayerState(restored);
-        RestorePlayerState(restored);
-        crossover = saved with { ActiveGame = SessionGame.Ff8, TurnBasedBattle = null };
-        ff7Scene?.Dispose();
-        ff7Scene = null;
-        suspendedFf8Session = null;
-        suspendedFf8World = null;
-        suspendedFf8PayloadChanged = false;
-        fieldAudio?.SetFocusPaused(false);
-        Window.Title = "Memoria - Final Fantasy VIII";
-        keyboard.SuppressHeldUiInput();
-        drainUiButtons = true;
-        ResetElapsedTime();
+        BeginWorldTransfer(saved with { ActiveGame = SessionGame.Ff8 });
     }
 
     private bool DrawCrossover(GameTime time)

@@ -880,7 +880,7 @@ internal sealed partial class RecreateGame
 
     private void SynchronizeUiMoviePause()
     {
-        bool pause = focusPaused || userPaused || updateSave.Paused || gameMenus?.IsOpen == true || drainUiButtons || battleDebug is not null || debugBattle is not null || sceneInspector is not null || modelBrowser is not null || localizationWorkbench.CapturesSimulation || authoringCandidates is not null;
+        bool pause = worldTransfer is not null || focusPaused || userPaused || updateSave.Paused || gameMenus?.IsOpen == true || drainUiButtons || battleDebug is not null || debugBattle is not null || sceneInspector is not null || modelBrowser is not null || localizationWorkbench.CapturesSimulation || authoringCandidates is not null;
         fieldAudio?.SetVoicePresentationPaused(pause);
         if (pause && !uiMovieSuspended)
         {

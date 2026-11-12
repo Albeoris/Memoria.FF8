@@ -35,10 +35,10 @@ internal sealed partial class Ff7Game : Game
     private readonly PresentationPacer presentationPacer = new();
     private int updateFrames;
     private bool frameCaptured;
-    private readonly Func<CombinedSessionSave, PreparedCrossover>? prepareCrossover;
-    public PreparedCrossover? RequestedCrossover { get; private set; }
+    private WorldTransferPresentation? worldTransfer;
+    private Texture2D? transferPixel;
 
-    public Ff7Game(Ff7Installation installation, string mediaToolsDirectory, string savePath, Ff7ProjectionDepth projection, Func<int, Ff7MovieSource> resolveMovie, CombinedSessionSave? envelope = null, IFf7ActorAppearance? appearance = null, LaunchOptions? launchOptions = null, Func<CombinedSessionSave, PreparedCrossover>? prepareCrossover = null)
+    public Ff7Game(Ff7Installation installation, string mediaToolsDirectory, string savePath, Ff7ProjectionDepth projection, Func<int, Ff7MovieSource> resolveMovie, CombinedSessionSave? envelope = null, IFf7ActorAppearance? appearance = null, LaunchOptions? launchOptions = null)
     {
         this.installation = installation;
         this.mediaToolsDirectory = mediaToolsDirectory;
@@ -48,7 +48,6 @@ internal sealed partial class Ff7Game : Game
         initialEnvelope = envelope;
         this.launchOptions = launchOptions;
         this.appearance = appearance;
-        this.prepareCrossover = prepareCrossover;
         initialPresentationPreferences = UiPreferences.Load(new GlobalSettingsPaths(isolatedDirectory: launchOptions?.SettingsDirectory).UiPreferencesPath);
         appliedMsaaSamples = initialPresentationPreferences.Graphics.MsaaSamples;
         graphics = GraphicsDeviceSettings.Create(this, initialPresentationPreferences, launchOptions, () => scene?.PresentationPreferences ?? initialPresentationPreferences);
@@ -57,6 +56,7 @@ internal sealed partial class Ff7Game : Game
         IsMouseVisible = true;
         IsFixedTimeStep = false;
         InactiveSleepTime = TimeSpan.Zero;
+        InitializePlatform();
     }
 
     protected override void Initialize()
@@ -120,13 +120,44 @@ internal sealed partial class Ff7Game : Game
 
     private void RequestCrossover(CombinedSessionSave saved)
     {
-        PreparedCrossover prepared = (prepareCrossover ?? throw new InvalidOperationException("Combined continuation preparation is unavailable."))(saved);
-        RequestedCrossover = prepared;
-        Exit();
+        saved.Validate();
+        if (launchOptions is null)
+        {
+            throw new InvalidOperationException("World transfer requires game launch options.");
+        }
+        if (worldTransfer is not null)
+        {
+            throw new InvalidOperationException("A world transfer is already in progress.");
+        }
+        WorldProcessHandoff transfer = WorldProcessHandoff.Start(launchOptions! with { MediaToolsDirectory = mediaToolsDirectory }, saved, windowMode!.CaptureTransfer());
+        worldTransfer = new WorldTransferPresentation(transfer, incoming: false, DisposePlatform, static () =>
+        {
+        }, static () =>
+        {
+        }, Exit);
+        scene.SetFocusPaused(true);
     }
 
     protected override void Update(GameTime gameTime)
     {
+        if (worldTransfer is not null)
+        {
+            try
+            {
+                worldTransfer.Update(gameTime.ElapsedGameTime);
+            }
+            catch (Exception failure) when (!worldTransfer.Committed && failure is IOException or InvalidOperationException or OperationCanceledException)
+            {
+                worldTransfer.Dispose();
+                worldTransfer = null;
+                scene.ShowNotice("World transfer failed: " + failure.Message, 8);
+                scene.SetFocusPaused(!IsActive);
+                ResetElapsedTime();
+            }
+            presentationPacer.WaitForNextFrame(60);
+            return;
+        }
+        PumpPlatform();
         updateControls?.Poll();
         controls?.Poll();
         UpdateWindowModeHotkey(launchOptions?.AcceptsPhysicalInput == false ? default : Keyboard.GetState(), IsActive);
@@ -173,6 +204,20 @@ internal sealed partial class Ff7Game : Game
 
     protected override void Draw(GameTime gameTime)
     {
+        DrawGameFrame(gameTime);
+        if (worldTransfer is not null)
+        {
+            if (transferPixel is null)
+            {
+                transferPixel = new Texture2D(GraphicsDevice, 1, 1);
+                transferPixel.SetData([Color.White]);
+            }
+            worldTransfer.Draw(batch, transferPixel, GraphicsDevice.Viewport.Bounds);
+        }
+    }
+
+    private void DrawGameFrame(GameTime gameTime)
+    {
         if (Window.Title != scene.LocationWindowTitle)
         {
             Window.Title = scene.LocationWindowTitle;
@@ -202,6 +247,9 @@ internal sealed partial class Ff7Game : Game
 
     protected override void UnloadContent()
     {
+        DisposePlatform();
+        worldTransfer?.Dispose();
+        transferPixel?.Dispose();
         presentationPacer.Dispose();
 #if MEMORIA_NATIVE
         nativeBackBuffer?.Dispose();

@@ -23,6 +23,17 @@ internal static class CrossoverSaveAdapter
         return GameplaySaveCodec.Read(source);
     }
 
+    internal static GameplaySaveComponentDocument ReadFf8ForResume(CombinedSessionSave save)
+    {
+        GameplaySaveComponentDocument document = ReadFf8(save);
+        if (Ff7Scene.ReadBattleAtbMode(save.TurnBasedBattle) is { } mode && document.Progression is { Rules: var rules } progression)
+        {
+            GameplayPreferences? pending = rules.PendingPreferences is { } preferences ? preferences with { AtbMode = mode } : null;
+            document = document with { Progression = progression with { Rules = rules with { Preferences = rules.Preferences with { AtbMode = mode }, PendingPreferences = pending } } };
+        }
+        return document;
+    }
+
     internal static void EnsureOriginalExportAllowed(string path)
     {
         if (ReadEnvelope(path) is not null)

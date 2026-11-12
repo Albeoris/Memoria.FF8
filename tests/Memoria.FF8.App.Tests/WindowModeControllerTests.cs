@@ -1,4 +1,5 @@
 using System.Runtime.ExceptionServices;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using Microsoft.Xna.Framework;
 
@@ -7,6 +8,72 @@ namespace Memoria.FF8.App.Tests;
 [Collection("GPU rendering")]
 public sealed class WindowModeControllerTests
 {
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void Transfer_restores_geometry_and_saved_windowed_placement(bool borderless, bool maximized)
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows window geometry requires Windows.");
+        Assert.SkipUnless(Environment.GetEnvironmentVariable("MEMORIA_FF8_WINDOW_MODE_TEST") == "1", "Set MEMORIA_FF8_WINDOW_MODE_TEST=1 to run the visible window mode check.");
+        Exception? failure = null;
+        Thread thread = new(() =>
+        {
+            try
+            {
+                Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException, threadScope: true);
+                using Game source = new();
+                using GraphicsDeviceManager sourceGraphics = new(source);
+                source.RunOneFrame();
+                Form sourceForm = (Form)Control.FromHandle(source.Window.Handle)!;
+                source.Window.AllowUserResizing = true;
+                sourceForm.Bounds = new System.Drawing.Rectangle(90, 110, 820, 640);
+                sourceForm.Show();
+                if (maximized)
+                {
+                    sourceForm.WindowState = FormWindowState.Maximized;
+                }
+                System.Drawing.Rectangle windowedBounds = maximized ? sourceForm.RestoreBounds : sourceForm.Bounds;
+                WindowModeController sourceController = new(WindowModeController.CreatePlatform(source.Window, sourceGraphics));
+                sourceController.Apply(borderless);
+                WindowTransferState state = sourceController.CaptureTransfer();
+
+                using Game child = new();
+                using GraphicsDeviceManager childGraphics = new(child);
+                WindowModeController childController = WindowModeController.PrepareTransferChild(child.Window, childGraphics);
+                child.RunOneFrame();
+                Form childForm = (Form)Control.FromHandle(child.Window.Handle)!;
+                child.Window.AllowUserResizing = true;
+                Assert.False(IsWindowVisible(child.Window.Handle));
+                childController.RestoreTransfer(state);
+                Assert.False(IsWindowVisible(child.Window.Handle));
+                childController.RevealTransferChild();
+
+                Assert.Equal(sourceForm.Bounds, childForm.Bounds);
+                Assert.Equal(sourceForm.WindowState, childForm.WindowState);
+                Assert.Equal(state.ClientWidth, childForm.ClientSize.Width);
+                Assert.Equal(state.ClientHeight, childForm.ClientSize.Height);
+                Assert.Equal(state.BackBufferWidth, child.GraphicsDevice.PresentationParameters.BackBufferWidth);
+                Assert.Equal(state.BackBufferHeight, child.GraphicsDevice.PresentationParameters.BackBufferHeight);
+                childController.Apply(false);
+                Assert.Equal(maximized ? FormWindowState.Maximized : FormWindowState.Normal, childForm.WindowState);
+                Assert.Equal(windowedBounds, maximized ? childForm.RestoreBounds : childForm.Bounds);
+            }
+            catch (Exception exception)
+            {
+                failure = exception;
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        Assert.True(thread.Join(TimeSpan.FromSeconds(30)), "Window transfer check timed out.");
+        if (failure is not null)
+        {
+            ExceptionDispatchInfo.Capture(failure).Throw();
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -63,4 +130,8 @@ public sealed class WindowModeControllerTests
             ExceptionDispatchInfo.Capture(failure).Throw();
         }
     }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool IsWindowVisible(nint window);
 }

@@ -45,20 +45,17 @@ public sealed class Ff7HostLifecycleTests : IDisposable
     }
 
     [Fact]
-    public void Failed_combined_preparation_keeps_current_host_and_requested_state()
+    public void Invalid_combined_save_keeps_current_host_without_starting_transfer()
     {
         Ff7Game game = (Ff7Game)RuntimeHelpers.GetUninitializedObject(typeof(Ff7Game));
-        CombinedSessionSave candidate = new();
-        Func<CombinedSessionSave, PreparedCrossover> prepare = saved =>
-        {
-            Assert.Same(candidate, saved);
-            throw new NotSupportedException("Unsupported inactive world");
-        };
-        typeof(Ff7Game).GetField("prepareCrossover", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(game, prepare);
+        CombinedSessionSave candidate = new() { Version = 0 };
         MethodInfo request = typeof(Ff7Game).GetMethod("RequestCrossover", BindingFlags.NonPublic | BindingFlags.Instance)!;
+
         TargetInvocationException exception = Assert.Throws<TargetInvocationException>(() => request.Invoke(game, [candidate]));
-        Assert.IsType<NotSupportedException>(exception.InnerException);
-        Assert.Null(game.RequestedCrossover);
+
+        Assert.IsType<InvalidDataException>(exception.InnerException);
+        Assert.Null(typeof(Ff7Game).GetField("worldTransfer", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(game));
+        Assert.Null(WorldProcessHandoff.Current);
     }
 
     public void Dispose()

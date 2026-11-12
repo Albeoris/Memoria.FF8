@@ -1,5 +1,6 @@
 using Memoria.FF8.Resources;
 using Memoria.FF8.Runtime;
+using Memoria.FF7.Runtime;
 
 namespace Memoria.FF8;
 
@@ -14,11 +15,42 @@ internal sealed partial class RecreateGame
     private string? isolatedAchievementDirectory;
     private bool observeOriginalAchievements;
     private DateTime nextOriginalAchievementObservation;
+    private bool achievementsSuspended;
+    private bool achievementsDisposed;
+    private SteamPlatformSession? platformSession;
+    private bool achievementWorldIsFf7;
+
+    internal static SessionGame ReadAchievementGame(LaunchOptions options, CombinedSessionSave? initialCrossover)
+    {
+        CombinedSessionSave? saved = initialCrossover;
+        string? path = options.CrossoverStatePath ?? options.StatePath;
+        if (saved is null && path is not null)
+        {
+            saved = CrossoverSaveAdapter.ReadEnvelope(path);
+        }
+        return saved?.ActiveGame ?? (options.Ff7Debug ? SessionGame.Ff7 : SessionGame.Ff8);
+    }
 
     private void InitializeAchievements()
     {
-        GamePlatformContext context = GamePlatformContextResolver.Resolve(string.IsNullOrWhiteSpace(options.GameDirectory) ? Environment.CurrentDirectory : options.GameDirectory, options.AchievementsLocalOnly || achievementToolSession);
+        if (achievementsSuspended || achievementsDisposed || achievements is not null || platformSession is not null)
+        {
+            return;
+        }
+        achievementWorldIsFf7 = ReadAchievementGame(options, initialCrossover) == SessionGame.Ff7;
+        GamePlatformContext context = achievementWorldIsFf7
+            ? GamePlatformContextResolver.ResolveFf7(options.Ff7GameDirectory ?? throw new InvalidOperationException("Select a FINAL FANTASY VII installation before initializing its platform session."), options.AchievementsLocalOnly || achievementToolSession)
+            : GamePlatformContextResolver.Resolve(string.IsNullOrWhiteSpace(options.GameDirectory) ? Environment.CurrentDirectory : options.GameDirectory, options.AchievementsLocalOnly || achievementToolSession);
         Console.WriteLine($"achievements provider={context.Provider} product={context.ProductId ?? "unknown"} transport={context.Transport} diagnostic={context.Diagnostic}");
+        if (achievementWorldIsFf7)
+        {
+            if (context.CanInitializeExternalBackend && context.Provider == GameDistributionProvider.Steam)
+            {
+                platformSession = new SteamPlatformSession(Path.Combine(Memoria.FF8.Platform.ApplicationInstallation.DataDirectory, "Steam", "steam_api64.dll"), context.ProductId!);
+                Console.WriteLine($"platform product={context.ProductId} diagnostic={platformSession.Diagnostic}");
+            }
+            return;
+        }
         string directory = Path.Combine(globalSettings.DirectoryPath, "achievements");
         if (achievementToolSession)
         {
@@ -51,6 +83,15 @@ internal sealed partial class RecreateGame
 
     private void UpdateAchievements(bool force = false)
     {
+        if (achievementsSuspended || achievementsDisposed)
+        {
+            return;
+        }
+        if (achievementWorldIsFf7)
+        {
+            platformSession?.Pump();
+            return;
+        }
         if (achievements is null)
         {
             if (!force && DateTime.UtcNow < nextAchievementRetry)
@@ -136,10 +177,32 @@ internal sealed partial class RecreateGame
 
     private void DisposeAchievements()
     {
-        UpdateAchievements(force: true);
-        session.CaptureAchievementOwner = null;
-        achievements?.Dispose();
-        achievements = null;
+        if (achievementsDisposed)
+        {
+            return;
+        }
+        try
+        {
+            if (achievements is not null)
+            {
+                UpdateAchievements(force: true);
+            }
+        }
+        finally
+        {
+            achievementsDisposed = true;
+            session.CaptureAchievementOwner = null;
+            try
+            {
+                achievements?.Dispose();
+            }
+            finally
+            {
+                achievements = null;
+                platformSession?.Dispose();
+                platformSession = null;
+            }
+        }
     }
 
     private void EnterAchievementToolSession()
@@ -154,6 +217,7 @@ internal sealed partial class RecreateGame
             throw new IOException("Player achievement receipts must be saved before starting an isolated diagnostic session.");
         }
         DisposeAchievements();
+        achievementsDisposed = false;
         achievementToolSession = true;
         isolatedAchievementDirectory = null;
         InitializeAchievements();

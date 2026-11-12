@@ -213,6 +213,76 @@ public sealed class GraphicsDispatcherTests : IDisposable
         Assert.Equal(37, receipt.RootElement.GetProperty("exitCode").GetInt32());
     }
 
+    [Fact]
+    public async Task WorldSuccessorKeepsDispatcherAliveAfterItsPredecessorExitsAndPreservesOutput()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows successor process ownership regression.");
+        string marker = Path.Combine(directory, "successor-running.json");
+        string finish = Path.Combine(directory, "finish-successor");
+        string script = WriteSuccessorScript();
+        using StringWriter output = new();
+        using StringWriter error = new();
+        Task<int> run = RunAsync(GraphicsBackend.Vulkan, backend => WorldParent(backend, script, marker, finish), output, error);
+        try
+        {
+            await WaitForFileAsync(marker, run);
+            using JsonDocument state = JsonDocument.Parse(File.ReadAllText(marker));
+            await AssertExitedAsync(state.RootElement.GetProperty("parent").GetInt32());
+            Assert.False(run.IsCompleted, "The launcher must keep waiting while the replacement game is running.");
+            Assert.Contains("World transfer: following game host", output.ToString());
+            File.WriteAllText(finish, "finish");
+            Assert.Equal(29, await run.WaitAsync(TimeSpan.FromSeconds(15), TestContext.Current.CancellationToken));
+            Assert.Contains("successor stdout", output.ToString());
+            Assert.Contains("雪", output.ToString());
+            Assert.DoesNotContain("\ufffd", output.ToString());
+            Assert.Contains("successor stderr", error.ToString());
+            Assert.Equal(29, Assert.Single(Assert.Single(failures).Attempts).ExitCode);
+            Assert.Empty(Directory.GetFiles(Path.Combine(directory, "diagnostics"), "*.stdout.log", SearchOption.AllDirectories));
+            Assert.Empty(Directory.GetFiles(Path.Combine(directory, "diagnostics"), "*.stderr.log", SearchOption.AllDirectories));
+            string successors = Assert.Single(Directory.GetDirectories(Path.Combine(directory, "diagnostics"), "successors", SearchOption.AllDirectories));
+            Assert.Empty(Directory.GetFiles(successors));
+        }
+        finally
+        {
+            File.WriteAllText(finish, "finish");
+            await run.WaitAsync(TimeSpan.FromSeconds(15), TestContext.Current.CancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task CancellationAfterWorldHandoffStopsTheSuccessor()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows successor process ownership regression.");
+        string marker = Path.Combine(directory, "successor-cancel.json");
+        string finish = Path.Combine(directory, "finish-cancel");
+        string script = WriteSuccessorScript();
+        using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        using StringWriter output = new();
+        using StringWriter error = new();
+        Task<int> run = GraphicsDispatcher.RunAsync(directory, ["--graphics-backend", "Vulkan"], output, error, cancellation.Token, backend => WorldParent(backend, script, marker, finish), TimeSpan.FromSeconds(15), failures.Add);
+        try
+        {
+            await WaitForFileAsync(marker, run);
+            using JsonDocument state = JsonDocument.Parse(File.ReadAllText(marker));
+            cancellation.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(15), TestContext.Current.CancellationToken));
+            await AssertExitedAsync(state.RootElement.GetProperty("child").GetInt32());
+        }
+        finally
+        {
+            cancellation.Cancel();
+            File.WriteAllText(finish, "finish");
+            try
+            {
+                await run.WaitAsync(TimeSpan.FromSeconds(15), CancellationToken.None);
+            }
+            catch (OperationCanceledException)
+            {
+                // Dispatcher cancellation is expected after owned successors have stopped.
+            }
+        }
+    }
+
     [Theory]
     [InlineData("processId", "0")]
     [InlineData("backend", "'Direct3D12'")]
@@ -373,6 +443,83 @@ public sealed class GraphicsDispatcherTests : IDisposable
             start.ArgumentList.Add(argument);
         }
         return start;
+    }
+
+    private ProcessStartInfo WorldParent(GraphicsBackend backend, string successorScript, string marker, string finish)
+    {
+        ProcessStartInfo start = Child(backend, ReadyScript + "\n" + """
+            $start = [Diagnostics.ProcessStartInfo]::new('pwsh')
+            $start.UseShellExecute = $false
+            $start.CreateNoWindow = $true
+            foreach ($argument in @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', $env:MEMORIA_TEST_SUCCESSOR_SCRIPT, '-Parent', "$PID"))
+            {
+                $start.ArgumentList.Add($argument)
+            }
+            $child = [Diagnostics.Process]::Start($start)
+            $request = Join-Path $env:MEMORIA_FF8_HOST_SUCCESSOR_DIRECTORY "$PID.json"
+            $accepted = Join-Path $env:MEMORIA_FF8_HOST_SUCCESSOR_DIRECTORY "$PID.accepted.json"
+            $receipt = @{schemaVersion=1; processId=$PID; processStarted=([Diagnostics.Process]::GetCurrentProcess().StartTime.ToUniversalTime().Ticks); token=$env:MEMORIA_FF8_HOST_SUCCESSOR_TOKEN; successorProcessId=$child.Id; successorStarted=$child.StartTime.ToUniversalTime().Ticks}
+            [IO.File]::WriteAllText($request + '.tmp', ($receipt | ConvertTo-Json -Compress))
+            [IO.File]::Move($request + '.tmp', $request)
+            while (!(Test-Path -LiteralPath $accepted))
+            {
+                Start-Sleep -Milliseconds 10
+            }
+            exit 0
+            """);
+        start.Environment["MEMORIA_TEST_SUCCESSOR_SCRIPT"] = successorScript;
+        start.Environment["MEMORIA_TEST_SUCCESSOR_MARKER"] = marker;
+        start.Environment["MEMORIA_TEST_SUCCESSOR_FINISH"] = finish;
+        return start;
+    }
+
+    private string WriteSuccessorScript()
+    {
+        string path = Path.Combine(directory, "successor.ps1");
+        File.WriteAllText(path, """
+            param([int] $Parent)
+            $ErrorActionPreference = 'Stop'
+            $outputPath = Join-Path $env:MEMORIA_FF8_HOST_SUCCESSOR_DIRECTORY "$PID.stdout.log"
+            $errorPath = Join-Path $env:MEMORIA_FF8_HOST_SUCCESSOR_DIRECTORY "$PID.stderr.log"
+            [IO.File]::WriteAllText($outputPath, '')
+            [IO.File]::WriteAllText($errorPath, '')
+            try
+            {
+                [Diagnostics.Process]::GetProcessById($Parent).WaitForExit()
+            }
+            catch [ArgumentException]
+            {
+            }
+            $state = @{parent=$Parent; child=$PID} | ConvertTo-Json -Compress
+            [IO.File]::WriteAllText($env:MEMORIA_TEST_SUCCESSOR_MARKER + '.tmp', $state)
+            [IO.File]::Move($env:MEMORIA_TEST_SUCCESSOR_MARKER + '.tmp', $env:MEMORIA_TEST_SUCCESSOR_MARKER)
+            [IO.File]::AppendAllText($outputPath, "successor stdout`n")
+            [IO.File]::AppendAllText($errorPath, "successor stderr`n")
+            $unicode = [Text.Encoding]::UTF8.GetBytes('雪')
+            $stream = [IO.FileStream]::new($outputPath, [IO.FileMode]::Append, [IO.FileAccess]::Write, ([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
+            $stream.Write($unicode, 0, 1)
+            $stream.Flush()
+            Start-Sleep -Milliseconds 150
+            $stream.Write($unicode, 1, 2)
+            $stream.Flush()
+            $stream.Dispose()
+            while (!(Test-Path -LiteralPath $env:MEMORIA_TEST_SUCCESSOR_FINISH))
+            {
+                Start-Sleep -Milliseconds 20
+            }
+            exit 29
+            """);
+        return path;
+    }
+
+    private static async Task WaitForFileAsync(string path, Task run)
+    {
+        Stopwatch timer = Stopwatch.StartNew();
+        while (!File.Exists(path) && !run.IsCompleted && timer.Elapsed < TimeSpan.FromSeconds(15))
+        {
+            await Task.Delay(25, TestContext.Current.CancellationToken);
+        }
+        Assert.True(File.Exists(path), "The replacement host must run after its predecessor has exited.");
     }
 
     private static async Task AssertExitedAsync(int processId)
