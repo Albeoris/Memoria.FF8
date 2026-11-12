@@ -272,6 +272,10 @@ public sealed partial class BattleSession
 
     private int NextRandomByte()
     {
+        if (presentationForeignActors is not null)
+        {
+            throw new NotSupportedException("The selected presentation requires a native combat random operation that belongs to the encounter host.");
+        }
         random = random.Draw(out byte value);
         return value;
     }

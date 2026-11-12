@@ -205,6 +205,10 @@ public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDr
             Error += Environment.NewLine + "Checkpoint capture; retained the last safe native boundary: " + captureError;
             Running = false;
         }
+        if (snapshot.Battle is not null || snapshot.Process.GlobalCommand == Ff7GlobalCommand.Battle)
+        {
+            return;
+        }
         checkpoint?.Invoke(snapshot);
     }
 

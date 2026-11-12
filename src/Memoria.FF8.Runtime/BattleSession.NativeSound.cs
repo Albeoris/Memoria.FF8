@@ -6,6 +6,11 @@ public sealed partial class BattleSession
 
     private void PublishNativeModuleSound(NativeBattleModuleSound sound, string? actorId = null, NativeBattleSequenceSound? sequence = null)
     {
+        if (presentationForeignActors is not null)
+        {
+            presentationSounds.Add(sound);
+            return;
+        }
         //46B2A0 writes the global original-ID slot before4699A0 can reject output.
         //The declared bufferless process owns allocation; host device availability is not simulation state.
         (NativeGlobalSoundProcess process, NativeBattleModuleSound committed) = sound.Commit46B2A0(NativeGlobalSoundProcess);

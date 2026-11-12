@@ -15,9 +15,9 @@ internal static class CrossoverNativeCastPresentation
 {
     public static CrossoverNativeCastState Begin(NativeBattleGraphicsModel model, NativeBattleGraphicsResource resource, ImmutableArray<byte> commandSequences, byte command)
     {
-        if (command is not (2 or 4 or 5) || model is not { Index: 0, ModelId4: >= 0 and <= 10 } || (model.Flags0 & 2) == 0 || commandSequences.Length != 39 || !resource.Contains(commandSequences[command]))
+        if (command >= commandSequences.Length || model is not { Index: 0, ModelId4: >= 0 and <= 10 } || (model.Flags0 & 2) == 0 || commandSequences.Length != 39 || !resource.Contains(commandSequences[command]))
         {
-            throw new InvalidDataException("Mixed casting requires a loaded original FFVIII character and a native Magic, Item or Limit sequence.");
+            throw new InvalidDataException("Mixed casting requires a loaded original FFVIII character and its original command sequence.");
         }
         NativeBattlePoseSource pose = resource.PoseSource ?? throw new InvalidDataException("Mixed casting requires the original character skeleton.");
         NativeBattleModelTransform transform = model.Transform ?? throw new InvalidDataException("Mixed casting requires the original character transform.");

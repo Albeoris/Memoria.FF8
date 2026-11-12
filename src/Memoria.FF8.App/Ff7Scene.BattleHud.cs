@@ -11,7 +11,7 @@ namespace Memoria.FF8;
 
 internal sealed partial class Ff7Scene
 {
-    private readonly record struct BattleChoiceRow(string Name, string Value = "");
+    internal readonly record struct BattleChoiceRow(string Name, string Value = "", bool Unsupported = false);
 
     private void DrawBattle(Rectangle bounds, Rectangle sceneBounds, Ff7BattleSession battle)
     {
@@ -41,17 +41,21 @@ internal sealed partial class Ff7Scene
             else if (battleCommandPage is { } page)
             {
                 bool guest = IsMixedBattleSlot(ready);
-                BattleChoiceRow[] actions = commands.Where(option => option.Command == page).Select(option => new BattleChoiceRow(CommandName(option, ready), BattleCommandValue(option, guest))).ToArray();
-                DrawBattleChoices(canvas, theme, layout, textScale, page.ToString().ToUpperInvariant(), actions, battleActionIndex, page == Ff7BattleCommand.Magic);
+                BattleChoiceRow[] actions = commands.Where(option => BattleCategory(option) == page).Select(option => new BattleChoiceRow(CommandName(option, ready), BattleCommandValue(option, guest), option.UnsupportedReason is not null)).ToArray();
+                DrawBattleChoices(canvas, theme, layout, textScale, page.Name.ToUpperInvariant(), actions, battleActionIndex, page.Command == Ff7BattleCommand.Magic);
             }
             else
             {
-                BattleChoiceRow[] categories = commands.GroupBy(option => option.Command).Select(group => new BattleChoiceRow(group.Key == Ff7BattleCommand.Limit && group.Count() == 1 ? CommandName(group.First(), ready) : group.Key.ToString())).ToArray();
+                BattleChoiceRow[] categories = commands.GroupBy(BattleCategory).Select(group => new BattleChoiceRow(group.Key.Command == Ff7BattleCommand.Limit && group.Count() == 1 ? CommandName(group.First(), ready) : group.Key.Name, Unsupported: group.All(option => option.UnsupportedReason is not null))).ToArray();
                 DrawBattleChoices(canvas, theme, layout, textScale, "COMMAND", categories, battleCommandIndex);
             }
         }
         DrawBattleMessage(canvas, theme, layout, textScale, battle);
         DrawBattleDamage(canvas, theme, layout.Scale * textScale, sceneBounds, battle);
+        if (unavailableBattleCommand is { } unavailable)
+        {
+            DrawBattleUnsupportedAbility(canvas, theme, layout, textScale, unavailable);
+        }
     }
 
     internal static string BattleCommandValue(Ff7BattleCommandOption option, bool guest)
@@ -93,7 +97,7 @@ internal sealed partial class Ff7Scene
         }
     }
 
-    private static void DrawBattleChoices(IUiCanvas canvas, UiTheme theme, BattleHudLayout layout, float textScale, string caption, IReadOnlyList<BattleChoiceRow> choices, int selected, bool magic = false)
+    internal static void DrawBattleChoices(IUiCanvas canvas, UiTheme theme, BattleHudLayout layout, float textScale, string caption, IReadOnlyList<BattleChoiceRow> choices, int selected, bool magic = false)
     {
         if (choices.Count == 0)
         {
@@ -138,11 +142,12 @@ internal sealed partial class Ff7Scene
             {
                 layout.DrawCommandPointer(canvas, theme, x, y);
             }
+            UiColor color = choices[index].Unsupported ? new(255, 80, 80) : theme.Foreground;
             UiRect name = layout.Rect(x + 30, y, columnWidth - 38 - valueWidth - valueGap, rowHeight);
             canvas.PushClip(name);
             try
             {
-                canvas.Text(choices[index].Name, fontSize * scale, name, theme.Foreground, UiAlignment.Start, UiTextFlow.SingleLine);
+                canvas.Text(choices[index].Name, fontSize * scale, name, color, UiAlignment.Start, UiTextFlow.SingleLine);
             }
             finally
             {
@@ -150,9 +155,25 @@ internal sealed partial class Ff7Scene
             }
             if (choices[index].Value.Length > 0)
             {
-                canvas.AlignedText(choices[index].Value, fontSize * scale, layout.Rect(x + columnWidth - valueWidth - 8, y, valueWidth, rowHeight), theme.Foreground, UiAlignment.End);
+                canvas.AlignedText(choices[index].Value, fontSize * scale, layout.Rect(x + columnWidth - valueWidth - 8, y, valueWidth, rowHeight), color, UiAlignment.End);
             }
         }
+    }
+
+    internal static void DrawBattleUnsupportedAbility(IUiCanvas canvas, UiTheme theme, BattleHudLayout layout, float textScale, Ff7BattleCommandOption option)
+    {
+        float scale = layout.Scale;
+        float fontSize = 22 * scale * textScale;
+        float width = 704 * scale;
+        string reason = option.UnsupportedReason ?? throw new ArgumentException("An unavailable ability requires a reason.", nameof(option));
+        float reasonHeight = canvas.MeasureText(reason, fontSize, width).Height;
+        float hintHeight = canvas.MeasureText("Confirm or Cancel to return", fontSize, width).Height;
+        float height = (reasonHeight + hintHeight) / scale + 80;
+        float y = (672 - height) / 2;
+        canvas.Fill(layout.Bounds, new(0, 0, 0, 160));
+        theme.Panel(canvas, layout.Rect(112, y, 736, height), option.DisplayName ?? "Ability unavailable", UiTheme.DefaultCaptionFontSize * scale * textScale);
+        canvas.Text(reason, fontSize, layout.Rect(128, y + 42, 704, reasonHeight / scale), new(255, 80, 80), UiAlignment.Start, UiTextFlow.Wrap);
+        canvas.Text("Confirm or Cancel to return", fontSize, layout.Rect(128, y + height - hintHeight / scale - 14, 704, hintHeight / scale), theme.Foreground);
     }
 
     private void DrawBattleTargets(IUiCanvas canvas, UiTheme theme, BattleHudLayout layout, float textScale, Ff7BattleSession battle, int ready, Ff7BattleCommandOption action)

@@ -340,6 +340,11 @@ public static class CombinedSessionCodec
 
     public static void Save(string path, CombinedSessionSave save)
     {
+        ArgumentNullException.ThrowIfNull(save);
+        if (save.Ff7 is { } ff7 && (ff7.Battle is not null || ff7.Process?.GlobalCommand == Ff7GlobalCommand.Battle))
+        {
+            throw new InvalidOperationException("Finish the current FFVII battle before saving.");
+        }
         string fullPath = Path.GetFullPath(path);
         Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
         string temporary = fullPath + "." + Guid.NewGuid().ToString("N") + ".tmp";

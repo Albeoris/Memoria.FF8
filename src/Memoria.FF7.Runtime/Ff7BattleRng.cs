@@ -74,4 +74,17 @@ public sealed class Ff7BattleRng
     {
         return new((byte[])indices.Clone(), stream, wordCounter, crtSeed);
     }
+
+    internal void Adopt(Ff7BattleRng candidate)
+    {
+        ArgumentNullException.ThrowIfNull(candidate);
+        if (!table.AsSpan().SequenceEqual(candidate.table))
+        {
+            throw new InvalidDataException("A battle random transaction must use its original kernel table.");
+        }
+        candidate.indices.CopyTo(indices, 0);
+        stream = candidate.stream;
+        wordCounter = candidate.wordCounter;
+        crtSeed = candidate.crtSeed;
+    }
 }

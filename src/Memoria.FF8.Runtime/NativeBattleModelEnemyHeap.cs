@@ -105,7 +105,7 @@ public static class NativeBattleModelEnemyHeap
             }
             int scratch = BinaryPrimitives.ReadInt32LittleEndian(source.Bytes.AsSpan().Slice(source.Section(2) - 4, 4));
             ushort maximum = cpu.ScratchMaximum ?? throw new NotSupportedException("Native507010 requires its actual scratch maximum.");
-            cpu = cpu with { ScratchMaximum = maximum < scratch ? unchecked((ushort)scratch) : maximum };
+            cpu = cpu with { ScratchMaximum = NativeBattleModelResourceCopies.UpdateScratchMaximum(maximum, scratch) };
             cursor = checked(cursor + end - first);
         }
         cpu = cpu with { Rows = cpu.Rows.SetItem(destination, row), EnemyCursor = cursor, LastModel142Row = special143 && sharedRow is int shared ? shared : cpu.LastModel142Row };

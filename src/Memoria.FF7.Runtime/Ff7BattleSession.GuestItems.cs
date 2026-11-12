@@ -38,6 +38,10 @@ public sealed partial class Ff7BattleSession
             {
                 yield return new(Ff7BattleCommand.Item, item, targets, true, false, stock);
             }
+            else
+            {
+                yield return new(Ff7BattleCommand.Item, item, 0, true, false, stock) { UnsupportedReason = items.ItemUnsupportedReason(item) ?? "No supported target is available for this item." };
+            }
         }
     }
 
@@ -51,13 +55,19 @@ public sealed partial class Ff7BattleSession
         return IsAlive(target) != revive && ((target.Actor.Conditions & 8) != 0 || revive);
     }
 
-    private void PrepareGuestItem(IFf7BattleGuestItems items, Ff7BattleGuestInvocation invocation, Ff7BattleActorState target)
+    private string? PrepareGuestItem(IFf7BattleGuestItems items, Ff7BattleGuestInvocation invocation, Ff7BattleActorState target)
     {
         Ff7BattleGuestItemEffect effect = items.DescribeItem(invocation.GuestAbility);
         Ff7BattleActionVitals sourceVitals = GuestItemVitals(Actor(invocation.ActorSlot));
         Ff7BattleActionVitals targetVitals = GuestItemVitals(target);
         Ff7BattleActionReceipt receipt = Ff7NativeBattleActionResolver.ApplyGuestItem(sourceVitals, targetVitals, effect);
-        items.PrepareItem(new(default, new(0, 0, 255, Healing: true), 0) { PreparedContact = new(invocation, sourceVitals, targetVitals, receipt), ItemEffect = effect });
+        Ff7BattleGuestPhysicalHit hit = new(default, new(0, 0, 255, Healing: true), 0) { PreparedContact = new(invocation, sourceVitals, targetVitals, receipt), ItemEffect = effect };
+        if (items.PrepareItemUnsupportedReason(hit) is { } reason)
+        {
+            return reason;
+        }
+        items.PrepareItem(hit);
+        return null;
     }
 
     private void PublishGuestItem(Ff7BattleQueuedCommand command, Ff7BattleActorState source, Ff7BattleActorState target, Ff7BattleGuestPhysicalHit hit)

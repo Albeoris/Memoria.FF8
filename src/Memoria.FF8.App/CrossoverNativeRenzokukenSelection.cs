@@ -38,11 +38,11 @@ internal sealed record CrossoverNativeRenzokukenSelection([property: JsonRequire
         {
             return this;
         }
-        if (tick < 0 || ReadyTick > tick || kit.Limit.Command != 5)
+        if (tick < 0 || ReadyTick > tick)
         {
             throw new InvalidDataException("The guest Limit readiness must follow its native command and host clock.");
         }
-        ushort saved = Ff7GuestBattleStatuses.ToOrigin(source.Statuses);
+        ushort saved = Ff7GuestBattleStatuses.ToOrigin(source.Statuses, kit.Statuses.Saved);
         uint battle = kit.Statuses.Battle | Ff7GuestBattleStatuses.ToOriginBattle(source.Statuses);
         byte roll = 0;
         NativeBattleRandomState random = disabled || (battle & 0x200) != 0 ? Random : Random.Draw(out roll);

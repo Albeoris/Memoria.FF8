@@ -148,9 +148,10 @@ public sealed partial class BattleSession
         if (completed.ScratchCandidate is int candidate)
         {
             ushort maximum = cpu.ScratchMaximum ?? throw new NotSupportedException("Native507010 requires its actual508260 scratch maximum WORD.");
-            if (maximum < candidate)
+            ushort updated = NativeBattleModelResourceCopies.UpdateScratchMaximum(maximum, candidate);
+            if (maximum != updated)
             {
-                cpu = cpu with { ScratchMaximum = unchecked((ushort)candidate) };
+                cpu = cpu with { ScratchMaximum = updated };
             }
         }
         NativeModelCpuResources = cpu;

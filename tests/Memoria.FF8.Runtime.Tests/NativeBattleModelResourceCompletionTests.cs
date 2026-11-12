@@ -5,6 +5,25 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleModelResourceCompletionTests
 {
+    [Theory]
+    [InlineData(0, -1, 0)]
+    [InlineData(5, 4, 5)]
+    [InlineData(5, 100, 100)]
+    [InlineData(5, 65541, 5)]
+    [InlineData(65535, 65536, 0)]
+    [InlineData(0, int.MaxValue, 65535)]
+    public void ScratchMaximumComparesSignedDwordThenWritesOriginalWord(ushort maximum, int candidate, ushort expected)
+    {
+        Assert.Equal(expected, NativeBattleModelResourceCopies.UpdateScratchMaximum(maximum, candidate));
+    }
+
+    [Fact]
+    public void ScratchMaximumProcessesBodyAndLinkedResourcesInTheirOriginalOrder()
+    {
+        ushort body = NativeBattleModelResourceCopies.UpdateScratchMaximum(0, 65541);
+        Assert.Equal((ushort)100, NativeBattleModelResourceCopies.UpdateScratchMaximum(body, 100));
+    }
+
     [Fact]
     public void Invalidating_resource_ownership_preserves_shared_memory_and_native_row_fields()
     {

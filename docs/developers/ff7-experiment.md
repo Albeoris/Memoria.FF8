@@ -39,6 +39,12 @@ The character mapping enables full combat when switching to FFVII. Each occupied
 
 FFVII battles use the common battle HUD and popup windows. FFVII party members show MP below HP and spell costs in the Magic list's right column. The FFVIII guest uses their spell stock in that column.
 
+Guest ability pages come from the suspended FFVIII command, shared magic, learned Blue Magic, GF assignment and Limit state. The bridge has no spell allowlist. Abilities whose native operations cannot cross the bridge remain visible in red; selecting one opens a reason window that closes with Confirm or Cancel without spending a turn or stock. Source availability does not imply that every native invocation or geometry service is supported.
+
+One rules profile translates the original action's attack family, power, accuracy, elements and shared statuses. FFVII owns target HP, status changes, its damage cap and the action queue. Magic reservations and commitment use FFVIII's common casting service outside effect callbacks, including shared and infinite stock rules and junction reprojection. The presentation component runs FFVIII's existing native effect dispatcher against source poses, foreign anchors, host camera and uniform stage color services. Requests for unrepresentable target groups, native foreign skeleton/body resources or a specialized command lifecycle fail capability checks before stock commitment. It does not substitute another effect.
+
+Player saves are disabled throughout FFVII battles, including result presentation, matching FFVIII. Diagnostic stream serialization remains available for supported host state; live guest effect presentation has no cold-save contract. Save before entering battle and resume gameplay from a field or world boundary.
+
 The Battle ATB mode in Config → Combat applies to both battle systems. Classic advances ATB continuously during ordinary command selection. Turn Based advances to the next ready actor, holds ATB during a player decision, and keeps action presentation running. The configured Battle Advance Turn action advances to another readiness event when a player is already ready. FFVII victories award 1 AP per defeated ordinary enemy or 20 AP for a formation with a native boss death type.
 
 ### Mixed damage and statuses
@@ -50,7 +56,7 @@ Common status mappings cover KO, Poison, Petrify, Blind, Silence, Berserk, Sleep
 - FFVIII statuses without a shared counterpart include Zombie, Aura, Curse, Float, Drain, Eject, Double, Triple, Charged, Vit 0, Angel Wing and The End.
 - FFVII statuses without a shared counterpart include Sadness, Fury, Frog, Small, Dual, Shield, Manipulate, Paralysis, Dual Drain, Death Force, Resist, Lucky Girl and Imprisoned. Near Death is an FFVII HP state.
 
-The shared Attack path reads each guest's original actor and weapon sequence. Squall's supported Limit paths cover ordinary Renzokuken and Rough Divide. The other Limit commands and finishers require their own native execution and presentation contracts.
+The shared Attack path reads each guest's original actor and weapon sequence. Squall's existing Limit process covers ordinary Renzokuken and Rough Divide. Other source-legal Limit choices are listed with their native invocation requirements; process-driven selection remains unavailable where the common bridge cannot own it.
 
 The ordinary menu opens to Final Fantasy VII with Item, Magic, Materia, Equip, Status, Order, Limit, Config, PHS and Save, plus the common load and world-switch actions. Order changes the party's slot order and resident battle rows. PHS replaces active members with available reserves when native field or world permissions and story locks allow it. The configured Rotate Left/Right and Camera Left/Right actions (L1/R1 and L2/R2 by default) switch between the two main pages when the active party includes an FFVIII guest. The Final Fantasy VIII page uses the suspended game's junctions, magic stock, GF, abilities, junction exchange, cards and tutorial.
 

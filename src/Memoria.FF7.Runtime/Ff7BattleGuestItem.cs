@@ -6,6 +6,8 @@ public sealed record Ff7BattleGuestItemEffect(ushort HitPoints, uint RemoveStatu
 /// <summary>Original guest items use a separate origin inventory and queue reservation.</summary>
 public interface IFf7BattleGuestItems
 {
+    string? ItemUnsupportedReason(ushort item) => null;
+    string? PrepareItemUnsupportedReason(Ff7BattleGuestPhysicalHit prepared) => null;
     bool HasOriginItems { get; }
     IReadOnlyList<ushort> ItemIds { get; }
     int ItemStock(ushort item);

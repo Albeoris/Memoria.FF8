@@ -161,6 +161,21 @@ public static class Ff7NativeBattleActionResolver
         return new(source, next, damage, next.Statuses & ~target.Statuses, target.Statuses & ~next.Statuses);
     }
 
+    internal static Ff7BattleActionReceipt ApplyPreparedGuestContact(Ff7BattleActionVitals source, Ff7BattleActionVitals target, Ff7BattleActionReceipt prepared, Ff7BattleDamageAction action, bool sameActor)
+    {
+        if (prepared.Damage.Missed)
+        {
+            return new(source, target, prepared.Damage, 0, 0);
+        }
+        uint statuses = (target.Statuses & ~prepared.RemovedStatuses) | prepared.AddedStatuses;
+        Ff7BattleActionVitals next = ApplyDamage(target with { Statuses = statuses }, prepared.Damage.Damage, action.TargetsMagicPoints);
+        if ((target.Statuses & Death) == 0 && (next.Statuses & Death) != 0)
+        {
+            next = next with { Hp = 0 };
+        }
+        return new(sameActor ? next : source, next, prepared.Damage, next.Statuses & ~target.Statuses, target.Statuses & ~next.Statuses);
+    }
+
     internal static Ff7BattleActionReceipt ApplyGuestItem(Ff7BattleActionVitals source, Ff7BattleActionVitals target, Ff7BattleGuestItemEffect effect, Ff7BattleDamageResult? prepared = null)
     {
         if (effect.ReviveDivisor is not (0 or 4 or 8) || (effect.RemoveStatuses & ~Ff7GuestBattleStatuses.SupportedHost) != 0 || (effect.RemoveStatuses & Death) != 0)

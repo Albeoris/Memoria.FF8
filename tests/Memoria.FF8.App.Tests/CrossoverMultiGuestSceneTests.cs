@@ -14,7 +14,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed class CrossoverMultiGuestSceneTests
 {
     [Fact]
-    public void Three_mapped_guests_keep_distinct_kits_stock_and_turns_through_one_cold_restored_battle()
+    public void Three_mapped_guests_keep_distinct_kits_stock_and_turns_through_one_uninterrupted_battle()
     {
         string? ff7Root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
         string? ff8Root = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
@@ -90,15 +90,24 @@ public sealed class CrossoverMultiGuestSceneTests
         HashSet<int> casts = [];
         HashSet<int> actions = [];
         HashSet<int> contacts = [];
-        bool restored = false;
+        bool rejectedLiveSave = false;
+        HashSet<int> recoveryContacts = [];
         for (int tick = 0; tick < 12000 && !battle.ResultReady; tick++)
         {
             if (battle.ReadyPlayer is int ready && battle.Outcome == Ff7BattleOutcome.Fighting)
             {
                 if (ready < 2 && !casts.Contains(ready))
                 {
+                    Ff7BattleCommandOption cure = Assert.Single(battle.Commands(ready), option => option.Command == Ff7BattleCommand.Magic && option.Argument == 21);
                     int ally = ready + 1;
-                    Assert.True(battle.Submit(ready, Ff7BattleCommand.Magic, 21, (ushort)(1 << ally)));
+                    if ((cure.ValidTargets & 1 << ally) == 0)
+                    {
+                        string beforeQueue = JsonSerializer.Serialize(battle.Capture().Queue);
+                        Assert.False(battle.Submit(ready, Ff7BattleCommand.Magic, 21, (ushort)(1 << ally)));
+                        Assert.Equal(beforeQueue, JsonSerializer.Serialize(battle.Capture().Queue));
+                    }
+                    int recipient = (cure.ValidTargets & 1 << ally) != 0 ? ally : ready;
+                    Assert.True(battle.Submit(ready, Ff7BattleCommand.Magic, 21, (ushort)(1 << recipient)), $"Guest {ready} recovery to {recipient} was rejected: {cure}.");
                     casts.Add(ready);
                 }
                 else if (battle.Commands(ready).FirstOrDefault(option => option.Command == Ff7BattleCommand.Attack && option.ValidTargets != 0) is { } attack)
@@ -108,18 +117,20 @@ public sealed class CrossoverMultiGuestSceneTests
                     actions.Add(ready);
                 }
             }
-            if (!restored && battle.Action is { Command.GuestAbility: 21 } && battle.Tick > battle.Action.StartedAt + 10)
+            if (!rejectedLiveSave && battle.Action is { Command.GuestAbility: 21 })
             {
-                CombinedSessionSave current = RoundTrip(scene.Capture());
-                scene.Continue(current);
-                session = scene.Session!;
-                battle = Assert.IsType<Ff7BattleSession>(session.Battle);
-                Assert.Equal(ids, battle.GuestVitalsBindings.OrderBy(binding => binding.HostSlot).Select(binding => binding.OriginCharacter));
-                Draw();
-                restored = true;
+                Assert.False(scene.CanSave);
+                Assert.False(scene.CanSaveMemoria);
+                Assert.Throws<InvalidOperationException>(() => scene.CapturePlayerSave(0));
+                rejectedLiveSave = true;
             }
             scene.Update(new(TimeSpan.FromSeconds((tick + 1) / 60d), TimeSpan.FromSeconds(1d / 60)), default);
             Assert.Null(scene.Error);
+            if (battle.LastHit is { Source: < 2, AttackId: 21 } recovery)
+            {
+                Assert.True(recovery.Damage.Damage < 0);
+                recoveryContacts.Add(recovery.Source);
+            }
             if (battle.LastHit is { Source: < 3, Target: >= 4 } hit)
             {
                 contacts.Add(hit.Source);
@@ -129,7 +140,8 @@ public sealed class CrossoverMultiGuestSceneTests
                 Draw();
             }
         }
-        Assert.True(restored);
+        Assert.True(rejectedLiveSave);
+        Assert.Equal(new[] { 0, 1 }, recoveryContacts.Order());
         Assert.Equal(new[] { 0, 1 }, casts.Order());
         Assert.Equal(new[] { 0, 1, 2 }, actions.Order());
         Assert.Equal(new[] { 0, 1, 2 }, contacts.Order());

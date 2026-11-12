@@ -291,7 +291,7 @@ public static class NativeBattleModelResourceCopies
             int start = source.Section(animationSection);
             int end = source.Section(animationSection + 1);
             animation = new(task.PhysicalIndex * 0x3020 + 0x20, source.Bytes, start, end - start, 8);
-            scratch = ReadScratch();
+            scratch = ReadScratchCandidate(source);
             rows = rows.SetItem(bodyRow, body);
         }
         else if (task.Callback == 0x507BF0)
@@ -312,7 +312,7 @@ public static class NativeBattleModelResourceCopies
             int start = source.Section(7);
             int end = source.Section(8);
             animation = new(task.PhysicalIndex * 0x3020 + 0x2020, source.Bytes, start, end - start, 24);
-            scratch = ReadScratch();
+            scratch = ReadScratchCandidate(source);
         }
         else if (task.Callback == 0x507E20)
         {
@@ -384,14 +384,18 @@ public static class NativeBattleModelResourceCopies
             row = row.Set(field, absent ? null : At(section));
             return row with { Lengths = absent ? row.Lengths.Remove(field) : row.Lengths.SetItem(field, source.Section(section + 1) - source.Section(section)) };
         }
-        int ReadScratch()
+    }
+
+    /// <summary>507010 compares its signed DWORD candidate before publishing the low WORD.</summary>
+    public static ushort UpdateScratchMaximum(ushort maximum, int candidate) => maximum < candidate ? unchecked((ushort)candidate) : maximum;
+
+    public static int ReadScratchCandidate(NativeBattleModelDatSource source)
+    {
+        int position = source.Section(2) - 4;
+        if (position < 0 || position > source.Bytes.Length - 4)
         {
-            int position = source.Section(2) - 4;
-            if (position < 0 || position > source.Bytes.Length - 4)
-            {
-                throw new InvalidDataException("Native507010 scratch candidate leaves its copied resource.");
-            }
-            return BinaryPrimitives.ReadInt32LittleEndian(source.Bytes.AsSpan().Slice(position));
+            throw new InvalidDataException("Native507010 scratch candidate leaves its copied resource.");
         }
+        return BinaryPrimitives.ReadInt32LittleEndian(source.Bytes.AsSpan().Slice(position));
     }
 }

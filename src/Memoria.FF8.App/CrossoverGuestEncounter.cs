@@ -50,7 +50,7 @@ internal sealed class CrossoverGuestEncounter
 
         int[] rows = participants.Select(guest => (int)origin.FindPhysicalRow(checked((byte)guest.Combat.NativeId))).ToArray();
         CommittedSpells = saved?.CommittedSpells ?? (NextOrdinal == 1 ? [] : Enumerable.Range(1, checked((int)(NextOrdinal - 1))).Select(ordinal => new CrossoverGuestCommittedSpell(ordinal, 1, rows.Single())).ToImmutableArray());
-        if (CommittedSpells.IsDefault || CommittedSpells.Length != NextOrdinal - 1 || CommittedSpells.Where((cost, index) => cost is null || cost.Ordinal != index + 1 || cost.Spell is not (1 or 4 or 7 or 21) || !rows.Contains(cost.OriginRow)).Any())
+        if (CommittedSpells.IsDefault || CommittedSpells.Length != NextOrdinal - 1 || CommittedSpells.Where((cost, index) => cost is null || cost.Ordinal != index + 1 || cost.Spell == 0 || cost.Spell >= Working.MagicSystem.SharedBattleMasks.Length || !rows.Contains(cost.OriginRow)).Any())
         {
             throw new InvalidDataException("The guest spell cost ledger contradicts its action ordinals or origin characters.");
         }

@@ -455,6 +455,11 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState ConsumeNativeGraphicsContacts(NativeBattleGraphicsState graphics)
     {
+        if (presentationForeignActors is not null)
+        {
+            presentationContacts.AddRange(graphics.PendingContacts);
+            return graphics with { PendingContacts = [] };
+        }
         foreach (NativeBattleContactPacket packet in graphics.PendingContacts)
         {
             packet.Validate();

@@ -6,13 +6,30 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8;
 
 /// <summary>The host's posed actor geometry in the current source effect's coordinate space.</summary>
-internal sealed record CrossoverNativeCureForeignTarget(int HostSlot, NativeBattleModelTransform Transform, NativeBattleActionMatrix World, NativeBattleEffectActorGeometry Anchors, Ff7BattleActorGeometry Geometry, Matrix4x4 HostToOrigin)
+internal sealed record CrossoverNativeForeignTarget(int HostSlot, NativeBattleModelTransform Transform, NativeBattleActionMatrix World, NativeBattleEffectActorGeometry Anchors, Ff7BattleActorGeometry Geometry, Matrix4x4 HostToOrigin)
 {
-    public static CrossoverNativeCureForeignTarget Read(Ff7BattleSession host, int slot, Ff7BattleActorGeometry geometry, Matrix4x4 originToHost)
+    /// <summary>Foreign F0 is the posed root-to-impact segment; F1 is the host's canonical impact point.</summary>
+    public static NativeBattleVector ReadSemanticBone(byte selector, short fraction, NativeBattleVector impact, Func<NativeBattleVector> readRoot)
     {
-        if (slot is < 0 or >= 3 || geometry.SkeletonPoints.IsDefaultOrEmpty || geometry.Faces.IsDefaultOrEmpty && geometry.GuestFaces.IsDefaultOrEmpty || !Matrix4x4.Invert(originToHost, out Matrix4x4 inverse))
+        if (selector == 241 && fraction == 0 || selector == 240 && fraction == 4096)
         {
-            throw new InvalidDataException("Mixed Cure requires the actual posed host ally geometry.");
+            return impact;
+        }
+        if (selector != 240 || fraction is < 0 or > 4096)
+        {
+            throw new NotSupportedException($"The host target cannot supply native bone selector {selector:X2} at fraction {fraction}.");
+        }
+        NativeBattleVector root = readRoot();
+        return new(Interpolate(root.X, impact.X), Interpolate(root.Y, impact.Y), Interpolate(root.Z, impact.Z));
+
+        short Interpolate(short start, short end) => checked((short)(start + ((end - start) * fraction >> 12)));
+    }
+
+    public static CrossoverNativeForeignTarget Read(Ff7BattleSession host, int slot, Ff7BattleActorGeometry geometry, Matrix4x4 originToHost)
+    {
+        if (slot is < 0 or 3 or > 9 || geometry.SkeletonPoints.IsDefaultOrEmpty || geometry.Faces.IsDefaultOrEmpty && geometry.GuestFaces.IsDefaultOrEmpty || !Matrix4x4.Invert(originToHost, out Matrix4x4 inverse))
+        {
+            throw new InvalidDataException("The native effect requires the actual posed host actor geometry.");
         }
         NativeBattleVector position = Word(Vector3.Transform(geometry.GuestRoot ?? host.RenderActorPlacement(slot).Position, inverse));
         NativeBattleVector first = Word(Vector3.Transform(geometry.SkeletonPoints[0], inverse));

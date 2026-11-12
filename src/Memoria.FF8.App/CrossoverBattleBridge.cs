@@ -154,7 +154,6 @@ internal sealed record CrossoverFf8BattleKit(int RecordRow, ushort HitPoints, in
     }
 }
 
-internal sealed record CrossoverBattleActionContract(int Version, CrossoverBattleAbilityId Ability, SessionGame TargetGame, CrossoverBattleActorKind TargetKind, int TargetNativeId);
 internal sealed record CrossoverBattleAction(long Ordinal, CrossoverBattleActorId Actor, CrossoverBattleActorId Target, CrossoverBattleAbilityId Ability, int OriginRow, string? StockReservation);
 internal sealed record CrossoverBattleAdmission(CrossoverBattleAction? Action, BattleNativeAction? NativeAction, NativeCharacterVitals Vitals, string? Reason);
 
@@ -196,12 +195,11 @@ internal sealed record CrossoverBattleStockSnapshot(Guid EncounterId, string Ini
 
 internal static class CrossoverBattleBridge
 {
-    public static CrossoverBattleAdmission Prepare(CrossoverBattleRoster roster, CrossoverFf8BattleKit kit, NativeCharacterVitals vitals, long ordinal, CrossoverBattleAbilityId ability, CrossoverBattleActorId targetId, IReadOnlyList<CrossoverBattleActionContract> executableContracts)
+    public static CrossoverBattleAdmission Prepare(CrossoverBattleRoster roster, CrossoverFf8BattleKit kit, NativeCharacterVitals vitals, long ordinal, CrossoverBattleAbilityId ability, CrossoverBattleActorId targetId)
     {
         ArgumentNullException.ThrowIfNull(roster);
         ArgumentNullException.ThrowIfNull(kit);
         ArgumentNullException.ThrowIfNull(vitals);
-        ArgumentNullException.ThrowIfNull(executableContracts);
         roster.Validate();
         if (ordinal < 1 || ability.Origin != SessionGame.Ff8 || !Enum.IsDefined(ability.Kind))
         {
@@ -228,11 +226,6 @@ internal static class CrossoverBattleBridge
         {
             return Denied("The native guest kit cannot prepare this ability.");
         }
-        if (!executableContracts.Contains(new(roster.Version, ability, targetId.Origin, targetId.Kind, targetId.NativeId)))
-        {
-            return Denied("This target and ability have no executable mixed battle contract.");
-        }
-
         NativeCharacterVitals working = vitals;
         string? reservation = null;
         if (ability.Kind == CrossoverBattleAbilityKind.Spell)

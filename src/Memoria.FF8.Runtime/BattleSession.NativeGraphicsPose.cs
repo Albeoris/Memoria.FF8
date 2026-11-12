@@ -4,6 +4,14 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsResource NativeGraphicsPoseResource(NativeBattleGraphicsState graphics, int index)
     {
+        if (presentationForeignActors?.ContainsKey(index) == true)
+        {
+            throw new NotSupportedException($"Host actor slot {index} cannot supply a native FFVIII skeleton, animation bank or textured body resource required by the selected effect.");
+        }
+        if (presentationSourceResource is not null && index == 0 && graphics.Models[index].ResourceMagicId is null && graphics.Models[index].ActiveStagedResourceRow100 is null)
+        {
+            return presentationSourceResource;
+        }
         if ((uint)index >= 7 || graphics.ActorIds[index] is not string actorId)
         {
             throw new InvalidDataException($"Native graphics pose index {index} has no allocated resource owner.");
@@ -96,6 +104,10 @@ public sealed partial class BattleSession
 
     private NativeBattleVector ReadNativeGraphicsBone(NativeBattleGraphicsState graphics, int index, byte selector, short fraction)
     {
+        if (presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true)
+        {
+            return foreign.ReadBone(selector, fraction);
+        }
         NativeBattleGraphicsModel model = graphics.Models[index];
         if ((model.Flags0 & 2) == 0)
         {
@@ -116,6 +128,10 @@ public sealed partial class BattleSession
 
     private NativeBattleModuleAnchor ReadNativeModelAnchor(NativeBattleGraphicsState graphics, int index)
     {
+        if (presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true)
+        {
+            return foreign.Anchor;
+        }
         NativeBattleGraphicsModel model = graphics.Models[index];
         if ((model.Flags0 & 2) == 0)
         {

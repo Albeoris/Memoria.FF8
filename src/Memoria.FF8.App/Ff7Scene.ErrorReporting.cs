@@ -16,7 +16,7 @@ internal sealed partial class Ff7Scene
 
     private void RememberReportCheckpoint()
     {
-        if (Session is null || reportCheckpoint?.Ff7 is { } previous && previous.FieldGeneration == Session.FieldGeneration && (previous.World is null) == (Session.World is null) && (Session.World?.Machine.TickCount ?? Session.Machine.Tick) % 30 != 0)
+        if (Session is null || Session.Battle is not null || reportCheckpoint?.Ff7 is { } previous && previous.FieldGeneration == Session.FieldGeneration && (previous.World is null) == (Session.World is null) && (Session.World?.Machine.TickCount ?? Session.Machine.Tick) % 30 != 0)
         {
             return;
         }

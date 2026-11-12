@@ -24,7 +24,7 @@ internal sealed partial class CrossoverGuestHostActions
     private CrossoverNativeRenzokukenSelection? limitSelection;
     private CrossoverGuestRenzokukenHostState? limit;
 
-    public bool LimitReady => limitOptions is ushort options && ((options & 1) == 0 || limitUiRandom is not null) && limitSelection is { Crisis: > 0 } selected && SelectsSupported(selected);
+    public bool LimitReady => kit.Limit.Command == 5 && limitOptions is ushort options && ((options & 1) == 0 || limitUiRandom is not null) && limitSelection is { Crisis: > 0 } selected && SelectsSupported(selected);
     public int PublishedContacts => limit is { } current ? current.Program.Trigger.Consumed + (current.FinisherNumericTick is null ? 0 : 1) : 0;
     public SceneCameraPlacement? LeasedCamera => limit is { } current ? current.Camera?.ForHost(current.Placement) : null;
     public CrossoverNativeRenzokukenTrigger? RenzokukenTrigger => limit?.Program.Trigger;
@@ -32,7 +32,7 @@ internal sealed partial class CrossoverGuestHostActions
 
     public void ObserveLimitReady(long hostTick, Ff7BattleAiActor source)
     {
-        if (limitOptions is null || limitSelection is not { } selection)
+        if (limitSelection is not { } selection)
         {
             return;
         }

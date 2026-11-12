@@ -18,7 +18,9 @@ internal sealed partial class Ff7Scene
     private Ff7BattleSession? presentedBattle;
     private IReadOnlyList<string>? battleSpellNames;
     private Ff7BattleCommandOption? selectedBattleCommand;
-    private Ff7BattleCommand? battleCommandPage;
+    private (Ff7BattleCommand Command, string Name)? battleCommandPage;
+    private Ff7BattleCommandOption? unavailableBattleCommand;
+    private Ff7BattleGuestAbilityFailure? presentedGuestAbilityFailure;
     private int battleCommandIndex;
     private int battleActionIndex;
     private int battleTargetIndex;
@@ -70,6 +72,20 @@ internal sealed partial class Ff7Scene
             }
             return;
         }
+        if (ShowGuestAbilityFailure(battle))
+        {
+            UpdateAudio();
+            return;
+        }
+        if (unavailableBattleCommand is not null)
+        {
+            if (semanticInput.Confirm || semanticInput.Cancel)
+            {
+                unavailableBattleCommand = null;
+            }
+            UpdateAudio();
+            return;
+        }
         if (CurrentBattleAtbMode == BattleAtbMode.TurnBased && sharedInput.BattleAdvanceTurnRequested)
         {
             battle.AdvanceTurn();
@@ -98,9 +114,29 @@ internal sealed partial class Ff7Scene
                 pendingLimitConfirm |= semanticInput.Confirm;
             }
         }
+        if (unavailableBattleCommand is not null)
+        {
+            UpdateAudio();
+            return;
+        }
         bool escapeHeld = (Ff7ControlButtons.FromShared(sharedInput.HeldFieldButtons) & 0x0C) == 0x0C;
         ReadMixedTrigger();
         AdvanceBattleTime(gameTime, battle, escapeHeld);
+        ShowGuestAbilityFailure(battle);
+    }
+
+    private bool ShowGuestAbilityFailure(Ff7BattleSession battle)
+    {
+        if (battle.GuestAbilityFailure is not { } failure || failure == presentedGuestAbilityFailure)
+        {
+            return false;
+        }
+        presentedGuestAbilityFailure = failure;
+        Ff7BattleCommandOption? option = battle.Commands(failure.ActorSlot).FirstOrDefault(candidate => candidate.Command == Ff7BattleCommand.Magic && candidate.Argument == failure.Ability);
+        string name = option?.DisplayName ?? mixedCombat?.GuestAt(failure.ActorSlot)?.MagicName(failure.Ability) ?? "Ability unavailable";
+        unavailableBattleCommand = new(Ff7BattleCommand.Magic, failure.Ability, 0, true, false) { DisplayName = name, UnsupportedReason = failure.Reason };
+        selectedBattleCommand = null;
+        return true;
     }
 
     private void AdvanceBattleTime(GameTime gameTime, Ff7BattleSession battle, bool escapeHeld)
@@ -116,6 +152,10 @@ internal sealed partial class Ff7Scene
             battle.SetCameraMenuPhase(selectedBattleCommand is null ? (short)-1 : (short)0);
             session.AdvanceTick(advanceClock: false, waitForBattleCommand: selectedBattleCommand is not null || battleCommandPage is not null, confirmBattleLimit: pendingLimitConfirm, escapeBattleHeld: escapeHeld, turnBasedBattle: turnBased);
             pendingLimitConfirm = false;
+            if (battle.GuestAbilityFailure is { } failure && failure != presentedGuestAbilityFailure)
+            {
+                break;
+            }
         }
         UpdateAudio();
     }
@@ -130,6 +170,12 @@ internal sealed partial class Ff7Scene
                 return;
             }
             Ff7BattleCommandOption? current = battle.Commands(owner).SingleOrDefault(option => option.Command == selected.Command && option.Argument == selected.Argument);
+            if (current?.UnsupportedReason is not null)
+            {
+                selectedBattleCommand = null;
+                unavailableBattleCommand = current;
+                return;
+            }
             if (current is null || current.ValidTargets == 0)
             {
                 selectedBattleCommand = null;
@@ -159,13 +205,13 @@ internal sealed partial class Ff7Scene
         }
         if (battleCommandPage is { } page)
         {
-            Ff7BattleCommandOption[] actions = commands.Where(option => option.Command == page).ToArray();
+            Ff7BattleCommandOption[] actions = commands.Where(option => BattleCategory(option) == page).ToArray();
             if (semanticInput.Cancel || actions.Length == 0)
             {
                 battleCommandPage = null;
                 return;
             }
-            if (page == Ff7BattleCommand.Magic)
+            if (page.Command == Ff7BattleCommand.Magic)
             {
                 BattleDrawLayout layout = BattleDrawLayout.Calculate(actions.Length);
                 (int column, int row) = layout.GetCell(Math.Min(battleActionIndex, actions.Length - 1));
@@ -183,26 +229,31 @@ internal sealed partial class Ff7Scene
             }
             return;
         }
-        Ff7BattleCommand[] categories = commands.Select(option => option.Command).Distinct().ToArray();
+        var categories = commands.Select(BattleCategory).Distinct().ToArray();
         battleCommandIndex = MoveBattleChoice(battleCommandIndex, categories.Length, semanticInput.MenuVertical);
         if (semanticInput.Confirm)
         {
-            Ff7BattleCommand category = categories[battleCommandIndex];
-            if (category is Ff7BattleCommand.Magic or Ff7BattleCommand.Item || category == Ff7BattleCommand.Limit && commands.Count(option => option.Command == category) > 1)
+            var category = categories[battleCommandIndex];
+            if (category.Command is Ff7BattleCommand.Magic or Ff7BattleCommand.Item || category.Command == Ff7BattleCommand.Limit && commands.Count(option => BattleCategory(option) == category) > 1)
             {
                 battleCommandPage = category;
                 battleActionIndex = 0;
             }
             else
             {
-                SelectBattleAction(commands.First(option => option.Command == category));
+                SelectBattleAction(commands.First(option => BattleCategory(option) == category));
             }
         }
     }
 
     private static Ff7BattleCommandOption[] AvailableBattleCommands(Ff7BattleSession battle, int owner)
     {
-        return battle.Commands(owner).Where(option => option.ValidTargets != 0).ToArray();
+        return battle.Commands(owner).Where(option => option.ValidTargets != 0 || option.UnsupportedReason is not null).ToArray();
+    }
+
+    private static (Ff7BattleCommand Command, string Name) BattleCategory(Ff7BattleCommandOption option)
+    {
+        return (option.Command, option.Category ?? option.Command.ToString());
     }
 
     private static int MoveBattleChoice(int index, int count, int direction)
@@ -212,6 +263,11 @@ internal sealed partial class Ff7Scene
 
     private void SelectBattleAction(Ff7BattleCommandOption option)
     {
+        if (option.UnsupportedReason is not null)
+        {
+            unavailableBattleCommand = option;
+            return;
+        }
         selectedBattleCommand = option;
         battleTargetIndex = 0;
         battleTargetGroup = false;
@@ -248,6 +304,10 @@ internal sealed partial class Ff7Scene
 
     private string CommandName(Ff7BattleCommandOption option, int owner)
     {
+        if (option.DisplayName is not null)
+        {
+            return option.DisplayName;
+        }
         CrossoverGuestHostActions? guest = mixedCombat?.GuestAt(owner);
         if (option.Command == Ff7BattleCommand.Item)
         {
@@ -334,6 +394,8 @@ internal sealed partial class Ff7Scene
         presentedBattle = null;
         battleInputOwner = null;
         pendingLimitConfirm = false;
+        unavailableBattleCommand = null;
+        presentedGuestAbilityFailure = null;
         selectedBattleCommand = null;
         battleCommandIndex = 0;
         battleActionIndex = 0;

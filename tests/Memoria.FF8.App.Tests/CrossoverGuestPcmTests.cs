@@ -21,8 +21,8 @@ public sealed class CrossoverGuestPcmTests
         string? ff8 = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(ff7) && !string.IsNullOrWhiteSpace(ff8), "Select both original game installations.");
         using GameAssets resources = new(ff8!);
-        CrossoverNativeFireState fire = CrossoverNativeFireProgram.Begin(resources, 4, NativeCrtRandomState.FromColdProcess(), new(3, 4, 0, 0, 0, 83, 0));
-        uint soundId = fire.Effect.Binding.ProgramResources!.Sound;
+        NativeBattleOriginalEffectState effect = NativeBattleOriginalEffects.Select(2, resources.ReadNativeEffectCatalogForEffects([2]));
+        uint soundId = effect.Binding.ProgramResources!.Sound;
         (_, NativeBattleModuleSound sound) = new NativeBattleModuleSound(soundId, 0x100, null) { Pan = 128, Volume = 100 }.Commit46B2A0(NativeGlobalSoundProcess.FromBufferlessColdProcess());
         PcmMixer sourceMixer = new();
         PcmMixer coldMixer = new();

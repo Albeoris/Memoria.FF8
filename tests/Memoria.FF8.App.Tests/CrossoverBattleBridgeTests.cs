@@ -67,13 +67,12 @@ public sealed class CrossoverBattleBridgeTests
         CrossoverBattleActorId enemy = roster.Participants.Single(actor => actor.HostSlot == 4).Combat;
         CrossoverBattleAbilityId spell = new(SessionGame.Ff8, CrossoverBattleAbilityKind.Spell, fire);
         string before = JsonSerializer.Serialize(initial);
-        Assert.Contains("Draw supply", CrossoverBattleBridge.Prepare(roster, kit, initial, 1, new(SessionGame.Ff8, CrossoverBattleAbilityKind.Draw, 0), enemy, []).Reason);
-        Assert.Contains("Card conversion", CrossoverBattleBridge.Prepare(roster, kit, initial, 1, new(SessionGame.Ff8, CrossoverBattleAbilityKind.Card, 0), enemy, []).Reason);
-        Assert.Contains("no executable mixed battle contract", CrossoverBattleBridge.Prepare(roster, kit, initial, 1, spell, enemy, []).Reason);
+        Assert.Contains("Draw supply", CrossoverBattleBridge.Prepare(roster, kit, initial, 1, new(SessionGame.Ff8, CrossoverBattleAbilityKind.Draw, 0), enemy).Reason);
+        Assert.Contains("Card conversion", CrossoverBattleBridge.Prepare(roster, kit, initial, 1, new(SessionGame.Ff8, CrossoverBattleAbilityKind.Card, 0), enemy).Reason);
+        Assert.Contains("cannot prepare this ability", CrossoverBattleBridge.Prepare(roster, kit, initial, 1, spell with { NativeId = ushort.MaxValue }, enemy).Reason);
         Assert.Equal(before, JsonSerializer.Serialize(initial));
 
-        CrossoverBattleActionContract testContract = new(roster.Version, spell, SessionGame.Ff7, CrossoverBattleActorKind.Enemy, enemy.NativeId);
-        CrossoverBattleAdmission pending = CrossoverBattleBridge.Prepare(roster, kit, initial, 1, spell, enemy, [testContract]);
+        CrossoverBattleAdmission pending = CrossoverBattleBridge.Prepare(roster, kit, initial, 1, spell, enemy);
         CrossoverBattleAction action = Assert.IsType<CrossoverBattleAction>(pending.Action);
         BattleNativeAction nativeFire = Assert.IsType<BattleNativeAction>(pending.NativeAction);
         Assert.Equal((2, 1, 1), ((int)nativeFire.Command, (int)nativeFire.ActionId, nativeFire.KernelSection));
@@ -83,32 +82,37 @@ public sealed class CrossoverBattleBridgeTests
         NativeCharacterVitals released = CrossoverBattleBridge.ReleaseStock(roster, pending.Vitals, action);
         Assert.Equal(4, released.GetMagicCount(row, fire));
         Assert.Empty(released.MagicSystem.Reservations);
-        CrossoverBattleStockSnapshot stock = CrossoverBattleStockSnapshot.Capture(roster, pending.Vitals);
-        CrossoverBattleStockSnapshot restoredStock = JsonSerializer.Deserialize<CrossoverBattleStockSnapshot>(JsonSerializer.Serialize(stock))!;
-        NativeCharacterVitals cold = restoredStock.Restore(roster, initial);
-        CrossoverBattleAction coldAction = JsonSerializer.Deserialize<CrossoverBattleAction>(JsonSerializer.Serialize(action))!;
-        NativeCharacterVitals committed = CrossoverBattleBridge.CommitStock(roster, cold, coldAction);
+        NativeCharacterVitals committed = CrossoverBattleBridge.CommitStock(roster, pending.Vitals, action);
         Assert.Equal(3, committed.GetMagicCount(row, fire));
-        Assert.Same(committed, CrossoverBattleBridge.CommitStock(roster, committed, coldAction));
-        Assert.Null(CrossoverBattleBridge.Prepare(roster, kit, committed, 1, spell, enemy, [testContract]).Action);
+        Assert.Same(committed, CrossoverBattleBridge.CommitStock(roster, committed, action));
+        Assert.Null(CrossoverBattleBridge.Prepare(roster, kit, committed, 1, spell, enemy).Action);
         Assert.Equal(before, JsonSerializer.Serialize(initial));
         Assert.Equal(hostBefore, JsonSerializer.Serialize(host.Capture()));
+    }
 
-        SceneBattleEnemy originalMp = host.Data.Enemies[0];
-        Ff7BattleAiActor nativeTarget = host.Capture().Actors.Single(actor => actor.Actor.Slot == enemy.Occurrence).Actor;
-        Ff7BattleRng nativeRandom = new(kernel[2].Data.Span, Ff7BattleRng.BeginBattle());
-        Assert.Throws<InvalidOperationException>(() => CrossoverBattleFireRules.ReceiveContact(roster, action, pending.Vitals, kit, nativeFire, originalMp, nativeTarget, kernel, nativeRandom));
-        CrossoverBattleFireContact contact = CrossoverBattleFireRules.ReceiveContact(roster, coldAction, committed, kit, nativeFire, originalMp, nativeTarget, kernel, nativeRandom);
-        Assert.Equal(new(false, false, 83), contact.Result.Damage);
-        Assert.Equal((0U, 1U), (contact.Result.Target.Hp, contact.Result.AddedStatuses));
-        string randomAfter = JsonSerializer.Serialize(nativeRandom.Capture());
-        CrossoverBattleFireContact coldContact = JsonSerializer.Deserialize<CrossoverBattleFireContact>(JsonSerializer.Serialize(contact))!;
-        Assert.Equal(contact, CrossoverBattleFireRules.ReceiveContact(roster, action, committed, kit, nativeFire, originalMp, nativeTarget with { HitPoints = 0, Statuses = 1 }, kernel, nativeRandom, coldContact));
-        Assert.Equal(randomAfter, JsonSerializer.Serialize(nativeRandom.Capture()));
-        byte[] projected = Enumerable.Range(0, 256).Select(CrossoverBattleFireRules.ProjectMagic).ToArray();
+    [Fact]
+    public void GenericNumericReceiptRequiresNoHostSpellCalibrationRecord()
+    {
+        BattleNativeAction native = new(2, 57, 1, 57)
+        {
+            MagicId = 511, AttackType = 2, Power = 18, HitCount = 1, TargetFlags = 0x10, AttackFlags = 1, DamagePresentation = 0, Element = 1, ElementPercent = null, StatusAttack = 255, Statuses0 = 2, Statuses1 = 0, Hit = 100, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = [], SupplementalRecord = []
+        };
+        BattlePlayerStats stats = new(17, 8, 6, 8, 20, 16, 100, 0, new int[8], 0, 0);
+        CrossoverFf8BattleKit kit = new(0, 100, 100, 7, 0, stats, new(0, 0, []), native, new(0, 5, 0, 10, []), 0, [2], []);
+        Ff7BattleGuestPhysicalHit hit = CrossoverBattleAbilityRules.Describe(kit, native);
+        Ff7BattleDamageActor targetStats = new(6, 10, 10, 10, 0, 0, 0, 16, 16, IsEnemy: true);
+        Ff7BattleActionVitals source = new(100, 100, 0, 0, 0);
+        Ff7BattleActionVitals target = new(600, 600, 0, 0, 0);
+        Ff7BattleActionReceipt receipt = Ff7NativeBattleActionResolver.Resolve(hit.Source, source, targetStats, target, hit.Attack, hit.StatusRecord, new(new byte[3988], Ff7BattleRng.BeginBattle()));
+
+        Assert.False(receipt.Damage.Missed);
+        Assert.InRange(receipt.Damage.Damage, 1, 599);
+        Assert.Equal(target.Hp - (uint)receipt.Damage.Damage, receipt.Target.Hp);
+        Assert.Equal(Ff7NativeBattleActionResolver.Poison, receipt.AddedStatuses);
+        Assert.Equal(source, receipt.Source);
+        byte[] projected = Enumerable.Range(0, 256).Select(CrossoverBattleAbilityRules.ProjectMagic).ToArray();
         Assert.Equal((0, 23, 255), ((int)projected[0], (int)projected[6], (int)projected[^1]));
         Assert.Equal(projected.Order(), projected);
-        Assert.Throws<NotSupportedException>(() => CrossoverBattleFireRules.ReceiveContact(roster, action, committed, kit, nativeFire, originalMp, nativeTarget with { Statuses = 1 }, kernel, nativeRandom));
     }
 
     private static Ff7BattleSnapshot Opening()
