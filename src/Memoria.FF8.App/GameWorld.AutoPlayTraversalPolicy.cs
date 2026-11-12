@@ -205,6 +205,13 @@ internal static class AutoPlayTraversalPolicy
             ("249:912", "249:line:12") => -6,
             ("254:912", "254:talk:6") => -7,
             ("257:912", "257:talk:8") => -8,
+            // NG-055: Complete Edea's ordinary dialogue and contact sequence.
+            ("505:1091" or "505:1092", "505:gateway:1") => -1,
+            ("503:1091" or "503:1092", "503:gateway:0") => -1,
+            ("502:1091", "502:talk:6") => -3,
+            ("502:1092", "502:gateway:1") => -2,
+            ("499:1092" or "499:1095", "499:line:8") => -4,
+            ("499:1093" or "499:1094", "499:talk:7") => -3,
             _ => 0
         };
     }
