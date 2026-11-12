@@ -90,6 +90,11 @@ internal static class AutoPlayTraversalPolicy
             ("137:560", "137:line:15") => -3,
             ("139:560", "139:gateway:0") => -4,
             ("143:560", "143:line:15") => -5,
+            // NG-035: Follow the faculty summons to the basement.
+            ("163:575", "163:line:16") => -1,
+            ("167:575", "167:gateway:5") => -2,
+            ("172:575", "172:line:12") => -3,
+            ("192:600", "192:line:13") => -1,
             _ => 0
         };
     }
