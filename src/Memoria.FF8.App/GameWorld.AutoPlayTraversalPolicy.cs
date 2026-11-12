@@ -193,6 +193,18 @@ internal static class AutoPlayTraversalPolicy
             ("691:895", "691:gateway:1") => -4,
             ("692:895", "692:gateway:1" or "692:gateway:2") => -5,
             ("687:895", "687:line:6") => -6,
+            // NG-053: Leave the Garden for the first visit to Edea after the infirmary scene.
+            ("245:912", "245:line:13") => -1,
+            ("145:912", "145:line:21" or "145:line:18") => -2,
+            ("174:912", "174:gateway:0") => -3,
+            ("171:912", "171:line:19") => -3,
+            ("168:912", "168:line:22") => -3,
+            ("163:912", "163:line:16") => -3,
+            ("167:912", "167:gateway:5") => -4,
+            ("172:912", "172:line:12") => -5,
+            ("249:912", "249:line:12") => -6,
+            ("254:912", "254:talk:6") => -7,
+            ("257:912", "257:talk:8") => -8,
             _ => 0
         };
     }
@@ -229,6 +241,9 @@ internal static class AutoPlayTraversalPolicy
             "144:892:9:70:1307:9:1:3" => 3,
             "144:892:9:70:1357:11:0:3" or "95:892:9:37:379:8:0:2" => 1,
             "675:892:0:13:147:26:2:3" or "675:893:0:13:147:26:2:3" => 3,
+            // NG-053: Take the Garden bridge and confirm departure.
+            "172:912:12:98:1227:4:2:4" => 4,
+            "257:912:8:84:2941:67:2:3" => 2,
             // NG-036: Take the elevator to 2F for the approaching ship.
             "172:614:12:98:1227:4:2:4" => 3,
             // NG-039, NG-040: Take the elevator to 2F for Fishermans Horizon.
