@@ -61,7 +61,7 @@ public sealed partial class Ff7Session
         ushort flags = Host.Process.BattleRequestFlags ?? unchecked((ushort)(Host.Process.BattleMode2 != 0 ? Host.Process.BattleMode2 : Host.Process.BattleMode));
         flags |= Host.StartingEncounterInitiative;
         int track = !Host.Process.BattleMusicSuppressed && Host.Process.NextBattleMusicTrack >= 0 ? Host.ResolveNativeMusicTrack(Host.Process.NextBattleMusicTrack) : 0;
-        Battle = new(formation, Progress, battleKernel!, executable.NativeMateriaStatModifiers, request.Id, flags, animations: battleAnimations, limits: battleLimits, beatRushSymbols: beatRushSymbols, requestMode: Host.Process.BattleRequestMode, musicTrack: track > 0 ? track : null, bigShotChargeRotation: battleBigShotChargeRotation, bigShotCounterRotation: battleBigShotCounterRotation, searchScopeScaleCounter: battleSearchScopeScaleCounter, cameraScripts: LoadBattleCameraScripts(Ff7NativeAtb.ResolveLayout(formation.Layout, formation.BattleFlags, (flags & 4) != 0)), cameraPresentationCounter: battleCameraPresentationCounter, silkDirection: battleSilkDirection, enemyExtensions: enemyExtensions, enemyExtensionPartyLevels: enemyExtensionPartyLevels?.Invoke());
+        Battle = new(formation, Progress, battleKernel!, executable.NativeMateriaStatModifiers, request.Id, flags, animations: battleAnimations, limits: battleLimits, beatRushSymbols: beatRushSymbols, requestMode: Host.Process.BattleRequestMode, musicTrack: track > 0 ? track : null, bigShotChargeRotation: battleBigShotChargeRotation, bigShotCounterRotation: battleBigShotCounterRotation, searchScopeScaleCounter: battleSearchScopeScaleCounter, cameraScripts: LoadBattleCameraScripts(Ff7NativeAtb.ResolveLayout(formation.Layout, formation.BattleFlags, (flags & 4) != 0)), cameraPresentationCounter: battleCameraPresentationCounter, silkDirection: battleSilkDirection, enemyExtensions: enemyExtensions, enemyExtensionPartyLevels: enemyExtensionPartyLevels?.Invoke(), initialSaveBank1: Ff7BattleSession.CaptureNativeSaveBank(Machine.Variables));
         return new(false);
     }
 
@@ -69,7 +69,7 @@ public sealed partial class Ff7Session
     {
         SceneFormation formation = GetBattleFormation(snapshot.FormationId);
         LoadBattlePresentationResources();
-        Battle = new(formation, Progress, battleKernel!, executable.NativeMateriaStatModifiers, snapshot.RequestId, snapshot: snapshot, animations: battleAnimations, limits: battleLimits, beatRushSymbols: beatRushSymbols, cameraScripts: LoadBattleCameraScripts(snapshot.Layout), cameraPresentationCounter: battleCameraPresentationCounter, silkDirection: battleSilkDirection);
+        Battle = new(formation, Progress, battleKernel!, executable.NativeMateriaStatModifiers, snapshot.RequestId, snapshot: snapshot, animations: battleAnimations, limits: battleLimits, beatRushSymbols: beatRushSymbols, cameraScripts: LoadBattleCameraScripts(snapshot.Layout), cameraPresentationCounter: battleCameraPresentationCounter, silkDirection: battleSilkDirection, initialSaveBank1: Ff7BattleSession.CaptureNativeSaveBank(Machine.Variables));
     }
 
     private Ff7BattleCameraScriptResources LoadBattleCameraScripts(byte layout)
@@ -109,7 +109,9 @@ public sealed partial class Ff7Session
             return false;
         }
         Ff7Progress result = battle.PublishVictory(Progress, FieldGeneration);
-        Host.PublishBattleResult(battle.RequestId, 0);
+        int nativeResult = battle.ResolveNativeFieldResult(0);
+        battle.PublishNativeSaveWrites(Machine.Variables);
+        Host.PublishBattleResult(battle.RequestId, nativeResult);
         Progress = result;
         battleBigShotChargeRotation = battle.BigShotChargeRotation;
         battleBigShotCounterRotation = battle.BigShotCounterRotation;
@@ -134,7 +136,9 @@ public sealed partial class Ff7Session
             return false;
         }
         Ff7Progress result = battle.PublishVitals(Progress) with { BattleEscapes = unchecked((ushort)(Progress.BattleEscapes + 1)) };
-        Host.PublishBattleResult(battle.RequestId, Ff7NativeBattleEscape.FieldResult);
+        int nativeResult = battle.ResolveNativeFieldResult(Ff7NativeBattleEscape.FieldResult);
+        battle.PublishNativeSaveWrites(Machine.Variables);
+        Host.PublishBattleResult(battle.RequestId, nativeResult);
         Progress = result;
         battleBigShotChargeRotation = battle.BigShotChargeRotation;
         battleBigShotCounterRotation = battle.BigShotCounterRotation;
@@ -159,7 +163,9 @@ public sealed partial class Ff7Session
             return false;
         }
         Ff7Progress result = battle.PublishVitals(Progress);
-        Host.PublishBattleResult(battle.RequestId, 1);
+        int nativeResult = battle.ResolveNativeFieldResult(1);
+        battle.PublishNativeSaveWrites(Machine.Variables);
+        Host.PublishBattleResult(battle.RequestId, nativeResult);
         Progress = result;
         battleBigShotChargeRotation = battle.BigShotChargeRotation;
         battleBigShotCounterRotation = battle.BigShotCounterRotation;

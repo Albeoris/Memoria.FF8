@@ -47,7 +47,7 @@ public sealed partial class Ff7BattleSession
 
     private bool GuestItemTarget(IFf7BattleGuestItems items, ushort item, Ff7BattleActorState target)
     {
-        if (target.Actor.Slot >= 3 || !items.SupportsItem(item, DescribeGuestTarget(target.Actor.Slot)))
+        if (!items.SupportsItem(item, DescribeGuestTarget(target.Actor.Slot)))
         {
             return false;
         }
@@ -60,7 +60,7 @@ public sealed partial class Ff7BattleSession
         Ff7BattleGuestItemEffect effect = items.DescribeItem(invocation.GuestAbility);
         Ff7BattleActionVitals sourceVitals = GuestItemVitals(Actor(invocation.ActorSlot));
         Ff7BattleActionVitals targetVitals = GuestItemVitals(target);
-        Ff7BattleActionReceipt receipt = Ff7NativeBattleActionResolver.ApplyGuestItem(sourceVitals, targetVitals, effect);
+        Ff7BattleActionReceipt receipt = Ff7NativeBattleActionResolver.ApplyGuestItem(sourceVitals, targetVitals, effect, nullifyRecovery: (target.Actor.Conditions & 0x200) != 0);
         Ff7BattleGuestPhysicalHit hit = new(default, new(0, 0, 255, Healing: true), 0) { PreparedContact = new(invocation, sourceVitals, targetVitals, receipt), ItemEffect = effect };
         if (items.PrepareItemUnsupportedReason(hit) is { } reason)
         {
@@ -80,7 +80,7 @@ public sealed partial class Ff7BattleSession
         {
             throw new InvalidDataException("The guest item receipt no longer matches its host recipient.");
         }
-        Ff7BattleActionReceipt receipt = Ff7NativeBattleActionResolver.ApplyGuestItem(currentSource, currentTarget, effect, prepared.Receipt.Damage);
+        Ff7BattleActionReceipt receipt = Ff7NativeBattleActionResolver.ApplyGuestItem(currentSource, currentTarget, effect, prepared.Receipt.Damage, nullifyRecovery: (target.Actor.Conditions & 0x200) != 0);
         PublishHit(command, target, hit.Attack, receipt);
         if (effect.ReviveDivisor != 0 && (receipt.RemovedStatuses & Ff7NativeBattleActionResolver.Death) != 0 && state.ActorModels.Length != 0)
         {

@@ -8,6 +8,7 @@ public sealed record NativeBattleForeignActor(int Index, NativeBattleModelTransf
     public short Facing { get; init; }
     public int BoneCount { get; init; }
     public NativeBattleForeignModelGeometry? Geometry { get; init; }
+    public Func<NativeBattleEffectActorGeometry>? ReadGeometry { get; init; }
 }
 
 public sealed record NativeBattleEffectPresentationInputs(BattleDefinition Resources, NativeBattleGraphicsModel Source, NativeBattleGraphicsResource SourceResource, NativeBattleActionPacketsState Packets, NativeBattleEffectParameters Parameters, ushort Effect, NativeBattleEffectTextureState Textures, NativeCrtRandomState Random, NativeBattleCameraProjection Projection, ImmutableArray<NativeBattleForeignActor> ForeignActors);

@@ -101,7 +101,7 @@ internal sealed record CrossoverGuestItemInventory(NativeItemStock[] Slots, Immu
         foreach ((long operation, bool complete, CrossoverGuestItemDebit debit) in journal.OrderBy(entry => entry.Sequence))
         {
             Ff7BattleGuestItemSelection selection = debit.Selection;
-            if (operation != ++sequence || selection.RequestId != request || !actors.Contains(selection.ActorSlot) || selection.SubmittedAt < 0 || selection.SubmittedAt > tick || selection.TargetSlot is < 0 or >= 3 || !Supports(selection.ItemId))
+            if (operation != ++sequence || selection.RequestId != request || !actors.Contains(selection.ActorSlot) || selection.SubmittedAt < 0 || selection.SubmittedAt > tick || selection.TargetSlot is < 0 or 3 or > 9 || !Supports(selection.ItemId))
             {
                 throw new InvalidDataException("The guest item receipt belongs to a different queue occurrence or origin item.");
             }
@@ -139,5 +139,5 @@ internal sealed record CrossoverGuestItemInventory(NativeItemStock[] Slots, Immu
     private static CrossoverGuestItemInventory WithPending(CrossoverGuestItemInventory inventory, CrossoverGuestItemDebit[] pending)
         => inventory with { Pending = pending.FirstOrDefault(), OtherPending = pending.Length <= 1 ? default : pending.Skip(1).ToImmutableArray() };
 
-    public static bool Supports(ushort item) => item is 1 or 7 or 16;
+    public static bool Supports(ushort item) => item is 1 or 7 or 9 or 16;
 }

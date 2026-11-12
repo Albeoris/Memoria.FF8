@@ -4,10 +4,16 @@ using Memoria.FF7.Formats;
 
 namespace Memoria.FF7.Runtime;
 
-public sealed record Ff7BattleAiActor(int Slot, uint Statuses, uint Conditions, ushort MagicPoints, ushort MaxMagicPoints, uint HitPoints, uint MaxHitPoints, ushort Defense = 0, ushort MagicDefense = 0, byte Variant = 0, byte IdleAction = 0, byte HurtAction = 1, ushort LastAttackerMask = 0);
-public sealed record Ff7BattleAiContext(int ActorSlot, IReadOnlyList<Ff7BattleAiActor> Actors, ushort EligibleMask, ushort KnockedOutMask, ushort ExcludedOpponentMask = 0, byte Callback = 1, byte? QueuePriority = null);
+public sealed record Ff7BattleAiActor(int Slot, uint Statuses, uint Conditions, ushort MagicPoints, ushort MaxMagicPoints, uint HitPoints, uint MaxHitPoints, ushort Defense = 0, ushort MagicDefense = 0, byte Variant = 0, byte IdleAction = 0, byte HurtAction = 1, ushort LastAttackerMask = 0, byte? Level = null, ushort? EnemyId = null, byte? Strength = null, byte? Magic = null, byte? Speed = null, byte? FormationRow = null, uint? ElementHalve = null, uint? ElementNullify = null, uint? ElementAbsorb = null, uint? ElementWeakness = null, uint? PreviousStatuses = null, uint? CaptureMask = null, byte? PresentationByte = null, ushort? LastPhysicalAttackerMask = null, ushort? LastMagicAttackerMask = null, ushort? ExtraElementAbsorb = null, byte? PhysicalEvasion = null, byte? HitEffect = null);
+public sealed record Ff7BattleAiContext(int ActorSlot, IReadOnlyList<Ff7BattleAiActor> Actors, ushort EligibleMask, ushort KnockedOutMask, ushort ExcludedOpponentMask = 0, byte Callback = 1, byte? QueuePriority = null, byte[]? GlobalMemory = null, byte[]? SaveBank1 = null);
 public sealed record Ff7BattleAiCommand(int ActorSlot, byte CommandId, ushort AttackId, int SceneAttackSlot, ushort TargetMask, byte[]? Message = null, byte Callback = 1, byte Priority = 2);
-public sealed record Ff7BattleAiResult(byte[] LocalMemory, Ff7BattleAiCommand[] Commands, Ff7BattleAiActor[] ActorUpdates);
+public sealed record Ff7BattleAiTransfer(int SourceSlot, int DestinationSlot);
+public sealed record Ff7BattleAiResult(byte[] LocalMemory, Ff7BattleAiCommand[] Commands, Ff7BattleAiActor[] ActorUpdates)
+{
+    public byte[] GlobalMemory { get; init; } = [];
+    public Ff7BattleAiTransfer[] TransferUpdates { get; init; } = [];
+    public IReadOnlyDictionary<byte, byte> SaveBank1Writes { get; init; } = new Dictionary<byte, byte>();
+}
 
 /// <summary>Runs a single native enemy AI callback. The encounter owns the input projections and RNG.</summary>
 public static class Ff7BattleAi
@@ -37,6 +43,14 @@ public static class Ff7BattleAi
             throw new InvalidDataException("FFVII battle AI actor memory has an invalid size.");
         }
         byte[] memory = localMemory.IsEmpty ? new byte[LocalMemorySize] : localMemory.ToArray();
+        if (script.IsEmpty)
+        {
+            if (context.GlobalMemory is { Length: not 64 })
+            {
+                throw new InvalidDataException("FFVII battle AI global memory has an invalid size.");
+            }
+            return new(memory, [], []) { GlobalMemory = context.GlobalMemory?.ToArray() ?? new byte[64] };
+        }
         Machine machine = new(script, context, memory, formation, random, kernelAttacks);
         return machine.Run();
     }
@@ -91,6 +105,9 @@ public static class Ff7BattleAi
         private readonly byte priority;
         private readonly Stack<Value> stack = new();
         private readonly List<Ff7BattleAiCommand> commands = new();
+        private readonly byte[] global;
+        private readonly List<Ff7BattleAiTransfer> transferUpdates = new();
+        private readonly Dictionary<byte, byte> saveBank1Writes = new();
         private ushort updatedActors;
         private ushort target;
         private int stackBytes;
@@ -104,6 +121,11 @@ public static class Ff7BattleAi
             this.random = random;
             this.kernelAttacks = kernelAttacks;
             this.context = context;
+            if (context.GlobalMemory is not null && context.GlobalMemory.Length != 64)
+            {
+                throw new InvalidDataException("FFVII battle AI global memory has an invalid size.");
+            }
+            global = context.GlobalMemory?.ToArray() ?? new byte[64];
             actors = new Ff7BattleAiActor?[10];
             ushort party = 0;
             ushort enemies = 0;
@@ -125,10 +147,24 @@ public static class Ff7BattleAi
                 }
             }
 
-            if (context.ActorSlot is < 4 or > 9 || actors[context.ActorSlot] is not Ff7BattleAiActor current || context.Callback >= 16 || context.QueuePriority is > 6 || ((context.EligibleMask | context.KnockedOutMask | context.ExcludedOpponentMask) & ~(party | enemies)) != 0)
+            bool formationScript = context.ActorSlot == 3;
+            if (context.ActorSlot is < 3 or > 9 || (!formationScript && actors[context.ActorSlot] is null) || (formationScript && context.GlobalMemory is null) || context.Callback >= 16 || context.QueuePriority is > 6 || ((context.EligibleMask | context.KnockedOutMask | context.ExcludedOpponentMask) & ~(party | enemies)) != 0)
             {
                 throw new InvalidDataException("FFVII enemy AI context has an invalid owner or mask.");
             }
+            if (formationScript)
+            {
+                allocated = (ushort)ReadMemory(global, 2, 0x50);
+                self = (ushort)ReadMemory(global, 2, 0x60);
+                target = (ushort)ReadMemory(global, 2, 0x70);
+                allies = (ushort)ReadMemory(global, 2, 0x80);
+                knockedOutAllies = (ushort)ReadMemory(global, 2, 0x90);
+                opponents = (ushort)ReadMemory(global, 2, 0xA0);
+                knockedOutOpponents = (ushort)ReadMemory(global, 2, 0xB0);
+                priority = context.QueuePriority ?? 0;
+                return;
+            }
+            Ff7BattleAiActor current = actors[context.ActorSlot]!;
             bool swapped = BitOperations.PopCount(current.Statuses & 0x00400040) == 1;
             ushort friendly = (ushort)((swapped ? party : enemies) & context.EligibleMask);
             ushort opposing = (ushort)((swapped ? enemies : party) & context.EligibleMask);
@@ -140,13 +176,20 @@ public static class Ff7BattleAi
             self = (ushort)(1 << context.ActorSlot);
             priority = context.QueuePriority ?? (context.Callback switch { 1 => (byte)2, 6 => (byte)6, _ => (byte)0 });
             target = opponents;
+            WriteMemory(global, 2, 0x50, allocated);
+            WriteMemory(global, 2, 0x60, self);
+            WriteMemory(global, 2, 0x70, target);
+            WriteMemory(global, 2, 0x80, allies);
+            WriteMemory(global, 2, 0x90, knockedOutAllies);
+            WriteMemory(global, 2, 0xA0, opponents);
+            WriteMemory(global, 2, 0xB0, knockedOutOpponents);
         }
 
         public Ff7BattleAiResult Run()
         {
             if (script.IsEmpty)
             {
-                return new(local, [], []);
+                return new(local, [], []) { GlobalMemory = global.ToArray() };
             }
             for (int instructions = 0; instructions < InstructionLimit; instructions++)
             {
@@ -199,6 +242,12 @@ public static class Ff7BattleAi
                     case 0x82:
                         SelectRandom();
                         break;
+                    case 0x83:
+                        CountOrCollapse();
+                        break;
+                    case 0x87:
+                        Push(new(2, 1U << ((int)Pop().At(0) & 31)));
+                        break;
                     case 0x84:
                     case 0x85:
                         SelectExtreme(opcode == 0x84);
@@ -218,6 +267,12 @@ public static class Ff7BattleAi
                     case 0x93:
                         QueueMessage();
                         break;
+                    case 0x94:
+                        TransferActors();
+                        break;
+                    case 0x95:
+                        ExchangeSaveBank();
+                        break;
                     default:
                         throw new NotSupportedException($"FFVII battle AI opcode 0x{opcode:X2} at script offset 0x{instruction:X} is unsupported.");
                 }
@@ -235,7 +290,7 @@ public static class Ff7BattleAi
                     changed.Add(actors[slot]!);
                 }
             }
-            return new(local, commands.ToArray(), changed.ToArray());
+            return new(local, commands.ToArray(), changed.ToArray()) { GlobalMemory = global.ToArray(), TransferUpdates = transferUpdates.ToArray(), SaveBank1Writes = new Dictionary<byte, byte>(saveBank1Writes) };
         }
 
         private void Branch(byte opcode)
@@ -280,19 +335,55 @@ public static class Ff7BattleAi
             Push(new(width, 0, values));
         }
 
-        private uint ReadGlobal(int width, ushort address)
+        private uint ReadGlobal(int width, ushort address) => ReadMemory(global, width, address - 0x2000);
+
+        private void CountOrCollapse()
         {
-            return (width, address) switch
+            Value value = Pop();
+            Push(value.Actors is null ? new(1, (uint)BitOperations.PopCount(value.Scalar & ActorMask)) : new(value.Width, value.First()));
+        }
+
+        private void ExchangeSaveBank()
+        {
+            uint address = Pop().At(0);
+            uint mode = Pop().At(0);
+            if (mode > 1)
             {
-                (2, 0x2050) => allocated,
-                (2, 0x2060) => self,
-                (2, 0x2070) => target,
-                (2, 0x2080) => allies,
-                (2, 0x2090) => knockedOutAllies,
-                (2, 0x20A0) => opponents,
-                (2, 0x20B0) => knockedOutOpponents,
-                _ => throw new NotSupportedException($"FFVII battle AI global 0x{address:X4} width {width} has no native projection.")
-            };
+                return;
+            }
+            if (address > byte.MaxValue || context.SaveBank1 is null || context.SaveBank1.Length != 256)
+            {
+                throw new NotSupportedException("FFVII battle AI save-bank exchange requires native bank 1.");
+            }
+            byte index = (byte)address;
+            if (mode == 0)
+            {
+                global[2] = saveBank1Writes.TryGetValue(index, out byte changed) ? changed : context.SaveBank1[index];
+            }
+            else
+            {
+                saveBank1Writes[index] = global[2];
+            }
+        }
+
+        private void TransferActors()
+        {
+            ushort sourceMask = (ushort)Pop().At(0);
+            ushort destinationMask = (ushort)Pop().At(0);
+            int sourceSlot = BitOperations.TrailingZeroCount((uint)(sourceMask & ActorMask));
+            if (sourceSlot >= actors.Length || actors[sourceSlot] is not Ff7BattleAiActor source)
+            {
+                return;
+            }
+            for (int slot = 0; slot < actors.Length; slot++)
+            {
+                if ((destinationMask & (1 << slot)) != 0 && actors[slot] is Ff7BattleAiActor destination)
+                {
+                    actors[slot] = destination with { HitPoints = source.HitPoints, MagicPoints = source.MagicPoints, Statuses = source.Statuses, PreviousStatuses = source.PreviousStatuses };
+                    updatedActors |= (ushort)(1 << slot);
+                    transferUpdates.Add(new(sourceSlot, slot));
+                }
+            }
         }
 
         private static uint ReadActor(Ff7BattleAiActor actor, int width, ushort address)
@@ -303,16 +394,35 @@ public static class Ff7BattleAi
                 (0, >= 0x4020 and < 0x4040) => actor.Conditions >> (address - 0x4020) & 1,
                 (3, 0x4000) => actor.Statuses,
                 (3, 0x4020) => actor.Conditions,
+                (1, 0x4048) => actor.Level ?? 0,
                 (1, 0x4060) => actor.Variant,
+                (1, 0x4068) => actor.Strength ?? 0,
+                (1, 0x4070) => actor.Magic ?? 0,
+                (1, 0x4078) => actor.PhysicalEvasion ?? 0,
+                (1, 0x42B0) => actor.HitEffect ?? (byte)(actor.Slot < 3 ? 8 : 2),
+                (1, 0x40A0) => actor.Speed ?? 0,
+                (1, 0x4270) => actor.FormationRow ?? 0,
+                (1, 0x4278) => actor.PresentationByte ?? 0xFF,
                 (1, 0x4080) => actor.IdleAction,
                 (1, 0x4088) => actor.HurtAction,
                 (2, 0x40D0) => actor.LastAttackerMask,
+                (2, 0x40E0) => actor.LastPhysicalAttackerMask ?? 0,
+                (2, 0x40F0) => actor.LastMagicAttackerMask ?? 0,
                 (2, 0x4100) => actor.Defense,
                 (2, 0x4110) => actor.MagicDefense,
+                (2, 0x4120) => actor.EnemyId ?? 0xFFFF,
+                (2, 0x4130) => actor.ExtraElementAbsorb ?? 0,
                 (2, 0x4140) => actor.MagicPoints,
                 (2, 0x4150) => actor.MaxMagicPoints,
                 (3, 0x4160) => actor.HitPoints,
                 (3, 0x4180) => actor.MaxHitPoints,
+                (3, 0x41A0) => actor.ElementHalve ?? 0,
+                (3, 0x41C0) => actor.ElementNullify ?? 0,
+                (3, 0x41E0) => actor.ElementAbsorb ?? 0,
+                (3, 0x4200) => actor.ElementWeakness ?? 0,
+                (3, 0x4220) => actor.PreviousStatuses ?? 0,
+                (2, 0x4300) => (actor.CaptureMask ?? 0) & 0xFFFF,
+                (3, 0x4300) => actor.CaptureMask ?? 0,
                 _ => throw new NotSupportedException($"FFVII battle AI actor address 0x{address:X4} width {width} has no native projection.")
             };
         }
@@ -333,30 +443,55 @@ public static class Ff7BattleAi
             }
             if (address >= 0x2000)
             {
-                if (address == 0x2070 && reference.Width == 2)
-                {
-                    target = (ushort)value;
-                    return;
-                }
-                throw new NotSupportedException($"FFVII battle AI write to 0x{address:X4} width {reference.Width} has no native owner.");
+                WriteMemory(global, reference.Width, address - 0x2000, value);
+                target = (ushort)ReadMemory(global, 2, 0x70);
+                return;
             }
-            int offset = LocalOffset(reference.Width, address);
-            switch (reference.Width)
+            WriteMemory(local, reference.Width, address, value);
+        }
+
+        private static void WriteMemory(byte[] memory, int width, int address, uint value)
+        {
+            int offset = MemoryOffset(memory, width, address);
+            switch (width)
             {
                 case 0:
                     int bit = 1 << (address & 7);
-                    local[offset] = (byte)((local[offset] & ~bit) | (value == 0 ? 0 : bit));
+                    memory[offset] = (byte)((memory[offset] & ~bit) | (value == 0 ? 0 : bit));
                     break;
                 case 1:
-                    local[offset] = (byte)value;
+                    memory[offset] = (byte)value;
                     break;
                 case 2:
-                    BinaryPrimitives.WriteUInt16LittleEndian(local.AsSpan(offset), (ushort)value);
+                    BinaryPrimitives.WriteUInt16LittleEndian(memory.AsSpan(offset), (ushort)value);
                     break;
                 case 3:
-                    BinaryPrimitives.WriteUInt32LittleEndian(local.AsSpan(offset), value);
+                    BinaryPrimitives.WriteUInt32LittleEndian(memory.AsSpan(offset), value);
                     break;
             }
+        }
+
+        private static uint ReadMemory(byte[] memory, int width, int address)
+        {
+            int offset = MemoryOffset(memory, width, address);
+            return width switch
+            {
+                0 => (uint)(memory[offset] >> (address & 7)) & 1,
+                1 => memory[offset],
+                2 => BinaryPrimitives.ReadUInt16LittleEndian(memory.AsSpan(offset)),
+                _ => BinaryPrimitives.ReadUInt32LittleEndian(memory.AsSpan(offset))
+            };
+        }
+
+        private static int MemoryOffset(byte[] memory, int width, int address)
+        {
+            int size = width switch { 0 or 1 => 1, 2 => 2, _ => 4 };
+            int offset = width switch { 0 or 1 => address >> 3, 2 => (address >> 4) * 2, _ => (address >> 5) * 4 };
+            if (address < 0 || offset < 0 || offset + size > memory.Length)
+            {
+                throw new InvalidDataException("FFVII battle AI memory address exceeds its native owner.");
+            }
+            return offset;
         }
 
         private void StoreActor(Value reference, uint value)
@@ -376,7 +511,30 @@ public static class Ff7BattleAi
                 }
                 Ff7BattleAiActor changed = (reference.Width, reference.Scalar) switch
                 {
-                    (0, 0x402C) => actor with { Conditions = (actor.Conditions & ~0x1000U) | (value == 0 ? 0 : 0x1000U) },
+                    (0, >= 0x4000 and < 0x4020) => actor with { Statuses = SetBit(actor.Statuses, (int)reference.Scalar - 0x4000, value) },
+                    (0, >= 0x4020 and < 0x4040) => actor with { Conditions = SetBit(actor.Conditions, (int)reference.Scalar - 0x4020, value) },
+                    (3, 0x4000) => actor with { Statuses = value },
+                    (3, 0x4020) => actor with { Conditions = value },
+                    (1, 0x4048) => actor with { Level = (byte)value },
+                    (1, 0x4068) => actor with { Strength = (byte)value },
+                    (1, 0x4070) => actor with { Magic = (byte)value },
+                    (1, 0x4078) => actor with { PhysicalEvasion = (byte)value },
+                    (1, 0x42B0) => actor with { HitEffect = (byte)value },
+                    (2, 0x4130) => actor with { ExtraElementAbsorb = (ushort)value },
+                    (1, 0x40A0) => actor with { Speed = (byte)value },
+                    (1, 0x4270) => actor with { FormationRow = (byte)value },
+                    (1, 0x4278) => actor with { PresentationByte = (byte)value },
+                    (2, 0x4140) => actor with { MagicPoints = (ushort)value },
+                    (2, 0x4150) => actor with { MaxMagicPoints = (ushort)value },
+                    (3, 0x4160) => actor with { HitPoints = value },
+                    (3, 0x4180) => actor with { MaxHitPoints = value },
+                    (3, 0x41A0) => actor with { ElementHalve = value },
+                    (3, 0x41C0) => actor with { ElementNullify = value },
+                    (3, 0x41E0) => actor with { ElementAbsorb = value },
+                    (3, 0x4200) => actor with { ElementWeakness = value },
+                    (3, 0x4220) => actor with { PreviousStatuses = value },
+                    (2, 0x4300) => actor with { CaptureMask = ((actor.CaptureMask ?? 0) & 0xFFFF0000) | (ushort)value },
+                    (3, 0x4300) => actor with { CaptureMask = value },
                     (1, 0x4080) => actor with { IdleAction = (byte)value },
                     (1, 0x4088) => actor with { HurtAction = (byte)value },
                     (2, 0x4100) => actor with { Defense = (ushort)value },
@@ -391,28 +549,13 @@ public static class Ff7BattleAi
             }
         }
 
-        private uint ReadLocal(int width, int address)
+        private static uint SetBit(uint current, int bit, uint value)
         {
-            int offset = LocalOffset(width, address);
-            return width switch
-            {
-                0 => (uint)(local[offset] >> (address & 7)) & 1,
-                1 => local[offset],
-                2 => BinaryPrimitives.ReadUInt16LittleEndian(local.AsSpan(offset)),
-                _ => BinaryPrimitives.ReadUInt32LittleEndian(local.AsSpan(offset))
-            };
+            uint mask = 1U << bit;
+            return (current & ~mask) | (value == 0 ? 0 : mask);
         }
 
-        private static int LocalOffset(int width, int address)
-        {
-            int size = width == 0 ? 1 : 1 << (width - 1);
-            int offset = address / (size * 8) * size;
-            if (offset >= LocalMemorySize)
-            {
-                throw new InvalidDataException("FFVII battle AI address crosses its local actor memory.");
-            }
-            return offset;
-        }
+        private uint ReadLocal(int width, int address) => ReadMemory(local, width, address);
 
         private void Arithmetic(byte opcode)
         {
@@ -546,8 +689,13 @@ public static class Ff7BattleAi
         {
             ushort id = (ushort)Pop().At(0);
             ushort command = (ushort)Pop().At(0);
-            int slot = self == 0 ? 0 : BitOperations.Log2(self);
-            if (command == 0x24)
+            ushort actionOwner = (ushort)ReadGlobal(2, 0x2060);
+            int slot = actionOwner == 0 ? 0 : BitOperations.Log2(actionOwner);
+            if (command == 0x22 && id >= 16)
+            {
+                throw new InvalidDataException("FFVII battle AI callback command has an invalid callback index.");
+            }
+            if (command is 0x01 or 0x22 or 0x24)
             {
                 commands.Add(new(slot, (byte)command, id, -1, target, Callback: context.Callback, Priority: priority));
                 return;

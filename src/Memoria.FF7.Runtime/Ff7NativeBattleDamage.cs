@@ -2,7 +2,10 @@ using Memoria.FF7.Formats;
 
 namespace Memoria.FF7.Runtime;
 
-public readonly record struct Ff7BattleDamageActor(byte Level, byte Attack, byte Magic, byte Dexterity, byte Luck, byte Evade, byte MagicEvade, ushort Defense, ushort MagicDefense, byte CriticalBonus = 0, uint Statuses = 0, bool IsEnemy = false, bool BackRow = false, bool Defending = false, sbyte AttackModifier = 0, sbyte MagicModifier = 0, sbyte DefenseModifier = 0, sbyte MagicDefenseModifier = 0, sbyte EvadeModifier = 0, sbyte DexterityModifier = 0, uint? CurrentHitPoints = null, uint? MaximumHitPoints = null, ushort? CurrentMagicPoints = null, ushort? MaximumMagicPoints = null);
+public readonly record struct Ff7BattleDamageActor(byte Level, byte Attack, byte Magic, byte Dexterity, byte Luck, byte Evade, byte MagicEvade, ushort Defense, ushort MagicDefense, byte CriticalBonus = 0, uint Statuses = 0, bool IsEnemy = false, bool BackRow = false, bool Defending = false, sbyte AttackModifier = 0, sbyte MagicModifier = 0, sbyte DefenseModifier = 0, sbyte MagicDefenseModifier = 0, sbyte EvadeModifier = 0, sbyte DexterityModifier = 0, uint? CurrentHitPoints = null, uint? MaximumHitPoints = null, ushort? CurrentMagicPoints = null, ushort? MaximumMagicPoints = null)
+{
+    public uint NativeConditions { get; init; }
+}
 
 [Flags]
 public enum Ff7BattleDamageAffinity : byte
@@ -17,6 +20,10 @@ public enum Ff7BattleDamageAffinity : byte
 public readonly record struct Ff7BattleDamageAction(byte Formula, byte Power, byte Accuracy, bool LongRange = false, bool BackAttack = false, byte BackAttackMultiplier = 16, bool Split = false, bool ForceCritical = false, bool Healing = false, bool CanBeBlinded = false, Ff7BattleDamageAffinity Affinity = Ff7BattleDamageAffinity.Normal, bool UsePhysicalStats = false, bool IgnoreDefense = false, bool HasStatusOperation = false, bool AddsStatuses = false, bool TargetsMagicPoints = false)
 {
     public bool SuppressCritical { get; init; }
+    public ushort NativeElements { get; init; }
+    public bool IsItem { get; init; }
+    public bool IgnoreNativeAffinity { get; init; }
+    public bool? NativePhysicalCategory { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public bool AlwaysHits { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
@@ -44,7 +51,7 @@ public readonly record struct Ff7BattleDamageAction(byte Formula, byte Power, by
         int statusOperation = attack.StatusChange >> 6;
         bool hasStatus = statusOperation < 3 && attack.StatusMask != 0;
         bool physicalFamily = (attack.DamageCalculation >> 4) is 1 or 3 or 6 or 10 or 11;
-        return new(attack.DamageCalculation, attack.Power, attack.Accuracy, LongRange: (attack.TargetFlags & 0x20) == 0, ForceCritical: (attack.SpecialFlags & 0x2000) == 0, Healing: attack.Elements != ushort.MaxValue && (attack.Elements & 0x200) != 0, CanBeBlinded: (attack.SpecialFlags & 4) == 0, UsePhysicalStats: physicalFamily || (attack.SpecialFlags & 4) == 0, IgnoreDefense: (attack.SpecialFlags & 0x400) == 0, HasStatusOperation: hasStatus, AddsStatuses: hasStatus && statusOperation == 0, TargetsMagicPoints: (attack.SpecialFlags & 1) == 0);
+        return new(attack.DamageCalculation, attack.Power, attack.Accuracy, LongRange: (attack.TargetFlags & 0x20) == 0, ForceCritical: (attack.SpecialFlags & 0x2000) == 0, Healing: attack.Elements != ushort.MaxValue && (attack.Elements & 0x200) != 0, CanBeBlinded: (attack.SpecialFlags & 4) == 0, UsePhysicalStats: physicalFamily || (attack.SpecialFlags & 4) == 0, IgnoreDefense: (attack.SpecialFlags & 0x400) == 0, HasStatusOperation: hasStatus, AddsStatuses: hasStatus && statusOperation == 0, TargetsMagicPoints: (attack.SpecialFlags & 1) == 0) { NativePhysicalCategory = (attack.SpecialFlags & 4) == 0, NativeElements = attack.Elements == ushort.MaxValue ? (ushort)0 : attack.Elements, IgnoreNativeAffinity = (attack.SpecialFlags & 0x80) == 0 };
     }
 }
 
@@ -172,18 +179,20 @@ public static class Ff7NativeBattleDamage
         {
             return new(true, false, 0);
         }
-        int elementalDamage = ApplyAffinity(damage, action.Affinity);
-        if (action.GuestElementPercent is byte percent)
+        action = action with { Affinity = action.IgnoreNativeAffinity ? Ff7BattleDamageAffinity.Normal : Ff7NativeBattleStatuses.ShieldAffinity(target.Statuses, action.NativeElements, action.IsItem, action.Affinity) };
+        bool immune = (target.NativeConditions & ((action.NativePhysicalCategory ?? action.UsePhysicalStats) ? 0x100U : 0x200U)) != 0;
+        int elementalDamage = immune ? 0 : ApplyAffinity(damage, action.Affinity);
+        if (!immune && !action.IgnoreNativeAffinity && action.GuestElementPercent is byte percent)
         {
             elementalDamage = damage + (elementalDamage - damage) * percent / 100;
         }
-        if (action.GuestElementAdjustment != 0)
+        if (!immune && !action.IgnoreNativeAffinity && action.GuestElementAdjustment != 0)
         {
             elementalDamage = elementalDamage * (100 + action.GuestElementAdjustment) / 100;
         }
         int limit = action.TargetsMagicPoints ? 999 : 9999;
         damage = Math.Clamp(elementalDamage, -limit, limit);
-        bool nullified = (action.Affinity & Ff7BattleDamageAffinity.Nullify) != 0 && action.GuestElementPercent is null or 100;
+        bool nullified = immune || (action.Affinity & Ff7BattleDamageAffinity.Nullify) != 0 && action.GuestElementPercent is null or 100;
         return new(false, critical && !nullified, action.Healing ? -damage : damage);
     }
 

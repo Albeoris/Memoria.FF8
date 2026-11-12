@@ -22,6 +22,7 @@ public sealed record Ff7EnemyExtensionDelta
     [JsonRequired]
     public short EnemyId { get; init; }
     public string? ScanDescription { get; init; }
+    public bool? ScaleLevel { get; init; }
     public Dictionary<string, int[]>? Growth { get; init; }
     public Dictionary<string, int[]>? RewardGrowth { get; init; }
     public Ff7EnemyDrawTier[]? DrawTiers { get; init; }
@@ -131,7 +132,7 @@ public sealed class Ff7EnemyExtensionCatalog
                     continue;
                 }
                 bool itemOverlap = (existing.ItemReplacements ?? []).Any(a => (delta.ItemReplacements ?? []).Any(b => (a.Channel, a.FromItemId, a.MinimumDelta) == (b.Channel, b.FromItemId, b.MinimumDelta)));
-                if (existing.ScanDescription is not null && delta.ScanDescription is not null || existing.DrawTiers is not null && delta.DrawTiers is not null || itemOverlap || (existing.Growth?.Keys.Intersect(delta.Growth?.Keys.AsEnumerable() ?? []).Any() ?? false) || (existing.RewardGrowth?.Keys.Intersect(delta.RewardGrowth?.Keys.AsEnumerable() ?? []).Any() ?? false))
+                if (existing.ScanDescription is not null && delta.ScanDescription is not null || existing.ScaleLevel is not null && delta.ScaleLevel is not null || existing.DrawTiers is not null && delta.DrawTiers is not null || itemOverlap || (existing.Growth?.Keys.Intersect(delta.Growth?.Keys.AsEnumerable() ?? []).Any() ?? false) || (existing.RewardGrowth?.Keys.Intersect(delta.RewardGrowth?.Keys.AsEnumerable() ?? []).Any() ?? false))
                 {
                     throw new InvalidDataException($"Conflicting FFVII extension properties for enemy {delta.EnemyId}: {string.Join(", ", owners[delta.EnemyId])} and {document.DocumentId}.");
                 }
@@ -145,7 +146,7 @@ public sealed class Ff7EnemyExtensionCatalog
                 {
                     rewards.Add(row.Key, row.Value);
                 }
-                enemies[delta.EnemyId] = Clone(existing with { ScanDescription = delta.ScanDescription ?? existing.ScanDescription, DrawTiers = delta.DrawTiers ?? existing.DrawTiers, ItemReplacements = [.. existing.ItemReplacements ?? [], .. delta.ItemReplacements ?? []], Growth = growth, RewardGrowth = rewards });
+                enemies[delta.EnemyId] = Clone(existing with { ScanDescription = delta.ScanDescription ?? existing.ScanDescription, ScaleLevel = delta.ScaleLevel ?? existing.ScaleLevel, DrawTiers = delta.DrawTiers ?? existing.DrawTiers, ItemReplacements = [.. existing.ItemReplacements ?? [], .. delta.ItemReplacements ?? []], Growth = growth, RewardGrowth = rewards });
                 owners[delta.EnemyId].Add(document.DocumentId);
             }
         }
@@ -237,7 +238,8 @@ public sealed partial class Ff7BattleSession
             {
                 continue;
             }
-            byte level = delta.Growth is { Count: > 0 } ? (byte)Math.Max(enemy.Level, Math.Min(100, partyLevel)) : enemy.Level;
+            bool scaleLevel = delta.ScaleLevel ?? delta.Growth is { Count: > 0 };
+            byte level = scaleLevel ? (byte)Math.Max(enemy.Level, Math.Min(100, partyLevel)) : enemy.Level;
             int Grow(string stat, int value, int maximum) => delta.Growth?.TryGetValue(stat, out int[]? row) == true ? Ff7EnemyExtensionCatalog.Scale(value, level, enemy.Level, row, maximum) : value;
             Ff7EnemyDrawSlot[] draw = delta.DrawTiers?.LastOrDefault(t => t.MinimumDelta <= level - enemy.Level)?.Slots ?? [];
             uint Reward(string channel, uint value, uint maximum) => Ff7EnemyExtensionCatalog.ScaleUnsigned(value, level, enemy.Level, delta.RewardGrowth?.GetValueOrDefault(channel), maximum);

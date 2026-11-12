@@ -171,11 +171,19 @@ public static class NativeBattleRecoveryController
             {
                 throw new NotSupportedException("Native Mega-Potion/Elixir/Megalixir child pool has an unsupported callback.");
             }
-            task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource);
-            NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadByte(0x2D));
-            NativeBattleSequenceState pose = model.SequenceState ?? throw new NotSupportedException("Native8DC870 requires the target's current decoded pose.");
-            NativeBattlePoseSource source = inputs.ReadPoseSource(task.ReadByte(0x2D));
-            task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, source.Sample(pose.Pose ?? throw new NotSupportedException("Native8DC870 requires its selected pose."), pose.PoseFrame114 ?? throw new NotSupportedException("Native8DC870 requires its decoded frame."), pose.PoseFlags109));
+            int target = task.ReadByte(0x2D);
+            if (inputs.ReadForeignTarget?.Invoke(target) is { } foreign)
+            {
+                task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, foreign);
+            }
+            else
+            {
+                task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource);
+                NativeBattleGraphicsModel model = inputs.ReadModel(target);
+                NativeBattleSequenceState pose = model.SequenceState ?? throw new NotSupportedException("Native8DC870 requires the target's current decoded pose.");
+                NativeBattlePoseSource source = inputs.ReadPoseSource(target);
+                task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, source.Sample(pose.Pose ?? throw new NotSupportedException("Native8DC870 requires its selected pose."), pose.PoseFrame114 ?? throw new NotSupportedException("Native8DC870 requires its decoded frame."), pose.PoseFlags109));
+            }
             state = state.Write(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {

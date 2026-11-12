@@ -307,16 +307,21 @@ internal sealed partial class Ff7Scene
         System.Numerics.Vector3 anchor = mixedCombat?.GuestAt(hit.Target)?.Visual is { } guest
             ? CrossoverFf8BattleActorRenderer.EffectAnchor(guest)
             : battle.GuestEffectTargetAnchor(hit.Target);
-        DrawBattleDamagePopup(canvas, theme.Foreground, scale, sceneBounds, battle.GuestRenderCameraOutput, anchor, hit.Damage, battle.Tick - hit.Tick);
+        DrawBattleDamagePopup(canvas, theme.Foreground, scale, sceneBounds, battle.GuestRenderCameraOutput, anchor, hit.Damage, battle.Tick - hit.Tick, hit.NativeResultMarker);
     }
 
-    internal static void DrawBattleDamagePopup(IUiCanvas canvas, UiColor foreground, float scale, Rectangle sceneBounds, SceneCameraPlacement camera, System.Numerics.Vector3 anchor, Ff7BattleDamageResult damage, long age)
+    internal static void DrawBattleDamagePopup(IUiCanvas canvas, UiColor foreground, float scale, Rectangle sceneBounds, SceneCameraPlacement camera, System.Numerics.Vector3 anchor, Ff7BattleDamageResult damage, long age, int? nativeResultMarker = null)
     {
         if (Ff7BattleRenderer.ProjectWorldPoint(camera, sceneBounds.Width, sceneBounds.Height, anchor) is not { } position)
         {
             return;
         }
-        string value = damage.Missed ? "Miss" : Math.Abs(damage.Damage).ToString(CultureInfo.InvariantCulture);
+        string value = damage.Missed ? "Miss" : nativeResultMarker switch
+        {
+            -3 => "Full Cure",
+            -2 => "Death",
+            _ => Math.Abs(damage.Damage).ToString(CultureInfo.InvariantCulture)
+        };
         float fontSize = 20 * scale;
         float rise = age * sceneBounds.Height / (12f * Ff7BattleSession.LogicUpdatesPerSecond);
         UiSize measured = canvas.MeasureText(value, fontSize, float.PositiveInfinity);

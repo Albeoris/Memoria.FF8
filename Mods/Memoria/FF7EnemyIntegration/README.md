@@ -8,7 +8,9 @@ Open the FFVII menu and choose **Mods** to change this campaign preference or in
 
 The package supplies 352 English Scan descriptions written as short pieces of world and creature prose. Names and combat measurements belong to their separate inspection fields; the prose does not repeat a resistance table. Related encounter variants may share a description. The descriptions are authored English content, without a localization layer.
 
-For 292 enemy IDs, the package also supplies upward growth, tiered FFVIII Draw pools, native-unit FFVII reward multipliers, and selected consumable replacements. Other entries change only the Scan description: their scripted, multipart, or otherwise special roles receive no generic level or statistic promotion. Existing native actions, affinities, status rules, equipment, Materia, unique acquisitions, and Morph outcomes are not replaced by this package.
+The package declares each channel independently: level promotion for 339 IDs, statistic growth for 336, FFVIII Draw pools for 336, native-unit FFVII reward multipliers for 335, and consumable replacements for 125. Multipart and scripted encounters receive applicable changes too. Untargetable controllers and the scripted one-HP final duel preserve their specific roles. Some hidden companions retain fixed HP while their level and earned rewards can grow independently. A missing Draw pool never disables growth or rewards.
+
+Chocobo quality remains an encounter-table property, Mystery Ninja recruitment remains a field-script outcome, and Magic Pot still requires an actual Elixir item. Captures, multipart HP ratios and earned reward eligibility retain their native owners. Unique acquisitions and Morph outcomes are not replaced by this package.
 
 Growth uses the active encounter's captured party reference level. At or below an enemy's resolved baseline level, native statistics, rewards, and item channels remain unchanged. Draw tiers and item improvements use growth above that baseline. The package does not contain a second copy of the native enemy database.
 

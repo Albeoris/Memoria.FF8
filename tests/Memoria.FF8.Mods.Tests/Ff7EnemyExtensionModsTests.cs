@@ -14,7 +14,11 @@ public sealed class Ff7EnemyExtensionModsTests
         Assert.Empty(diagnostics);
         Assert.Equal(352, catalog.Count);
         Assert.StartsWith("A small, furious ember", catalog.Find(105)!.ScanDescription);
-        Assert.Null(catalog.Find(0)!.Growth);
+        Assert.NotEmpty(catalog.Find(0)!.Growth!);
+        Assert.True(catalog.Find(0)!.ScaleLevel);
+        Assert.False(catalog.Find(332)!.ScaleLevel);
+        Assert.Null(catalog.Find(332)!.DrawTiers);
+        Assert.NotEmpty(catalog.Find(49)!.DrawTiers!);
         Assert.NotEmpty(catalog.Find(105)!.DrawTiers!);
     }
 

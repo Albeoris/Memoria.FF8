@@ -4,7 +4,11 @@ namespace Memoria.FF7.Runtime;
 
 public readonly record struct Ff7BattleActionVitals(uint Hp, uint MaxHp, ushort Mp, ushort MaxMp, uint Statuses, uint StatusImmunities = 0);
 
-public readonly record struct Ff7BattleActionReceipt(Ff7BattleActionVitals Source, Ff7BattleActionVitals Target, Ff7BattleDamageResult Damage, uint AddedStatuses, uint RemovedStatuses);
+public readonly record struct Ff7BattleActionReceipt(Ff7BattleActionVitals Source, Ff7BattleActionVitals Target, Ff7BattleDamageResult Damage, uint AddedStatuses, uint RemovedStatuses)
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public sbyte? NativeResultMarker { get; init; }
+}
 
 /// <summary>Resolves the native target transaction. The action owner publishes the receipt and spends costs once.</summary>
 public static class Ff7NativeBattleActionResolver
@@ -16,7 +20,7 @@ public static class Ff7NativeBattleActionResolver
     public const uint Darkness = 0x04000000;
 
     private const uint PhysicalWakeStatuses = Sleep | 0x40 | 0x00400000;
-    private const uint SupportedRecordStatuses = Death | Sleep | Poison | Slow | Darkness;
+    private const uint SupportedRecordStatuses = Death | Sleep | Poison | Slow | Darkness | Ff7NativeBattleStatuses.SupportedRecordStatuses;
     private const uint Petrify = 0x4000;
     private const uint Peerless = 0x01000000;
     private const uint DeathForce = 0x10000000;
@@ -41,7 +45,7 @@ public static class Ff7NativeBattleActionResolver
         }
         ReadOnlySpan<byte> item = items.Slice(itemId * Ff7BattleAttack.RecordSize, Ff7BattleAttack.RecordSize);
         Ff7BattleAttack record = Ff7BattleAttack.Read(item);
-        if ((item[10] & 1) != 0 || record.DamageCalculation is not (0x24 or 0x26 or 0x37 or 0x47) || (ReadStatusMask(record) & ~SupportedRecordStatuses) != 0 || record.AdditionalEffect != byte.MaxValue)
+        if ((item[10] & 1) != 0 || record.DamageCalculation is not (0x08 or 0x24 or 0x26 or 0x37 or 0x47) || (ReadStatusMask(record) & ~SupportedRecordStatuses) != 0 || record.AdditionalEffect != byte.MaxValue)
         {
             return null;
         }
@@ -99,9 +103,9 @@ public static class Ff7NativeBattleActionResolver
         {
             return new(source, target, new(true, false, 0), 0, 0);
         }
-        int mode = record is null ? 3 : record.StatusChange >> 6;
+        int mode = Ff7NativeBattleStatuses.ReadRecordMode(record);
         uint mask = ReadStatusMask(record);
-        uint supportedStatuses = guestContact ? Ff7GuestBattleStatuses.SupportedHost : SupportedRecordStatuses;
+        uint supportedStatuses = guestContact ? Ff7GuestBattleStatuses.SupportedHost | Ff7NativeBattleStatuses.SupportedRecordStatuses : SupportedRecordStatuses;
         if ((mask & ~supportedStatuses) != 0 || record is { AdditionalEffect: not byte.MaxValue })
         {
             throw new NotSupportedException($"FFVII attack has unsupported additional effect or status mask 0x{mask:X8}.");
@@ -110,6 +114,28 @@ public static class Ff7NativeBattleActionResolver
         if (!admittedStatus && action.Power == 0 && action.BaseDamage is null && action.FixedDamage is null && action.FractionDenominator == 0 && action.Formula is not (0x00 or 0x50))
         {
             return new(source, target, new(true, false, 0), 0, 0);
+        }
+        if (action.Formula == 0x08)
+        {
+            if (mask != 0)
+            {
+                throw new NotSupportedException("FFVII full recovery with a separate status operation has no admitted native contract.");
+            }
+            if (!CanTarget(target, record))
+            {
+                return new(source, target, new(true, false, 0), 0, 0);
+            }
+            if ((action.Affinity & Ff7BattleDamageAffinity.Absorb) != 0)
+            {
+                if ((target.Statuses & Death) != 0)
+                {
+                    return new(source, target, new(true, false, 0), 0, 0);
+                }
+                Ff7BattleActionVitals killed = target with { Hp = 0, Statuses = target.Statuses | Death };
+                return new(sameActor ? killed : source, killed, new(false, false, 0), Death, 0) { NativeResultMarker = -2 };
+            }
+            Ff7BattleActionVitals recovered = target with { Hp = target.MaxHp, Mp = target.MaxMp };
+            return new(sameActor ? recovered : source, recovered, new(false, false, 0), 0, 0) { NativeResultMarker = -3 };
         }
 
         Ff7BattleDamageActor projectedTarget = targetStats with { Statuses = target.Statuses, CurrentHitPoints = target.Hp, MaximumHitPoints = target.MaxHp, CurrentMagicPoints = target.Mp, MaximumMagicPoints = target.MaxMp };
@@ -125,7 +151,7 @@ public static class Ff7NativeBattleActionResolver
         {
             admittedMask = Ff7GuestBattleStatuses.ResistIncoming(admittedMask, target.Statuses, originStatusResistances, random);
         }
-        uint statuses = ApplyStatuses(target, targetStats.IsEnemy, record, action.Formula, admittedMask, mode, guestContact);
+        uint statuses = ApplyStatuses(target, targetStats.IsEnemy, targetStats.NativeConditions, record, action.Formula, admittedMask, mode, guestContact, action.IsItem);
         if (!action.RequiresKnockedOutTarget && (target.Statuses & (Petrify | Peerless)) != 0)
         {
             damage = damage with { Damage = 0 };
@@ -153,7 +179,7 @@ public static class Ff7NativeBattleActionResolver
         return new(nextSource, nextTarget, damage, nextTarget.Statuses & ~target.Statuses, target.Statuses & ~nextTarget.Statuses);
     }
 
-    private static uint ReadStatusMask(Ff7BattleAttack? record) => record is not null && record.StatusChange < 0xC0 ? record.StatusMask : 0;
+    private static uint ReadStatusMask(Ff7BattleAttack? record) => Ff7NativeBattleStatuses.ReadRecordMask(record);
 
     public static Ff7BattleActionReceipt ApplyPreparedHpDamage(Ff7BattleActionVitals source, Ff7BattleActionVitals target, Ff7BattleDamageResult damage)
     {
@@ -180,15 +206,20 @@ public static class Ff7NativeBattleActionResolver
         return new(sameActor ? next : source, next, prepared.Damage, next.Statuses & ~target.Statuses, target.Statuses & ~next.Statuses);
     }
 
-    internal static Ff7BattleActionReceipt ApplyGuestItem(Ff7BattleActionVitals source, Ff7BattleActionVitals target, Ff7BattleGuestItemEffect effect, Ff7BattleDamageResult? prepared = null)
+    internal static Ff7BattleActionReceipt ApplyGuestItem(Ff7BattleActionVitals source, Ff7BattleActionVitals target, Ff7BattleGuestItemEffect effect, Ff7BattleDamageResult? prepared = null, bool nullifyRecovery = false)
     {
-        if (effect.ReviveDivisor is not (0 or 4 or 8) || (effect.RemoveStatuses & ~Ff7GuestBattleStatuses.SupportedHost) != 0 || (effect.RemoveStatuses & Death) != 0)
+        if (effect.ReviveDivisor is not (0 or 4 or 8) || effect.MaximumHitPointFraction > 16 || effect.MaximumHitPointFraction != 0 && effect.ReviveDivisor != 0 || (effect.RemoveStatuses & ~Ff7GuestBattleStatuses.SupportedHost) != 0 || (effect.RemoveStatuses & Death) != 0)
         {
             throw new NotSupportedException("Guest recovery requires an admitted original item effect.");
         }
         bool revive = effect.ReviveDivisor != 0;
         bool dead = target.Hp == 0 || (target.Statuses & Death) != 0;
-        Ff7BattleDamageResult damage = prepared ?? new(dead != revive, false, -(revive ? Math.Max(1, (int)target.MaxHp / effect.ReviveDivisor) : effect.HitPoints));
+        int recovery = effect.MaximumHitPointFraction != 0 ? (int)Math.Min(int.MaxValue, (long)target.MaxHp * effect.MaximumHitPointFraction / 16) : effect.HitPoints;
+        Ff7BattleDamageResult damage = prepared ?? new(dead != revive, false, -(revive ? Math.Max(1, (int)target.MaxHp / effect.ReviveDivisor) : recovery));
+        if (nullifyRecovery)
+        {
+            damage = damage with { Damage = 0 };
+        }
         if (damage.Missed || dead != revive)
         {
             return new(source, target, new(true, false, 0), 0, 0);
@@ -200,6 +231,10 @@ public static class Ff7NativeBattleActionResolver
 
     private static bool RollStatus(Ff7BattleAttack record, Ff7BattleDamageAction action, Ff7BattleRng random)
     {
+        if (Ff7NativeBattleStatuses.ReadImprisonedType(record) is not null)
+        {
+            return true;
+        }
         int threshold = (record.StatusChange & 0x3F) * 4;
         if (threshold >= 252)
         {
@@ -213,14 +248,14 @@ public static class Ff7NativeBattleActionResolver
         return roll < threshold;
     }
 
-    private static uint ApplyStatuses(Ff7BattleActionVitals target, bool enemy, Ff7BattleAttack? record, byte formula, uint mask, int mode, bool guestContact)
+    private static uint ApplyStatuses(Ff7BattleActionVitals target, bool enemy, uint conditions, Ff7BattleAttack? record, byte formula, uint mask, int mode, bool guestContact, bool item)
     {
         uint immunity = target.StatusImmunities;
-        if ((target.Statuses & Resist) != 0)
+        if (!item && (target.Statuses & Resist) != 0)
         {
             immunity |= 0x5FFFFFFF;
         }
-        if ((target.Statuses & DeathForce) != 0)
+        if (!item && (target.Statuses & DeathForce) != 0)
         {
             immunity |= Death;
         }
@@ -235,6 +270,10 @@ public static class Ff7NativeBattleActionResolver
         if (!enemy && mode == 1 && (mask & Death) != 0)
         {
             immunity &= ~Death;
+        }
+        if ((conditions & 0x1000) != 0)
+        {
+            immunity |= Death;
         }
         if (record is { SpecialFlags: var flags } && (flags & 0x80) == 0)
         {

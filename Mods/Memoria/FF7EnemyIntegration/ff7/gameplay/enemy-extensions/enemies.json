@@ -4,43 +4,798 @@
   "enemies": [
     {
       "enemyId": 0,
-      "scanDescription": "An indistinct presence waits at the edge of an unfamiliar encounter. Its silence gives little away."
+      "scanDescription": "An indistinct presence waits at the edge of an unfamiliar encounter. Its silence gives little away.",
+      "scaleLevel": true,
+      "growth": {
+        "hp": [
+          1000000,
+          4500000,
+          6000000,
+          0
+        ],
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 1,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 19,
+          "slots": [
+            {
+              "magicId": 2,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 29,
+          "slots": [
+            {
+              "magicId": 3,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      },
+      "itemReplacements": [
+        {
+          "minimumDelta": 34,
+          "channel": "drop",
+          "fromItemId": 0,
+          "toItemId": 1
+        },
+        {
+          "minimumDelta": 68,
+          "channel": "drop",
+          "fromItemId": 0,
+          "toItemId": 2
+        }
+      ]
     },
     {
       "enemyId": 1,
-      "scanDescription": "A shape without a familiar story stands before the traveller. For a moment, the world seems reluctant to explain itself."
+      "scanDescription": "A shape without a familiar story stands before the traveller. For a moment, the world seems reluctant to explain itself.",
+      "scaleLevel": true,
+      "growth": {
+        "hp": [
+          1000000,
+          4500000,
+          6000000,
+          0
+        ],
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 1,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 19,
+          "slots": [
+            {
+              "magicId": 2,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 29,
+          "slots": [
+            {
+              "magicId": 3,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      },
+      "itemReplacements": [
+        {
+          "minimumDelta": 35,
+          "channel": "drop",
+          "fromItemId": 0,
+          "toItemId": 1
+        },
+        {
+          "minimumDelta": 69,
+          "channel": "drop",
+          "fromItemId": 0,
+          "toItemId": 2
+        }
+      ]
     },
     {
       "enemyId": 2,
-      "scanDescription": "Something unrecognised occupies the quiet space ahead. Its stillness offers no invitation."
+      "scanDescription": "Something unrecognised occupies the quiet space ahead. Its stillness offers no invitation.",
+      "scaleLevel": true,
+      "growth": {
+        "hp": [
+          1000000,
+          4500000,
+          6000000,
+          0
+        ],
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 1,
+              "resistance": 0
+            },
+            {
+              "magicId": 7,
+              "resistance": 0
+            },
+            {
+              "magicId": 21,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 19,
+          "slots": [
+            {
+              "magicId": 2,
+              "resistance": 0
+            },
+            {
+              "magicId": 8,
+              "resistance": 0
+            },
+            {
+              "magicId": 22,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 29,
+          "slots": [
+            {
+              "magicId": 3,
+              "resistance": 0
+            },
+            {
+              "magicId": 9,
+              "resistance": 0
+            },
+            {
+              "magicId": 23,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      }
     },
     {
       "enemyId": 4,
-      "scanDescription": "A strange outline interrupts the ordinary order of things. The surrounding silence makes it seem more deliberate."
+      "scanDescription": "A strange outline interrupts the ordinary order of things. The surrounding silence makes it seem more deliberate.",
+      "scaleLevel": true,
+      "growth": {
+        "hp": [
+          1000000,
+          4500000,
+          6000000,
+          0
+        ],
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 1,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 19,
+          "slots": [
+            {
+              "magicId": 2,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 28,
+          "slots": [
+            {
+              "magicId": 3,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      },
+      "itemReplacements": [
+        {
+          "minimumDelta": 66,
+          "channel": "drop",
+          "fromItemId": 1,
+          "toItemId": 2
+        }
+      ]
     },
     {
       "enemyId": 5,
-      "scanDescription": "An unfamiliar figure waits beyond the comfort of recognition. Nothing in its bearing suggests a wish to be understood."
+      "scanDescription": "An unfamiliar figure waits beyond the comfort of recognition. Nothing in its bearing suggests a wish to be understood.",
+      "scaleLevel": true,
+      "growth": {
+        "hp": [
+          1000000,
+          4500000,
+          6000000,
+          0
+        ],
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 1,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 18,
+          "slots": [
+            {
+              "magicId": 2,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 28,
+          "slots": [
+            {
+              "magicId": 3,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      },
+      "itemReplacements": [
+        {
+          "minimumDelta": 66,
+          "channel": "drop",
+          "fromItemId": 3,
+          "toItemId": 4
+        }
+      ]
     },
     {
       "enemyId": 6,
-      "scanDescription": "A quiet presence has found a place outside the traveller's experience. The distance between them seems unusually difficult to measure."
+      "scanDescription": "A quiet presence has found a place outside the traveller's experience. The distance between them seems unusually difficult to measure.",
+      "scaleLevel": true,
+      "growth": {
+        "hp": [
+          1000000,
+          4500000,
+          6000000,
+          0
+        ],
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 1,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 19,
+          "slots": [
+            {
+              "magicId": 2,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 29,
+          "slots": [
+            {
+              "magicId": 3,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      },
+      "itemReplacements": [
+        {
+          "minimumDelta": 34,
+          "channel": "drop",
+          "fromItemId": 0,
+          "toItemId": 1
+        },
+        {
+          "minimumDelta": 68,
+          "channel": "drop",
+          "fromItemId": 0,
+          "toItemId": 2
+        }
+      ]
     },
     {
       "enemyId": 7,
-      "scanDescription": "A nameless silhouette keeps its own counsel. Even the briefest meeting can leave an unanswered question."
+      "scanDescription": "A nameless silhouette keeps its own counsel. Even the briefest meeting can leave an unanswered question.",
+      "scaleLevel": true,
+      "growth": {
+        "hp": [
+          1000000,
+          4500000,
+          6000000,
+          0
+        ],
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 1,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 19,
+          "slots": [
+            {
+              "magicId": 2,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 29,
+          "slots": [
+            {
+              "magicId": 3,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      },
+      "itemReplacements": [
+        {
+          "minimumDelta": 34,
+          "channel": "drop",
+          "fromItemId": 0,
+          "toItemId": 1
+        },
+        {
+          "minimumDelta": 68,
+          "channel": "drop",
+          "fromItemId": 0,
+          "toItemId": 2
+        }
+      ]
     },
     {
       "enemyId": 8,
-      "scanDescription": "Something without a familiar likeness has entered the encounter. Its purpose remains as closed as its expression."
+      "scanDescription": "Something without a familiar likeness has entered the encounter. Its purpose remains as closed as its expression.",
+      "scaleLevel": true,
+      "growth": {
+        "hp": [
+          1000000,
+          4500000,
+          6000000,
+          0
+        ],
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 1,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 19,
+          "slots": [
+            {
+              "magicId": 2,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 29,
+          "slots": [
+            {
+              "magicId": 3,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      },
+      "itemReplacements": [
+        {
+          "minimumDelta": 34,
+          "channel": "drop",
+          "fromItemId": 0,
+          "toItemId": 1
+        },
+        {
+          "minimumDelta": 68,
+          "channel": "drop",
+          "fromItemId": 0,
+          "toItemId": 2
+        }
+      ]
     },
     {
       "enemyId": 9,
-      "scanDescription": "An unrecognised presence occupies the margin of the scene. The world has room for more stories than a traveller can name."
+      "scanDescription": "An unrecognised presence occupies the margin of the scene. The world has room for more stories than a traveller can name.",
+      "scaleLevel": true,
+      "growth": {
+        "hp": [
+          1000000,
+          4500000,
+          6000000,
+          0
+        ],
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 1,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 19,
+          "slots": [
+            {
+              "magicId": 2,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 29,
+          "slots": [
+            {
+              "magicId": 3,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      },
+      "itemReplacements": [
+        {
+          "minimumDelta": 34,
+          "channel": "drop",
+          "fromItemId": 0,
+          "toItemId": 1
+        },
+        {
+          "minimumDelta": 68,
+          "channel": "drop",
+          "fromItemId": 0,
+          "toItemId": 2
+        }
+      ]
     },
     {
       "enemyId": 10,
       "scanDescription": "A mountain of living armour advances with the patience of a closing wound. Cities and armies are only obstacles between the Planet and what threatens it.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -140,6 +895,7 @@
     {
       "enemyId": 11,
       "scanDescription": "The desert has raised a sentinel of its own. Beneath the drifting sand, something vast keeps an unhurried watch over the trespasses of the surface.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -238,11 +994,82 @@
     },
     {
       "enemyId": 12,
-      "scanDescription": "An immense root of living armour breaks the desert's stillness. The creature beneath the sand reaches farther than its silhouette suggests."
+      "scanDescription": "An immense root of living armour breaks the desert's stillness. The creature beneath the sand reaches farther than its silhouette suggests.",
+      "scaleLevel": true,
+      "growth": {
+        "hp": [
+          1000000,
+          1142857,
+          0,
+          0
+        ],
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 44,
+              "resistance": 0
+            },
+            {
+              "magicId": 12,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 13,
+          "slots": [
+            {
+              "magicId": 44,
+              "resistance": 0
+            },
+            {
+              "magicId": 12,
+              "resistance": 0
+            },
+            {
+              "magicId": 29,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 19,
+          "slots": [
+            {
+              "magicId": 44,
+              "resistance": 0
+            },
+            {
+              "magicId": 12,
+              "resistance": 0
+            },
+            {
+              "magicId": 30,
+              "resistance": 0
+            }
+          ]
+        }
+      ]
     },
     {
       "enemyId": 13,
       "scanDescription": "In the lightless sea, an ancient guardian moves through the wreckage of human ambition. Even the ocean seems to make room for its passing.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -324,15 +1151,87 @@
     },
     {
       "enemyId": 14,
-      "scanDescription": "A pillar of living armour carries the weight of an ancient purpose. What appears to be a limb has the terrible scale of a moving landscape."
+      "scanDescription": "A pillar of living armour carries the weight of an ancient purpose. What appears to be a limb has the terrible scale of a moving landscape.",
+      "scaleLevel": false
     },
     {
       "enemyId": 15,
-      "scanDescription": "A cold, unblinking aperture opens in the guardian's armour. The darkness of the deep offers no shelter from its attention."
+      "scanDescription": "A cold, unblinking aperture opens in the guardian's armour. The darkness of the deep offers no shelter from its attention.",
+      "scaleLevel": true,
+      "growth": {
+        "hp": [
+          1000000,
+          1142857,
+          0,
+          0
+        ],
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 7,
+              "resistance": 0
+            },
+            {
+              "magicId": 44,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 10,
+          "slots": [
+            {
+              "magicId": 8,
+              "resistance": 0
+            },
+            {
+              "magicId": 44,
+              "resistance": 0
+            },
+            {
+              "magicId": 28,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 15,
+          "slots": [
+            {
+              "magicId": 9,
+              "resistance": 0
+            },
+            {
+              "magicId": 44,
+              "resistance": 0
+            },
+            {
+              "magicId": 28,
+              "resistance": 0
+            }
+          ]
+        }
+      ]
     },
     {
       "enemyId": 16,
       "scanDescription": "Under the helmet is an ordinary soldier, taught to see every stranger as a possible disturbance. The uniform makes the orders easier to obey.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -442,6 +1341,7 @@
     {
       "enemyId": 17,
       "scanDescription": "Years of training have turned a pack hunter's loyalty into another lock on a company door. It waits for the familiar voice that tells it whom to hate.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -557,6 +1457,7 @@
     {
       "enemyId": 18,
       "scanDescription": "A small machine drifts through the machinery like a loose thought. Its lonely patrol continues long after anyone has remembered to ask for a report.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -666,6 +1567,7 @@
     {
       "enemyId": 19,
       "scanDescription": "The company has given this foot soldier a weapon, a uniform, and a very short list of acceptable answers. Doubt finds little room beneath the visor.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -775,6 +1677,7 @@
     {
       "enemyId": 20,
       "scanDescription": "A little watchman suspended in the company's steel arteries. It has no understanding of trespass, only a tireless willingness to announce it.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -864,6 +1767,7 @@
     {
       "enemyId": 21,
       "scanDescription": "Built to clear a path, this heavy patrol unit has never learned to distinguish rubbish from rebellion. Its footsteps are the sound of an order being carried out.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -953,6 +1857,7 @@
     {
       "enemyId": 22,
       "scanDescription": "A mechanical jailer squats amid the reactor's pipes and steam. Even in a place that consumes the Planet, the company insists on keeping a watchful tail.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -1048,6 +1953,7 @@
     {
       "enemyId": 23,
       "scanDescription": "In the unlit spaces below the streets, patient legs weave a kingdom of discarded things. A careless footfall may be the first announcement of supper.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -1141,6 +2047,7 @@
     {
       "enemyId": 24,
       "scanDescription": "A fixed weapon waits where a sentry might once have stood. Its silence is not restraint; it is merely the interval between orders.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -1230,6 +2137,7 @@
     {
       "enemyId": 25,
       "scanDescription": "A hungry mouth on restless legs, perfectly at home where the city throws away its unwanted things. Nothing stays abandoned for long beneath the plates.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -1333,6 +2241,7 @@
     {
       "enemyId": 26,
       "scanDescription": "A scavenger has found shelter in a shape that looks suspiciously like discarded machinery. In the slums, even the vermin learn to wear armour.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -1448,6 +2357,7 @@
     {
       "enemyId": 27,
       "scanDescription": "A pale little drifter makes its home in the city's damp forgotten places. Its languid movements suggest a life untouched by the hurry overhead.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -1561,6 +2471,7 @@
     {
       "enemyId": 28,
       "scanDescription": "A squat, ill-tempered creature rummages through the margins of human settlement. Its comical outline offers very little comfort at close quarters.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -1670,6 +2581,7 @@
     {
       "enemyId": 29,
       "scanDescription": "A wheezing machine carries a little of the city's poisoned sky wherever it goes. Even underground, the company has found a way to foul the air.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -1763,6 +2675,7 @@
     {
       "enemyId": 30,
       "scanDescription": "A soldier equipped for work the ordinary patrol would rather leave to someone else. Behind the specialist's composure lies the same unquestioning chain of command.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -1872,6 +2785,7 @@
     {
       "enemyId": 31,
       "scanDescription": "A sleek hunter prowls the city's neglected depths. There is nothing ceremonial about its interest in a wounded traveller.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -1979,6 +2893,7 @@
     {
       "enemyId": 32,
       "scanDescription": "An early answer to the company's favourite question: how much firepower can be left unattended? Its rough construction has outlived the caution of its designers.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -2068,6 +2983,7 @@
     {
       "enemyId": 33,
       "scanDescription": "An armoured demonstration of industrial confidence occupies the narrow way ahead. Its designers appear to have mistaken a larger gun for a complete argument.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -2163,6 +3079,7 @@
     {
       "enemyId": 34,
       "scanDescription": "The alleys have taught this thief to judge strangers by the weight of their pockets. A moment's hesitation is all the invitation required.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -2266,6 +3183,7 @@
     {
       "enemyId": 35,
       "scanDescription": "A borrowed swagger and a powerful employer have made this thug feel untouchable. Courage comes cheaply when someone else owns the consequences.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -2355,6 +3273,7 @@
     {
       "enemyId": 36,
       "scanDescription": "A backstreet bruiser who has mistaken another man's favour for a place in the world. The sneer is easier to maintain when the crowd looks frightened.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -2444,6 +3363,7 @@
     {
       "enemyId": 37,
       "scanDescription": "Something immense has made a den of the filth beneath the city. In that dark, foul kingdom, every intrusion is both insult and opportunity.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -2543,6 +3463,7 @@
     {
       "enemyId": 38,
       "scanDescription": "A skulking inhabitant of damp passages, equally comfortable in stagnant water and the shadows beside it. The city has given it an endless shoreline of drains.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -2650,6 +3571,7 @@
     {
       "enemyId": 39,
       "scanDescription": "A hard-shelled scavenger picks its way through the city's wet underworld. Its small domain is defended with the conviction of an emperor.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -2757,6 +3679,7 @@
     {
       "enemyId": 40,
       "scanDescription": "An ominous rider haunts the places where the city's unwanted dead are forgotten. The clatter of its passage sounds older than the rails beneath it.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -2858,6 +3781,7 @@
     {
       "enemyId": 41,
       "scanDescription": "A pale memory lingers among abandoned carriages. Whatever journey it began, no timetable now promises an end.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -2951,6 +3875,7 @@
     {
       "enemyId": 42,
       "scanDescription": "Small nocturnal creatures gather where the railway falls silent. Their busy movements give the deserted platforms a life of their own.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -3066,6 +3991,7 @@
     {
       "enemyId": 43,
       "scanDescription": "A winged scavenger threads the black spaces between derelict trains. Its kingdom begins where the lamps have stopped working.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -3163,6 +4089,7 @@
     {
       "enemyId": 44,
       "scanDescription": "A familiar silhouette waits among the ruins, offering the shape of shelter without its promise. In the slums, even a doorway may conceal an appetite.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -3266,6 +4193,7 @@
     {
       "enemyId": 45,
       "scanDescription": "A familiar silhouette waits among the ruins, offering the shape of shelter without its promise. In the slums, even a doorway may conceal an appetite.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -3369,6 +4297,7 @@
     {
       "enemyId": 46,
       "scanDescription": "A soldier borne above the ground by the company's machinery. From that borrowed height, the disorder below must seem very easy to put in its place.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -3484,6 +4413,7 @@
     {
       "enemyId": 47,
       "scanDescription": "A soldier borne above the ground by the company's machinery. From that borrowed height, the disorder below must seem very easy to put in its place.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -3599,6 +4529,7 @@
     {
       "enemyId": 48,
       "scanDescription": "A careless posture disguises a professional's attention. For all the languid insolence, there is nothing accidental about where he chooses to stand.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -3701,15 +4632,184 @@
     },
     {
       "enemyId": 49,
-      "scanDescription": "A prison of hard light closes around its captive. Its elegant geometry lends a disquieting neatness to an act of cruelty."
+      "scanDescription": "A prison of hard light closes around its captive. Its elegant geometry lends a disquieting neatness to an act of cruelty.",
+      "scaleLevel": true,
+      "growth": {
+        "hp": [
+          1000000,
+          1142857,
+          0,
+          0
+        ],
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 7,
+              "resistance": 0
+            },
+            {
+              "magicId": 29,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 19,
+          "slots": [
+            {
+              "magicId": 8,
+              "resistance": 0
+            },
+            {
+              "magicId": 29,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 29,
+          "slots": [
+            {
+              "magicId": 9,
+              "resistance": 0
+            },
+            {
+              "magicId": 29,
+              "resistance": 0
+            },
+            {
+              "magicId": 30,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      }
     },
     {
       "enemyId": 50,
-      "scanDescription": "An officious sign stands where reason has long since given way to security policy. The warning is less a courtesy than the first stage of the trap."
+      "scanDescription": "An officious sign stands where reason has long since given way to security policy. The warning is less a courtesy than the first stage of the trap.",
+      "scaleLevel": true,
+      "growth": {
+        "hp": [
+          1000000,
+          4235294,
+          5647059,
+          0
+        ],
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 29,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 17,
+          "slots": [
+            {
+              "magicId": 29,
+              "resistance": 0
+            },
+            {
+              "magicId": 30,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 26,
+          "slots": [
+            {
+              "magicId": 29,
+              "resistance": 0
+            },
+            {
+              "magicId": 30,
+              "resistance": 0
+            },
+            {
+              "magicId": 28,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      }
     },
     {
       "enemyId": 51,
       "scanDescription": "A company's argument reduced to a barrel and a mechanism. No face looks back from behind the weapon.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -3799,6 +4899,7 @@
     {
       "enemyId": 52,
       "scanDescription": "A sealed instrument of enforcement waits in the industrial gloom. Its immaculate casing has never had to consider what lies at the other end.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -3888,6 +4989,7 @@
     {
       "enemyId": 53,
       "scanDescription": "A heavy security attachment promises a blunt answer to an unwelcome visitor. Everything about its construction favours certainty over subtlety.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -3988,11 +5090,13 @@
     },
     {
       "enemyId": 54,
-      "scanDescription": "A quiet part of a greater design waits beyond the obvious outline. Small things can lend a terrible completeness to what surrounds them."
+      "scanDescription": "A quiet part of a greater design waits beyond the obvious outline. Small things can lend a terrible completeness to what surrounds them.",
+      "scaleLevel": false
     },
     {
       "enemyId": 55,
       "scanDescription": "A mobile tangle of blades patrols the company's polished corridors. Its elaborate movements lend an almost festive air to a very ugly purpose.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -4082,6 +5186,7 @@
     {
       "enemyId": 56,
       "scanDescription": "A young member of the company's celebrated fighting force carries its reputation into every encounter. The discipline is real, even if the legend belongs to someone else.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -4179,6 +5284,7 @@
     {
       "enemyId": 57,
       "scanDescription": "A cumbersome shell gives an ordinary soldier the silhouette of a siege engine. The person inside remains hidden behind the company's idea of strength.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -4276,6 +5382,7 @@
     {
       "enemyId": 58,
       "scanDescription": "A cumbersome shell gives an ordinary soldier the silhouette of a siege engine. The person inside remains hidden behind the company's idea of strength.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -4373,6 +5480,7 @@
     {
       "enemyId": 59,
       "scanDescription": "A cutting machine has been taught to pursue living prey. In its bright revolving edges, factory work and warfare become much the same occupation.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -4462,6 +5570,7 @@
     {
       "enemyId": 60,
       "scanDescription": "A soldier who prefers the reassuring distance of a thrown explosive. The company's corridors offer little space for anyone caught in the lesson.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -4559,6 +5668,7 @@
     {
       "enemyId": 61,
       "scanDescription": "A grotesque specimen travels in a vessel that makes no attempt to look merciful. The laboratory has preserved something without asking what it preserved it for.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -4666,6 +5776,7 @@
     {
       "enemyId": 62,
       "scanDescription": "An unnatural patrol creature inhabits the company's sterile interiors. Whatever life preceded its service has been buried beneath an institutional purpose.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -4755,6 +5866,7 @@
     {
       "enemyId": 63,
       "scanDescription": "A laboratory predator moves with the unease of something that should never have left its cage. The corridors have become a hunting enclosure.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -4862,6 +5974,7 @@
     {
       "enemyId": 64,
       "scanDescription": "A nightmare assembled under laboratory lights now stands beyond the reach of its keepers. The language of research offers little comfort in its presence.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -4960,11 +6073,102 @@
     },
     {
       "enemyId": 65,
-      "scanDescription": "A smaller horror gathers around the escaped specimen. Even this satellite life bears the unsettling signature of deliberate interference."
+      "scanDescription": "A smaller horror gathers around the escaped specimen. Even this satellite life bears the unsettling signature of deliberate interference.",
+      "scaleLevel": true,
+      "growth": {
+        "hp": [
+          1000000,
+          2666667,
+          3555556,
+          0
+        ],
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 1,
+              "resistance": 0
+            },
+            {
+              "magicId": 4,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 18,
+          "slots": [
+            {
+              "magicId": 2,
+              "resistance": 0
+            },
+            {
+              "magicId": 5,
+              "resistance": 0
+            },
+            {
+              "magicId": 12,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 28,
+          "slots": [
+            {
+              "magicId": 3,
+              "resistance": 0
+            },
+            {
+              "magicId": 6,
+              "resistance": 0
+            },
+            {
+              "magicId": 12,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      }
     },
     {
       "enemyId": 66,
       "scanDescription": "A great security engine guards the tower's heights. The city below is scarcely more distant to it than the people standing in its sights.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -5060,6 +6264,7 @@
     {
       "enemyId": 67,
       "scanDescription": "A hovering weapons platform hangs in the open air with the poise of a hunting insect. The company's reach does not end at the edge of the floor.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -5155,6 +6360,7 @@
     {
       "enemyId": 68,
       "scanDescription": "An heir stands amid the machinery of inheritance, immaculate and quite prepared to make his intentions understood. Power has seldom had to ask him to wait.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -5250,6 +6456,7 @@
     {
       "enemyId": 69,
       "scanDescription": "A trained companion keeps close to a master who rarely needs to repeat himself. Its alert stillness is the other half of his composure.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -5348,11 +6555,13 @@
     },
     {
       "enemyId": 70,
-      "scanDescription": "An unobtrusive presence keeps its place in the larger arrangement. Its silence is easily mistaken for absence."
+      "scanDescription": "An unobtrusive presence keeps its place in the larger arrangement. Its silence is easily mistaken for absence.",
+      "scaleLevel": false
     },
     {
       "enemyId": 71,
       "scanDescription": "A rolling fortress bears down on the road with no concern for its other travellers. The pursuit has become an industrial process.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -5448,6 +6657,7 @@
     {
       "enemyId": 72,
       "scanDescription": "A rider has made the open road a place for ambush rather than escape. The engine's roar announces a freedom with very little generosity in it.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -5557,6 +6767,7 @@
     {
       "enemyId": 73,
       "scanDescription": "A machine intended for orderly patrols has found a wider territory beyond the city. The open plains have done nothing to broaden its instructions.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -5660,6 +6871,7 @@
     {
       "enemyId": 74,
       "scanDescription": "A lean predator follows the well-worn routes of travellers across the grasslands. The scent of civilisation is simply another way to find a meal.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -5769,6 +6981,7 @@
     {
       "enemyId": 75,
       "scanDescription": "A furtive scavenger moves at the edge of the traveller's attention. Its slight frame seems built to fit through the spaces left by unwary people.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -5878,6 +7091,7 @@
     {
       "enemyId": 76,
       "scanDescription": "A lumbering beast crosses the grasslands with the confidence of great bulk. Its unhurried curiosity can be just as troublesome as another creature's hunger.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -5991,6 +7205,7 @@
     {
       "enemyId": 77,
       "scanDescription": "A small burrower keeps most of its life beneath the earth. Only a twitch of soil betrays the busy little world below the traveller's boots.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -6093,11 +7308,13 @@
     },
     {
       "enemyId": 78,
-      "scanDescription": "Something scarcely noticed belongs to the scene before the traveller. The smallest detail may still have a purpose of its own."
+      "scanDescription": "Something scarcely noticed belongs to the scene before the traveller. The smallest detail may still have a purpose of its own.",
+      "scaleLevel": false
     },
     {
       "enemyId": 79,
       "scanDescription": "A root has taken a more wandering interest in the world above. It carries the look of something pulled from the soil before it was ready to leave.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -6191,6 +7408,7 @@
     {
       "enemyId": 80,
       "scanDescription": "A watchful plains bird stalks the grass with a hunter's measured steps. There is very little of the songbird in its appraisal of strangers.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -6294,6 +7512,7 @@
     {
       "enemyId": 81,
       "scanDescription": "The marsh conceals a living length that seems to go on beyond sight. The ripples arriving at the bank are only the beginning of its presence.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -6389,6 +7608,7 @@
     {
       "enemyId": 82,
       "scanDescription": "A dark little creature clings to the shadows of the wild places. Its furtive movements suggest an old and enduring dislike of company.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -6486,6 +7706,7 @@
     {
       "enemyId": 83,
       "scanDescription": "An armoured insect crosses the ground with mechanical patience. Its small, purposeful world offers no right of way to larger travellers.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -6589,6 +7810,7 @@
     {
       "enemyId": 84,
       "scanDescription": "A young winged hunter has claimed the cramped dark as its own. A glimpse of scales in the gloom hints at a lineage much grander than its present den.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -6698,6 +7920,7 @@
     {
       "enemyId": 85,
       "scanDescription": "A strange little creature snaps its way through the forest's busy undergrowth. Its ungainly outline belongs to a world less concerned with elegance than survival.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -6795,6 +8018,7 @@
     {
       "enemyId": 86,
       "scanDescription": "A great woodland bird watches over the forest floor with grave, almost scholarly attention. Its passing stirs the hush beneath the canopy.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -6896,6 +8120,7 @@
     {
       "enemyId": 87,
       "scanDescription": "A restless creature keeps to the darker reaches of the wilderness. Its shape is easier to remember than to make sense of.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -6993,6 +8218,7 @@
     {
       "enemyId": 88,
       "scanDescription": "A mounted raider turns the wild roads into an extension of a battlefield. Even its name sounds like something that has been improved without becoming wiser.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -7102,6 +8328,7 @@
     {
       "enemyId": 89,
       "scanDescription": "A small aerial hunter skims over broken ground. The freedom of the sky has given it an excellent view of anything left exposed below.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -7205,6 +8432,7 @@
     {
       "enemyId": 90,
       "scanDescription": "An unruly creature haunts the places where wilderness presses against human work. Its twitching energy gives even its brief pauses an air of interruption.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -7320,6 +8548,7 @@
     {
       "enemyId": 91,
       "scanDescription": "An immense shape has settled into the water like a bad dream that refuses to drift away. The harbour's ordinary scale seems to shrink around it.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -7418,11 +8647,102 @@
     },
     {
       "enemyId": 92,
-      "scanDescription": "A translucent enclosure wobbles in the air with its captive held inside. The softness of its outline belies the simple horror of having nowhere to breathe."
+      "scanDescription": "A translucent enclosure wobbles in the air with its captive held inside. The softness of its outline belies the simple horror of having nowhere to breathe.",
+      "scaleLevel": true,
+      "growth": {
+        "hp": [
+          1000000,
+          1142857,
+          0,
+          0
+        ],
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 10,
+              "resistance": 0
+            },
+            {
+              "magicId": 30,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 19,
+          "slots": [
+            {
+              "magicId": 10,
+              "resistance": 0
+            },
+            {
+              "magicId": 30,
+              "resistance": 0
+            },
+            {
+              "magicId": 36,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 29,
+          "slots": [
+            {
+              "magicId": 10,
+              "resistance": 0
+            },
+            {
+              "magicId": 30,
+              "resistance": 0
+            },
+            {
+              "magicId": 37,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      }
     },
     {
       "enemyId": 93,
       "scanDescription": "A watchful little presence studies the world with an unsettling intensity. It makes no distinction between curiosity and intrusion.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -7540,6 +8860,7 @@
     {
       "enemyId": 94,
       "scanDescription": "A uniformed defender stands between the visitor and the company's waterside interests. Salt air has not softened the orders brought down from above.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -7637,6 +8958,7 @@
     {
       "enemyId": 95,
       "scanDescription": "Something brought from beyond the Planet continues a journey no human map can explain. The familiar world seems briefly less certain in its presence.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -7736,6 +9058,7 @@
     {
       "enemyId": 96,
       "scanDescription": "A sealed, rounded creature guards a surprising abundance of life within. The wilderness has hidden a whole little procession inside one unassuming shape.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -7837,6 +9160,7 @@
     {
       "enemyId": 97,
       "scanDescription": "A smaller life has emerged from its parent's keeping. It carries the same secretive promise of something still waiting inside.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -7938,6 +9262,7 @@
     {
       "enemyId": 98,
       "scanDescription": "The last small link in an improbable living chain. Even at this scale, the creature seems determined to take up its allotted place in the world.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -8045,6 +9370,7 @@
     {
       "enemyId": 99,
       "scanDescription": "A patient coastal creature clings to the shore's restless boundary. Around it, surf and stone have been negotiating for longer than anyone remembers.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -8152,6 +9478,7 @@
     {
       "enemyId": 100,
       "scanDescription": "A curious shape moves through the wilds with the assurance of a creature that has never needed to explain itself. The silhouette is stranger than any crown it resembles.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -8249,6 +9576,7 @@
     {
       "enemyId": 101,
       "scanDescription": "A tiny airborne hunter hovers where larger creatures would hardly think to look. Its delicate appearance conceals an entirely practical appetite.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -8352,6 +9680,7 @@
     {
       "enemyId": 102,
       "scanDescription": "A swollen little wanderer drifts with an air of improbable contentment. The world has supplied it with no obvious reason to hurry.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -8455,6 +9784,7 @@
     {
       "enemyId": 103,
       "scanDescription": "A heavy reptilian hunter shoulders its way through the wild country. Its ancient-looking patience suggests that the land belonged to creatures like this long before the roads.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -8556,6 +9886,7 @@
     {
       "enemyId": 104,
       "scanDescription": "An ill-tempered bird surveys the ground with a reptile's cold attention. Its ungainly bearing does little to diminish the unease it inspires.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -8659,6 +9990,7 @@
     {
       "enemyId": 105,
       "scanDescription": "A small, furious ember has taken on a life of its own. It swells with the conviction that every insult deserves a spectacular reply.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -8756,6 +10088,7 @@
     {
       "enemyId": 106,
       "scanDescription": "A crouching hunter carries its purpose in the cruel shape of its forelimbs. Nothing in its patient approach suggests that it expects to go hungry.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -8857,6 +10190,7 @@
     {
       "enemyId": 107,
       "scanDescription": "Two expressions share a single unsettling presence. Each seems to be waiting for the other to reveal what it truly intends.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -8964,6 +10298,7 @@
     {
       "enemyId": 108,
       "scanDescription": "A roadside thief has made a profession of other people's journeys. To such an opportunist, a traveller is merely luggage that has not yet been opened.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -9053,6 +10388,7 @@
     {
       "enemyId": 109,
       "scanDescription": "A heavy machine intrudes upon the wilderness with all the subtlety of a factory floor. Dust and distance have failed to loosen its devotion to force.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -9150,6 +10486,7 @@
     {
       "enemyId": 110,
       "scanDescription": "The earth rises around a hunger that has spent its life beneath it. For this vast burrower, the surface is simply another layer of the feeding ground.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -9247,6 +10584,7 @@
     {
       "enemyId": 111,
       "scanDescription": "A ruined man stands among the ruins that have come to resemble him. Grief has narrowed the world until almost nothing remains outside its reach.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -9342,6 +10680,7 @@
     {
       "enemyId": 113,
       "scanDescription": "A small creature makes a living in the difficult spaces between larger lives. Its nervous determination lends the scrubland a little more movement.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -9431,6 +10770,7 @@
     {
       "enemyId": 114,
       "scanDescription": "An unsettling entertainer offers a smile that has outlived the joke. The invitation to play carries none of the warmth that ought to accompany it.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -9538,6 +10878,7 @@
     {
       "enemyId": 115,
       "scanDescription": "A restless winged creature beats a path through the warm air. The landscape below seems to exist chiefly as somewhere to land and find trouble.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -9627,6 +10968,7 @@
     {
       "enemyId": 116,
       "scanDescription": "A creature of borrowed shapes watches the open country with a predator's calm. Its mismatched outline feels strangely complete in the wilderness.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -9728,6 +11070,7 @@
     {
       "enemyId": 117,
       "scanDescription": "A broad-shouldered beast faces the world behind an imposing crest. Its territory is measured less in distance than in what it is willing to allow nearby.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -9825,6 +11168,7 @@
     {
       "enemyId": 118,
       "scanDescription": "A wild creature moves through the scrub with the assurance of long familiarity. To its eyes, passing travellers are the unusual inhabitants.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -9928,6 +11272,7 @@
     {
       "enemyId": 119,
       "scanDescription": "A tiny marsh dweller waits among the reeds with an almost inviting stillness. The pond's quieter inhabitants rarely reward careless familiarity.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -10029,6 +11374,7 @@
     {
       "enemyId": 120,
       "scanDescription": "A drifting creature lets the water and wind do much of its travelling. Its elaborate outline lends the coast an alien, ornamental beauty.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -10136,6 +11482,7 @@
     {
       "enemyId": 121,
       "scanDescription": "A bright blossom has found an unusually active way to defend its patch of earth. The promise of beauty ends where the roots begin to stir.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -10237,6 +11584,7 @@
     {
       "enemyId": 122,
       "scanDescription": "A bright blossom has found an unusually active way to defend its patch of earth. The promise of beauty ends where the roots begin to stir.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -10338,6 +11686,7 @@
     {
       "enemyId": 123,
       "scanDescription": "A bright blossom has found an unusually active way to defend its patch of earth. The promise of beauty ends where the roots begin to stir.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -10439,6 +11788,7 @@
     {
       "enemyId": 124,
       "scanDescription": "A restless little creature lives close to the ground and far from human concerns. What it lacks in grandeur, it makes up for in sheer insistence.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -10546,6 +11896,7 @@
     {
       "enemyId": 125,
       "scanDescription": "An oversized insect threads the undergrowth with a scavenger's single-minded patience. The wilderness has no shortage of small lives eager to become larger.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -10647,6 +11998,7 @@
     {
       "enemyId": 126,
       "scanDescription": "A massive war machine has imposed the straight lines of industry upon the wild ground. It carries the company's certainty that every problem can be driven over.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -10744,6 +12096,7 @@
     {
       "enemyId": 127,
       "scanDescription": "A careless posture disguises a professional's attention. For all the languid insolence, there is nothing accidental about where he chooses to stand.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -10839,6 +12192,7 @@
     {
       "enemyId": 128,
       "scanDescription": "A quiet professional lets his silence do the work of a threat. The restraint is deliberate; so is everything that follows it.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -10942,6 +12296,7 @@
     {
       "enemyId": 129,
       "scanDescription": "A quick-footed little scavenger darts through the dry ground. Its bright-eyed confidence is the product of having escaped a great many larger appetites.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -11031,6 +12386,7 @@
     {
       "enemyId": 130,
       "scanDescription": "A proud winged hunter surveys a country too broad for walls. Its shadow is a reminder that the sky has inhabitants as territorial as those below.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -11136,6 +12492,7 @@
     {
       "enemyId": 131,
       "scanDescription": "A heavy figure has taken on the stillness of the stone around it. Only its movement reveals that the landscape has decided to object.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -11212,6 +12569,7 @@
     {
       "enemyId": 132,
       "scanDescription": "A squat reptile watches the path with an unnervingly patient gaze. Its silence makes the surrounding scrub seem louder by comparison.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -11329,6 +12687,7 @@
     {
       "enemyId": 133,
       "scanDescription": "A traveller of the dry wastes has learned to thrive where a shoreline ought to be. The desert offers shelter only to those willing to become part of it.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -11452,6 +12811,7 @@
     {
       "enemyId": 134,
       "scanDescription": "An old grievance has found a shape in which to linger. The air around it feels less like a passageway than a memory refusing to open.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -11545,6 +12905,7 @@
     {
       "enemyId": 135,
       "scanDescription": "An elusive remnant moves where the light cannot quite follow. Its passage leaves the uneasy impression of someone stepping aside just out of sight.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -11634,6 +12995,7 @@
     {
       "enemyId": 136,
       "scanDescription": "A little wilderness creature occupies its corner of the world with fierce conviction. Size has done nothing to moderate its opinion of strangers.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -11731,6 +13093,7 @@
     {
       "enemyId": 137,
       "scanDescription": "A patient cave hunter waits among rock and shadow. The darkness is not a hiding place to it, but the ordinary light of home.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -11833,11 +13196,94 @@
     },
     {
       "enemyId": 138,
-      "scanDescription": "A wandering flame carries something more restless than ordinary heat. In the deep places, even light can feel like a refusal to let go."
+      "scanDescription": "A wandering flame carries something more restless than ordinary heat. In the deep places, even light can feel like a refusal to let go.",
+      "scaleLevel": true,
+      "growth": {
+        "hp": [
+          1000000,
+          3000000,
+          4000000,
+          0
+        ],
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 1,
+              "resistance": 0
+            },
+            {
+              "magicId": 44,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 16,
+          "slots": [
+            {
+              "magicId": 2,
+              "resistance": 0
+            },
+            {
+              "magicId": 44,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 24,
+          "slots": [
+            {
+              "magicId": 3,
+              "resistance": 0
+            },
+            {
+              "magicId": 44,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      }
     },
     {
       "enemyId": 139,
       "scanDescription": "An ancient sorrow has kept its vigil long after the living abandoned the argument. The darkness around it has become a kingdom of unfinished endings.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -11941,6 +13387,7 @@
     {
       "enemyId": 140,
       "scanDescription": "A mountain hunter follows the cold paths between stone and scrub. Its wary movements belong to a land that offers little room for mistakes.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -12038,6 +13485,7 @@
     {
       "enemyId": 141,
       "scanDescription": "A scavenging bird circles the rough country with patient, practical interest. Nothing lost upon the mountainside remains private for long.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -12135,6 +13583,7 @@
     {
       "enemyId": 142,
       "scanDescription": "A strange hunter claims the mountains' narrow passages. The rocks have made a secret of its movements, but not of its appetite.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -12238,6 +13687,7 @@
     {
       "enemyId": 143,
       "scanDescription": "A winged scavenger wheels above a country of steep shadows. The cliffs offer it a thousand places from which to wait.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -12343,6 +13793,7 @@
     {
       "enemyId": 144,
       "scanDescription": "A cap of improbable colour rises from the forest's damp floor. The quiet industry beneath it has little need of sunlight or permission.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -12448,6 +13899,7 @@
     {
       "enemyId": 145,
       "scanDescription": "A wavering presence unsettles the familiar shapes of the wilderness. Looking directly at it does surprisingly little to settle the matter.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -12541,6 +13993,7 @@
     {
       "enemyId": 146,
       "scanDescription": "An absurd expression hangs in the air where no welcoming face should be. Its fixed amusement makes the surrounding silence feel like an audience.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -12652,6 +14105,7 @@
     {
       "enemyId": 147,
       "scanDescription": "A peculiar figure keeps the company of dust and abandoned rooms. Its composed stillness seems to belong to a household whose rules nobody remembers.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -12745,6 +14199,7 @@
     {
       "enemyId": 148,
       "scanDescription": "A small nocturnal hunter stitches the darkness with quick, economical wings. The deserted halls are far less empty to it than they appear to visitors.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -12821,6 +14276,7 @@
     {
       "enemyId": 149,
       "scanDescription": "An ungainly swordsman haunts the old mansion with the air of a performance interrupted. The abandoned rooms have made a patient audience.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -12888,11 +14344,13 @@
     },
     {
       "enemyId": 150,
-      "scanDescription": "An old fastening has become part of something that refuses to stay still. Rust and neglect have not persuaded it to loosen its hold."
+      "scanDescription": "An old fastening has become part of something that refuses to stay still. Rust and neglect have not persuaded it to loosen its hold.",
+      "scaleLevel": false
     },
     {
       "enemyId": 151,
       "scanDescription": "One half of an uneasy companionship wears a face that cannot quite conceal its misery. Even its silence seems to be an argument.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -12961,6 +14419,7 @@
     {
       "enemyId": 152,
       "scanDescription": "One half of a shared nightmare gives its distress an almost gleeful shape. The expression is no assurance of happiness.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -13057,11 +14516,33 @@
     },
     {
       "enemyId": 153,
-      "scanDescription": "Two irreconcilable moods have been obliged to share a single existence. Their unhappy conversation has no need of words."
+      "scanDescription": "Two irreconcilable moods have been obliged to share a single existence. Their unhappy conversation has no need of words.",
+      "scaleLevel": true,
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      }
     },
     {
       "enemyId": 154,
       "scanDescription": "A forgotten experiment waits behind the mansion's closed history. Its unfinished shape suggests a question the laboratory never learned to answer.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -13173,6 +14654,7 @@
     {
       "enemyId": 155,
       "scanDescription": "A forgotten experiment waits behind the mansion's closed history. Its unfinished shape suggests a question the laboratory never learned to answer.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -13276,6 +14758,7 @@
     {
       "enemyId": 156,
       "scanDescription": "A forgotten experiment waits behind the mansion's closed history. Its unfinished shape suggests a question the laboratory never learned to answer.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -13350,6 +14833,7 @@
     {
       "enemyId": 157,
       "scanDescription": "A great scaled hunter has made the mountain country its inheritance. The narrow paths feel newly fragile beneath its attention.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -13465,6 +14949,7 @@
     {
       "enemyId": 158,
       "scanDescription": "A machine cuts through the air with an urgency that belongs to its instructions. The quiet of the mountains is only another thing for it to disturb.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -13584,6 +15069,7 @@
     {
       "enemyId": 159,
       "scanDescription": "A curious pair of forms shares a single uneasy purpose. The creature's outline suggests that one mind was never quite enough.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -13695,6 +15181,7 @@
     {
       "enemyId": 160,
       "scanDescription": "An enormous bird claims the upper air with effortless authority. Far below, travellers pass through the moving border of its shadow.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -13792,6 +15279,7 @@
     {
       "enemyId": 161,
       "scanDescription": "A furtive creature keeps to the crags and broken earth. The mountains have shaped its life into a succession of narrow opportunities.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -13885,6 +15373,7 @@
     {
       "enemyId": 162,
       "scanDescription": "A restless inhabitant of the wild heights gives voice to a country of wind and stone. Even before it is seen, the stillness around it has begun to change.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -13969,6 +15458,7 @@
     {
       "enemyId": 163,
       "scanDescription": "An ancient-looking guardian occupies the mountain passage like a living seal. Whatever the road once promised, it now requires this creature's consent.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -14072,6 +15562,7 @@
     {
       "enemyId": 164,
       "scanDescription": "A company executive has brought his appetites and his bluster into a situation poorly suited to either. His confidence seems determined to survive every piece of evidence against it.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -14174,15 +15665,18 @@
     },
     {
       "enemyId": 165,
-      "scanDescription": "A hidden part of the encounter waits outside the familiar shapes of its inhabitants. Not every presence announces itself."
+      "scanDescription": "A hidden part of the encounter waits outside the familiar shapes of its inhabitants. Not every presence announces itself.",
+      "scaleLevel": false
     },
     {
       "enemyId": 166,
-      "scanDescription": "An overlooked detail completes an unfamiliar whole. The eye finds little to hold, but the silence is not quite empty."
+      "scanDescription": "An overlooked detail completes an unfamiliar whole. The eye finds little to hold, but the silence is not quite empty.",
+      "scaleLevel": false
     },
     {
       "enemyId": 167,
       "scanDescription": "A great bird rides the unsettled sky as though the weather were a private road. The clouds seem less lonely in its company.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -14294,6 +15788,7 @@
     {
       "enemyId": 168,
       "scanDescription": "A patch of vegetation has abandoned the gentle expectations people place upon growing things. Every rustle sounds a little too deliberate.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -14399,6 +15894,7 @@
     {
       "enemyId": 169,
       "scanDescription": "A strange creature wears an outline of hard angles and ill intentions. The rough country has little use for a softer design.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -14484,6 +15980,7 @@
     {
       "enemyId": 170,
       "scanDescription": "An oversized insect works its way through a world of stems and stone. Its unlikely shape is perfectly ordinary to the life around it.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -14581,6 +16078,7 @@
     {
       "enemyId": 171,
       "scanDescription": "A wilderness hunter carries a curious balance of weight and movement. Its restless tail seems forever engaged in a conversation with the ground.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -14678,6 +16176,7 @@
     {
       "enemyId": 172,
       "scanDescription": "An old, armoured wanderer carries its shelter through the world. The patient weight of its passage makes a road seem like a temporary arrangement.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -14775,6 +16274,7 @@
     {
       "enemyId": 173,
       "scanDescription": "A trained fighter carries the company's discipline into rough country. Even far from the parade ground, the habits of formation remain.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -14872,6 +16372,7 @@
     {
       "enemyId": 174,
       "scanDescription": "A skulking creature has made a living at the edge of travellers' routes. Its furtive patience is the sort that survives long after a grander hunter has gone hungry.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -14957,6 +16458,7 @@
     {
       "enemyId": 175,
       "scanDescription": "A highland bird moves through the thin air with solemn authority. The cliffs beneath it seem built as much for wings as for stone.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -15054,6 +16556,7 @@
     {
       "enemyId": 176,
       "scanDescription": "An odd little inhabitant of the wild country regards the path as its own. Its unlikely appearance has not prevented it from finding a place to thrive.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -15157,6 +16660,7 @@
     {
       "enemyId": 177,
       "scanDescription": "A huge flying beast has been pressed into another creature's quarrel. Its restless wings make an enclosure of the open air.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -15260,6 +16764,7 @@
     {
       "enemyId": 178,
       "scanDescription": "A watchful guardian stands upon the first steps of a proud tradition. Ceremony has given its strange form a place and a purpose.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -15363,6 +16868,7 @@
     {
       "enemyId": 179,
       "scanDescription": "A towering guardian waits with the composure of a test that has been given many times. The visitor's confidence is merely the latest thing to arrive.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -15458,6 +16964,7 @@
     {
       "enemyId": 180,
       "scanDescription": "An austere guardian measures every challenger with a gaze that seems older than the room. Patience is part of the examination.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -15561,6 +17068,7 @@
     {
       "enemyId": 181,
       "scanDescription": "A formidable keeper stands between ambition and the next flight of stairs. The silence leaves the challenger to supply their own doubts.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -15643,6 +17151,7 @@
     {
       "enemyId": 182,
       "scanDescription": "A nation's old pride takes on a many-sided presence. Beneath the spectacle lies a father's resolve and a ruler's unfinished duty.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -15754,6 +17263,7 @@
     {
       "enemyId": 185,
       "scanDescription": "A low-slung hunter slips through the places where travellers seldom look. Its life has been shaped by the generous shelter beneath larger things.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -15851,6 +17361,7 @@
     {
       "enemyId": 186,
       "scanDescription": "A strange little creature claims a place among the rocks and scrub. The world has never required its inhabitants to explain their outlines.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -15960,6 +17471,7 @@
     {
       "enemyId": 187,
       "scanDescription": "A great beast advances behind an imposing pair of natural weapons. Its patient tread gives the wilderness the air of being carefully inspected.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -16028,6 +17540,7 @@
     {
       "enemyId": 188,
       "scanDescription": "A winged hunter lets the currents carry it above the rough ground. Its shadow arrives long before its purpose becomes clear.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -16133,6 +17646,7 @@
     {
       "enemyId": 189,
       "scanDescription": "A little marsh dweller sits with regal indifference in its damp kingdom. The still water around it conceals a remarkably busy life.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -16236,6 +17750,7 @@
     {
       "enemyId": 190,
       "scanDescription": "An uncanny figure offers a suggestion of grace in a place that offers little welcome. The invitation in its bearing is difficult to trust.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -16339,6 +17854,7 @@
     {
       "enemyId": 191,
       "scanDescription": "A hulking sentinel seems built for the narrow passage it occupies. Whatever lies beyond has acquired a formidable doorkeeper.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -16450,6 +17966,7 @@
     {
       "enemyId": 192,
       "scanDescription": "A winged relic of a much older wilderness keeps its place among forgotten stones. The passing of human ages has scarcely troubled its domain.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -16545,6 +18062,7 @@
     {
       "enemyId": 193,
       "scanDescription": "A great scaled guardian occupies the old halls with the assurance of a rightful heir. The stone around it seems to have learned to keep its distance.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -16652,6 +18170,7 @@
     {
       "enemyId": 194,
       "scanDescription": "A cluster of watchful little lives peers from the gloom. The darkness has furnished its own uneasy constellation.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -16755,6 +18274,7 @@
     {
       "enemyId": 195,
       "scanDescription": "An ancient threshold has found a terrible way to refuse passage. The stone itself seems unwilling to let the travellers continue.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -16858,6 +18378,7 @@
     {
       "enemyId": 196,
       "scanDescription": "A presence from beyond the familiar world rises once more into an unwilling shape. Every encounter feels less like a return than another stage of an inexorable arrival.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -16961,6 +18482,7 @@
     {
       "enemyId": 197,
       "scanDescription": "A massive wilderness beast moves with the calm of a creature that has seldom been challenged. Its bulk makes the open ground feel unexpectedly crowded.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -17064,6 +18586,7 @@
     {
       "enemyId": 198,
       "scanDescription": "A furtive little mischief-maker regards the traveller's plans as an invitation. Its satisfaction seems to come from leaving the world less orderly than it found it.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -17176,11 +18699,13 @@
     },
     {
       "enemyId": 199,
-      "scanDescription": "A quiet shape occupies the edge of a larger mystery. The traveller has arrived too briefly to learn its story."
+      "scanDescription": "A quiet shape occupies the edge of a larger mystery. The traveller has arrived too briefly to learn its story.",
+      "scaleLevel": false
     },
     {
       "enemyId": 200,
       "scanDescription": "An ungainly remnant wanders where life and decay have lost their clear boundary. The earth seems reluctant to take it back.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -17278,6 +18803,7 @@
     {
       "enemyId": 201,
       "scanDescription": "A strange figure moves through the wilds with a rhythm of its own. The performance has neither a visible audience nor any apparent wish to end.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -17383,6 +18909,7 @@
     {
       "enemyId": 202,
       "scanDescription": "A hard-bitten fighter watches the road with the patience of long service. The uniform seems to have become a second skin.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -17488,6 +19015,7 @@
     {
       "enemyId": 203,
       "scanDescription": "A small creature regards the world as a succession of things that might fit inside it. Its ambition is considerably larger than its outline.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -17593,6 +19121,7 @@
     {
       "enemyId": 204,
       "scanDescription": "A coastal scavenger keeps close to rock and tide. The restless shore has furnished it with both a shelter and a hunting ground.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -17690,6 +19219,7 @@
     {
       "enemyId": 205,
       "scanDescription": "A heavy shape has risen out of the frozen country as though the winter had grown tired of waiting. Its measured steps disturb a very old silence.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -17805,6 +19335,7 @@
     {
       "enemyId": 206,
       "scanDescription": "A sharp-edged hunter makes a hard living in the cold wilderness. The land has rewarded a design with little room for softness.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -17910,6 +19441,7 @@
     {
       "enemyId": 207,
       "scanDescription": "A great cold-country beast shoulders its way across the frozen ground. Its slow presence gives the wind another obstacle to work around.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -18013,6 +19545,7 @@
     {
       "enemyId": 208,
       "scanDescription": "A creature of the cold wastes wears the harshness of its home in every line. Even at rest it seems to be enduring a weather of its own.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -18098,6 +19631,7 @@
     {
       "enemyId": 209,
       "scanDescription": "A small wanderer crosses the rough ground in impatient bounds. The world appears to offer it nothing worth approaching slowly.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -18174,6 +19708,7 @@
     {
       "enemyId": 210,
       "scanDescription": "A solitary figure inhabits the white distances with an unsettling ease. The wilderness seems less empty when it turns to look back.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -18277,6 +19812,7 @@
     {
       "enemyId": 211,
       "scanDescription": "A lean hunter follows the cold trails with single-minded attention. The long winter has made patience a practical necessity.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -18382,6 +19918,7 @@
     {
       "enemyId": 212,
       "scanDescription": "A strange life stirs among the snow and stone. Its uninviting shape belongs to a country that has never promised comfort.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -18461,15 +19998,18 @@
     },
     {
       "enemyId": 213,
-      "scanDescription": "An unassuming presence keeps company with something much easier to notice. Obscurity has a patience all its own."
+      "scanDescription": "An unassuming presence keeps company with something much easier to notice. Obscurity has a patience all its own.",
+      "scaleLevel": false
     },
     {
       "enemyId": 214,
-      "scanDescription": "A small, uncertain outline belongs to the encounter without explaining how. The world does not always offer a name before demanding attention."
+      "scanDescription": "A small, uncertain outline belongs to the encounter without explaining how. The world does not always offer a name before demanding attention.",
+      "scaleLevel": false
     },
     {
       "enemyId": 215,
       "scanDescription": "A great rootless growth drags the smell of spoiled gardens through the wild. The world seems to have let something rot for far too long.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -18575,6 +20115,7 @@
     {
       "enemyId": 216,
       "scanDescription": "A great reptile keeps watch in a land of deep cold and ancient silence. The snow around its resting place seems older than any road.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -18677,11 +20218,90 @@
     },
     {
       "enemyId": 217,
-      "scanDescription": "A long winter has gathered itself into a hanging blade. The cavern holds its breath beneath the weight of it."
+      "scanDescription": "A long winter has gathered itself into a hanging blade. The cavern holds its breath beneath the weight of it.",
+      "scaleLevel": true,
+      "growth": {
+        "hp": [
+          1000000,
+          1777778,
+          0,
+          0
+        ],
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 4,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 14,
+          "slots": [
+            {
+              "magicId": 5,
+              "resistance": 0
+            },
+            {
+              "magicId": 17,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 21,
+          "slots": [
+            {
+              "magicId": 6,
+              "resistance": 0
+            },
+            {
+              "magicId": 17,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      }
     },
     {
       "enemyId": 218,
       "scanDescription": "A rough fighter has brought a bruiser's confidence to the cold country. The wilderness offers a rather larger audience than the street.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -18750,6 +20370,7 @@
     {
       "enemyId": 219,
       "scanDescription": "A many-limbed hunter waits against the mountain stone. Its stillness makes it seem less an inhabitant of the cavern than a particularly cruel part of it.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -18851,6 +20472,7 @@
     {
       "enemyId": 220,
       "scanDescription": "A peculiar mountain creature watches the narrow routes through the rock. In such a place, even a modest appetite can become a traveller's problem.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -18948,6 +20570,7 @@
     {
       "enemyId": 221,
       "scanDescription": "A disembodied visage hangs in the gloom with an expression too intent to be lifeless. The old passages have acquired an unwelcome witness.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -19045,6 +20668,7 @@
     {
       "enemyId": 222,
       "scanDescription": "An uncanny shape keeps its own counsel in the mountain dark. Its silence makes the distance to daylight feel a little longer.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -19150,6 +20774,7 @@
     {
       "enemyId": 223,
       "scanDescription": "A giant of the high country moves with the confidence of great strength. The old stones seem almost companionable beside it.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -19226,6 +20851,7 @@
     {
       "enemyId": 224,
       "scanDescription": "An angry little sphere hangs in the air like the last moment before a disaster. Its entire existence seems directed toward making that moment count.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -19311,6 +20937,7 @@
     {
       "enemyId": 225,
       "scanDescription": "A wiry troublemaker haunts the places where travellers would prefer an uneventful passage. Mischief seems less a habit than its chosen occupation.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -19408,6 +21035,7 @@
     {
       "enemyId": 226,
       "scanDescription": "A winged hunter threads the mountain air between hard stone and empty space. Its resting places are beyond the comfort of most travellers.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -19492,6 +21120,7 @@
     {
       "enemyId": 227,
       "scanDescription": "An unsettling figure has taken on the stillness of an ornament. Time has not made it harmless, only easier to mistake for something that is.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -19584,15 +21213,188 @@
     },
     {
       "enemyId": 228,
-      "scanDescription": "One watchful head shares a body with a mind it can never quite escape. The creature's divided attention feels less like confusion than an old quarrel."
+      "scanDescription": "One watchful head shares a body with a mind it can never quite escape. The creature's divided attention feels less like confusion than an old quarrel.",
+      "scaleLevel": true,
+      "growth": {
+        "hp": [
+          1000000,
+          4377953,
+          1637795,
+          0
+        ],
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 1,
+              "resistance": 0
+            },
+            {
+              "magicId": 29,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 20,
+          "slots": [
+            {
+              "magicId": 2,
+              "resistance": 0
+            },
+            {
+              "magicId": 29,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 26,
+          "slots": [
+            {
+              "magicId": 3,
+              "resistance": 0
+            },
+            {
+              "magicId": 29,
+              "resistance": 0
+            },
+            {
+              "magicId": 30,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      }
     },
     {
       "enemyId": 229,
-      "scanDescription": "A second hungry intelligence turns above the same great frame. Whatever agreement binds the pair has made no provision for visitors."
+      "scanDescription": "A second hungry intelligence turns above the same great frame. Whatever agreement binds the pair has made no provision for visitors.",
+      "scaleLevel": true,
+      "growth": {
+        "hp": [
+          1000000,
+          4518519,
+          2074074,
+          0
+        ],
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 4,
+              "resistance": 0
+            },
+            {
+              "magicId": 30,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 11,
+          "slots": [
+            {
+              "magicId": 5,
+              "resistance": 0
+            },
+            {
+              "magicId": 30,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 17,
+          "slots": [
+            {
+              "magicId": 6,
+              "resistance": 0
+            },
+            {
+              "magicId": 30,
+              "resistance": 0
+            },
+            {
+              "magicId": 29,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      }
     },
     {
       "enemyId": 230,
       "scanDescription": "A broad-winged creature inhabits the draughts and ledges of the old passages. The air remembers its presence long after it has passed.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -19698,6 +21500,7 @@
     {
       "enemyId": 231,
       "scanDescription": "A mounted hunter has made an alliance with a creature born for the heights. Together they lend the narrow paths the scale of a battlefield.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -19815,6 +21618,7 @@
     {
       "enemyId": 232,
       "scanDescription": "An armoured creature waits with the peculiar stillness of a closed container. Its shape invites questions that proximity is unlikely to answer kindly.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -19934,6 +21738,7 @@
     {
       "enemyId": 233,
       "scanDescription": "A tiny keeper of the dark advances with a lantern and an untroubled sense of purpose. The measured footsteps leave an extraordinary amount of time to become afraid.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -19989,6 +21794,7 @@
     {
       "enemyId": 234,
       "scanDescription": "An alien will takes shape again among the remnants of an older world. Even here, in a place full of endings, it seems intent on beginning something.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -20092,6 +21898,7 @@
     {
       "enemyId": 235,
       "scanDescription": "A war machine turns the language of chance into another instrument of control. Its mechanisms offer the appearance of a game without the courtesy of consent.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -20188,11 +21995,13 @@
     },
     {
       "enemyId": 236,
-      "scanDescription": "An unassuming support carries a more terrible design above it. Even the smallest part of a machine can have an uncompromising purpose."
+      "scanDescription": "An unassuming support carries a more terrible design above it. Even the smallest part of a machine can have an uncompromising purpose.",
+      "scaleLevel": false
     },
     {
       "enemyId": 237,
       "scanDescription": "A seasoned member of the company's elite carries the assurance of hard-earned standing. The polished reputation is supported by a life spent practising its demands.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -20290,6 +22099,7 @@
     {
       "enemyId": 238,
       "scanDescription": "A mobile arsenal moves through the narrow industrial passages with utter indifference to their inhabitants. The company's intentions have seldom looked so plainly mechanical.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -20387,6 +22197,7 @@
     {
       "enemyId": 239,
       "scanDescription": "A quick-moving machine weaves through the space available to it. Its restless course lends an ugly purpose an almost sporting appearance.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -20484,6 +22295,7 @@
     {
       "enemyId": 240,
       "scanDescription": "A heavy security mechanism has made a weapon of an ordinary working motion. The machinery of labour adapts all too easily to violence.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -20588,19 +22400,289 @@
     },
     {
       "enemyId": 241,
-      "scanDescription": "The upper section of an immense cutting machine hangs over the passage. Its separation from the rest has done nothing to soften its purpose."
+      "scanDescription": "The upper section of an immense cutting machine hangs over the passage. Its separation from the rest has done nothing to soften its purpose.",
+      "scaleLevel": true,
+      "growth": {
+        "hp": [
+          1000000,
+          3000000,
+          4000000,
+          0
+        ],
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 44,
+              "resistance": 0
+            },
+            {
+              "magicId": 11,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 13,
+          "slots": [
+            {
+              "magicId": 44,
+              "resistance": 0
+            },
+            {
+              "magicId": 11,
+              "resistance": 0
+            },
+            {
+              "magicId": 29,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 20,
+          "slots": [
+            {
+              "magicId": 44,
+              "resistance": 0
+            },
+            {
+              "magicId": 18,
+              "resistance": 0
+            },
+            {
+              "magicId": 29,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      },
+      "itemReplacements": [
+        {
+          "minimumDelta": 47,
+          "channel": "steal",
+          "fromItemId": 3,
+          "toItemId": 4
+        }
+      ]
     },
     {
       "enemyId": 242,
-      "scanDescription": "A lower assembly anchors the machine's cruel working shape. The confined floor leaves very little room outside its reach."
+      "scanDescription": "A lower assembly anchors the machine's cruel working shape. The confined floor leaves very little room outside its reach.",
+      "scaleLevel": true,
+      "growth": {
+        "hp": [
+          1000000,
+          3000000,
+          4000000,
+          0
+        ],
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 21,
+              "resistance": 0
+            },
+            {
+              "magicId": 39,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 13,
+          "slots": [
+            {
+              "magicId": 22,
+              "resistance": 0
+            },
+            {
+              "magicId": 39,
+              "resistance": 0
+            },
+            {
+              "magicId": 30,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 20,
+          "slots": [
+            {
+              "magicId": 23,
+              "resistance": 0
+            },
+            {
+              "magicId": 39,
+              "resistance": 0
+            },
+            {
+              "magicId": 30,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      },
+      "itemReplacements": [
+        {
+          "minimumDelta": 47,
+          "channel": "steal",
+          "fromItemId": 3,
+          "toItemId": 4
+        }
+      ]
     },
     {
       "enemyId": 243,
-      "scanDescription": "An unseen hand has arranged a collection of weapons into a single watchful presence. The empty spaces between its parts offer no real reassurance."
+      "scanDescription": "An unseen hand has arranged a collection of weapons into a single watchful presence. The empty spaces between its parts offer no real reassurance.",
+      "scaleLevel": true,
+      "growth": {
+        "hp": [
+          1000000,
+          4320000,
+          5760000,
+          0
+        ],
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 29,
+              "resistance": 0
+            },
+            {
+              "magicId": 30,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 13,
+          "slots": [
+            {
+              "magicId": 29,
+              "resistance": 0
+            },
+            {
+              "magicId": 30,
+              "resistance": 0
+            },
+            {
+              "magicId": 28,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      }
     },
     {
       "enemyId": 244,
       "scanDescription": "A compact weapon answers the company's need for immediate obedience. The mechanism has no opinion of the orders it receives.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -20677,6 +22759,7 @@
     {
       "enemyId": 245,
       "scanDescription": "A fixed weapon waits where a sentry might once have stood. Its silence is not restraint; it is merely the interval between orders.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -20774,6 +22857,7 @@
     {
       "enemyId": 246,
       "scanDescription": "A lost vessel drifts through a sea that no longer seems entirely made of water. Whatever crew it remembers has left no hand upon the wheel.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -20867,6 +22951,7 @@
     {
       "enemyId": 247,
       "scanDescription": "An armoured machine bears the closed, purposeful outline of a vessel at war. Its designers have carried the company's ambitions into another environment.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -20964,6 +23049,7 @@
     {
       "enemyId": 248,
       "scanDescription": "A strange creature has made a home in the world below the surface. The deep has supplied it with a privacy the visitor is now disturbing.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -21061,6 +23147,7 @@
     {
       "enemyId": 249,
       "scanDescription": "A sailor carries out the company's business in a world enclosed by steel. Beneath the surface, even an ordinary order can feel final.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -21158,6 +23245,7 @@
     {
       "enemyId": 250,
       "scanDescription": "An officer stands at the point where responsibility becomes command. In the close confines of service, a steady voice is another form of armour.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -21255,6 +23343,7 @@
     {
       "enemyId": 251,
       "scanDescription": "A company soldier serves where the sea presses against every wall. The uniform's familiar authority is a small comfort in so unfamiliar a world.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -21360,6 +23449,7 @@
     {
       "enemyId": 252,
       "scanDescription": "Long service has worn away the novelty of the uniform without loosening its hold. The orders may change, but the habit of obedience endures.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -21457,6 +23547,7 @@
     {
       "enemyId": 253,
       "scanDescription": "A heavily equipped fighter brings the company's insistence upon control into close quarters. The armour gives little hint of the person carrying it.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -21554,6 +23645,7 @@
     {
       "enemyId": 254,
       "scanDescription": "A machine waits at the edge of the company's most jealously kept spaces. Vigilance has been reduced to a design that never needs to sleep.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -21650,15 +23742,58 @@
     },
     {
       "enemyId": 255,
-      "scanDescription": "A weapon assembly turns in concert with the machine that carries it. Its small movements suggest a purpose constantly being renewed."
+      "scanDescription": "A weapon assembly turns in concert with the machine that carries it. Its small movements suggest a purpose constantly being renewed.",
+      "scaleLevel": true,
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      }
     },
     {
       "enemyId": 256,
-      "scanDescription": "A second watchful attachment completes the machine's threatening symmetry. There is something deeply impersonal about such well-organised attention."
+      "scanDescription": "A second watchful attachment completes the machine's threatening symmetry. There is something deeply impersonal about such well-organised attention.",
+      "scaleLevel": true,
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      }
     },
     {
       "enemyId": 257,
       "scanDescription": "A walking platform has been given the plain duty of bringing a weapon closer. Its ponderous steps make the intention difficult to misunderstand.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -21756,6 +23891,7 @@
     {
       "enemyId": 258,
       "scanDescription": "A machine built to lift and move has been made to handle living intruders instead. Its great arms preserve the workman's motions while abandoning the workman's restraint.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -21870,15 +24006,162 @@
     },
     {
       "enemyId": 259,
-      "scanDescription": "A great limb reaches out from a larger purpose. Its grasp gives the surrounding space the uneasy scale of something already enclosed."
+      "scanDescription": "A great limb reaches out from a larger purpose. Its grasp gives the surrounding space the uneasy scale of something already enclosed.",
+      "scaleLevel": true,
+      "growth": {
+        "hp": [
+          1000000,
+          1142857,
+          0,
+          0
+        ],
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 29,
+              "resistance": 0
+            },
+            {
+              "magicId": 44,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 11,
+          "slots": [
+            {
+              "magicId": 29,
+              "resistance": 0
+            },
+            {
+              "magicId": 44,
+              "resistance": 0
+            },
+            {
+              "magicId": 37,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      }
     },
     {
       "enemyId": 260,
-      "scanDescription": "A second limb waits beside the first, lending the creature's outline an oppressive completeness. Even at rest, the reach is difficult to ignore."
+      "scanDescription": "A second limb waits beside the first, lending the creature's outline an oppressive completeness. Even at rest, the reach is difficult to ignore.",
+      "scaleLevel": true,
+      "growth": {
+        "hp": [
+          1000000,
+          1142857,
+          0,
+          0
+        ],
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 30,
+              "resistance": 0
+            },
+            {
+              "magicId": 44,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 11,
+          "slots": [
+            {
+              "magicId": 30,
+              "resistance": 0
+            },
+            {
+              "magicId": 44,
+              "resistance": 0
+            },
+            {
+              "magicId": 37,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      }
     },
     {
       "enemyId": 261,
       "scanDescription": "A strange wilderness creature follows a life that has little intersection with human roads. The meeting is no more welcome from its side.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -21976,6 +24259,7 @@
     {
       "enemyId": 262,
       "scanDescription": "A dark shape haunts the rough ground with a hunter's wary patience. Its forbidding appearance is a poor substitute for understanding what it wants.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -22085,6 +24369,7 @@
     {
       "enemyId": 263,
       "scanDescription": "A long-legged bird makes its measured way through the wild country. The earth seems to interest it chiefly as something to search carefully.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -22178,6 +24463,7 @@
     {
       "enemyId": 264,
       "scanDescription": "A great mass of unruly growth has learned to wander beyond its roots. The surrounding air carries the stale perfume of a garden left to its worst intentions.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -22275,6 +24561,7 @@
     {
       "enemyId": 265,
       "scanDescription": "A peculiar creature moves through places where the air has long ceased to be pleasant. It appears entirely comfortable with what others struggle to endure.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -22360,6 +24647,7 @@
     {
       "enemyId": 266,
       "scanDescription": "A hardened fighter carries the solitude of a hunter into the company's ranks. The uniform has not quite concealed the old instincts beneath it.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -22444,6 +24732,7 @@
     {
       "enemyId": 267,
       "scanDescription": "A high-mounted weapon surveys the ground with a predator's borrowed perspective. Its builders have given it reach without ever needing to give it wings.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -22507,6 +24796,7 @@
     {
       "enemyId": 268,
       "scanDescription": "A long aquatic hunter slips through the water with an economy that makes great size seem effortless. The surface offers only the briefest account of its passage.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -22618,6 +24908,7 @@
     {
       "enemyId": 269,
       "scanDescription": "A small, odd creature has found its place at the edge of a much larger world. Its restless curiosity is not necessarily a welcome.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -22711,6 +25002,7 @@
     {
       "enemyId": 270,
       "scanDescription": "A rough little hunter moves with the energy of a quarrel looking for somewhere to happen. The wilderness provides no shortage of opportunities.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -22808,6 +25100,7 @@
     {
       "enemyId": 271,
       "scanDescription": "Something unfamiliar has made its home among the deep's forgotten remains. The lack of a familiar outline feels less like mystery than a quiet warning.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -22871,6 +25164,7 @@
     {
       "enemyId": 272,
       "scanDescription": "An uncanny inhabitant of the submerged dark moves beyond the comfort of familiar categories. The deep seems content to keep its history to itself.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -22980,6 +25274,7 @@
     {
       "enemyId": 273,
       "scanDescription": "A second strange life has settled into the silence below. Whatever shaped it left few clues that a surface traveller would recognise.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -23081,6 +25376,7 @@
     {
       "enemyId": 274,
       "scanDescription": "A careless posture disguises a professional's attention. For all the languid insolence, there is nothing accidental about where he chooses to stand.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -23196,6 +25492,7 @@
     {
       "enemyId": 275,
       "scanDescription": "A quiet professional lets his silence do the work of a threat. The restraint is deliberate; so is everything that follows it.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -23311,6 +25608,7 @@
     {
       "enemyId": 276,
       "scanDescription": "A proud winged beast keeps its place between the high air and the rough earth. Both seem equally its inheritance.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -23400,6 +25698,7 @@
     {
       "enemyId": 277,
       "scanDescription": "A seasoned predator follows the roads people leave through the wild. Its attention gives the impression of a hunt already well under way.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -23517,6 +25816,7 @@
     {
       "enemyId": 278,
       "scanDescription": "A tightly wound creature carries its shelter as an inseparable part of itself. Even its stillness seems to contain the promise of movement.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -23610,6 +25910,7 @@
     {
       "enemyId": 279,
       "scanDescription": "An enclosed life waits within an elaborate outer shape. The world outside sees only the patience of something still becoming.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -23715,6 +26016,7 @@
     {
       "enemyId": 280,
       "scanDescription": "A vast burrower inhabits the shifting boundary between water and earth. The shore seems less a place to it than something to move through.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -23791,6 +26093,7 @@
     {
       "enemyId": 281,
       "scanDescription": "A quiet professional lets his silence do the work of a threat. The restraint is deliberate; so is everything that follows it.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -23914,6 +26217,7 @@
     {
       "enemyId": 282,
       "scanDescription": "A hulking beast brings an almost ceremonial gravity to its patch of wilderness. The imposing crest leaves little doubt about which creature considers itself in charge.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -23987,6 +26291,7 @@
     {
       "enemyId": 283,
       "scanDescription": "A hulking beast brings an almost ceremonial gravity to its patch of wilderness. The imposing crest leaves little doubt about which creature considers itself in charge.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -24060,6 +26365,7 @@
     {
       "enemyId": 284,
       "scanDescription": "A hulking beast brings an almost ceremonial gravity to its patch of wilderness. The imposing crest leaves little doubt about which creature considers itself in charge.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -24133,6 +26439,7 @@
     {
       "enemyId": 285,
       "scanDescription": "A colossal hunter moves with the unhurried assurance of being larger than almost everything it meets. The earth seems to announce its arrival a little before its footsteps do.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -24209,6 +26516,7 @@
     {
       "enemyId": 286,
       "scanDescription": "A company weapon watches from its appointed place in the city. Its immaculate obedience feels strangely out of place amid the surrounding ruin.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -24306,6 +26614,7 @@
     {
       "enemyId": 287,
       "scanDescription": "Something has made the city's buried passages into a place of ambush. A modest opening in the road conceals a much less modest intention.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -24420,11 +26729,13 @@
     },
     {
       "enemyId": 288,
-      "scanDescription": "A humble cover separates the ordinary street from the life beneath it. For a moment, the most familiar object in the road seems unexpectedly watchful."
+      "scanDescription": "A humble cover separates the ordinary street from the life beneath it. For a moment, the most familiar object in the road seems unexpectedly watchful.",
+      "scaleLevel": false
     },
     {
       "enemyId": 289,
       "scanDescription": "A cutting tool has become an eager little machine of pursuit. Its frantic motion lends the impression that someone forgot to tell it the shift was over.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -24518,6 +26829,7 @@
     {
       "enemyId": 290,
       "scanDescription": "A dark presence moves through the ruins with the patience of a stain spreading. The city has left it no shortage of places to belong.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -24577,6 +26889,7 @@
     {
       "enemyId": 291,
       "scanDescription": "A massive armoured assembly dominates the machine's threatening outline. The company has placed considerable faith in the persuasive value of bulk.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -24674,6 +26987,7 @@
     {
       "enemyId": 292,
       "scanDescription": "A smaller weapons unit keeps close to the great mechanism it serves. Its modest size offers little consolation in such company.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -24733,6 +27047,7 @@
     {
       "enemyId": 293,
       "scanDescription": "An armoured base carries a small fortress through the city's broken ways. The streets have become merely another surface for military machinery to cross.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -24842,6 +27157,7 @@
     {
       "enemyId": 294,
       "scanDescription": "A stone-faced sentinel keeps the old silence of a carved ornament. The ruins around it seem to have been waiting for someone to look away.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -24897,6 +27213,7 @@
     {
       "enemyId": 295,
       "scanDescription": "A stone-faced sentinel keeps the old silence of a carved ornament. The ruins around it seem to have been waiting for someone to look away.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -24952,6 +27269,7 @@
     {
       "enemyId": 296,
       "scanDescription": "A young professional stands a little straighter beneath the weight of a celebrated name. Earnest conviction gives her presence an edge her colleagues rarely need to display.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -25067,6 +27385,7 @@
     {
       "enemyId": 297,
       "scanDescription": "A careless posture disguises a professional's attention. For all the languid insolence, there is nothing accidental about where he chooses to stand.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -25182,6 +27501,7 @@
     {
       "enemyId": 298,
       "scanDescription": "A quiet professional lets his silence do the work of a threat. The restraint is deliberate; so is everything that follows it.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -25297,6 +27617,7 @@
     {
       "enemyId": 299,
       "scanDescription": "A towering monument to the company's answer to fear. Human ambition has built itself a shell so large that it can almost pretend the world is small.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -25411,11 +27732,79 @@
     },
     {
       "enemyId": 300,
-      "scanDescription": "An armoured plate guards the great machine's vulnerable secrets. Its plain geometry is the quiet foundation beneath a much grander display."
+      "scanDescription": "An armoured plate guards the great machine's vulnerable secrets. Its plain geometry is the quiet foundation beneath a much grander display.",
+      "scaleLevel": true,
+      "growth": {
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 29,
+              "resistance": 0
+            },
+            {
+              "magicId": 30,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 8,
+          "slots": [
+            {
+              "magicId": 29,
+              "resistance": 0
+            },
+            {
+              "magicId": 30,
+              "resistance": 0
+            },
+            {
+              "magicId": 28,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      }
     },
     {
       "enemyId": 301,
       "scanDescription": "An elite warrior carries the company's legend with the ease of long familiarity. The distinction is no longer an aspiration, but an expectation to be maintained.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -25525,6 +27914,7 @@
     {
       "enemyId": 302,
       "scanDescription": "A company weapons platform waits among the city's last defences. Its stark outline makes no effort to disguise what remains of the institution's intentions.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -25580,6 +27970,7 @@
     {
       "enemyId": 304,
       "scanDescription": "An impossible collection of predators has learned to move as one. The wilderness seems briefly undecided about which creature has entered it.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -25665,6 +28056,7 @@
     {
       "enemyId": 305,
       "scanDescription": "An old researcher regards the living world with the cold intimacy of a possession. Curiosity has long since freed itself from the inconvenience of conscience.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -25734,6 +28126,7 @@
     {
       "enemyId": 306,
       "scanDescription": "The observer has entered his own experiment. What emerges wears the unsettling confidence of a man who has mistaken knowledge for permission.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -25815,15 +28208,122 @@
     },
     {
       "enemyId": 307,
-      "scanDescription": "A great limb reaches out from a larger purpose. Its grasp gives the surrounding space the uneasy scale of something already enclosed."
+      "scanDescription": "A great limb reaches out from a larger purpose. Its grasp gives the surrounding space the uneasy scale of something already enclosed.",
+      "scaleLevel": true,
+      "growth": {
+        "hp": [
+          1000000,
+          1846154,
+          2461538,
+          0
+        ],
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 29,
+              "resistance": 0
+            },
+            {
+              "magicId": 26,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 9,
+          "slots": [
+            {
+              "magicId": 29,
+              "resistance": 0
+            },
+            {
+              "magicId": 26,
+              "resistance": 0
+            },
+            {
+              "magicId": 12,
+              "resistance": 0
+            }
+          ]
+        }
+      ]
     },
     {
       "enemyId": 308,
-      "scanDescription": "A second limb waits beside the first, lending the creature's outline an oppressive completeness. Even at rest, the reach is difficult to ignore."
+      "scanDescription": "A second limb waits beside the first, lending the creature's outline an oppressive completeness. Even at rest, the reach is difficult to ignore.",
+      "scaleLevel": true,
+      "growth": {
+        "hp": [
+          1000000,
+          1846154,
+          2461538,
+          0
+        ],
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 30,
+              "resistance": 0
+            },
+            {
+              "magicId": 26,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 9,
+          "slots": [
+            {
+              "magicId": 30,
+              "resistance": 0
+            },
+            {
+              "magicId": 26,
+              "resistance": 0
+            },
+            {
+              "magicId": 12,
+              "resistance": 0
+            }
+          ]
+        }
+      ]
     },
     {
       "enemyId": 309,
       "scanDescription": "A final, grotesque declaration rises from a lifetime spent treating life as material. Whatever remains of the man has become difficult to separate from his ambition.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -25892,11 +28392,112 @@
     },
     {
       "enemyId": 310,
-      "scanDescription": "A small vessel harbours an occupant with very particular expectations of visitors. Its cheerful insistence makes hospitality feel like a mysterious local custom."
+      "scanDescription": "A small vessel harbours an occupant with very particular expectations of visitors. Its cheerful insistence makes hospitality feel like a mysterious local custom.",
+      "scaleLevel": true,
+      "growth": {
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 1,
+              "resistance": 0
+            },
+            {
+              "magicId": 7,
+              "resistance": 0
+            },
+            {
+              "magicId": 4,
+              "resistance": 0
+            },
+            {
+              "magicId": 21,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 12,
+          "slots": [
+            {
+              "magicId": 2,
+              "resistance": 0
+            },
+            {
+              "magicId": 8,
+              "resistance": 0
+            },
+            {
+              "magicId": 5,
+              "resistance": 0
+            },
+            {
+              "magicId": 22,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 18,
+          "slots": [
+            {
+              "magicId": 3,
+              "resistance": 0
+            },
+            {
+              "magicId": 9,
+              "resistance": 0
+            },
+            {
+              "magicId": 6,
+              "resistance": 0
+            },
+            {
+              "magicId": 23,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      }
     },
     {
       "enemyId": 311,
       "scanDescription": "A strange little traveller moves through the deep places in unlikely company. The partnership seems to follow rules understood only by those within it.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -26012,6 +28613,7 @@
     {
       "enemyId": 312,
       "scanDescription": "An odd companion keeps pace with a fellow wanderer through the dark. Their quiet understanding offers the stranger no obvious place in the conversation.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -26087,6 +28689,7 @@
     {
       "enemyId": 313,
       "scanDescription": "A sovereign shape among the deep's great predators. Its bearing suggests that the title was never bestowed, only recognised.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -26163,6 +28766,7 @@
     {
       "enemyId": 314,
       "scanDescription": "A massive figure watches the depths with the gravity of an ancient sentinel. The darkness seems to gather around its patient bulk.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -26284,6 +28888,7 @@
     {
       "enemyId": 315,
       "scanDescription": "An old winged terror has outlived even the limits of its own flesh. The deep keeps what the world above would have laid to rest.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -26373,6 +28978,7 @@
     {
       "enemyId": 316,
       "scanDescription": "A heavily plated figure advances with the certainty of a closing gate. Every step lends the darkness a more industrial weight.",
+      "scaleLevel": true,
       "growth": {
         "attack": [
           1000000,
@@ -26430,6 +29036,7 @@
     {
       "enemyId": 317,
       "scanDescription": "An old keeper of the depths carries a lantern as though there were no hurry left in the world. Its tiny footsteps make a lifetime of consequences seem suddenly close.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -26502,6 +29109,7 @@
     {
       "enemyId": 318,
       "scanDescription": "An uncanny figure lends an almost festive presence to the deepest dark. The grace of its movements belongs to a celebration the traveller has not been invited to understand.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -26596,11 +29204,118 @@
     },
     {
       "enemyId": 319,
-      "scanDescription": "A little company of bright shapes moves with an agreement too quick to follow. In the depths, even the smallest lives have learned to keep their own counsel."
+      "scanDescription": "A little company of bright shapes moves with an agreement too quick to follow. In the depths, even the smallest lives have learned to keep their own counsel.",
+      "scaleLevel": true,
+      "growth": {
+        "hp": [
+          1000000,
+          2666667,
+          0,
+          0
+        ],
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 7,
+              "resistance": 0
+            },
+            {
+              "magicId": 21,
+              "resistance": 0
+            },
+            {
+              "magicId": 27,
+              "resistance": 0
+            },
+            {
+              "magicId": 24,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 8,
+          "slots": [
+            {
+              "magicId": 8,
+              "resistance": 0
+            },
+            {
+              "magicId": 22,
+              "resistance": 0
+            },
+            {
+              "magicId": 27,
+              "resistance": 0
+            },
+            {
+              "magicId": 24,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 13,
+          "slots": [
+            {
+              "magicId": 9,
+              "resistance": 0
+            },
+            {
+              "magicId": 23,
+              "resistance": 0
+            },
+            {
+              "magicId": 27,
+              "resistance": 0
+            },
+            {
+              "magicId": 24,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      }
     },
     {
       "enemyId": 320,
       "scanDescription": "An immense armoured warrior occupies the dark with the composure of a final sentry. The blade seems less a weapon than the punctuation of its purpose.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -26685,6 +29400,7 @@
     {
       "enemyId": 321,
       "scanDescription": "A small life has found a way to thrive upon the presence of larger ones. The deep has made no promise that survival will be dignified.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -26794,6 +29510,7 @@
     {
       "enemyId": 322,
       "scanDescription": "A great scaled hunter waits where the world's old wounds run deepest. Its watchful stillness suggests that the darkness is a comfort, not a concealment.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -26885,6 +29602,7 @@
     {
       "enemyId": 323,
       "scanDescription": "An unsettling player offers chance the solemnity of a ritual. Every gesture seems to imply that the wager was agreed upon long before the visitor arrived.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -27000,6 +29718,7 @@
     {
       "enemyId": 324,
       "scanDescription": "An alien history gathers its scattered intentions into one last shape. Around it, the Planet's oldest depths seem to have become the threshold of somewhere else.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -27099,6 +29818,7 @@
     {
       "enemyId": 325,
       "scanDescription": "A terrible vision rises where a man's ambition has ceased to resemble a man. The enormity of its shape cannot quite conceal the will at its centre.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -27206,6 +29926,7 @@
     {
       "enemyId": 326,
       "scanDescription": "A terrible vision rises where a man's ambition has ceased to resemble a man. The enormity of its shape cannot quite conceal the will at its centre.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -27309,6 +30030,7 @@
     {
       "enemyId": 327,
       "scanDescription": "A terrible vision rises where a man's ambition has ceased to resemble a man. The enormity of its shape cannot quite conceal the will at its centre.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -27412,6 +30134,7 @@
     {
       "enemyId": 328,
       "scanDescription": "A terrible vision rises where a man's ambition has ceased to resemble a man. The enormity of its shape cannot quite conceal the will at its centre.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -27519,6 +30242,7 @@
     {
       "enemyId": 329,
       "scanDescription": "A terrible vision rises where a man's ambition has ceased to resemble a man. The enormity of its shape cannot quite conceal the will at its centre.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -27622,6 +30346,7 @@
     {
       "enemyId": 330,
       "scanDescription": "A terrible vision rises where a man's ambition has ceased to resemble a man. The enormity of its shape cannot quite conceal the will at its centre.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -27725,6 +30450,7 @@
     {
       "enemyId": 331,
       "scanDescription": "A vision of radiance hangs above the world's deepest wound. Its beauty carries the dreadful certainty of a dream in which there is room for only one will.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -27823,11 +30549,13 @@
     },
     {
       "enemyId": 332,
-      "scanDescription": "At the end of every vast design, a single figure remains. The silence between two people has become the last distance left to cross."
+      "scanDescription": "At the end of every vast design, a single figure remains. The silence between two people has become the last distance left to cross.",
+      "scaleLevel": false
     },
     {
       "enemyId": 333,
       "scanDescription": "An ancient guardian crosses the wounded sky with no regard for borders. The world below is being judged by a purpose older than its nations.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -27906,6 +30634,7 @@
     {
       "enemyId": 334,
       "scanDescription": "An ancient guardian crosses the wounded sky with no regard for borders. The world below is being judged by a purpose older than its nations.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -27984,6 +30713,7 @@
     {
       "enemyId": 335,
       "scanDescription": "An ancient guardian crosses the wounded sky with no regard for borders. The world below is being judged by a purpose older than its nations.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -28075,6 +30805,7 @@
     {
       "enemyId": 336,
       "scanDescription": "An ancient guardian crosses the wounded sky with no regard for borders. The world below is being judged by a purpose older than its nations.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -28166,6 +30897,7 @@
     {
       "enemyId": 337,
       "scanDescription": "A tiny green wanderer stands in the desert with improbable self-possession. The empty distances seem to have taught it a very private sort of humour.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -28221,6 +30953,7 @@
     {
       "enemyId": 338,
       "scanDescription": "A small island fighter greets the wider world with a ready pair of fists. Its uncomplicated confidence gives even a chance meeting the air of a challenge.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -28300,67 +31033,1328 @@
     },
     {
       "enemyId": 339,
-      "scanDescription": "A bright-eyed wanderer moves through the open country with a freedom roads can only imitate. For a little patience and kindness, that wide world might be shared."
+      "scanDescription": "A bright-eyed wanderer moves through the open country with a freedom roads can only imitate. For a little patience and kindness, that wide world might be shared.",
+      "scaleLevel": true,
+      "growth": {
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 1,
+              "resistance": 0
+            },
+            {
+              "magicId": 7,
+              "resistance": 0
+            },
+            {
+              "magicId": 4,
+              "resistance": 0
+            },
+            {
+              "magicId": 21,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 17,
+          "slots": [
+            {
+              "magicId": 2,
+              "resistance": 0
+            },
+            {
+              "magicId": 8,
+              "resistance": 0
+            },
+            {
+              "magicId": 5,
+              "resistance": 0
+            },
+            {
+              "magicId": 22,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 26,
+          "slots": [
+            {
+              "magicId": 3,
+              "resistance": 0
+            },
+            {
+              "magicId": 9,
+              "resistance": 0
+            },
+            {
+              "magicId": 6,
+              "resistance": 0
+            },
+            {
+              "magicId": 23,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      }
     },
     {
       "enemyId": 340,
-      "scanDescription": "A bright-eyed wanderer moves through the open country with a freedom roads can only imitate. For a little patience and kindness, that wide world might be shared."
+      "scanDescription": "A bright-eyed wanderer moves through the open country with a freedom roads can only imitate. For a little patience and kindness, that wide world might be shared.",
+      "scaleLevel": true,
+      "growth": {
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 1,
+              "resistance": 0
+            },
+            {
+              "magicId": 7,
+              "resistance": 0
+            },
+            {
+              "magicId": 4,
+              "resistance": 0
+            },
+            {
+              "magicId": 21,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 17,
+          "slots": [
+            {
+              "magicId": 2,
+              "resistance": 0
+            },
+            {
+              "magicId": 8,
+              "resistance": 0
+            },
+            {
+              "magicId": 5,
+              "resistance": 0
+            },
+            {
+              "magicId": 22,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 25,
+          "slots": [
+            {
+              "magicId": 3,
+              "resistance": 0
+            },
+            {
+              "magicId": 9,
+              "resistance": 0
+            },
+            {
+              "magicId": 6,
+              "resistance": 0
+            },
+            {
+              "magicId": 23,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      }
     },
     {
       "enemyId": 341,
-      "scanDescription": "A bright-eyed wanderer moves through the open country with a freedom roads can only imitate. For a little patience and kindness, that wide world might be shared."
+      "scanDescription": "A bright-eyed wanderer moves through the open country with a freedom roads can only imitate. For a little patience and kindness, that wide world might be shared.",
+      "scaleLevel": true,
+      "growth": {
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 1,
+              "resistance": 0
+            },
+            {
+              "magicId": 7,
+              "resistance": 0
+            },
+            {
+              "magicId": 4,
+              "resistance": 0
+            },
+            {
+              "magicId": 21,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 16,
+          "slots": [
+            {
+              "magicId": 2,
+              "resistance": 0
+            },
+            {
+              "magicId": 8,
+              "resistance": 0
+            },
+            {
+              "magicId": 5,
+              "resistance": 0
+            },
+            {
+              "magicId": 22,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 24,
+          "slots": [
+            {
+              "magicId": 3,
+              "resistance": 0
+            },
+            {
+              "magicId": 9,
+              "resistance": 0
+            },
+            {
+              "magicId": 6,
+              "resistance": 0
+            },
+            {
+              "magicId": 23,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      }
     },
     {
       "enemyId": 342,
-      "scanDescription": "A bright-eyed wanderer moves through the open country with a freedom roads can only imitate. For a little patience and kindness, that wide world might be shared."
+      "scanDescription": "A bright-eyed wanderer moves through the open country with a freedom roads can only imitate. For a little patience and kindness, that wide world might be shared.",
+      "scaleLevel": true,
+      "growth": {
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 1,
+              "resistance": 0
+            },
+            {
+              "magicId": 7,
+              "resistance": 0
+            },
+            {
+              "magicId": 4,
+              "resistance": 0
+            },
+            {
+              "magicId": 21,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 15,
+          "slots": [
+            {
+              "magicId": 2,
+              "resistance": 0
+            },
+            {
+              "magicId": 8,
+              "resistance": 0
+            },
+            {
+              "magicId": 5,
+              "resistance": 0
+            },
+            {
+              "magicId": 22,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 23,
+          "slots": [
+            {
+              "magicId": 3,
+              "resistance": 0
+            },
+            {
+              "magicId": 9,
+              "resistance": 0
+            },
+            {
+              "magicId": 6,
+              "resistance": 0
+            },
+            {
+              "magicId": 23,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      }
     },
     {
       "enemyId": 343,
-      "scanDescription": "A bright-eyed wanderer moves through the open country with a freedom roads can only imitate. For a little patience and kindness, that wide world might be shared."
+      "scanDescription": "A bright-eyed wanderer moves through the open country with a freedom roads can only imitate. For a little patience and kindness, that wide world might be shared.",
+      "scaleLevel": true,
+      "growth": {
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 1,
+              "resistance": 0
+            },
+            {
+              "magicId": 7,
+              "resistance": 0
+            },
+            {
+              "magicId": 4,
+              "resistance": 0
+            },
+            {
+              "magicId": 21,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 15,
+          "slots": [
+            {
+              "magicId": 2,
+              "resistance": 0
+            },
+            {
+              "magicId": 8,
+              "resistance": 0
+            },
+            {
+              "magicId": 5,
+              "resistance": 0
+            },
+            {
+              "magicId": 22,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 23,
+          "slots": [
+            {
+              "magicId": 3,
+              "resistance": 0
+            },
+            {
+              "magicId": 9,
+              "resistance": 0
+            },
+            {
+              "magicId": 6,
+              "resistance": 0
+            },
+            {
+              "magicId": 23,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      }
     },
     {
       "enemyId": 344,
-      "scanDescription": "A bright-eyed wanderer moves through the open country with a freedom roads can only imitate. For a little patience and kindness, that wide world might be shared."
+      "scanDescription": "A bright-eyed wanderer moves through the open country with a freedom roads can only imitate. For a little patience and kindness, that wide world might be shared.",
+      "scaleLevel": true,
+      "growth": {
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 1,
+              "resistance": 0
+            },
+            {
+              "magicId": 7,
+              "resistance": 0
+            },
+            {
+              "magicId": 4,
+              "resistance": 0
+            },
+            {
+              "magicId": 21,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 14,
+          "slots": [
+            {
+              "magicId": 2,
+              "resistance": 0
+            },
+            {
+              "magicId": 8,
+              "resistance": 0
+            },
+            {
+              "magicId": 5,
+              "resistance": 0
+            },
+            {
+              "magicId": 22,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 21,
+          "slots": [
+            {
+              "magicId": 3,
+              "resistance": 0
+            },
+            {
+              "magicId": 9,
+              "resistance": 0
+            },
+            {
+              "magicId": 6,
+              "resistance": 0
+            },
+            {
+              "magicId": 23,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      }
     },
     {
       "enemyId": 347,
-      "scanDescription": "A bright-eyed wanderer moves through the open country with a freedom roads can only imitate. For a little patience and kindness, that wide world might be shared."
+      "scanDescription": "A bright-eyed wanderer moves through the open country with a freedom roads can only imitate. For a little patience and kindness, that wide world might be shared.",
+      "scaleLevel": true,
+      "growth": {
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 1,
+              "resistance": 0
+            },
+            {
+              "magicId": 7,
+              "resistance": 0
+            },
+            {
+              "magicId": 4,
+              "resistance": 0
+            },
+            {
+              "magicId": 21,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 14,
+          "slots": [
+            {
+              "magicId": 2,
+              "resistance": 0
+            },
+            {
+              "magicId": 8,
+              "resistance": 0
+            },
+            {
+              "magicId": 5,
+              "resistance": 0
+            },
+            {
+              "magicId": 22,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 21,
+          "slots": [
+            {
+              "magicId": 3,
+              "resistance": 0
+            },
+            {
+              "magicId": 9,
+              "resistance": 0
+            },
+            {
+              "magicId": 6,
+              "resistance": 0
+            },
+            {
+              "magicId": 23,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      }
     },
     {
       "enemyId": 349,
-      "scanDescription": "A bright-eyed wanderer moves through the open country with a freedom roads can only imitate. For a little patience and kindness, that wide world might be shared."
+      "scanDescription": "A bright-eyed wanderer moves through the open country with a freedom roads can only imitate. For a little patience and kindness, that wide world might be shared.",
+      "scaleLevel": true,
+      "growth": {
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 1,
+              "resistance": 0
+            },
+            {
+              "magicId": 7,
+              "resistance": 0
+            },
+            {
+              "magicId": 4,
+              "resistance": 0
+            },
+            {
+              "magicId": 21,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 13,
+          "slots": [
+            {
+              "magicId": 2,
+              "resistance": 0
+            },
+            {
+              "magicId": 8,
+              "resistance": 0
+            },
+            {
+              "magicId": 5,
+              "resistance": 0
+            },
+            {
+              "magicId": 22,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 20,
+          "slots": [
+            {
+              "magicId": 3,
+              "resistance": 0
+            },
+            {
+              "magicId": 9,
+              "resistance": 0
+            },
+            {
+              "magicId": 6,
+              "resistance": 0
+            },
+            {
+              "magicId": 23,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      }
     },
     {
       "enemyId": 350,
-      "scanDescription": "A bright-eyed wanderer moves through the open country with a freedom roads can only imitate. For a little patience and kindness, that wide world might be shared."
+      "scanDescription": "A bright-eyed wanderer moves through the open country with a freedom roads can only imitate. For a little patience and kindness, that wide world might be shared.",
+      "scaleLevel": true,
+      "growth": {
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 1,
+              "resistance": 0
+            },
+            {
+              "magicId": 7,
+              "resistance": 0
+            },
+            {
+              "magicId": 4,
+              "resistance": 0
+            },
+            {
+              "magicId": 21,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 13,
+          "slots": [
+            {
+              "magicId": 2,
+              "resistance": 0
+            },
+            {
+              "magicId": 8,
+              "resistance": 0
+            },
+            {
+              "magicId": 5,
+              "resistance": 0
+            },
+            {
+              "magicId": 22,
+              "resistance": 0
+            }
+          ]
+        },
+        {
+          "minimumDelta": 19,
+          "slots": [
+            {
+              "magicId": 3,
+              "resistance": 0
+            },
+            {
+              "magicId": 9,
+              "resistance": 0
+            },
+            {
+              "magicId": 6,
+              "resistance": 0
+            },
+            {
+              "magicId": 23,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      }
     },
     {
       "enemyId": 353,
-      "scanDescription": "A young wanderer watches strangers with a confidence too lively to remain hidden for long. Every encounter seems to promise a new opportunity, provided she can claim it first."
+      "scanDescription": "A young wanderer watches strangers with a confidence too lively to remain hidden for long. Every encounter seems to promise a new opportunity, provided she can claim it first.",
+      "scaleLevel": true,
+      "growth": {
+        "hp": [
+          1000000,
+          4000000,
+          0,
+          0
+        ],
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 11,
+              "resistance": 0
+            },
+            {
+              "magicId": 22,
+              "resistance": 0
+            },
+            {
+              "magicId": 24,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      }
     },
     {
       "enemyId": 354,
-      "scanDescription": "A young wanderer watches strangers with a confidence too lively to remain hidden for long. Every encounter seems to promise a new opportunity, provided she can claim it first."
+      "scanDescription": "A young wanderer watches strangers with a confidence too lively to remain hidden for long. Every encounter seems to promise a new opportunity, provided she can claim it first.",
+      "scaleLevel": true,
+      "growth": {
+        "hp": [
+          1000000,
+          4000000,
+          0,
+          0
+        ],
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 11,
+              "resistance": 0
+            },
+            {
+              "magicId": 22,
+              "resistance": 0
+            },
+            {
+              "magicId": 24,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      }
     },
     {
       "enemyId": 355,
-      "scanDescription": "A young wanderer watches strangers with a confidence too lively to remain hidden for long. Every encounter seems to promise a new opportunity, provided she can claim it first."
+      "scanDescription": "A young wanderer watches strangers with a confidence too lively to remain hidden for long. Every encounter seems to promise a new opportunity, provided she can claim it first.",
+      "scaleLevel": true,
+      "growth": {
+        "hp": [
+          1000000,
+          4000000,
+          0,
+          0
+        ],
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 11,
+              "resistance": 0
+            },
+            {
+              "magicId": 22,
+              "resistance": 0
+            },
+            {
+              "magicId": 24,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      }
     },
     {
       "enemyId": 356,
-      "scanDescription": "A young wanderer watches strangers with a confidence too lively to remain hidden for long. Every encounter seems to promise a new opportunity, provided she can claim it first."
+      "scanDescription": "A young wanderer watches strangers with a confidence too lively to remain hidden for long. Every encounter seems to promise a new opportunity, provided she can claim it first.",
+      "scaleLevel": true,
+      "growth": {
+        "hp": [
+          1000000,
+          4000000,
+          0,
+          0
+        ],
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 11,
+              "resistance": 0
+            },
+            {
+              "magicId": 22,
+              "resistance": 0
+            },
+            {
+              "magicId": 24,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      }
     },
     {
       "enemyId": 357,
-      "scanDescription": "A young wanderer watches strangers with a confidence too lively to remain hidden for long. Every encounter seems to promise a new opportunity, provided she can claim it first."
+      "scanDescription": "A young wanderer watches strangers with a confidence too lively to remain hidden for long. Every encounter seems to promise a new opportunity, provided she can claim it first.",
+      "scaleLevel": true,
+      "growth": {
+        "hp": [
+          1000000,
+          4000000,
+          0,
+          0
+        ],
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 11,
+              "resistance": 0
+            },
+            {
+              "magicId": 22,
+              "resistance": 0
+            },
+            {
+              "magicId": 24,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      }
     },
     {
       "enemyId": 358,
-      "scanDescription": "A young wanderer watches strangers with a confidence too lively to remain hidden for long. Every encounter seems to promise a new opportunity, provided she can claim it first."
+      "scanDescription": "A young wanderer watches strangers with a confidence too lively to remain hidden for long. Every encounter seems to promise a new opportunity, provided she can claim it first.",
+      "scaleLevel": true,
+      "growth": {
+        "hp": [
+          1000000,
+          4000000,
+          0,
+          0
+        ],
+        "attack": [
+          1000000,
+          350000,
+          150000,
+          0
+        ],
+        "magic": [
+          1000000,
+          350000,
+          150000,
+          0
+        ]
+      },
+      "drawTiers": [
+        {
+          "minimumDelta": 0,
+          "slots": [
+            {
+              "magicId": 11,
+              "resistance": 0
+            },
+            {
+              "magicId": 22,
+              "resistance": 0
+            },
+            {
+              "magicId": 24,
+              "resistance": 0
+            }
+          ]
+        }
+      ],
+      "rewardGrowth": {
+        "exp": [
+          1000000,
+          500000,
+          500000,
+          0
+        ],
+        "ap": [
+          1000000,
+          250000,
+          0,
+          0
+        ],
+        "gil": [
+          1000000,
+          500000,
+          0,
+          0
+        ]
+      }
     },
     {
       "enemyId": 362,
       "scanDescription": "A laboratory has taken a wild creature's rough vitality and made it an object of study. The restless life inside has no interest in the distinction.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -28458,6 +32452,7 @@
     {
       "enemyId": 363,
       "scanDescription": "A small captive life carries the uneasy marks of institutional attention. The laboratory's labels offer no account of what it might have been left alone to become.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,
@@ -28551,6 +32546,7 @@
     {
       "enemyId": 364,
       "scanDescription": "A diminutive desert dweller regards the enormous world with a remarkably straight face. The smallest silhouette on the horizon is not always the least self-assured.",
+      "scaleLevel": true,
       "growth": {
         "hp": [
           1000000,

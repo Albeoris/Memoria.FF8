@@ -263,7 +263,7 @@ public sealed partial class Ff7BattleSession
         Ff7BattleActorState actor = snapshot.Actors.SingleOrDefault(candidate => candidate.Actor.Slot == binding.HostSlot && candidate.Identity == binding.StoryCharacter)
             ?? throw new InvalidDataException("Saved guest vitals do not identify the occupied story slot.");
         Ff7BattleAiActor native = actor.Actor;
-        if (native.HitPoints > projection.MaximumHp || native.MaxHitPoints != projection.MaximumHp || native.Defense != projection.Defense || native.MagicDefense != projection.MagicDefense || native.MagicPoints != 0 || native.MaxMagicPoints != 0 || (native.Statuses & ~Ff7GuestBattleStatuses.SupportedHost) != 0 || (native.HitPoints == 0) != ((native.Statuses & 1) != 0) || actor.LimitGauge != 0 || actor.AllUses is not null)
+        if (native.HitPoints > projection.MaximumHp || native.MaxHitPoints != projection.MaximumHp || native.Defense != projection.Defense || native.MagicDefense != projection.MagicDefense || native.MagicPoints != 0 || native.MaxMagicPoints != 0 || (native.Statuses & ~(Ff7GuestBattleStatuses.SupportedHost | Ff7NativeBattleStatuses.SupportedRecordStatuses)) != 0 || (native.HitPoints == 0) != ((native.Statuses & 1) != 0) || actor.LimitGauge != 0 || actor.AllUses is not null)
         {
             throw new InvalidDataException("Saved guest vitals contain an unsupported host projection.");
         }

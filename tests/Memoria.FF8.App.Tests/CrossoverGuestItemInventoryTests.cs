@@ -7,6 +7,26 @@ namespace Memoria.FF8.App.Tests;
 public sealed class CrossoverGuestItemInventoryTests
 {
     [Fact]
+    public void Enemy_recipient_elixir_keeps_one_source_debit_across_cold_restore()
+    {
+        NativeItemStock[] slots = Enumerable.Repeat(new NativeItemStock(0, 0), 198).ToArray();
+        slots[4] = new(9, 2);
+        GameplaySaveEconomy origin = new(slots, null, 0, 0, 0, 0);
+        Ff7BattleGuestItemSelection use = new(1, 10, 0, 4, 9);
+        CrossoverGuestItemInventory pending = CrossoverGuestItemInventory.Begin(origin).Reserve(use);
+        Assert.True(CrossoverGuestItemInventory.Supports(9));
+        Assert.Equal(1, pending.Slots.Single(stock => stock.ItemId == 9).Count);
+        CrossoverGuestItemInventory restored = JsonSerializer.Deserialize<CrossoverGuestItemInventory>(JsonSerializer.Serialize(pending))!.Restore(origin, 1, [0], 10);
+        Assert.Equal(use, Assert.Single(restored.AllPending).Selection);
+        CrossoverGuestItemInventory completed = restored.Complete(0, 4, 9, refund: false);
+        CrossoverGuestItemInventory cold = JsonSerializer.Deserialize<CrossoverGuestItemInventory>(JsonSerializer.Serialize(completed))!.Restore(origin, 1, [0], 11);
+        Assert.Equal(1, cold.Slots.Single(stock => stock.ItemId == 9).Count);
+        Assert.Equal(use, Assert.Single(cold.Ledger).Selection);
+        Assert.Empty(cold.AllPending);
+        Assert.Throws<InvalidDataException>(() => cold.Complete(0, 4, 9, refund: false));
+    }
+
+    [Fact]
     public void RestoreReplaysSharedReservationsInTheirOriginalOrder()
     {
         NativeItemStock[] slots = Enumerable.Repeat(new NativeItemStock(0, 0), 198).ToArray();

@@ -10,6 +10,18 @@ namespace Memoria.FF8.App.Tests;
 public sealed class Ff7BattleHudTests
 {
     [Theory]
+    [InlineData(-3, "Full Cure")]
+    [InlineData(-2, "Death")]
+    public void NativeSpecialResultsDisplayTheirMeaning(int marker, string expected)
+    {
+        BattleUiTests.TestCanvas canvas = new();
+        SceneCameraPlacement camera = new(Vector3.Zero, new(0, 0, 1000)) { FocalLength = 480 };
+        Ff7Scene.DrawBattleDamagePopup(canvas, new(255, 255, 255), 1, new(0, 0, 960, 540), camera, new(0, 0, 1000), new(false, false, 0), 0, marker);
+        Assert.NotEmpty(canvas.TextDraws);
+        Assert.All(canvas.TextDraws, draw => Assert.Equal(expected, draw.Text));
+    }
+
+    [Theory]
     [InlineData(false, 5u)]
     [InlineData(true, 5u)]
     [InlineData(true, 0u)]

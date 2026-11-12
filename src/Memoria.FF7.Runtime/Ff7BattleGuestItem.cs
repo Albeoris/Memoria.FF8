@@ -1,7 +1,7 @@
 namespace Memoria.FF7.Runtime;
 
 public sealed record Ff7BattleGuestItemSelection(long RequestId, long SubmittedAt, int ActorSlot, int TargetSlot, ushort ItemId);
-public sealed record Ff7BattleGuestItemEffect(ushort HitPoints, uint RemoveStatuses = 0, byte ReviveDivisor = 0);
+public sealed record Ff7BattleGuestItemEffect(ushort HitPoints, uint RemoveStatuses = 0, byte ReviveDivisor = 0, byte MaximumHitPointFraction = 0);
 
 /// <summary>Original guest items use a separate origin inventory and queue reservation.</summary>
 public interface IFf7BattleGuestItems

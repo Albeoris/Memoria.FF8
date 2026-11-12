@@ -221,7 +221,8 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
                 Func<CrossoverNativeForeignTarget>? geometry = readGroupForeign is not null ? () => readGroupForeign(target.HostSlot) : readForeign;
                 if (geometry is not null)
                 {
-                    actors.Add(geometry().ToActor(target.Contact.ActorIndex));
+                    CrossoverNativeForeignTarget foreign = geometry();
+                    actors.Add(foreign.ToActor(target.Contact.ActorIndex) with { ReadGeometry = () => foreign.Anchors });
                     continue;
                 }
                 NativeBattleModuleAnchor anchor = readTargetAnchor();

@@ -95,6 +95,7 @@ public sealed record NativeBattleRecoveryControllerStep(NativeBattleRecoveryFram
 public sealed record NativeBattleRecoveryControllerInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource)
 {
     public Func<NativeBattleRecoveryFrame, int, NativeBattleRecoveryFrame>? ApplyContact { get; init; }
+    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeignTarget { get; init; }
 }
 
 public sealed record NativeBattleRecoveryContextStep(NativeBattleRecoveryFrame Frame, bool Complete);

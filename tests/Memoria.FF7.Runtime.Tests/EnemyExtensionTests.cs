@@ -10,6 +10,9 @@ internal static class EnemyExtensionTests
         Ff7EnemyExtensionDocument scan = Ff7EnemyExtensionDocument.Parse("""{"schemaVersion":1,"documentId":"scan","enemies":[{"enemyId":22,"scanDescription":"An iron sentinel watches the reactor's heart."}]}""");
         Ff7EnemyExtensionDocument growth = Ff7EnemyExtensionDocument.Parse("""{"schemaVersion":1,"documentId":"growth","enemies":[{"enemyId":22,"growth":{"hp":[1000000,1000000,0,0]},"drawTiers":[{"minimumDelta":0,"slots":[{"magicId":7,"resistance":0}]}]}]}""");
         Ff7EnemyExtensionCatalog catalog = new([scan, growth]);
+        Ff7EnemyExtensionDocument level = Ff7EnemyExtensionDocument.Parse("""{"schemaVersion":1,"documentId":"level","enemies":[{"enemyId":22,"scaleLevel":false}]}""");
+        Check(new Ff7EnemyExtensionCatalog([scan, growth, level]).Find(22)!.ScaleLevel == false, "Explicit level policy must compose independently of growth and Draw.");
+        Throws(() => new Ff7EnemyExtensionCatalog([level, level with { DocumentId = "other-level" }]), "Competing level policies must reject.");
         Check(catalog.Count == 1 && catalog.Find(22)?.ScanDescription == scan.Enemies[0].ScanDescription, "Disjoint ID-bound properties must compose.");
         growth.Enemies[0].Growth!["hp"][1] = 999;
         Ff7EnemyExtensionDelta first = catalog.Find(22)!;

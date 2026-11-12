@@ -248,11 +248,17 @@ public sealed partial class Ff7BattleSession
         }
         byte flags = record?.TargetFlags ?? party[slot]!.Value.AttackTargetFlags;
         ushort special = record?.SpecialFlags ?? ushort.MaxValue;
-        Ff7BattleAiMasks masks = Ff7BattleAiCallbacks.ProjectMasks(state.Actors.Select(actor => actor.Actor).ToArray(), 0);
+        Ff7BattleAiMasks masks = Ff7BattleAiCallbacks.ProjectMasks(state.Actors.Select(actor => actor.Actor).ToArray(), NativeImprisonedType);
         ushort group0 = Mask(state.Actors.Where(actor => FacingGroup(actor.Actor) == 0));
         ushort group2 = Mask(state.Actors.Where(actor => FacingGroup(actor.Actor) == 2));
         Ff7BattleTargetMasks selection = new(masks.TurnEligible, masks.Targetable, masks.KnockedOut, masks.Targetable, group0, group2);
-        ushort targets = Ff7NativeBattleTargets.Resolve(slot, command.TargetMask, flags, special, command.GroupTarget, selection, random);
+        ushort eligible = (ushort)(selection.Available & selection.Targetable);
+        if ((special & 0x900) != 0x900)
+        {
+            eligible |= (ushort)(selection.KnockedOut & ~selection.ExcludedKnockouts);
+        }
+        ushort redirected = RedirectNativeSuccessorTargets(command.TargetMask, eligible);
+        ushort targets = Ff7NativeBattleTargets.Resolve(slot, redirected, flags, special, command.GroupTarget, selection, random);
         return Ff7NativeBattleTargets.ResolveNumericalPass(targets, flags, command.CommandId, random);
     }
 
@@ -395,6 +401,7 @@ public sealed partial class Ff7BattleSession
             FinishTurn(command.ActorSlot);
         }
         state = state with { Action = null, DisplayedHit = active.PendingDisplayHit is { } undisplayed ? undisplayed with { Tick = Tick } : state.DisplayedHit };
+        FlushFormationAi();
     }
 
     private Ff7BattleActionState PublishTargetReactions(Ff7BattleActionState active, IEnumerable<int> targets)
@@ -443,7 +450,7 @@ public sealed partial class Ff7BattleSession
                 Ff7BattleDamageAction poison = Ff7NativeBattleStatusClock.PoisonAttack;
                 if (command.ActorSlot >= 4)
                 {
-                    poison = poison with { Affinity = Ff7NativeBattleDamage.ResolveEnemyAffinity(Enemy(command.ActorSlot), Ff7NativeBattleStatusClock.PoisonElement) };
+                    poison = poison with { Affinity = ResolveNativeEnemyAffinity(command.ActorSlot, Ff7NativeBattleStatusClock.PoisonElement) };
                 }
                 ApplyHit(command, command.ActorSlot, poison, null, Ff7NativeBattleStatusClock.PoisonElement);
                 break;
@@ -530,13 +537,16 @@ public sealed partial class Ff7BattleSession
             {
                 continue;
             }
-            Ff7BattleDamageAction hit = target.Actor.Slot >= 4 ? action with { Affinity = Ff7NativeBattleDamage.ResolveEnemyAffinity(Enemy(target.Actor.Slot), elements) } : action;
+            Ff7BattleDamageAction hit = target.Actor.Slot >= 4 ? action with { Affinity = ResolveNativeEnemyAffinity(target.Actor.Slot, elements) } : action;
             ApplyHit(command, target.Actor.Slot, hit, record, elements);
         }
     }
 
     private void ApplyHit(Ff7BattleQueuedCommand command, int targetSlot, Ff7BattleDamageAction action, Ff7BattleAttack? record, ushort elements)
     {
+        PublishNativeActionContext(command, elements);
+        PublishNativeStatusContext(record);
+        action = action with { NativeElements = elements == ushort.MaxValue ? (ushort)0 : elements, IsItem = command.CommandId == (byte)Ff7BattleCommand.Item };
         ValidateGuestIncoming(command, targetSlot, record);
         Ff7BattleActorState source = Actor(command.ActorSlot);
         Ff7BattleActorState target = Actor(targetSlot);
@@ -546,7 +556,7 @@ public sealed partial class Ff7BattleSession
             Replace(source);
         }
         Ff7BattleAiActor native = target.Actor;
-        uint immunity = targetSlot >= 4 ? ~Enemy(targetSlot).NativeStatusMask : 0;
+        uint immunity = (targetSlot >= 4 ? ~Enemy(targetSlot).NativeStatusMask : 0) | target.StatusProtection;
         Ff7BattleActionVitals sourceVitals = new(source.Actor.HitPoints, source.Actor.MaxHitPoints, source.Actor.MagicPoints, source.Actor.MaxMagicPoints, source.Actor.Statuses);
         Ff7BattleActionVitals targetVitals = new(native.HitPoints, native.MaxHitPoints, native.MagicPoints, native.MaxMagicPoints, native.Statuses, immunity);
         Ff7BattleActionReceipt result;
@@ -589,24 +599,28 @@ public sealed partial class Ff7BattleSession
         uint conditions = action.BackAttack && !result.Damage.Missed ? native.Conditions ^ 0x80u : native.Conditions;
         native = native with { HitPoints = result.Target.Hp, MagicPoints = result.Target.Mp, Statuses = result.Target.Statuses, Conditions = conditions };
         Replace(target with { Actor = native, Timers = timers, LimitGauge = gauge });
-        state = state with { LastHit = new(command.ActorSlot, targetSlot, command.AttackId ?? command.Argument, result.Damage, Tick) };
+        state = state with { LastHit = new(command.ActorSlot, targetSlot, command.AttackId ?? command.Argument, result.Damage, Tick) { NativeResultMarker = result.NativeResultMarker } };
         if (runCounters && targetSlot >= 4 && !result.Damage.Missed)
         {
-            PublishEnemyCounters(command, native, (result.AddedStatuses & 1) != 0, action.UsePhysicalStats || action.Formula >> 4 == 1);
+            PublishEnemyCounters(command, native, (result.AddedStatuses & 1) != 0, action.NativePhysicalCategory ?? action.UsePhysicalStats);
         }
     }
 
-    private void PublishEnemyCounters(Ff7BattleQueuedCommand command, Ff7BattleAiActor target, bool knockedOut, bool physical)
+    private void PublishEnemyCounters(Ff7BattleQueuedCommand command, Ff7BattleAiActor target, bool knockedOut, bool physical, bool typed = true)
     {
         int targetSlot = target.Slot;
         ushort bit = (ushort)(1 << targetSlot);
-        ushort processed = command.Priority >= 2 ? (ushort)(1 << command.ActorSlot) : (ushort)0;
-        Ff7BattleAiCounterPlan plan = Ff7BattleAiCallbacks.SelectCounter(target, command.ActorSlot, bit, bit, knockedOut ? bit : (ushort)0, 0, processed, physical ? (ushort)0 : (ushort)4);
-        Replace(Actor(targetSlot) with { Actor = plan.Target });
+        ushort hitMask = command.ActorSlot == targetSlot ? (ushort)0 : bit;
+        ushort processed = state.CounterProcessedMask ?? 0;
+        Ff7BattleAiCounterPlan plan = Ff7BattleAiCallbacks.SelectCounter(target, command.ActorSlot, hitMask, typed ? hitMask : (ushort)0, knockedOut ? bit : (ushort)0, 0, processed, physical ? (ushort)0 : (ushort)4);
+        state = state with { CounterProcessedMask = plan.ProcessedMask };
+        Ff7BattleAiActor updated = !typed ? plan.Target : physical ? plan.Target with { LastPhysicalAttackerMask = (ushort)(1 << command.ActorSlot) } : plan.Target with { LastMagicAttackerMask = (ushort)(1 << command.ActorSlot) };
+        Replace(Actor(targetSlot) with { Actor = updated });
         foreach (byte callback in plan.Callbacks)
         {
             InvokeAi(targetSlot, callback);
         }
+        FlushFormationAi();
     }
 
     private (Ff7BattleActorState Source, Ff7BattleDamageAction Action) ProjectPhysicalFacing(Ff7BattleActorState source, Ff7BattleActorState target, Ff7BattleDamageAction action)

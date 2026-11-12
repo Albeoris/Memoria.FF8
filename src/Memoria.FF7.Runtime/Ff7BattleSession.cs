@@ -12,7 +12,11 @@ public enum Ff7BattleOutcome
     Escaped
 }
 
-public sealed record Ff7BattleActorState(int Identity, Ff7BattleAiActor Actor, ushort Gauge, byte[] AiMemory, bool AwaitingTurn = false, bool Defending = false, Ff7BattleStatusTimers Timers = default, byte LimitGauge = 0, Dictionary<byte, int>? AllUses = null);
+public sealed record Ff7BattleActorState(int Identity, Ff7BattleAiActor Actor, ushort Gauge, byte[] AiMemory, bool AwaitingTurn = false, bool Defending = false, Ff7BattleStatusTimers Timers = default, byte LimitGauge = 0, Dictionary<byte, int>? AllUses = null)
+{
+    public int? SuccessorSlot { get; init; }
+    public uint StatusProtection { get; init; }
+}
 public sealed record Ff7BattleActionState(Ff7BattleQueuedCommand Command, long StartedAt, int Animation, bool Applied = false, BattleActionPoseState? Pose = null, Ff7BattleTargetCallbacks? Reactions = null, Ff7BattleMotion? Motion = null, Ff7BattleFireState? Fire = null, Ff7BattleIceState? Ice = null, Ff7BattleBoltState? Bolt = null, Ff7BattleCureState? Cure = null, Ff7BattleBraverState? Braver = null)
 {
     public ushort GuestAppliedTargets { get; init; }
@@ -42,12 +46,22 @@ public sealed record Ff7BattleActionState(Ff7BattleQueuedCommand Command, long S
     public bool PrimaryCallbacksRunning { get; init; }
     public bool EffectRunning => PrimaryCallbacksRunning || Fire is { Completed: false } || Ice is { Completed: false } || Bolt is { Completed: false } || Cure is { Completed: false } || Braver is { Completed: false } || BeatRushEffect is { Completed: false } || BigShot is { Completed: false } || SmokeShot is { Completed: false } || Smog is { Completed: false } || Destroyed is { Completed: false } || SearchScope is { Completed: false } || Rockets is { Completed: false };
 }
-public sealed record Ff7BattleHit(int Source, int Target, ushort AttackId, Ff7BattleDamageResult Damage, long Tick);
+public sealed record Ff7BattleHit(int Source, int Target, ushort AttackId, Ff7BattleDamageResult Damage, long Tick)
+{
+    public int? NativeResultMarker { get; init; }
+}
 public sealed record Ff7BattleReaction(int Slot, long Tick);
 public sealed record Ff7BattleLimitSelection(int Slot, ushort Targets, Ff7BeatRushReel Reel);
 public sealed record Ff7BattleSnapshot(long RequestId, int FormationId, byte Layout, long Tick, Ff7BattleActorState[] Actors, Ff7BattleRngState Random, Ff7BattleCommandQueueState Queue, Ff7InventorySlot[] Inventory, Ff7BattleActionState? Action = null, Ff7BattleHit? LastHit = null, Ff7BattleOutcome Outcome = Ff7BattleOutcome.Fighting, Ff7BattleReaction? Reaction = null, Ff7BattleLimitSelection? BeatRush = null, short BeatRushPosition = 0, Ff7BattleEscapeState Escape = default, bool EscapeBlocked = false, ushort RequestFlags = 0, byte RequestMode = 0, int? EntryMusicTrack = null, Ff7BattleMessageState? Messages = null, int TerminalFrames = 0, long? EscapePoseStarted = null, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] Ff7BattleGuestVitalsBinding? GuestVitals = null)
 {
     public Ff7ResolvedEnemyExtension[]? EnemyExtensions { get; init; }
+    public byte[]? AiGlobalMemory { get; init; }
+    public byte[]? AiSaveBank1 { get; init; }
+    public byte[]? AiSaveBankDirty { get; init; }
+    public byte[]? FormationAiMemory { get; init; }
+    public byte FormationAiPending { get; init; }
+    public ushort? CounterProcessedMask { get; init; }
+    public byte? ImprisonedType { get; init; }
     public Ff7BattleCameraPresentation? Camera { get; init; }
     public Ff7BattleIntroState? Intro { get; init; }
     public Ff7BattleActorMotionState? ActorMotion { get; init; }
@@ -101,7 +115,7 @@ public sealed partial class Ff7BattleSession
     private const int LogicUpdatesPerPresentation = 4;
     private Ff7BattleSnapshot state;
 
-    public Ff7BattleSession(SceneFormation formation, Ff7Progress progress, IReadOnlyList<KernelSection> kernel, IReadOnlyList<short> materiaModifiers, long requestId, ushort requestFlags = 0, Ff7BattleSnapshot? snapshot = null, Ff7BattleAnimationResources? animations = null, IReadOnlyList<Ff7BattleAttack>? limits = null, IReadOnlyList<byte>? beatRushSymbols = null, byte requestMode = 0, int? musicTrack = null, short bigShotChargeRotation = 0, short bigShotCounterRotation = 0, short searchScopeScaleCounter = 0, Ff7BattleCameraScriptResources? cameraScripts = null, byte cameraPresentationCounter = 0, short silkDirection = 1, Ff7EnemyExtensionCatalog? enemyExtensions = null, IReadOnlyList<byte>? enemyExtensionPartyLevels = null)
+    public Ff7BattleSession(SceneFormation formation, Ff7Progress progress, IReadOnlyList<KernelSection> kernel, IReadOnlyList<short> materiaModifiers, long requestId, ushort requestFlags = 0, Ff7BattleSnapshot? snapshot = null, Ff7BattleAnimationResources? animations = null, IReadOnlyList<Ff7BattleAttack>? limits = null, IReadOnlyList<byte>? beatRushSymbols = null, byte requestMode = 0, int? musicTrack = null, short bigShotChargeRotation = 0, short bigShotCounterRotation = 0, short searchScopeScaleCounter = 0, Ff7BattleCameraScriptResources? cameraScripts = null, byte cameraPresentationCounter = 0, short silkDirection = 1, Ff7EnemyExtensionCatalog? enemyExtensions = null, IReadOnlyList<byte>? enemyExtensionPartyLevels = null, byte[]? initialSaveBank1 = null)
     {
         Formation = formation;
         SceneBattleData nativeData = SceneBattleData.Read(formation);
@@ -147,6 +161,7 @@ public sealed partial class Ff7BattleSession
         {
             ValidateSnapshot(snapshot, requestId, initialActors);
             state = CopySnapshot(snapshot);
+            RestoreNativeAiState(initialSaveBank1, progress.Gil);
             RefreshGuestSpeedDenominator();
             InitializeActorModels(snapshot.Tick == 0);
             InitializeCamera(cameraPresentationCounter, snapshot.Tick == 0);
@@ -160,15 +175,13 @@ public sealed partial class Ff7BattleSession
         byte layout = Ff7NativeAtb.ResolveLayout(formation.Layout, formation.BattleFlags, (requestFlags & 4) != 0);
         Ff7BattleAiActor[] setup = Ff7NativeAtb.ApplyFormationConditions(layout, initialActors.Select(actor => actor.Actor).ToArray(), Data);
         state = new(requestId, formation.FormationId, layout, 0, initialActors.Select((actor, index) => actor with { Actor = setup[index] }).ToArray(), random.Capture(), Ff7BattleCommandQueueState.Create(), (Ff7InventorySlot[])progress.Inventory.Clone(), Escape: Ff7NativeBattleEscape.Start(formation, Ff7NativeAtb.BattleTypeForLayout(layout)), RequestFlags: requestFlags, RequestMode: requestMode, EntryMusicTrack: musicTrack) { BigShotChargeRotation = bigShotChargeRotation, BigShotCounterRotation = bigShotCounterRotation, SearchScopeScaleCounter = searchScopeScaleCounter, SilkDirection = silkDirection, EnemyExtensions = resolvedExtensions };
-        if (Data.FormationScripts is not null)
-        {
-            throw new NotSupportedException($"FFVII formation {formation.FormationId} requires formation-level battle scripts.");
-        }
+        RestoreNativeAiState(initialSaveBank1, progress.Gil);
         foreach (SceneBattleEnemy enemy in Data.Enemies)
         {
             InvokeAi(enemy.FormationSlot + 4, 0);
         }
-        Ff7BattleAiMasks masks = Ff7BattleAiCallbacks.ProjectMasks(state.Actors.Select(actor => actor.Actor).ToArray(), 0);
+        FlushFormationAi();
+        Ff7BattleAiMasks masks = Ff7BattleAiCallbacks.ProjectMasks(state.Actors.Select(actor => actor.Actor).ToArray(), NativeImprisonedType);
         ushort[] gauges = Ff7NativeAtb.InitializeForLayout(masks.TurnEligible, layout, false, random);
         foreach (Ff7BattleActorState actor in state.Actors)
         {
@@ -344,8 +357,8 @@ public sealed partial class Ff7BattleSession
         {
             state = state with { Messages = Ff7NativeBattleMessage.AdvancePresentation(messages, liveFrame: true, paused: false) };
         }
-        bool won = !state.Actors.Any(actor => actor.Actor.Slot >= 4 && IsAlive(actor) && (actor.Actor.Conditions & 0x18) != 0);
-        bool lost = !state.Actors.Any(actor => actor.Actor.Slot < 3 && IsAlive(actor));
+        bool won = !state.Actors.Any(actor => actor.Actor.Slot >= 4 && IsAlive(actor) && Ff7NativeBattleStatuses.IsBattleParticipant(actor.Actor.Statuses, NativeImprisonedType) && (actor.Actor.Conditions & 0x18) != 0);
+        bool lost = !state.Actors.Any(actor => actor.Actor.Slot < 3 && IsAlive(actor) && Ff7NativeBattleStatuses.IsBattleParticipant(actor.Actor.Statuses, NativeImprisonedType));
         bool pincer = Ff7NativeAtb.BattleTypeForLayout(Layout) == 4 && state.Actors.Where(actor => actor.Actor.Slot >= 4 && IsAlive(actor)).Select(actor => FacingGroup(actor.Actor)).Distinct().Count() > 1;
         bool partyCanMove = state.Actors.Any(actor => actor.Actor.Slot < 3 && CanAct(actor) && (actor.Actor.Statuses & 0x400) == 0);
         Ff7BattleEscapeInput escape = Ff7NativeBattleEscape.UpdatePresentation(state.Escape, escapeHeld, Ff7NativeBattleEscape.IsAllowed(Formation, (state.RequestFlags & 8) != 0), partyCanMove, pincer, won || lost, random);
@@ -392,9 +405,11 @@ public sealed partial class Ff7BattleSession
             {
                 continue;
             }
-            Ff7BattleStatusTick status = Ff7NativeBattleStatusClock.Advance(actor.Timers, actor.Actor.Statuses, BattleSpeed);
-            changed |= status.Timers != actor.Timers || status.Statuses != actor.Actor.Statuses;
-            actor = actor with { Timers = status.Timers, Actor = actor.Actor with { Statuses = status.Statuses } };
+            Ff7BattleStatusTick status = Ff7NativeBattleStatusClock.Advance(actor.Timers, actor.Actor.Statuses, BattleSpeed, NativeImprisonedType, actor.Actor.MaxHitPoints);
+            changed |= status.Timers != actor.Timers || status.Statuses != actor.Actor.Statuses || status.HitPointDelta != 0;
+            uint hp = (uint)Math.Clamp((long)actor.Actor.HitPoints + status.HitPointDelta, 0, actor.Actor.MaxHitPoints);
+            uint statuses = hp == 0 ? status.Statuses | Ff7NativeBattleActionResolver.Death : status.Statuses;
+            actor = actor with { Timers = status.Timers, Actor = actor.Actor with { Statuses = statuses, HitPoints = hp } };
             state.Actors[index] = actor;
             if (status.PoisonDue)
             {
@@ -408,7 +423,7 @@ public sealed partial class Ff7BattleSession
             Ff7BattleDamageActor stats = Stats(actor);
             ushort gauge = actor.Gauge;
             byte? guestDexterity = GetGuestProjection(slot)?.Dexterity;
-            ushort increment = Ff7NativeAtb.Increment(slot, guestDexterity ?? stats.Dexterity, guestDexterity is not null ? (sbyte)0 : stats.DexterityModifier, actor.Actor.Statuses, speedDenominator, BattleSpeed);
+            ushort increment = Ff7NativeAtb.Increment(slot, guestDexterity ?? stats.Dexterity, guestDexterity is not null ? (sbyte)0 : stats.DexterityModifier, Ff7NativeBattleStatuses.ProjectClockStatuses(actor.Actor.Statuses, NativeImprisonedType), speedDenominator, BattleSpeed);
             bool ready = Ff7NativeAtb.Advance(ref gauge, increment, false, false);
             changed |= gauge != actor.Gauge;
             actor = actor with { Gauge = gauge, AwaitingTurn = ready };
@@ -428,11 +443,20 @@ public sealed partial class Ff7BattleSession
     private void Dispatch(Ff7BattleQueuedCommand command)
     {
         Ff7BattleActorState source = Actor(command.ActorSlot);
+        if (command.Priority >= 2)
+        {
+            state = state with { CounterProcessedMask = (ushort)(1 << command.ActorSlot) };
+        }
+        if (command.CommandId != 0xFF)
+        {
+            PublishNativeActionContext(command);
+        }
         if (command.CommandId == 0xFF)
         {
             if (IsAlive(source))
             {
                 InvokeAi(command.ActorSlot, 1);
+                FlushFormationAi();
             }
             FinishTurn(command.ActorSlot);
             return;
@@ -445,6 +469,22 @@ public sealed partial class Ff7BattleSession
             {
                 FinishTurn(command.ActorSlot);
             }
+            return;
+        }
+        if (command.CommandId == 0x22)
+        {
+            if (command.Argument >= 16)
+            {
+                throw new InvalidDataException("A native callback command requires a valid callback index.");
+            }
+            foreach (Ff7BattleActorState recipient in state.Actors.Where(actor => (command.TargetMask & 1 << actor.Actor.Slot) != 0).ToArray())
+            {
+                if (recipient.Actor.Slot >= 4)
+                {
+                    InvokeAi(recipient.Actor.Slot, (byte)command.Argument);
+                }
+            }
+            FlushFormationAi();
             return;
         }
         if (command.CommandId == 0x24)
@@ -475,12 +515,20 @@ public sealed partial class Ff7BattleSession
     {
         Ff7BattleActorState actor = Actor(slot);
         Ff7BattleAiActor[] actors = state.Actors.Select(candidate => candidate.Actor).ToArray();
-        Ff7BattleAiMasks masks = Ff7BattleAiCallbacks.ProjectMasks(actors, 0);
-        Ff7BattleAiResult result = Ff7BattleAi.RunActorCallback(new(slot, actors, masks.Targetable, masks.KnockedOut, masks.ExcludedOpponents, callback), actor.AiMemory, Data, random, kernel[1].Data);
+        Ff7BattleAiMasks masks = Ff7BattleAiCallbacks.ProjectMasks(actors, NativeImprisonedType);
+        Ff7BattleAiResult result = Ff7BattleAi.RunActorCallback(new(slot, actors, masks.Targetable, masks.KnockedOut, masks.ExcludedOpponents, callback, GlobalMemory: state.AiGlobalMemory, SaveBank1: state.AiSaveBank1), actor.AiMemory, Data, random, kernel[1].Data);
         Replace(actor with { AiMemory = result.LocalMemory });
+        state = state with { AiGlobalMemory = result.GlobalMemory.ToArray() };
+        ApplyNativeSaveWrites(result);
+        ApplyNativeAiTransfers(result.TransferUpdates);
+        if (callback < 8)
+        {
+            state = state with { FormationAiPending = (byte)(state.FormationAiPending | 1 << callback) };
+        }
         foreach (Ff7BattleAiActor updated in result.ActorUpdates)
         {
-            Replace(Actor(updated.Slot) with { Actor = updated });
+            Ff7BattleActorState previous = Actor(updated.Slot);
+            Replace(previous with { Actor = updated, Timers = Ff7NativeBattleStatusClock.Apply(previous.Timers, previous.Actor.Statuses, updated.Statuses) });
         }
         foreach (Ff7BattleAiCommand command in result.Commands)
         {
@@ -511,7 +559,8 @@ public sealed partial class Ff7BattleSession
     {
         Ff7BattleAiActor native = actor.Actor;
         Ff7BattleDamageActor stats = native.Slot < 3 ? party[native.Slot]!.Value.Actor : Ff7NativeBattleDamage.FromEnemy(Enemy(native.Slot));
-        return ProjectGuestDefense(actor, stats with { Statuses = native.Statuses, Defense = native.Defense, MagicDefense = native.MagicDefense, BackRow = (native.Conditions & 0x40) != 0, Defending = actor.Defending, CurrentHitPoints = native.HitPoints });
+        stats = stats with { Level = native.Level ?? stats.Level, Attack = native.Strength ?? stats.Attack, Magic = native.Magic ?? stats.Magic, Dexterity = native.Speed ?? stats.Dexterity, Evade = native.PhysicalEvasion ?? stats.Evade };
+        return ProjectGuestDefense(actor, stats with { NativeConditions = native.Conditions, Statuses = native.Statuses, Defense = native.Defense, MagicDefense = native.MagicDefense, BackRow = (native.Conditions & 0x40) != 0, Defending = actor.Defending, CurrentHitPoints = native.HitPoints });
     }
 
     private void ResetGauge(int slot)
@@ -542,12 +591,12 @@ public sealed partial class Ff7BattleSession
     private SceneBattleEnemy Enemy(int slot) => Data.Enemies.Single(enemy => enemy.FormationSlot + 4 == slot);
     private static ushort Mask(IEnumerable<Ff7BattleActorState> actors) => (ushort)actors.Aggregate(0, (mask, actor) => mask | 1 << actor.Actor.Slot);
     private static bool IsAlive(Ff7BattleActorState actor) => actor.Actor.HitPoints != 0 && (actor.Actor.Statuses & 0x4001) == 0;
-    private static bool CanAct(Ff7BattleActorState actor) => IsAlive(actor) && (actor.Actor.Statuses & 0x02004404) == 0;
+    private bool CanAct(Ff7BattleActorState actor) => IsAlive(actor) && (Ff7NativeBattleStatuses.ProjectClockStatuses(actor.Actor.Statuses, NativeImprisonedType) & 0x02004404) == 0;
     private static string ReadBattleText(ReadOnlySpan<byte> text) => string.Concat(FieldText.Read(text).Select(token => token.Text));
 
     private void ValidateSnapshot(Ff7BattleSnapshot snapshot, long requestId, List<Ff7BattleActorState> expected)
     {
-        if (snapshot.RequestId != requestId || snapshot.FormationId != Formation.FormationId || snapshot.Layout != Ff7NativeAtb.ResolveLayout(Formation.Layout, Formation.BattleFlags, (snapshot.RequestFlags & 4) != 0) || snapshot.Tick < 0 || !Enum.IsDefined(snapshot.Outcome) || snapshot.Actors is null || snapshot.Inventory is null || snapshot.Queue is null || snapshot.EntryMusicTrack is < 1 or > 98)
+        if (snapshot.RequestId != requestId || snapshot.FormationId != Formation.FormationId || snapshot.Layout != Ff7NativeAtb.ResolveLayout(Formation.Layout, Formation.BattleFlags, (snapshot.RequestFlags & 4) != 0) || snapshot.Tick < 0 || !Enum.IsDefined(snapshot.Outcome) || snapshot.Actors is null || snapshot.Inventory is null || snapshot.Queue is null || snapshot.EntryMusicTrack is < 1 or > 98 || snapshot.ImprisonedType is > 3)
         {
             throw new InvalidDataException("FFVII battle snapshot conflicts with its native encounter or physical actors.");
         }
@@ -584,6 +633,10 @@ public sealed partial class Ff7BattleSession
         {
             Actors = source.Actors.Select(actor => actor with { AiMemory = (byte[])actor.AiMemory.Clone(), AllUses = actor.AllUses is null ? null : new(actor.AllUses) }).ToArray(),
             Inventory = (Ff7InventorySlot[])source.Inventory.Clone(),
+            AiGlobalMemory = source.AiGlobalMemory?.ToArray(),
+            AiSaveBank1 = source.AiSaveBank1?.ToArray(),
+            AiSaveBankDirty = source.AiSaveBankDirty?.ToArray(),
+            FormationAiMemory = source.FormationAiMemory?.ToArray(),
             EnemyExtensions = source.EnemyExtensions?.Select(e => e with { DrawSlots = e.DrawSlots.ToArray(), Items = e.Items.ToArray() }).ToArray(),
             GuestSlots = source.GuestSlots is null ? null : (Ff7BattleGuestSlotState[])source.GuestSlots.Clone(),
             Action = CopyActionPrimaryEffects(CopyActionReactions(source.Action is { Motion: { VerticalSteps: { } steps } motion } action ? action with { Motion = motion with { VerticalSteps = (short[])steps.Clone() } } : source.Action)),

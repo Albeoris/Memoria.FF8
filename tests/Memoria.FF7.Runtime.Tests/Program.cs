@@ -3,6 +3,16 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--special-enemies-only", StringComparer.Ordinal))
+{
+    NativeSpecialAiTests.RunContracts();
+    NativeElixirActionTests.Run();
+    NativeSpecialStatusTests.Run();
+    SpecialEnemyOutcomeTests.Run();
+    SpecialEnemyInitializationTests.Run();
+    return 0;
+}
+
 if (args.Contains("--enemy-extensions-only", StringComparer.Ordinal))
 {
     EnemyExtensionTests.Run();

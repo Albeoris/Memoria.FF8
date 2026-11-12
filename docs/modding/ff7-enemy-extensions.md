@@ -24,6 +24,7 @@ This Scan-only contribution does not promote the target's level or alter its sta
 | Property | Meaning |
 | --- | --- |
 | `scanDescription` | Authored English prose displayed independently of name and statistics. |
+| `scaleLevel` | Independent level promotion: `true` raises the level to the captured party reference; `false` preserves it. Other channels remain independent. |
 | `growth` | Changed multiplier rows for `hp`, `attack`, `magic`, or `mp`; omit unchanged statistics. |
 | `rewardGrowth` | Separate native-unit FFVII multiplier rows for `exp`, `ap`, and `gil`. These are not FFVIII EXP or GF AP amounts. |
 | `drawTiers` | Increasing `minimumDelta` boundaries, each with at most four distinct `{magicId,resistance}` slots. IDs refer to stocked FFVIII magic, not FFVII attacks or GF identities. |
@@ -37,7 +38,9 @@ An item replacement starts only at a positive level delta. It selects an existin
 
 ## Composition
 
-The catalog composes disjoint changes to the same enemy ID. A Scan contribution can coexist with a separate HP contribution; different growth or reward row keys can coexist. Two writers of the same description, Draw table, growth row, reward row, or item selector/threshold fail with a diagnostic identifying the documents. Package order does not silently choose a winner.
+The catalog composes disjoint changes to the same enemy ID. A Scan contribution can coexist with a separate HP contribution; different growth or reward row keys can coexist. Two writers of the same description, level policy, Draw table, growth row, reward row, or item selector/threshold fail with a diagnostic identifying the documents. Package order does not silently choose a winner.
+
+Level, statistic growth, Draw, rewards and item replacements are separate channels. Omitting Draw never disables another channel. A preserved level leaves level-delta tiers at their baseline. For compatibility with earlier documents, an omitted `scaleLevel` promotes level when statistic growth is declared; otherwise it preserves level. New documents should declare their intended level policy explicitly.
 
 Unknown executable properties, duplicate JSON properties, duplicate document or enemy IDs, unsupported coefficient rows, invalid magic identities and unordered Draw boundaries fail preparation. A failed candidate is not partially applied. Resolved encounter state is captured once, separately from the immutable source records and the authored declarations.
 

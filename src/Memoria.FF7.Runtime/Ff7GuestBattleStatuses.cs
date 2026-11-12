@@ -92,7 +92,7 @@ public static class Ff7GuestBattleStatuses
     }
 
     internal static Ff7BattleAttack? ProjectIncoming(Ff7BattleAttack? record)
-        => record is { StatusChange: < 0xC0 } ? record with { StatusMask = record.StatusMask & SupportedHost } : record;
+        => record is { StatusChange: < 0xC0 } && (record.StatusMask & Ff7NativeBattleStatuses.Imprisoned) == 0 ? record with { StatusMask = record.StatusMask & (SupportedHost | Ff7NativeBattleStatuses.SupportedRecordStatuses) } : record;
 
     internal static uint ResistIncoming(uint mask, uint present, IReadOnlyList<byte> defenses, Ff7BattleRng random)
     {
