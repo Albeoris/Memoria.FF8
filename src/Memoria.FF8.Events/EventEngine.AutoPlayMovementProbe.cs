@@ -86,13 +86,58 @@ public sealed partial class EventEngine
         {
             for (int local = 2; local < Math.Min(obj.IsDoor ? 8 : obj.IsArea ? 3 : 4, obj.Scripts.Count); local++)
             {
-                if (fiber.Script.Id == obj.Scripts[local].Id && HasBody(local) && (obj.IsDoor ? fiber.NativeDoorSlot == 9 - local : fiber.NativeActorSlot == (obj.IsArea || local == 3 ? 6 : 7)))
+                if (fiber.Script.Id == obj.Scripts[local].Id && HasBody(local) && (obj.IsDoor ? fiber.NativeDoorSlot == 9 - local : fiber.NativeActorSlot == (obj.IsArea || local == 3 ? 6 : 7)) && !IsAutoPlayAmbientMovementTail(fiber))
                 {
                     return true;
                 }
             }
         }
         return false;
+    }
+
+    private bool IsAutoPlayAmbientMovementTail(Fiber fiber)
+    {
+        if (!IsUserControlEnabled || fiber.WaitReason != WaitReason.NativeScriptMovement || actors[fiber.ObjectId] == PlayerActor)
+        {
+            return false;
+        }
+        // A push script can finish its dialogue and retain the actor slot for a
+        // permanent patrol. Only a closed suffix of ordinary staging is ambient.
+        HashSet<int> visited = [];
+        Stack<int> pending = new([fiber.Position]);
+        while (pending.TryPop(out int position))
+        {
+            if (!visited.Add(position))
+            {
+                continue;
+            }
+            if (!fiber.Script.ContainsOperation(position))
+            {
+                return false;
+            }
+            JsmOperation operation = program!.Operations[position];
+            switch (operation.Opcode)
+            {
+                case Jsm.Opcode.JMP:
+                    pending.Push(JsmProgram.JumpTarget(position, operation.Parameter));
+                    break;
+                case Jsm.Opcode.PSHN_L when fiber.Script.ContainsOperation(position + 1) && program.Operations[position + 1] is { Opcode: Jsm.Opcode.JPF } branch:
+                    pending.Push(operation.Parameter == 0 ? JsmProgram.JumpTarget(position + 1, branch.Parameter) : position + 2);
+                    break;
+                case Jsm.Opcode.PSHN_L:
+                case Jsm.Opcode.CAL:
+                case Jsm.Opcode.WAIT:
+                case Jsm.Opcode.MOVE:
+                case Jsm.Opcode.SET3:
+                case Jsm.Opcode.HIDE:
+                case Jsm.Opcode.SHOW:
+                    pending.Push(position + 1);
+                    break;
+                default:
+                    return false;
+            }
+        }
+        return true;
     }
 
     public float AutoPlayMovementStepDistance => AutoPlayMovementProbeSpeed / 256f;
