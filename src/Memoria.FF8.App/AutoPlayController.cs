@@ -1810,6 +1810,12 @@ internal sealed partial class AutoPlayController
         }
         string key = $"{VisitKey()}:{dialogue.ObjectId}:{dialogue.ScriptId}:{dialogue.Operation}:{dialogue.MessageId}:{first}:{last}";
         int? authoredSelection = AutoPlayTraversalPolicy.ProgressionDialogueSelection(key);
+        if (key == "555:1740:0:4:104:3:1:4")
+        {
+            // NG-066: Read the actual tests already completed by the console.
+            int tests = getWorld().Events.EventMemory.Read(489, 1).RequireExact();
+            authoredSelection = (tests & 4) == 0 ? 1 : (tests & 8) == 0 ? 2 : 4;
+        }
         if (run.ActiveTravelRoute is null && AutoPlayTraversalPolicy.ConcertInstrumentSlot(key) is int instrumentSlot)
         {
             EventEngine events = getWorld().Events;

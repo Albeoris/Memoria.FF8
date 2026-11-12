@@ -249,6 +249,11 @@ internal static class AutoPlayTraversalPolicy
             // NG-065: Reveal and climb the original Esthar ladder.
             ("518:1725" or "518:1730", "518:line:8" or "518:line-action:8") => -1,
             ("554:1730", "554:gateway:1") => -2,
+            // NG-066: Complete the hidden console and follow the original lift.
+            ("555:1730" or "555:1740", "555:line:8" or "555:line-action:8") => -3,
+            ("555:1745", "555:gateway:0") => -3,
+            ("550:1745", "550:line:8" or "550:line-action:8") => -4,
+            ("553:1745", "553:line:9") => -5,
             _ => 0
         };
     }
@@ -306,6 +311,9 @@ internal static class AutoPlayTraversalPolicy
             "950:1220:15:79:763:8:0:1" => 0,
             // NG-063: The recollection answers converge on the same reconnaissance scene.
             "547:1600:9:124:1334:11:1:3" => 1,
+            // NG-066: Try operating the hidden console.
+            "555:1730:0:4:51:1:2:3" => 2,
+            "555:1740:0:4:67:2:1:2" => 1,
             // NG-036: Take the elevator to 2F for the approaching ship.
             "172:614:12:98:1227:4:2:4" => 3,
             // NG-039, NG-040: Take the elevator to 2F for Fishermans Horizon.
