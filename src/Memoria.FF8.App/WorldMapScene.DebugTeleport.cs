@@ -305,12 +305,13 @@ internal sealed partial class WorldMapScene
             car.Validate();
             return car.EntityType;
         }
-        if (world.NativeFootRuntime is not { } foot || !NativeWorldEntityTypes.IsSupportedFoot(foot.EntityType) || debugPlacement && (foot.EntityType is not (0 or 1) || foot.NormalObjects is not null || foot.StationTrains is not null || world.NativeGardenRuntime is not null) || world.NativeCarRuntime is not null || world.NativeRagnarokRuntime is not null || world.NativeTrainRuntime is not null || world.NativeScriptedRuntime is not null)
+        if (world.NativeFootRuntime is not { } foot || !NativeWorldEntityTypes.IsSupportedFoot(foot.EntityType) || debugPlacement && (foot.EntityType is not (0 or 1) || foot.NormalObjects is not null || foot.StationTrains is not null || world.NativeGardenRuntime is not null || world.NativeRagnarokRuntime is not null) || world.NativeCarRuntime is not null || world.NativeTrainRuntime is not null || world.NativeScriptedRuntime is not null)
         {
             throw new NotSupportedException(debugPlacement ? "Automatic coordinate travel requires ordinary foot without auxiliary objects, or the current stationary type33 car." : "Automatic world discovery requires a supported native foot owner or an admitted stationary car.");
         }
         foot.RequireNativeGroundState();
         world.NativeGardenRuntime?.Validate();
+        world.NativeRagnarokRuntime?.RequireSceneState();
         return foot.EntityType;
     }
 
