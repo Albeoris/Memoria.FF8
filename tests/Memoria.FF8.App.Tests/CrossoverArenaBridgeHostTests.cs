@@ -20,6 +20,8 @@ public sealed class CrossoverArenaBridgeHostTests(ITestOutputHelper output)
         using CrossoverArenaSurfaceCapture capture = new(() => new GpuTriangleRenderer(device.Device));
         bool sampled = false;
         bool movedSurface = false;
+        bool movedActor = false;
+        int[] foreignActors = [];
         bool rendered = false;
         bool restored = false;
         NativeBattleEffectPresentation? effectOwner = null;
@@ -33,6 +35,13 @@ public sealed class CrossoverArenaBridgeHostTests(ITestOutputHelper output)
         if (deformation)
         {
             Assert.True(movedSurface, "The coarse host floor must acquire real interior deformation vertices.");
+            Assert.True(movedActor, "The original action must lift and rotate its selected host actors.");
+            foreach (int actor in foreignActors)
+            {
+                NativeBattleActionMatrix placement = effectOwner.ForeignPlacement(actor);
+                Assert.Equal((0, 0, 0), (placement.X, placement.Y, placement.Z));
+                Assert.True(placement.Rotation.SequenceEqual(NativeBattleForeignModelGeometry.Identity.Rotation));
+            }
         }
         Assert.True(capture.RetainedImages > 0);
         capture.Reset();
@@ -49,6 +58,15 @@ public sealed class CrossoverArenaBridgeHostTests(ITestOutputHelper output)
                 return;
             }
             effectOwner = effect;
+            if (deformation)
+            {
+                foreignActors = active.Presentation.BoundTargets.Where(target => target.Contact.ActorIndex != 0).Select(target => (int)target.Contact.ActorIndex).ToArray();
+                movedActor |= foreignActors.Any(actor =>
+                {
+                    NativeBattleActionMatrix placement = effect.ForeignPlacement(actor);
+                    return placement.X != 0 || placement.Y != 0 || placement.Z != 0 || !placement.Rotation.SequenceEqual(NativeBattleForeignModelGeometry.Identity.Rotation);
+                });
+            }
             NativeBattlePilotVisualGeometry[] geometry = ordering.Packets.Select(packet => packet.PilotGeometry).OfType<NativeBattlePilotVisualGeometry>().ToArray();
             INativeBattleForeignMaterial[] materials = geometry.Select(pilot => pilot.ForeignSurface?.Material).OfType<INativeBattleForeignMaterial>().ToArray();
             foreach (NativeBattleArenaCaptureMaterial request in materials.OfType<NativeBattleArenaCaptureMaterial>())
@@ -70,19 +88,22 @@ public sealed class CrossoverArenaBridgeHostTests(ITestOutputHelper output)
             }
             capture.Prepare(materials);
             var camera = host.GuestRenderCameraOutput;
-            renderer.Render(gpu, 320, 240, new(camera, []));
-            Microsoft.Xna.Framework.Color[] baseline = GpuTestDevice.Read(gpu.Target);
             HashSet<NativeBattleArenaPrimitiveId> suppressed = effect.ArenaReplacements.SelectMany(replacement => replacement.Geometry.Faces).Select(face => face.Id).ToHashSet();
             if (deformation)
             {
                 Assert.NotEmpty(suppressed);
             }
-            renderer.Render(gpu, 320, 240, new(camera, []) { GuestEffects = visual, SuppressArenaPrimitives = suppressed });
-            Microsoft.Xna.Framework.Color[] drawn = GpuTestDevice.Read(gpu.Target);
-            Assert.True(baseline.Where((pixel, index) => pixel != drawn[index]).Take(17).Count() > 16);
-            Assert.Equal(camera, host.GuestRenderCameraOutput);
-            renderer.Render(gpu, 320, 240, new(camera, []));
-            Assert.Equal(baseline, GpuTestDevice.Read(gpu.Target));
+            foreach ((int width, int height) in new[] { (320, 240), (640, 360) })
+            {
+                renderer.Render(gpu, width, height, new(camera, []));
+                Microsoft.Xna.Framework.Color[] baseline = GpuTestDevice.Read(gpu.Target);
+                renderer.Render(gpu, width, height, new(camera, []) { GuestEffects = visual, SuppressArenaPrimitives = suppressed });
+                Microsoft.Xna.Framework.Color[] drawn = GpuTestDevice.Read(gpu.Target);
+                Assert.True(baseline.Where((pixel, index) => pixel != drawn[index]).Take(17).Count() > 16);
+                Assert.Equal(camera, host.GuestRenderCameraOutput);
+                renderer.Render(gpu, width, height, new(camera, []));
+                Assert.Equal(baseline, GpuTestDevice.Read(gpu.Target));
+            }
             rendered = true;
         }
     }
