@@ -40,9 +40,10 @@ public sealed class Ff7GuestAbilityAdmissionTests
         }
         Assert.Equal(0, battle.ReadyPlayer);
         Ff7BattleSnapshot ready = battle.Capture();
+        Ff7BattleSession control = Create(ready);
+        control.BindGuestAttack(new AdmissionProbe(encounter));
         Ff7BattleActorState sourceBefore = ready.Actors.Single(actor => actor.Actor.Slot == 0);
         Ff7BattleAiActor targetBefore = ready.Actors.Single(actor => actor.Actor.Slot == 4).Actor;
-        string randomBefore = JsonSerializer.Serialize(ready.Random);
         string inventoryBefore = JsonSerializer.Serialize(ready.Inventory);
         Ff7BattleCommandOption option = Assert.Single(battle.Commands(0), candidate => candidate.Command == Ff7BattleCommand.Magic);
         Assert.Null(option.UnsupportedReason);
@@ -52,6 +53,7 @@ public sealed class Ff7GuestAbilityAdmissionTests
         for (int tick = 0; tick < 1000 && battle.GuestAbilityFailure is null; tick++)
         {
             battle.Advance(waitForCommand: true);
+            control.Advance(waitForCommand: true);
         }
 
         Ff7BattleGuestAbilityFailure failure = Assert.IsType<Ff7BattleGuestAbilityFailure>(battle.GuestAbilityFailure);
@@ -74,7 +76,10 @@ public sealed class Ff7GuestAbilityAdmissionTests
         Assert.Equal(sourceBefore.Gauge, sourceAfter.Gauge);
         Assert.Equal(sourceBefore.Actor, sourceAfter.Actor);
         Assert.Equal(targetBefore, rejected.Actors.Single(actor => actor.Actor.Slot == 4).Actor);
-        Assert.Equal(randomBefore, JsonSerializer.Serialize(rejected.Random));
+        // The presentation tick rolls escape RNG even with frozen ATB; compare the same live frames
+        // so only the rejected contact's speculative random transaction must remain uncommitted.
+        Assert.Equal(control.Tick, rejected.Tick);
+        Assert.Equal(JsonSerializer.Serialize(control.Capture().Random), JsonSerializer.Serialize(rejected.Random));
         Assert.Equal(inventoryBefore, JsonSerializer.Serialize(rejected.Inventory));
         Assert.Equal(rejected.Queue.ReadyRead, rejected.Queue.ReadyWrite);
         Assert.All(rejected.Queue.Ready, command => Assert.Null(command));
