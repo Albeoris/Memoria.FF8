@@ -366,6 +366,17 @@ internal static class AutoPlayTraversalPolicy
             ("392:3802", "392:gateway:0") => -7,
             ("401:3802", "401:gateway:3") => -8,
             ("369:3810", "369:gateway:2") => -9,
+            // NG-082: Approach Adel after the disc change, then follow the future SeeDs.
+            ("352:3860", "352:gateway:0" or "352:gateway:1" or "352:gateway:2" or "352:gateway:3") => -1,
+            ("369:3860", "369:gateway:1") => -2,
+            ("348:3860", "348:gateway:0") => -3,
+            ("349:3860", "349:gateway:0") => -4,
+            ("971:4000", "971:gateway:0") => -5,
+            ("972:4000", "972:gateway:0") => -6,
+            ("597:4000" or "597:4005" or "597:4010", "597:gateway:0" or "597:gateway:1") => -7,
+            ("599:4005" or "599:4010", "599:gateway:3") => -8,
+            ("598:4005" or "598:4010", "598:gateway:0" or "598:gateway:1") => -9,
+            ("596:4005" or "596:4010", "596:line:7" or "596:line-action:7") => -10,
             _ => 0
         };
     }
