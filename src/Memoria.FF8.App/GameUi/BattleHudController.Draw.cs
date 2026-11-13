@@ -222,6 +222,10 @@ public sealed partial class BattleHudController
             return [];
         }
         IReadOnlyList<BattleCombatant> candidates = SelectableTargets;
+        if (SelectingExpandedBothSides(action))
+        {
+            return ExpandedBothSideTargets(action);
+        }
         bool players = candidates.FirstOrDefault(target => target.Id == selectedTargetId)?.IsPlayer ?? (caster.IsPlayer == action.Allies);
         if (!candidates.Any(target => target.IsPlayer == players) && candidates.Count > 0)
         {

@@ -136,6 +136,11 @@ public sealed partial class BattleSession
         }
         else if (selector == 203)
         {
+            if (UsesExpandedRoster)
+            {
+                string? expected = value == 200 ? actor.Id : combatants.FirstOrDefault(candidate => HasAiRosterSlot(candidate) && NativeModelId(candidate) == value)?.Id;
+                return CompareNativeConditionBit(actor.LastAttackerId == expected, comparison);
+            }
             left = NativeConditionLastAttackerIndex(actor);
             right = value == 200 ? actor.EncodeNativeSlot() : NativeConditionActorIndex(value);
         }

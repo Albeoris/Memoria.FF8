@@ -51,6 +51,8 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
             string detail;
             string? firstBlockerStage = null;
             EnemyRouteResult? enemyReaction = null;
+            EnemyRouteResult? enemyDeath = null;
+            string[] admissionBlockers = [];
             try
             {
                 EnemyScenarioScriptedAction[] reactions = scripts.Where(script => script.Callback == 2).ToArray();
@@ -62,6 +64,12 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                     {
                         Assert.True(enemyReaction.Status is "native" or "logical", enemyReaction.Detail);
                     }
+                }
+                EnemyScenarioScriptedAction[] deaths = scripts.Where(script => script.Callback == 3).ToArray();
+                if (deaths.Length > 0)
+                {
+                    firstBlockerStage = "enemy-death-execution";
+                    enemyDeath = RunDiscoveredEnemyDeath(directory, field, assets, effect, deaths, probeEnemies);
                 }
                 if (player is not null)
                 {
@@ -96,6 +104,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                     firstBlockerStage = "enemy-turn-execution";
                     EnemyRouteResult route = RunDiscoveredEnemyCast(directory, field, assets, effect, scripts, probeEnemies);
                     (status, detail, firstBlockerStage) = route;
+                    admissionBlockers = route.AdmissionBlockers;
                 }
                 else
                 {
@@ -109,6 +118,10 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                 if (enemyReaction is { Status: "native" } && status != "native" || enemyReaction is { Status: "logical" } && status == "blocked")
                 {
                     (status, detail, firstBlockerStage) = enemyReaction;
+                }
+                if (enemyDeath is { Status: "native" } && status != "native" || enemyDeath is { Status: "logical" } && status == "blocked" || enemyDeath is not null && status == "blocked" && scripts.All(script => script.Callback == 3))
+                {
+                    (status, detail, firstBlockerStage) = enemyDeath;
                 }
                 firstBlockerStage = status switch
                 {
@@ -129,7 +142,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
             string actions = string.Join(",", mappings.Select(action => $"{action.Command}/{action.ActionId}@{action.KernelSection}/{action.KernelIndex}"));
             string[] scripted = scripts.Select(action => $"c0m{action.ModelId:D3}/callback{action.Callback}+{action.Offset}/band{action.LevelBand}/c{action.Command}-a{action.ActionId}-seq{action.Sequence}").ToArray();
             string[] banks = owners.Select(owner => $"c0m{owner.ModelId:D3}/band{owner.LevelBand}/ability{owner.AbilitySlot}/c{owner.Command}-a{owner.ActionId}-seq{owner.Sequence}").ToArray();
-            results.Add(new(effect.Effect, effect.Entry, effect.Initializer, status, firstBlockerStage, actions, scripted, banks, detail, enemyReaction));
+            results.Add(new(effect.Effect, effect.Entry, effect.Initializer, status, firstBlockerStage, actions, scripted, banks, detail, enemyReaction, enemyDeath, admissionBlockers));
             output.WriteLine($"{effect.Effect:D3} {status} [{actions}] {detail} (first blocker: {firstBlockerStage ?? "none"})");
         }
 
@@ -147,7 +160,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         }
     }
 
-    private sealed record EffectResult(ushort Effect, uint Entry, uint Initializer, string Status, string? FirstBlockerStage, string Actions, string[] EnemyCallbacks, string[] EnemyAbilityRows, string Detail, EnemyRouteResult? EnemyReaction);
+    private sealed record EffectResult(ushort Effect, uint Entry, uint Initializer, string Status, string? FirstBlockerStage, string Actions, string[] EnemyCallbacks, string[] EnemyAbilityRows, string Detail, EnemyRouteResult? EnemyReaction, EnemyRouteResult? EnemyDeath, string[] AdmissionBlockers);
 
     private static (string Status, string Detail) RunPlayerCast(string directory, GameState field, NativeBattleEffectBinding effect, BattleActionDefinition action)
     {
@@ -204,7 +217,13 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
             Assert.Equal(0, target.CurrentHp);
         }
         hud.SelectTarget(target.Id, false);
+        bool random = (action.NativeAction?.TargetFlags.GetValueOrDefault() & 2) != 0;
         string[] expected = hud.SelectingTargetGroup ? hud.Targets.Select(actor => actor.Id).Order().ToArray() : [target.Id];
+        if (random)
+        {
+            BattleSide randomSide = (action.NativeAction!.TargetFlags.GetValueOrDefault() & 0x30) == 0x20 ? BattleSide.Enemies : target.Side;
+            expected = battle.Combatants.Where(actor => actor.Side == randomSide && BattleSession.IsValidSelectedActionTarget(caster, action, actor)).Select(actor => actor.Id).ToArray();
+        }
         int casterHpBefore = caster.CurrentHp;
         int targetHpBefore = target.CurrentHp;
         int before = battle.Events.Count;
@@ -242,7 +261,12 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         Assert.Single(castEvents, entry => entry.Kind == "Windup" && entry.Ability == action.Ability);
         Assert.Single(castEvents, entry => entry.Kind == "ActionComplete");
         BattleEvent[] contacts = castEvents.Where(entry => entry.Kind == "EffectContact").ToArray();
-        if (action.NativeAction is { HitCount: > 1 } repeated)
+        if (random)
+        {
+            Assert.InRange(contacts.Length, 1, action.NativeAction!.HitCount);
+            Assert.All(contacts, contact => Assert.Contains(contact.TargetId, expected));
+        }
+        else if (action.NativeAction is { HitCount: > 1 } repeated)
         {
             Assert.NotEmpty(contacts);
             string[] targetOrder = battle.Combatants.Where(actor => expected.Contains(actor.Id)).Select(actor => actor.Id).ToArray();

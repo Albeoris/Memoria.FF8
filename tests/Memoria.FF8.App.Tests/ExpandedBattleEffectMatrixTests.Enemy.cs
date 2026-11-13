@@ -6,13 +6,17 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed partial class ExpandedBattleEffectMatrixTests
 {
-    private sealed record EnemyRouteResult(string Status, string Detail, string? FirstBlockerStage);
+    private sealed record EnemyRouteResult(string Status, string Detail, string? FirstBlockerStage)
+    {
+        public string[] AdmissionBlockers { get; init; } = [];
+    }
 
     private static EnemyRouteResult RunDiscoveredEnemyCast(string directory, GameState field, BattleAssets assets, NativeBattleEffectBinding effect, EnemyScenarioScriptedAction[] scripts, bool probeEnemies)
     {
+        HashSet<string> blockers = new(StringComparer.Ordinal);
         var candidates = scripts.Where(script => script.Callback is 0 or 1 && script.NativeAction is not null)
             .SelectMany(script => script.Formations.Where(scene => scene.Enabled && !scene.Hidden && !scene.Suspended && !scene.Untargetable).Select(scene => (Script: script, Scene: scene)))
-            .Where(route => AdmitsEnemyScript(assets, route.Script, route.Scene))
+            .Where(route => AdmitsEnemyScript(assets, route.Script, route.Scene, blockers))
             .GroupBy(route => route.Scene.FormationId)
             .OrderBy(routes => routes.Key)
             .Take(3).ToArray();
@@ -70,19 +74,24 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         {
             return new("blocked", "Installed enemy AI maps this effect to a reaction, death or other callback. Its original trigger and expanded execution route remain unproved.", "enemy-callback-trigger");
         }
-        return new("blocked", "Installed enemy AI maps this effect to initialization or turn dispatch. No matching scene owner and level band pass expanded AI admission.", "enemy-ai-admission");
+        return new("blocked", "Installed enemy AI maps this effect to initialization or turn dispatch. No matching scene owner and level band pass expanded AI admission.", "enemy-ai-admission") { AdmissionBlockers = [.. blockers.Order()] };
     }
 
-    private static bool AdmitsEnemyScript(BattleAssets assets, EnemyScenarioScriptedAction script, EnemyScenarioFormation scene)
+    private static bool AdmitsEnemyScript(BattleAssets assets, EnemyScenarioScriptedAction script, EnemyScenarioFormation scene, ICollection<string>? blockers = null)
     {
         // The decoded program contains all three bands. The actual band is checked again at entry.
         NativeBattleAiDefinition ai = assets.ReadEnemyAi(script.ModelId, 0) with { LevelBand = script.LevelBand };
-        if (NativeBattleExpandedAi.Evaluate(ai, assets.NativeActions, scene.FormationId) != ExpandedAiAdmission.Supported)
+        if (NativeBattleExpandedAi.Evaluate(ai, assets.NativeActions, scene.FormationId, blockers) != ExpandedAiAdmission.Supported)
         {
             return false;
         }
         BattleEnemyPlacement[] enabled = assets.LoadEncounter(scene.FormationId).Slots.Where(slot => slot.Enabled).ToArray();
-        return enabled.Length > 0 && enabled.All(slot => slot.IsEnemyModel && !slot.Hidden && !slot.Untargetable && !slot.InitiallySuspended);
+        bool supported = enabled.Length > 0 && enabled.All(slot => slot.IsEnemyModel && !slot.Hidden && !slot.Untargetable && !slot.InitiallySuspended);
+        if (!supported)
+        {
+            blockers?.Add("formation-allocation");
+        }
+        return supported;
     }
 
     private static EnemyRouteResult ObserveEnemyCast(GameWorld world, BattleSession battle, NativeBattleEffectBinding effect, Dictionary<string, EnemyScenarioScriptedAction[]> actors)
@@ -169,6 +178,13 @@ public sealed partial class ExpandedBattleEffectMatrixTests
     {
         string[] recipients = cast.AiRecipients!.ActorIds.Where(eligible.Contains).ToArray();
         int hitCount = cast.NativeAction!.HitCount;
+        if (cast.AiRecipients.RandomSide is BattleSide side || (cast.NativeAction.TargetFlags.GetValueOrDefault() & 2) != 0)
+        {
+            BattleSide targetSide = cast.AiRecipients.RandomSide ?? battle.Combatants.Single(actor => actor.Id == cast.TargetId).Side;
+            Assert.InRange(contacts.Length, 1, hitCount);
+            Assert.All(contacts, contact => Assert.Contains(battle.Combatants, actor => actor.Id == contact.TargetId && actor.Side == targetSide && eligible.Contains(actor.Id)));
+            return;
+        }
         if (hitCount == 1)
         {
             Assert.Equal(recipients.Order(), contacts.Select(entry => entry.TargetId).Order());

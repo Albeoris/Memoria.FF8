@@ -157,6 +157,10 @@ public sealed partial class BattleHudController
             }
             BattleActionDefinition? action = command == BattleAbility.Attack ? null : SelectedAction;
             IReadOnlyList<BattleCombatant> candidates = SelectableTargets;
+            if (SelectingExpandedBothSides(action))
+            {
+                return ExpandedBothSideTargets(action!);
+            }
             bool players = candidates.FirstOrDefault(target => target.Id == selectedTargetId)?.IsPlayer ?? (action?.Allies == true);
             if (!candidates.Any(target => target.IsPlayer == players) && candidates.Count > 0)
             {
@@ -179,7 +183,17 @@ public sealed partial class BattleHudController
         }
     }
 
-    public bool CanChangeTargetSide => SelectingTarget && !CardSlotsOwnsInput && !CommandMenuHidden && SelectedTarget is { } current && SelectableTargets.Any(target => target.IsPlayer != current.IsPlayer);
+    private bool SelectingExpandedBothSides(BattleActionDefinition? action)
+    {
+        return session.UsesExpandedRoster && action?.NativeAction?.TargetFlags is byte flags && (flags & 0x32) == 0x20;
+    }
+
+    private BattleCombatant[] ExpandedBothSideTargets(BattleActionDefinition action)
+    {
+        return session.Combatants.Where(target => !target.Untargetable && (target.IsPlayer || target.IsAlive) && BattleSession.HasValidTargetLifeState(action, target)).ToArray();
+    }
+
+    public bool CanChangeTargetSide => SelectingTarget && !SelectingExpandedBothSides(SelectedAction) && !CardSlotsOwnsInput && !CommandMenuHidden && SelectedTarget is { } current && SelectableTargets.Any(target => target.IsPlayer != current.IsPlayer);
 
     public void ChangeTargetSide()
     {
@@ -246,7 +260,7 @@ public sealed partial class BattleHudController
     {
         get
         {
-            IReadOnlyList<BattleCombatant> targets = Targets;
+            IReadOnlyList<BattleCombatant> targets = SelectingExpandedBothSides(SelectedAction) ? SelectableTargets : Targets;
             BattleCombatant? selected = targets.FirstOrDefault(actor => actor.Id == selectedTargetId) ?? targets.FirstOrDefault();
             selectedTargetId = selected?.Id;
             return selected;

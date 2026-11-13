@@ -28,12 +28,12 @@ public sealed partial class BattleSession
 
     private NativeContactWorking? nativeContactWorking;
 
-    private static NativeBattleContactPacket CreateNativeReflectedContact(BattleCombatant recipient, BattleNativeAction native)
+    private static NativeBattleContactPacket CreateNativeReflectedContact(BattleCombatant recipient, BattleNativeAction native, byte? presentationRow = null)
     {
         NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(native.DamagePresentation, 0x31, 4, (byte)(native.AttackFlags & 3), 255);
         RefreshNativePresentationStatus(recipient);
         (ushort saved, uint battle) = NativeContactStatusMirror(recipient);
-        NativeBattleContactHalf primary = new(checked((byte)recipient.EncodeNativeSlot()), presentation.Sequence, presentation.Flags2, presentation.HitFlags3, saved, 0, battle);
+        NativeBattleContactHalf primary = new(presentationRow ?? checked((byte)recipient.EncodeNativeSlot()), presentation.Sequence, presentation.Flags2, presentation.HitFlags3, saved, 0, battle);
         return new(primary, new(255, 0, 0, 0, 0, 0, 0));
     }
 

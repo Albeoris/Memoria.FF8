@@ -803,7 +803,14 @@ public sealed partial class BattleSession
             if (ownsTransaction)
             {
                 nativeActionCommitDepth--;
-                FlushNativeReactions();
+                if (UsesExpandedRoster)
+                {
+                    FlushExpandedEnemyReactions();
+                }
+                else
+                {
+                    FlushNativeReactions();
+                }
             }
         }
     }
@@ -819,6 +826,11 @@ public sealed partial class BattleSession
             target.LastNativeHealing = amount == 0 ? (byte)1 : (byte)0;
         }
         NoteNativeContactCommit(target);
+        if (UsesExpandedRoster && target.CurrentHp == 0 && target.AiDeathHandled && target == nativeContactWorking?.Actor &&
+            resolvingNativeAction is { NativeAiCallbackStage: 3, AiRecipients.DeathSelfTargetId: string deathSourceId } && target.Id == deathSourceId)
+        {
+            return;
+        }
         if (ApplyGuardianForceShield(target, amount))
         {
             return;
@@ -929,7 +941,7 @@ public sealed partial class BattleSession
 
     private void CancelDeadActions()
     {
-        if (expandedEffect is null && ActiveAction is { NativeHeaderIndex: null } active && (!CanRetainNativeSupportActor(byId[active.ActorId], active.NativePlayerReaction) || active.Phase == BattleActionPhase.Windup && !CanRetainTargets(active.ActorId, active.TargetId, active.Ability, active.ActionId, active.NativeAction, active.NativeTargetMask, active.NativeGraphic, active.AiRecipients)))
+        if (expandedEffect is null && ActiveAction is { NativeHeaderIndex: null } active && (!CanRetainBattleActionActor(byId[active.ActorId], active.NativePlayerReaction, active.NativeAiCallbackStage, active.AiRecipients) || active.Phase == BattleActionPhase.Windup && !CanRetainTargets(active.ActorId, active.TargetId, active.Ability, active.ActionId, active.NativeAction, active.NativeTargetMask, active.NativeGraphic, active.AiRecipients)))
         {
             if (!UsesExpandedRoster)
             {
@@ -953,7 +965,7 @@ public sealed partial class BattleSession
                 actions.Enqueue(command);
                 continue;
             }
-            if (CanRetainNativeSupportActor(byId[command.ActorId], command.NativePlayerReaction) && (command.NativeRenzokuken is not null || CanRetainTargets(command.ActorId, command.TargetId, command.Ability, command.ActionId, command.NativeAction, command.NativeTargetMask, command.NativeGraphic, command.AiRecipients)))
+            if (CanRetainBattleActionActor(byId[command.ActorId], command.NativePlayerReaction, command.NativeAiCallbackStage, command.AiRecipients) && (command.NativeRenzokuken is not null || CanRetainTargets(command.ActorId, command.TargetId, command.Ability, command.ActionId, command.NativeAction, command.NativeTargetMask, command.NativeGraphic, command.AiRecipients)))
             {
                 actions.Enqueue(command);
             }
@@ -967,7 +979,9 @@ public sealed partial class BattleSession
         foreach (BattleCombatant actor in combatants)
         {
             bool nativeQueued = !UsesExpandedRoster && actor.EncodeNativeSlot() is >= 0 and < 7 && nativeCommandBanks.CountActor(checked((byte)actor.EncodeNativeSlot())) != 0;
-            actor.IsBusy = (NativeGraphics is not null || actor.IsAlive || ActiveAction is { } support && IsNativeSupportInvocation(support.NativePlayerReaction) && support.ActorId == actor.Id || actions.Any(command => command.ActorId == actor.Id && IsNativeSupportInvocation(command.NativePlayerReaction))) && (nativeQueued || nativeTimedAction?.Command.ActorId == actor.Id || guardianForceCasts.ContainsKey(actor.Id) || ActiveAction?.ActorId == actor.Id || actions.Any(command => command.NativeCallback is null && command.ActorId == actor.Id));
+            bool retainedSupport = ActiveAction is { } support && support.ActorId == actor.Id && IsNativeSupportInvocation(support.NativePlayerReaction) || actions.Any(command => command.ActorId == actor.Id && IsNativeSupportInvocation(command.NativePlayerReaction));
+            bool retainedDeathAction = UsesExpandedRoster && HasExpandedEnemyDeathAction(actor);
+            actor.IsBusy = (NativeGraphics is not null || actor.IsAlive || retainedSupport || retainedDeathAction) && (nativeQueued || nativeTimedAction?.Command.ActorId == actor.Id || guardianForceCasts.ContainsKey(actor.Id) || ActiveAction?.ActorId == actor.Id || actions.Any(command => command.NativeCallback is null && command.ActorId == actor.Id));
         }
 
         bool CanRetainTargets(string actorId, string targetId, BattleAbility ability, int actionId, BattleNativeAction? native, ushort mask, BattleNativeGraphicCommand? graphic, BattleAiRecipients? aiRecipients)
@@ -991,7 +1005,8 @@ public sealed partial class BattleSession
             BattleOutcome pending = PendingNativeOutcome;
             return Outcome == pending && NativeGraphics!.NativeOutcome!.FadeDurationB0C == 0 ? pending : BattleOutcome.Active;
         }
-        if (!NativeEntryReady || NativeScriptAllocationPending || nativeTimedAction is not null || ActiveAction?.NativeHeaderIndex is not null || IsNativeSupportInvocation(ActiveAction?.NativePlayerReaction) || IsNativeReturnDamageAction(ActiveAction?.NativeAction) || QueuedActions.Any(command => command.NativeHeaderIndex is not null || IsNativeReturnDamageAction(command.NativeAction) || IsNativeSupportInvocation(command.NativePlayerReaction) || IsNativeSupportCallback(command.NativeCallback)))
+        if (!NativeEntryReady || NativeScriptAllocationPending || nativeTimedAction is not null || ActiveAction?.NativeHeaderIndex is not null || IsNativeSupportInvocation(ActiveAction?.NativePlayerReaction) || IsNativeReturnDamageAction(ActiveAction?.NativeAction) || QueuedActions.Any(command => command.NativeHeaderIndex is not null || IsNativeReturnDamageAction(command.NativeAction) || IsNativeSupportInvocation(command.NativePlayerReaction) || IsNativeSupportCallback(command.NativeCallback)) ||
+            UsesExpandedRoster && (expandedEffect is not null || enemies.Any(HasExpandedEnemyDeathAction)))
         {
             return BattleOutcome.Active;
         }
@@ -1386,7 +1401,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Queued GF item cannot already own a dispatched invocation.");
             }
-            ValidateSavedAction(command.ActorId, command.TargetId, busy, command.Ability, command.ActionId, command.NativeHeaderIndex is not null, command.NativeAction, command.NativeTargetMask, command.NativeGraphic, command.NativeRenzokuken, command.NativePlayerReaction, command.NativeHeaderIndex, duel: command.NativeDuel, slots: command.NativeSlots, nativeQueuedCommand: command.NativeQueuedCommand, aiRecipients: command.AiRecipients);
+            ValidateSavedAction(command.ActorId, command.TargetId, busy, command.Ability, command.ActionId, command.NativeHeaderIndex is not null, command.NativeAction, command.NativeTargetMask, command.NativeGraphic, command.NativeRenzokuken, command.NativePlayerReaction, command.NativeHeaderIndex, duel: command.NativeDuel, slots: command.NativeSlots, nativeQueuedCommand: command.NativeQueuedCommand, aiRecipients: command.AiRecipients, aiCallbackStage: command.NativeAiCallbackStage);
             ValidateNativeActionInventory(byId[command.ActorId], command.Ability, command.NativeAction, command.ReservedNativeItemSlot, command.FreeNativeMagic);
             actions.Enqueue(command);
         }
@@ -1403,7 +1418,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Invalid battle presentation timer.");
             }
-            ValidateSavedAction(action.ActorId, action.TargetId, busy, action.Ability, action.ActionId, action.NativeHeaderIndex is not null || action.Phase == BattleActionPhase.Recovery, action.NativeAction, action.NativeTargetMask, action.NativeGraphic, reaction: action.NativePlayerReaction, nativeHeaderIndex: action.NativeHeaderIndex, duel: action.NativeDuel, slots: action.NativeSlots, nativeQueuedCommand: action.NativeQueuedCommand, aiRecipients: action.AiRecipients);
+            ValidateSavedAction(action.ActorId, action.TargetId, busy, action.Ability, action.ActionId, action.NativeHeaderIndex is not null || action.Phase == BattleActionPhase.Recovery, action.NativeAction, action.NativeTargetMask, action.NativeGraphic, reaction: action.NativePlayerReaction, nativeHeaderIndex: action.NativeHeaderIndex, duel: action.NativeDuel, slots: action.NativeSlots, nativeQueuedCommand: action.NativeQueuedCommand, aiRecipients: action.AiRecipients, aiCallbackStage: action.NativeAiCallbackStage);
             ValidateIndependentGuardianInvocation(byId[action.ActorId], action);
             ValidateNativeSequenceProgress(byId[action.ActorId], action);
             if (action.NativeAction?.AttackType is 17 or 19 && action.NativeSpecial is null)
@@ -1530,13 +1545,18 @@ public sealed partial class BattleSession
         ValidateOriginalMaximumHitPoints(snapshot);
     }
 
-    private void ValidateSavedAction(string actorId, string targetId, HashSet<string> busy, BattleAbility ability, int actionId, bool allowDefeatedTarget, BattleNativeAction? nativeAction = null, ushort nativeTargetMask = 0, BattleNativeGraphicCommand? graphic = null, BattleNativeRenzokukenInvocation? renzokuken = null, BattleNativePlayerReaction? reaction = null, int? nativeHeaderIndex = null, bool allowNativeQueuedState = false, BattleNativeDuelInvocation? duel = null, BattleNativeSlotsRoll? slots = null, byte? nativeQueuedCommand = null, BattleAiRecipients? aiRecipients = null)
+    private void ValidateSavedAction(string actorId, string targetId, HashSet<string> busy, BattleAbility ability, int actionId, bool allowDefeatedTarget, BattleNativeAction? nativeAction = null, ushort nativeTargetMask = 0, BattleNativeGraphicCommand? graphic = null, BattleNativeRenzokukenInvocation? renzokuken = null, BattleNativePlayerReaction? reaction = null, int? nativeHeaderIndex = null, bool allowNativeQueuedState = false, BattleNativeDuelInvocation? duel = null, BattleNativeSlotsRoll? slots = null, byte? nativeQueuedCommand = null, BattleAiRecipients? aiRecipients = null, byte? aiCallbackStage = null)
     {
         BattleCombatant actor = GetActor(actorId);
         BattleCombatant target = GetActor(targetId);
-        if (aiRecipients is { } logical && (!UsesExpandedRoster || actor.NativeAi is null || ability != BattleAbility.EnemyAbility || nativeAction is null || nativeTargetMask != 0 || nativeHeaderIndex is not null || logical.ActorIds.IsDefaultOrEmpty || logical.ActorIds[0] != targetId || logical.ActorIds.Distinct().Count() != logical.ActorIds.Length || logical.ActorIds.Any(id => id is null || !byId.ContainsKey(id))))
+        if (aiRecipients is { } logical && (!UsesExpandedRoster || actor.NativeAi is null || ability != BattleAbility.EnemyAbility || nativeAction is null || nativeTargetMask != 0 || nativeHeaderIndex is not null || logical.ActorIds.IsDefaultOrEmpty || logical.ActorIds[0] != targetId || logical.ActorIds.Distinct().Count() != logical.ActorIds.Length || logical.ActorIds.Any(id => id is null || !byId.ContainsKey(id)) ||
+            logical.DeathSelfTargetId is string self && (aiCallbackStage != 3 || logical.RandomSide is not null || self != actorId || !logical.ActorIds.Contains(self))))
         {
             throw new InvalidDataException("Saved expanded AI command has invalid logical recipients.");
+        }
+        if (aiRecipients?.RandomSide is BattleSide side && (!Enum.IsDefined(side) || aiRecipients.ActorIds.Any(id => byId[id].Side != side)))
+        {
+            throw new InvalidDataException("Saved random AI recipients disagree with the selected side.");
         }
         ValidateNativeHeaderReference(actor, nativeHeaderIndex);
         bool factualHeader = nativeHeaderIndex is not null;
@@ -1585,7 +1605,7 @@ public sealed partial class BattleSession
         //Only the physical-bank caller can establish this preheader authority; ordinary managed queues cannot.
         //Graphicsless components preserve the same initialization/reaction gauge in their logical clock.
         bool retainedNativeGauge = (factualNativeAction || physicalQueuedNativeAction) && (actor.NativeAtb is not null || factualNativeAction && NativeGraphics is null);
-        if (nativeHeaderIndex is null && !allowNativeQueuedState && !CanRetainNativeSupportActor(actor, reaction) || actor.Atb != 0 && reaction is null && !retainedNativeGauge || !native && nativeTargetMask == 0 && !validTargetSide || !validTarget || !unique && !native && !factualNativeAction && !physicalQueuedNativeAction || !native && !actor.Abilities.Contains(ability) && !HasRetainedReservedCommand(actor, ability, nativeQueuedCommand))
+        if (UsesExpandedRoster && aiCallbackStage == 3 && !IsExpandedEnemyDeathAction(actor, aiCallbackStage, aiRecipients) || nativeHeaderIndex is null && !allowNativeQueuedState && !CanRetainBattleActionActor(actor, reaction, aiCallbackStage, aiRecipients) || actor.Atb != 0 && reaction is null && !retainedNativeGauge || !native && nativeTargetMask == 0 && !validTargetSide || !validTarget || !unique && !native && !factualNativeAction && !physicalQueuedNativeAction || !native && !actor.Abilities.Contains(ability) && !HasRetainedReservedCommand(actor, ability, nativeQueuedCommand))
         {
             throw new InvalidDataException("Invalid queued or active battle action.");
         }

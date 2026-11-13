@@ -151,7 +151,14 @@ public sealed partial class BattleSession
                         preparedId = (byte)ReadAiByte(code, ref pc);
                         break;
                     case 8:
-                        QueueNativeGraphicsDeath(actor);
+                        if (UsesExpandedRoster)
+                        {
+                            CompleteExpandedEnemyDeath(actor);
+                        }
+                        else
+                        {
+                            QueueNativeGraphicsDeath(actor);
+                        }
                         break;
                     case 9:
                         int damagePresentation = ReadAiByte(code, ref pc);

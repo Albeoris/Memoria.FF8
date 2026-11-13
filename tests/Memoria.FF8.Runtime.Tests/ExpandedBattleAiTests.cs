@@ -8,15 +8,35 @@ public sealed class ExpandedBattleAiTests
     [InlineData(4, 6, 201, 2, "ally-3")]
     [InlineData(4, 6, 202, 5, "enemy-5")]
     [InlineData(4, 6, 207, 6, "enemy-5")]
-    [InlineData(4, 6, 208, 2, "ally-3")]
     [InlineData(11, 8, 201, 5, "ally-10")]
     [InlineData(11, 8, 202, 59, "enemy-7")]
     [InlineData(11, 8, 207, 7, "enemy-7")]
-    [InlineData(11, 8, 208, 5, "ally-10")]
     public void RandomSelectorsReachTheLastRosterSlots(int allyCount, int enemyCount, byte selector, byte seed, string target)
     {
         BattleSession battle = Start([4, selector, 7, 1, 6, 0], allyCount, enemyCount, seed);
         Assert.Equal(new[] { target }, battle.ActiveAction!.AiRecipients!.ActorIds);
+    }
+
+    [Fact]
+    public void Selector208RetainsTheAllySideForRandomContactsAfterRestore()
+    {
+        BattleNativeAction native = Physical with { AttackType = 27, Power = 1, Hit = 99, HitCount = 10 };
+        BattleSession battle = Start([4, 208, 7, 1, 6, 0], 11, 11, native: native);
+        BattleSnapshot before = battle.Capture();
+        BattleAiRecipients targets = Assert.IsType<BattleAiRecipients>(battle.ActiveAction!.AiRecipients);
+        Assert.Equal(BattleSide.Allies, targets.RandomSide);
+        Assert.Equal(11, targets.ActorIds.Length);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(before))!);
+        for (int tick = 0; tick <= BattleSession.AttackWindupFrames; tick++)
+        {
+            battle.Tick();
+            restored.Tick();
+        }
+        string?[] contacts = battle.Events.Where(entry => entry.Kind == "EffectContact" && entry.ActorId == "enemy-4").Select(entry => entry.TargetId).ToArray();
+        Assert.Equal(10, contacts.Length);
+        Assert.All(contacts, target => Assert.Contains(target, targets.ActorIds));
+        Assert.True(contacts.Distinct().Count() > 1);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
     }
 
     [Theory]
@@ -86,6 +106,24 @@ public sealed class ExpandedBattleAiTests
         Assert.Equal(216, Assert.Single(restored.Combatants, actor => actor.Id == "enemy-4").Attack);
     }
 
+    [Fact]
+    public void SelfRemovalKeepsTheLogicalRosterPositionAcrossRestore()
+    {
+        byte[] script = [29, 200, 0];
+        Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(Ai(script), [Physical], 0));
+        Assert.Equal(ExpandedAiAdmission.RequiresOriginalSlots, NativeBattleExpandedAi.Evaluate(Ai([29, 0, 0]), [Physical], 0));
+        BattleSession battle = Start(script, 11, 11);
+        BattleCombatant removed = Assert.Single(battle.Combatants, actor => actor.Id == "enemy-4");
+        Assert.False(removed.IsActive);
+        Assert.True(removed.Untargetable);
+        Assert.Empty(battle.EnemyDefeats);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleCombatant restoredActor = Assert.Single(restored.Combatants, actor => actor.Id == removed.Id);
+        Assert.Equal(removed.Slot, restoredActor.Slot);
+        Assert.False(restoredActor.IsActive);
+        Assert.All(restored.Combatants.Where(actor => actor.Id != removed.Id), actor => Assert.True(actor.IsActive));
+    }
+
     [Theory]
     [InlineData(1, 11)]
     [InlineData(2, 22)]
@@ -112,7 +150,8 @@ public sealed class ExpandedBattleAiTests
             Abilities = [BattleAbility.Attack], InitialAtb = i == 10 ? BattleSession.AtbMaximum : 0,
             NativeAttack = Physical with { Command = 1, ActionId = 0 }
         }).ToArray();
-        NativeBattleAiDefinition counter = new([[0], [0], [4, 203, 7, 1, 6, 0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(8, 0, 1), 48).ToArray(), 0, []);
+        NativeBattleAiDefinition counter = new([[0], [0], [2, 10, 203, 0, 10, 0, 5, 0, 4, 203, 7, 1, 6, 0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(8, 0, 1), 48).ToArray(), 0, []);
+        Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(counter, [Physical], 0));
         BattleCombatantDefinition[] enemies = Enumerable.Range(0, 11).Select(i => new BattleCombatantDefinition
         {
             Id = $"enemy-{i}", Name = $"Enemy {i}", ModelId = 28, Level = 10, CurrentHp = 1000, MaximumHp = 1000, Speed = 1, Attack = 30,

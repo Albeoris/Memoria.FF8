@@ -394,6 +394,11 @@ public sealed class ExpandedBattleHostTests
 
         void Run(string target, BattleAbility ability, int action, string[] recipients)
         {
+            // This fixture isolates the selected command. The AI cases above exercise autonomous turns.
+            if (!exerciseAi)
+            {
+                caster.Atb = BattleSession.AtbMaximum;
+            }
             for (int i = 0; i < 32 && !caster.IsReady; i++)
             {
                 world.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));

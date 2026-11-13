@@ -9,10 +9,15 @@ internal static class ExpandedBattleActionRules
             (action.Statuses1 & 0x10000) == 0;
     }
 
+    public static bool SupportsEnemyContacts(BattleNativeAction action)
+    {
+        return SupportsContacts(action) || action is { Command: 8, AttackType: 0, Power: 0, Statuses0: 0, Statuses1: 0, AttackFlags: 3, HitCount: 1 };
+    }
+
     public static bool SupportsPlayerAction(BattleAbility ability, BattleNativeAction action)
     {
         return (ability, action.Command) is (BattleAbility.Magic, 2) or (BattleAbility.Item, 4) &&
-            action.TargetFlags is byte flags && (flags & 0x22) == 0 && ((flags & 1) == 0 || action.AttackType is 5 or 6) && SupportsContacts(action);
+            action.TargetFlags is byte flags && (flags & 0x30) != 0x30 && ((flags & 1) == 0 || action.AttackType is 5 or 6) && SupportsContacts(action);
     }
 
     public static bool HasNativeSpellPresentation(BattleNativeAction action, int recipientCount)

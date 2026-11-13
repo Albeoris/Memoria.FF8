@@ -10,22 +10,27 @@ public enum ExpandedAiAdmission
 /// <summary>Checks reachable original AI bytecode against the services available in expanded battles.</summary>
 public static class NativeBattleExpandedAi
 {
-    public static ExpandedAiAdmission Evaluate(NativeBattleAiDefinition program, IReadOnlyList<BattleNativeAction> actions, int formation)
+    public static ExpandedAiAdmission Evaluate(NativeBattleAiDefinition program, IReadOnlyList<BattleNativeAction> actions, int formation, ICollection<string>? blockers = null)
     {
         if (program.Scripts.Length != 5 || program.LevelBand is < 0 or > 2 || program.Abilities.Length != 48)
         {
+            blockers?.Add("program-layout");
             return ExpandedAiAdmission.RequiresUnsupportedService;
         }
         HashSet<(byte Command, ushort Id)> supported = actions.Where(SupportsAction).Select(action => (action.Command, action.ActionId)).ToHashSet();
         NativeBattleAiAbility berserk = program.Abilities[16 * program.LevelBand];
         ExpandedAiAdmission admission = SupportsCommand(berserk.Command, berserk.Id) ? ExpandedAiAdmission.Supported : ExpandedAiAdmission.RequiresUnsupportedService;
-        foreach (byte[] script in program.Scripts)
+        if (admission != ExpandedAiAdmission.Supported)
         {
-            CheckScript(script);
+            blockers?.Add($"command:{berserk.Command}/{berserk.Id}");
+        }
+        for (int callback = 0; callback < program.Scripts.Length; callback++)
+        {
+            CheckScript(program.Scripts[callback], callback);
         }
         return admission;
 
-        void CheckScript(byte[] script)
+        void CheckScript(byte[] script, int callback)
         {
             if (script.Length == 0)
             {
@@ -38,7 +43,7 @@ public static class NativeBattleExpandedAi
             {
                 if ((uint)pc >= script.Length)
                 {
-                    MarkUnsupportedService();
+                    MarkUnsupportedService("branch-outside-script");
                     continue;
                 }
                 if (!visited.Add(pc))
@@ -64,12 +69,12 @@ public static class NativeBattleExpandedAi
                 };
                 if (pc + operands > script.Length)
                 {
-                    MarkUnsupportedService();
+                    MarkUnsupportedService($"truncated-opcode:{opcode}");
                     continue;
                 }
                 if (operands < 0)
                 {
-                    MarkUnsupportedService();
+                    MarkUnsupportedService($"unknown-opcode:{opcode}");
                     continue;
                 }
                 int next = pc + operands;
@@ -80,13 +85,14 @@ public static class NativeBattleExpandedAi
                         int selector = script[pc + 1];
                         int comparison = script[pc + 2];
                         int value = ReadWord(script, pc + 3);
-                        if (subject == 15 || subject == 10 && selector == 203)
+                        if (subject == 15 || subject == 10 && selector == 203 && comparison is not (0 or 3))
                         {
                             admission = ExpandedAiAdmission.RequiresOriginalSlots;
+                            blockers?.Add($"physical-condition:{subject}/{selector}/{comparison}");
                         }
                         else if ((subject is 0 or 4 or 7 or >= 220 and <= 227) && selector is >= 220 and <= 227)
                         {
-                            MarkUnsupportedService();
+                            MarkUnsupportedService($"actor-reference-condition:{subject}/{selector}");
                         }
                         int otherwise = next + ReadWord(script, pc + 5);
                         if (subject is 3 or 14)
@@ -98,32 +104,32 @@ public static class NativeBattleExpandedAi
                             pending.Push(otherwise);
                         }
                         break;
-                    case 8 or 23 or 30 or 37 or 41 or 42 or 44 or 46 or 47 or 48 or 49 or 50 or 51 or 54 or 55 or 56 or 57 or 61:
-                        MarkUnsupportedService();
+                    case 8 when callback != 3:
+                    case 30 or 41 or 42 or 44 or 46 or 49 or 50 or 51 or 54 or 55 or 56 or 57 or 61:
+                        MarkUnsupportedService($"opcode:{opcode}");
                         break;
                     case 27 or 31 or 43 or 52 or 53 or 58 or 59:
                         admission = ExpandedAiAdmission.RequiresOriginalSlots;
+                        blockers?.Add($"physical-opcode:{opcode}");
                         break;
                     case 29:
-                        if (script[pc] == 200)
-                        {
-                            MarkUnsupportedService();
-                        }
-                        else
+                        if (script[pc] != 200)
                         {
                             admission = ExpandedAiAdmission.RequiresOriginalSlots;
+                            blockers?.Add($"physical-opcode:{opcode}");
                         }
                         break;
                     case 3 or 7:
-                        if (!SupportsCommand(opcode == 3 ? (byte)2 : (byte)8, script[pc]))
+                        byte command = opcode == 3 ? (byte)2 : (byte)8;
+                        if (!SupportsCommand(command, script[pc]))
                         {
-                            MarkUnsupportedService();
+                            MarkUnsupportedService($"command:{command}/{script[pc]}");
                         }
                         break;
                     case 4:
                         if (script[pc] is 209 or >= 220 and <= 227)
                         {
-                            MarkUnsupportedService();
+                            MarkUnsupportedService($"actor-reference-target:{script[pc]}");
                         }
                         break;
                     case 11 or 12:
@@ -136,20 +142,20 @@ public static class NativeBattleExpandedAi
                             }
                             if (slot >= 16)
                             {
-                                MarkUnsupportedService();
+                                MarkUnsupportedService($"ability-slot:{slot}");
                                 continue;
                             }
                             NativeBattleAiAbility ability = program.Abilities[16 * program.LevelBand + slot];
                             if (!SupportsCommand(ability.Command, ability.Id))
                             {
-                                MarkUnsupportedService();
+                                MarkUnsupportedService($"command:{ability.Command}/{ability.Id}");
                             }
                         }
                         break;
                     case 14 or 18:
                         if (script[pc] is < 220 or > 227 || script[pc + 1] == 203)
                         {
-                            MarkUnsupportedService();
+                            MarkUnsupportedService($"actor-reference-write:{opcode}/{script[pc]}/{script[pc + 1]}");
                         }
                         break;
                     case 35:
@@ -160,8 +166,9 @@ public static class NativeBattleExpandedAi
             }
         }
 
-        void MarkUnsupportedService()
+        void MarkUnsupportedService(string reason)
         {
+            blockers?.Add(reason);
             if (admission == ExpandedAiAdmission.Supported)
             {
                 admission = ExpandedAiAdmission.RequiresUnsupportedService;
@@ -176,8 +183,8 @@ public static class NativeBattleExpandedAi
 
     internal static bool SupportsAction(BattleNativeAction action)
     {
-        return action.Command is 2 or 8 && ExpandedBattleActionRules.SupportsContacts(action) && action.AttackType is not (5 or 6) &&
-            (action.Statuses1 & 0x8000) == 0 && (action.TargetFlags.GetValueOrDefault() & 3) == 0 && (action.Command != 8 || (action.AttackFlags & 0x80) == 0);
+        return action.Command is 2 or 8 && ExpandedBattleActionRules.SupportsEnemyContacts(action) && action.AttackType is not (5 or 6) &&
+            ((action.TargetFlags.GetValueOrDefault() & 3) == 0 || action is { Command: 2, ActionId: 16 }) && (action.Command != 8 || (action.AttackFlags & 0x80) == 0);
     }
 
     private static int ReadWord(byte[] script, int offset) => script[offset] | script[offset + 1] << 8;
