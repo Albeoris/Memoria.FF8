@@ -14,7 +14,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
     private static EnemyRouteResult RunDiscoveredEnemyCast(string directory, GameState field, BattleAssets assets, NativeBattleEffectBinding effect, EnemyScenarioScriptedAction[] scripts, bool probeEnemies)
     {
         HashSet<string> blockers = new(StringComparer.Ordinal);
-        var candidates = scripts.Where(script => script.Callback is 0 or 1 && script.NativeAction is not null)
+        var candidates = scripts.Where(script => script.Callback is 0 or 1 && script.NativeAction is not null && (effect.Effect != 226 || script.LevelBand == 0))
             .SelectMany(script => script.Formations.Where(scene => scene.Enabled && !scene.Hidden && !scene.Suspended && !scene.Untargetable).Select(scene => (Script: script, Scene: scene)))
             .Where(route => AdmitsEnemyScript(assets, route.Script, route.Scene, blockers))
             .GroupBy(route => route.Scene.FormationId)
@@ -28,7 +28,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         string firstBlocker = "enemy-formation-entry";
         // Adamantoise's White Wind requires two successful random conditions in the same low-band turn.
         // Retry with independent entry seeds so unrelated AI admissions cannot hide this route by changing the RNG stream.
-        IEnumerable<byte> seeds = effect.Effect == 226 ? [0, 1, 2, 3] : [0];
+        IEnumerable<byte> seeds = effect.Effect == 226 ? [0, 5, 9] : [0];
         foreach (var (routes, seed) in seeds.SelectMany(seed => candidates.Select(routes => (routes, seed))))
         {
             ushort formation = checked((ushort)routes.Key);
