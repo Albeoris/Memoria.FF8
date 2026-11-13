@@ -16,15 +16,19 @@ internal sealed partial class WorldMapScene
         {
             return new(PlayerActionKind.Wait, Frames: 12);
         }
-        // NG-076: Approach the original Memorial landing area in normal flight.
-        if (WorldEntryVariables.Read(session.State).StoryWord != 3167)
+        // NG-076, NG-078: Approach each original story landing area in normal flight.
+        (int X, int Z)? landing = WorldEntryVariables.Read(session.State).StoryWord switch
+        {
+            3167 => (76288, 11520),
+            3400 or 3410 => (-28160, 69632),
+            _ => null
+        };
+        if (landing is not { } target)
         {
             return null;
         }
-        const int x = 76288;
-        const int z = 11520;
-        double dx = NearWrapped(x, current.X, 262144) - current.X;
-        double dz = NearWrapped(z, current.Z, 196608) - current.Z;
+        double dx = NearWrapped(target.X, current.X, 262144) - current.X;
+        double dz = NearWrapped(target.Z, current.Z, 196608) - current.Z;
         double distance = Math.Sqrt(dx * dx + dz * dz);
         if (distance < 650 && ship.Motor.Speed == 0 && PrepareRagnarokLanding(current) is not null)
         {

@@ -150,6 +150,7 @@ internal sealed partial class WorldMapScene
                 545 when story == 2000 => -1,
                 422 when story == 2145 => -1,
                 497 when story == 3167 => -1,
+                505 when story is 3400 or 3410 => -1,
                 159 => 0,
                 106 => 10,
                 136 => 20,

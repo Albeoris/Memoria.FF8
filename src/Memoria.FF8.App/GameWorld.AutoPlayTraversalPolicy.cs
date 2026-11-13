@@ -333,6 +333,10 @@ internal static class AutoPlayTraversalPolicy
             ("869:3220", "869:gateway:0") => -5,
             ("491:3220", "491:line:9" or "491:line-action:9") => -6,
             ("489:3300", "489:line:16" or "489:line:17" or "489:line:18") => -7,
+            // NG-078: Reach the original flower field and return for the invitation.
+            ("505:3400" or "505:3410" or "505:3494", "505:gateway:0") => -1,
+            ("506:3498", "506:talk:5") => -2,
+            ("506:3500", "506:gateway:0") => -3,
             _ => 0
         };
     }
