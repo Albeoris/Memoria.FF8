@@ -24,7 +24,7 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("The Aqua module requires its published projection.");
         Stack<(uint Address, int Size)> temporary = [];
         NativeBattleAquaInputs? renderingInputs = null;
-        NativeBattleAquaInputs inputs = new(nativeActionPackets, projection.View ?? throw new NotSupportedException("The Aqua module requires its current camera matrix."), projection, camera.Roll, definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("The Aqua module requires its original geometry constants."), index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("The Aqua module requires the actual posed model source."), ReadAnchor, Execute) { CameraPadding18 = camera.CanonicalViewPadding, PackedCamera = camera.CapturePackedView1D97778() };
+        NativeBattleAquaInputs inputs = new(nativeActionPackets, projection.View ?? throw new NotSupportedException("The Aqua module requires its current camera matrix."), projection, camera.Roll, definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("The Aqua module requires its original geometry constants."), index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("The Aqua module requires the actual posed model source."), ReadAnchor, Execute) { CameraPadding18 = camera.CanonicalViewPadding, PackedCamera = camera.CapturePackedView1D97778(), ReadForeign = actor => ReadNativeGraphicsForeignTarget(graphics, actor), ReadBoneCount = actor => ReadNativeGraphicsBoneCount(graphics, actor) };
         renderingInputs = inputs;
         frame = NativeBattleAquaController.Advance(frame, resources, inputs);
         if (temporary.Count != 0)
@@ -37,7 +37,7 @@ public sealed partial class BattleSession
 
         NativeBattleModuleAnchor ReadAnchor(int actor, short selector, int fraction)
         {
-            NativeBattleVector point = NativeBattlePoseMatrices.ReadBone(graphics.Models[actor], NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("The Aqua anchor requires its actual skeleton."), checked((byte)selector), checked((short)fraction));
+            NativeBattleVector point = ReadNativeGraphicsBone(graphics, actor, checked((byte)selector), checked((short)fraction));
             return new(point.X, point.Y, point.Z, 0);
         }
 
@@ -64,10 +64,7 @@ public sealed partial class BattleSession
                     graphics = graphics with { PendingContacts = pending };
                     return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("The Aqua contact lost its process owner.") };
                 case NativeBattleAquaSequence sequence:
-                    if (((graphics.Models[sequence.Actor].ResourceFlags44 ?? throw new NotSupportedException("The Aqua contact sequence requires its selected resource flags.")) & 0x140) != 0)
-                    {
-                        graphics = SelectNativeHeaderSequence(graphics, checked((byte)sequence.Actor), sequence.Sequence);
-                    }
+                    graphics = SelectNativeReadyHeaderSequence505CE0(graphics, checked((byte)sequence.Actor), sequence.Sequence);
                     return current;
                 case NativeBattleAquaBindCaster bind:
                     ImmutableArray<byte> dat = resources.CasterDat72 ?? throw new NotSupportedException("The Aqua caster binding requires its original Blue Magic DAT.");
@@ -80,8 +77,7 @@ public sealed partial class BattleSession
                     graphics = graphics with { Models = graphics.Models.SetItem(bind.Actor, graphics.Models[bind.Actor] with { Rotation14 = current.State.Word(0x4A) }) };
                     return current;
                 case NativeBattleAquaAnchor anchor:
-                    NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[anchor.Actor], NativeGraphicsPoseResource(graphics, anchor.Actor).PoseSource ?? throw new NotSupportedException("The Aqua anchor requires its actual posed skeleton."), checked((byte)anchor.Selector), checked((short)anchor.Fraction));
-                    return current with { Memory = ObserveNativeBoneAnchor(current.Memory, producer) };
+                    return current with { Memory = ObserveNativeGraphicsBoneAnchor(current.Memory, graphics, anchor.Actor, checked((byte)anchor.Selector), checked((short)anchor.Fraction)).Memory };
                 case NativeBattleAquaPackets packets:
                     NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("The Aqua drawing requires its current pending ordering table.");
                     NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(current.Memory.PrimitiveProcess ?? throw new NotSupportedException("The Aqua drawing requires its current common packet owner."), primitive.Pending, packets.Batch);

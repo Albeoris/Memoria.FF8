@@ -37,12 +37,9 @@ public sealed partial class BattleSession
 
         NativeBattleAcid170PointStep Bone(NativeBattleAcid170Frame current, int actor, int selector, int distance)
         {
-            NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Acid170 requires its current actor skeleton.");
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], source, checked((byte)selector), checked((short)distance));
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Acid170 bone query requires its addressed temporary memory.");
-            NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
-            NativeBattleVector point = producer.Enabled ? new(unchecked((short)observed.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
-            return new(current with { Memory = observed, Staging = NativeFileStaging }, Point(point));
+            var observed = ObserveNativeGraphicsBoneAnchor(current.Memory, graphics, actor, checked((byte)selector), checked((short)distance));
+            return new(current with { Memory = observed.Memory, Staging = NativeFileStaging }, Point(observed.Point));
         }
 
         NativeBattleAcid170PointStep Anchor(NativeBattleAcid170Frame current, int actor)

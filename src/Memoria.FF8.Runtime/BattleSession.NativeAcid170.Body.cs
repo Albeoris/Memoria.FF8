@@ -6,6 +6,10 @@ public sealed partial class BattleSession
 {
     private (NativeBattleAcid170Frame Frame, NativeBattleGraphicsState Graphics) DrawNativeAcid170Body(NativeBattleAcid170Frame frame, NativeBattleGraphicsState graphics, byte actor, uint temporaryAddress, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
+        if (ReadNativeGraphicsForeignModel(graphics, actor) is { } foreign)
+        {
+            return DrawNativeForeignAcid170Body(frame, graphics, actor, temporaryAddress, foreign, pilotIdentity);
+        }
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Acid170 target requires its current skeleton.");
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Acid170 target requires its current camera.");

@@ -6,7 +6,10 @@ public sealed record NativeBattleTheEnd85LeafStep(NativeBattleTheEnd85Frame Fram
 {
     public bool HierarchyReleased { get; init; }
 }
-public sealed record NativeBattleTheEnd85Inputs(NativeBattleActionPacketsState Packets, NativeBattlePackedMatrix32 CameraMatrix, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleTheEnd85Frame, uint, NativeBattleTheEnd85Frame> InitializeTarget, Func<NativeBattleTheEnd85Frame, uint, NativeBattleTheEnd85LeafStep> AdvanceLeaf, Func<NativeBattleTheEnd85Frame, int, NativeBattleTheEnd85Frame> ApplyContact, Func<NativeBattleTheEnd85Frame, NativeBattleChoco97Operation, NativeBattleTheEnd85Frame> Execute, uint DirectorAddress);
+public sealed record NativeBattleTheEnd85Inputs(NativeBattleActionPacketsState Packets, NativeBattlePackedMatrix32 CameraMatrix, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleTheEnd85Frame, uint, NativeBattleTheEnd85Frame> InitializeTarget, Func<NativeBattleTheEnd85Frame, uint, NativeBattleTheEnd85LeafStep> AdvanceLeaf, Func<NativeBattleTheEnd85Frame, int, NativeBattleTheEnd85Frame> ApplyContact, Func<NativeBattleTheEnd85Frame, NativeBattleChoco97Operation, NativeBattleTheEnd85Frame> Execute, uint DirectorAddress)
+{
+    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeign { get; init; }
+}
 
 public static partial class NativeBattleTheEnd85Controller
 {

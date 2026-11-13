@@ -50,6 +50,29 @@ public sealed class NativeBattleBadBreath300ControllerTests
     }
 
     [Fact]
+    public void Target_particles_select_actual_host_segments_without_reading_a_native_animation_bank()
+    {
+        Fixture fixture = new();
+        NativeBattleBadBreath300Frame frame = fixture.Frame;
+        int callbacks = 0;
+        while (frame.Effect.ReturnedDescriptor != 0 && callbacks++ < 130)
+        {
+            frame = fixture.Step(frame, hostSkeleton: true);
+        }
+        Assert.Equal(0u, frame.Effect.ReturnedDescriptor);
+        Assert.Equal(9, fixture.HostBoneQueries.Count);
+        Assert.NotEmpty(fixture.HostTargetCenters);
+        Assert.All(fixture.HostTargetCenters, y => Assert.Equal((short)123, y));
+        Assert.All(fixture.HostBoneQueries, query =>
+        {
+            Assert.Equal(3, query.Actor);
+            Assert.InRange(query.Selector, (byte)0, (byte)6);
+        });
+        Assert.Contains(fixture.HostBoneQueries, query => query.Selector >= 2);
+        Assert.Single(fixture.Operations.OfType<NativeBattleBadBreath300Contact>());
+    }
+
+    [Fact]
     public void Active_callback_JSON_restore_recreates_current_stack_producer_and_identical_next_state()
     {
         Fixture first = new();
@@ -121,6 +144,8 @@ public sealed class NativeBattleBadBreath300ControllerTests
         public NativeBattleBadBreath300Resources Resources { get; }
         public List<NativeBattleBadBreath300Operation> Operations { get; } = [];
         public List<uint> ScaleGates { get; } = [];
+        public List<(int Actor, byte Selector)> HostBoneQueries { get; } = [];
+        public List<short> HostTargetCenters { get; } = [];
         private NativeBattleActionPacketsState Packets { get; }
         private NativeBattlePoseSource Pose { get; }
         private NativeBattleGraphicsModel Model { get; }
@@ -157,14 +182,25 @@ public sealed class NativeBattleBadBreath300ControllerTests
             callback = source.callback;
         }
 
-        public NativeBattleBadBreath300Frame Step(NativeBattleBadBreath300Frame frame) => NativeBattleBadBreath300Controller.Advance(frame, Resources, new(Packets, actor => actor < 3 ? Model with { Index = actor, Flags0 = 0 } : Model, _ => Pose, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), 0x1234), (current, _) => new(current, new(0, 100, 100, 0)), current => new(current, new(17, 100, 0)), (current, _, _, _) => new(current, new(0, 100, 100)), (current, operation) =>
+        public NativeBattleBadBreath300Frame Step(NativeBattleBadBreath300Frame frame, bool hostSkeleton = false) => NativeBattleBadBreath300Controller.Advance(frame, Resources, new(Packets, actor => actor < 3 ? Model with { Index = actor, Flags0 = 0 } : hostSkeleton ? Model with { MinimumY146 = null } : Model, _ => hostSkeleton ? throw new InvalidOperationException("The host skeleton has no native animation bank.") : Pose, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), 0x1234), (current, _) => new(current, new(0, 100, 100, 0)), current => new(current, new(17, 100, 0)), (current, actor, selector, _) =>
+        {
+            if (hostSkeleton)
+            {
+                HostBoneQueries.Add((actor, selector));
+            }
+            return new(current, new(0, 100, 100));
+        }, (current, operation) =>
         {
             Operations.Add(operation);
             return current;
         }, (current, _, context, _) =>
         {
             ScaleGates.Add(BinaryPrimitives.ReadUInt32LittleEndian(context.Read(20, 4)));
+            if (hostSkeleton)
+            {
+                HostTargetCenters.Add(BinaryPrimitives.ReadInt16LittleEndian(context.Read(2, 2)));
+            }
             return current;
-        }, ++callback));
+        }, ++callback) { ReadBoneCount = hostSkeleton ? actor => actor == 3 ? 7 : throw new InvalidOperationException("The target particle selected another actor.") : null, ReadTargetCenterY = hostSkeleton ? _ => 123 : null });
     }
 }

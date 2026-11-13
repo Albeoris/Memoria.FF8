@@ -7,6 +7,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleLaserEye71NodeInputs(NativeBattleActionPacketsState Packets, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, Func<NativeBattleLaserEye71Frame, NativeBattlePackedMatrix32, NativeBattleVector, NativeBattleVector, NativeBattleLaserEye71MatrixStep> LookBasis8DDA50, Func<NativeBattleLaserEye71Frame, NativeBattleGfGeometryBatch, NativeBattleLaserEye71Frame> DeliverPrivate)
 {
     public Func<NativeBattleLaserEye71Frame, int, byte, NativeBattleLaserEye71Frame>? ObserveBone { get; init; }
+    public Func<int, byte, NativeBattleVector?>? ReadForeignBone { get; init; }
 }
 
 public static class NativeBattleLaserEye71Nodes
@@ -23,7 +24,7 @@ public static class NativeBattleLaserEye71Nodes
                 {
                     using NativeBattleNodeInitialization<NativeBattleLaserEye71State> initialization = frame.State.PrepareInitializeSource(resources);
                     frame = frame with { State = frame.State.WriteDword(0x25FCDD4, address + 0x34) };
-                    task = NativeBattleEffectNodeContext.Initialize(task, NativeBattleLaserEye71Controller.Read(frame, task.ReadDword(0x10)), frame.Effect.Parameters ?? throw new NotSupportedException("Laser Eye nodes require their captured action parameters."), inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource, SourceAddress, observeBone: (actor, selector) => frame = (inputs.ObserveBone ?? throw new NotSupportedException("Laser Eye node initialization requires its reached bone-anchor publication."))(frame, actor, selector));
+                    task = NativeBattleEffectNodeContext.Initialize(task, NativeBattleLaserEye71Controller.Read(frame, task.ReadDword(0x10)), frame.Effect.Parameters ?? throw new NotSupportedException("Laser Eye nodes require their captured action parameters."), inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource, SourceAddress, observeBone: (actor, selector) => frame = (inputs.ObserveBone ?? throw new NotSupportedException("Laser Eye node initialization requires its reached bone-anchor publication."))(frame, actor, selector), readForeignBone: inputs.ReadForeignBone);
                     frame = NativeBattleLaserEye71Controller.Write(frame, address, task);
                     frame = frame with { State = initialization.Publish() };
                     frame = AdvanceContext(frame, address, inputs).Frame;

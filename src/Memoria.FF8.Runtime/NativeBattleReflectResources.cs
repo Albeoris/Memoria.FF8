@@ -22,4 +22,6 @@ public sealed record NativeBattleReflectStep(NativeBattleReflectFrame Frame, Imm
 public sealed record NativeBattleReflectInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, NativeBattleSummonColors Colors, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleReflectFrame, NativeBattleGfGeometryBatch, NativeBattleReflectFrame> Emit)
 {
     public Func<NativeBattleReflectFrame, int, NativeBattleReflectFrame>? ApplyContact { get; init; }
+    public Func<int, byte, NativeBattleVector>? ReadBone { get; init; }
+    public Func<int, NativeBattleModuleAnchor>? ReadAnchor { get; init; }
 }

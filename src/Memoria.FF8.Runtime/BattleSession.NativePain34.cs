@@ -25,7 +25,7 @@ public sealed partial class BattleSession
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native Pain requires its current camera.");
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Native Pain requires its current projection.");
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Pain requires its current interpolation constants.");
-        NativeBattlePain34Inputs inputs = new(nativeActionPackets, camera.CapturePackedView1D97778(), actor => graphics.Models[actor], actor => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Pain requires its current actor pose."), Player, Contact, sound => PublishNativeModuleSound(new(sound, 0, null) { Pan = 128 }));
+        NativeBattlePain34Inputs inputs = new(nativeActionPackets, camera.CapturePackedView1D97778(), actor => graphics.Models[actor], actor => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Pain requires its current actor pose."), Player, Contact, sound => PublishNativeModuleSound(new(sound, 0, null) { Pan = 128 })) { ReadForeign = actor => ReadNativeGraphicsForeignTarget(graphics, actor) };
         NativeBattlePain34Frame advanced = NativeBattlePain34Controller.Advance865720(new(NativeEffectMemory ?? throw new NotSupportedException("Native Pain requires its current process memory."), effect, NativeFileStaging ?? throw new NotSupportedException("Native Pain requires its retained temporary storage.")), resources, inputs);
         NativeEffectMemory = advanced.Memory;
         NativeFileStaging = advanced.Staging;

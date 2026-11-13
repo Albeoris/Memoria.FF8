@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -42,4 +42,7 @@ public sealed record NativeBattleDeathModelStep(NativeBattleDeathFrame Frame, Na
 public sealed record NativeBattleDeathInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, uint DefaultColor, uint TransitionColor, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleDeathFrame, NativeBattleModulePoolTask, NativeBattleEffectOwnedModelState, NativeBattleDeathModelStep> DrawModel, Func<NativeBattleDeathFrame, NativeBattleDeathOperation, NativeBattleDeathFrame> Execute)
 {
     public Func<NativeBattlePackedMatrix32>? ReadPackedCamera { get; init; }
+    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeign { get; init; }
+    public Func<int, byte, NativeBattleVector?>? ReadForeignBone { get; init; }
+    public Func<NativeBattleDeathFrame, int, byte, NativeBattleDeathFrame>? ObserveForeignBone { get; init; }
 }

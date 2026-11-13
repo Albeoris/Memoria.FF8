@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
@@ -29,7 +29,7 @@ public sealed partial class BattleSession
         NativeBattleGraphicsDefinition rules = definition.NativeGraphics ?? throw new NotSupportedException("Native Death requires its original graphics rules.");
         NativeBattleSummonColors colors = rules.Rules.SummonColors ?? throw new NotSupportedException("Native Death requires its original interpolation constants.");
         NativeBattleDeathFrame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Death requires retained memory."), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Death requires its CRT random owner.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Native Death requires its addressed model memory.") };
-        NativeBattleDeathInputs inputs = new(nativeActionPackets, projection, camera.Roll, colors, colors.Normal, colors.Transition, index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Death requires its current target pose."), DrawModel, Execute) { ReadPackedCamera = camera.CapturePackedView1D97778 };
+        NativeBattleDeathInputs inputs = new(nativeActionPackets, projection, camera.Roll, colors, colors.Normal, colors.Transition, index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Death requires its current target pose."), DrawModel, Execute) { ReadPackedCamera = camera.CapturePackedView1D97778, ReadForeign = actor => ReadNativeGraphicsForeignTarget(graphics, actor), ReadForeignBone = (actor, selector) => NativeBattleEffectModelHelpers.ReadSemanticAnchor(ReadNativeGraphicsForeignTarget(graphics, actor), selector), ObserveForeignBone = (current, actor, selector) => current with { Memory = ObserveNativeGraphicsBoneAnchor(current.Memory, graphics, actor, selector, 0).Memory } };
         NativeBattleDeathFrame advanced = NativeBattleDeathController.Advance(frame, resources, inputs);
         NativeEffectMemory = advanced.Memory;
         NativeFileStaging = advanced.Staging ?? throw new NotSupportedException("Native Death lost its addressed model memory.");

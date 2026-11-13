@@ -137,7 +137,7 @@ public static partial class NativeBattleDeathController
                 current = NativeBattleDeathNodeDrawing.PublishCamera(current, camera);
                 int source = State.Source ?? throw new NotSupportedException("Native Death lost its initialized file pointer.");
                 SetState(State with { Cursor = source + ((root.ReadWord(0x5C) & 1) != 0 ? 0 : 0xE000), PassEmitters = 0, PassGeometry = 0 });
-                root = NativeBattleEffectModelHelpers.UpdateCaster8DC740(root, current.Effect.Parameters!, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource, producer => Emit(new NativeBattleDeathObserveAnchor(producer)));
+                root = NativeBattleEffectModelHelpers.UpdateCaster8DC740(root, current.Effect.Parameters!, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource, producer => Emit(new NativeBattleDeathObserveAnchor(producer)), inputs.ReadForeign, (actor, selector) => current = (inputs.ObserveForeignBone ?? throw new NotSupportedException("The host bone observation service is unavailable."))(current, actor, selector));
                 Store(address, root);
                 switch (Stage(root))
                 {

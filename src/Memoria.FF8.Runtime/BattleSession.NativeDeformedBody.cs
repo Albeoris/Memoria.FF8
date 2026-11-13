@@ -8,6 +8,13 @@ public sealed partial class BattleSession
 
     private NativeDeformedBodyBridge SnapshotNativeDeformedBody(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeCrtRandomState random, NativeBattleFileStaging staging, NativeBattleGraphicsState graphics, byte actor, uint cacheAddress, int cacheLength)
     {
+        if (ReadNativeGraphicsForeignModel(graphics, actor) is { } foreign)
+        {
+            NativeBattleForeignModelDrawing.RequireCoefficientCache(foreign, cacheAddress, cacheAddress, cacheLength);
+            NativeDeformedBodyBridge captured = AllocateNativeDeformedBody(memory, effect, random, staging, graphics, actor, 12);
+            NativeBattleAcid317SnapshotStep step = NativeBattleAcid317Snapshot.CaptureForeign(captured.Memory, captured.Random, captured.Temporary.Write(8, BitConverter.GetBytes(cacheAddress)), foreign, cacheAddress, cacheLength);
+            return FinishNativeDeformedBody(captured with { Memory = step.Memory, Random = step.Random, Temporary = step.Temporary12 }, actor, 12);
+        }
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Acid snapshot requires its current skeleton.");
         NativeBattleActionMatrix world = graphics.Models[actor].GeometryWorldMatrix ?? throw new NotSupportedException("Acid snapshot requires its current world matrix.");
@@ -37,6 +44,10 @@ public sealed partial class BattleSession
 
     private NativeDeformedBodyBridge DrawNativeDeformedBody(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeCrtRandomState random, NativeBattleFileStaging staging, NativeBattleGraphicsState graphics, byte actor, short fraction, uint cacheAddress, int cacheLength, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
+        if (ReadNativeGraphicsForeignModel(graphics, actor) is { } foreign)
+        {
+            return DrawNativeForeignDeformedBody(memory, effect, random, staging, graphics, actor, fraction, cacheAddress, cacheLength, foreign, pilotIdentity);
+        }
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Acid target requires its current skeleton.");
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Acid target requires its current camera.");

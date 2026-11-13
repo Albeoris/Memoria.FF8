@@ -60,7 +60,7 @@ public static partial class NativeBattleBadBreath300Controller
                         NativeBattleBadBreath300AnchorStep anchor = inputs.ReadAnchor571400(frame, actor);
                         frame = anchor.Frame;
                         NativeBattleGraphicsModel model = inputs.ReadModel(actor);
-                        short y = unchecked((short)(Transform(model).Position28.Y + (model.MinimumY146 ?? throw new NotSupportedException("Bad Breath requires its actual target height.")) / 2));
+                        short y = inputs.ReadTargetCenterY?.Invoke(actor) ?? unchecked((short)(Transform(model).Position28.Y + (model.MinimumY146 ?? throw new NotSupportedException("Bad Breath requires its actual target height.")) / 2));
                         NativeBattleModulePoolTask child = Read(frame, childAddress).WriteWord(12, 0).WriteByte(14, task.ReadByte(0x20 + selected)).WriteByte(15, (byte)actor).WriteWord(0x10, unchecked((ushort)anchor.Anchor.X)).WriteWord(0x12, unchecked((ushort)y)).WriteWord(0x14, unchecked((ushort)anchor.Anchor.Z)).WriteWord(0x16, unchecked((ushort)anchor.Anchor.W));
                         child = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(child, 0x18, NativeBattleGfAnimationWorkspace.Borrow(child, 0x18, 0x128).Initialize7016B0(resources.Target, 0x128));
                         frame = Write(frame, childAddress, child);

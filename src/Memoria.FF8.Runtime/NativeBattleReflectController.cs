@@ -138,7 +138,7 @@ public static class NativeBattleReflectController
                     }
                     if (age == 0)
                     {
-                        NativeBattleModuleAnchor anchor = NativeBattlePoseMatrices.ReadAnchor(actorModel, inputs.ReadPoseSource(actor));
+                        NativeBattleModuleAnchor anchor = inputs.ReadAnchor?.Invoke(actor) ?? NativeBattlePoseMatrices.ReadAnchor(actorModel, inputs.ReadPoseSource(actor));
                         sounds.Add(new(resources.Sound, 0x101, anchor));
                     }
                     if (age == 35)
@@ -222,7 +222,7 @@ public static class NativeBattleReflectController
             current = current with { Memory = current.Memory.DrawSharedEffectRandom7059E0(out ushort value) };
             return value;
         }
-        NativeBattleVector Bone(int actor, byte bone) => NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(actor), inputs.ReadPoseSource(actor), bone, 0);
+        NativeBattleVector Bone(int actor, byte bone) => inputs.ReadBone?.Invoke(actor, bone) ?? NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(actor), inputs.ReadPoseSource(actor), bone, 0);
         NativeBattleModulePoolTask Parent(uint pointer)
         {
             if (pointer < pools[1].BankAddress || (pointer - pools[1].BankAddress) % pools[1].Stride != 0 || (pointer - pools[1].BankAddress) / pools[1].Stride >= pools[1].Slots.Length)

@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
@@ -39,13 +39,20 @@ public static partial class NativeBattleDeathController
 
         private void Emitter(uint address)
         {
-            NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(Read(address), Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource, producer => Emit(new NativeBattleDeathObserveAnchor(producer)));
+            NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(Read(address), Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource, producer => Emit(new NativeBattleDeathObserveAnchor(producer)), inputs.ReadForeign, (index, selector) => current = (inputs.ObserveForeignBone ?? throw new NotSupportedException("The host bone observation service is unavailable."))(current, index, selector));
             int actor = task.ReadByte(0x2D);
             NativeBattleGraphicsModel model = inputs.ReadModel(actor);
-            NativeBattlePoseSource source = inputs.ReadPoseSource(actor);
-            NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native Death target bounds require its current pose.");
-            NativeBattleDecodedPose pose = sequence.DecodedPose ?? source.Sample(sequence.Pose ?? throw new NotSupportedException("Native Death requires its target pose selector."), sequence.PoseFrame114 ?? throw new NotSupportedException("Native Death requires its target pose frame."), sequence.PoseFlags109);
-            task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, pose);
+            if (inputs.ReadForeign?.Invoke(actor) is { } foreign)
+            {
+                task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, foreign);
+            }
+            else
+            {
+                NativeBattlePoseSource source = inputs.ReadPoseSource(actor);
+                NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native Death target bounds require its current pose.");
+                NativeBattleDecodedPose pose = sequence.DecodedPose ?? source.Sample(sequence.Pose ?? throw new NotSupportedException("Native Death requires its target pose selector."), sequence.PoseFrame114 ?? throw new NotSupportedException("Native Death requires its target pose frame."), sequence.PoseFlags109);
+                task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, pose);
+            }
             Store(address, task);
             switch (Stage(task))
             {
@@ -86,7 +93,7 @@ public static partial class NativeBattleDeathController
             SetState(State with { Module = State.Module.Write(profile.ModuleOffset(0x27423F8), new byte[0x54]) });
             NativeBattleGraphicsModel model = inputs.ReadModel(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Death requires target position and size WORDs.");
-            NativeBattleVector bone = NativeBattlePoseMatrices.ReadBone(model, inputs.ReadPoseSource(actor), 0xF1, 0);
+            NativeBattleVector bone = inputs.ReadForeignBone?.Invoke(actor, 0xF1) ?? NativeBattlePoseMatrices.ReadBone(model, inputs.ReadPoseSource(actor), 0xF1, 0);
             Word(0x2742400, bone.X);
             Word(0x2742402, 0);
             Word(0x2742404, bone.Z);

@@ -7,10 +7,15 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState DrawNativeBreak117Body(NativeBattleGraphicsState graphics, int index, int level, ImmutableArray<byte> dither, NativeBattlePilotVisualIdentity identity)
     {
         NativeBattleGraphicsModel model = graphics.Models[index];
-        NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Break requires its published projection.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Break requires its retained view matrix.");
         graphics = SubmitNativeShadowPackets5088A0(graphics, model, projection, 4112, false);
+        if (ReadNativeGraphicsForeignModel(graphics, index) is { } foreign)
+        {
+            NativeBattleBreak117BodyResult drawn = NativeBattleForeignModelDrawing.Break(foreign, projection, model.Color40 ?? throw new NotSupportedException("Host model petrification requires its retained model color."), dither, level, identity);
+            return AppendNativePrimitivePackets(graphics, drawn.Primitives);
+        }
+        NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native Break requires its actual body skeleton.");
         model = NativeBattlePoseMatrices.ComposeGeometryMatrices5095B0(model, source, view);
         graphics = graphics with { Models = graphics.Models.SetItem(index, model) };

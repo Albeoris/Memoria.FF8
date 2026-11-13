@@ -107,7 +107,7 @@ public sealed partial class BattleSession
 
     private int ReadNativeGraphicsBoneCount(NativeBattleGraphicsState graphics, int index)
     {
-        if (presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true)
+        if (NativeGraphicsUsesForeignPose(graphics, index) && presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true)
         {
             return foreign.BoneCount > 0 ? foreign.BoneCount : throw new NotSupportedException("The host actor cannot supply its actual skeleton segment count.");
         }
@@ -116,7 +116,7 @@ public sealed partial class BattleSession
 
     private NativeBattleVector ReadNativeGraphicsBone(NativeBattleGraphicsState graphics, int index, byte selector, short fraction)
     {
-        if (presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true)
+        if (NativeGraphicsUsesForeignPose(graphics, index) && presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true)
         {
             return NativeBattleGfMatrices.Transform460840(NativeBattleForeignPlacement.Delta(foreign, graphics.Models[index]), foreign.ReadBone(selector, fraction));
         }
@@ -140,7 +140,7 @@ public sealed partial class BattleSession
 
     private NativeBattleModuleAnchor ReadNativeModelAnchor(NativeBattleGraphicsState graphics, int index)
     {
-        if (presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true)
+        if (NativeGraphicsUsesForeignPose(graphics, index) && presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true)
         {
             NativeBattleModuleAnchor anchor = foreign.Anchor;
             NativeBattleVector point = NativeBattleGfMatrices.Transform460840(NativeBattleForeignPlacement.Delta(foreign, graphics.Models[index]), new(anchor.X, anchor.Y, anchor.Z));

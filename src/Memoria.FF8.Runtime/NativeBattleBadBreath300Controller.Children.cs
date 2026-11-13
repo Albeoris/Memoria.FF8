@@ -44,7 +44,7 @@ public static partial class NativeBattleBadBreath300Controller
             if (childAddress != 0)
             {
                 frame = DrawRandom(frame, out ushort selector);
-                int count = inputs.ReadPoseSource(actor).BoneCount;
+                int count = inputs.ReadBoneCount?.Invoke(actor) ?? inputs.ReadPoseSource(actor).BoneCount;
                 int selected = selector * count >> 15;
                 if ((uint)selected > byte.MaxValue)
                 {

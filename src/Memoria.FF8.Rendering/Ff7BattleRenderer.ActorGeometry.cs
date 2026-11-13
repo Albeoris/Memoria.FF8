@@ -8,10 +8,12 @@ namespace Memoria.FF8.Rendering;
 public sealed record Ff7BattleActorFace(Vector3 A, Vector3 B, Vector3 C, int Part, int Group, int Polygon, PcRenderState Material)
 {
     public NativeBattleForeignSurface? Surface { get; init; }
+    public ImmutableArray<int> VertexIndices { get; init; } = [];
 }
 public sealed record NativeBattleForeignRenderMaterial(TriangleMaterial Material, bool Cull) : INativeBattleForeignMaterial;
 public sealed record Ff7BattleActorGeometry(ImmutableArray<Ff7BattleActorFace> Faces, ImmutableArray<Vector3> SkeletonPoints)
 {
+    public ImmutableArray<Vector3> Vertices { get; init; } = [];
     public Vector3? GuestRoot { get; init; }
     public Vector3? GuestEffectAnchor { get; init; }
     public ImmutableArray<(Vector3 A, Vector3 B, Vector3 C)> GuestFaces { get; init; } = [];
@@ -28,11 +30,14 @@ public sealed partial class Ff7BattleRenderer
     public Ff7BattleActorGeometry CaptureActorGeometry(Ff7BattleActorVisual actor)
     {
         ImmutableArray<Ff7BattleActorFace>.Builder faces = ImmutableArray.CreateBuilder<Ff7BattleActorFace>();
+        ImmutableArray<Vector3>.Builder vertices = ImmutableArray.CreateBuilder<Vector3>();
         int part = 0;
         Ff7ModelMaterialState materialState = new();
         ImmutableArray<Vector3> skeleton = [];
         VisitActorGeometry(actor, (model, textures, transform) =>
         {
+            int vertexStart = vertices.Count;
+            vertices.AddRange(model.Vertices.Select(vertex => Vector3.Transform(vertex, transform)));
             if (model.Groups.Count != model.RenderStates.Count)
             {
                 throw new InvalidDataException("FFVII battle P groups require their original material records.");
@@ -63,7 +68,8 @@ public sealed partial class Ff7BattleRenderer
                     Vector4 first = Color(polygon.A);
                     faces.Add(new(Vertex(polygon.A), Vertex(polygon.B), Vertex(polygon.C), part, groupIndex, polygonIndex, material)
                     {
-                        Surface = new(surfaceMaterial, [Uv(polygon.A), Uv(polygon.B), Uv(polygon.C)], [first, materialState.Gouraud ? Color(polygon.B) : first, materialState.Gouraud ? Color(polygon.C) : first])
+                        Surface = new(surfaceMaterial, [Uv(polygon.A), Uv(polygon.B), Uv(polygon.C)], [first, materialState.Gouraud ? Color(polygon.B) : first, materialState.Gouraud ? Color(polygon.C) : first]),
+                        VertexIndices = [checked(vertexStart + group.VertexStart + polygon.A), checked(vertexStart + group.VertexStart + polygon.B), checked(vertexStart + group.VertexStart + polygon.C)]
                     });
                 }
                 Vector3 Vertex(int local) => Vector3.Transform(model.Vertices[group.VertexStart + local], transform);
@@ -77,7 +83,7 @@ public sealed partial class Ff7BattleRenderer
             }
             part++;
         }, points => skeleton = points);
-        return new(faces.ToImmutable(), skeleton) { Bones = Enumerable.Range(0, (skeleton.Length - 1) / 2).Select(index => (skeleton[index * 2 + 1], skeleton[index * 2 + 2])).ToImmutableArray(), BoneParents = LoadActor(actor.ModelPrefix).Data.Bones.Select(bone => bone.Parent).ToImmutableArray() };
+        return new(faces.ToImmutable(), skeleton) { Vertices = vertices.ToImmutable(), Bones = Enumerable.Range(0, (skeleton.Length - 1) / 2).Select(index => (skeleton[index * 2 + 1], skeleton[index * 2 + 2])).ToImmutableArray(), BoneParents = LoadActor(actor.ModelPrefix).Data.Bones.Select(bone => bone.Parent).ToImmutableArray() };
     }
 
     private void VisitActorGeometry(Ff7BattleActorVisual actor, Action<PcPolygonModel, IReadOnlyList<PcTexture>, Matrix4x4> visit, Action<ImmutableArray<Vector3>>? captureSkeleton = null)

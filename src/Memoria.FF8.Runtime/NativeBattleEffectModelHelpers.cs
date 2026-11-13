@@ -6,6 +6,16 @@ public sealed record NativeBattleEffectActorGeometry(NativeBattleVector Anchor24
 /// <summary>The shared8DC610/8DC740 anchors and8DC870 local posed-skeleton bounds.</summary>
 public static class NativeBattleEffectModelHelpers
 {
+    public static short? ReadVerticalCenter(NativeBattleForeignModelGeometry? geometry)
+    {
+        if (geometry is null)
+        {
+            return null;
+        }
+        var bounds = NativeBattleForeignModelDrawing.VerticalBounds(geometry, point => NativeBattleGfMatrices.Transform460840(geometry.World, point).Y);
+        return unchecked((short)((bounds.Minimum + bounds.Maximum) / 2));
+    }
+
     public static NativeBattleVector? ReadSemanticAnchor(NativeBattleEffectActorGeometry? geometry, byte selector)
     {
         if (geometry is null)
@@ -32,9 +42,10 @@ public static class NativeBattleEffectModelHelpers
         NativeBattleSequenceState pose = models[target].SequenceState ?? throw new NotSupportedException("Target bounds require its current decoded pose.");
         return UpdateBounds8DC870(task, source, source.Sample(pose.Pose ?? throw new NotSupportedException("Target bounds require its selected pose."), pose.PoseFrame114 ?? throw new NotSupportedException("Target bounds require its decoded frame."), pose.PoseFlags109));
     }
-    public static NativeBattleModulePoolTask UpdateTarget8DC610(NativeBattleModulePoolTask task, IReadOnlyList<NativeBattleGraphicsModel> models, Func<int, NativeBattlePoseSource> readSource, Action<NativeBattleBoneAnchorProducer>? observeAnchor = null)
+
+    public static NativeBattleModulePoolTask UpdateTarget8DC610(NativeBattleModulePoolTask task, IReadOnlyList<NativeBattleGraphicsModel> models, Func<int, NativeBattlePoseSource> readSource, Action<NativeBattleBoneAnchorProducer>? observeAnchor = null, Func<int, NativeBattleEffectActorGeometry?>? readForeign = null, Action<int, byte>? observeForeignAnchor = null)
     {
-        return WriteAnchors(task, models, task.ReadByte(0x2D), readSource, observeAnchor);
+        return WriteAnchors(task, models, task.ReadByte(0x2D), readSource, observeAnchor, readForeign, observeForeignAnchor);
     }
 
     public static NativeBattleModulePoolTask UpdateTarget8DC610(NativeBattleModulePoolTask task, NativeBattleEffectActorGeometry geometry)
@@ -42,9 +53,9 @@ public static class NativeBattleEffectModelHelpers
         return WriteBounds(WriteAnchors(task, geometry.Anchor240, geometry.Anchor241, geometry.GroundY), geometry.LocalBounds);
     }
 
-    public static NativeBattleModulePoolTask UpdateCaster8DC740(NativeBattleModulePoolTask task, NativeBattleEffectParameters parameters, IReadOnlyList<NativeBattleGraphicsModel> models, Func<int, NativeBattlePoseSource> readSource, Action<NativeBattleBoneAnchorProducer>? observeAnchor = null)
+    public static NativeBattleModulePoolTask UpdateCaster8DC740(NativeBattleModulePoolTask task, NativeBattleEffectParameters parameters, IReadOnlyList<NativeBattleGraphicsModel> models, Func<int, NativeBattlePoseSource> readSource, Action<NativeBattleBoneAnchorProducer>? observeAnchor = null, Func<int, NativeBattleEffectActorGeometry?>? readForeign = null, Action<int, byte>? observeForeignAnchor = null)
     {
-        return WriteAnchors(task, models, parameters.Actor78, readSource, observeAnchor);
+        return WriteAnchors(task, models, parameters.Actor78, readSource, observeAnchor, readForeign, observeForeignAnchor);
     }
 
     public static NativeBattleModulePoolTask UpdateBounds8DC870(NativeBattleModulePoolTask task, NativeBattlePoseSource source, NativeBattleDecodedPose pose)
@@ -65,7 +76,7 @@ public static class NativeBattleEffectModelHelpers
         return task.WriteWord(0x48, unchecked((ushort)bounds.Minimum.X)).WriteWord(0x4A, unchecked((ushort)bounds.Minimum.Y)).WriteWord(0x4C, unchecked((ushort)bounds.Minimum.Z)).WriteWord(0x50, unchecked((ushort)bounds.Maximum.X)).WriteWord(0x52, unchecked((ushort)bounds.Maximum.Y)).WriteWord(0x54, unchecked((ushort)bounds.Maximum.Z));
     }
 
-    private static NativeBattleModulePoolTask WriteAnchors(NativeBattleModulePoolTask task, IReadOnlyList<NativeBattleGraphicsModel> models, int index, Func<int, NativeBattlePoseSource> readSource, Action<NativeBattleBoneAnchorProducer>? observeAnchor)
+    private static NativeBattleModulePoolTask WriteAnchors(NativeBattleModulePoolTask task, IReadOnlyList<NativeBattleGraphicsModel> models, int index, Func<int, NativeBattlePoseSource> readSource, Action<NativeBattleBoneAnchorProducer>? observeAnchor, Func<int, NativeBattleEffectActorGeometry?>? readForeign, Action<int, byte>? observeForeignAnchor)
     {
         if ((uint)index >= models.Count)
         {
@@ -75,6 +86,12 @@ public static class NativeBattleEffectModelHelpers
         if ((model.Flags0 & 2) == 0)
         {
             return task;
+        }
+        if (readForeign?.Invoke(index) is { } foreign)
+        {
+            observeForeignAnchor?.Invoke(index, 240);
+            observeForeignAnchor?.Invoke(index, 241);
+            return WriteAnchors(task, foreign.Anchor240, foreign.Anchor241, (model.Transform ?? throw new NotSupportedException("The host anchor requires its current ground WORD.")).Angle36);
         }
         NativeBattlePoseSource source = readSource(index);
         NativeBattleVector first = ReadAnchor(240);

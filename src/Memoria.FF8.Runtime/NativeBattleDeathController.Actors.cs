@@ -20,7 +20,7 @@ public static partial class NativeBattleDeathController
                 {
                     NativeBattleVector actorOrigin = new(unchecked((short)Word(0x27423F8)), unchecked((short)Word(0x27423FA)), unchecked((short)Word(0x27423FC)));
                     NativeBattleVector targetOrigin = new(unchecked((short)Word(0x2742400)), unchecked((short)Word(0x2742402)), unchecked((short)Word(0x2742404)));
-                    task = NativeBattleEffectNodeContext.Initialize(task, Read(task.ReadDword(0x10)), current.Effect.Parameters!, inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource, source, singleSelectedTarget: profile.SingleSelectedTarget, dogOrigins: new(actorOrigin, targetOrigin));
+                    task = NativeBattleEffectNodeContext.Initialize(task, Read(task.ReadDword(0x10)), current.Effect.Parameters!, inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource, source, singleSelectedTarget: profile.SingleSelectedTarget, dogOrigins: new(actorOrigin, targetOrigin), readForeignBone: inputs.ReadForeignBone);
                     Store(address, task);
                     SetActorBank(source, initialization.Publish());
                 }

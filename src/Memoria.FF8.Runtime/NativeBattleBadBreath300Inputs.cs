@@ -16,6 +16,8 @@ public sealed record NativeBattleBadBreath300AnchorStep(NativeBattleBadBreath300
 public sealed record NativeBattleBadBreath300PointStep(NativeBattleBadBreath300Frame Frame, NativeBattleVector Position);
 public sealed record NativeBattleBadBreath300Inputs(NativeBattleActionPacketsState Packets, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleBadBreath300Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleBadBreath300Frame, int, NativeBattleBadBreath300AnchorStep> ReadAnchor571400, Func<NativeBattleBadBreath300Frame, NativeBattleBadBreath300PointStep> ReadMouth, Func<NativeBattleBadBreath300Frame, int, byte, short, NativeBattleBadBreath300PointStep> ReadBone502170, Func<NativeBattleBadBreath300Frame, NativeBattleBadBreath300Operation, NativeBattleBadBreath300Frame> Execute, Func<NativeBattleBadBreath300Frame, NativeBattleGfAnimationSource, NativeBattleEffectArena, NativeBattleGfAnimationNode, NativeBattleBadBreath300Frame> EmitNode, long Callback)
 {
+    public Func<int, int>? ReadBoneCount { get; init; }
+    public Func<int, short?>? ReadTargetCenterY { get; init; }
     [System.Text.Json.Serialization.JsonIgnore]
     public Func<NativeBattleBadBreath300Frame, NativeBattleGfAnimationSource, NativeBattleEffectArena, NativeBattleGfAnimationNode, NativeBattlePilotVisualIdentity, NativeBattleBadBreath300Frame>? EmitNodePresentation { get; init; }
 }

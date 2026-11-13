@@ -20,7 +20,7 @@ public static class NativeBattleConfuse36Context
             throw new InvalidDataException("Native Confuse requires its original already relocated actor directory.");
         }
         NativeBattleTaskOperation.AdmitCurrentRetainedArena(executable.Arena);
-        task = NativeBattleEffectNodeContext.Initialize(task, hierarchy.Read(task.ReadDword(0x10)), frame.Effect.Parameters ?? throw new NotSupportedException("Native Confuse36 context requires50AFC0 parameters."), inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource, profile.ExecutableAddress);
+        task = NativeBattleEffectNodeContext.Initialize(task, hierarchy.Read(task.ReadDword(0x10)), frame.Effect.Parameters ?? throw new NotSupportedException("Native Confuse36 context requires50AFC0 parameters."), inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource, profile.ExecutableAddress, readForeignBone: inputs.ReadForeignBone);
         hierarchy = hierarchy.Write(address, task);
         NativeBattleEffectMemory memory = frame.Memory with { Confuse36Executable = executable, Confuse36ExecutableInitialized = true };
         return NativeBattleTaskOperation.CompleteStandalone(operation, frame with { Memory = memory, Effect = frame.Effect with { Pools = hierarchy.Pools } });

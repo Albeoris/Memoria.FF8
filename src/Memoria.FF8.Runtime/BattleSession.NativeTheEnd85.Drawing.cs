@@ -42,7 +42,7 @@ public sealed partial class BattleSession
             return drawn.Remaining;
         }
 
-        private NativeBattleTheEnd85NodeServices NodeServices() => new(resources, owner.nativeActionPackets, ReadModel, ReadPose, Camera.CapturePackedView1D97778().ReadMatrix(), DrawNode) { DrawCapturedNode = (current, node, model, callback, identity) => DrawCapturedNode(current, node, model, callback, identity) };
+        private NativeBattleTheEnd85NodeServices NodeServices() => new(resources, owner.nativeActionPackets, ReadModel, ReadPose, Camera.CapturePackedView1D97778().ReadMatrix(), DrawNode) { ReadForeignBone = (actor, selector) => NativeBattleEffectModelHelpers.ReadSemanticAnchor(owner.ReadNativeGraphicsForeignTarget(graphics, actor), selector), DrawCapturedNode = (current, node, model, callback, identity) => DrawCapturedNode(current, node, model, callback, identity) };
 
         private NativeBattleTheEnd85Frame DrawNode(NativeBattleTheEnd85Frame current, uint node, uint model, uint callback)
         {

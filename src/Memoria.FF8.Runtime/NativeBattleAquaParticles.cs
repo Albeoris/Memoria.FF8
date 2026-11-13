@@ -144,7 +144,7 @@ public static partial class NativeBattleAquaParticles
                         hierarchy = child.Hierarchy;
                         task = hierarchy.Read(address);
                         int target = task.ReadByte(0x2D);
-                        int bones = inputs.ReadPoseSource(target).BoneCount;
+                        int bones = inputs.ReadBoneCount?.Invoke(target) ?? inputs.ReadPoseSource(target).BoneCount;
                         NativeCrtRandomState random = current.Random;
                         NativeBattleModulePoolTask born = InitializeTargetBirth(task, hierarchy.Read(child.Address), spray, bones, (selector, fraction) =>
                         {

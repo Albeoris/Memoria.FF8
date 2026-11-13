@@ -2,6 +2,21 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
+    private bool NativeGraphicsUsesForeignPose(NativeBattleGraphicsState graphics, int index)
+    {
+        return presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true && foreign.NativeResource is null && graphics.Models[index].ActiveStagedResourceRow100 is null && graphics.Models[index].ResourceMagicId is null && graphics.Models[index].ResourceRenzokukenTargetBank is null;
+    }
+
+    private NativeBattleEffectActorGeometry? ReadNativeGraphicsForeignTarget(NativeBattleGraphicsState graphics, int index)
+    {
+        return NativeGraphicsUsesForeignPose(graphics, index) ? ReadNativeForeignTarget(graphics, index) : null;
+    }
+
+    private NativeBattleForeignModelGeometry? ReadNativeGraphicsForeignModel(NativeBattleGraphicsState graphics, int index)
+    {
+        return NativeGraphicsUsesForeignPose(graphics, index) ? ReadNativeForeignModel(graphics, index) : null;
+    }
+
     private bool NativeGraphicsActorAtStandingPose(NativeBattleGraphicsState graphics, int index)
     {
         if (presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true && foreign.NativeResource is null)
@@ -22,7 +37,7 @@ public sealed partial class BattleSession
 
     private NativeBattlePosedActor? ReadNativeForeignPose(NativeBattleGraphicsState graphics, int index)
     {
-        if (presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) != true)
+        if (!NativeGraphicsUsesForeignPose(graphics, index) || presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) != true)
         {
             return null;
         }
@@ -35,7 +50,7 @@ public sealed partial class BattleSession
     private (NativeBattleEffectMemory Memory, NativeBattleVector Point) ObserveNativeGraphicsBoneAnchor(NativeBattleEffectMemory memory, NativeBattleGraphicsState graphics, int index, byte selector, short fraction)
     {
         NativeBattleGraphicsModel model = graphics.Models[index];
-        if (presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true)
+        if (NativeGraphicsUsesForeignPose(graphics, index) && presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true)
         {
             if ((model.Flags0 & 2) == 0)
             {

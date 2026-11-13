@@ -35,6 +35,35 @@ public sealed class NativeBattleEffectModelHelperTests
         Assert.Equal(models[selected].Transform!.Angle36, unchecked((short)updated.ReadWord(0x32)));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Host_caster_and_target_anchors_observe_actual_slot_and_preserve_unreached_bounds(bool caster)
+    {
+        NativeBattleGraphicsModel[] models = [Model(0, new(100, 200, 300), -333), Model(1, new(-100, -200, -300), 777)];
+        NativeBattleEffectActorGeometry geometry = new(new(-11, 53, 29), new(8, -24, 17), -999, new(new(-40, -50, -60), new(70, 80, 90)));
+        NativeBattleModulePoolTask task = Task().WriteByte(0x2D, 0).WriteWord(0x48, 0xA55A).WriteWord(0x50, 0xB66B);
+        List<(int Actor, byte Selector)> observations = [];
+        NativeBattlePoseSource ReadSource(int actor) => throw new InvalidOperationException("A host pose must not require a native animation bank.");
+        NativeBattleModulePoolTask updated = caster
+            ? NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, new(1, 0, 0, 0, 0, 0), models, ReadSource, readForeign: _ => geometry, observeForeignAnchor: (actor, selector) => observations.Add((actor, selector)))
+            : NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, models, ReadSource, readForeign: _ => geometry, observeForeignAnchor: (actor, selector) => observations.Add((actor, selector)));
+        int selected = caster ? 1 : 0;
+        Assert.Equal(new (int, byte)[] { (selected, 240), (selected, 241) }, observations);
+        Assert.Equal(new short[] { 8, models[selected].Transform!.Angle36, 17 }, Words(updated, 0x30));
+        Assert.Equal(new short[] { -1, 14, 23 }, Words(updated, 0x38));
+        Assert.Equal(new short[] { -11, 53, 29 }, Words(updated, 0x40));
+        Assert.Equal((ushort)0xA55A, updated.ReadWord(0x48));
+        Assert.Equal((ushort)0xB66B, updated.ReadWord(0x50));
+        models[selected] = models[selected] with { Flags0 = 0 };
+        observations.Clear();
+        NativeBattleModulePoolTask disabled = caster
+            ? NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, new(1, 0, 0, 0, 0, 0), models, ReadSource, readForeign: _ => throw new InvalidOperationException("Disabled actors do not read host anchors."))
+            : NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, models, ReadSource, readForeign: _ => throw new InvalidOperationException("Disabled actors do not read host anchors."));
+        Assert.Same(task, disabled);
+        Assert.Empty(observations);
+    }
+
     [Fact]
     public void Current_model_geometry_aliases_override_source_selectors_and_adjacent_WORDs_remain_retained()
     {

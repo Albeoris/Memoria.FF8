@@ -25,7 +25,7 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Confuse36 callback requires its prior projection registers.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Confuse36 callback requires the previously published camera matrix.");
         NativeBattleConfuse36Frame initial = new(NativeEffectMemory ?? throw new NotSupportedException("Native Confuse36 callback requires its retained process memory."), effect, effect.Confuse36 ?? throw new NotSupportedException("Native Confuse36 callback requires its executed original entry."));
-        NativeBattleConfuse36ControllerInputs inputs = new(nativeActionPackets, view, index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Confuse36 anchors require their original model pose source.")) { ApplyContact = ApplyContact, TransformTarget = TransformTarget };
+        NativeBattleConfuse36ControllerInputs inputs = new(nativeActionPackets, view, index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Confuse36 anchors require their original model pose source.")) { ApplyContact = ApplyContact, TransformTarget = TransformTarget, ReadForeign = actor => ReadNativeGraphicsForeignTarget(graphics, actor), ReadForeignBone = (actor, selector) => NativeBattleEffectModelHelpers.ReadSemanticAnchor(ReadNativeGraphicsForeignTarget(graphics, actor), selector) };
         NativeBattleConfuse36ControllerStep step = NativeBattleConfuse36Controller.Advance(initial, inputs, resources, (current, address) =>
         {
             //The controller's actual clear/previous callback writes must become canonical before the next immediate callback.
@@ -61,10 +61,7 @@ public sealed partial class BattleSession
 
         NativeBattleConfuse36Frame TransformTarget(NativeBattleConfuse36Frame current, byte actor)
         {
-            if (((graphics.Models[actor].ResourceFlags44 ?? throw new NotSupportedException("Native505CE0 requires its selected resource flags.")) & 0x140) != 0)
-            {
-                graphics = SelectNativeHeaderSequence(graphics, actor, 4);
-            }
+            graphics = SelectNativeReadyHeaderSequence505CE0(graphics, actor, 4);
             return current;
         }
 

@@ -10,7 +10,11 @@ public sealed record NativeBattleBlindSound(NativeBattleModuleSound Sound) : Nat
 public sealed record NativeBattleBlindContact(int Index) : NativeBattleBlindOperation;
 public sealed record NativeBattleBlindFade : NativeBattleBlindOperation;
 public sealed record NativeBattleBlindFlash(int Strength) : NativeBattleBlindOperation;
-public sealed record NativeBattleBlindInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, NativeBattleSummonColors Colors, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleBlindFrame, NativeBattleBlindOperation, NativeBattleBlindFrame> Execute);
+public sealed record NativeBattleBlindInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, NativeBattleSummonColors Colors, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleBlindFrame, NativeBattleBlindOperation, NativeBattleBlindFrame> Execute)
+{
+    public Func<int, byte, short, NativeBattleVector>? ReadBone { get; init; }
+    public Func<int, NativeBattleModuleAnchor>? ReadAnchor { get; init; }
+}
 
 public static class NativeBattleBlindController
 {
@@ -83,7 +87,7 @@ public static class NativeBattleBlindController
                 int actor = NativeBattleStatusMagicController.ModelIndex(target.ReadDword(24));
                 if (age < 20)
                 {
-                    NativeBattleVector position = NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(actor), inputs.ReadPoseSource(actor), 0xF0, 0);
+                    NativeBattleVector position = inputs.ReadBone?.Invoke(actor, 0xF0, 0) ?? NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(actor), inputs.ReadPoseSource(actor), 0xF0, 0);
                     target = target.WriteWord(16, unchecked((ushort)position.X)).WriteWord(18, unchecked((ushort)position.Y)).WriteWord(20, unchecked((ushort)position.Z));
                 }
                 NativeBattleVector anchor = new(Word(target, 16), Word(target, 18), Word(target, 20));
@@ -97,7 +101,7 @@ public static class NativeBattleBlindController
                 target = StoreWorkspace(target, advanced.Workspace);
                 if (age == 4)
                 {
-                    NativeBattleModuleAnchor sound = NativeBattlePoseMatrices.ReadAnchor(inputs.ReadModel(actor), inputs.ReadPoseSource(actor));
+                    NativeBattleModuleAnchor sound = inputs.ReadAnchor?.Invoke(actor) ?? NativeBattlePoseMatrices.ReadAnchor(inputs.ReadModel(actor), inputs.ReadPoseSource(actor));
                     current = inputs.Execute(current, new NativeBattleBlindSound(new(resources.Sound, 0x101, sound)));
                 }
                 if (age is 13 or 18 or 21)

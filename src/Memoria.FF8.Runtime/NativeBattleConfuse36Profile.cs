@@ -54,6 +54,8 @@ public sealed record NativeBattleConfuse36LeafStep(NativeBattleConfuse36Frame Fr
 public sealed record NativeBattleConfuse36ControllerStep(NativeBattleConfuse36Frame Frame, ImmutableArray<int> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
 public sealed record NativeBattleConfuse36ControllerInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource)
 {
+    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeign { get; init; }
+    public Func<int, byte, NativeBattleVector?>? ReadForeignBone { get; init; }
     public Func<NativeBattleConfuse36Frame, int, NativeBattleConfuse36Frame>? ApplyContact { get; init; }
     public Func<NativeBattleConfuse36Frame, byte, NativeBattleConfuse36Frame>? TransformTarget { get; init; }
 }

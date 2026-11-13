@@ -3,7 +3,10 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattlePain34LeafStep(NativeBattlePain34Frame Frame, bool Complete);
-public sealed record NativeBattlePain34Inputs(NativeBattleActionPacketsState Packets, NativeBattlePackedMatrix32 Camera, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPose, Func<NativeBattlePain34Frame, uint, NativeBattlePain34LeafStep> AdvancePlayer, Func<NativeBattlePain34Frame, int, NativeBattlePain34Frame> Contact, Action<uint> PlaySound);
+public sealed record NativeBattlePain34Inputs(NativeBattleActionPacketsState Packets, NativeBattlePackedMatrix32 Camera, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPose, Func<NativeBattlePain34Frame, uint, NativeBattlePain34LeafStep> AdvancePlayer, Func<NativeBattlePain34Frame, int, NativeBattlePain34Frame> Contact, Action<uint> PlaySound)
+{
+    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeign { get; init; }
+}
 
 public static class NativeBattlePain34Controller
 {
@@ -146,11 +149,18 @@ public static class NativeBattlePain34Controller
         void Emitter(uint address)
         {
             NativeBattleModulePoolTask task = hierarchy.Read(address);
-            task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, new ActorView(inputs.ReadModel), inputs.ReadPose);
             int actor = task.ReadByte(45);
-            NativeBattlePoseSource pose = inputs.ReadPose(actor);
-            NativeBattleSequenceState sequence = inputs.ReadModel(actor).SequenceState ?? throw new NotSupportedException("Native Pain target bounds require its current pose sequence.");
-            task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, pose, NativeBattlePoseMatrices.ReadDecodedPose(sequence, pose));
+            if (inputs.ReadForeign?.Invoke(actor) is { } foreign)
+            {
+                task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, foreign);
+            }
+            else
+            {
+                task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, new ActorView(inputs.ReadModel), inputs.ReadPose);
+                NativeBattlePoseSource pose = inputs.ReadPose(actor);
+                NativeBattleSequenceState sequence = inputs.ReadModel(actor).SequenceState ?? throw new NotSupportedException("Native Pain target bounds require its current pose sequence.");
+                task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, pose, NativeBattlePoseMatrices.ReadDecodedPose(sequence, pose));
+            }
             Store(address, task);
             switch (unchecked((sbyte)task.ReadByte(41)))
             {

@@ -31,8 +31,8 @@ public sealed class CrossoverSharedStatusHostTests
 
     [Theory]
     [InlineData("Regen", 0x8000u, 1)]
-    [InlineData("Reflect", 0x40000u, 2)]
-    [InlineData("Confuse", 0x40u, 2)]
+    [InlineData("Reflect", 0x40000u, 1)]
+    [InlineData("Confuse", 0x40u, 1)]
     public void Original_magic_applies_its_counterpart_through_the_host_status_owner(string name, uint status, int guestCount)
     {
         using CrossoverGuestStatusHostTests.Fixture fixture = new(guestCount: guestCount, additionalSpells: [name]);
@@ -46,25 +46,6 @@ public sealed class CrossoverSharedStatusHostTests
         Assert.Equal(stock - 1, fixture.Stock(spell));
         Assert.Null(fixture.Host.Action);
         Assert.Null(fixture.Providers[0].Invocation);
-    }
-
-    [Theory]
-    [InlineData("Reflect")]
-    [InlineData("Confuse")]
-    public void A_missing_foreign_model_consumer_remains_red_after_its_status_counterpart_is_supported(string name)
-    {
-        using CrossoverGuestStatusHostTests.Fixture fixture = new(guestCount: 1, additionalSpells: [name]);
-        fixture.Ready(0);
-        ushort spell = fixture.Spell(name);
-        int stock = fixture.Stock(spell);
-        string before = System.Text.Json.JsonSerializer.Serialize(fixture.Host.Capture());
-
-        string reason = Assert.IsType<string>(fixture.Host.GuestAbilityTargetUnsupportedReason(0, Ff7BattleCommand.Magic, spell, 1));
-
-        Assert.Contains("skeleton", reason, StringComparison.OrdinalIgnoreCase);
-        Assert.False(fixture.Host.Submit(0, Ff7BattleCommand.Magic, spell, 2));
-        Assert.Equal(stock, fixture.Stock(spell));
-        Assert.Equal(before, System.Text.Json.JsonSerializer.Serialize(fixture.Host.Capture()));
     }
 
     [Fact]

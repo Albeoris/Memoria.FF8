@@ -28,7 +28,7 @@ public static partial class NativeBattleTheEnd85Controller
             uint work = state.Dword(odd ? 0x25C0F54u : 0x25C0F50u);
             state = state.WriteDword(0x25BC394, packet).WriteDword(0x25BC49C, work);
             frame = frame with { Memory = frame.Memory with { TheEnd85 = state, SharedEffectView2793E58 = inputs.CameraMatrix }, Effect = frame.Effect with { DrawArenaOffset = ArenaOffset(packet, 0) } };
-            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, new ActorView(inputs.ReadModel), inputs.ReadPoseSource);
+            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, new ActorView(inputs.ReadModel), inputs.ReadPoseSource, readForeign: inputs.ReadForeign);
             Store(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {
@@ -146,11 +146,18 @@ public static partial class NativeBattleTheEnd85Controller
         void Target(uint address)
         {
             NativeBattleModulePoolTask task = hierarchy.Read(address);
-            task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, new ActorView(inputs.ReadModel), inputs.ReadPoseSource);
-            NativeBattlePoseSource source = inputs.ReadPoseSource(task.ReadByte(0x2D));
-            NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadByte(0x2D));
-            NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native The End target bounds require its actual current pose state.");
-            task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, NativeBattlePoseMatrices.ReadDecodedPose(sequence, source));
+            if (inputs.ReadForeign?.Invoke(task.ReadByte(0x2D)) is { } foreign)
+            {
+                task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, foreign);
+            }
+            else
+            {
+                task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, new ActorView(inputs.ReadModel), inputs.ReadPoseSource);
+                NativeBattlePoseSource source = inputs.ReadPoseSource(task.ReadByte(0x2D));
+                NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadByte(0x2D));
+                NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native The End target bounds require its actual current pose state.");
+                task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, NativeBattlePoseMatrices.ReadDecodedPose(sequence, source));
+            }
             Store(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {

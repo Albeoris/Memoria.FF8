@@ -29,7 +29,7 @@ internal sealed record CrossoverNativeForeignTarget(int HostSlot, NativeBattleMo
         }
         else
         {
-            faces = Geometry.Faces.Select(face => new NativeBattleForeignModelFace(LocalVertex(face.A), LocalVertex(face.B), LocalVertex(face.C), face.Surface ?? throw new NotSupportedException("The host posed geometry has no original material provider."))).ToImmutableArray();
+            faces = Geometry.Faces.Select(face => new NativeBattleForeignModelFace(LocalVertex(face.A), LocalVertex(face.B), LocalVertex(face.C), face.Surface ?? throw new NotSupportedException("The host posed geometry has no original material provider.")) { VertexIndices = face.VertexIndices }).ToImmutableArray();
         }
         if (faces.IsEmpty)
         {
@@ -47,7 +47,7 @@ internal sealed record CrossoverNativeForeignTarget(int HostSlot, NativeBattleMo
             AtStandingPose = AtStandingPose,
             StatusFlags = NativeStatusFlags,
             BoneCount = Geometry.Bones.Length,
-            Geometry = new(World, Anchors, faces),
+            Geometry = new(World, Anchors, faces) { Vertices = Geometry.Vertices.Select(LocalVertex).ToImmutableArray() },
             Pose = new(poseWorld, Geometry.Bones.SelectMany(bone => new[] { bone.Start, bone.End }).Select(point => NativeBattleGfMatrices.Transform460840(inversePose, Word(Vector3.Transform(point, HostToOrigin)))).ToImmutableArray(), (selector, fraction) => NativeBattleGfMatrices.Transform460840(inversePose, ReadBone(selector, fraction))) { BoneParents = Geometry.BoneParents }
         };
 

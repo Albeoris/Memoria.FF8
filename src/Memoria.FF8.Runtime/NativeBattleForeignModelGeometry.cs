@@ -12,6 +12,8 @@ public interface INativeBattleForeignMaterial
 public sealed record NativeBattleForeignSurface(INativeBattleForeignMaterial Material, ImmutableArray<Vector2> Uv, ImmutableArray<Vector4> Colors);
 public sealed record NativeBattleForeignModelFace(NativeBattleVector A, NativeBattleVector B, NativeBattleVector C, NativeBattleForeignSurface Surface)
 {
+    public ImmutableArray<int> VertexIndices { get; init; } = [];
+
     /// <summary>Call-local packed polygon input for shared native triangle consumers, without resource publication.</summary>
     public NativeBattleRawMesh Triangle()
     {
@@ -36,6 +38,8 @@ public sealed record NativeBattleForeignModelFace(NativeBattleVector A, NativeBa
 /// <summary>Already posed host geometry in source-local coordinates, including any host weapon parts.</summary>
 public sealed record NativeBattleForeignModelGeometry(NativeBattleActionMatrix World, NativeBattleEffectActorGeometry Anchors, ImmutableArray<NativeBattleForeignModelFace> Faces)
 {
+    public ImmutableArray<NativeBattleVector> Vertices { get; init; } = [];
+
     public static NativeBattleActionMatrix Identity { get; } = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
 
     public NativeBattleGeometryPrimitive BindSurface(NativeBattleGeometryPrimitive primitive, NativeBattleForeignModelFace face, NativeBattlePilotVisualIdentity identity)

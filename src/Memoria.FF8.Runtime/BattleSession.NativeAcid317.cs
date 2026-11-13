@@ -16,7 +16,7 @@ public sealed partial class BattleSession
         NativeBattleAcid317Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Acid requires its CRT stream."), memory.Acid317 ?? throw new NotSupportedException("Acid requires its retained native globals.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Acid requires its addressed file and temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Acid requires its original interpolation constants.");
         Dictionary<uint, System.Numerics.Vector3> pilotTrailWorld = [];
-        NativeBattleAcid317Inputs inputs = new(nativeActionPackets, actor => graphics.Models[actor], actor => (NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Acid requires its current skeleton.")).BoneCount, _ => Camera().CapturePackedView1D97778(), Anchor, Bone, Mouth, Execute) { Colors = colors, CapturePresentation = true };
+        NativeBattleAcid317Inputs inputs = new(nativeActionPackets, actor => graphics.Models[actor], actor => ReadNativeGraphicsBoneCount(graphics, actor), _ => Camera().CapturePackedView1D97778(), Anchor, Bone, Mouth, Execute) { Colors = colors, CapturePresentation = true };
         frame = initialize ? NativeBattleAcid317Controller.Initialize(frame, resources, inputs) : NativeBattleAcid317Controller.Advance(frame, resources, inputs);
         if (!initialize && frame.Effect.ReturnedDescriptor == 0)
         {
@@ -60,11 +60,11 @@ public sealed partial class BattleSession
             NativeBattleGraphicsModel model = graphics.Models[actor];
             if ((model.Flags0 & 2) != 0)
             {
-                NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Acid requires its current actor skeleton.");
                 foreach (byte selector in new byte[] { 0xF0, 0xF1 })
                 {
                     NativeFileStaging = current.Staging;
-                    current = current with { Memory = ObserveNativeBoneAnchor(current.Memory, NativeBattlePoseMatrices.ResolveBoneAnchor502170(model, source, selector, 0)), Staging = NativeFileStaging };
+                    var observed = ObserveNativeGraphicsBoneAnchor(current.Memory, graphics, actor, selector, 0);
+                    current = current with { Memory = observed.Memory, Staging = NativeFileStaging };
                 }
             }
             NativeBattleModuleAnchor anchor = ReadNativeModelAnchor(graphics, actor);
@@ -82,12 +82,9 @@ public sealed partial class BattleSession
 
         NativeBattleAcid317PointStep Bone(NativeBattleAcid317Frame current, int actor, short selector, short distance)
         {
-            NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Acid requires its selected current actor skeleton.");
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], pose, checked((byte)selector), distance);
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Acid bone query requires its addressed temporary memory.");
-            NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
-            NativeBattleVector point = producer.Enabled ? new(unchecked((short)observed.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
-            return new(current with { Memory = observed, Staging = NativeFileStaging }, point);
+            var observed = ObserveNativeGraphicsBoneAnchor(current.Memory, graphics, actor, checked((byte)selector), distance);
+            return new(current with { Memory = observed.Memory, Staging = NativeFileStaging }, observed.Point);
         }
 
         NativeBattleAcid317Frame Execute(NativeBattleAcid317Frame current, NativeBattleAcid317Operation operation)

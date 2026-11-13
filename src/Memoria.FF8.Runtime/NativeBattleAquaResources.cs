@@ -51,6 +51,8 @@ public sealed record NativeBattleAquaBindCaster(int Actor) : NativeBattleAquaOpe
 public sealed record NativeBattleAquaSequence(int Actor, byte Sequence) : NativeBattleAquaOperation;
 public sealed record NativeBattleAquaInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<int, short, int, NativeBattleModuleAnchor> ReadAnchor502170, Func<NativeBattleAquaFrame, NativeBattleAquaOperation, NativeBattleAquaFrame> Execute)
 {
+    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeign { get; init; }
+    public Func<int, int>? ReadBoneCount { get; init; }
     public ushort? CameraPadding18 { get; init; }
     public NativeBattlePackedMatrix32? PackedCamera { get; init; }
 }

@@ -6,6 +6,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleTheEnd85NodeServices(NativeBattleTheEnd85Resources Resources, NativeBattleActionPacketsState Packets, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, NativeBattleActionMatrix CopiedCamera, Func<NativeBattleTheEnd85Frame, uint, uint, uint, NativeBattleTheEnd85Frame> DrawNode)
 {
     public NativeBattleEffectNodeDogOrigins? Mode2Origins { get; init; }
+    public Func<int, byte, NativeBattleVector?>? ReadForeignBone { get; init; }
     [System.Text.Json.Serialization.JsonIgnore]
     public Func<NativeBattleTheEnd85Frame, uint, uint, uint, NativeBattlePilotVisualIdentity, NativeBattleTheEnd85Frame>? DrawCapturedNode { get; init; }
 }
@@ -41,7 +42,7 @@ public static class NativeBattleTheEnd85GroundInitialization
             NativeBattleEffectNodeBankFixups.Relocate(initialization, ModelBankAddress, directory);
             initialization.WriteUInt32(directory, 1);
         }
-        task = NativeBattleEffectNodeContext.Initialize(task, hierarchy.Read(task.ReadDword(16)), frame.Effect.Parameters ?? throw new NotSupportedException("Native The End grounded initializer requires its current action parameters."), services.Packets, services.ReadModel, services.ReadPoseSource, source, dogOrigins: services.Mode2Origins);
+        task = NativeBattleEffectNodeContext.Initialize(task, hierarchy.Read(task.ReadDword(16)), frame.Effect.Parameters ?? throw new NotSupportedException("Native The End grounded initializer requires its current action parameters."), services.Packets, services.ReadModel, services.ReadPoseSource, source, dogOrigins: services.Mode2Origins, readForeignBone: services.ReadForeignBone);
         state = (state with { ModelData = data }).WriteDword(0x25C21DC, checked(taskAddress + 52));
         hierarchy = hierarchy.Write(taskAddress, task);
         initialization.Publish(false);

@@ -5,6 +5,56 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Shared native actor consumers operating on posed host triangles and their actual material owner.</summary>
 public static class NativeBattleForeignModelDrawing
 {
+    internal static void RequireIndexedTopology(NativeBattleForeignModelGeometry geometry)
+    {
+        if (geometry.Vertices.IsDefaultOrEmpty)
+        {
+            throw new NotSupportedException("Host body operations require their original indexed vertex owner.");
+        }
+        foreach (NativeBattleForeignModelFace face in geometry.Faces)
+        {
+            if (face.VertexIndices.IsDefault || face.VertexIndices.Length != 3 || face.VertexIndices.Any(index => (uint)index >= (uint)geometry.Vertices.Length))
+            {
+                throw new InvalidDataException("Host body operation face requires its actual indexed vertices.");
+            }
+        }
+    }
+
+    internal static void RequireCoefficientCache(NativeBattleForeignModelGeometry geometry, uint cursor, uint address, int length)
+    {
+        RequireIndexedTopology(geometry);
+        if (cursor < address || length < 0 || (ulong)cursor - address > (ulong)length || (ulong)geometry.Vertices.Length > (ulong)length - ((ulong)cursor - address))
+        {
+            throw new InvalidDataException("Host body operation leaves its bounded coefficient cache.");
+        }
+    }
+
+    public static NativeBattleBreak117BodyResult Break(NativeBattleForeignModelGeometry geometry, NativeBattleCameraProjection projection, uint color, ImmutableArray<byte> dither, int level, NativeBattlePilotVisualIdentity identity)
+    {
+        if (dither.IsDefault || dither.Length != 512 || (uint)level > 32768)
+        {
+            throw new InvalidDataException("Host model petrification requires its complete dither owner and native stone level.");
+        }
+        NativeBattleActionMatrix camera = NativeBattleGfMatrices.Compose56C2F0(projection.View ?? throw new NotSupportedException("Host model petrification requires its current camera."), geometry.World);
+        ImmutableArray<NativeBattleGeometryPrimitive>.Builder primitives = ImmutableArray.CreateBuilder<NativeBattleGeometryPrimitive>();
+        byte ditherIndex = 0;
+        ImmutableArray<byte> projected = [];
+        for (int index = 0; index < geometry.Faces.Length; index++)
+        {
+            NativeBattleForeignModelFace face = geometry.Faces[index];
+            NativeBattlePilotVisualIdentity selected = identity with { Primitive = unchecked(identity.Primitive * 397 + index) };
+            bool stone = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(dither.AsSpan().Slice(ditherIndex * 2)) <= level;
+            NativeBattleBreak117BodyResult drawn = NativeBattleBreak117Body.Draw([face.Triangle()], [camera], projection, color, 1, dither, level, null, ditherIndex, selected);
+            ditherIndex = drawn.DitherIndex;
+            projected = drawn.Projected;
+            foreach (NativeBattleGeometryPrimitive primitive in drawn.Primitives)
+            {
+                primitives.Add(stone ? primitive : geometry.BindSurface(primitive, face, selected));
+            }
+        }
+        return new(primitives.ToImmutable(), ditherIndex, projected);
+    }
+
     public static NativeBattleRawModelBodyDraw DrawBody(NativeBattleForeignModelGeometry geometry, NativeBattleActionMatrix basis, NativeBattleCameraProjection projection, uint color, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity identity, byte depthShift = 4, NativeBattleGeometryViewport? viewport = null, int tableBaseBucket = 17, short? depthCue = 0)
     {
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();

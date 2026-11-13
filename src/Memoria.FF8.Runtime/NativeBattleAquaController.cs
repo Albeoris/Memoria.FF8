@@ -68,7 +68,7 @@ public static class NativeBattleAquaController
             bool odd = (task.ReadWord(0x5C) & 1) != 0;
             current = current.WithState(retained with { PrimaryDrawCursor = odd ? retained.PrimaryBuffer : retained.AlternateBuffer, SecondaryDrawCursor = odd ? retained.PrimaryLimit : retained.AlternateLimit });
             current = current with { Memory = current.Memory with { SharedEffectView2793E58 = inputs.PackedCamera ?? NativeBattlePackedMatrix32.FromMatrix(inputs.Camera, inputs.CameraPadding18) } };
-            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, Models(), inputs.ReadPoseSource);
+            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, Models(), inputs.ReadPoseSource, readForeign: inputs.ReadForeign);
             state = state.Write(address, task);
             switch (Phase(task))
             {
@@ -137,11 +137,7 @@ public static class NativeBattleAquaController
             switch (profile.CanonicalCallback(task.Callback))
             {
                 case 0x808B20:
-                    task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, Models(), inputs.ReadPoseSource);
-                    int actor = task.ReadByte(0x2D);
-                    NativeBattlePoseSource poseSource = inputs.ReadPoseSource(actor);
-                    NativeBattleSequenceState sequence = inputs.ReadModel(actor).SequenceState ?? throw new NotSupportedException("The Aqua target requires its current model sequence.");
-                    task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, poseSource, poseSource.Sample(sequence.Pose ?? throw new NotSupportedException("The Aqua target requires its actual pose."), sequence.PoseFrame114 ?? throw new NotSupportedException("The Aqua target requires its actual pose frame."), sequence.PoseFlags109));
+                    task = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, Models(), inputs.ReadPoseSource, inputs.ReadForeign);
                     state = state.Write(address, task);
                     switch (Phase(task))
                     {

@@ -13,7 +13,7 @@ public static partial class NativeBattleDeathController
             if (Stage(task) == 0)
             {
                 int actor = task.ReadByte(0x2D);
-                NativeBattleVector position = NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(actor), inputs.ReadPoseSource(actor), 0xF1, 0);
+                NativeBattleVector position = inputs.ReadForeignBone?.Invoke(actor, 0xF1) ?? NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(actor), inputs.ReadPoseSource(actor), 0xF1, 0);
                 Store(address, Next(task.WriteWord(0x1C, unchecked((ushort)position.X)).WriteWord(0x1E, unchecked((ushort)position.Y)).WriteWord(0x20, unchecked((ushort)position.Z))));
                 return;
             }

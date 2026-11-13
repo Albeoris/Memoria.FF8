@@ -57,7 +57,7 @@ public sealed partial class BattleSession
             }
             else
             {
-                frame = NativeBattleTheEnd85Controller.Advance784630(frame, new(owner.nativeActionPackets, Camera.CapturePackedView1D97778(), ReadModel, ReadPose, InitializeTarget, AdvanceLeaf, Contact, Execute, resources.DirectorAddress));
+                frame = NativeBattleTheEnd85Controller.Advance784630(frame, new(owner.nativeActionPackets, Camera.CapturePackedView1D97778(), ReadModel, ReadPose, InitializeTarget, AdvanceLeaf, Contact, Execute, resources.DirectorAddress) { ReadForeign = actor => owner.ReadNativeGraphicsForeignTarget(graphics, actor) });
             }
             owner.NativeEffectMemory = frame.Memory;
             owner.nativeCrtRandom = frame.Random;

@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleAcid317SnapshotStep(NativeBattleEffectMemory Memory, NativeCrtRandomState Random, NativeBattleEffectArena Temporary12);
 
-public static class NativeBattleAcid317Snapshot
+public static partial class NativeBattleAcid317Snapshot
 {
     public static NativeBattleAcid317SnapshotStep Capture(NativeBattleEffectMemory memory, NativeCrtRandomState random, NativeBattleEffectArena temporary12, Func<int, int, byte[]> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, uint cacheAddress, int cacheLength)
     {

@@ -62,10 +62,9 @@ public sealed partial class BattleSession
 
         NativeBattleLaserEye71PointStep Bone(NativeBattleLaserEye71Frame current, byte actor, byte selector, short distance)
         {
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], PoseSource(actor), selector, distance);
-            current = ObserveAnchor(current, producer);
-            NativeBattleVector point = producer.Enabled ? new(unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
-            return new(current, point);
+            NativeFileStaging = current.Staging;
+            var observed = ObserveNativeGraphicsBoneAnchor(current.Memory, graphics, actor, selector, distance);
+            return new(current with { Memory = observed.Memory, Staging = NativeFileStaging }, observed.Point);
         }
 
         NativeBattleLaserEye71MatrixStep Look(NativeBattleLaserEye71Frame current, NativeBattlePackedMatrix32 destination, NativeBattleVector direction, NativeBattleVector up)
@@ -76,16 +75,23 @@ public sealed partial class BattleSession
 
         NativeBattleLaserEye71Frame RefreshRoot(NativeBattleLaserEye71Frame current, uint address)
         {
-            NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(NativeBattleLaserEye71Controller.Read(current, address), current.Effect.Parameters!, graphics.Models, PoseSource, producer => current = ObserveAnchor(current, producer));
+            NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(NativeBattleLaserEye71Controller.Read(current, address), current.Effect.Parameters!, graphics.Models, PoseSource, producer => current = ObserveAnchor(current, producer), index => ReadNativeGraphicsForeignTarget(graphics, index), (index, selector) => current = Bone(current, checked((byte)index), selector, 0).Frame);
             return NativeBattleLaserEye71Controller.Write(current, address, task);
         }
 
         NativeBattleLaserEye71Frame PrepareTarget(NativeBattleLaserEye71Frame current, uint address)
         {
-            NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(NativeBattleLaserEye71Controller.Read(current, address), graphics.Models, PoseSource, producer => current = ObserveAnchor(current, producer));
+            NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(NativeBattleLaserEye71Controller.Read(current, address), graphics.Models, PoseSource, producer => current = ObserveAnchor(current, producer), index => ReadNativeGraphicsForeignTarget(graphics, index), (index, selector) => current = Bone(current, checked((byte)index), selector, 0).Frame);
             int actor = task.ReadByte(0x2D);
-            NativeBattlePoseSource source = PoseSource(actor);
-            task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, NativeBattlePoseMatrices.ReadDecodedPose(graphics.Models[actor].SequenceState ?? throw new NotSupportedException("Laser Eye requires its target pose."), source));
+            if (ReadNativeGraphicsForeignTarget(graphics, actor) is { } foreign)
+            {
+                task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, foreign);
+            }
+            else
+            {
+                NativeBattlePoseSource source = PoseSource(actor);
+                task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, NativeBattlePoseMatrices.ReadDecodedPose(graphics.Models[actor].SequenceState ?? throw new NotSupportedException("Laser Eye requires its target pose."), source));
+            }
             return NativeBattleLaserEye71Controller.Write(current, address, task);
         }
 
@@ -93,7 +99,8 @@ public sealed partial class BattleSession
         {
             NativeBattleLaserEye71NodeInputs nodeInputs = new(nativeActionPackets, actor => graphics.Models[actor], PoseSource, Projection(), Camera().Roll, colors, Look, Deliver)
             {
-                ObserveBone = (value, actor, selector) => ObserveAnchor(value, NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], PoseSource(actor), selector, 0))
+                ObserveBone = (value, actor, selector) => Bone(value, checked((byte)actor), selector, 0).Frame,
+                ReadForeignBone = (actor, selector) => NativeBattleEffectModelHelpers.ReadSemanticAnchor(ReadNativeGraphicsForeignTarget(graphics, actor), selector)
             };
             return NativeBattleLaserEye71Nodes.Advance(current, address, resources, nodeInputs);
         }
