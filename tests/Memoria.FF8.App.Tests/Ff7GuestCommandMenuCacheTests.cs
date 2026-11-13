@@ -164,9 +164,11 @@ public sealed class Ff7GuestCommandMenuCacheTests
             {
                 Intro = null,
                 Inventory = [new(0, 2)],
-                Actors = snapshot.Actors.Select(actor => actor with { Gauge = actor.Actor.Slot == 0 ? ushort.MaxValue : (ushort)0, AwaitingTurn = actor.Actor.Slot == 0, AllUses = actor.Actor.Slot == 0 ? new() { [42] = 1 } : null }).ToArray()
+                Actors = snapshot.Actors.Select(actor => actor with { Gauge = actor.Actor.Slot == 0 ? ushort.MaxValue : (ushort)0, AwaitingTurn = actor.Actor.Slot == 0 }).ToArray()
             };
             Battle = new(formation, original.Progress, kernel, executable.NativeMateriaStatModifiers, 1, snapshot: snapshot, animations: animations);
+            // Exercise defensive copying of a mutable host input after validating the guest save contract.
+            ChangeActor(0, actor => actor with { AllUses = new() { [42] = 1 } });
             ChangeActor(4, actor => actor with { Actor = actor.Actor with { HitPoints = 100, MaxHitPoints = 100, MagicPoints = 10, MaxMagicPoints = 10, Statuses = 0, Conditions = actor.Actor.Conditions | 8u } });
             Guest = new(encounter);
             Battle.BindGuestAttack(Guest);
