@@ -42,14 +42,19 @@ public sealed partial class BattleSession
 
     private void StartExpandedAction(BattleCombatant actor, BattleAttackCommand command)
     {
-        if (!CanNativeBattleActorAct(actor) || !CanExecuteMagicReservation(actor, command) || !GetActor(command.TargetId).IsAlive)
+        if (!CanNativeBattleActorAct(actor) || !CanExecuteMagicReservation(actor, command) || !ActionHasValidTarget(command.TargetId, command.Ability, command.ActionId, command.NativeAction, 0, aiRecipients: command.AiRecipients))
         {
             RefundCancelledNativeItem(command);
             actor.IsBusy = false;
             return;
         }
-        ActiveAction = NativeCommandPresentation(command) with { RemainingFrames = AttackWindupFrames };
-        Log("Windup", actor.Id, command.TargetId, 0, $"{actor.Name}: {ActionName(command.Ability, command.ActionId)}.");
+        ActiveAction = NativeCommandPresentation(command) with
+        {
+            RemainingFrames = NativeActionWindupFrames(actor, command.NativeSequence),
+            NativeSequenceFrame = NativeControlTrack(actor, command.NativeSequence) is null ? null : 0
+        };
+        string name = command.NativeAction?.Name ?? ActionName(command.Ability, command.ActionId);
+        Log("Windup", actor.Id, command.TargetId, 0, $"{actor.Name}: {name}.");
     }
 
     private void AdvanceExpandedAction(BattleActionPresentation command)
@@ -89,15 +94,24 @@ public sealed partial class BattleSession
             }
             return;
         }
-        if (command.RemainingFrames > 1)
+        BattleCombatant actor = GetActor(command.ActorId);
+        if (command.NativeSequenceFrame is int frame && NativeControlTrack(actor, command.NativeSequence) is { } track && frame < track.CompletionFrame)
+        {
+            command = AdvanceNativeControlSequence(command);
+            ActiveAction = command;
+            if (command.NativeSequenceFrame < track.CompletionFrame)
+            {
+                return;
+            }
+        }
+        else if (command.RemainingFrames > 1)
         {
             ActiveAction = command with { RemainingFrames = command.RemainingFrames - 1 };
             return;
         }
-        BattleCombatant actor = GetActor(command.ActorId);
         BattleCombatant target = GetActor(command.TargetId);
-        if (!CanNativeBattleActorAct(actor) || !CanExecuteMagicReservation(actor, new(command.ActorId, command.TargetId, command.Ability, command.ActionId) { MagicReservationId = command.MagicReservationId }) || !target.IsAlive || target.Untargetable ||
-            command.Ability == BattleAbility.Magic && (NativeSavedStatusBits(actor) & 0x10) != 0)
+        if (!CanNativeBattleActorAct(actor) || !CanExecuteMagicReservation(actor, new(command.ActorId, command.TargetId, command.Ability, command.ActionId) { MagicReservationId = command.MagicReservationId }) || (command.AiRecipients is { } aiTargets ? CurrentExpandedAiTargets(aiTargets).Length == 0 : !target.IsAlive || target.Untargetable) ||
+            (command.Ability == BattleAbility.Magic || command.NativeAction?.Command == 2) && (NativeSavedStatusBits(actor) & 0x10) != 0)
         {
             RefundCancelledNativeItem(command);
             CompleteActionPresentation(command, "Expanded action cancelled.");
@@ -112,9 +126,11 @@ public sealed partial class BattleSession
 
         BattleActionDefinition action = command.Ability == BattleAbility.Attack
             ? new(BattleAbility.Attack, 0, actor.NativeAttack!.Name ?? "Attack", BattleActionEffect.Native, actor.NativeAttack.Power, false) { NativeAction = actor.NativeAttack }
-            : FindAction(command.Ability, command.ActionId);
+            : command.AiRecipients is not null
+                ? new(BattleAbility.EnemyAbility, command.ActionId, command.NativeAction!.Name ?? $"Enemy ability {command.ActionId}", BattleActionEffect.Native, command.NativeAction.Power, false) { NativeAction = command.NativeAction }
+                : FindAction(command.Ability, command.ActionId);
         BattleNativeAction native = action.NativeAction!;
-        BattleCombatant[] recipients = action.AllTargets
+        BattleCombatant[] recipients = command.AiRecipients is { } selected ? CurrentExpandedAiTargets(selected) : action.AllTargets
             ? Roster(target.Side).Where(candidate => candidate.IsActive && candidate.IsAlive && !candidate.Untargetable).ToArray()
             : [target];
         if (recipients.Any(recipient => NativeActionReflects(recipient, native)))
@@ -125,9 +141,10 @@ public sealed partial class BattleSession
         }
 
         // The effect bank is action-local. It does not own any battle roster slot or action memory.
+        // AI contacts are consumed immediately by the host and do not enter the presentation bank.
         int nextRow = recipients.Length == 1 ? NativeBattleSlots.AllyCount : 1;
         ImmutableArray<ExpandedBattleContact>.Builder contacts = ImmutableArray.CreateBuilder<ExpandedBattleContact>(recipients.Length);
-        nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = false, EventLane = 2, Command = command.NativeQueuedCommand ?? native.Command, Action = native.ActionId };
+        nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = false, EventLane = actor.IsPlayer ? (byte)2 : (byte)0, Command = command.NativeQueuedCommand ?? native.Command, Action = native.ActionId };
         BattleActionPresentation resolved = command with { NativeAction = native };
         resolvingNativeAction = resolved;
         nativeActionCommitDepth++;
@@ -135,7 +152,7 @@ public sealed partial class BattleSession
         {
             foreach (BattleCombatant recipient in recipients)
             {
-                byte row = recipient == actor ? (byte)0 : checked((byte)nextRow++);
+                byte row = command.AiRecipients is not null || recipient == actor ? (byte)0 : checked((byte)nextRow++);
                 recipient.NativeRemainingHits = 1;
                 NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, recipient, resolved, action, native, 255, presentationRow: row);
                 contacts.Add(new(recipient.Id, packet.Primary));
@@ -153,14 +170,14 @@ public sealed partial class BattleSession
             CompleteActionPresentation(command, "Attack completed.");
             return;
         }
-        if (command.Ability == BattleAbility.Item)
+        if (command.Ability is BattleAbility.Item or BattleAbility.EnemyAbility)
         {
-            // TODO(TD-009): Potion uses the host impact UI until its actor redraw is available in the expanded renderer.
+            // TODO(TD-009): Expanded enemy abilities and Potion use the host impact UI pending native presentation admission.
             foreach (ExpandedBattleContact contact in contacts)
             {
                 Log("EffectContact", command.ActorId, contact.RecipientId, contact.Contact.PresentedAmount, action.Name);
             }
-            CompleteActionPresentation(command, "Item completed.");
+            CompleteActionPresentation(command, "Action completed.");
             return;
         }
         ImmutableArray<ExpandedBattleContact> prepared = contacts.MoveToImmutable();

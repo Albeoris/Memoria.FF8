@@ -32,6 +32,14 @@ public sealed partial class BattleSession
     {
         //487DF0 indexes1D277C4 by52*actor+U8 variable; actor records begin1D27B10,211 DWORDs later.
         //48B310/48BBD0 own the forty resistance bytes at actor+144;48C5C0 deliberately retains them.
+        if (UsesExpandedRoster)
+        {
+            if (variable is >= 220 and <= 227)
+            {
+                return (actor, 4 * (variable - 211));
+            }
+            throw new NotSupportedException($"Expanded battle AI variable {variable} requires a physical actor-bank alias.");
+        }
         int offset = checked(actor.EncodeNativeSlot() * 208 + 4 * (variable - 211));
         if (offset < 0)
         {

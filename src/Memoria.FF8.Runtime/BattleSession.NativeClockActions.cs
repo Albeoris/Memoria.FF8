@@ -150,6 +150,11 @@ public sealed partial class BattleSession
 
     private void RunNativeAi(BattleCombatant actor, int callback, Action? interpret = null)
     {
+        if (UsesExpandedRoster)
+        {
+            RunExpandedNativeAi(actor, callback);
+            return;
+        }
         byte eventActorIndex = checked((byte)actor.EncodeNativeSlot());
         if (callback == 1)
         {

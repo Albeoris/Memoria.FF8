@@ -21,7 +21,14 @@ public sealed partial class BattleSession
         }
         foreach (BattleCombatant actor in combatants.Where(actor => actor.IsActive && !actor.Suspended && actor.NativeAi is not null).ToArray())
         {
-            QueueNativeParticipantInitialization(actor);
+            if (UsesExpandedRoster)
+            {
+                RunExpandedNativeAi(actor, 0);
+            }
+            else
+            {
+                QueueNativeParticipantInitialization(actor);
+            }
         }
     }
 
@@ -80,6 +87,7 @@ public sealed partial class BattleSession
             byte[] code = program.Scripts[callback];
             int pc = 0;
             ushort targetMask = 0;
+            BattleAiRecipients? recipients = null;
             byte preparedCommand = 0;
             ushort preparedId = 0;
             byte sequenceOverride = 0;
@@ -122,13 +130,21 @@ public sealed partial class BattleSession
                         preparedId = (byte)ReadAiByte(code, ref pc);
                         break;
                     case 4:
-                        targetMask = ResolveNativeAiTargetMask(actor, (byte)ReadAiByte(code, ref pc));
+                        byte selectorTarget = (byte)ReadAiByte(code, ref pc);
+                        if (UsesExpandedRoster)
+                        {
+                            recipients = ResolveExpandedAiTargets(actor, selectorTarget);
+                        }
+                        else
+                        {
+                            targetMask = ResolveNativeAiTargetMask(actor, selectorTarget);
+                        }
                         break;
                     case 5:
                         sequenceOverride = (byte)ReadAiByte(code, ref pc);
                         break;
                     case 6:
-                        QueuePreparedNativeAiCommand(actor, preparedCommand, preparedId, sequenceOverride, targetMask);
+                        QueuePreparedNativeAiCommand(actor, preparedCommand, preparedId, sequenceOverride, targetMask, recipients);
                         break;
                     case 7:
                         preparedCommand = 8;
@@ -150,12 +166,12 @@ public sealed partial class BattleSession
                         if (chosen != 253)
                         {
                             PrepareNativeAiAbility(actor, chosen, ref preparedCommand, ref preparedId, ref sequenceOverride);
-                            QueuePreparedNativeAiCommand(actor, preparedCommand, preparedId, sequenceOverride, targetMask);
+                            QueuePreparedNativeAiCommand(actor, preparedCommand, preparedId, sequenceOverride, targetMask, recipients);
                         }
                         break;
                     case 12:
                         PrepareNativeAiAbility(actor, ReadAiByte(code, ref pc), ref preparedCommand, ref preparedId, ref sequenceOverride);
-                        QueuePreparedNativeAiCommand(actor, preparedCommand, preparedId, sequenceOverride, targetMask);
+                        QueuePreparedNativeAiCommand(actor, preparedCommand, preparedId, sequenceOverride, targetMask, recipients);
                         break;
                     case 14:
                     case 15:
@@ -276,7 +292,14 @@ public sealed partial class BattleSession
                         byte group = (byte)ReadAiByte(code, ref pc);
                         byte targetComparison = (byte)ReadAiByte(code, ref pc);
                         byte criterion = (byte)ReadAiByte(code, ref pc);
-                        targetMask = FilterNativeAiTargetMask(allTargets, group, targetComparison, criterion);
+                        if (UsesExpandedRoster)
+                        {
+                            recipients = FilterExpandedAiTargets(allTargets, group, targetComparison, criterion);
+                        }
+                        else
+                        {
+                            targetMask = FilterNativeAiTargetMask(allTargets, group, targetComparison, criterion);
+                        }
                         break;
                     case 43:
                         int physicalTarget = ReadAiByte(code, ref pc);
@@ -409,7 +432,7 @@ public sealed partial class BattleSession
         {
             throw new NotSupportedException($"Native battle AI status {status} lies outside its WORD/DWORD banks.");
         }
-        bool present = combatants.Any(candidate => candidate.IsActive && HasNativeRosterSlot(candidate) && (selector == 200 ? candidate.Side == BattleSide.Allies : selector == 201 ? candidate.Side == BattleSide.Enemies : NativeModelId(candidate) == selector) && (status == 0 || (NativeSavedStatusBits(candidate) & 1) == 0) && NativeAiStatusPresent(candidate, status));
+        bool present = combatants.Any(candidate => candidate.IsActive && HasAiRosterSlot(candidate) && (selector == 200 ? candidate.Side == BattleSide.Allies : selector == 201 ? candidate.Side == BattleSide.Enemies : NativeModelId(candidate) == selector) && (status == 0 || (NativeSavedStatusBits(candidate) & 1) == 0) && NativeAiStatusPresent(candidate, status));
         // Native forces equality for each candidate, then inverts the group result for any nonzero comparison.
         return comparison == 0 ? present : !present;
     }
@@ -427,7 +450,7 @@ public sealed partial class BattleSession
         return status < 16 ? (NativeSavedStatusBits(actor) & (1u << status)) != 0 : (NativeBattleStatusBits(actor) & (1u << (status - 16))) != 0;
     }
 
-    private void QueuePreparedNativeAiCommand(BattleCombatant actor, byte command, ushort id, byte sequence, ushort targetMask)
+    private void QueuePreparedNativeAiCommand(BattleCombatant actor, byte command, ushort id, byte sequence, ushort targetMask, BattleAiRecipients? recipients = null)
     {
         //487DF0 LABEL374 skips a zero prepared WORD ID, including zero-filled ability rows.
         //This guard belongs to the AI interpreter: ordinary player physical command1 legitimately uses ID0.
@@ -435,7 +458,14 @@ public sealed partial class BattleSession
         {
             return;
         }
-        QueueNativeCommand(actor, command, id, sequence, targetMask);
+        if (UsesExpandedRoster)
+        {
+            QueueExpandedAiAction(actor, command, id, sequence, recipients);
+        }
+        else
+        {
+            QueueNativeCommand(actor, command, id, sequence, targetMask);
+        }
     }
 
     private static bool NativeAiPathOnlyReturns(byte[] code, int pc)

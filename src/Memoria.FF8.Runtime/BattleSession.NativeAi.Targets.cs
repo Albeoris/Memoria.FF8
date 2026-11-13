@@ -50,6 +50,21 @@ public sealed partial class BattleSession
     {
         //486E70 computes extrema over the physical group, then applies allocation/death and group filtering.
         BattleCombatant[] actors = NativeTargetActors().ToArray();
+        var filter = NativeAiTargetFilter(actors, group, comparison, criterion);
+        if (allTargets != 0)
+        {
+            ushort mask = 0x8000;
+            foreach (BattleCombatant candidate in actors.Where(filter.Eligible))
+            {
+                mask |= NativeAiIndexMask(candidate.EncodeNativeSlot());
+            }
+            return mask;
+        }
+        return PickNativeAiTarget(filter.Side, filter.Eligible);
+    }
+
+    private static (BattleSide? Side, Func<BattleCombatant, bool> Eligible) NativeAiTargetFilter(BattleCombatant[] actors, byte group, byte comparison, byte criterion)
+    {
         BattleCombatant[] range = actors.Where(candidate => (group == 200 ? candidate.Side == BattleSide.Allies : group != 201 || candidate.Side == BattleSide.Enemies) && (NativeSavedStatusBits(candidate) & 1) == 0).ToArray();
         Func<BattleCombatant, bool> matches;
         if (criterion <= 9 || criterion is >= 16 and <= 42 or 46 or 47)
@@ -92,20 +107,13 @@ public sealed partial class BattleSession
         {
             return group == 200 ? candidate.Side == BattleSide.Allies : group == 201 ? candidate.Side == BattleSide.Enemies : NativeModelId(candidate) == group;
         }
-        if (allTargets != 0)
-        {
-            ushort mask = 0x8000;
-            foreach (BattleCombatant candidate in actors.Where(candidate => InGroup(candidate) && Eligible(candidate)))
-            {
-                mask |= NativeAiIndexMask(candidate.EncodeNativeSlot());
-            }
-            return mask;
-        }
-        return PickNativeAiTarget(group == 200 ? BattleSide.Allies : group == 201 ? BattleSide.Enemies : null, candidate => InGroup(candidate) && Eligible(candidate));
+        return (group == 200 ? BattleSide.Allies : group == 201 ? BattleSide.Enemies : null, candidate => InGroup(candidate) && Eligible(candidate));
     }
 
     private static bool HasNativeRosterSlot(BattleCombatant actor) =>
         actor.Slot is { } slot && NativeBattleSlots.TryEncode(slot).HasValue;
+
+    private bool HasAiRosterSlot(BattleCombatant actor) => UsesExpandedRoster ? actor.Slot is not null : HasNativeRosterSlot(actor);
 
     private IEnumerable<BattleCombatant> NativeTargetActors()
     {

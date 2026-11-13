@@ -8,9 +8,10 @@ namespace Memoria.FF8.App.Tests;
 public sealed class ExpandedBattleHostTests
 {
     [Theory]
-    [InlineData(87, false)]
-    [InlineData(0, true)]
-    public void ExpandedRandomBattleUsesInstalledContactsAndChargesEachCommandOnce(ushort formation, bool mass)
+    [InlineData(87, false, false)]
+    [InlineData(0, true, false)]
+    [InlineData(89, false, true)]
+    public void ExpandedRandomBattleUsesInstalledContactsAndChargesEachCommandOnce(ushort formation, bool mass, bool exerciseAi)
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original resources are required.");
@@ -87,6 +88,18 @@ public sealed class ExpandedBattleHostTests
         Assert.Equal(10, BattleSession.Restore(battle.Capture()).Combatants.Count);
         Assert.Equal(5, MagicCount(fire.ActionId));
         Assert.Equal(5, MagicCount(quake.ActionId));
+        if (exerciseAi)
+        {
+            Assert.All(battle.ReadDefinition().Combatants.Where(actor => !actor.IsPlayer), actor => Assert.NotNull(actor.NativeAi));
+            for (int turn = 0; turn < 20 && !battle.Events.Any(entry => entry.Kind == "EffectContact" && entry.ActorId is "enemy-4" or "enemy-5"); turn++)
+            {
+                world.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
+                world.ApplyBattleInput(new(BattleInputKind.Tick, Frames: 60));
+            }
+            Assert.Contains(battle.Events, entry => entry.Kind == "EffectContact" && entry.ActorId is "enemy-4" or "enemy-5");
+            Assert.Contains(battle.Events, entry => entry.Kind == "Damage" && entry.ActorId is "enemy-4" or "enemy-5" && entry.Ability == BattleAbility.EnemyAbility);
+            return;
+        }
         if (mass)
         {
             int[] before = enemies.Select(enemy => enemy.CurrentHp).ToArray();
@@ -114,6 +127,7 @@ public sealed class ExpandedBattleHostTests
             Run(casterId, BattleAbility.Item, potion.ActionId, [casterId]);
             Assert.True(caster.CurrentHp > beforePotion);
             Assert.Equal(2, battle.Items.Single(item => item.Id == potion.ActionId).Count);
+
         }
 
         int MagicCount(int id) => caster.MagicStocks.Single(spell => spell.Id == id).Count;

@@ -271,6 +271,8 @@ public sealed record BattleAttackCommand(string ActorId, string TargetId, Battle
     public BattleNativeEventOwner? NativeEventOwner { get; init; }
     public byte? NativeSequence { get; init; }
     public ushort NativeTargetMask { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public BattleAiRecipients? AiRecipients { get; init; }
 }
 public sealed record BattleActionPresentation(string ActorId, string TargetId, BattleActionPhase Phase, int RemainingFrames, BattleAbility Ability = BattleAbility.Attack, int ActionId = 0, bool DrawCast = false, int NativeTargetSelector = 0)
 {
@@ -303,6 +305,8 @@ public sealed record BattleActionPresentation(string ActorId, string TargetId, B
     public BattleNativeEventOwner? NativeEventOwner { get; init; }
     public byte? NativeSequence { get; init; }
     public ushort NativeTargetMask { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public BattleAiRecipients? AiRecipients { get; init; }
 }
 public sealed record BattleEvent(long Frame, string Kind, string? ActorId, string? TargetId, int Amount, string Message, BattleAbility Ability = BattleAbility.Attack)
 {

@@ -71,8 +71,12 @@ public sealed partial class BattleSession
         return action.NativeAction?.AttackType is 5 or 6 || action.Effect == BattleActionEffect.Revive;
     }
 
-    private bool ActionHasValidTarget(string targetId, BattleAbility ability, int actionId, BattleNativeAction? native, ushort targetMask, BattleNativeGraphicCommand? graphic = null)
+    private bool ActionHasValidTarget(string targetId, BattleAbility ability, int actionId, BattleNativeAction? native, ushort targetMask, BattleNativeGraphicCommand? graphic = null, BattleAiRecipients? aiRecipients = null)
     {
+        if (aiRecipients is not null)
+        {
+            return CurrentExpandedAiTargets(aiRecipients).Length != 0;
+        }
         if (graphic is not null)
         {
             return true;

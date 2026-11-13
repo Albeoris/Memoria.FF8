@@ -56,9 +56,9 @@ public sealed partial class BattleSession
                     left = levelActor.Level;
                     break;
                 case 8:
-                    return CompareNativeConditionBit(combatants.Any(candidate => HasNativeRosterSlot(candidate) && NativeModelId(candidate) == value), comparison);
+                    return CompareNativeConditionBit(combatants.Any(candidate => HasAiRosterSlot(candidate) && NativeModelId(candidate) == value), comparison);
                 case 9:
-                    return CompareNativeConditionBit(combatants.Any(candidate => HasNativeRosterSlot(candidate) && (NativeSavedStatusBits(candidate) & 1) == 0 && NativeModelId(candidate) == value), comparison);
+                    return CompareNativeConditionBit(combatants.Any(candidate => HasAiRosterSlot(candidate) && (NativeSavedStatusBits(candidate) & 1) == 0 && NativeModelId(candidate) == value), comparison);
                 case 10:
                     return EvaluateNativeActionCondition(actor, selector, comparison, value);
                 case 11:
@@ -72,7 +72,7 @@ public sealed partial class BattleSession
                 case 15:
                     return CompareNativeConditionBit(combatants.Any(candidate => candidate.EncodeNativeSlot() == value && candidate.IsActive && (NativeSavedStatusBits(candidate) & 1) == 0), comparison);
                 case 16:
-                    BattleCombatant[] party = allies.Where(candidate => HasNativeRosterSlot(candidate) && candidate.IsActive && (NativeSavedStatusBits(candidate) & 1) == 0).ToArray();
+                    BattleCombatant[] party = allies.Where(candidate => HasAiRosterSlot(candidate) && candidate.IsActive && (NativeSavedStatusBits(candidate) & 1) == 0).ToArray();
                     if (party.Any(candidate => candidate.NativeCharacterFlag100 is null))
                     {
                         throw new NotSupportedException("Native party characteristic condition requires the original kernel character gender flag.");
@@ -91,7 +91,7 @@ public sealed partial class BattleSession
                 case 19:
                     return CompareNativeConditionBit(NativeConditionTimerIsZero(), comparison);
                 case 20:
-                    return allies.Where(candidate => HasNativeRosterSlot(candidate) && candidate.IsActive && (NativeSavedStatusBits(candidate) & 1) == 0).All(candidate => NativeAiStatusPresent(candidate, value));
+                    return allies.Where(candidate => HasAiRosterSlot(candidate) && candidate.IsActive && (NativeSavedStatusBits(candidate) & 1) == 0).All(candidate => NativeAiStatusPresent(candidate, value));
                 default:
                     //The native default condition table deliberately consumes these subjects without branching.
                     return true;
@@ -172,6 +172,16 @@ public sealed partial class BattleSession
 
     private BattleCombatant FindNativeConditionActor(BattleCombatant actor, int selector)
     {
+        if (UsesExpandedRoster)
+        {
+            return selector switch
+            {
+                200 => actor,
+                203 when actor.LastAttackerId is string attacker => GetActor(attacker),
+                _ => combatants.FirstOrDefault(candidate => HasAiRosterSlot(candidate) && NativeModelId(candidate) == selector)
+                    ?? throw new NotSupportedException($"Expanded battle AI model selector {selector} has no current participant.")
+            };
+        }
         int index = selector switch
         {
             200 => actor.EncodeNativeSlot(),
@@ -195,7 +205,7 @@ public sealed partial class BattleSession
     private IEnumerable<BattleCombatant> NativeConditionGroup(int selector)
     {
         //48A830 scans physical slots0..2 or3..6; model selectors inspect exactly the same seven slots.
-        return combatants.Where(candidate => HasNativeRosterSlot(candidate) && (selector == 200 ? candidate.Side == BattleSide.Allies : selector == 201 ? candidate.Side == BattleSide.Enemies : NativeModelId(candidate) == selector));
+        return combatants.Where(candidate => HasAiRosterSlot(candidate) && (selector == 200 ? candidate.Side == BattleSide.Allies : selector == 201 ? candidate.Side == BattleSide.Enemies : NativeModelId(candidate) == selector));
     }
 
     private static long NativeConditionHpThreshold(BattleCombatant actor, int value)
