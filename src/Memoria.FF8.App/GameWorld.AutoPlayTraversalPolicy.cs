@@ -7,7 +7,7 @@ internal static class AutoPlayTraversalPolicy
 {
     internal const string MissileLauncherProgram = "89A2114D0D0CE9310CFE1ECE116B57C9DA2C8E608194D3D11CD73C179D5031AC";
 
-    public static int ProgressionEntryOrder(AutoPlayVisit visit, AutoPlayEvent item, int galbadiaKeys = 0, bool hasIntroductionLetter = false)
+    public static int ProgressionEntryOrder(AutoPlayVisit visit, AutoPlayEvent item, int galbadiaKeys = 0, bool hasIntroductionLetter = false, int laboratoryProgress = 0)
     {
         if (visit.Key.EndsWith(":894", StringComparison.Ordinal) && GalbadiaKeyRouteOrder(galbadiaKeys, item.Id) is int keyOrder)
         {
@@ -16,6 +16,10 @@ internal static class AutoPlayTraversalPolicy
         if (visit.Key.EndsWith(":1350", StringComparison.Ordinal) && IntroductionLetterRouteOrder(item.Id, hasIntroductionLetter) is int letterOrder)
         {
             return letterOrder;
+        }
+        if (visit.Key.EndsWith(":1750", StringComparison.Ordinal) && LaboratoryRouteOrder(item.Id, laboratoryProgress) is int laboratoryOrder)
+        {
+            return laboratoryOrder;
         }
         return (visit.Key, item.Id) switch
         {
@@ -269,6 +273,17 @@ internal static class AutoPlayTraversalPolicy
         };
     }
 
+    private static int? LaboratoryRouteOrder(string eventId, int progress)
+    {
+        // NG-067: Take the laboratory lift and use the console before entering Ellone's room.
+        return (progress, eventId) switch
+        {
+            (< 2, "529:talk:3" or "531:gateway:0" or "526:line-action:5") => -1,
+            (>= 2, "526:line:8" or "531:talk:3" or "529:line:11") => -1,
+            _ => null
+        };
+    }
+
     internal static int? GalbadiaKeyRouteOrder(int keys, string eventId)
     {
         // NG-051: Use the original approaches gated by the card keys already awarded by the field scripts.
@@ -314,6 +329,9 @@ internal static class AutoPlayTraversalPolicy
             // NG-066: Try operating the hidden console.
             "555:1730:0:4:51:1:2:3" => 2,
             "555:1740:0:4:67:2:1:2" => 1,
+            // NG-067: Sit down in the lift and choose Go down on return.
+            "529:1750:8:109:1852:1:1:2" => 1,
+            "531:1750:3:62:1100:1:0:1" => 0,
             // NG-036: Take the elevator to 2F for the approaching ship.
             "172:614:12:98:1227:4:2:4" => 3,
             // NG-039, NG-040: Take the elevator to 2F for Fishermans Horizon.
