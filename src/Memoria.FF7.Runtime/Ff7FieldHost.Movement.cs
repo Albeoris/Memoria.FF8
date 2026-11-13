@@ -70,6 +70,6 @@ public sealed partial class Ff7FieldHost
         {
             throw new InvalidDataException("FFVII movement animation has no native frames.");
         }
-        return actor with { Animation = boundAnimation, RequestedAnimation = binds ? null : animation, BaseAnimationSpeed = 16, AnimationSpeed = 16, AnimationFrame16 = 0, LastAnimationFrame = count - 1, AnimationLoop = true, AnimationStopped = false, AnimationFinished = false };
+        return actor with { Animation = boundAnimation, RequestedAnimation = binds ? null : animation, BaseAnimationSpeed = 16, AnimationSpeed = 16, AnimationFrame16 = 0, LastAnimationFrame = count - 1, AnimationLoop = true, AnimationStopped = false, AnimationFinished = false, AnimationEpoch = actor.AnimationEpoch + 1 };
     }
 }

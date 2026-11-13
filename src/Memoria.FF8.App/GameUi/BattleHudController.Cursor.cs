@@ -4,8 +4,7 @@ namespace Memoria.FF8.GameUi;
 
 public sealed partial class BattleHudController
 {
-    private readonly Dictionary<(string Actor, bool Form), (BattleAbility Ability, int? NativeCommand)> rememberedCommands = [];
-    private readonly Dictionary<(string Actor, bool Form, BattleAbility Command, int? NativeCommand), CursorSelection> rememberedActions = [];
+    private readonly BattleCursorMemory<(string Actor, bool Form), (BattleAbility Ability, int? NativeCommand), CursorSelection> rememberedCursor = new();
     private string? cursorActorId;
     private bool cursorMemory;
 
@@ -45,7 +44,7 @@ public sealed partial class BattleHudController
             return;
         }
         bool form = session.GetGuardianForm(actor.Id) is { Phase: BattleGuardianFormPhase.Active, RemainingTicks: > 0 };
-        if (rememberedCommands.TryGetValue((actor.Id, form), out var command))
+        if (rememberedCursor.TryGetCommand((actor.Id, form), out var command))
         {
             commandIndex = Math.Max(0, PlayerCommandChoices.ToList().FindIndex(choice => choice.Ability == command.Ability && choice.Command == command.NativeCommand));
         }
@@ -57,7 +56,7 @@ public sealed partial class BattleHudController
         {
             return null;
         }
-        return rememberedActions.GetValueOrDefault((actor.Id, HasGuardianFormCommands, SelectedCommand, SelectedNativeCommand));
+        return rememberedCursor.Selection((actor.Id, HasGuardianFormCommands), (SelectedCommand, SelectedNativeCommand));
     }
 
     private void RestoreActionCursor()
@@ -91,7 +90,6 @@ public sealed partial class BattleHudController
         {
             return;
         }
-        rememberedCommands[(selection.Actor, selection.Form)] = (selection.Command, selection.NativeCommand);
-        rememberedActions[(selection.Actor, selection.Form, selection.Command, selection.NativeCommand)] = selection;
+        rememberedCursor.Remember((selection.Actor, selection.Form), (selection.Command, selection.NativeCommand), selection);
     }
 }

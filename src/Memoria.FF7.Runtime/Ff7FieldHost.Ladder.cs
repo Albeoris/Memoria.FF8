@@ -4,6 +4,8 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7FieldHost
 {
+    public bool RequiresRealTimeFieldInput => !Process.PlayerLocked && Process.Actors.Any(actor => actor.PlayerControlled && actor.Ladder is not null);
+
     private FieldHostReply Ladder(long requestId, int entity, FieldActorLadder command)
     {
         Ff7Actor actor = GetActor(entity);
@@ -64,7 +66,7 @@ public sealed partial class Ff7FieldHost
                     UpdateLineContacts(actor, actor, moving: false);
                 }
                 state = state with { StartX = actor.X4096, StartY = actor.Y4096, StartZ = actor.Z4096, Steps = steps, Initialized = true };
-                SetActorSlot(actor.Slot, current => current with { Ladder = state, AnimationFrame16 = 0, LastAnimationFrame = last });
+                SetActorSlot(actor.Slot, current => current with { Ladder = state, AnimationFrame16 = 0, LastAnimationFrame = last, AnimationEpoch = current.AnimationEpoch + 1 });
                 continue;
             }
             int frame = actor.AnimationFrame16;

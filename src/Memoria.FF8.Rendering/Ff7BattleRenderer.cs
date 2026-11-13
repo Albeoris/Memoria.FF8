@@ -9,12 +9,14 @@ namespace Memoria.FF8.Rendering;
 
 public sealed record Ff7BattleActorVisual(string ModelPrefix, Vector3 Position, float FacingRadians, int ClipIndex, int ClipFrame, int? WeaponIndex = null, BattleLimitAnimation? Limit = null)
 {
+    public int? Slot { get; init; }
     public Ff7BattleActorModelModifiers? ModelModifiers { get; init; }
     public bool ShadowSuppressed { get; init; }
     public Matrix4x4? PresentationTransform { get; init; }
 }
 public sealed record Ff7BattleRenderFrame(SceneCameraPlacement Camera, IReadOnlyList<Ff7BattleActorVisual> Actors, Ff7BattleFireState? Fire = null, Ff7BattleIceState? Ice = null, Ff7BattleBoltState? Bolt = null, Ff7BattleCureState? Cure = null, Ff7BattleBraverState? Braver = null)
 {
+    public bool CaptureActorBounds { get; init; }
     public CrossoverFf8BattleActorVisual? Guest { get; init; }
     public CrossoverNativeEffectVisual? GuestEffects { get; init; }
     public IReadOnlyList<CrossoverFf8BattleActorVisual> Guests { get; init; } = [];
@@ -36,6 +38,10 @@ public sealed record Ff7BattleRenderFrame(SceneCameraPlacement Camera, IReadOnly
 /// <summary>Submits original FFVII stage and rigid actor geometry without advancing the battle.</summary>
 public sealed partial class Ff7BattleRenderer
 {
+    private readonly Dictionary<int, Vector4> actorBounds = [];
+
+    public bool TryGetActorBounds(int slot, out Vector4 bounds) => actorBounds.TryGetValue(slot, out bounds);
+
     private readonly LgpArchive archive;
     private readonly Ff7BattleArenaResources arena;
     private readonly LgpArchive? magicArchive;
@@ -108,6 +114,7 @@ public sealed partial class Ff7BattleRenderer
         IReadOnlyList<CrossoverFf8BattleActorVisual> guests = frame.Guests.Count > 0 ? frame.Guests : frame.Guest is { } guest ? [guest] : [];
         IReadOnlyList<CrossoverNativeEffectVisual> guestEffects = frame.GuestEffectLayers.Count > 0 ? frame.GuestEffectLayers : frame.GuestEffects is { } effectLayer ? [effectLayer] : [];
         CrossoverNativeStageColor? guestStageColor = guestEffects.Select(effect => effect.StageColor).FirstOrDefault(color => color is not null);
+        actorBounds.Clear();
         CameraView view = CameraView.Create(frame.Camera, width, height);
         renderer.Begin(width, height, new Vector4(0, 0, 0, 1), 0);
         try
@@ -129,12 +136,16 @@ public sealed partial class Ff7BattleRenderer
             {
                 if (actor.ModelModifiers is not { Deferred: true })
                 {
-                    DrawActor(renderer, actor, view);
+                    DrawActor(renderer, actor, view, frame.CaptureActorBounds);
                 }
             }
             foreach (CrossoverFf8BattleActorVisual actor in guests)
             {
-                CrossoverFf8BattleActorRenderer.Draw(renderer, actor, view.Transform, width, height, view.Focal);
+                Vector4? bounds = CrossoverFf8BattleActorRenderer.DrawWithBounds(renderer, actor, view.Transform, width, height, view.Focal, frame.CaptureActorBounds && actor.HostSlot.HasValue);
+                if (actor.HostSlot is int slot && bounds is { } modelBounds)
+                {
+                    actorBounds[slot] = modelBounds;
+                }
             }
             foreach (Ff7BattleHitmarkState hitmark in frame.Hitmarks ?? [])
             {
@@ -213,7 +224,7 @@ public sealed partial class Ff7BattleRenderer
             {
                 if (actor.ModelModifiers is { Deferred: true })
                 {
-                    DrawActor(renderer, actor, view);
+                    DrawActor(renderer, actor, view, frame.CaptureActorBounds);
                 }
             }
             foreach (CrossoverNativeEffectVisual guestEffect in guestEffects)
@@ -227,7 +238,7 @@ public sealed partial class Ff7BattleRenderer
         }
     }
 
-    private void DrawActor(ITriangleRenderer renderer, Ff7BattleActorVisual actor, CameraView view)
+    private void DrawActor(ITriangleRenderer renderer, Ff7BattleActorVisual actor, CameraView view, bool captureBounds)
     {
         if (actor.ModelModifiers is { Visible: false })
         {
@@ -236,7 +247,22 @@ public sealed partial class Ff7BattleRenderer
         byte alpha = actor.ModelModifiers?.Alpha ?? 255;
         ModelColorBlend? tint = actor.ModelModifiers is { Alpha: < 255 } modifiers ? new(modifiers.Red, modifiers.Green, modifiers.Blue, alpha) : null;
         Ff7ModelMaterialState material = new() { Cull = true };
-        VisitActorGeometry(actor, (model, textures, transform) => DrawModel(renderer, model, textures, transform, view, material, alpha / 255f, tint));
+        Ff7BattleScreenBounds bounds = default;
+        VisitActorGeometry(actor, (model, textures, transform) =>
+        {
+            DrawModel(renderer, model, textures, transform, view, material, alpha / 255f, tint);
+            if (captureBounds && actor.Slot.HasValue && alpha != 0)
+            {
+                foreach (Vector3 vertex in model.Vertices)
+                {
+                    bounds.Add(view.Transform(Vector3.Transform(vertex, transform)), view.Width, view.Height, view.Focal);
+                }
+            }
+        });
+        if (actor.Slot is int slot && bounds.Value is { } modelBounds)
+        {
+            actorBounds[slot] = modelBounds;
+        }
     }
 
     private void DrawModel(ITriangleRenderer renderer, PcPolygonModel model, IReadOnlyList<PcTexture> textures, Matrix4x4 transform, CameraView view, Ff7ModelMaterialState material, float opacity = 1, ModelColorBlend? colorBlend = null, CrossoverNativeStageColor? guestStageColor = null, int? arenaPart = null, IReadOnlySet<NativeBattleArenaPrimitiveId>? suppressedArenaPrimitives = null)

@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Memoria.FF7.Runtime;
+using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
@@ -63,6 +64,7 @@ public sealed class Ff7DebugMenuRoutingTests
         Set(scene, "sharedClock", new GameplayClock());
         Set(scene, "soundChannels", new Ff7SoundChannels());
         Set(scene, "movieSkipGesture", new MovieSkipGesture());
+        Set(scene, "noticeWindow", new NoticeWindow());
         Set(scene, "envelope", new CombinedSessionSave { ActiveGame = SessionGame.Ff7 });
         return scene;
     }

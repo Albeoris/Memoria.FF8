@@ -69,7 +69,7 @@ internal sealed partial class Ff7Scene
 
     private void UpdateErrorPresentation()
     {
-        errorReporter?.Update(error, semanticInput, sharedInput, Mouse.GetState(), device.Viewport.Width, device.Viewport.Height);
+        errorReporter?.Update(error, semanticInput, sharedInput, pointerState, device.Viewport.Width, device.Viewport.Height);
     }
 
     private void DrawErrorPresentation(Rectangle bounds)

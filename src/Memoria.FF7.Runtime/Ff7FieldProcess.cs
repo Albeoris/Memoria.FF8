@@ -1,4 +1,5 @@
 using Memoria.FF7.Events;
+using System.Text.Json.Serialization;
 
 namespace Memoria.FF7.Runtime;
 
@@ -54,6 +55,12 @@ public sealed record Ff7Actor
     public bool AnimationStopped { get; init; }
     public bool AnimationFinished { get; init; }
     public bool PlayerControlled { get; init; }
+    [JsonIgnore]
+    public long PlacementEpoch { get; init; }
+    [JsonIgnore]
+    public long AnimationEpoch { get; init; }
+    [JsonIgnore]
+    public long AppearanceEpoch { get; init; }
 }
 
 public sealed record Ff7Window(int Id, int X, int Y, int Width, int Height, int Style = 0, int Flags = 0, int Rows = 0)
@@ -115,6 +122,8 @@ public enum Ff7GlobalCommand
 
 public sealed record Ff7FieldProcess
 {
+    [JsonIgnore]
+    public long CameraEpoch { get; init; }
     public byte BlinkRandomIndex { get; init; }
     public bool BlinkStateInitialized { get; init; }
     public long Tick { get; init; }

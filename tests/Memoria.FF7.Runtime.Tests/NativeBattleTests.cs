@@ -95,11 +95,22 @@ internal static class NativeBattleTests
             battle.Advance(turnBased: true);
         }
         Check(battle.ReadyPlayer == 0 && battle.Tick == 9 && battle.Actors.Select(actor => actor.Gauge).SequenceEqual(waiting.Actors.Select(actor => actor.Gauge)), "The ready party must hold ATB while presentation advances.");
+        Ff7BattleSnapshot beforePass = battle.Capture();
         Ff7BattleSession restored = Create(JsonSerializer.Deserialize<Ff7BattleSnapshot>(JsonSerializer.Serialize(battle.Capture())));
-        battle.AdvanceTurn();
-        restored.AdvanceTurn();
+        Ff7BattleTurnAdvanceResult pass = battle.AdvanceTurn();
+        Check(pass is { Boundary: Ff7BattleTurnAdvanceBoundary.QueuedExecution, AdvancedSteps: > 0 } && restored.AdvanceTurn() == pass, "An explicit pass must report the new queued execution boundary.");
         Check(battle.ReadyPlayer == 0 && battle.Tick == 9 && battle.Capture().Queue.Ready.Any(command => command?.ActorSlot >= 4), "Advance Turn must stage the next enemy turn without consuming the ready party turn or jumping presentation.");
-        Check(JsonSerializer.Serialize(battle.Capture()) == JsonSerializer.Serialize(restored.Capture()), "Cold Turn Based continuation changed the next readiness edge.");
+        Check(Json(battle) == Json(restored), "Cold Turn Based continuation changed the next readiness edge.");
+        Ff7BattleSnapshot queued = battle.Capture();
+        Check(queued.LastHit == beforePass.LastHit && queued.Action is null && queued.Inventory.SequenceEqual(beforePass.Inventory) && JsonSerializer.Serialize(queued.Random) == JsonSerializer.Serialize(beforePass.Random), "Speculative readiness must leave contacts, inventory and native AI randomness to ordinary dispatch.");
+        CheckBlocked(battle, Ff7BattleTurnAdvanceBoundary.QueuedExecution);
+        restored = Create(JsonSerializer.Deserialize<Ff7BattleSnapshot>(Json(battle)));
+        for (int tick = 0; tick < 4; tick++)
+        {
+            battle.Advance(turnBased: true);
+            restored.Advance(turnBased: true);
+        }
+        Check(Json(battle) == Json(restored) && battle.Capture().Queue.Slots.Any(entry => entry?.Command is { ActorSlot: >= 4, Callback: 1 }), "The next real callback must execute original enemy AI and retain its command and RNG after restore.");
 
         Ff7BattleSession classic = Create(waiting);
         classic.Advance();
@@ -125,6 +136,53 @@ internal static class NativeBattleTests
         Check(automatic.ReadyPlayer is null, "A sleeping actor cannot own the decision.");
         automatic.Advance(turnBased: true);
         Check(automatic.ReadyPlayer == 0 && automatic.Tick == 2, "Automatic Turn Based time must expire Sleep and hand the decision back to the ready party.");
+
+        Ff7BattleSession explicitWake = Create(sleeping);
+        Check(explicitWake.AdvanceTurn() is { Boundary: Ff7BattleTurnAdvanceBoundary.PlayerReady, AdvancedSteps: > 0 } && explicitWake.ReadyPlayer == 0 && explicitWake.Tick == 1, "An explicit pass must wake an already-filled actor without ticking presentation.");
+
+        Ff7BattleSnapshot stopped = waiting with
+        {
+            Actors = waiting.Actors.Select(actor => actor with { Actor = actor.Actor with { Statuses = actor.Actor.Statuses | 0x400 } }).ToArray()
+        };
+        CheckBlocked(Create(stopped), Ff7BattleTurnAdvanceBoundary.Stalled);
+
+        Ff7BattleSession exhausted = Create(sleeping);
+        string before = Json(exhausted);
+        bool timedOut = false;
+        try
+        {
+            exhausted.AdvanceTurn(1);
+        }
+        catch (TimeoutException)
+        {
+            timedOut = true;
+        }
+        Check(timedOut && before == Json(exhausted), "Budget exhaustion must leave gauges, status clocks, queue, presentation and RNG unchanged.");
+
+        Ff7BattleQueuedCommand reaction = new(0, 4, 0x22, 2, 0x10);
+        CheckBlocked(Create(waiting with { Queue = Ff7BattleCommandQueue.Enqueue(waiting.Queue, reaction) }), Ff7BattleTurnAdvanceBoundary.QueuedExecution);
+        CheckBlocked(Create(waiting with { Action = new(new(2, 4, 0x20, 0, 1, 272), waiting.Tick, -1) }), Ff7BattleTurnAdvanceBoundary.ActiveAction);
+        Ff7BattlePrimaryCallback?[] primarySlots = new Ff7BattlePrimaryCallback?[Ff7BattlePrimaryEffects.Capacity];
+        primarySlots[0] = new Ff7BattlePrimaryStageFade(new(0, 1, 5)) { Owner = -1 };
+        CheckBlocked(Create(waiting with { PrimaryEffects = new() { Slots = primarySlots } }), Ff7BattleTurnAdvanceBoundary.PrimaryPresentation);
+
+        Ff7BattleSnapshot poison = waiting with
+        {
+            Actors = waiting.Actors.Select(actor => actor.Actor.Slot == 0
+                ? actor with { Timers = new(8191, 0, 1), Actor = actor.Actor with { Statuses = actor.Actor.Statuses | Ff7NativeBattleActionResolver.Poison } }
+                : actor with { Gauge = 0 }).ToArray()
+        };
+        Ff7BattleSession periodic = Create(poison);
+        Check(periodic.AdvanceTurn(1) == new Ff7BattleTurnAdvanceResult(Ff7BattleTurnAdvanceBoundary.QueuedExecution, 1), "Poison must stop the pass at its queued execution boundary.");
+        Check(periodic.Actors[0].Timers.Poison == 10 && periodic.Actors[0].Actor.HitPoints == poison.Actors[0].Actor.HitPoints && periodic.LastHit is null && periodic.Capture().Queue.Slots.Any(entry => entry?.Command is { ActorSlot: 0, CommandId: 0x23 }), "The pass must commit periodic status time and queue its pending contact without applying damage.");
+
+        static string Json(Ff7BattleSession battle) => JsonSerializer.Serialize(battle.Capture());
+
+        static void CheckBlocked(Ff7BattleSession battle, Ff7BattleTurnAdvanceBoundary boundary)
+        {
+            string before = Json(battle);
+            Check(battle.AdvanceTurn() == new Ff7BattleTurnAdvanceResult(boundary) && Json(battle) == before, $"The {boundary} owner must block logical time without changing captured state.");
+        }
     }
 
     private static void RunInstalled()

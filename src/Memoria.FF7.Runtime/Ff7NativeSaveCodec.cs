@@ -44,7 +44,8 @@ public static class Ff7NativeSaveCodec
             throw new InvalidDataException("The native FFVII save field is absent from the installed maplist.");
         }
         Ff7Actor actor = save.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled) ?? throw new NotSupportedException("Native FFVII export requires a controlled field actor.");
-        return ExportField(save.Progress, save.Vm.PersistentVariables, checked((ushort)map), checked((short)(actor.X4096 >> 12)), checked((short)(actor.Y4096 >> 12)), checked((ushort)actor.Triangle), unchecked((byte)actor.Direction), original?.Encode() ?? save.NativeSaveData);
+        Ff7Progress progress = save.Progress with { NativeBattleSpeed = ResolveBattleSpeed(save.Progress.NativeBattleSpeed, save.NativeSaveData) };
+        return ExportField(progress, save.Vm.PersistentVariables, checked((ushort)map), checked((short)(actor.X4096 >> 12)), checked((short)(actor.Y4096 >> 12)), checked((ushort)actor.Triangle), unchecked((byte)actor.Direction), original?.Encode() ?? save.NativeSaveData);
     }
 
     public static Ff7Progress ImportProgress(Ff7NativeSaveSlot slot, byte[] initialKernelData)
@@ -68,6 +69,7 @@ public static class Ff7NativeSaveCodec
             LockedCharacters = Read16(data, 0x10A4),
             AvailableCharacters = Read16(data, 0x10A6),
             NativeMessageSpeed = data[0x10EC],
+            NativeBattleSpeed = ResolveBattleSpeed(null, data),
             Encounters = new(RollIndex: data[0xBA1], RollOffset: data[0xBA2])
         };
         progress.Validate();
@@ -92,7 +94,6 @@ public static class Ff7NativeSaveCodec
             data.AsSpan(0xA9C, 224).Fill(255);
             data.AsSpan(0x48, 12).Fill(128);
             data[0x4FB] = 255;
-            data[0x10D8] = 128;
             data[0x10D9] = 128;
             data[0x10DA] = 1;
         }
@@ -143,6 +144,7 @@ public static class Ff7NativeSaveCodec
         Write16(data, 0x10A4, progress.LockedCharacters);
         Write16(data, 0x10A6, progress.AvailableCharacters);
         data[0x10EC] = progress.NativeMessageSpeed;
+        data[0x10D8] = ResolveBattleSpeed(progress.NativeBattleSpeed, originalData);
         Ff7CharacterState? leader = progress.Characters.FirstOrDefault(character => character.Id == progress.Party[0]);
         if (leader is not null)
         {
@@ -156,6 +158,11 @@ public static class Ff7NativeSaveCodec
         data.AsSpan(0xF0C, 24).CopyTo(data.AsSpan(0x28));
         Write16(data, 0, Ff7NativeSaveSlot.ComputeChecksum(data));
         return Ff7NativeSaveSlot.Decode(data);
+    }
+
+    internal static byte ResolveBattleSpeed(byte? configured, byte[]? nativeSlot)
+    {
+        return configured ?? (nativeSlot is null ? Ff7Progress.DefaultNativeBattleSpeed : nativeSlot[0x10D8]);
     }
 
     private static ushort Read16(byte[] data, int offset) => BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(offset));

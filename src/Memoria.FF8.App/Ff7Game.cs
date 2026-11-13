@@ -32,6 +32,7 @@ internal sealed partial class Ff7Game : Game
     private readonly KeyboardInput keyboard = new();
     private readonly GameplayClock gameplayClock = new();
     private ControllerDevice? controller;
+    private readonly HostPhysicalInput physicalInput;
     private readonly PresentationPacer presentationPacer = new();
     private int updateFrames;
     private bool frameCaptured;
@@ -47,6 +48,7 @@ internal sealed partial class Ff7Game : Game
         this.resolveMovie = resolveMovie;
         initialEnvelope = envelope;
         this.launchOptions = launchOptions;
+        physicalInput = new(launchOptions?.AcceptsPhysicalInput != false, () => IsActive, Keyboard.GetState, () => controller?.Read() ?? default, Mouse.GetState);
         this.appearance = appearance;
         initialPresentationPreferences = UiPreferences.Load(new GlobalSettingsPaths(isolatedDirectory: launchOptions?.SettingsDirectory).UiPreferencesPath);
         appliedMsaaSamples = initialPresentationPreferences.Graphics.MsaaSamples;
@@ -87,7 +89,7 @@ internal sealed partial class Ff7Game : Game
         scene.RenderLimit = launchOptions?.WorldRenderLimit ?? 2048;
         Window.TextInput += (_, input) =>
         {
-            if (IsActive && launchOptions?.AcceptsPhysicalInput != false && saveMenu?.IsOpen != true)
+            if (physicalInput.CanRead && saveMenu?.IsOpen != true)
             {
                 scene.EnterText(input.Character);
             }
@@ -139,6 +141,14 @@ internal sealed partial class Ff7Game : Game
         scene.SetFocusPaused(true);
     }
 
+    protected override void OnDeactivated(object sender, EventArgs args)
+    {
+        physicalInput.LoseFocus();
+        keyboard.Read(default, default, false);
+        windowModeHotkey.Read(default, false);
+        base.OnDeactivated(sender, args);
+    }
+
     protected override void Update(GameTime gameTime)
     {
         if (worldTransfer is not null)
@@ -159,26 +169,30 @@ internal sealed partial class Ff7Game : Game
             return;
         }
         PumpPlatform();
+        physicalInput.BeginFrame();
         updateControls?.Poll();
         controls?.Poll();
-        UpdateWindowModeHotkey(launchOptions?.AcceptsPhysicalInput == false ? default : Keyboard.GetState(), IsActive);
+        UpdateWindowModeHotkey(physicalInput.ReadKeyboard(), physicalInput.CanRead);
         scene.SetFocusPaused(mappingMenu is not null || saveMenu.IsOpen || updateSave.Paused || !IsActive && launchOptions?.ControlDirectory is null);
         if (!updateSave.Paused && launchOptions?.ControlStep != true)
         {
-            GamePadState pad = launchOptions?.AcceptsPhysicalInput == false ? default : controller!.Read();
+            GamePadState pad = physicalInput.ReadController();
             keyboard.ControllerPresentation = controller!.Presentation;
             keyboard.ControllerGeneration = controller.Generation;
+            bool inputActive = physicalInput.CanRead || remainingInputFrames > 0;
+            KeyboardState keys = ReadControlKeys();
+            MouseState mouse = physicalInput.ReadMouse();
             if (saveMenu.IsOpen)
             {
-                HandlePlayerSaveInput(keyboard.Read(ReadControlKeys(), pad, IsActive));
+                HandlePlayerSaveInput(keyboard.Read(keys, pad, inputActive));
             }
             else if (mappingMenu is not null)
             {
-                mappingMenu.Update(keyboard.Read(ReadControlKeys(), pad, IsActive), Mouse.GetState(), GraphicsDevice.Viewport.Bounds);
+                mappingMenu.Update(keyboard.Read(keys, pad, inputActive), mouse, GraphicsDevice.Viewport.Bounds);
             }
             else
             {
-                scene.Update(gameTime, ReadControlKeys(), pad);
+                scene.Update(gameTime, keys, pad, mouse, inputActive);
             }
         }
         UiPreferences preferences = scene.PresentationPreferences;

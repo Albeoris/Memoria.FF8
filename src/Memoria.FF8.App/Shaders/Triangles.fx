@@ -22,6 +22,8 @@ float4x4 WorldView;
 float3 WorldOffset;
 float WorldFocal;
 float WorldNativeCurvature;
+float3 WorldFf7Projection; // enabled, screen centre Y, curvature threshold
+float4 WorldFf7Bridge; // native rotation's Y axis, enabled
 #if VULKAN || DIRECTX12
 Texture2D SourceTexture : register(t0);
 #else
@@ -51,10 +53,43 @@ struct WorldVSInput
 {
     float3 Position : POSITION0;
     float2 Uv : TEXCOORD0;
+    float3 Normal : NORMAL0;
+    float Deform : TEXCOORD1;
 };
 VSOutput WorldVertexMain(WorldVSInput input)
 {
     float3 terrainPosition = input.Position + WorldOffset;
+    if (WorldFf7Projection.x != 0)
+    {
+        if (WorldFf7Bridge.w != 0 && input.Deform != 0)
+        {
+            float height = input.Position.y - 20000;
+            height -= floor((height + 32768) / 65536) * 65536;
+            float3 rotated = trunc(height * WorldFf7Bridge.xyz);
+            terrainPosition += float3(rotated.x, 20000 + rotated.y - input.Position.y, rotated.z);
+        }
+        float3 camera = mul(float4(terrainPosition, 1), WorldView).xyz;
+        float distance = ((int)round(camera.z) >> 2) - WorldFf7Projection.z;
+        if (distance > 0 && camera.z != 0)
+        {
+            float screenX = round(camera.x * (WorldFocal * 240 / ViewportSize.y) / camera.z);
+            float bend = distance / 64 + abs(screenX) / 32;
+            terrainPosition.y -= bend * bend;
+            camera = mul(float4(terrainPosition, 1), WorldView).xyz;
+        }
+        float3 normal = mul(float4(input.Normal, 0), WorldView).xyz;
+        float factor = (normal.x + normal.y + normal.z) * (110.0 / 255) + 64.0 / 255;
+        float color = round(clamp(factor * 255, 0, 255)) / 255;
+        VSOutput ff7;
+        ff7.Position = float4(camera.x * WorldFocal * 2 / ViewportSize.x, -camera.y * WorldFocal * 2 / ViewportSize.y + (1 - WorldFf7Projection.y * 2 / ViewportSize.y) * camera.z, camera.z - 1, camera.z);
+        ff7.Color = float4(color, color, color, 1);
+        ff7.Uv = float3(input.Uv / TextureSize, 1);
+        ff7.TextureUv = ff7.Uv;
+        ff7.Depth = camera.z;
+        ff7.TextureScreenRectangle = 0;
+        ff7.TextureTexelRectangle = 0;
+        return ff7;
+    }
     if (WorldNativeCurvature > 0)
     {
         float cameraDepth = -mul(float4(terrainPosition, 1), WorldView).z * 16;

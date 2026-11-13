@@ -45,7 +45,24 @@ public sealed partial class WorldMachine
     }
 
     public long TickCount { get; private set; }
+    public bool IsUnloading => unloading;
     public byte[] CopyPersistent() => (byte[])persistent.Clone();
+
+    public bool OwnsHostOperation(int address, WorldOperation operation) => address > 0 && address < program.WordCount && program.Read(address) == (ushort)operation;
+
+    public void CompleteUnload()
+    {
+        EnsureHealthy();
+        StartSystem(1);
+        for (int pass = 0; system.Pc != 0 || models.Any(entity => entity.Pc != 0); pass++)
+        {
+            if (pass == 4096)
+            {
+                throw new InvalidDataException("FFVII world unload did not finish within its execution budget.");
+            }
+            ExecuteScripts();
+        }
+    }
 
     public void StartSystem(int eventId)
     {
@@ -113,7 +130,8 @@ public sealed partial class WorldMachine
         EnsureHealthy();
         try
         {
-            ExecuteTick();
+            ExecuteScripts();
+            TickCount++;
         }
         catch
         {
@@ -122,7 +140,7 @@ public sealed partial class WorldMachine
         }
     }
 
-    private void ExecuteTick()
+    private void ExecuteScripts()
     {
         Run(system);
         // Allocation prepends to the native list; models created by the system participate in this tick.
@@ -133,7 +151,6 @@ public sealed partial class WorldMachine
             int index = models.IndexOf(entity);
             entity = index + 1 < models.Count ? models[index + 1] : null;
         }
-        TickCount++;
     }
 
     private void EnsureHealthy()

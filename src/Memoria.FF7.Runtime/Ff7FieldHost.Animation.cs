@@ -47,6 +47,7 @@ public sealed partial class Ff7FieldHost
                 RequestedAnimation = null,
                 AnimationSpeed = current.BaseAnimationSpeed / animation.Speed,
                 AnimationFrame16 = initial,
+                AnimationEpoch = current.AnimationEpoch + 1,
                 FirstAnimationFrame = first,
                 LastAnimationFrame = last,
                 AnimationStatus = animation.Blocking ? 2 : animation.HoldLast ? 6 : 5,
@@ -158,7 +159,7 @@ public sealed partial class Ff7FieldHost
             // A rejected model binding retains the clip, but the native actor request retries and resets its phase.
             if (next.RequestedAnimation is int requested && requested != next.Animation)
             {
-                next = next with { AnimationFrame16 = 0 };
+                next = next with { AnimationFrame16 = 0, AnimationEpoch = next.AnimationEpoch + 1 };
             }
             int frame = unchecked((short)(next.AnimationFrame16 + next.AnimationSpeed));
             if (!scriptControlled)

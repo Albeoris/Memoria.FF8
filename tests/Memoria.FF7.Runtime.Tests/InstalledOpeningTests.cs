@@ -253,6 +253,43 @@ internal static class InstalledOpeningTests
         }
     }
 
+    public static void RunTurnAdvanceContinuation()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            Console.WriteLine("SKIP installed explicit turn continuation: MEMORIA_FF7_GAME_DIR is unset.");
+            return;
+        }
+
+        Ff7Installation installation = Ff7Installation.Discover(root);
+        using Ff7Session entry = Ff7Session.NewGame(installation);
+        entry.SetFullCombatEnabled(true);
+        entry.Host.StartEncounter(new(entry.Progress.NextEncounterRequestId, 0, 7, 0, new FieldBattleCommand(300)), 0);
+        Ff7SessionSave opening = entry.Capture();
+        Ff7BattleSnapshot initial = opening.Battle!;
+        Ff7BattleActorState[] actors = initial.Actors.Select(actor => actor.Actor.Slot == 0
+            ? actor with { Gauge = ushort.MaxValue, AwaitingTurn = true }
+            : actor with { Gauge = ushort.MaxValue - 1 }).ToArray();
+        Ff7SessionSave diagnostic = opening with { Battle = initial with { Intro = null, Tick = 4, Actors = actors } };
+        using Ff7Session live = Restore(JsonSerializer.Serialize(diagnostic));
+        Ff7BattleSession battle = live.Battle!;
+        Equal(new Ff7BattleTurnAdvanceResult(Ff7BattleTurnAdvanceBoundary.QueuedExecution, 1), battle.AdvanceTurn());
+        string queued = JsonSerializer.Serialize(live.Capture());
+        using Ff7Session cold = Restore(queued);
+        Equal(new Ff7BattleTurnAdvanceResult(Ff7BattleTurnAdvanceBoundary.QueuedExecution), cold.Battle!.AdvanceTurn());
+        Equal(queued, JsonSerializer.Serialize(cold.Capture()));
+        live.AdvanceTick(advanceClock: false, turnBasedBattle: true);
+        cold.AdvanceTick(advanceClock: false, turnBasedBattle: true);
+        Ff7SessionSave continued = live.Capture();
+        Equal(JsonSerializer.Serialize(continued), JsonSerializer.Serialize(cold.Capture()));
+        Equal(opening.Vm.Tick, continued.Vm.Tick);
+        Equal(JsonSerializer.Serialize(opening.Progress), JsonSerializer.Serialize(continued.Progress));
+        Equal(true, continued.Battle!.Queue.Slots.Any(slot => slot?.Command is { ActorSlot: >= 4, Callback: 1 }));
+
+        Ff7Session Restore(string save) => Ff7Session.Restore(installation, JsonSerializer.Deserialize<Ff7SessionSave>(save)!);
+    }
+
     private static void CheckBattlePresentationGlobals(Ff7Installation installation, Ff7Session source)
     {
         Ff7SessionSave initial = source.Capture();

@@ -4,6 +4,8 @@ using Memoria.FF7.Runtime;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Ui;
+using Microsoft.Xna.Framework.Input;
 using Microsoft.Xna.Framework;
 
 namespace Memoria.FF8;
@@ -22,11 +24,15 @@ internal sealed partial class Ff7Scene
     private (Ff7BattleCommand Command, string Name)? battleCommandPage;
     private Ff7BattleCommandOption? unavailableBattleCommand;
     private Ff7BattleGuestAbilityFailure? presentedGuestAbilityFailure;
-    private int battleCommandIndex;
-    private int battleActionIndex;
-    private int battleTargetIndex;
     private bool battleTargetGroup;
     private int? battleInputOwner;
+    private readonly BattleCursorMemory<(int Slot, int Character), (Ff7BattleCommand Command, string Name), BattleCursorChoice> battleCursor = new();
+    private sealed record BattleCursorChoice(int Action, int TargetSlot, int TargetIdentity, bool Group);
+    private (Ff7BattleCommand Command, string Name)? highlightedBattleCategory;
+    private int? highlightedBattleArgument;
+    private (int Slot, int Identity)? highlightedBattleTarget;
+    private bool battlePointerPressed;
+    private readonly List<(UiRect Bounds, int Owner, (Ff7BattleCommand Command, string Name)? Category, int? Argument, (int Slot, int Identity)? Target)> battlePointerRows = [];
     private bool pendingLimitConfirm;
     private BattleSmartAttackPreview? displayedGuestSmartPreview;
 
@@ -41,6 +47,9 @@ internal sealed partial class Ff7Scene
     {
         Ff7Session session = Session!;
         EnsureMixedBattle(battle);
+        bool mouseHeld = pointerState.LeftButton == ButtonState.Pressed;
+        bool mouseClicked = mouseHeld && !battlePointerPressed;
+        battlePointerPressed = mouseHeld;
         if (UpdateEnemyScan())
         {
             UpdateAudio();
@@ -54,6 +63,24 @@ internal sealed partial class Ff7Scene
                 return;
             }
             UpdateAudio();
+            if (battle.Outcome == Ff7BattleOutcome.Victory)
+            {
+                PrepareBattleResult(session, battle);
+                if (semanticInput.MenuPage < 0 || semanticInput.MenuHorizontal < 0)
+                {
+                    battleResultPager!.MoveBack();
+                    return;
+                }
+                if (semanticInput.MenuPage > 0 || semanticInput.MenuHorizontal > 0)
+                {
+                    battleResultPager!.MoveNext(battleResultRows.Length);
+                    return;
+                }
+                if (semanticInput.Confirm && battleResultPager!.MoveNext(battleResultRows.Length))
+                {
+                    return;
+                }
+            }
             if (semanticInput.Confirm)
             {
                 if (!TrySettleMixedBattle(battle))
@@ -103,14 +130,19 @@ internal sealed partial class Ff7Scene
         if (battleInputOwner != battle.ReadyPlayer)
         {
             battleInputOwner = battle.ReadyPlayer;
-            battleCommandIndex = 0;
-            battleActionIndex = 0;
+            highlightedBattleCategory = null;
+            if (battleInputOwner is int ready && PresentationPreferences.CursorMemory && battleCursor.TryGetCommand(BattleCursorActor(battle, ready), out var remembered))
+            {
+                highlightedBattleCategory = remembered;
+            }
+            highlightedBattleArgument = null;
+            highlightedBattleTarget = null;
             battleCommandPage = null;
             selectedBattleCommand = null;
         }
         if (battleInputOwner is int owner)
         {
-            ReadBattleCommand(battle, owner);
+            ReadBattleCommand(battle, owner, mouseClicked);
         }
         else if (battle.BeatRushSelecting)
         {
@@ -183,8 +215,9 @@ internal sealed partial class Ff7Scene
         UpdateAudio();
     }
 
-    private void ReadBattleCommand(Ff7BattleSession battle, int owner)
+    private void ReadBattleCommand(Ff7BattleSession battle, int owner, bool mouseClicked)
     {
+        var clicked = mouseClicked ? battlePointerRows.FirstOrDefault(row => row.Owner == owner && row.Bounds.Contains(pointerState.X, pointerState.Y)) : default;
         if (selectedBattleCommand is { } selected)
         {
             if (semanticInput.Cancel)
@@ -208,14 +241,25 @@ internal sealed partial class Ff7Scene
                 return;
             }
             Ff7BattleActorState[] targets = BattleTargets(battle, current);
+            if (targets.Length == 0)
+            {
+                selectedBattleCommand = null;
+                return;
+            }
             bool multicast = ChangeGuestMagicCastCount(battle, owner, current);
             if (!multicast && current.GroupUses > 0 && semanticInput.MenuPage != 0)
             {
                 battleTargetGroup = !battleTargetGroup;
             }
             int direction = semanticInput.MenuVertical != 0 ? semanticInput.MenuVertical : semanticInput.MenuHorizontal;
-            battleTargetIndex = (Math.Min(battleTargetIndex, targets.Length - 1) + Math.Sign(direction) + targets.Length) % targets.Length;
-            int targetSlot = targets[battleTargetIndex].Actor.Slot;
+            int previous = Array.FindIndex(targets, target => BattleTargetIdentity(target) == highlightedBattleTarget);
+            int pointer = clicked.Target is { } hit && clicked.Argument == current.Argument && clicked.Category == BattleCategory(current)
+                ? Array.FindIndex(targets, target => BattleTargetIdentity(target) == hit) : -1;
+            bool validConfirm = highlightedBattleTarget is null || previous >= 0 || direction != 0;
+            int targetIndex = pointer >= 0 ? pointer : MoveBattleChoice(Math.Max(0, previous), targets.Length, direction);
+            Ff7BattleActorState target = targets[targetIndex];
+            highlightedBattleTarget = BattleTargetIdentity(target);
+            int targetSlot = target.Actor.Slot;
             bool useAll = battleTargetGroup && current.GroupUses > 0;
             ushort mask = (ushort)(1 << targetSlot);
             if (useAll || !current.SelectSingle)
@@ -227,8 +271,10 @@ internal sealed partial class Ff7Scene
                 }
             }
             BattleSmartAttackPreview? preview = GuestAttackPreview(owner, current, targetSlot);
+            BattleSmartAttackPreview? previousPreview = displayedGuestSmartPreview;
+            displayedGuestSmartPreview = preview;
             bool submitted = false;
-            if (semanticInput.Confirm)
+            if (pointer >= 0 || validConfirm && semanticInput.Confirm)
             {
                 string? reason = targets.Where(target => (mask & 1 << target.Actor.Slot) != 0).Select(target => battle.GuestAbilityTargetUnsupportedReason(owner, current.Command, current.Argument, target.Actor.Slot)).FirstOrDefault(reason => reason is not null);
                 if (reason is not null)
@@ -238,8 +284,7 @@ internal sealed partial class Ff7Scene
                 }
                 if (preview is not null)
                 {
-                    bool displayed = displayedGuestSmartPreview is not { } previous || previous.ActorId != preview.ActorId || previous.TargetIndex != targetSlot || previous.ForcePhysical != preview.ForcePhysical || previous == preview;
-                    displayedGuestSmartPreview = preview;
+                    bool displayed = previousPreview is not { } displayedPreview || displayedPreview.ActorId != preview.ActorId || displayedPreview.TargetIndex != targetSlot || displayedPreview.ForcePhysical != preview.ForcePhysical || displayedPreview == preview;
                     submitted = displayed && mixedCombat!.GuestAt(owner)!.SubmitSmartAttack(preview);
                 }
                 else if (!CollectGuestMagicTarget(battle, owner, current, mask, useAll, out submitted))
@@ -249,6 +294,10 @@ internal sealed partial class Ff7Scene
             }
             if (submitted)
             {
+                if (PresentationPreferences.CursorMemory)
+                {
+                    battleCursor.Remember(BattleCursorActor(battle, owner), BattleCategory(current), new(current.Argument, targetSlot, target.Identity, useAll));
+                }
                 selectedBattleCommand = null;
                 battleCommandPage = null;
             }
@@ -267,37 +316,54 @@ internal sealed partial class Ff7Scene
                 battleCommandPage = null;
                 return;
             }
-            if (page.Command == Ff7BattleCommand.Magic)
+            int previousAction = Array.FindIndex(actions, action => action.Argument == highlightedBattleArgument);
+            int pointerAction = clicked.Category == page && clicked.Target is null && clicked.Argument is int argument ? Array.FindIndex(actions, action => action.Argument == argument) : -1;
+            bool validConfirm = highlightedBattleArgument is null || previousAction >= 0 || semanticInput.MenuHorizontal != 0 || semanticInput.MenuVertical != 0;
+            int actionIndex = Math.Max(0, previousAction);
+            if (pointerAction >= 0)
+            {
+                actionIndex = pointerAction;
+            }
+            else if (page.Command == Ff7BattleCommand.Magic)
             {
                 BattleDrawLayout layout = BattleDrawLayout.Calculate(actions.Length);
-                (int column, int row) = layout.GetCell(Math.Min(battleActionIndex, actions.Length - 1));
+                (int column, int row) = layout.GetCell(Math.Min(actionIndex, actions.Length - 1));
                 column = MoveBattleChoice(column, layout.Columns, semanticInput.MenuHorizontal);
                 row = MoveBattleChoice(row, layout.ColumnRows(column), semanticInput.MenuVertical);
-                battleActionIndex = layout.GetIndex(column, row);
+                actionIndex = layout.GetIndex(column, row);
             }
             else
             {
-                battleActionIndex = MoveBattleChoice(battleActionIndex, actions.Length, semanticInput.MenuVertical);
+                actionIndex = MoveBattleChoice(actionIndex, actions.Length, semanticInput.MenuVertical);
             }
-            if (semanticInput.Confirm)
+            highlightedBattleArgument = actions[actionIndex].Argument;
+            if (pointerAction >= 0 || validConfirm && semanticInput.Confirm)
             {
-                SelectBattleAction(actions[battleActionIndex]);
+                SelectBattleAction(battle, owner, actions[actionIndex]);
             }
             return;
         }
         var categories = commands.Select(BattleCategory).Distinct().ToArray();
-        battleCommandIndex = MoveBattleChoice(battleCommandIndex, categories.Length, semanticInput.MenuVertical);
-        if (semanticInput.Confirm)
+        int previousCategory = Array.FindIndex(categories, category => category == highlightedBattleCategory);
+        int pointerCategory = clicked.Argument is null && clicked.Category is { } categoryHit ? Array.IndexOf(categories, categoryHit) : -1;
+        bool validCategory = highlightedBattleCategory is null || previousCategory >= 0 || semanticInput.MenuVertical != 0;
+        int commandIndex = pointerCategory >= 0 ? pointerCategory : MoveBattleChoice(Math.Max(0, previousCategory), categories.Length, semanticInput.MenuVertical);
+        highlightedBattleCategory = categories[commandIndex];
+        if (pointerCategory >= 0 || validCategory && semanticInput.Confirm)
         {
-            var category = categories[battleCommandIndex];
+            var category = categories[commandIndex];
             if (category.Command is Ff7BattleCommand.Magic or Ff7BattleCommand.Item || category.Command == Ff7BattleCommand.Limit && commands.Count(option => BattleCategory(option) == category) > 1)
             {
                 battleCommandPage = category;
-                battleActionIndex = 0;
+                highlightedBattleArgument = PresentationPreferences.CursorMemory ? battleCursor.Selection(BattleCursorActor(battle, owner), category)?.Action : null;
+                if (highlightedBattleArgument is int rememberedArgument && !commands.Any(option => BattleCategory(option) == category && option.Argument == rememberedArgument && option.UnsupportedReason is null))
+                {
+                    highlightedBattleArgument = null;
+                }
             }
             else
             {
-                SelectBattleAction(commands.First(option => BattleCategory(option) == category));
+                SelectBattleAction(battle, owner, commands.First(option => BattleCategory(option) == category));
             }
         }
     }
@@ -317,7 +383,11 @@ internal sealed partial class Ff7Scene
         return (Math.Min(index, count - 1) + Math.Sign(direction) + count) % count;
     }
 
-    private void SelectBattleAction(Ff7BattleCommandOption option)
+    private static (int Slot, int Character) BattleCursorActor(Ff7BattleSession battle, int slot) => (slot, battle.Actors.Single(actor => actor.Actor.Slot == slot).Identity);
+
+    private static (int Slot, int Identity) BattleTargetIdentity(Ff7BattleActorState actor) => (actor.Actor.Slot, actor.Identity);
+
+    private void SelectBattleAction(Ff7BattleSession battle, int owner, Ff7BattleCommandOption option)
     {
         if (option.UnsupportedReason is not null)
         {
@@ -327,8 +397,10 @@ internal sealed partial class Ff7Scene
         selectedBattleCommand = option;
         BeginGuestMagicSelection(option);
         displayedGuestSmartPreview = null;
-        battleTargetIndex = 0;
-        battleTargetGroup = false;
+        BattleCursorChoice? memory = PresentationPreferences.CursorMemory ? battleCursor.Selection(BattleCursorActor(battle, owner), BattleCategory(option)) : null;
+        highlightedBattleTarget = memory?.Action == option.Argument && BattleTargets(battle, option).Any(target => BattleTargetIdentity(target) == (memory.TargetSlot, memory.TargetIdentity) && battle.GuestAbilityTargetUnsupportedReason(owner, option.Command, option.Argument, target.Actor.Slot) is null)
+            ? (memory.TargetSlot, memory.TargetIdentity) : null;
+        battleTargetGroup = highlightedBattleTarget is not null && memory!.Group && option.GroupUses > 0;
     }
 
     private string? ActionTitle(Ff7BattleSession battle)
@@ -443,7 +515,7 @@ internal sealed partial class Ff7Scene
                     continue;
                 }
             }
-            visuals.Add(BattleActorVisual(battle, actor) with { PresentationTransform = mixedCombat?.ActiveGuest?.ReadForeignPlacement(slot), ShadowSuppressed = mixedCombat?.ActiveGuest?.SuppressForeignShadow(slot) == true });
+            visuals.Add(BattleActorVisual(battle, actor) with { Slot = slot, PresentationTransform = mixedCombat?.ActiveGuest?.ReadForeignPlacement(slot), ShadowSuppressed = mixedCombat?.ActiveGuest?.SuppressForeignShadow(slot) == true });
         }
         CrossoverNativeEffectVisual[] guestEffects = mixedCombat?.Guests.Select(guest => guest.EffectVisual).OfType<CrossoverNativeEffectVisual>().ToArray() ?? [];
         if (mixedCombat?.ActiveGuest is null)
@@ -452,7 +524,7 @@ internal sealed partial class Ff7Scene
         }
         arenaSurfaceCapture!.Prepare(guestEffects.SelectMany(effect => effect.Ordering?.Packets.Select(packet => packet.PilotGeometry?.ForeignSurface?.Material).OfType<INativeBattleForeignMaterial>() ?? []));
         HashSet<NativeBattleArenaPrimitiveId> replacedArena = mixedCombat?.Guests.SelectMany(guest => guest.ArenaReplacements).SelectMany(replacement => replacement.Geometry.Faces).Select(face => face.Id).ToHashSet() ?? [];
-        renderer.Render(triangles, bounds.Width, bounds.Height, new(battle.GuestRenderCameraOutput, visuals, battle.Action?.Fire, battle.Action?.Ice, battle.Action?.Bolt, Cure: battle.Action?.Cure, Braver: battle.Action?.Braver) { BeatRush = battle.Action?.BeatRushEffect, BigShot = battle.Action?.BigShot, Hitmarks = battle.Hitmarks, SecondaryEffects = battle.SecondaryEffects, PrimaryEffects = battle.PrimaryEffects, SmokeShot = battle.Action?.SmokeShot, Smog = battle.Action?.Smog, Destroyed = battle.Action?.Destroyed, SearchScope = battle.Action?.SearchScope, Rockets = battle.Action?.Rockets, StageFade = battle.RenderStageFade, Guests = MixedBattleVisuals(battle), GuestEffectLayers = guestEffects, SuppressArenaPrimitives = replacedArena });
+        renderer.Render(triangles, bounds.Width, bounds.Height, new(battle.GuestRenderCameraOutput, visuals, battle.Action?.Fire, battle.Action?.Ice, battle.Action?.Bolt, Cure: battle.Action?.Cure, Braver: battle.Action?.Braver) { CaptureActorBounds = selectedBattleCommand is not null, BeatRush = battle.Action?.BeatRushEffect, BigShot = battle.Action?.BigShot, Hitmarks = battle.Hitmarks, SecondaryEffects = battle.SecondaryEffects, PrimaryEffects = battle.PrimaryEffects, SmokeShot = battle.Action?.SmokeShot, Smog = battle.Action?.Smog, Destroyed = battle.Action?.Destroyed, SearchScope = battle.Action?.SearchScope, Rockets = battle.Action?.Rockets, StageFade = battle.RenderStageFade, Guests = MixedBattleVisuals(battle), GuestEffectLayers = guestEffects, SuppressArenaPrimitives = replacedArena });
     }
 
     private void ResetBattlePresentation()
@@ -461,16 +533,22 @@ internal sealed partial class Ff7Scene
         arenaSurfaceCapture?.Dispose();
         arenaSurfaceCapture = null;
         presentedBattle = null;
+        battleCursor.Clear();
+        battlePointerRows.Clear();
+        battlePointerPressed = pointerState.LeftButton == ButtonState.Pressed;
+        highlightedBattleCategory = null;
+        highlightedBattleArgument = null;
+        highlightedBattleTarget = null;
+        battleResultPager = null;
+        battleResultRows = [];
+        battleResultReward = null;
         battleInputOwner = null;
         pendingLimitConfirm = false;
         unavailableBattleCommand = null;
         presentedGuestAbilityFailure = null;
         selectedBattleCommand = null;
         displayedGuestSmartPreview = null;
-        battleCommandIndex = 0;
-        battleActionIndex = 0;
         battleCommandPage = null;
-        battleTargetIndex = 0;
         battleTargetGroup = false;
     }
 }

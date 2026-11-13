@@ -1,5 +1,4 @@
 using System.Numerics;
-using System.Runtime.ExceptionServices;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
@@ -13,56 +12,24 @@ internal sealed record FieldPresentationSample(IReadOnlyList<ActorVisual> Actors
 /// <summary>Render-only history of completed field callbacks. Drawing never advances the VM or writes actors.</summary>
 internal sealed class FieldPresentation
 {
-    private FieldPresentationFrame? previous;
-    private FieldPresentationFrame? current;
-    private ExceptionDispatchInfo? preparationError;
-    private bool active;
+    private readonly CommittedPresentationHistory<(object Owner, long Frame), FieldPresentationFrame> history = new(
+        (first, second) => ReferenceEquals(first.Owner, second.Owner) && first.Frame == second.Frame,
+        (first, second) => ReferenceEquals(first.Owner, second.Owner) && second.Frame == first.Frame + 1,
+        (first, second) => first.CameraIndex == second.CameraIndex && first.CameraRevision == second.CameraRevision && first.CameraActorId == second.CameraActorId && SameBackgroundOwner(first.Scroll.NativeWrap, second.Scroll.NativeWrap) && !HasPlacementChange(first, second));
 
     public void Reset()
     {
-        previous = null;
-        current = null;
-        preparationError = null;
+        history.Reset();
     }
 
     public void Commit(object owner, long frame, Func<FieldPresentationFrame> prepare)
     {
-        if (!active)
-        {
-            return;
-        }
-        previous = current is not null && ReferenceEquals(owner, current.Owner) && frame == current.Frame + 1 ? current : null;
-        current = null;
-        preparationError = null;
-        try
-        {
-            current = prepare();
-            if (previous is not null && (previous.CameraIndex != current.CameraIndex || previous.CameraRevision != current.CameraRevision || previous.CameraActorId != current.CameraActorId || !SameBackgroundOwner(previous.Scroll.NativeWrap, current.Scroll.NativeWrap) || HasPlacementChange(previous, current)))
-            {
-                previous = null;
-            }
-        }
-        catch (Exception exception)
-        {
-            previous = null;
-            preparationError = ExceptionDispatchInfo.Capture(exception);
-        }
+        history.Commit((owner, frame), prepare);
     }
 
     public FieldPresentationSample Sample(FieldPresentationFrame latest, float fraction, bool smoothAnimation)
     {
-        if (!float.IsFinite(fraction) || fraction is < 0 or > 1)
-        {
-            throw new ArgumentOutOfRangeException(nameof(fraction));
-        }
-        active = true;
-        preparationError?.Throw();
-        if (current is null || !SameSnapshot(current, latest))
-        {
-            previous = null;
-        }
-        current = latest;
-        FieldPresentationFrame? before = fraction < 1 ? previous : null;
+        var (before, _) = history.Sample((latest.Owner, latest.Frame), fraction, () => latest, current => SameSnapshot(current, latest), reportPreviousCallbackError: true);
         Dictionary<int, FieldActorSample> oldActors = before?.Actors.ToDictionary(actor => actor.Visual.ObjectId) ?? [];
         ActorVisual[] actors = latest.Actors.Select(actor => Interpolate(oldActors.GetValueOrDefault(actor.Visual.ObjectId), actor, fraction, smoothAnimation)).ToArray();
         FieldBackgroundBlend? background = before is null ? null : new(ToBackground(before.Scroll), ToBackground(latest.Scroll), fraction);

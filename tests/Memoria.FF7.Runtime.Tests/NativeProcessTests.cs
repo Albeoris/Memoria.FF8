@@ -25,16 +25,6 @@ internal static class NativeProcessTests
         Equal(false, host.Execute(foreign).Completed);
         Equal(8, host.Process.Windows.Single().X);
         Equal(false, host.Process.Dialogues.Single().Completed);
-        bool unsupported = false;
-        try
-        {
-            host.Execute(Request(1603, command));
-        }
-        catch (NotSupportedException)
-        {
-            unsupported = true;
-        }
-        Equal(true, unsupported);
         Ff7FieldHost cold = new(dialogueField, (_, _) => 1, JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
         foreach (Ff7FieldHost current in new[] { host, cold })
         {
@@ -48,6 +38,156 @@ internal static class NativeProcessTests
             Equal(136, current.Process.Windows.Single().Width);
         }
         Equal(JsonSerializer.Serialize(host.Capture()), JsonSerializer.Serialize(cold.Capture()));
+
+        RunActiveWindowControls(dialogueField);
+        RunWindowControlVmContinuation(dialogueField);
+    }
+
+    private static void RunWindowControlVmContinuation(Ff7FieldResources field)
+    {
+        FieldHostRequest message = Request(1700, new FieldDialogueCommand(0, 0, 1, 2, 0));
+        foreach (byte opcode in new byte[] { 0x2E, 0x2F, 0x53 })
+        {
+            byte[] operands = opcode == 0x2F ? [0, 145, 0, 8, 0, 136, 0, 41, 0] : [0];
+            FieldProgram program = new([0, opcode, .. operands, 0x80, 0x50, 3, 99, 0x5F, 0x12, 0], [new ushort[32]]);
+            Ff7FieldHost host = new(field, (_, _) => 1, new()
+            {
+                Windows = [new(0, 10, 20, 80, 40)],
+                Dialogues = [new(message.Id, 0, 0, 1, 2, 0, TokenPosition: 1, AwaitingInput: true, Presentation: new(6, 80, 40))],
+                Receipts = [new(message, new(false))]
+            });
+            FieldMachine machine = new(program, host: host);
+            machine.Initialize();
+            int blockedCallbacks = opcode == 0x53 ? 0 : 4;
+            for (int callback = 0; callback < blockedCallbacks; callback++)
+            {
+                machine.AdvanceTick();
+                Equal(1, machine.Capture().Entities[0].ProgramCounter);
+                Equal((byte)0, machine.Variables.ReadByte(FieldBank.MapByte, 3));
+                Equal(1, machine.Capture().PendingRequests!.Length);
+                host = new(field, (_, _) => 1, JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
+                machine = FieldMachine.Restore(program, JsonSerializer.Deserialize<FieldVmSnapshot>(JsonSerializer.Serialize(machine.Capture()))!, host);
+            }
+            machine.AdvanceTick();
+            Equal((byte)99, machine.Variables.ReadByte(FieldBank.MapByte, 3));
+            Equal(false, host.Process.Dialogues.Single().Completed);
+            Equal(0, host.Process.Dialogues.Single().Presentation!.NativeState);
+            Equal(0, host.Process.Dialogues.Single().Selected);
+        }
+    }
+
+    private static void RunActiveWindowControls(Ff7FieldResources field)
+    {
+        Ff7Window old = new(0, 10, 20, 80, 40, Style: 1, Flags: 1) { SpecialType = 1 };
+        Ff7Window resized = old with { X = 145, Y = 8, Width = 136, Height = 41 };
+        FieldDialogueCommand question = new(0, 0, 0, 1, 0);
+        FieldHostRequest message = Request(1700, question);
+        FieldWindowCommand closeWait = new(FieldWindowOperation.CloseAndWait, 0);
+        FieldWindowCommand resize = new(FieldWindowOperation.SizeWhenFree, 0, 145, 8, 136, 41);
+        FieldWindowCommand reset = new(FieldWindowOperation.Reset, 0);
+
+        foreach (int phase in new[] { 1, 2, 6, 7 })
+        {
+            foreach (FieldWindowCommand command in new[] { closeWait, resize })
+            {
+                FieldHostRequest control = Request(1701, command);
+                Ff7FieldHost live = Make(phase);
+                Equal(false, live.Execute(control).Completed);
+                Equal(phase == 1 ? 1 : 7, live.Process.Dialogues.Single().Presentation!.NativeState);
+                Equal(phase == 1 ? 40 : 60, live.Process.Dialogues.Single().Presentation!.AnimatedWidth);
+                Ff7FieldHost restored = Restore(live);
+                for (int poll = 0; poll < 10 && live.Process.Dialogues.Single().Presentation!.NativeState != 0; poll++)
+                {
+                    Equal(false, live.Execute(control).Completed);
+                    Equal(false, restored.Execute(control).Completed);
+                    Equal(old, live.Process.Windows.Single());
+                    Equal(Json(live), Json(restored));
+                }
+                Equal(0, live.Process.Dialogues.Single().Presentation!.NativeState);
+                Equal(false, live.Process.Dialogues.Single().Completed);
+                Equal(true, live.Execute(control).Completed);
+                Equal(true, restored.Execute(control).Completed);
+                Equal(command == resize ? resized : old, live.Process.Windows.Single());
+                Equal(Json(live), Json(restored));
+                Equal(false, live.Execute(message).Completed);
+                Equal(1, live.Process.Dialogues.Single().Presentation!.NativeState);
+            }
+
+            Ff7FieldHost resetHost = Make(phase);
+            FieldHostRequest resetRequest = new(1701, 1, 7, 16, reset);
+            Equal(true, resetHost.Execute(resetRequest).Completed);
+            Equal(new Ff7Window(0, 8, 149, 304, 74), resetHost.Process.Windows.Single());
+            Ff7Dialogue cleared = resetHost.Process.Dialogues.Single();
+            Equal(0, cleared.Presentation!.NativeState);
+            Equal(1, cleared.Selected);
+            Equal(0, cleared.TokenPosition);
+            Equal(false, cleared.Completed);
+            resetHost = Restore(resetHost);
+            Equal(false, resetHost.Execute(message).Completed);
+            Equal(1, resetHost.Process.Dialogues.Single().Presentation!.NativeState);
+            Equal(true, resetHost.Execute(resetRequest).Completed);
+            Equal(1, resetHost.Process.Dialogues.Single().Presentation!.NativeState);
+        }
+
+        FieldHostRequest foreign = new(1701, 1, 7, 16, closeWait);
+        Ff7FieldHost waiting = Make(1);
+        Equal(false, waiting.Execute(foreign).Completed);
+        Equal(20, waiting.Process.Dialogues.Single().Presentation!.AnimatedWidth);
+        while (waiting.Process.Dialogues.Single().Presentation!.NativeState == 1)
+        {
+            Equal(false, waiting.Execute(message).Completed);
+        }
+        Equal(false, waiting.Execute(foreign).Completed);
+        Equal(7, waiting.Process.Dialogues.Single().Presentation!.NativeState);
+        Equal(80, waiting.Process.Dialogues.Single().Presentation!.AnimatedWidth);
+        Ff7FieldHost cold = Restore(waiting);
+        foreach (Ff7FieldHost current in new[] { waiting, cold })
+        {
+            for (int poll = 0; poll < 4; poll++)
+            {
+                Equal(false, current.Execute(foreign).Completed);
+                FieldHostReply reply = current.Execute(message);
+                Equal(poll == 3, reply.Completed);
+                Equal(1, reply.Value);
+            }
+            Equal(true, current.Execute(foreign).Completed);
+            Equal(new FieldHostReply(true, 1), current.Execute(message));
+        }
+        Equal(Json(waiting), Json(cold));
+
+        Ff7FieldHost legacy = Make(6);
+        Ff7FieldProcess legacySnapshot = legacy.Capture();
+        legacy = new(field, (_, _) => 1, legacySnapshot with { Dialogues = [legacySnapshot.Dialogues[0] with { Presentation = null }] });
+        Equal(false, legacy.Execute(foreign).Completed);
+        Equal(7, legacy.Process.Dialogues.Single().Presentation!.NativeState);
+        Equal(80, legacy.Process.Dialogues.Single().Presentation!.AnimatedWidth);
+
+        Ff7FieldHost timedWait = Make(2);
+        Ff7FieldProcess timedSnapshot = timedWait.Capture();
+        timedWait = new(field, (_, _) => 1, timedSnapshot with { Dialogues = [timedSnapshot.Dialogues[0] with { WaitTicks = 1, Presentation = new(3, 80, 40) }] });
+        Equal(false, timedWait.Execute(foreign).Completed);
+        Equal(0, timedWait.Process.Dialogues.Single().WaitTicks);
+        Equal(3, timedWait.Process.Dialogues.Single().Presentation!.NativeState);
+        Equal(false, timedWait.Execute(foreign).Completed);
+        Equal(2, timedWait.Process.Dialogues.Single().Presentation!.NativeState);
+        Equal(false, timedWait.Execute(foreign).Completed);
+        Equal(7, timedWait.Process.Dialogues.Single().Presentation!.NativeState);
+        Equal(80, timedWait.Process.Dialogues.Single().Presentation!.AnimatedWidth);
+
+        Ff7FieldHost idle = new(field, (_, _) => 1);
+        Equal(true, idle.Execute(Request(1701, closeWait)).Completed);
+        Equal(true, idle.Execute(Request(1702, reset)).Completed);
+        Equal(new Ff7Window(0, 8, 149, 304, 74), idle.Process.Windows.Single());
+
+        Ff7FieldHost Make(int phase) => new(field, (_, _) => 1, new()
+        {
+            Windows = [old],
+            Dialogues = [new(message.Id, 0, 0, 0, 1, 1, TokenPosition: phase == 1 ? 0 : 1, AwaitingInput: phase == 6, Presentation: new(phase, phase == 1 ? 20 : 80, phase == 1 ? 10 : 40))],
+            Receipts = [new(message, new(false))]
+        });
+
+        Ff7FieldHost Restore(Ff7FieldHost source) => new(field, (_, _) => 1, JsonSerializer.Deserialize<Ff7FieldProcess>(Json(source))!);
+        static string Json(Ff7FieldHost source) => JsonSerializer.Serialize(source.Capture());
     }
 
     public static void RunImmediateFace()
@@ -448,7 +588,7 @@ internal static class NativeProcessTests
         Equal((byte)0, restored.Process.Windows.Single().SpecialY);
         Ff7Window counter = initial with { Flags = 1 };
         Ff7Dialogue persistent = new(900, 1, 0, null, null, 0, AwaitingInput: true, Presentation: new(6, counter.Width, counter.Height));
-        Ff7FieldHost active = Host(new() { Windows = [counter], Dialogues = [persistent] });
+        Ff7FieldHost active = new(NativeDialogueTests.Field([255]), (_, _) => 1, new() { Windows = [counter], Dialogues = [persistent] });
         Equal(false, active.CanConfirmDialogue(900));
         active.CompleteDialogue(900, 0);
         Equal(false, active.Process.Dialogues.Single().Completed);

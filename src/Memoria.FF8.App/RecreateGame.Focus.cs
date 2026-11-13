@@ -55,6 +55,7 @@ internal sealed partial class RecreateGame
         }
         if (!active)
         {
+            physicalInput.LoseFocus();
             ResetUnfocusedInput();
         }
         windowActivityInitialized = true;

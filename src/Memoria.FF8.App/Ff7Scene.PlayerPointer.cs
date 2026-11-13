@@ -10,20 +10,18 @@ internal sealed partial class Ff7Scene
 {
     private PixelImage? playerPointer;
 
-    private Ff7FieldPointerVisual? PlayerPointer()
+    private Ff7FieldPointerVisual? PlayerPointer(IReadOnlyList<Ff7Actor> actors, PcFieldCamera camera, System.Numerics.Vector2 cameraOffset)
     {
         if (Session is null || error is not null || !Ff7PlayerPointer.IsRequested(Session.Machine.Variables.ReadByte(Memoria.FF7.Events.FieldBank.Persistent3Byte, 30), Session.Host.Process))
         {
             return null;
         }
-        Ff7Actor? actor = Session.Host.Process.Actors.SingleOrDefault(item => item.PlayerControlled);
+        Ff7Actor? actor = actors.SingleOrDefault(item => item.PlayerControlled);
         if (actor is null)
         {
             return null;
         }
-        PcFieldCamera? movieCamera = CurrentMovieCamera();
-        PcFieldCamera camera = movieCamera ?? Session.Field.Cameras[0];
-        Ff7PlayerPointerBounds? placed = Ff7PlayerPointer.Project(PresentationActor(actor), Session.Field.Scripts.Scale, camera, PresentationCameraOffset(Session.Host.Process, movieCamera));
+        Ff7PlayerPointerBounds? placed = Ff7PlayerPointer.Project(actor, Session.Field.Scripts.Scale, camera, cameraOffset);
         if (placed is not { } point)
         {
             return null;

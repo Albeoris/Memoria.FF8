@@ -110,9 +110,19 @@ public sealed record Ff7SessionSave
             throw new InvalidDataException("The preserved native FFVII save slot has an invalid size.");
         }
         Process.Validate();
-        if (Battle is not null && (World is not null || Process.GlobalCommand != Ff7GlobalCommand.Battle || Process.GlobalRequestId != Battle.RequestId || Progress.CompletedBattles.Any(receipt => receipt.FieldGeneration == FieldGeneration && receipt.RequestId == Battle.RequestId) || !Process.Receipts.Any(receipt => receipt.Request.Id == Battle.RequestId && receipt.Request.Command is FieldBattleCommand command && command.Formation == Battle.FormationId && !receipt.Reply.Completed)))
+        if (Battle is not null)
         {
-            throw new InvalidDataException("The FFVII battle snapshot requires its matching unfinished field request.");
+            bool hasOwner = World is { } world
+                ? world.BattleState?.Pending is { } occurrence && occurrence.Id == Battle.RequestId && occurrence.Formation == Battle.FormationId
+                : Process.GlobalCommand == Ff7GlobalCommand.Battle && Process.GlobalRequestId == Battle.RequestId && Process.Receipts.Any(receipt => receipt.Request.Id == Battle.RequestId && receipt.Request.Command is FieldBattleCommand command && command.Formation == Battle.FormationId && !receipt.Reply.Completed);
+            if (!hasOwner || Progress.CompletedBattles.Any(receipt => receipt.FieldGeneration == FieldGeneration && receipt.RequestId == Battle.RequestId))
+            {
+                throw new InvalidDataException("The FFVII battle snapshot requires its matching unfinished encounter owner.");
+            }
+        }
+        if (World?.BattleState?.Pending is { } pending && Progress.CompletedBattles.Any(receipt => receipt.FieldGeneration == FieldGeneration && receipt.RequestId == pending.Id))
+        {
+            throw new InvalidDataException("An FFVII world encounter has already been settled.");
         }
         if (Battle is { } battle)
         {

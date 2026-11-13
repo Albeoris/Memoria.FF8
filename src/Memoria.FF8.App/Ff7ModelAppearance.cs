@@ -93,7 +93,7 @@ internal sealed partial class Ff7ModelAppearance : IFf7ActorAppearance
         }
         else if (retargeter is not null)
         {
-            posed = retargeter.Pose(original, sourceClip, actor.AnimationFrame16);
+            posed = retargeter.Pose(original, sourceClip, actor.PosePhase);
         }
         else
         {

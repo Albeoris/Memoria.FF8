@@ -63,7 +63,7 @@ public sealed partial class Ff7WorldRuntime
     {
         foreach (Ff7WorldEntity entity in entities.Values.ToArray())
         {
-            UpdateEntity(entity with { Flags = entity.Flags & ~7, PreviousX = entity.X, PreviousZ = entity.Z });
+            UpdateEntity(entity with { Flags = entity.Flags & ~7, PreviousX = entity.X, PreviousY = entity.Y, PreviousZ = entity.Z });
         }
         if (controlledModel < 0)
         {
@@ -446,5 +446,12 @@ public sealed partial class Ff7WorldRuntime
     private static int WrappedDifference(int difference, int range)
     {
         return difference < -range / 2 ? difference + range : difference >= range / 2 ? difference - range : difference;
+    }
+
+    /// <summary>Samples a world coordinate across the same seam used by the FFVII movement process.</summary>
+    public static float InterpolateWorldCoordinate(int previous, int current, int extent, float fraction)
+    {
+        float coordinate = previous + WrappedDifference(current - previous, extent) * fraction;
+        return coordinate < 0 ? coordinate + extent : coordinate >= extent ? coordinate - extent : coordinate;
     }
 }

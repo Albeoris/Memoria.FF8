@@ -178,7 +178,7 @@ public sealed record FieldModel(string Name, IReadOnlyList<ModelBone> Bones, IRe
             {
                 Vector3 nextAngles = nextFrame.Rotations[bone];
                 Matrix4x4 nextLocal = Matrix4x4.CreateRotationZ(nextAngles.Z) * Matrix4x4.CreateRotationY(nextAngles.Y) * Matrix4x4.CreateRotationX(nextAngles.X);
-                local = Matrix4x4.CreateFromQuaternion(Quaternion.Slerp(Quaternion.CreateFromRotationMatrix(local), Quaternion.CreateFromRotationMatrix(nextLocal), blend));
+                local = PoseInterpolation.Rotation(local, nextLocal, blend);
             }
             int parent = Bones[bone].Parent;
             if (parent < 0)

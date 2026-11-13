@@ -44,7 +44,7 @@ internal sealed partial class Ff7Scene
         shopMenu.SoundRequested += PlayShopMenuSound;
         shopMenu.Presentation = PresentationPreferences.MenuPresentation;
         shopMenu.Open("shop");
-        shopPointerPressed = Mouse.GetState().LeftButton == ButtonState.Pressed;
+        shopPointerPressed = pointerState.LeftButton == ButtonState.Pressed;
         pendingPressedKeys = 0;
         moveHorizontal = 0;
         moveVertical = 0;

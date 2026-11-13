@@ -188,8 +188,8 @@ public sealed class WorldPresentationTests
         {
             const BindingFlags privateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
             WorldPresentation history = (WorldPresentation)typeof(WorldMapScene).GetField("presentation", privateInstance)!.GetValue(scene)!;
-            WorldRenderFrame? previousFrame = (WorldRenderFrame?)typeof(WorldPresentation).GetField("previousFrame", privateInstance)!.GetValue(history);
-            WorldRenderFrame? currentFrame = (WorldRenderFrame?)typeof(WorldPresentation).GetField("currentFrame", privateInstance)!.GetValue(history);
+            WorldRenderFrame? previousFrame = history.Previous;
+            WorldRenderFrame? currentFrame = history.Current;
             WorldTerrainRenderer renderer = (WorldTerrainRenderer)typeof(WorldMapScene).GetField("renderer", privateInstance)!.GetValue(scene)!;
             Console.WriteLine(JsonSerializer.Serialize(new
             {

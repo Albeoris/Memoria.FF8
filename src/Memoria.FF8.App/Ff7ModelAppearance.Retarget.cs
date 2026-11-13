@@ -129,25 +129,18 @@ internal sealed class Ff7SemanticRetargeter
 
     public Vector3[] Pose(Ff7FieldModelResources original, PcFieldAnimation animation, int frame16)
     {
-        if (HierarchyIdentity(original.Hierarchy) != sourceIdentity || frame16 < 0 || frame16 / 16f >= animation.Frames.Count)
+        return Pose(original, animation, new Ff7FieldPosePhase(frame16));
+    }
+
+    public Vector3[] Pose(Ff7FieldModelResources original, PcFieldAnimation animation, Ff7FieldPosePhase phase)
+    {
+        if (HierarchyIdentity(original.Hierarchy) != sourceIdentity || phase.Frame16 < 0 || phase.Frame16 >> 4 >= animation.Frames.Count)
         {
             throw new InvalidDataException("Retarget source hierarchy, animation binding or original frame is incompatible with this profile.");
         }
-        int first = frame16 >> 4;
-        int second = Math.Min(first + 1, animation.Frames.Count - 1);
-        float fraction = (frame16 & 15) / 16f;
-        IReadOnlyList<Matrix4x4> firstPose = Ff7FieldRenderer.Pose(original, animation, first, sourceBasis.M11);
-        IReadOnlyList<Matrix4x4> secondPose = fraction == 0 ? firstPose : Ff7FieldRenderer.Pose(original, animation, second, sourceBasis.M11);
-        Matrix4x4[] current = new Matrix4x4[firstPose.Count];
-        for (int index = 0; index < current.Length; index++)
-        {
-            Quaternion rotation = Quaternion.Slerp(Rotation(firstPose[index]), Rotation(secondPose[index]), fraction);
-            Matrix4x4 matrix = Matrix4x4.CreateFromQuaternion(rotation);
-            matrix.Translation = Vector3.Lerp(firstPose[index].Translation, secondPose[index].Translation, fraction);
-            current[index] = matrix * sourceBasis;
-        }
-        Vector3 sourceRoot = Vector3.Lerp(animation.Frames[first].RootTranslation, animation.Frames[second].RootTranslation, fraction);
-        Vector3 rootMotion = Vector3.TransformNormal((sourceRoot - sourceRootRest) * new Vector3(1, -1, 1), sourceBasis);
+        Ff7FieldPose sourcePose = Ff7FieldPoseSampler.Sample(original, animation, phase, sourceBasis.M11);
+        Matrix4x4[] current = sourcePose.Bones.Select(matrix => matrix * sourceBasis).ToArray();
+        Vector3 rootMotion = Vector3.TransformNormal((sourcePose.RootTranslation - sourceRootRest) * new Vector3(1, -1, 1), sourceBasis);
         rootMotion = Vector3.TransformNormal(rootMotion, inverseCalibration);
         Matrix4x4[] adjusted = new Matrix4x4[target.Bones.Count];
         for (int bone = 0; bone < adjusted.Length; bone++)

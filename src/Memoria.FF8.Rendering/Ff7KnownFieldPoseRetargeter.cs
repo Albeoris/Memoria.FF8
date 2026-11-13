@@ -6,7 +6,7 @@ namespace Memoria.FF8.Rendering;
 
 internal static class Ff7KnownFieldPoseRetargeter
 {
-    public static IReadOnlyList<Matrix4x4> Pose(Ff7FieldModelResources target, Ff7KnownFieldPoseBinding binding, int frameIndex)
+    public static IReadOnlyList<Matrix4x4> Pose(Ff7FieldModelResources target, Ff7KnownFieldPoseBinding binding, Ff7FieldPoseFrames frames)
     {
         if (target.Hierarchy.Bones.Count != binding.TargetHierarchy.Bones.Count || target.Hierarchy.Bones.Where((bone, index) => bone.Index != binding.TargetHierarchy.Bones[index].Index || bone.Name != binding.TargetHierarchy.Bones[index].Name || bone.ParentName != binding.TargetHierarchy.Bones[index].ParentName || bone.Length != binding.TargetHierarchy.Bones[index].Length || !bone.ResourceDescriptors.SequenceEqual(binding.TargetHierarchy.Bones[index].ResourceDescriptors)).Any())
         {
@@ -14,10 +14,9 @@ internal static class Ff7KnownFieldPoseRetargeter
         }
         Ff7FieldModelResources source = new("", binding.SourceHierarchy, [], new Dictionary<string, PcFieldAnimation>());
         IReadOnlyList<Matrix4x4> sourceRest = Ff7FieldRenderer.Pose(source, binding.SourceBind, 0);
-        IReadOnlyList<Matrix4x4> sourceCurrent = Ff7FieldRenderer.Pose(source, binding.Motion, frameIndex);
+        IReadOnlyList<Matrix4x4> sourceCurrent = Ff7FieldPoseSampler.SampleFrames(source, binding.Motion, frames).Bones;
         IReadOnlyList<Matrix4x4> targetRest = Ff7FieldRenderer.Pose(target, binding.TargetBind, 0);
-        PcFieldAnimationFrame frame = binding.Motion.Frames[frameIndex];
-        Matrix4x4 root = Ff7FieldRenderer.Rotate(frame.RootRotation) * Matrix4x4.CreateTranslation(frame.RootTranslation * new Vector3(1, -1, 1));
+        Matrix4x4 root = frames.Root(binding.Motion);
         Matrix4x4 bindRoot = Ff7FieldRenderer.Rotate(binding.TargetBind.Frames[0].RootRotation) * Matrix4x4.CreateTranslation(binding.TargetBind.Frames[0].RootTranslation * new Vector3(1, -1, 1));
         Dictionary<string, int> indices = target.Hierarchy.Bones.ToDictionary(bone => bone.Name, bone => bone.Index, StringComparer.OrdinalIgnoreCase);
         Matrix4x4[] result = new Matrix4x4[target.Hierarchy.Bones.Count];

@@ -201,6 +201,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
             throw new InvalidDataException("Framebuffer centre capture dimensions must identify the active raster target.");
         }
         Flush();
+        UnbindTerrain();
         PrepareCentreCapture(destinationWidth, destinationHeight);
         int pixelCount = checked(destinationWidth * destinationHeight);
         if (captureColors.Length != pixelCount)
@@ -270,8 +271,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
             device.Textures[0] = savedTexture0;
             device.Textures[1] = savedTexture1;
             device.Indices = savedIndices;
-            // MonoGame exposes no vertex-binding getter. Each renderer draw binds its own
-            // user or terrain vertices, so release the capture batch's stream here.
+            // SpriteBatch replaces the vertex stream. The next retained draw must bind it again.
             device.SetVertexBuffer(null);
         }
         pixels = ConvertCaptureArgb(colors);
@@ -314,6 +314,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         {
             return;
         }
+        UnbindTerrain();
         effect.CurrentTechnique = effect.Techniques["TriangleTechnique"];
         try
         {
@@ -569,6 +570,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
     {
         try
         {
+            UnbindTerrain();
             device.SetRenderTargets(previousTargets);
             device.Viewport = previousViewport;
         }

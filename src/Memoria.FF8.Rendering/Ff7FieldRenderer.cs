@@ -10,6 +10,10 @@ public sealed record Ff7ActorVisual(int EntityId, int ModelIndex, int X4096, int
 {
     public int PartyCharacter { get; init; } = -1;
     public bool IsWorldModel { get; init; }
+    public int FirstAnimationFrame { get; init; }
+    public int LastAnimationFrame { get; init; } = -1;
+    public bool AnimationLoop { get; init; }
+    public Ff7FieldPosePhase PosePhase => new(AnimationFrame16, FirstAnimationFrame, LastAnimationFrame, AnimationLoop);
     public bool AutomaticBlinkDisabled { get; init; }
     public byte NativeEyeLeft { get; init; }
     public byte NativeEyeRight { get; init; }
@@ -149,30 +153,7 @@ public sealed partial class Ff7FieldRenderer
 
     public static IReadOnlyList<Matrix4x4> Pose(Ff7FieldModelResources resources, PcFieldAnimation animation, int frameIndex, float nativeTranslationScale = float.NaN)
     {
-        if (animation.RotationOrder != 0x020001 || (uint)frameIndex >= animation.Frames.Count)
-        {
-            throw new NotSupportedException("FF7 pose requires the admitted Z-X-Y rotation order, bounded native HRC channels and an original frame within the clip.");
-        }
-        if (resources.KnownPoseBinding is { } binding && ReferenceEquals(animation, binding.Motion))
-        {
-            return Ff7KnownFieldPoseRetargeter.Pose(resources, binding, frameIndex);
-        }
-        PcFieldAnimationFrame frame = animation.Frames[frameIndex];
-        Matrix4x4 root = Rotate(frame.RootRotation) * Matrix4x4.CreateTranslation(frame.RootTranslation * new Vector3(1, -1, 1));
-        Matrix4x4[] transforms = new Matrix4x4[resources.Hierarchy.Bones.Count];
-        Dictionary<string, int> indices = resources.Hierarchy.Bones.ToDictionary(bone => bone.Name, bone => bone.Index, StringComparer.OrdinalIgnoreCase);
-        foreach (HrcBone bone in resources.Hierarchy.Bones)
-        {
-            Matrix4x4 parent = root;
-            if (!bone.ParentName.Equals("root", StringComparison.OrdinalIgnoreCase))
-            {
-                HrcBone parentBone = resources.Hierarchy.Bones[indices[bone.ParentName]];
-                parent = Matrix4x4.CreateTranslation(0, 0, -parentBone.Length) * transforms[parentBone.Index];
-            }
-            Vector3 rotation = resources.Hierarchy.IsRootOnly ? Vector3.Zero : animation.ReadNativeBoneRotation(frameIndex, bone.Index, nativeTranslationScale);
-            transforms[bone.Index] = Rotate(rotation) * parent;
-        }
-        return Array.AsReadOnly(transforms);
+        return Ff7FieldPoseSampler.Sample(resources, animation, new(checked(frameIndex * 16)), nativeTranslationScale).Bones;
     }
 
     private void PrepareBackground(Ff7FieldRenderFrame frame)
@@ -294,8 +275,7 @@ public sealed partial class Ff7FieldRenderer
             return;
         }
         PcFieldAnimation animation = resources.Animations[animationName];
-        int animationFrame = actor.AnimationFrame16 >> 4;
-        IReadOnlyList<Matrix4x4> bones = Pose(resources, animation, animationFrame, ModelBasis(descriptor).M11);
+        IReadOnlyList<Matrix4x4> bones = Ff7FieldPoseSampler.Sample(resources, animation, actor.PosePhase, ModelBasis(descriptor).M11).Bones;
         Matrix4x4 actorTransform = ModelBasis(descriptor) * Matrix4x4.CreateRotationZ(actor.Direction * MathF.Tau / 256) * Matrix4x4.CreateTranslation(actor.X4096 / 4096f, actor.Y4096 / 4096f, actor.Z4096 / 4096f);
         Matrix4x4 actorNormalTransform = Matrix4x4.CreateRotationX(-MathF.PI / 2) * Matrix4x4.CreateRotationZ(actor.Direction * MathF.Tau / 256);
         PcFieldCamera camera = frame.CameraOverride ?? field.Cameras[frame.CameraIndex];

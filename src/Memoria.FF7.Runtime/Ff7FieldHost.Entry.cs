@@ -22,7 +22,8 @@ public sealed partial class Ff7FieldHost
     private void SelectPlayerActor(int entity)
     {
         int slot = GetActor(entity).Slot;
-        Process = Process with { Actors = Process.Actors.Select(actor => actor with { PlayerControlled = actor.Slot == slot }).ToArray() };
+        bool changed = !Process.Actors.Any(actor => actor.Slot == slot && actor.PlayerControlled);
+        Process = Process with { Actors = Process.Actors.Select(actor => actor with { PlayerControlled = actor.Slot == slot }).ToArray(), CameraEpoch = changed && Process.CameraFollowPlayer != false ? Process.CameraEpoch + 1 : Process.CameraEpoch };
     }
 
     public void RestorePlayerSelection()

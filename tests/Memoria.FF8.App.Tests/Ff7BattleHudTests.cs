@@ -87,6 +87,28 @@ public sealed class Ff7BattleHudTests
     }
 
     [Fact]
+    public void NativeFf7StatusMasksProjectSemanticLabelsAndGaugeState()
+    {
+        const uint native = 0x100 | 0x200 | 0x400 | Ff7NativeBattleActionResolver.Poison;
+        Assert.Equal(["Poison", "Haste", "Slow", "Stop"], Ff7Scene.Ff7StatusBadges(native).Select(badge => badge.Name));
+        Assert.Equal(BattleHudElement.AtbVisualStatus.Haste | BattleHudElement.AtbVisualStatus.Slow | BattleHudElement.AtbVisualStatus.Stop, Ff7Scene.Ff7AtbStatus(native));
+        Assert.Equal(BattleHudElement.AtbVisualStatus.None, Ff7Scene.Ff7AtbStatus(Ff7NativeBattleActionResolver.Death | Ff7NativeBattleActionResolver.Sleep));
+    }
+
+    [Fact]
+    public void ResultPagerExposesLastPartialPageAndCanReviewPriorPages()
+    {
+        BattleResultPager pager = new(2);
+        string[] rows = ["Cloud", "Fire", "Potion"];
+        Assert.Equal(["Cloud", "Fire"], pager.Rows(rows));
+        Assert.True(pager.MoveNext(rows.Length));
+        Assert.Equal(["Potion"], pager.Rows(rows));
+        Assert.False(pager.MoveNext(rows.Length));
+        pager.MoveBack();
+        Assert.Equal(["Cloud", "Fire"], pager.Rows(rows));
+    }
+
+    [Fact]
     public void MpAppearsBelowHpOnlyWhenSupplied()
     {
         BattleHudLayout layout = new(new(0, 0, 960, 672));

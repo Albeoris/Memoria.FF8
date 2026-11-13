@@ -18,7 +18,7 @@ internal sealed partial class Ff7Game
             scene.ShowNotice("Available only where saving is allowed.");
             return;
         }
-        CrossoverMappingMenu menu = scene.CreateMappingMenu(launchOptions!.GameDirectory, ReadControlKeys(), Mouse.GetState());
+        CrossoverMappingMenu menu = scene.CreateMappingMenu(launchOptions!.GameDirectory, ReadPhysicalKeys(), physicalInput.ReadMouse());
         menu.Confirmed += mappings =>
         {
             try
@@ -41,7 +41,7 @@ internal sealed partial class Ff7Game
     {
         mappingMenu?.Dispose();
         mappingMenu = null;
-        scene.SuppressInitialPresses(ReadControlKeys());
+        scene.SuppressInitialPresses();
         scene.SetFocusPaused(worldTransfer is not null || !IsActive);
     }
 }

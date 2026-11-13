@@ -109,7 +109,7 @@ internal sealed partial class RecreateGame
         {
             currentMappings = CrossoverSaveAdapter.WithoutExtendedRosterMappings(currentMappings);
         }
-        CrossoverMappingMenu menu = new(GraphicsDevice, Ff7Installation.Discover(options.Ff7GameDirectory!), options.GameDirectory, currentMappings, physicalInput.ReadKeyboard(), Mouse.GetState(), text, uiCanvas!, () => CreateUiTheme(), destination, suspended?.Records ?? live?.Records, extendedRosterEnabled);
+        CrossoverMappingMenu menu = new(GraphicsDevice, Ff7Installation.Discover(options.Ff7GameDirectory!), options.GameDirectory, currentMappings, physicalInput.ReadKeyboard(), physicalInput.ReadMouse(), text, uiCanvas!, () => CreateUiTheme(), destination, suspended?.Records ?? live?.Records, extendedRosterEnabled);
         menu.Cancelled += CloseCrossoverSetup;
         menu.Confirmed += mappings =>
         {
@@ -141,7 +141,7 @@ internal sealed partial class RecreateGame
         crossoverSetup?.Dispose();
         crossoverSetup = null;
         pendingCrossoverMappings = null;
-        ff7Scene?.SuppressInitialPresses(physicalInput.ReadKeyboard());
+        ff7Scene?.SuppressInitialPresses();
         ff7Scene?.SetFocusPaused(worldTransfer is not null || focusPaused || updateSave.Paused);
         keyboard.SuppressHeldUiInput();
         drainUiButtons = true;
@@ -175,7 +175,7 @@ internal sealed partial class RecreateGame
             scene.InterpolatePresentation = !options.ControlStep;
             scene.ConfigureAutoPlayCheckpoint(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(options.SavePath))!, "autoplay", "ff7", "current.ffsave"));
             scene.Continue(state);
-            scene.SuppressInitialPresses(physicalInput.ReadKeyboard());
+            scene.SuppressInitialPresses();
             scene.SaveRequested += saved =>
             {
                 if (options.ControlExclusive)
@@ -301,8 +301,8 @@ internal sealed partial class RecreateGame
             keyboard.NamingNavigationEnabled = false;
             keyboard.ControllerPresentation = controller!.Presentation;
             keyboard.ControllerGeneration = controller.Generation;
-            var input = keyboard.Read(windowModeHotkey.Filter(physicalInput.ReadKeyboard()), physicalInput.ReadController(), !focusPaused && IsActive);
-            crossoverSetup.Update(input, Mouse.GetState(), GraphicsDevice.Viewport.Bounds);
+            var input = keyboard.Read(windowModeHotkey.Filter(physicalInput.ReadKeyboard()), physicalInput.ReadController(), physicalInput.CanRead && !focusPaused && IsActive);
+            crossoverSetup.Update(input, physicalInput.ReadMouse(), GraphicsDevice.Viewport.Bounds);
             presentationPacer.WaitForNextFrame(appliedFrameLimit ?? 60);
             return true;
         }
@@ -318,7 +318,7 @@ internal sealed partial class RecreateGame
             keyboard.NamingNavigationEnabled = false;
             keyboard.ControllerPresentation = controller!.Presentation;
             keyboard.ControllerGeneration = controller.Generation;
-            InputFrame input = keyboard.Read(windowModeHotkey.Filter(physicalInput.ReadKeyboard()), physicalInput.ReadController(), !focusPaused && IsActive);
+            InputFrame input = keyboard.Read(windowModeHotkey.Filter(physicalInput.ReadKeyboard()), physicalInput.ReadController(), physicalInput.CanRead && !focusPaused && IsActive);
             UpdatePlayerSavePointer();
             UpdatePlayerSaveMenuAsync(input);
             presentationPacer.WaitForNextFrame(ff7Scene.PresentationFrameLimit);
@@ -339,7 +339,7 @@ internal sealed partial class RecreateGame
             GamePadState pad = physicalInput.ReadController();
             keyboard.ControllerPresentation = controller!.Presentation;
             keyboard.ControllerGeneration = controller.Generation;
-            ff7Scene!.Update(time, windowModeHotkey.Filter(physicalInput.ReadKeyboard()), pad);
+            ff7Scene!.Update(time, windowModeHotkey.Filter(physicalInput.ReadKeyboard()), pad, physicalInput.ReadMouse(), physicalInput.CanRead);
         }
         if (pendingMixedOriginResume is { } mixedOrigin)
         {

@@ -94,7 +94,7 @@ public sealed class Ff7WorldPresentationTests
         Ff7WorldView view = camera.Create(Vector3.Zero, 0, 1500, 10000, 0, 0, 400, 640, 480, 0);
         Ff7WorldTextureResources textures = new(installation, resources);
         Ff7WorldTextureAnimationResources clock = new(installation, resources, textures.Descriptors);
-        Ff7WorldTerrainAdapter terrain = new(textures);
+        Ff7WorldTerrainReference terrain = new(textures);
         Capture first = new();
         var sourceMesh = resources.Map.ReadMesh(0, 0);
         int count = terrain.DrawNative(first, sourceMesh, Vector3.Zero, view, id => clock.Frame(id, 0));
@@ -102,7 +102,7 @@ public sealed class Ff7WorldPresentationTests
         Capture second = new();
         terrain.DrawNative(second, sourceMesh, Vector3.Zero, view, id => clock.Frame(id, 0));
         Assert.Equal(first.Vertices, second.Vertices);
-        Ff7WorldTerrainAdapter cold = new(new Ff7WorldTextureResources(installation, resources));
+        Ff7WorldTerrainReference cold = new(new Ff7WorldTextureResources(installation, resources));
         Capture restored = new();
         cold.DrawNative(restored, resources.Map.ReadMesh(0, 0), Vector3.Zero, camera.Create(Vector3.Zero, 0, 1500, 10000, 0, 0, 400, 640, 480, 0), id => clock.Frame(id, 0));
         Assert.Equal(first.Vertices, restored.Vertices);

@@ -40,6 +40,13 @@ internal static class NativeSaveBankTests
         Check(BinaryPrimitives.ReadInt16LittleEndian(encoded.AsSpan(0xB9A)) == -321 && BinaryPrimitives.ReadUInt16LittleEndian(encoded.AsSpan(0xB9E)) == 7, "Native field position was not encoded.");
         Ff7Progress imported = Ff7NativeSaveCodec.ImportProgress(slot, progress.InitialKernelData);
         Check(imported.Gil == progress.Gil && imported.Party.SequenceEqual(progress.Party) && imported.Characters[0].HitPoints == 777 && imported.Characters[0].Experience == 123456 && imported.Materia.Single() == progress.Materia.Single() && imported.Inventory.SequenceEqual(progress.Inventory) && imported.Clock == progress.Clock && imported.LockedCharacters == 4 && imported.AvailableCharacters == 0x105, "Native progress roundtrip failed.");
+        foreach (byte speed in new byte[] { 0, 128, 255 })
+        {
+            Ff7NativeSaveSlot configured = Ff7NativeSaveCodec.ExportField(progress with { NativeBattleSpeed = speed }, persistent, 123, -321, 456, 7, 128, baseData);
+            Check(configured.Encode()[0x10D8] == speed && Ff7NativeSaveCodec.ImportProgress(configured, progress.InitialKernelData).NativeBattleSpeed == speed, "The native speed byte must survive a save-slot roundtrip.");
+        }
+        Check(imported.NativeBattleSpeed == 0 && Ff7NativeSaveCodec.ResolveBattleSpeed(null, baseData) == 0, "Legacy progress must recover the saved native value zero.");
+        Check(Ff7NativeSaveCodec.ExportField(progress, persistent, 123, -321, 456, 7, 128).Encode()[0x10D8] == 128, "A new native save without a recorded speed must export the historical default.");
         byte[] before = empty.Encode();
         Ff7NativeSaveBank edited = empty.WithSlot(8, slot);
         Check(empty.Encode().SequenceEqual(before) && edited.GetSlot(8).Encode().SequenceEqual(encoded) && edited.GetSlot(7).IsEmpty && edited.GetSlot(9).IsEmpty, "Native bank edit changed another owner.");

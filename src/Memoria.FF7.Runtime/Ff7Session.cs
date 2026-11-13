@@ -69,6 +69,7 @@ public sealed partial class Ff7Session : IDisposable
                 Materia = initial.Materia.Where(materia => materia.MateriaId != 255).Select(materia => new Ff7MateriaState(materia.MateriaId, materia.AbilityPoints)).ToArray(),
                 Gil = initial.Gil,
                 Clock = new Ff7ClockState(),
+                NativeBattleSpeed = Ff7Progress.DefaultNativeBattleSpeed,
                 AvailableCharacters = session.executable.InitialAvailableCharacters
             };
             session.Progress.Validate();
@@ -102,8 +103,8 @@ public sealed partial class Ff7Session : IDisposable
             {
                 throw new InvalidDataException("The FFVII saved field is absent from the original maplist.");
             }
-            session.Progress = save.Progress;
             session.nativeSaveData = save.NativeSaveData?.ToArray();
+            session.Progress = save.Progress with { NativeBattleSpeed = Ff7NativeSaveCodec.ResolveBattleSpeed(save.Progress.NativeBattleSpeed, session.nativeSaveData) };
             session.battleBigShotChargeRotation = save.BattleBigShotChargeRotation;
             session.battleBigShotCounterRotation = save.BattleBigShotCounterRotation;
             session.battleSearchScopeScaleCounter = save.BattleSearchScopeScaleCounter;
@@ -118,16 +119,16 @@ public sealed partial class Ff7Session : IDisposable
             session.tickContinuation = save.TickContinuation is null ? null : save.TickContinuation with { ScriptReturns = save.TickContinuation.ScriptReturns?.ToArray() };
             session.EventCoverage = save.EventCoverage is null ? null : new Memoria.AutoPlay.AutoPlayEventCoverageLedger(save.EventCoverage).Capture();
             session.Progress = session.Progress with { Clock = session.Clock };
-            if (save.Battle is { } battle)
-            {
-                session.RestoreBattle(battle);
-            }
             if (save.World is Ff7WorldProcess world)
             {
                 byte[] persistent = (byte[])save.Vm.PersistentVariables.Clone();
                 session.World = new(installation, persistent, world.EntrySelector, Enumerable.Range(9, 3).Select(address => persistent[256 + address]).ToArray(), world.WorldId);
                 session.World.Restore(world);
                 session.ConfigureWorldPresentation();
+            }
+            if (save.Battle is { } battle)
+            {
+                session.RestoreBattle(battle);
             }
             return session;
         }
@@ -145,15 +146,33 @@ public sealed partial class Ff7Session : IDisposable
 
     public void AdvanceTick(bool advanceClock, bool waitForBattleCommand = false, bool confirmBattleLimit = false, bool escapeBattleHeld = false, bool turnBasedBattle = false)
     {
-        if (World is not null)
+        if (World is { } world)
         {
+            if (world.PendingBattle is null && world.ReadyFieldDeparture is { } pendingDeparture)
+            {
+                CompleteWorldDeparture(world, pendingDeparture);
+                return;
+            }
             if (advanceClock)
             {
                 AdvanceNominalClockCallbacks();
             }
+            if (Battle is { } worldBattle)
+            {
+                worldBattle.Advance(waitForBattleCommand, confirmBattleLimit, escapeBattleHeld, turnBasedBattle);
+                return;
+            }
             ConfigureWorldPresentation();
-            World.Advance();
+            world.Advance();
+            if (TryBeginWorldBattle(world))
+            {
+                return;
+            }
             Host.AdvanceNativeMusicClock();
+            if (world.ReadyFieldDeparture is { } departure)
+            {
+                CompleteWorldDeparture(world, departure);
+            }
             return;
         }
         if (tickTailInProgress)
@@ -248,7 +267,7 @@ public sealed partial class Ff7Session : IDisposable
 
     private bool fieldLoadIncomplete;
 
-    private void LoadField(ushort map, FieldVariables? variables, Ff7FieldProcess? process = null)
+    private void LoadField(ushort map, FieldVariables? variables, Ff7FieldProcess? process = null, Action<Ff7FieldHost>? prepareHost = null)
     {
         bool enteringField = process is null;
         if (enteringField)
@@ -292,6 +311,7 @@ public sealed partial class Ff7Session : IDisposable
             AdvanceDialogue = AdvanceDialogue
         };
         loadedHost.ConfigureNativeSoundResources(ReadNativeSoundDescription, restoring: !enteringField);
+        prepareHost?.Invoke(loadedHost);
         FieldMachine loadedMachine = new(FieldProgram.FromPcScripts(loadedField.Scripts), variables, host: loadedHost);
         fieldLoadIncomplete = true;
         Field = loadedField;
@@ -301,7 +321,10 @@ public sealed partial class Ff7Session : IDisposable
         Host = loadedHost;
         Machine = loadedMachine;
         Machine.ScriptReturned = ObserveNativeScriptReturn;
-        dialogueTokens.Clear();
+        if (prepareHost is null)
+        {
+            dialogueTokens.Clear();
+        }
         if (enteringField)
         {
             Progress = Progress with { Encounters = Progress.Encounters with { MovementCounter = 0 } };
@@ -328,7 +351,8 @@ public sealed partial class Ff7Session : IDisposable
             Ff7Progress recoveredProgress = PreserveGuestFieldCharacters(Progress, recovered.Progress);
             if (GuestFieldVitals is { } guest)
             {
-                guest.RecoverCharacters(recovery.AllCharacters ? guest.StoryCharacters : Progress.Party, recovery.AllCharacters);
+                IReadOnlyList<int> characters = recovery.AllCharacters ? guest.StoryCharacters : Progress.Party;
+                PublishFieldEntryEffect(() => guest.RecoverCharacters(characters, recovery.AllCharacters));
             }
             Progress = recoveredProgress;
             byte flags = Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 122);
@@ -354,7 +378,10 @@ public sealed partial class Ff7Session : IDisposable
             Ff7Progress adjustedProgress = PreserveGuestFieldCharacters(Progress, adjusted.Progress);
             if (Progress.Party.Contains(health.Character))
             {
-                GuestFieldVitals?.AddHitPoints(health.Character, health.Amount);
+                if (GuestFieldVitals is { } guest)
+                {
+                    PublishFieldEntryEffect(() => guest.AddHitPoints(health.Character, health.Amount));
+                }
             }
             Progress = adjustedProgress;
             byte flags = Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 122);
@@ -441,7 +468,8 @@ public sealed partial class Ff7Session : IDisposable
         {
             throw new NotSupportedException($"FFVII presentation has no handler for {command.GetType().Name}.");
         }
-        PresentationCommand(command);
+        Action<FieldCommand> publish = PresentationCommand;
+        PublishFieldEntryEffect(() => publish(command));
         return new(true);
     }
 
@@ -451,7 +479,7 @@ public sealed partial class Ff7Session : IDisposable
         Progress = progress;
         if (changed)
         {
-            PartyChanged?.Invoke(this);
+            PublishFieldEntryEffect(() => PartyChanged?.Invoke(this));
         }
     }
 

@@ -51,7 +51,7 @@ public sealed partial class Ff7FieldHost
                     if (split)
                     {
                         var destination = target(actor);
-                        Ff7Actor placed = actor with { X4096 = leader.X4096, Y4096 = leader.Y4096, Z4096 = leader.Z4096, Triangle = leader.Triangle };
+                        Ff7Actor placed = actor with { X4096 = leader.X4096, Y4096 = leader.Y4096, Z4096 = leader.Z4096, Triangle = leader.Triangle, PlacementEpoch = actor.PlacementEpoch + 1 };
                         SetActor(actor.Entity, _ => placed);
                         updated = StartPartyMovement(follower, placed, destination.X, destination.Y, duration);
                     }

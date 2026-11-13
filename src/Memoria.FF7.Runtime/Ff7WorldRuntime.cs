@@ -26,7 +26,7 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
     private int viewMode;
     private int radarMode;
     private int selectedLight = -1;
-    private int encounterRate;
+    private int encounterRate = 1;
     private Ff7WorldMarsh marsh = new();
     private Ff7WorldCameraState camera = new();
     private readonly Ff7WorldCamera cameraController;
@@ -79,15 +79,18 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
     public IReadOnlyList<ReadOnlyMemory<byte>> Texts { get; }
     public int ControlledModel => controlledModel;
     public bool MovementEnabled => movementEnabled;
+    public long PresentationTick => tick;
+    public long PresentationRestoreEpoch { get; private set; }
+    public long PresentationCameraEpoch { get; private set; }
     public Ff7WorldProcess Process
     {
         get
         {
             EnsureHealthy();
-            return new(Resources.World, tick, entrySelector, Machine.Capture(), entities.Values.OrderBy(value => value.Model).ToArray(), controlledModel, movementEnabled, viewMode, radarMode, camera, lights.Values.OrderBy(value => value.Index).ToArray(), selectedLight, marsh, playerModel, encounterRate, window, dialogue, lastSelection, controlLock, mainState, fadeAlpha, fadeRate, fadeDisplayedAlpha, initialized, presentationCounter, input with { TerrainCache = input.TerrainCache?.ToArray() }, audio, sky, worldMapState);
+            return new(Resources.World, tick, entrySelector, Machine.Capture(), entities.Values.OrderBy(value => value.Model).ToArray(), controlledModel, movementEnabled, viewMode, radarMode, camera, lights.Values.OrderBy(value => value.Index).ToArray(), selectedLight, marsh, playerModel, encounterRate, window, dialogue, lastSelection, controlLock, mainState, fadeAlpha, fadeRate, fadeDisplayedAlpha, initialized, presentationCounter, input with { TerrainCache = input.TerrainCache?.ToArray() }, audio, sky, worldMapState) { FieldDeparture = fieldDeparture, BattleState = CaptureWorldBattleState() };
         }
     }
-    public bool CanSave => !faulted && mainState == 1 && fadeRate == 0 && fadeDisplayedAlpha == 0 && movementEnabled && controlledModel is 0 or 1 or 2 or 6 && entities.TryGetValue(controlledModel, out Ff7WorldEntity? entity) && entity.TerrainResolved && (entity.Terrain & 31) != 14 && dialogue is not { Completed: false } && (persistent[29] & 2) != 0 && (persistent[31] & 2) == 0;
+    public bool CanSave => !faulted && pendingWorldBattle is null && mainState == 1 && fadeRate == 0 && fadeDisplayedAlpha == 0 && movementEnabled && controlledModel is 0 or 1 or 2 or 6 && entities.TryGetValue(controlledModel, out Ff7WorldEntity? entity) && entity.TerrainResolved && (entity.Terrain & 31) != 14 && dialogue is not { Completed: false } && (persistent[29] & 2) != 0 && (persistent[31] & 2) == 0;
 
     public byte ReadPersistentByte(int address)
     {
@@ -99,6 +102,10 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
     public void Advance()
     {
         EnsureHealthy();
+        if (ReadyFieldDeparture is not null || pendingWorldBattle is not null)
+        {
+            return;
+        }
         try
         {
             AdvanceCore();
@@ -140,7 +147,16 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
             CompleteWorldAudioInitialization();
             initialized = true;
         }
+        if (RandomBattlesEnabled)
+        {
+            _ = EncounterRandom;
+        }
+        bool rngInput = movementEnabled && controlledModel is 0 or 1 or 2 or 6 && ((input.Held & 0xA00C) != 0 || input.Horizontal != 0);
         AdvancePlayerInput();
+        if (RandomBattlesEnabled && rngInput)
+        {
+            EncounterRandom.Next();
+        }
         Machine.Tick();
         ResolvePlayerTerrain();
         if (mainState < 0)
@@ -168,6 +184,11 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
         AdvanceSky();
         tick++;
         presentationCounter = unchecked(presentationCounter + 2);
+        AdvanceRandomWorldBattle();
+        if (pendingWorldBattle is null)
+        {
+            AdvanceFieldDeparture();
+        }
     }
 
     internal void UpdateEntity(Ff7WorldEntity entity)
@@ -211,6 +232,10 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
     {
         int[] values = request.Command.Arguments;
         WorldOperation operation = request.Command.Operation;
+        if (operation is WorldOperation.FieldTransition or WorldOperation.FieldTransitionSelector)
+        {
+            return RequestFieldDeparture(request);
+        }
         if (operation == WorldOperation.CreateModel)
         {
             int model = values[0];
@@ -221,7 +246,11 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
                 uint second = BinaryPrimitives.ReadUInt32LittleEndian(persistent.AsSpan(0x3BC + i * 8));
                 if ((first >> 19 & 31) == model)
                 {
-                    created = created with { X = (int)(first & 0x7FFFF), Y = unchecked((int)second) >> 18, Z = (int)(second & 0x3FFFF), Direction = (int)(first >> 20 & 0xFF0), TargetDirection = (int)(first >> 20 & 0xFF0) };
+                    int x = (int)(first & 0x7FFFF);
+                    int y = unchecked((int)second) >> 18;
+                    int z = (int)(second & 0x3FFFF);
+                    int direction = (int)(first >> 20 & 0xFF0);
+                    created = created with { X = x, Y = y, Z = z, PreviousX = x, PreviousY = y, PreviousZ = z, Direction = direction, TargetDirection = direction };
                     break;
                 }
             }
@@ -263,10 +292,24 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
             worldMapState = values[0];
             return new(true);
         }
+        if (operation == WorldOperation.Battle)
+        {
+            RequestWorldBattle(values[0], false, true, request.Id, request.ProgramCounter);
+            return new(true);
+        }
+        if (operation == WorldOperation.EncounterRate)
+        {
+            encounterRate = values[0];
+            return new(true);
+        }
         Ff7WorldEntity entity = RequireEntity(request.ActiveModel);
         switch (operation)
         {
             case WorldOperation.SetPlayer:
+                if (controlledModel != entity.Model)
+                {
+                    PresentationCameraEpoch++;
+                }
                 controlledModel = entity.Model;
                 SynchronizeFreeDirection(entity);
                 break;
@@ -282,10 +325,10 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
                 }
                 break;
             case WorldOperation.ChunkPosition:
-                entity = entity with { X = (entity.X & 8191) | values[0] << 13, Z = (entity.Z & 8191) | values[1] << 13, Flags = entity.Flags | 1 };
+                entity = entity with { X = (entity.X & 8191) | values[0] << 13, Z = (entity.Z & 8191) | values[1] << 13, Flags = entity.Flags | 1, PresentationEpoch = entity.PresentationEpoch + 1 };
                 break;
             case WorldOperation.LocalPosition:
-                entity = entity with { X = (entity.X & ~8191) | (values[0] & 8191), Z = (entity.Z & ~8191) | (values[1] & 8191), Flags = entity.Flags | 1 };
+                entity = entity with { X = (entity.X & ~8191) | (values[0] & 8191), Z = (entity.Z & ~8191) | (values[1] & 8191), Flags = entity.Flags | 1, PresentationEpoch = entity.PresentationEpoch + 1 };
                 break;
             case WorldOperation.Direction:
                 entity = entity with { Direction = values[0] << 4 & 4095, TargetDirection = values[0] << 4 & 4095 };
@@ -317,23 +360,20 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
                 entity = entity with { VerticalVelocity = unchecked((sbyte)values[0]), Flags = entity.Flags | 128 };
                 break;
             case WorldOperation.Height:
-                entity = entity with { Y = values[0], Flags = entity.Flags | 128 };
+                entity = entity with { Y = values[0], Flags = entity.Flags | 128, PresentationEpoch = entity.PresentationEpoch + 1 };
                 break;
             case WorldOperation.Animation:
                 entity = entity with { Animation = unchecked((sbyte)values[0]), AnimationFrame = 0, Flags = values[1] != 0 ? entity.Flags & ~32 : entity.Flags | 32 };
                 break;
             case WorldOperation.Hide:
-                entity = entity with { Flags = entity.Flags | 8 };
+                entity = entity with { Flags = entity.Flags | 8, PresentationEpoch = entity.PresentationEpoch + 1 };
                 break;
             case WorldOperation.Unhide:
-                entity = entity with { Flags = entity.Flags & ~8 };
+                entity = entity with { Flags = entity.Flags & ~8, PresentationEpoch = entity.PresentationEpoch + 1 };
                 break;
             case WorldOperation.ViewMode:
                 SetWorldViewMode(values[0] & 3);
                 radarMode = values[0] >> 2 & 3;
-                break;
-            case WorldOperation.EncounterRate:
-                encounterRate = values[0];
                 break;
             default:
                 throw new NotSupportedException($"Unsupported FFVII world host operation {operation} at word {request.ProgramCounter:X4}.");
@@ -379,9 +419,13 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
     public void Restore(Ff7WorldProcess state)
     {
         ArgumentNullException.ThrowIfNull(state);
-        if (state.WorldId != Resources.World || state.EntrySelector != entrySelector || state.PlayerModel != playerModel || state.Entities is null || state.Entities.Any(value => value is null || value.Model is < 0 or > 255) || state.Entities.Select(value => value.Model).Distinct().Count() != state.Entities.Length || state.ControlledModel != -1 && !state.Entities.Any(value => value.Model == state.ControlledModel) || state.Lights is null || state.Lights.Any(value => value is null || value.Index is < 0 or > 15) || state.Lights.Select(value => value.Index).Distinct().Count() != state.Lights.Length || state.SelectedLight != -1 && !state.Lights.Any(value => value.Index == state.SelectedLight) || state.Marsh is null || state.Vm is null || state.Vm.Models is null || state.Vm.Models.Any(value => value is null) || state.Input is { Horizontal: < -1 or > 1 } or { Vertical: < -1 or > 1 } || state.Tick < 0 || state.Vm.Tick != state.Tick + (state.Initialized ? 1 : 0) || state.ControlLock is < 0 or > 6 || state.MainState is < -15 or > 1 || state.ViewMode is < 0 or > 3 || state.RadarMode is < 0 or > 3 || state.FadeAlpha is < 0 or > 255 || state.FadeDisplayedAlpha is < 0 or > 255)
+        if (state.WorldId != Resources.World || state.EntrySelector != entrySelector || state.PlayerModel != playerModel || state.Entities is null || state.Entities.Any(value => value is null || value.Model is < 0 or > 255) || state.Entities.Select(value => value.Model).Distinct().Count() != state.Entities.Length || state.ControlledModel != -1 && !state.Entities.Any(value => value.Model == state.ControlledModel) || state.Lights is null || state.Lights.Any(value => value is null || value.Index is < 0 or > 15) || state.Lights.Select(value => value.Index).Distinct().Count() != state.Lights.Length || state.SelectedLight != -1 && !state.Lights.Any(value => value.Index == state.SelectedLight) || state.Marsh is null || state.Vm is null || state.Vm.Models is null || state.Vm.Models.Any(value => value is null) || state.Input is { Horizontal: < -1 or > 1 } or { Vertical: < -1 or > 1 } || state.Tick < 0 || state.Vm.Tick != state.Tick + (state.Initialized ? 1 : 0) || state.ControlLock is < 0 or > 6 || !IsValidFieldDeparture(state) || state.ViewMode is < 0 or > 3 || state.RadarMode is < 0 or > 3 || state.FadeAlpha is < 0 or > 255 || state.FadeDisplayedAlpha is < 0 or > 255)
         {
             throw new InvalidDataException("FFVII world process snapshot is corrupt or incompatible with its resources.");
+        }
+        if (state.FieldDeparture is { } departure && (!Machine.OwnsHostOperation(departure.ProgramCounter, departure.Operation) || departure.ExecutingModel >= 0 && !state.Vm.Models.Any(model => model.Model == departure.ExecutingModel)))
+        {
+            throw new InvalidDataException("FFVII world departure has no matching original script owner.");
         }
         if (!state.Vm.Models.Select(value => value.Model).Order().SequenceEqual(state.Entities.Select(value => value.Model).Order()))
         {
@@ -393,6 +437,7 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
             throw new InvalidDataException("FFVII world audio snapshot has invalid native song or publication state.");
         }
         ValidatePlayerInput(state.Input, state.WorldMapState);
+        ValidateWorldBattleState(state.BattleState);
         Machine.Restore(state.Vm);
         entities.Clear();
         foreach (Ff7WorldEntity entity in state.Entities)
@@ -411,13 +456,14 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
         camera = state.Camera ?? new();
         marsh = state.Marsh;
         selectedLight = state.SelectedLight;
-        encounterRate = state.EncounterRate;
+        encounterRate = state.BattleState is null && state.EncounterRate == 0 ? 1 : state.EncounterRate;
         controlLock = state.ControlLock;
         mainState = state.MainState;
         fadeAlpha = state.FadeAlpha;
         fadeRate = state.FadeRate;
         fadeDisplayedAlpha = state.FadeDisplayedAlpha;
         initialized = state.Initialized;
+        RestoreWorldBattleState(state.BattleState);
         tick = state.Tick;
         presentationCounter = state.PresentationCounter;
         input = state.Input is null ? new() : state.Input with { TerrainCache = state.Input.TerrainCache?.ToArray() };
@@ -426,8 +472,10 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
         audio = state.Audio ?? new(Initialized: initialized, Song: initialized ? 1 : 0, PlaybackEnabled: initialized);
         sky = state.Sky ?? new();
         worldMapState = state.WorldMapState;
+        fieldDeparture = state.FieldDeparture;
         RestoreDialogue(state);
         faulted = false;
+        PresentationRestoreEpoch++;
     }
 
     public void Dispose()

@@ -14,6 +14,7 @@
     <Content Include="../../Mods/Memoria/Extended FFVIII Roster/*" Link="BundledMods/Memoria/Extended FFVIII Roster/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../Mods/Memoria/Reorientation/fields/*.json" Link="BundledMods/Memoria/Reorientation/fields/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="../Shared/NativeBattleCommandSequenceFixture.cs" Link="NativeBattleCommandSequenceFixture.cs" />
+    <Compile Include="../Shared/Ff7WorldTerrainReference.cs" Link="Ff7WorldTerrainReference.cs" />
     <Compile Include="../../tools/Memoria.FF8.BattleEffects/FreshEntryRecipeCanonicalization.cs" Link="FreshEntryRecipeCanonicalization.cs" />
     <Using Include="Memoria.FF8.Tests" />
     <Using Include="Xunit" />

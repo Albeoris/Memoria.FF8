@@ -9,6 +9,8 @@ internal sealed partial class Ff7Scene
     private KeyboardInput sharedInput = new();
     private GameplayClock sharedClock = new();
     private InputFrame semanticInput;
+    private MouseState pointerState;
+    private bool acceptsInput;
     private bool userPaused;
     private BattleAtbMode? retainedBattleAtbMode;
 
@@ -62,7 +64,7 @@ internal sealed partial class Ff7Scene
         sharedInput.NativeButtonsOwnInput = false;
         sharedInput.TextEntryEnabled = error is null && namingMenus?.IsTypingName == true;
         sharedInput.NamingNavigationEnabled = error is null && namingMenus?.IsOpen == true;
-        semanticInput = sharedInput.Read(keys, pad, !focusPaused);
+        semanticInput = sharedInput.Read(keys, pad, acceptsInput);
         if (sharedInput.PauseRequested && playerMenu?.IsCapturingControls != true)
         {
             userPaused = !userPaused;

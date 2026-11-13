@@ -55,10 +55,11 @@ internal sealed partial class Ff7Scene
         {
             PlayBattleSound(sound);
         }
-        soundChannels.SetTempo(sharedClock.EffectiveSpeed(session.World is not null ? SceneKind.WorldMap : state.Movie is { Playing: true } ? SceneKind.Movie : SceneKind.Field, false, session.Battle is not null));
+        double tempo = sharedClock.EffectiveSpeed(TimingScene, session.RequiresRealTimeFieldInput, session.Battle is not null);
+        soundChannels.SetTempo(tempo);
         if (guestSoundOutput is { } guest)
         {
-            guest.SetSoundSpeed(sharedClock.EffectiveSpeed(session.World is not null ? SceneKind.WorldMap : SceneKind.Field, false, session.Battle is not null));
+            guest.SetSoundSpeed(tempo);
             guest.SetOutputPreferences(dialoguePreferences?.Invoke().MusicVolume ?? 100, dialoguePreferences?.Invoke().SoundVolume ?? 100);
             guest.Update();
             if (guest.Error is { } failure)

@@ -8,6 +8,7 @@ public sealed partial class Ff7Session
     private (int Horizontal, int Vertical, bool Run)? deferredMovement;
 
     public bool HasPendingTick => tickContinuation is not null;
+    public bool RequiresRealTimeFieldInput => World is null && Battle is null && Host.RequiresRealTimeFieldInput;
 
     private void ApplyDeferredInput()
     {

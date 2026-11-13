@@ -34,7 +34,7 @@ internal sealed partial class Ff7Scene
         autoPlay?.ResetIdleDeadline();
         for (int tick = 0; tick < ticks; tick++)
         {
-            Update(new GameTime(TimeSpan.Zero, TimeSpan.FromTicks((long)Math.Ceiling(TimeSpan.TicksPerSecond / 30d))), readKeys());
+            Update(new GameTime(TimeSpan.Zero, TimeSpan.FromTicks((long)Math.Ceiling(TimeSpan.TicksPerSecond / 30d))), readKeys(), default, default, inputActive: true);
         }
     }
 }

@@ -5,6 +5,17 @@ namespace Memoria.FF8.GameUi;
 
 internal sealed partial class BattleHudElement
 {
+    internal readonly record struct StatusBadge(string Name, int? Icon = null);
+
+    [Flags]
+    internal enum AtbVisualStatus
+    {
+        None = 0,
+        Haste = 1,
+        Slow = 2,
+        Stop = 4
+    }
+
     private readonly record struct StatusLabel(bool Saved, uint Mask, string Name, int? Icon = null);
 
     private static readonly StatusLabel[] StatusLabels =
@@ -72,32 +83,38 @@ internal sealed partial class BattleHudElement
 
     private void DrawStatuses(IUiCanvas canvas, UiTheme theme, BattleStatusPresentation statuses, float x, float y, float width)
     {
-        StatusLabel[] active = StatusLabels.Where(status => ((status.Saved ? statuses.Saved : statuses.Battle) & status.Mask) != 0).Select(status => status with { Name = StatusName(status) }).ToArray();
+        StatusBadge[] active = StatusLabels.Where(status => ((status.Saved ? statuses.Saved : statuses.Battle) & status.Mask) != 0).Select(status => new StatusBadge(StatusName(status), status.Icon)).ToArray();
+        DrawStatusBadges(canvas, theme, Layout, controller.TextScale, controller.BattlePresentationSeconds, active, x, y, width);
+    }
+
+    internal static void DrawStatusBadges(IUiCanvas canvas, UiTheme theme, BattleHudLayout layout, float textScale, double seconds, StatusBadge[] active, float x, float y, float width)
+    {
+        float scale = layout.Scale;
         if (active.Length == 0)
         {
             return;
         }
-        float fontSize = 11 * controller.TextScale;
+        float fontSize = 11 * textScale;
         float height = Math.Max(12, fontSize);
-        float totalWidth = active.Sum(status => canvas.MeasureText(status.Name, fontSize * Scale, float.PositiveInfinity).Width / Scale + (status.Icon.HasValue ? 14 : 0) + 9);
+        float totalWidth = active.Sum(status => canvas.MeasureText(status.Name, fontSize * scale, float.PositiveInfinity).Width / scale + (status.Icon.HasValue ? 14 : 0) + 9);
         // Narrow target columns cycle complete labels instead of hiding an active status in clipped text.
         if (totalWidth > width)
         {
-            int index = (int)(controller.BattlePresentationSeconds / 2) % active.Length;
+            int index = (int)(seconds / 2) % active.Length;
             active = [active[index]];
         }
-        canvas.PushClip(Rect(x, y, width, height));
+        canvas.PushClip(layout.Rect(x, y, width, height));
         try
         {
-            foreach (StatusLabel status in active)
+            foreach (StatusBadge status in active)
             {
                 if (status.Icon is int icon)
                 {
-                    canvas.Image(new UiImageSource(UiImageKind.Icon, icon), Rect(x, y, 12, 12));
+                    canvas.Image(new UiImageSource(UiImageKind.Icon, icon), layout.Rect(x, y, 12, 12));
                     x += 14;
                 }
-                float textWidth = canvas.MeasureText(status.Name, fontSize * Scale, float.PositiveInfinity).Width / Scale;
-                canvas.Text(status.Name, fontSize * Scale, Rect(x, y, textWidth, height), theme.Foreground, UiAlignment.Start, UiTextFlow.SingleLine);
+                float textWidth = canvas.MeasureText(status.Name, fontSize * scale, float.PositiveInfinity).Width / scale;
+                canvas.Text(status.Name, fontSize * scale, layout.Rect(x, y, textWidth, height), theme.Foreground, UiAlignment.Start, UiTextFlow.SingleLine);
                 x += textWidth + 9;
             }
         }
@@ -107,12 +124,12 @@ internal sealed partial class BattleHudElement
         }
     }
 
-    private static (UiColor Left, UiColor Right) AtbStatusColors(uint statuses, bool ready)
+    private static (UiColor Left, UiColor Right) AtbStatusColors(AtbVisualStatus statuses, bool ready)
     {
         //4B14C0 selects Haste, Slow, Stop, then the ordinary B8790C/B8792C row.
-        return (statuses & 2) != 0 ? (new(240, 5, 58), new(150, 0, 110))
-            : (statuses & 4) != 0 ? (new(94, 46, 251), new(70, 0, 140))
-            : (statuses & 8) != 0 ? (new(154, 154, 154), new(154, 154, 154))
+        return statuses.HasFlag(AtbVisualStatus.Haste) ? (new(240, 5, 58), new(150, 0, 110))
+            : statuses.HasFlag(AtbVisualStatus.Slow) ? (new(94, 46, 251), new(70, 0, 140))
+            : statuses.HasFlag(AtbVisualStatus.Stop) ? (new(154, 154, 154), new(154, 154, 154))
             : ready ? (new(255, 255, 0), new(255, 255, 0)) : (new(254, 149, 14), new(179, 40, 1));
     }
 }

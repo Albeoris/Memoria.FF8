@@ -53,16 +53,14 @@ public sealed class Ff7KnownFieldPoseTests
                     Assert.True(float.IsFinite(point.X) && float.IsFinite(point.Y) && float.IsFinite(point.Z));
                 });
             }
-            Vector2[]? first = null;
-            for (int fraction = 0; fraction < 16; fraction++)
-            {
-                Capture capture = new();
-                Ff7ActorVisual actor = new(5, 2, -610 * 4096, -2965 * 4096, 481 * 4096, 64, 6, frame * 16 + fraction);
-                renderer.Render(capture, 320, 240, new(0, new(32, -32), [actor], new ushort[256], MovieActive: true));
-                Assert.NotEmpty(capture.Positions);
-                first ??= capture.Positions.ToArray();
-                Assert.Equal(first, capture.Positions);
-            }
+            Ff7FieldPose midpoint = Ff7FieldPoseSampler.Sample(model, binding.Motion, new(frame * 16 + 8));
+            Vector3 root = Vector3.Lerp(binding.Motion.Frames[frame].RootTranslation, binding.Motion.Frames[Math.Min(frame + 1, 7)].RootTranslation, 0.5f);
+            Assert.Equal(root, midpoint.RootTranslation);
+            Assert.Equal(root * new Vector3(1, -1, 1), midpoint.Bones[0].Translation);
+            Capture capture = new();
+            Ff7ActorVisual actor = new(5, 2, -610 * 4096, -2965 * 4096, 481 * 4096, 64, 6, frame * 16 + 8);
+            renderer.Render(capture, 320, 240, new(0, new(32, -32), [actor], new ushort[256], MovieActive: true));
+            Assert.NotEmpty(capture.Positions);
         }
     }
 

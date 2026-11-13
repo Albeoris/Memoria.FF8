@@ -41,6 +41,10 @@ public sealed partial class Ff7Session
         if (World is not null)
         {
             World.ConfigureMovementSpeed(worldMovementSpeedPercent);
+            World.RandomBattlesEnabled = Progress.RandomEncountersEnabled;
+            World.EncounterSeed = Clock.ElapsedSeconds;
+            World.EncounterPartyCount = Progress.Party.Count(character => character != 255);
+            World.ValidateRandomBattleEquipment = ValidateEncounterMateria;
             World.NativeMessageSpeed = DialogueMessageSpeed?.Invoke(Progress.NativeMessageSpeed) ?? Progress.NativeMessageSpeed;
             World.ExpandDialogueToken = ExpandDialogueToken;
             World.AudioRequested = Host.SubmitNativeAudio;

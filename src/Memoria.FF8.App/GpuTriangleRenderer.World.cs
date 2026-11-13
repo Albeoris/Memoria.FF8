@@ -14,8 +14,10 @@ public sealed partial class GpuTriangleRenderer
     private int cachedTerrainVertices;
     private long terrainFrame;
     private WorldTerrainView? terrainView;
+    private VertexBuffer? boundTerrain;
 
     internal int FrameTerrainUploads { get; private set; }
+    internal int CachedTerrainBytes => cachedTerrainVertices * WorldGpuVertex.Declaration.VertexStride;
 
     public void DrawTerrain(WorldTerrainMesh mesh, in WorldTerrainView view, in TriangleMaterial material, int startVertex = 0, int vertexCount = -1)
     {
@@ -23,6 +25,8 @@ public sealed partial class GpuTriangleRenderer
         {
             throw new InvalidOperationException("Begin must precede DrawTerrain.");
         }
+        // Keep consecutive material runs on the same retained buffer bound. A streamed draw,
+        // eviction, frame completion or transient buffer release ends that binding.
         ArgumentNullException.ThrowIfNull(mesh);
         if (mesh.Vertices.Length % 3 != 0)
         {
@@ -56,11 +60,24 @@ public sealed partial class GpuTriangleRenderer
                 effect.Parameters["WorldOffset"].SetValue(new Vector3(view.Offset.X, view.Offset.Y, view.Offset.Z));
                 effect.Parameters["WorldFocal"].SetValue(view.Focal);
                 effect.Parameters["WorldNativeCurvature"].SetValue(view.NativeCurvature ? 1f : 0f);
+                Ff7WorldTerrainView? ff7 = view.Ff7;
+                effect.Parameters["WorldFf7Projection"].SetValue(ff7 is { } selected ? new Vector3(1, selected.CenterY, selected.CurvatureThreshold) : Vector3.Zero);
+                System.Numerics.Vector3? axis = ff7?.BridgeAxis;
+                effect.Parameters["WorldFf7Bridge"].SetValue(axis is { } bridge ? new Vector4(bridge.X, bridge.Y, bridge.Z, 1) : Vector4.Zero);
                 terrainView = view;
             }
             effect.CurrentTechnique = effect.Techniques["WorldTerrainTechnique"];
             SamplerState sampler = ApplyMaterial(material);
-            device.SetVertexBuffer(buffer);
+            RasterizerState rasterizer = view.Ff7 is null ? RasterizerState.CullNone : RasterizerState.CullCounterClockwise;
+            if (!ReferenceEquals(device.RasterizerState, rasterizer))
+            {
+                device.RasterizerState = rasterizer;
+            }
+            if (!ReferenceEquals(boundTerrain, buffer))
+            {
+                device.SetVertexBuffer(buffer);
+                boundTerrain = buffer;
+            }
             foreach (EffectPass pass in effect.CurrentTechnique.Passes)
             {
                 pass.Apply();
@@ -71,11 +88,22 @@ public sealed partial class GpuTriangleRenderer
         }
         finally
         {
-            device.SetVertexBuffer(null);
+            ReleaseTransientTexture();
             if (transient)
             {
+                UnbindTerrain();
                 buffer.Dispose();
             }
+        }
+    }
+
+    private void UnbindTerrain()
+    {
+        if (boundTerrain is not null)
+        {
+            device.SetVertexBuffer(null);
+            device.RasterizerState = RasterizerState.CullNone;
+            boundTerrain = null;
         }
     }
 
@@ -136,6 +164,10 @@ public sealed partial class GpuTriangleRenderer
         terrainRecency.RemoveFirst();
         terrainBuffers.Remove(oldest.Mesh);
         cachedTerrainVertices -= oldest.Mesh.Vertices.Length;
+        if (ReferenceEquals(boundTerrain, oldest.Buffer))
+        {
+            UnbindTerrain();
+        }
         oldest.Buffer.Dispose();
     }
 
@@ -156,9 +188,11 @@ public sealed partial class GpuTriangleRenderer
 
     private readonly struct WorldGpuVertex : IVertexType
     {
-        internal static readonly VertexDeclaration Declaration = new(new VertexElement(0, VertexElementFormat.Vector3, VertexElementUsage.Position, 0), new VertexElement(12, VertexElementFormat.Vector2, VertexElementUsage.TextureCoordinate, 0));
+        internal static readonly VertexDeclaration Declaration = new(new VertexElement(0, VertexElementFormat.Vector3, VertexElementUsage.Position, 0), new VertexElement(12, VertexElementFormat.Vector2, VertexElementUsage.TextureCoordinate, 0), new VertexElement(20, VertexElementFormat.Vector3, VertexElementUsage.Normal, 0), new VertexElement(32, VertexElementFormat.Single, VertexElementUsage.TextureCoordinate, 1));
         private readonly Vector3 position;
         private readonly Vector2 uv;
+        private readonly Vector3 normal;
+        private readonly float deform;
 
         public VertexDeclaration VertexDeclaration => Declaration;
 
@@ -166,6 +200,8 @@ public sealed partial class GpuTriangleRenderer
         {
             position = new Vector3(vertex.Position.X, vertex.Position.Y, vertex.Position.Z);
             uv = new Vector2(vertex.Uv.X, vertex.Uv.Y);
+            normal = new Vector3(vertex.Normal.X, vertex.Normal.Y, vertex.Normal.Z);
+            deform = vertex.Deform;
         }
     }
 }

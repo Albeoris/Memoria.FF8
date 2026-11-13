@@ -26,4 +26,27 @@ public sealed class Ff7WorldBridgeGeometry(IReadOnlyList<Ff7WorldBridgeDefinitio
         Vector3 rotated = math.TransformRotation(new(0, unchecked((short)((short)source.Y - 20000)), 0), 0, definition.Yaw, deformation.Tilt);
         return new(source.X + (int)rotated.X, 20000 + (int)rotated.Y, source.Z + (int)rotated.Z);
     }
+
+    public Ff7WorldBridgeDefinition? Definition(int chunkX, int chunkZ)
+    {
+        return definitions.SingleOrDefault(definition => definition.ChunkX == chunkX && definition.ChunkZ == chunkZ);
+    }
+
+    public Vector3? RotationAxis(Ff7WorldBridgeDefinition? definition, Ff7WorldBridgeDeformation? deformation)
+    {
+        if (deformation is null)
+        {
+            return null;
+        }
+        if ((uint)deformation.Index >= definitions.Count)
+        {
+            throw new InvalidDataException("FFVII world bridge deformation has no native resource owner.");
+        }
+        if (definition?.Index != deformation.Index)
+        {
+            return null;
+        }
+        Matrix4x4 rotation = math.Rotation(0, definition.Yaw, deformation.Tilt);
+        return new(rotation.M21, rotation.M22, rotation.M23);
+    }
 }

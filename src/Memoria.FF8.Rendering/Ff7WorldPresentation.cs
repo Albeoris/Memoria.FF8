@@ -7,6 +7,7 @@ namespace Memoria.FF8.Rendering;
 public sealed record Ff7WorldCameraView(int Heading, int Pitch, int Distance, int GroundHeight, int Roll, int Focal);
 public sealed record Ff7WorldVisual(int Model, Vector3 Position, int Direction, int Animation, int Frame, int Flags)
 {
+    public long PresentationEpoch { get; init; }
     public int? GroundHeight { get; init; }
     public int Terrain { get; init; }
     public int NativeAnimation { get; init; }
@@ -33,7 +34,7 @@ public sealed class Ff7WorldPresentation
     private readonly Ff7WorldEnvironmentAdapter environmentRenderer;
     private readonly Ff7WorldBridgeGeometry bridges;
     private readonly Ff7WorldFootShadowAdapter shadows;
-    private readonly Dictionary<(int Block, int Mesh), PcWorldMesh> meshes = [];
+    private readonly Dictionary<(int Block, int Mesh, int Bridge), PcWorldMesh> meshes = [];
     private readonly Dictionary<int, Ff7WorldModelAdapter> models = [];
 
     public Ff7WorldPresentation(Ff7Installation installation, Ff7WorldResources resources, IFf7ActorAppearance? appearance = null)
@@ -56,6 +57,7 @@ public sealed class Ff7WorldPresentation
     public void Render(ITriangleRenderer renderer, int width, int height, Ff7WorldRenderFrame frame)
     {
         ArgumentNullException.ThrowIfNull(renderer);
+        IWorldTerrainRenderer hardware = renderer as IWorldTerrainRenderer ?? throw new NotSupportedException("FFVII world presentation requires retained terrain rendering.");
         ArgumentNullException.ThrowIfNull(frame);
         renderer.Begin(width, height, environment.ClearColor, 0);
         try
@@ -74,15 +76,17 @@ public sealed class Ff7WorldPresentation
             Ff7WorldView view = camera.Create(focus, nativeCamera.Heading, nativeCamera.Pitch, nativeCamera.Distance, nativeCamera.GroundHeight, nativeCamera.Roll, nativeCamera.Focal, width, height, frame.ViewMode);
             Ff7WorldSkyColors colors = environment.SkyColorsAt(focus, frame.SkyZones);
             environmentRenderer.DrawSky(renderer, view, focus, nativeCamera.Heading, nativeCamera.Distance, nativeCamera.GroundHeight, nativeCamera.Roll, frame.MainState >= 1, frame.CloudPhase, colors.Upper, colors.Lower);
+            Func<int, int> textureFrame = texture => textureCycles.Frame(texture, frame.Counter);
             foreach (Ff7WorldChunkPlacement placement in visibility.RequiredChunks((int)focus.X, (int)focus.Z, nativeCamera.Heading, frame.WorldMapState))
             {
-                var key = (placement.BlockIndex, placement.MeshIndex);
+                Ff7WorldBridgeDefinition? bridge = bridges.Definition(placement.ChunkX, placement.ChunkZ);
+                var key = (placement.BlockIndex, placement.MeshIndex, bridge?.Index ?? -1);
                 if (!meshes.TryGetValue(key, out PcWorldMesh? mesh))
                 {
                     mesh = resources.Map.ReadMesh(placement.BlockIndex, placement.MeshIndex);
                     meshes.Add(key, mesh);
                 }
-                terrain.DrawNative(renderer, mesh, placement.Origin, view, texture => textureCycles.Frame(texture, frame.Counter), deformVertex: frame.BridgeDeformation is null ? null : (vertex, position) => bridges.Vertex(placement.ChunkX, placement.ChunkZ, vertex, position, frame.BridgeDeformation));
+                terrain.DrawRetained(hardware, mesh, placement.Origin, view, textureFrame, frame.CurvatureThreshold, bridge, bridges.RotationAxis(bridge, frame.BridgeDeformation));
             }
             List<(Ff7WorldVisual Entity, Vector3 Position, int Curvature)> visible = [];
             foreach (Ff7WorldVisual entity in frame.Models)

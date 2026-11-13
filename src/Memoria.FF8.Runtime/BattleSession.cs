@@ -1,3 +1,5 @@
+using Memoria.Battle;
+
 namespace Memoria.FF8.Runtime;
 
 /// <summary>
@@ -263,17 +265,18 @@ public sealed partial class BattleSession
         // Logical time runs on owned state so a bounded failure cannot publish partially advanced gauges or effects.
         BattleSession candidate = Restore(Capture(), handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler));
         candidate.StopTurnAdvance();
-        for (int count = 1; count <= maxFrames; count++)
-        {
-            HashSet<string> becameReady = candidate.AdvanceTurnBasedTime(explicitAdvance: true);
-            if (!candidate.CanExplicitlyAdvanceTurn || becameReady.Overlaps(waiting) || candidate.combatants.Any(actor => waiting.Contains(actor.Id) && actor.IsReady) || candidate.HasGuardianForceTimeBoundary)
+        return BoundedBattleAdvance.Run<BattleSession, int>(candidate, maxFrames,
+            (next, count) =>
             {
-                candidate.AwaitAdvancedEnemyTurn(waiting, maxFrames - count);
-                PublishCandidate(candidate);
-                return count;
-            }
-        }
-        throw new TimeoutException($"No living unready combatant became ready within {maxFrames} dispatched battle frames.");
+                HashSet<string> becameReady = next.AdvanceTurnBasedTime(explicitAdvance: true);
+                return !next.CanExplicitlyAdvanceTurn || becameReady.Overlaps(waiting) || next.combatants.Any(actor => waiting.Contains(actor.Id) && actor.IsReady) || next.HasGuardianForceTimeBoundary ? count : null;
+            },
+            (next, count) =>
+            {
+                next.AwaitAdvancedEnemyTurn(waiting, maxFrames - count);
+                PublishCandidate(next);
+            },
+            $"No living unready combatant became ready within {maxFrames} dispatched battle frames.");
     }
 
     public void QueueAttack(string actorId, string targetId)

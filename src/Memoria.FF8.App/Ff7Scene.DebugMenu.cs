@@ -74,7 +74,7 @@ internal sealed partial class Ff7Scene
         {
             return;
         }
-        MouseState mouse = Mouse.GetState();
+        MouseState mouse = pointerState;
         bool pressed = mouse.LeftButton == ButtonState.Pressed;
         bool clicked = pressed && !debugPointerPressed;
         debugPointerPressed = pressed;

@@ -793,10 +793,15 @@ public sealed partial class Ff7BattleSession
         return progress with { Characters = updated, Inventory = (Ff7InventorySlot[])state.Inventory.Clone(), BattleRng = random.Capture() };
     }
 
-    internal Ff7Progress PublishVictory(Ff7Progress progress, long fieldGeneration)
+    internal Ff7VictoryProjection ProjectVictory(Ff7Progress progress, long fieldGeneration)
     {
+        if (Outcome != Ff7BattleOutcome.Victory)
+        {
+            throw new InvalidOperationException("Only a completed FFVII victory has rewards.");
+        }
         int[] guestStoryCharacters = state.GetGuestSlotStates().Select(guest => guest.Binding.StoryCharacter).ToArray();
-        return Ff7DebugVictory.ApplyResolved(PublishVitals(progress), Formation, kernel, fieldGeneration, RequestId, random, IsDefeated, guestStoryCharacters: guestStoryCharacters);
+        Ff7BattleRng candidate = new(kernel[2].Data.Span, random.Capture());
+        return Ff7DebugVictory.Project(PublishVitals(progress), Formation, kernel, fieldGeneration, RequestId, candidate, IsDefeated, guestStoryCharacters: guestStoryCharacters);
     }
 
     public Ff7BattleReward PreviewVictory()

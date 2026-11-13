@@ -152,7 +152,7 @@ internal sealed partial class Ff7Scene
                 {
                     visual = visual with { OriginToHost = visual.OriginToHost * placement, ShadowSuppressed = mixed.ActiveGuest.SuppressForeignShadow(guest.ActorSlot) };
                 }
-                return visual;
+                return visual is null ? null : visual with { HostSlot = guest.ActorSlot };
             }).OfType<CrossoverFf8BattleActorVisual>().ToArray()
             : [];
     }

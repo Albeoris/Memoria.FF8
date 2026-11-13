@@ -6,63 +6,83 @@ namespace Memoria.FF8;
 
 internal sealed partial class Ff7Scene
 {
-    private long previousActorGeneration = -1;
-    private IReadOnlyDictionary<int, Ff7Actor> previousActors = new Dictionary<int, Ff7Actor>();
-    private Ff7FieldProcess? previousFieldPresentation;
+    private readonly CommittedPresentationHistory<(Ff7FieldHost Owner, long Tick), Ff7FieldPresentationFrame> fieldHistory = new(
+        (first, second) => ReferenceEquals(first.Owner, second.Owner) && first.Tick == second.Tick,
+        (first, second) => ReferenceEquals(first.Owner, second.Owner) && second.Tick == first.Tick + 1,
+        (first, second) => first.State.Movie is not { Playing: true } && second.State.Movie is not { Playing: true });
     public bool InterpolatePresentation { get; set; } = true;
 
-    private void CapturePreviousActors()
+    private void CommitScenePresentation()
     {
-        previousActorGeneration = Session!.FieldGeneration;
-        previousFieldPresentation = Session.Host.Process;
-        previousActors = previousFieldPresentation.Actors.ToDictionary(actor => actor.Slot);
+        Ff7Session session = Session!;
+        if (session.Battle is not null)
+        {
+            ResetInterpolationPresentation();
+            worldHistory.Reset();
+        }
+        else if (session.World is { } world)
+        {
+            ResetInterpolationPresentation();
+            CommitWorldPresentation(world);
+        }
+        else
+        {
+            worldHistory.Reset();
+            Ff7FieldProcess state = session.Host.Process;
+            fieldHistory.Commit((session.Host, state.Tick), () => PrepareFieldPresentation(session, state));
+        }
     }
 
     private void ResetInterpolationPresentation()
     {
-        previousActorGeneration = -1;
-        previousActors = new Dictionary<int, Ff7Actor>();
-        previousFieldPresentation = null;
+        fieldHistory.Reset();
     }
 
-    private bool CanInterpolateFieldPresentation => InterpolatePresentation && PresentationPreferences.FieldFps == 60 && !focusPaused && !userPaused && !debugMenu && error is null && Session is not null && previousActorGeneration == Session.FieldGeneration;
-    private float FieldPresentationFraction => (float)Math.Clamp(tickRemainder * 30, 0, 1);
-
-    private Vector2 PresentationCameraOffset(Ff7FieldProcess current, PcFieldCamera? movieCamera = null)
+    private float PresentationFraction(int fps)
     {
-        return CanInterpolateFieldPresentation && previousFieldPresentation is { } previous
-            ? Ff7FieldPresentation.InterpolateCameraOffset(previous, current, FieldPresentationFraction, movieCamera)
-            : FieldCameraOffset(current, movieCamera);
+        return InterpolatePresentation && fps == 60 && !focusPaused && !userPaused && !debugMenu && error is null ? (float)Math.Clamp(tickRemainder * 30, 0, 1) : 1;
     }
 
-    private Ff7Actor PresentationActor(Ff7Actor actor)
+    private (Ff7Actor[] Actors, Vector2 Camera) SampleFieldPresentation(Ff7Session session, Ff7FieldProcess state, PcFieldCamera? movieCamera)
     {
-        if (!actor.Visible)
+        float fraction = PresentationFraction(PresentationPreferences.FieldFps);
+        var (previous, current) = fieldHistory.Sample((session.Host, state.Tick), fraction, () => PrepareFieldPresentation(session, state), frame => Ff7FieldPresentation.Matches(frame.State, state));
+        Vector2 camera = current.Camera ?? FieldCameraOffset(state, movieCamera);
+        if (previous is null)
         {
-            return actor;
+            return (current.Actors, camera);
         }
-        Ff7Actor current = Session!.PrepareActorPresentation(actor);
-        if (!CanInterpolateFieldPresentation || !previousActors.TryGetValue(actor.Slot, out Ff7Actor? previous))
+        if (previous.Camera is Vector2 before && Ff7FieldPresentation.CanInterpolateCamera(previous.State, current.State))
         {
-            return current;
+            camera = Vector2.Lerp(before, camera, fraction);
         }
-        int frames = Session.Models[actor.Model].Animations[Path.ChangeExtension(Session.Field.Models.Models[actor.Model].Animations[actor.Animation], ".a")].Frames.Count;
-        Ff7Actor before = previous.Visible && previous.Model == actor.Model ? Session.PrepareActorPresentation(previous) : previous;
-        return Ff7ActorPresentation.Interpolate(before, current, FieldPresentationFraction, frames);
+        Ff7Actor[] actors = current.Actors.Select(actor => actor.Visible && previous.ActorsBySlot.TryGetValue(actor.Slot, out Ff7Actor? old) ? Ff7ActorPresentation.Interpolate(old, actor, fraction, current.AnimationFrames[actor.Slot]) : actor).ToArray();
+        return (actors, camera);
+    }
+
+    private static Ff7FieldPresentationFrame PrepareFieldPresentation(Ff7Session session, Ff7FieldProcess state)
+    {
+        Ff7Actor[] actors = state.Actors.Select(actor => actor.Visible ? session.PrepareActorPresentation(actor) : actor).ToArray();
+        Dictionary<int, int> animationFrames = [];
+        foreach (Ff7Actor actor in actors.Where(actor => actor.Visible))
+        {
+            string animation = Path.ChangeExtension(session.Field.Models.Models[actor.Model].Animations[actor.Animation], ".a");
+            animationFrames.Add(actor.Slot, session.Models[actor.Model].Animations[animation].Frames.Count);
+        }
+        // Video supplies its own current camera on the draw path and never interpolates with field history.
+        Vector2? camera = state.Movie is { Playing: true } ? null : FieldCameraOffset(state);
+        return new(state, actors, actors.ToDictionary(actor => actor.Slot), animationFrames, camera);
     }
 }
+
+internal sealed record Ff7FieldPresentationFrame(Ff7FieldProcess State, Ff7Actor[] Actors, IReadOnlyDictionary<int, Ff7Actor> ActorsBySlot, IReadOnlyDictionary<int, int> AnimationFrames, Vector2? Camera);
 
 internal static class Ff7FieldPresentation
 {
     public static Vector2 InterpolateCameraOffset(Ff7FieldProcess previous, Ff7FieldProcess current, float fraction, PcFieldCamera? movieCamera = null)
     {
         Vector2 endpoint = Ff7NativeCamera.PresentationOffset(current, movieCamera);
-        if (previous.Movie is { Playing: true } || current.Movie is { Playing: true })
-        {
-            return endpoint;
-        }
-        bool movingCamera = current.CameraFollowPlayer != false || current.CameraTracking is { Completed: false } || previous.CameraTracking is { Completed: false } || current.CameraScroll is { Completed: false } || previous.CameraScroll is { Completed: false };
-        if (!movingCamera && (previous.CameraX != current.CameraX || previous.CameraY != current.CameraY))
+        if (!CanInterpolateCamera(previous, current))
         {
             return endpoint;
         }
@@ -72,13 +92,32 @@ internal static class Ff7FieldPresentation
         }
         return Vector2.Lerp(Ff7NativeCamera.PresentationOffset(previous), endpoint, Math.Clamp(fraction, 0, 1));
     }
+
+    internal static bool Matches(Ff7FieldProcess first, Ff7FieldProcess second)
+    {
+        return ReferenceEquals(first.Actors, second.Actors) && first.CameraEpoch == second.CameraEpoch && first.CameraX == second.CameraX && first.CameraY == second.CameraY && first.CameraShakeX == second.CameraShakeX && first.CameraShakeY == second.CameraShakeY && first.Movie == second.Movie;
+    }
+
+    internal static bool CanInterpolateCamera(Ff7FieldProcess previous, Ff7FieldProcess current)
+    {
+        if (previous.Movie is { Playing: true } || current.Movie is { Playing: true } || previous.CameraEpoch != current.CameraEpoch)
+        {
+            return false;
+        }
+        int? target = current.CameraTracking?.Slot ?? (current.CameraFollowPlayer != false ? current.Actors.SingleOrDefault(actor => actor.PlayerControlled)?.Slot : null);
+        if (target is int slot && current.Actors.SingleOrDefault(actor => actor.Slot == slot) is { } actor && previous.Actors.SingleOrDefault(actor => actor.Slot == slot)?.PlacementEpoch != actor.PlacementEpoch)
+        {
+            return false;
+        }
+        return current.CameraFollowPlayer != false || current.CameraTracking is { Completed: false } || previous.CameraTracking is { Completed: false } || current.CameraScroll is { Completed: false } || previous.CameraScroll is { Completed: false } || previous.CameraX == current.CameraX && previous.CameraY == current.CameraY;
+    }
 }
 
 internal static class Ff7ActorPresentation
 {
     public static Ff7Actor Interpolate(Ff7Actor previous, Ff7Actor current, float fraction, int animationFrames)
     {
-        if (previous.Model != current.Model || previous.Visible != current.Visible || previous.Entity != current.Entity || previous.Slot != current.Slot)
+        if (previous.Model != current.Model || previous.Visible != current.Visible || previous.Entity != current.Entity || previous.Slot != current.Slot || previous.EntityBound != current.EntityBound || previous.PartyCharacter != current.PartyCharacter || previous.PlacementEpoch != current.PlacementEpoch || previous.AppearanceEpoch != current.AppearanceEpoch)
         {
             return current;
         }
@@ -89,7 +128,7 @@ internal static class Ff7ActorPresentation
         fraction = Math.Clamp(fraction, 0, 1);
         int Lerp(int before, int after) => checked((int)Math.Round(before + ((double)after - before) * fraction));
         int phase = current.AnimationFrame16;
-        if (previous.Animation == current.Animation && previous.FirstAnimationFrame == current.FirstAnimationFrame && previous.LastAnimationFrame == current.LastAnimationFrame && previous.AnimationLoop == current.AnimationLoop)
+        if (previous.AnimationEpoch == current.AnimationEpoch && previous.Animation == current.Animation && previous.FirstAnimationFrame == current.FirstAnimationFrame && previous.LastAnimationFrame == current.LastAnimationFrame && previous.AnimationLoop == current.AnimationLoop)
         {
             int first = current.FirstAnimationFrame * 16;
             int end = Math.Min(animationFrames, current.LastAnimationFrame < 0 ? animationFrames : current.LastAnimationFrame + 1) * 16;

@@ -57,16 +57,21 @@ public sealed class ControlledHostIsolationTests : IDisposable
         focused = true;
         Assert.Equal(default(InputFrame), Sample());
         Assert.Equal((ushort)0, input.HeldControlButtons);
-        Assert.Equal(mouse, physical.ReadMouse());
+        Assert.Equal(ButtonState.Released, physical.ReadMouse().LeftButton);
+        Assert.Equal(mouse.Position, physical.ReadMouse().Position);
 
         keys = default;
         pad = new(Vector2.Zero, Vector2.Zero, 0, 0, (Buttons)0);
+        mouse = new(12, 24, 120, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released);
         Sample();
+        Assert.Equal(ButtonState.Released, physical.ReadMouse().LeftButton);
+        mouse = new(12, 24, 120, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released);
         keys = new(Keys.F5, Keys.Enter, Keys.Up);
         pad = new(Vector2.UnitX, Vector2.UnitY, 1, 1, Buttons.A);
         InputFrame resumed = Sample();
         Assert.True(resumed.Save);
         Assert.True(resumed.Confirm);
+        Assert.Equal(ButtonState.Pressed, physical.ReadMouse().LeftButton);
         Assert.NotEqual(0f, resumed.SecondaryVertical);
         Assert.NotEqual((ushort)0, input.HeldControlButtons);
 
@@ -77,12 +82,51 @@ public sealed class ControlledHostIsolationTests : IDisposable
         Assert.Equal(mouse.ScrollWheelValue, inactiveMouse.ScrollWheelValue);
         Assert.Equal(ButtonState.Released, inactiveMouse.LeftButton);
 
-        InputFrame Sample() => input.Read(physical.ReadKeyboard(), physical.ReadController(), physical.CanRead);
+        InputFrame Sample()
+        {
+            physical.BeginFrame();
+            return input.Read(physical.ReadKeyboard(), physical.ReadController(), physical.CanRead);
+        }
 
         T ReadFocused<T>(T value)
         {
             Assert.True(focused);
             return value;
+        }
+    }
+
+    [Fact]
+    public void OneFrameReusesTheSamePhysicalStatesAcrossOwners()
+    {
+        int keyboardPolls = 0;
+        int controllerPolls = 0;
+        int mousePolls = 0;
+        HostPhysicalInput physical = new(true, () => true, () =>
+        {
+            keyboardPolls++;
+            return default;
+        }, () =>
+        {
+            controllerPolls++;
+            return default;
+        }, () =>
+        {
+            mousePolls++;
+            return default;
+        });
+
+        for (int frame = 1; frame <= 2; frame++)
+        {
+            physical.BeginFrame();
+            physical.ReadKeyboard();
+            physical.ReadController();
+            physical.ReadMouse();
+            physical.ReadMouse();
+            physical.ReadKeyboard();
+            physical.ReadController();
+            Assert.Equal(frame, keyboardPolls);
+            Assert.Equal(frame, controllerPolls);
+            Assert.Equal(frame, mousePolls);
         }
     }
 

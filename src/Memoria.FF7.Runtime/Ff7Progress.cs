@@ -9,11 +9,16 @@ public sealed record Ff7BattleReward(uint Gil, uint Experience, uint AbilityPoin
     [System.Text.Json.Serialization.JsonIgnore]
     public uint Ff8AbilityPoints => Math.Max(1u, AbilityPoints / 2);
 }
+public sealed record Ff7VictoryCharacterGrowth(int CharacterId, string Name, uint PreviousExperience, uint Experience, int PreviousLevel, int Level);
+public sealed record Ff7VictoryMateriaGrowth(int CharacterId, string CharacterName, int Slot, int MateriaId, uint PreviousAp, uint Ap, uint EarnedAp, int LearnedLevels, bool Mastered, bool OffspringAdded);
+public sealed record Ff7VictoryItem(int ItemId, int Accepted, int Rejected);
+public sealed record Ff7VictoryProjection(Ff7Progress Progress, Ff7BattleReward Reward, IReadOnlyList<Ff7VictoryCharacterGrowth> Characters, IReadOnlyList<Ff7VictoryMateriaGrowth> Materia, IReadOnlyList<Ff7VictoryItem> Items);
 public sealed record Ff7BattleReceipt(long FieldGeneration, long RequestId, ushort Formation, Ff7BattleReward Reward);
 
 /// <summary>FFVII progression has no FFVIII character, item, variable or reward identifiers.</summary>
 public sealed record Ff7Progress
 {
+    public const byte DefaultNativeBattleSpeed = 128;
     public required byte[] InitialKernelData { get; init; }
     public required Ff7CharacterState[] Characters { get; init; }
     public required int[] Party { get; init; }
@@ -21,6 +26,8 @@ public sealed record Ff7Progress
     public required Ff7MateriaState[] Materia { get; init; }
     public uint Gil { get; init; }
     public byte NativeMessageSpeed { get; init; } = 128;
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public byte? NativeBattleSpeed { get; init; }
     public Ff7ClockState? Clock { get; init; }
     public ushort AvailableCharacters { get; init; }
     public ushort LockedCharacters { get; init; }

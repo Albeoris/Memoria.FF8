@@ -189,7 +189,7 @@ internal sealed partial class Ff7Scene
             playerMenu.Open();
             pendingPressedKeys = 0;
             sharedInput.SuppressHeldUiInput();
-            menuPointerPressed = Mouse.GetState().LeftButton == ButtonState.Pressed;
+            menuPointerPressed = pointerState.LeftButton == ButtonState.Pressed;
             SetAudioPaused(focusPaused || userPaused || debugMenu || error is not null);
             AdvancePlayerMenuClock(time.ElapsedGameTime);
             RefreshPlayerMenuPresentation();
@@ -242,7 +242,7 @@ internal sealed partial class Ff7Scene
 
     private void UpdateSharedMenuInput(MenuController menu, KeyboardState keys, GamePadState pad, ref bool pointerPressed)
     {
-        if (!menu.UpdateControlsCapture(keys, pad, !focusPaused))
+        if (!menu.UpdateControlsCapture(keys, pad, acceptsInput))
         {
             if (semanticInput.MenuVertical != 0)
             {
@@ -268,7 +268,7 @@ internal sealed partial class Ff7Scene
             {
                 menu.Navigate(MenuInput.Cancel);
             }
-            MouseState mouse = Mouse.GetState();
+            MouseState mouse = pointerState;
             bool pressed = mouse.LeftButton == ButtonState.Pressed;
             if (pressed && !pointerPressed && menu.View is { } view)
             {

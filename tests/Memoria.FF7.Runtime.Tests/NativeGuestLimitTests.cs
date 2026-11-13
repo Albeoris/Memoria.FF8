@@ -26,6 +26,29 @@ internal static class NativeGuestLimitTests
         initial.BindGuestVitals(new(id, new('A', 64), 0, 0, 0, 0, 486, 486, 6, 14, 24, 17));
         Ff7BattleSnapshot state = initial.Capture();
         Ff7BattleActorState sleeping = state.Actors[0];
+        Ff7BattleActorState ready = sleeping with { Gauge = ushort.MaxValue - 1 };
+        Ff7BattleSession pass = Create(state with { Actors = [ready, .. state.Actors.Skip(1)] });
+        LimitProbe passSource = new(id);
+        pass.BindGuestAttack(passSource);
+        Check(pass.AdvanceTurn(1) == new Ff7BattleTurnAdvanceResult(Ff7BattleTurnAdvanceBoundary.PlayerReady, 1) && passSource.ReadyCalls == 1 && pass.GetGuestLimitReadyAt(0) == pass.Tick, "The explicit pass must publish the source readiness exactly once at its logical boundary.");
+
+        Ff7BattleActorState[] invalidTimers = [ready, .. state.Actors.Skip(1)];
+        invalidTimers[1] = invalidTimers[1] with { Timers = new(8192, 0, 0) };
+        Ff7BattleSession rejected = Create(state with { Actors = invalidTimers });
+        LimitProbe rejectedSource = new(id);
+        rejected.BindGuestAttack(rejectedSource);
+        string before = JsonSerializer.Serialize(rejected.Capture());
+        bool rejectedClock = false;
+        try
+        {
+            rejected.AdvanceTurn(1);
+        }
+        catch (InvalidDataException)
+        {
+            rejectedClock = true;
+        }
+        Check(rejectedClock && rejectedSource.ReadyCalls == 0 && JsonSerializer.Serialize(rejected.Capture()) == before, "A later actor clock failure must discard prepared guest readiness and its host gauge change.");
+
         state.Actors[0] = sleeping with { Gauge = ushort.MaxValue - 1, Actor = sleeping.Actor with { Statuses = Ff7NativeBattleActionResolver.Sleep }, Timers = new(0, 1, 0) };
         Ff7BattleSession battle = Create(state);
         LimitProbe source = new(id);
@@ -168,9 +191,9 @@ internal static class NativeGuestLimitTests
         public bool Supports(Ff7BattleGuestAttackTarget target) => target.Native is not null;
         public bool SupportsLimit(Ff7BattleGuestAttackTarget target) => Supports(target);
 
-        public void ObserveLimitReady(long hostTick, Ff7BattleAiActor source)
+        public Action PrepareLimitReady(long hostTick, Ff7BattleAiActor source, int deadParty)
         {
-            ReadyCalls++;
+            return () => ReadyCalls++;
         }
 
         public void Begin(Ff7BattleGuestInvocation action, Ff7BattlePlacement source, Ff7BattleGuestAttackTarget target)
@@ -226,10 +249,10 @@ internal static class NativeGuestLimitTests
         public bool Supports(Ff7BattleGuestAttackTarget target) => target.Native is not null;
         public bool SupportsLimit(Ff7BattleGuestAttackTarget target) => false;
 
-        public void ObserveLimitReady(long hostTick, Ff7BattleAiActor source)
+        public Action PrepareLimitReady(long hostTick, Ff7BattleAiActor source, int deadParty)
         {
             Check(source.Slot == slot, "A guest received another slot's readiness event.");
-            ReadyCalls++;
+            return () => ReadyCalls++;
         }
 
         public void Begin(Ff7BattleGuestInvocation action, Ff7BattlePlacement source, Ff7BattleGuestAttackTarget target)

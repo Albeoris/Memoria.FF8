@@ -30,18 +30,18 @@ internal sealed partial class CrossoverGuestHostActions
     public CrossoverNativeRenzokukenTrigger? RenzokukenTrigger => limit?.Program.Trigger;
     public bool SupportsLimit(Ff7BattleGuestAttackTarget target) => attack.Supports(target);
 
-    public void ObserveLimitReady(long hostTick, Ff7BattleAiActor source)
+    public Action? PrepareLimitReady(long hostTick, Ff7BattleAiActor source, int deadParty)
     {
         if (limitSelection is not { } selection)
         {
-            return;
+            return null;
         }
         if (source.Slot != ActorSlot)
         {
             throw new InvalidDataException("The guest Limit readiness used a foreign actor.");
         }
-        int deadParty = host.Actors.Count(actor => actor.Actor.Slot < 3 && actor.Actor.HitPoints == 0);
-        limitSelection = selection.ObserveReady(hostTick, source, deadParty, false, kit);
+        CrossoverNativeRenzokukenSelection next = selection.ObserveReady(hostTick, source, deadParty, false, kit);
+        return () => limitSelection = next;
     }
 
     public void PressTrigger()

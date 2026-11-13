@@ -17,7 +17,7 @@ public sealed class Ff7WorldBridgeRenderingTests
         Ff7WorldPresentationData presentation = Ff7PcExecutableData.LoadWorldPresentation(installation, resources);
         IReadOnlyList<Ff7WorldBridgeDefinition> definitions = Ff7PcExecutableData.LoadWorldBridges(installation);
         Ff7WorldBridgeGeometry geometry = new(definitions, new Ff7WorldMath(presentation));
-        Ff7WorldTerrainAdapter renderer = new(new Ff7WorldTextureResources(installation, resources));
+        Ff7WorldTerrainReference renderer = new(new Ff7WorldTextureResources(installation, resources));
         Matrix4x4 rotation = Matrix4x4.CreateRotationX(MathF.PI / 4);
         foreach (Ff7WorldBridgeDefinition definition in definitions)
         {

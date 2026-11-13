@@ -9,7 +9,7 @@ public sealed partial class Ff7FieldHost
         if (command.Operation == FieldCameraOperation.ViewOffset)
         {
             Process = command.Mode == 0
-                ? Process with { CameraFocusOffset = command.X, CameraViewOffset = null }
+                ? Process with { CameraFocusOffset = command.X, CameraViewOffset = null, CameraEpoch = Process.CameraEpoch + 1 }
                 : Process with { CameraViewOffset = new(checked((byte)command.Mode), checked((byte)command.Steps), Process.CameraFocusOffset!.Value, command.X) };
             return new(true);
         }
@@ -26,7 +26,7 @@ public sealed partial class Ff7FieldHost
         {
             if (command.Operation == FieldCameraOperation.ResetToPlayer || command.Mode == 0)
             {
-                Process = Process with { CameraFollowPlayer = true, CameraEntity = -1, CameraScroll = null, CameraTracking = null, CameraX = 0, CameraY = 0 };
+                Process = Process with { CameraFollowPlayer = true, CameraEntity = -1, CameraScroll = null, CameraTracking = null, CameraX = 0, CameraY = 0, CameraEpoch = Process.CameraEpoch + 1 };
                 return new(true);
             }
             if (command.Mode is < 1 or > 3 || command.Steps < 0)
@@ -35,7 +35,8 @@ public sealed partial class Ff7FieldHost
             }
             Ff7Actor target = command.Operation == FieldCameraOperation.Entity ? GetActor(command.Entity) : Process.Actors.SingleOrDefault(actor => actor.PlayerControlled) ?? throw new NotSupportedException("FFVII camera following requires its assigned player slot.");
             _ = CameraProjection ?? throw new NotSupportedException("FFVII entity camera following requires native field projection resources.");
-            Process = Process with { CameraFollowPlayer = false, CameraEntity = target.Entity, CameraScroll = null, CameraTracking = new(command.Mode, target.Slot, command.Steps, Process.CameraX, Process.CameraY) };
+            long epoch = Process.CameraTracking is { Mode: 1 } tracking && command.Mode == 1 && tracking.Slot == target.Slot ? Process.CameraEpoch : Process.CameraEpoch + 1;
+            Process = Process with { CameraFollowPlayer = false, CameraEntity = target.Entity, CameraScroll = null, CameraTracking = new(command.Mode, target.Slot, command.Steps, Process.CameraX, Process.CameraY), CameraEpoch = epoch };
             return new(true);
         }
         if (command.Operation == FieldCameraOperation.Coordinates && command.Mode is 5 or 6)
@@ -44,12 +45,12 @@ public sealed partial class Ff7FieldHost
             {
                 throw new NotSupportedException("FFVII negative camera scroll durations are unsupported.");
             }
-            Process = Process with { CameraFollowPlayer = false, CameraTracking = null, CameraEntity = -1, CameraScroll = new(command.Mode, Process.CameraX, Process.CameraY, command.X, command.Y, command.Steps) };
+            Process = Process with { CameraFollowPlayer = false, CameraTracking = null, CameraEntity = -1, CameraScroll = new(command.Mode, Process.CameraX, Process.CameraY, command.X, command.Y, command.Steps), CameraEpoch = Process.CameraEpoch + 1 };
             return new(true);
         }
         Process = command.Operation switch
         {
-            FieldCameraOperation.Coordinates => Process with { CameraFollowPlayer = false, CameraTracking = null, CameraX = command.X, CameraY = command.Y, CameraEntity = -1, CameraScroll = null },
+            FieldCameraOperation.Coordinates => Process with { CameraFollowPlayer = false, CameraTracking = null, CameraX = command.X, CameraY = command.Y, CameraEntity = -1, CameraScroll = null, CameraEpoch = Process.CameraEpoch + 1 },
             FieldCameraOperation.Lock => Process with { CameraLocked = command.Mode != 0 },
             _ => throw new NotSupportedException("Unsupported FFVII camera operation.")
         };

@@ -30,10 +30,12 @@ internal sealed partial class Ff7Game
         if (remainingInputFrames > 0)
         {
             remainingInputFrames--;
-            return windowModeHotkey.Filter(new KeyboardState(controlledKeys));
+            return new KeyboardState(controlledKeys);
         }
-        return windowModeHotkey.Filter(launchOptions?.AcceptsPhysicalInput == false ? default : Keyboard.GetState());
+        return ReadPhysicalKeys();
     }
+
+    private KeyboardState ReadPhysicalKeys() => windowModeHotkey.Filter(physicalInput.ReadKeyboard());
 
     private void UpdateWindowModeHotkey(KeyboardState keys, bool active)
     {

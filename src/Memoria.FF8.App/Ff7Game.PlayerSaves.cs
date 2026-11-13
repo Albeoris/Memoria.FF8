@@ -55,7 +55,7 @@ internal sealed partial class Ff7Game
         }
         saveMenu.Open(mode);
         playerSaveView = null;
-        previousSaveMousePressed = Mouse.GetState().LeftButton == ButtonState.Pressed;
+        previousSaveMousePressed = physicalInput.ReadMouse().LeftButton == ButtonState.Pressed;
         keyboard.SuppressHeldUiInput();
         scene.SetFocusPaused(true);
     }
@@ -74,8 +74,8 @@ internal sealed partial class Ff7Game
                 {
                     return;
                 }
-                MouseState mouse = launchOptions?.AcceptsPhysicalInput == false ? default : Mouse.GetState();
-                bool pressed = IsActive && mouse.LeftButton == ButtonState.Pressed;
+                MouseState mouse = physicalInput.ReadMouse();
+                bool pressed = mouse.LeftButton == ButtonState.Pressed;
                 playerSaveView?.Resize(GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);
                 playerSaveView?.Pointer(mouse.X, mouse.Y, pressed && !previousSaveMousePressed);
                 previousSaveMousePressed = pressed;
@@ -84,7 +84,7 @@ internal sealed partial class Ff7Game
                 {
                     playerSaveView = null;
                     keyboard.SuppressHeldUiInput();
-                    scene.SuppressInitialPresses(ReadControlKeys());
+                    scene.SuppressInitialPresses();
                     scene.SetFocusPaused(!IsActive);
                 }
             }

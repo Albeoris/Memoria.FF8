@@ -14,6 +14,7 @@ internal sealed partial class Ff7Scene
         appearance = selected;
         renderer = null;
         renderedGeneration = -1;
+        ResetInterpolationPresentation();
         ResetWorldPresentation();
     }
 }

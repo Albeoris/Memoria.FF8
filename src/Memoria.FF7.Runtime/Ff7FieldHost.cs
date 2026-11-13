@@ -50,13 +50,18 @@ public sealed partial class Ff7FieldHost : IFieldHost
     public Func<FieldHostRequest, FieldHostReply>? BeginBattleRequest { get; set; }
     public bool HasUnfinishedBattle => Process is { GlobalCommand: Ff7GlobalCommand.Battle, GlobalRequestId: long id } && receipts.TryGetValue(id, out Ff7HostReceipt? receipt) && !receipt.Reply.Completed;
 
-    public void PublishBattleResult(long requestId, int result)
+    internal void ValidateBattleResultOwner(long requestId)
     {
         if (Process.GlobalCommand != Ff7GlobalCommand.Battle || Process.GlobalRequestId != requestId || !receipts.TryGetValue(requestId, out Ff7HostReceipt? receipt) || receipt.Request.Command is not FieldBattleCommand || receipt.Reply.Completed)
         {
             throw new InvalidOperationException("A FFVII battle result requires its unfinished field request.");
         }
-        receipts[requestId] = receipt with { Reply = new(true, result) };
+    }
+
+    public void PublishBattleResult(long requestId, int result)
+    {
+        ValidateBattleResultOwner(requestId);
+        receipts[requestId] = receipts[requestId] with { Reply = new(true, result) };
         Process = Process with { BattleResult = result };
     }
 
@@ -209,7 +214,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
                         return new(false);
                     }
                     Ff7Window activeWindow = Process.Windows.Single(item => item.Id == active.Window);
-                    active = AdvanceDialogue?.Invoke(active, activeWindow) ?? Ff7DialogueCursor.AdvanceTick(active, FieldText.Read(field.Scripts.Texts[active.Text].Span), activeWindow);
+                    active = PollDialogue(active, activeWindow);
                     UpdateDialogue(active);
                 }
                 return new(active.Completed, active.Selected);
@@ -419,22 +424,29 @@ public sealed partial class Ff7FieldHost : IFieldHost
     private void SetActorSlot(int slot, Func<Ff7Actor, Ff7Actor> update)
     {
         Ff7Actor actor = Process.Actors.Single(actor => actor.Slot == slot);
-        Ff7Actor replacement = update(actor);
+        Ff7Actor replacement = ApplyAppearanceEpoch(actor, update(actor));
         Process = Process with { Actors = Process.Actors.Select(current => current.Slot == slot ? replacement : current).ToArray() };
     }
 
     private void SetActor(int entity, Func<Ff7Actor, Ff7Actor> update)
     {
         Ff7Actor actor = GetActor(entity);
-        Ff7Actor replacement = update(actor);
+        Ff7Actor replacement = ApplyAppearanceEpoch(actor, update(actor));
         Process = Process with { Actors = Process.Actors.Select(current => current.Entity == entity && current.EntityBound ? replacement : current).ToArray() };
+    }
+
+    private static Ff7Actor ApplyAppearanceEpoch(Ff7Actor actor, Ff7Actor replacement)
+    {
+        return actor.Visible != replacement.Visible || actor.PartyCharacter != replacement.PartyCharacter || actor.Model != replacement.Model
+            ? replacement with { AppearanceEpoch = actor.AppearanceEpoch + 1 }
+            : replacement;
     }
 
     private Ff7Actor Place(Ff7Actor actor, FieldActorPlacement placement)
     {
         int triangle = placement.Triangle ?? actor.Triangle;
         float z = placement.Z ?? ResolveHeight(placement.X, placement.Y, triangle);
-        return actor with { X4096 = placement.X * 4096, Y4096 = placement.Y * 4096, Z4096 = checked((int)(z * 4096)), Triangle = triangle };
+        return actor with { X4096 = placement.X * 4096, Y4096 = placement.Y * 4096, Z4096 = checked((int)(z * 4096)), Triangle = triangle, PlacementEpoch = actor.PlacementEpoch + 1 };
     }
 
     private float ResolveHeight(float x, float y, int triangle)
@@ -508,15 +520,27 @@ public sealed partial class Ff7FieldHost : IFieldHost
         }
         Ff7Window current = Process.Windows.SingleOrDefault(item => item.Id == window.Window) ?? new Ff7Window(window.Window, 8, window.Window == 1 ? 8 : 149, 304, 74);
         Ff7Dialogue? active = Process.Dialogues.SingleOrDefault(dialogue => dialogue.Window == window.Window && !dialogue.Completed && (dialogue.Presentation?.NativeState ?? 2) != 0);
-        if (window.Operation == FieldWindowOperation.SizeWhenFree && active is not null)
+        if (active is not null && window.Operation is (FieldWindowOperation.CloseAndWait or FieldWindowOperation.SizeWhenFree))
         {
-            if (!receipts.TryGetValue(active.RequestId, out Ff7HostReceipt? owner))
+            Ff7HostReceipt owner = WindowOwner(active);
+            bool ownsWindow = owner.Request.Entity == request.Entity;
+            if (ownsWindow || window.Operation == FieldWindowOperation.CloseAndWait)
             {
-                throw new InvalidDataException("FFVII window ownership requires its saved dialogue request.");
-            }
-            if (owner.Request.Entity == request.Entity)
-            {
-                throw new NotSupportedException("FFVII self-owned window resizing requires its native closing interpolation.");
+                _ = RequestWindowClose(active, current, out active);
+                // The native MESSAGE timer phase updates its per-window countdown even for a foreign issuer.
+                if (ownsWindow || active.Presentation?.NativeState == 3)
+                {
+                    Ff7Dialogue polled = PollDialogue(active, current);
+                    // The window opcode discards MESSAGE's completion. A suspended MESSAGE/ASK may reclaim the released slot later.
+                    if (polled.Completed)
+                    {
+                        ResetDialoguePresentation(active);
+                    }
+                    else
+                    {
+                        UpdateDialogue(polled);
+                    }
+                }
             }
             return new(false);
         }
@@ -540,31 +564,17 @@ public sealed partial class Ff7FieldHost : IFieldHost
                 Process = Process with { Windows = [.. Process.Windows.Where(item => item.Id != window.Window), special] };
                 break;
             case FieldWindowOperation.Close:
-                if (active is not null)
-                {
-                    Ff7Dialogue restored = active.Presentation is not null ? active : Ff7DialogueCursor.RestorePresentation(active, FieldText.Read(field.Scripts.Texts[active.Text].Span), current);
-                    if (restored.Presentation!.NativeState == 1)
-                    {
-                        return new(false);
-                    }
-                    if (restored.Presentation.NativeState is 2 or 4 or 6 or 8 or 11 or 13)
-                    {
-                        Ff7Dialogue closing = restored with { AwaitingInput = false, Presentation = restored.Presentation with { NativeState = 7, ConfirmPending = false } };
-                        Process = Process with { Dialogues = Process.Dialogues.Select(item => item.RequestId == closing.RequestId ? closing : item).ToArray() };
-                    }
-                }
-                break;
+                return new(active is null || RequestWindowClose(active, current, out _));
             case FieldWindowOperation.CloseAndWait:
+                break;
             case FieldWindowOperation.Reset:
                 if (active is not null)
                 {
-                    throw new NotSupportedException("FFVII active-window reset and close-wait require their native lifecycle contract.");
+                    _ = WindowOwner(active);
+                    ResetDialoguePresentation(active);
                 }
-                if (window.Operation == FieldWindowOperation.Reset)
-                {
-                    Ff7Window reset = new(window.Window, 8, window.Window == 1 ? 8 : 149, 304, 74);
-                    Process = Process with { Windows = [.. Process.Windows.Where(item => item.Id != window.Window), reset] };
-                }
+                Ff7Window reset = new(window.Window, 8, window.Window == 1 ? 8 : 149, 304, 74);
+                Process = Process with { Windows = [.. Process.Windows.Where(item => item.Id != window.Window), reset] };
                 break;
             case FieldWindowOperation.Style:
             case FieldWindowOperation.Move:

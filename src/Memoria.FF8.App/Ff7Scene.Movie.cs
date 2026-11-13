@@ -26,6 +26,7 @@ internal sealed partial class Ff7Scene
     {
         CompleteMovieBeforeFieldTick();
         Session!.AdvanceTick(advanceClock: false);
+        CommitScenePresentation();
     }
 
     private void CompleteMovieBeforeFieldTick()
@@ -85,7 +86,7 @@ internal sealed partial class Ff7Scene
             StopMovie();
         }
         tickRemainder = 0;
-        previousActorGeneration = -1;
+        ResetInterpolationPresentation();
         UpdateAudio();
     }
 

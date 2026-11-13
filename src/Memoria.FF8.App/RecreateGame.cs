@@ -170,6 +170,7 @@ internal sealed partial class RecreateGame : Game
 
     protected override void Update(GameTime gameTime)
     {
+        physicalInput.BeginFrame();
         if (worldTransferIncoming && UpdateWorldTransfer(gameTime))
         {
             return;

@@ -9,6 +9,7 @@ namespace Memoria.FF8.Rendering;
 /// <summary>An original FFVIII pose and its placement in the host arena's world space.</summary>
 public sealed record CrossoverFf8BattleActorVisual(BattleModel Body, BattleModel? Weapon, NativeBattleGraphicsModel Model, Matrix4x4 OriginToHost)
 {
+    public int? HostSlot { get; init; }
     public NativeBattleModelTextureBinding? BodyTextures { get; init; }
     public NativeBattleEffectTextureState? Textures { get; init; }
     public NativeBattleActionMatrix? DetachedWeapon { get; init; }
@@ -52,6 +53,12 @@ public static class CrossoverFf8BattleActorRenderer
 
     public static void Draw(ITriangleRenderer renderer, CrossoverFf8BattleActorVisual visual, Func<Vector3, Vector3> cameraTransform, int width, int height, float focal)
     {
+        DrawWithBounds(renderer, visual, cameraTransform, width, height, focal, false);
+    }
+
+    internal static Vector4? DrawWithBounds(ITriangleRenderer renderer, CrossoverFf8BattleActorVisual visual, Func<Vector3, Vector3> cameraTransform, int width, int height, float focal, bool captureBounds)
+    {
+        Ff7BattleScreenBounds bounds = default;
         Dictionary<(ushort Page, ushort Clut), PixelImage> pages = [];
         if ((visual.BodyTextures is null) != (visual.Textures is null))
         {
@@ -59,9 +66,10 @@ public static class CrossoverFf8BattleActorRenderer
         }
         if ((visual.Model.Flags0 & 6) != 2 || ((visual.Model.Flags2 ?? throw new InvalidDataException("Mixed actor rendering requires native model flags.")) & 0x84) != 0)
         {
-            return;
+            return null;
         }
         VisitGeometry(visual, DrawMesh);
+        return bounds.Value;
 
         void DrawMesh(BattleMesh mesh, IReadOnlyList<PixelImage> textures, ImmutableArray<NativeBattleActionMatrix> bones, bool bodyOwner)
         {
@@ -69,6 +77,10 @@ public static class CrossoverFf8BattleActorRenderer
             for (int index = 0; index < cameraPositions.Length; index++)
             {
                 cameraPositions[index] = cameraTransform(cameraPositions[index]);
+                if (captureBounds)
+                {
+                    bounds.Add(cameraPositions[index], width, height, focal);
+                }
             }
             foreach (BattleFace face in mesh.Faces)
             {

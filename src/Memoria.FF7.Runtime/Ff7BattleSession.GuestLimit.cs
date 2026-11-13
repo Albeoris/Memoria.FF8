@@ -5,7 +5,8 @@ public interface IFf7BattleGuestLimit
 {
     bool LimitReady { get; }
     int PublishedContacts { get; }
-    void ObserveLimitReady(long hostTick, Ff7BattleAiActor source);
+    /// <summary>Prepare native readiness without mutating the source. The returned action publishes the prepared state without further validation or callbacks.</summary>
+    Action? PrepareLimitReady(long hostTick, Ff7BattleAiActor source, int deadParty);
     bool SupportsLimit(Ff7BattleGuestAttackTarget target);
 }
 
@@ -18,11 +19,22 @@ public sealed record Ff7BattleGuestLimitState(int Contacts = 0, bool CounterPend
 
 public sealed partial class Ff7BattleSession
 {
-    private void ObserveGuestLimitReady(Ff7BattleActorState source)
+    private void ObserveGuestLimitReady(Ff7BattleActorState source, List<Action>? publications)
     {
         if (GetGuestSlotState(source.Actor.Slot) is { LimitReadyAt: null } guest && CanAct(source) && GetGuestAttack(source.Actor.Slot) is IFf7BattleGuestLimit limit)
         {
-            limit.ObserveLimitReady(Tick, source.Actor);
+            int deadParty = state.Actors.Count(actor => actor.Actor.Slot < 3 && actor.Actor.HitPoints == 0);
+            if (limit.PrepareLimitReady(Tick, source.Actor, deadParty) is { } publish)
+            {
+                if (publications is null)
+                {
+                    publish();
+                }
+                else
+                {
+                    publications.Add(publish);
+                }
+            }
             SetGuestSlotState(guest with { LimitReadyAt = Tick });
         }
     }

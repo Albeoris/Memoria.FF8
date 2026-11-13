@@ -10,7 +10,7 @@ public sealed partial class Ff7FieldHost
         {
             throw new NotSupportedException("FFVII actor offsets require a supported interpolation and positive duration.");
         }
-        SetActor(entity, actor => command.Mode == 0 ? actor with { OffsetX = command.X, OffsetY = command.Y, OffsetZ = command.Z, Offset = null } : actor with { Offset = new(actor.OffsetX, actor.OffsetY, actor.OffsetZ, command.X, command.Y, command.Z, command.Mode, command.Steps) });
+        SetActor(entity, actor => command.Mode == 0 ? actor with { OffsetX = command.X, OffsetY = command.Y, OffsetZ = command.Z, Offset = null, PlacementEpoch = actor.PlacementEpoch + 1 } : actor with { Offset = new(actor.OffsetX, actor.OffsetY, actor.OffsetZ, command.X, command.Y, command.Z, command.Mode, command.Steps) });
     }
 
     private void AdvanceOffsets()

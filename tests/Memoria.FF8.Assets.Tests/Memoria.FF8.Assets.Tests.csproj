@@ -15,6 +15,7 @@
     <Compile Include="../../src/Memoria.FF8.App/Ff7ModelAppearance.Calibration.cs" Link="Ff7ModelAppearance.Calibration.cs" />
     <Compile Include="../../src/Memoria.FF8.App/Ff7ModelAppearance.Eyes.cs" Link="Ff7ModelAppearance.Eyes.cs" />
     <Compile Include="../Shared/NativeBattleCommandSequenceFixture.cs" Link="NativeBattleCommandSequenceFixture.cs" />
+    <Compile Include="../Shared/Ff7WorldTerrainReference.cs" Link="Ff7WorldTerrainReference.cs" />
     <Using Include="Memoria.FF8.Tests" />
     <Using Include="Xunit" />
     <PackageReference Include="xunit.v3" />

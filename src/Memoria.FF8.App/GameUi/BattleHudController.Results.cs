@@ -33,8 +33,7 @@ public sealed partial class BattleHudController
     private long resultAgeSubticks = 16 * TimeSpan.TicksPerSecond;
     private long itemTransitionSubticks;
     private int resultItem;
-    private const int GuardianForceRowsPerPage = 16;
-    private int resultGuardianForcePage;
+    private readonly BattleResultPager resultGuardianForcePager = new(16);
     private (BattleGuardianForceRewardPresentation Growth, int? AbilityId)[] resultGuardianForceRows = [];
     private bool itemAcknowledged;
     private IReadOnlyList<string?> resultTexts = [];
@@ -55,7 +54,7 @@ public sealed partial class BattleHudController
     internal int ResultItemIndex => resultItem;
     internal IReadOnlyList<BattleRewardOffer> ResultLoot => resultLoot;
     internal bool ItemAcknowledged => itemAcknowledged;
-    internal IReadOnlyList<(BattleGuardianForceRewardPresentation Growth, int? AbilityId)> ResultGuardianForceRows => resultGuardianForceRows.Skip(resultGuardianForcePage * GuardianForceRowsPerPage).Take(GuardianForceRowsPerPage).ToArray();
+    internal IReadOnlyList<(BattleGuardianForceRewardPresentation Growth, int? AbilityId)> ResultGuardianForceRows => resultGuardianForcePager.Rows(resultGuardianForceRows).ToArray();
     internal double ResultAnimationSeconds => resultAgeSubticks / (double)(BattleSession.FramesPerSecond * TimeSpan.TicksPerSecond);
     internal int ResultAbilityPoints => ResultRewards is { } rewards ? rewards.AbilityPointsNotice ?? rewards.GuardianForceAbilityPoints.Values.Select(value => (int)value).DefaultIfEmpty().Max() : 0;
     internal float ResultOpacity
@@ -268,7 +267,7 @@ public sealed partial class BattleHudController
         }
         else if (ResultPage == BattleResultPage.GuardianForce)
         {
-            if (++resultGuardianForcePage * GuardianForceRowsPerPage >= resultGuardianForceRows.Length)
+            if (!resultGuardianForcePager.MoveNext(resultGuardianForceRows.Length))
             {
                 BeginGuardianForceLearning();
             }

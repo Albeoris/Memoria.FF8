@@ -234,7 +234,7 @@ internal sealed partial class BattleHudElement : UiElement
             }
             Layout.DrawVitals(canvas, label, hp, maximumHp, y, controller.TextScale, nameColor, hpColor);
             BattleStatusPresentation statuses = session.ReadStatusPresentation(actor.Id);
-            DrawGauge(canvas, Layout.AtbGauge(y), gauge, cast is null && actor.IsReady, shownAlive, cast is not null, statuses.Battle);
+            DrawGauge(canvas, Layout.AtbGauge(y), gauge, cast is null && actor.IsReady, shownAlive, cast is not null, (AtbVisualStatus)((statuses.Battle >> 1) & 7));
             DrawStatuses(canvas, theme, statuses, 520, y + 25, 414);
             if (form is { Phase: BattleGuardianFormPhase.Active })
             {
@@ -302,25 +302,30 @@ internal sealed partial class BattleHudElement : UiElement
 
     private void DrawTargetModelPointers(IUiCanvas canvas, UiTheme theme, IReadOnlyList<BattleCombatant> targets, bool group, string? selectedTargetId)
     {
-        float size = 24 * Scale;
-        float width = size * 1.5f;
         foreach (BattleCombatant target in targets)
         {
             if (!target.IsActive || target.Hidden || !group && selectedTargetId != target.Id)
             {
                 continue;
             }
-            if (controller.TargetModelBounds?.Invoke(target.Id) is not { IsEmpty: false } model || model.Right <= Bounds.X || model.X >= Bounds.Right || model.Bottom <= Bounds.Y || model.Y >= Bounds.Bottom)
-            {
-                continue;
-            }
-            float x = Math.Clamp(model.X - width - 4 * Scale, Bounds.X, Math.Max(Bounds.X, Bounds.Right - width));
-            float y = Math.Clamp(model.Y + model.Height * 0.35f - size / 2, Bounds.Y, Math.Max(Bounds.Y, Bounds.Bottom - size));
-            theme.Pointer(canvas, x, y, size);
+            DrawModelPointer(canvas, theme, Bounds, Scale, controller.TargetModelBounds?.Invoke(target.Id));
         }
     }
 
-    internal static void DrawGauge(IUiCanvas canvas, UiRect bounds, float ratio, bool ready, bool alive, bool summoning, uint statuses)
+    internal static void DrawModelPointer(IUiCanvas canvas, UiTheme theme, UiRect viewport, float scale, UiRect? modelBounds)
+    {
+        if (modelBounds is not { IsEmpty: false } model || model.Right <= viewport.X || model.X >= viewport.Right || model.Bottom <= viewport.Y || model.Y >= viewport.Bottom)
+        {
+            return;
+        }
+        float size = 24 * scale;
+        float width = size * 1.5f;
+        float x = Math.Clamp(model.X - width - 4 * scale, viewport.X, Math.Max(viewport.X, viewport.Right - width));
+        float y = Math.Clamp(model.Y + model.Height * 0.35f - size / 2, viewport.Y, Math.Max(viewport.Y, viewport.Bottom - size));
+        theme.Pointer(canvas, x, y, size);
+    }
+
+    internal static void DrawGauge(IUiCanvas canvas, UiRect bounds, float ratio, bool ready, bool alive, bool summoning, AtbVisualStatus statuses)
     {
         canvas.Fill(bounds, new UiColor(22, 22, 27));
         UiRect inner = bounds.Inset(2);

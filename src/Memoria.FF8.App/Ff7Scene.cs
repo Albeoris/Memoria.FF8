@@ -81,11 +81,12 @@ internal sealed partial class Ff7Scene : IDisposable
     public event Action? ContinueRequested;
     public event Action? DebugMenuRequested;
 
-    public void SuppressInitialPresses(KeyboardState keys)
+    public void SuppressInitialPresses()
     {
-        sharedInput.Read(keys, false);
+        sharedInput.Read(default, default, false);
         sharedInput.SuppressHeldUiInput();
         pendingPressedKeys = 0;
+        battlePointerRows.Clear();
     }
 
     public void ShowNotice(string message, double durationSeconds = NoticeWindow.DefaultDurationSeconds)
@@ -153,12 +154,14 @@ internal sealed partial class Ff7Scene : IDisposable
         return saved;
     }
 
-    public void Update(GameTime gameTime, KeyboardState keys, GamePadState pad = default)
+    public void Update(GameTime gameTime, KeyboardState keys, GamePadState pad = default, MouseState mouse = default, bool inputActive = true)
     {
         try
         {
             ownedDialogueText?.BeginFrame();
             ownedDialogueCanvas?.BeginFrame(gameTime.TotalGameTime);
+            pointerState = mouse;
+            acceptsInput = inputActive && !focusPaused;
             SampleSharedInput(keys, pad);
             if (focusPaused || userPaused)
             {
@@ -245,21 +248,17 @@ internal sealed partial class Ff7Scene : IDisposable
             }
             UpdateMovie();
             UpdateMovieSkip(gameTime.ElapsedGameTime);
-            SceneKind timingScene = Session.World is not null ? SceneKind.WorldMap : Session.Host.Process.Movie is { Playing: true } ? SceneKind.Movie : SceneKind.Field;
-            tickRemainder += sharedClock.Advance(TimeSpan.FromSeconds(Math.Min(gameTime.ElapsedGameTime.TotalSeconds, 0.25)), timingScene).TotalSeconds;
-            while (tickRemainder >= 1d / 30)
+            Ff7FieldTiming.Advance(sharedClock, TimeSpan.FromSeconds(Math.Min(gameTime.ElapsedGameTime.TotalSeconds, 0.25)), TimingScene, RequiresRealTimeFieldInput, AdvanceCallback, ref tickRemainder);
+            PublishCurrentMovieCameraFrame();
+
+            bool AdvanceCallback()
             {
-                tickRemainder -= 1d / 30;
-                if (Session.World is null)
-                {
-                    CapturePreviousActors();
-                }
                 if (autoPlay?.Running == true && !autoPlay.Paused)
                 {
                     AdvanceAutoPlay();
                     if (error is not null)
                     {
-                        break;
+                        return false;
                     }
                 }
                 else
@@ -276,12 +275,12 @@ internal sealed partial class Ff7Scene : IDisposable
                 if (IsShopMenuPresentation || Session.Battle is not null)
                 {
                     tickRemainder = 0;
-                    break;
+                    return false;
                 }
+                return true;
             }
-            PublishCurrentMovieCameraFrame();
         }
-        catch (Exception exception) when (exception is FieldExecutionException or InvalidDataException or NotSupportedException or InvalidOperationException or IOException)
+        catch (Exception exception) when (exception is FieldExecutionException or InvalidDataException or NotSupportedException or InvalidOperationException or IOException or TimeoutException)
         {
             SetError(exception);
         }
@@ -444,8 +443,19 @@ internal sealed partial class Ff7Scene : IDisposable
         Ff7FieldProcess state = session.Host.Process;
         PcFieldCamera? camera = CurrentMovieCamera();
         PcFieldCamera effectCamera = camera ?? session.Field.Cameras[0];
-        Ff7ActorVisual[] actors = state.Actors.Select(PresentationActor).Select(actor => new Ff7ActorVisual(actor.Entity, actor.Model, checked(actor.X4096 + actor.OffsetX * 4096), checked(actor.Y4096 + actor.OffsetY * 4096), checked(actor.Z4096 + actor.OffsetZ * 4096), checked((byte)actor.Direction), actor.Animation, actor.AnimationFrame16, actor.Visible) { PartyCharacter = actor.PartyCharacter, AutomaticBlinkDisabled = actor.AutomaticBlinkDisabled, NativeEyeLeft = actor.NativeEyeLeft, NativeEyeRight = actor.NativeEyeRight, ModelEffects = ModelEffects(actor, effectCamera) }).ToArray();
-        Ff7FieldRenderFrame frame = new(0, PresentationCameraOffset(state, camera), actors, state.BackgroundStates, state.Movie is { Playing: true }, camera, state.MovieBackgroundEnabled, state.PaletteRows, state.PaletteVersion) { FieldHidden = state.FadeState?.HidesField == true, FieldColorArgb = state.FadeState?.FieldColorArgb, QuadColorArgb = state.FadeState?.QuadColorArgb, QuadBlend = FadeQuadBlend(state.FadeState), PlayerPointer = PlayerPointer() };
+        var (sampledActors, cameraOffset) = SampleFieldPresentation(session, state, camera);
+        Ff7ActorVisual[] actors = sampledActors.Select(actor => new Ff7ActorVisual(actor.Entity, actor.Model, checked(actor.X4096 + actor.OffsetX * 4096), checked(actor.Y4096 + actor.OffsetY * 4096), checked(actor.Z4096 + actor.OffsetZ * 4096), checked((byte)actor.Direction), actor.Animation, actor.AnimationFrame16, actor.Visible)
+        {
+            PartyCharacter = actor.PartyCharacter,
+            AutomaticBlinkDisabled = actor.AutomaticBlinkDisabled,
+            NativeEyeLeft = actor.NativeEyeLeft,
+            NativeEyeRight = actor.NativeEyeRight,
+            FirstAnimationFrame = actor.FirstAnimationFrame,
+            LastAnimationFrame = actor.LastAnimationFrame,
+            AnimationLoop = actor.AnimationLoop && !actor.HoldAnimation && !actor.AnimationStopped,
+            ModelEffects = ModelEffects(actor, effectCamera)
+        }).ToArray();
+        Ff7FieldRenderFrame frame = new(0, cameraOffset, actors, state.BackgroundStates, state.Movie is { Playing: true }, camera, state.MovieBackgroundEnabled, state.PaletteRows, state.PaletteVersion) { FieldHidden = state.FadeState?.HidesField == true, FieldColorArgb = state.FadeState?.FieldColorArgb, QuadColorArgb = state.FadeState?.QuadColorArgb, QuadBlend = FadeQuadBlend(state.FadeState), PlayerPointer = PlayerPointer(sampledActors, effectCamera, cameraOffset) };
         renderer.Render(triangles, Math.Max(1, bounds.Width), Math.Max(1, bounds.Height), frame);
     }
 

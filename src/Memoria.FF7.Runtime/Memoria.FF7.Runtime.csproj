@@ -4,6 +4,7 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Memoria.FF7.Runtime.Tests" />
+    <Compile Include="../Shared/BoundedBattleAdvance.cs" Link="BoundedBattleAdvance.cs" />
     <ProjectReference Include="../Memoria.FF7.Events/Memoria.FF7.Events.csproj" />
     <ProjectReference Include="../Memoria.FF7.Resources/Memoria.FF7.Resources.csproj" />
   </ItemGroup>
