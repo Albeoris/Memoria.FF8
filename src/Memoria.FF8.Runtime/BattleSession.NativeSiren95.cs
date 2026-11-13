@@ -130,11 +130,7 @@ public sealed partial class BattleSession
 
             NativeBattleSiren95Frame SelectContactSequence(NativeBattleSiren95Frame current, byte actor, int sequence)
             {
-                NativeBattleGraphicsModel target = graphics.Models[actor];
-                if (((target.ResourceFlags44 ?? throw new NotSupportedException("Native505CE0 requires its selected resource flags.")) & 0x140) != 0)
-                {
-                    graphics = SelectNativeHeaderSequence(graphics, actor, sequence);
-                }
+                graphics = SelectNativeReadyHeaderSequence505CE0(graphics, actor, sequence);
                 return current;
             }
 

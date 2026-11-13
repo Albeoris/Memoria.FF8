@@ -5,7 +5,7 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleCinematicActorCloneDraw(NativeBattleWaterExecutionFrame Frame, uint Cursor);
-public sealed record NativeBattleCinematicActorClone48Services(Func<NativeBattleWaterExecutionFrame, ushort, uint> ResolveNode, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> SuppressActor, Func<uint, uint> ReadColor40, Func<uint, uint> ReadMeshMask124, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleWaterExecutionFrame> RefreshDescriptors, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> PublishInput, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleActionMatrix, NativeBattleCinematicActorCloneDraw> ComposeAndDraw, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> RestorePose);
+public sealed record NativeBattleCinematicActorClone48Services(Func<NativeBattleWaterExecutionFrame, ushort, uint> ResolveNode, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> SuppressActor, Func<uint, uint> ReadColor40, Func<uint, uint?> ReadMeshMask124, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleWaterExecutionFrame> RefreshDescriptors, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> PublishInput, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleActionMatrix, NativeBattleCinematicActorCloneDraw> ComposeAndDraw, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> RestorePose);
 
 public static class NativeBattleCinematicActorClone48
 {
@@ -32,7 +32,14 @@ public static class NativeBattleCinematicActorClone48
             uint color = services.ReadColor40(actor);
             StoreDword(clone + 0x78, color);
             StoreDword(clone + 0x5C, color);
-            StoreDword(clone + 0x60, services.ReadMeshMask124(actor));
+            if (services.ReadMeshMask124(actor) is uint mask)
+            {
+                StoreDword(clone + 0x60, mask);
+            }
+            else
+            {
+                frame = frame with { Arena = frame.Arena.MarkUnknown(ArenaOffset(clone + 0x60, 4), 4) };
+            }
             StoreWord(clone + 0x64, 0);
             StoreDword(clone + 0x68, 0);
             StoreDword(clone + 0x50, uint.MaxValue);

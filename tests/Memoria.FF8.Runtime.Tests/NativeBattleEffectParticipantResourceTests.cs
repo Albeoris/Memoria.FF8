@@ -34,7 +34,7 @@ public sealed class NativeBattleEffectParticipantResourceTests
         cpu.Validate();
         Assert.True(cpu.Cpu.Banks[0].HasResourceStorage);
         Assert.Equal(body.Bytes.AsSpan(body.Section(0), 64).ToArray(), NativeBattleModelResourceView.Open(cpu, battle.NativeFileStaging!, cpu.Rows[loaded.ActiveResourceRow100!.Value].Require(12), 64).Read(0, 64));
-        Assert.Equal(0, battle.NativeFileIo!.ActiveCount);
+        Assert.Equal((short?)0, battle.NativeFileIo!.ActiveCount);
 
         uint directory = NativeBattleFileStaging.Address + 0x40000;
         uint row = directory + 0x100;
@@ -46,19 +46,20 @@ public sealed class NativeBattleEffectParticipantResourceTests
         Assert.Equal(1, resolved.PoseSource!.BoneCount);
         Assert.Equal(1, resolved.LinkedPoseSource!.BoneCount);
         Assert.Equal(animation, resolved.PoseSource.Animations);
-        Assert.Equal(14, restored.Model.SequenceState!.Locals[7]);
+        Assert.Equal((short?)14, restored.Model.SequenceState!.Locals[7]);
         Assert.Equal(1, restored.Model.SequenceState.Default2);
     }
 
     private static byte[] ActorDat(ImmutableArray<byte> animation)
     {
-        byte[] bytes = new byte[16 + animation.Length * 2 + 4];
+        byte[] bytes = new byte[20 + animation.Length * 2 + 4];
         BinaryPrimitives.WriteInt32LittleEndian(bytes, 3);
-        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(4), 16);
-        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(8), 16 + animation.Length);
-        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(12), 20 + animation.Length);
-        animation.AsSpan().CopyTo(bytes.AsSpan(16));
-        animation.AsSpan().CopyTo(bytes.AsSpan(20 + animation.Length));
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(4), 20);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(8), 20 + animation.Length);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(12), 24 + animation.Length);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(16), bytes.Length);
+        animation.AsSpan().CopyTo(bytes.AsSpan(20));
+        animation.AsSpan().CopyTo(bytes.AsSpan(24 + animation.Length));
         return bytes;
     }
 

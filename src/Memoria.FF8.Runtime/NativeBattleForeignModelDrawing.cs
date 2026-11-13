@@ -5,6 +5,68 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Shared native actor consumers operating on posed host triangles and their actual material owner.</summary>
 public static class NativeBattleForeignModelDrawing
 {
+    public static NativeBattleRawModelBodyDraw DrawBody(NativeBattleForeignModelGeometry geometry, NativeBattleActionMatrix basis, NativeBattleCameraProjection projection, uint color, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity identity, byte depthShift = 4, NativeBattleGeometryViewport? viewport = null, int tableBaseBucket = 17, short? depthCue = 0)
+    {
+        ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
+        ImmutableArray<byte> scratch = [];
+        int allocated = 0;
+        int bytesWritten = 0;
+        for (int index = 0; index < geometry.Faces.Length; index++)
+        {
+            NativeBattleForeignModelFace face = geometry.Faces[index];
+            NativeBattleRawMesh triangle = face.Triangle();
+            NativeBattlePilotVisualIdentity selected = identity with { Primitive = unchecked(identity.Primitive * 397 + index) };
+            NativeBattleRawModelBodyDraw draw = NativeBattleRawModelBodyDrawing.Draw5099D0(triangle, [basis], projection, color, 1, new byte[checked(triangle.Vertices.Length * 8)].ToImmutableArray(), colors, depthShift, viewport, tableBaseBucket, depthCue, selected);
+            foreach (NativeBattleGfGeometryAttempt attempt in draw.Packets.Attempts)
+            {
+                attempts.Add(attempt with { ByteOffsetRelative = checked(allocated + attempt.ByteOffsetRelative), Primitive = attempt.Primitive is { } primitive ? geometry.BindSurface(primitive, face, selected) : null });
+            }
+            allocated = checked(allocated + draw.Packets.AllocationBytes);
+            scratch = draw.ProjectedScratch;
+            bytesWritten = Math.Max(bytesWritten, draw.ProjectedBytesWritten);
+        }
+        return new(scratch, bytesWritten, new(attempts.ToImmutable(), allocated));
+    }
+
+    public static ImmutableArray<NativeBattleGeometryPrimitive> Draw(NativeBattleForeignModelGeometry geometry, NativeBattleActionMatrix basis, NativeBattleCameraProjection projection, uint color, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity identity)
+    {
+        ImmutableArray<NativeBattleGeometryPrimitive>.Builder primitives = ImmutableArray.CreateBuilder<NativeBattleGeometryPrimitive>();
+        for (int index = 0; index < geometry.Faces.Length; index++)
+        {
+            NativeBattleForeignModelFace face = geometry.Faces[index];
+            NativeBattlePilotVisualIdentity selected = identity with { Primitive = unchecked(identity.Primitive * 397 + index) };
+            foreach (NativeBattleGeometryPrimitive primitive in NativeBattleRawGeometryPackets.Emit5099D0([face.Triangle()], [basis], projection, color, 1, 0, 17, 4, null, colors, pilotIdentity: selected))
+            {
+                primitives.Add(geometry.BindSurface(primitive, face, selected));
+            }
+        }
+        return primitives.ToImmutable();
+    }
+
+    public static (short Maximum, short Minimum) VerticalBounds(NativeBattleForeignModelGeometry geometry, Func<NativeBattleVector, short> transform)
+    {
+        if (geometry.Faces.IsDefaultOrEmpty)
+        {
+            throw new NotSupportedException("Host actor bounds require its actual posed triangles.");
+        }
+        int maximum = short.MinValue;
+        int minimum = short.MaxValue;
+        foreach (NativeBattleForeignModelFace face in geometry.Faces)
+        {
+            Include(face.A);
+            Include(face.B);
+            Include(face.C);
+        }
+        return ((short)maximum, (short)minimum);
+
+        void Include(NativeBattleVector vertex)
+        {
+            short y = transform(vertex);
+            maximum = Math.Max(maximum, y);
+            minimum = Math.Min(minimum, y);
+        }
+    }
+
     public static NativeBattleGfGeometryBatch Deform(NativeBattleForeignModelGeometry geometry, NativeBattleCameraProjection projection, Func<NativeBattleModuleProjectedVertex, NativeBattleProjectedVertex> deform, Func<NativeBattleRawMesh, IReadOnlyList<NativeBattleProjectedVertex>, NativeBattlePilotVisualIdentity, NativeBattleGfGeometryBatch> emit, NativeBattlePilotVisualIdentity identity)
     {
         NativeBattleActionMatrix camera = NativeBattleGfMatrices.Compose56C2F0(projection.View ?? throw new NotSupportedException("Host model projection requires its current camera."), geometry.World);

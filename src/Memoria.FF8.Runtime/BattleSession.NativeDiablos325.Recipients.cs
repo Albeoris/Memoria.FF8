@@ -7,8 +7,6 @@ public sealed partial class BattleSession
     private (NativeBattleDiablos325Frame Frame, NativeBattleGraphicsState Graphics) DrawNativeDiablosRecipient657CB0(NativeBattleDiablos325Frame frame, int index, int scaleY, NativeBattleGraphicsState graphics)
     {
         NativeBattleGraphicsModel actor = graphics.Models[index];
-        NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
-        NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native Diablos sink requires its current actor rig.");
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Diablos sink requires its current projection.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Diablos sink requires its current camera matrix.");
         NativeBattleGraphicsDefinition rules = definition.NativeGraphics ?? throw new NotSupportedException("Native Diablos sink requires its original graphics definition.");
@@ -33,6 +31,23 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix scaled = NativeBattlePoseMatrices.Scale56BEF0(world, 4096, scaleY, 4096);
         NativeBattleActionMatrix basis = NativeBattleGfMatrices.Compose56C2F0(view, scaled);
         process = process.PublishTemporary5082B0Matrix(basis);
+        if (ReadNativeForeignModel(graphics, index) is { } foreign)
+        {
+            var gate = process.Enter5099D0(capabilities.HardwareEnabled ?? throw new NotSupportedException("Native actor drawing requires its current renderer capability."));
+            process = gate.Process;
+            if (gate.Draw)
+            {
+                uint color = actor.Color40 ?? throw new NotSupportedException("Native actor drawing requires its actual packed color.");
+                NativeEffectMemory = frame.Memory with { PrimitiveProcess = process.PublishModelColor(color) };
+                NativeBattlePilotVisualIdentity identity = recipientIdentity ?? throw new NotSupportedException("Native actor drawing requires its current visual occurrence.");
+                ImmutableArray<NativeBattleGeometryPrimitive> primitives = NativeBattleForeignModelDrawing.Draw(foreign, basis, projection, color, colors, identity);
+                graphics = AppendNativeModelRendererPackets(graphics with { PrimitiveFrame = primitive }, primitives, !primitives.IsEmpty);
+                return (frame with { Memory = NativeEffectMemory! }, graphics);
+            }
+            return (frame with { Memory = frame.Memory with { PrimitiveProcess = process } }, graphics with { PrimitiveFrame = primitive });
+        }
+        NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
+        NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native Diablos sink requires its current actor rig.");
         actor = NativeBattleBodyBoneMatrices.Compose5095B0(actor, basis);
         graphics = graphics with { Models = graphics.Models.SetItem(index, actor) };
         ImmutableArray<NativeBattleRawMesh> body = DiablosActorGeometry(resource, actor);

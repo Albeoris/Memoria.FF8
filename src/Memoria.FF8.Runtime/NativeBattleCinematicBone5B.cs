@@ -8,6 +8,13 @@ public sealed record NativeBattleCinematicBonePose(NativeBattleWaterExecutionFra
 {
     public Func<int, int, byte[]>? ReadMetadata { get; init; }
     public int MetadataLength { get; init; }
+    public NativeBattlePosedActor? Pose { get; init; }
+    public int BoneCount => Pose is { } pose ? pose.Endpoints.Length / 2 : Skeleton[0];
+
+    public NativeBattleWaterActorAnchorResult Evaluate(NativeBattleWaterActorAnchorServices services, NativeBattleWaterExecutionFrame frame, short selector, int fraction, NativeBattleActionMatrix basis)
+    {
+        return Pose is { } pose ? services.Evaluate(frame, pose, selector, fraction, basis) : ReadMetadata is { } read ? services.EvaluateB66B80(frame, MetadataLength, read, Bones, selector, fraction, basis) : services.EvaluateB66B80(frame, Skeleton, Bones, selector, fraction, basis);
+    }
 }
 public sealed record NativeBattleCinematicBone5BServices(Func<NativeBattleWaterExecutionFrame, ushort, uint> ResolveNode, Func<NativeBattleWaterExecutionFrame, uint, bool, NativeBattleCinematicBonePose> RestorePose, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> UpdateSlot, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> PublishInput, NativeBattleWaterActorAnchorServices ActorAnchor);
 

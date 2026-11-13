@@ -28,8 +28,7 @@ public static class NativeBattleMagicRepetition
 
     public static int Cost(int casts, uint passives, bool infiniteMagic, bool unlimitedMagic)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(casts, 1);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(casts, 3);
+        ArgumentOutOfRangeException.ThrowIfNegative(casts);
         return (!infiniteMagic || unlimitedMagic) && (casts == 2 && (passives & 0x20) != 0 || casts == 3 && (passives & 0x40) != 0) ? 1 : casts;
     }
 

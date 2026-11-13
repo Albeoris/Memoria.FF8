@@ -480,7 +480,7 @@ public sealed partial class BattleSession
                 case 0x41:
                     return NativeBattleCinematicModel.Control41(current, program);
                 case 0xD1:
-                    return selectedHandler == 0xAFB270 ? NativeBattleCinematicControlCommands.BranchD1(current, program, graphics.StageResourceIndex98990 ?? throw new NotSupportedException("Native Brothers stage branch requires its retained resource BYTE98990.")) : current;
+                    return selectedHandler == 0xAFB270 ? NativeBattleCinematicControlCommands.BranchD1(current, program, graphics.StageResourceIndex98990 ?? (presentationSourceResource is not null ? (byte?)null : throw new NotSupportedException("Native stage identity comparison requires its retained source resource identity."))) : current;
                 case 0:
                     return NativeBattleWaterStopCommand.StopRemoveAA5120(current);
                 case 1:
@@ -726,7 +726,7 @@ public sealed partial class BattleSession
                 case 0xC3:
                     return NativeBattleScriptedSoundCommands.ExecuteC3(current, (NativeGlobalSoundProcess ?? throw new NotSupportedException("Native cinematic sound control requires its current backend owner.")).Backend);
                 case 0xC5:
-                    return NativeBattleCinematicEncounterBranchC5.Execute(current, program, checked((ushort)(definition.EncounterId ?? throw new NotSupportedException("Native Brothers encounter branch requires its current encounter WORD."))));
+                    return NativeBattleCinematicEncounterBranchC5.Execute(current, program, definition.EncounterId is int originalEncounter ? checked((ushort)originalEncounter) : presentationSourceResource is not null ? null : throw new NotSupportedException("Native encounter identity comparison requires its current source encounter."));
                 case 0xCF:
                     return selectedHandler is 0xAFCBE0 or 0xAF1830 ? NativeBattleWaterContextCommands.ExecuteRing(current, context) : current;
                 case 0x5B:
@@ -809,7 +809,7 @@ public sealed partial class BattleSession
                     {
                         return current;
                     }
-                    ushort encounter = checked((ushort)(definition.EncounterId ?? throw new NotSupportedException("Native Brothers target correction requires its encounter WORD1CFF6E0.")));
+                    ushort? encounter = definition.EncounterId is int sourceEncounter ? checked((ushort)sourceEncounter) : presentationSourceResource is not null ? null : throw new NotSupportedException("Native encounter correction requires its current source encounter.");
                     return NativeBattleBrothersTargetCommand.Execute(current, program, new(encounter, () => RequireWaterMemory().ScriptedTarget2796D40 ?? throw new NotSupportedException("Native Brothers target branch requires its retained2796D40 byte."), value => NativeEffectMemory = RequireWaterMemory() with { ScriptedTarget2796D40 = value }, _ => graphics.Models[3]));
                 default:
                     throw new NotSupportedException($"Native cinematic instruction{current.ReadTemporaryWord(0x14A):X4} at{pc:X} requires its selected command contract.");

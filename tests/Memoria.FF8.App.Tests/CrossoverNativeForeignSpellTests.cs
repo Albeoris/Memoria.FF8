@@ -53,7 +53,7 @@ public sealed class CrossoverNativeForeignSpellTests
         Assert.NotEmpty(geometry.SkeletonPoints);
         Assert.NotEmpty(geometry.Bones);
         CrossoverGunbladeHostPlacement placement = new(Ff7BattlePosition.FromVector(host.RenderActorPlacement(0).Position), host.RenderActorPlacement(0).Yaw);
-        CrossoverNativeForeignTarget foreign = CrossoverNativeForeignTarget.Read(host, target, geometry, placement.Matrix);
+        CrossoverNativeForeignTarget foreign = CrossoverNativeForeignTarget.Read(host, target, geometry, placement.Matrix, game.ReadNativeBattleGraphicsRules());
         NativeBattleForeignActor actorGeometry = foreign.ToActor(3);
         Assert.Equal(geometry.Bones.Length, actorGeometry.BoneCount);
         NativeBattleVector firstBone = actorGeometry.ReadBone(0, 0);

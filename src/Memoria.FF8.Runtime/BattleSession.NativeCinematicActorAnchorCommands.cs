@@ -14,6 +14,15 @@ public sealed partial class BattleSession
             }
             int index = checked((int)((address - 0x1D972C0) / 156));
             NativeBattleGraphicsModel actor = graphics.Models[index];
+            if (presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true)
+            {
+                if (linked)
+                {
+                    throw new NotSupportedException("The host actor cannot supply a separate linked pose owner.");
+                }
+                NativeBattlePosedActor hostPose = foreign.Pose ?? throw new NotSupportedException("The host actor cannot supply its current posed anchors.");
+                return new(current, [], [], NativeBattleGfMatrices.Compose56C2F0(NativeBattleForeignPlacement.Delta(foreign, actor), hostPose.World)) { Pose = hostPose };
+            }
             NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
             NativeBattlePoseSource source = (linked ? resource.LinkedPoseSource : resource.PoseSource) ?? throw new NotSupportedException("Native actor anchor requires its selected actual rig source.");
             NativeBattleBodyBoneMatrices publication;

@@ -82,7 +82,7 @@ public static class NativeBattleCinematicBrothersModel3
         }
     }
 
-    public static NativeBattleWaterExecutionFrame DrawPreparedRing(NativeBattleWaterExecutionFrame frame, int count, int rootX, int rootZ, Func<NativeBattleWaterExecutionFrame, int, NativeBattleActionMatrix> readBone, Func<NativeBattleWaterExecutionFrame, int, short> readLength, NativeBattleVector centerOffset, int depth, short height, int intensity, int diagonalFactor, Func<NativeBattleWaterExecutionFrame, uint>? readColor, NativeBattleCinematicBrothersModelServices services, bool storeCue = true)
+    public static NativeBattleWaterExecutionFrame DrawPreparedRing(NativeBattleWaterExecutionFrame frame, int count, int rootX, int rootZ, Func<NativeBattleWaterExecutionFrame, int, NativeBattleActionMatrix>? readBone, Func<NativeBattleWaterExecutionFrame, int, short>? readLength, NativeBattleVector centerOffset, int depth, short height, int intensity, int diagonalFactor, Func<NativeBattleWaterExecutionFrame, uint>? readColor, NativeBattleCinematicBrothersModelServices services, bool storeCue = true, Func<NativeBattleWaterExecutionFrame, int, (NativeBattleWaterExecutionFrame Frame, NativeBattleFullMacVertex Vertex)>? readEndpoint = null)
     {
         int maxX = rootX;
         int maxZ = rootZ;
@@ -93,11 +93,19 @@ public static class NativeBattleCinematicBrothersModel3
         frame = frame.WriteTemporaryDword(0xD0, 0);
         for (int index = 1; index < count; index++)
         {
-            NativeBattleActionMatrix bone = readBone(frame, index);
-            frame = frame.WriteTemporaryWord(0xD4, unchecked((ushort)readLength(frame, index)));
-            NativeBattleVector input = TemporaryVector(0xD0);
-            frame = services.PublishInput(frame, frame.TemporaryFrame.Address + 0xD0);
-            NativeBattleFullMacVertex mac = NativeBattleGfMatrices.TransformMac460840(bone, input);
+            NativeBattleFullMacVertex mac;
+            if (readEndpoint is not null)
+            {
+                (frame, mac) = readEndpoint(frame, index);
+            }
+            else
+            {
+                NativeBattleActionMatrix bone = (readBone ?? throw new NotSupportedException("Native actor ring requires its current posed bone matrices."))(frame, index);
+                frame = frame.WriteTemporaryWord(0xD4, unchecked((ushort)(readLength ?? throw new NotSupportedException("Native actor ring requires its original segment lengths."))(frame, index)));
+                NativeBattleVector input = TemporaryVector(0xD0);
+                frame = services.PublishInput(frame, frame.TemporaryFrame.Address + 0xD0);
+                mac = NativeBattleGfMatrices.TransformMac460840(bone, input);
+            }
             NativeBattleVector end = new((short)Math.Clamp(mac.X, short.MinValue, short.MaxValue), (short)Math.Clamp(mac.Y, short.MinValue, short.MaxValue), (short)Math.Clamp(mac.Z, short.MinValue, short.MaxValue));
             StoreVector(0xD8, end);
             frame = frame.WriteTemporaryDword(0xFC, mac.Flags);

@@ -158,7 +158,7 @@ public static class NativeBattleCinematicControlCommands
         return NativeBattleScriptedCommandReads.Advance(frame, 4);
     }
 
-    public static NativeBattleWaterExecutionFrame BranchD1(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, byte stageResourceIndex)
+    public static NativeBattleWaterExecutionFrame BranchD1(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, byte? stageResourceIndex)
     {
         ushort expected = BinaryPrimitives.ReadUInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2));
         if (stageResourceIndex != expected)

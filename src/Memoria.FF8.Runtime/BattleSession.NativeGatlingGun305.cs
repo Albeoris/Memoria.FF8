@@ -59,11 +59,10 @@ public sealed partial class BattleSession
             NativeBattleGraphicsModel model = graphics.Models[actor];
             if ((model.Flags0 & 2) != 0)
             {
-                NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Gatling Gun requires its current actor skeleton.");
                 foreach (byte selector in new byte[] { 0xF0, 0xF1 })
                 {
                     NativeFileStaging = current.Staging;
-                    current = current with { Memory = ObserveNativeBoneAnchor(current.Memory, NativeBattlePoseMatrices.ResolveBoneAnchor502170(model, source, selector, 0)), Staging = NativeFileStaging };
+                    current = current with { Memory = ObserveNativeGraphicsBoneAnchor(current.Memory, graphics, actor, selector, 0).Memory, Staging = NativeFileStaging };
                 }
             }
             NativeBattleModuleAnchor anchor = ReadNativeModelAnchor(graphics, actor);
@@ -73,12 +72,9 @@ public sealed partial class BattleSession
         NativeBattleGatlingGun305PointStep Bone(NativeBattleGatlingGun305Frame current, int actor, short selector, short distance)
         {
             Publish(current);
-            NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Gatling Gun requires its selected current actor skeleton.");
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], pose, unchecked((byte)selector), distance);
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Gatling Gun bone query requires its addressed temporary memory.");
-            NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
-            NativeBattleVector point = producer.Enabled ? new(unchecked((short)observed.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
-            return new(current with { Memory = observed, Staging = NativeFileStaging }, point);
+            var observed = ObserveNativeGraphicsBoneAnchor(current.Memory, graphics, actor, unchecked((byte)selector), distance);
+            return new(current with { Memory = observed.Memory, Staging = NativeFileStaging }, observed.Point);
         }
 
         NativeBattleGatlingGun305Frame Execute(NativeBattleGatlingGun305Frame current, NativeBattleGatlingGun305Operation operation)

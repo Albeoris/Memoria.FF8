@@ -15,23 +15,28 @@ public static class NativeBattleArenaDrawing
     private static NativeBattleGeometryPrimitive BindCapture(NativeBattleGeometryPrimitive primitive, NativeBattleArenaCaptureMaterial material)
     {
         NativeBattlePilotVisualGeometry geometry = primitive.PilotGeometry ?? throw new NotSupportedException("Arena image sampling requires retained primitive geometry.");
-        byte command = (byte)(primitive.Words[1] >> 24);
+        return primitive with { PilotGeometry = BindCapture(geometry, primitive.Words, material) };
+    }
+
+    public static NativeBattlePilotVisualGeometry BindCapture(NativeBattlePilotVisualGeometry geometry, ImmutableArray<uint> words, NativeBattleArenaCaptureMaterial material)
+    {
+        byte command = (byte)(words[1] >> 24);
         if ((command & 0xE4) != 0x24)
         {
             throw new NotSupportedException("Arena image sampling requires a textured native polygon.");
         }
         int corners = (command & 8) != 0 ? 4 : 3;
         int step = (command & 16) != 0 ? 3 : 2;
-        ushort page = (ushort)(primitive.Words[3 + step] >> 16);
+        ushort page = (ushort)(words[3 + step] >> 16);
         int depth = page >> 7 & 3;
         int pixelsPerWord = depth == 0 ? 4 : depth == 1 ? 2 : depth == 2 ? 1 : throw new NotSupportedException("Arena image sampling requires a supported native texture depth.");
         ImmutableArray<Vector2>.Builder uv = ImmutableArray.CreateBuilder<Vector2>(corners);
         for (int corner = 0; corner < corners; corner++)
         {
-            uint value = primitive.Words[3 + corner * step];
+            uint value = words[3 + corner * step];
             uv.Add(new(((page & 15) * 64 - material.NativeX + (value & 255) / (float)pixelsPerWord) / material.Width, ((page & 16) * 16 - material.NativeY + (value >> 8 & 255)) / (float)material.Height));
         }
-        return primitive with { PilotGeometry = geometry with { ForeignSurface = new(material, uv.ToImmutable(), Enumerable.Repeat(Vector4.One, corners).ToImmutableArray()) } };
+        return geometry with { ForeignSurface = new(material, uv.ToImmutable(), Enumerable.Repeat(Vector4.One, corners).ToImmutableArray()) };
     }
 
     public static NativeBattleGfGeometryBatch Deform<TVertex>(NativeBattleArenaGeometry geometry, Func<NativeBattleVector, TVertex> deform, NativeBattlePilotVisualIdentity identity, Func<ImmutableArray<NativeBattleRawPolygon>, ImmutableArray<TVertex>, NativeBattlePilotVisualIdentity, NativeBattleGfGeometryBatch> emit)

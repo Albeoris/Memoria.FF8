@@ -280,6 +280,14 @@ public sealed class NativeBattleCinematicControlCommandsTests
         Assert.Equal(expectedPc, Pc(NativeBattleCinematicControlCommands.BranchD1(frame, Program, stage)));
     }
 
+    [Fact]
+    public void D1_foreign_stage_has_no_original_stage_identity_even_when_operand_is_zero()
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(0xD1, 0);
+        frame = frame with { Arena = frame.Arena.MarkUnknown(0x1004, 2) };
+        Assert.Equal(0x1006u, Pc(NativeBattleCinematicControlCommands.BranchD1(frame, Program, null)));
+    }
+
     [Theory]
     [InlineData(0x0041, 0x80FF, 0x0FF0, 0x800F)]
     [InlineData(0x8041, 0x800F, 0x0FF0, 0x8FFF)]

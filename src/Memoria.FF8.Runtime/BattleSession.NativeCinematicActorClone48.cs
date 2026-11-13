@@ -18,9 +18,12 @@ public sealed partial class BattleSession
             int index = ActorIndex(address);
             graphics = graphics with { Models = graphics.Models.SetItem(index, graphics.Models[index] with { Flags0 = (ushort)(graphics.Models[index].Flags0 | 4) }) };
             return current;
-        }, address => graphics.Models[ActorIndex(address)].Color40 ?? throw new NotSupportedException("Native actor clone requires its actual physical color DWORD40."), address => graphics.Models[ActorIndex(address)].SequenceState?.MeshMask124 ?? throw new NotSupportedException("Native actor clone requires its actual physical object mask DWORD124."), (current, clone, address) =>
+        }, address => graphics.Models[ActorIndex(address)].Color40 ?? throw new NotSupportedException("Native actor clone requires its actual physical color DWORD40."), address => presentationForeignActors?.ContainsKey(ActorIndex(address)) == true ? null : graphics.Models[ActorIndex(address)].SequenceState?.MeshMask124 ?? throw new NotSupportedException("Native actor clone requires its actual physical object mask DWORD124."), (current, clone, address) =>
         {
-            _ = NativeGraphicsPoseResource(graphics, ActorIndex(address));
+            if (ReadNativeForeignModel(graphics, ActorIndex(address)) is null)
+            {
+                _ = NativeGraphicsPoseResource(graphics, ActorIndex(address));
+            }
             return current with { Arena = current.Arena.MarkUnknown(ArenaOffset(clone + 0x10, 12), 12).MarkUnknown(ArenaOffset(clone + 0x30, 16), 16) };
         }, (current, address) =>
         {
@@ -31,6 +34,10 @@ public sealed partial class BattleSession
         }, ComposeAndDraw, (current, address) =>
         {
             int index = ActorIndex(address);
+            if (ReadNativeForeignModel(graphics, index) is not null)
+            {
+                return current;
+            }
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native actor clone restoration requires its actual physical pose source.");
             NativeBattleGraphicsModel restored = NativeBattleBodyBoneMatrices.Publish508C90(graphics.Models[index], source);
             graphics = graphics with { Models = graphics.Models.SetItem(index, restored) };
@@ -51,6 +58,37 @@ public sealed partial class BattleSession
         {
             int index = ActorIndex(actorAddress);
             NativeBattleGraphicsModel actor = graphics.Models[index];
+            if (ReadNativeForeignModel(graphics, index) is { } foreign)
+            {
+                uint hostOutput = CoreDword(current, unchecked(CoreDword(current, 0x27973EC) + 0x7C));
+                NativeBattleEffectMemory hostMemory = RequireWaterMemory();
+                NativeBattlePrimitiveProcess hostProcess = hostMemory.PrimitiveProcess ?? throw new NotSupportedException("Native actor clone requires its current renderer gate.");
+                var hostGate = hostProcess.Enter5099D0(definition.NativeGraphics?.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Native actor clone requires its selected renderer capability."));
+                NativeEffectMemory = hostMemory with { PrimitiveProcess = hostGate.Process };
+                if (!hostGate.Draw)
+                {
+                    return new(current, hostOutput);
+                }
+                NativeBattleForeignActor host = presentationForeignActors![index];
+                NativeBattlePosedActor hostPose = host.Pose ?? throw new NotSupportedException("The host actor clone requires its original posed basis.");
+                NativeBattleForeignModelGeometry hostGeometry = host.Geometry ?? throw new NotSupportedException("The host actor clone requires its original posed geometry.");
+                NativeBattleActionMatrix bodyBasis = NativeBattleGfMatrices.Compose56C2F0(basis, NativeBattleGfMatrices.Compose56C2F0(NativeBattleForeignPlacement.Inverse(hostPose.World), hostGeometry.World));
+                NativeBattleCameraProjection hostProjection = NativeCamera?.Projection ?? throw new NotSupportedException("Native actor clone requires its current projection.");
+                NativeBattleSummonColors hostColors = definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Native actor clone requires its original color arithmetic.");
+                uint hostColor = CloneDword(0x5C);
+                NativeEffectMemory = NativeEffectMemory with { PrimitiveProcess = hostGate.Process.PublishModelColor(hostColor) };
+                NativeBattleWaterSlotBank hostVisualBank = NativeBattleWaterInstructionDispatcher.CurrentBank(current, resourceLength);
+                NativeBattlePilotVisualIdentity identity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, current, hostVisualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(current, hostVisualBank), index);
+                NativeBattleRawModelBodyDraw hostDraw = NativeBattleForeignModelDrawing.DrawBody(hostGeometry, bodyBasis, hostProjection, hostColor, hostColors, identity, 4, new(CloneWord(0x54), CloneWord(0x56), CloneWord(0x58), CloneWord(0x5A)), OtBucket(current.ReadTemporaryDword(0x14C)), CloneWord(0x64));
+                uint hostWork = CloneDword(0x44);
+                if (hostDraw.ProjectedBytesWritten != 0)
+                {
+                    current = current with { Arena = current.Arena.Write(ArenaOffset(hostWork, hostDraw.ProjectedBytesWritten), hostDraw.ProjectedScratch.AsSpan().Slice(0, hostDraw.ProjectedBytesWritten)) };
+                }
+                var hostWritten = AppendNativeCinematicPackets(current, hostOutput, null, hostDraw.Packets, graphics);
+                graphics = hostWritten.Graphics;
+                return new(hostWritten.Frame, unchecked(hostOutput + (uint)hostDraw.Packets.AllocationBytes));
+            }
             NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
             NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native actor clone requires its current physical rig.");
             _ = NativeBattleBodyBoneMatrices.Require(actor, source);

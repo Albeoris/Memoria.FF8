@@ -79,8 +79,9 @@ public static class NativeBattleUltraWavesGrid
         return grid;
     }
 
-    public static NativeBattleUltraWavesGridDraw Draw(NativeBattleEffectMemory memory, NativeBattleEffectArena grid, NativeBattleEffectArena quads, uint gridAddress, uint quadsAddress, NativeBattleLogicalOrdering ordering, NativeBattleCameraProjection projection, short focalShadow, byte buffer, uint color, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    public static NativeBattleUltraWavesGridDraw Draw(NativeBattleEffectMemory memory, NativeBattleEffectArena grid, NativeBattleEffectArena quads, uint gridAddress, uint quadsAddress, NativeBattleLogicalOrdering ordering, NativeBattleCameraProjection projection, short focalShadow, byte buffer, uint color, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleArenaCaptureMaterial? captureMaterial = null)
     {
+        captureMaterial?.Validate();
         if (buffer > 1)
         {
             throw new InvalidDataException("Ultra Waves grid requires its actual display buffer.");
@@ -128,6 +129,10 @@ public static class NativeBattleUltraWavesGrid
                     return new(unchecked((short)xy), unchecked((short)(xy >> 16)), 0);
                 }
                 geometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + index), ResourceGeneration = quadsAddress }, Corner(0), Corner(1), Corner(2), Corner(3), 4) { ScreenSpace = true, ScreenScale = 1, UseSourceDepths = true, SourceDepths = System.Numerics.Vector4.Zero };
+                if (captureMaterial is not null)
+                {
+                    geometry = NativeBattleArenaDrawing.BindCapture(geometry, words, captureMaterial);
+                }
             }
             links.Prepend(0x101A, new(bank, 0, packet), words, 0, [0, 0, 0, 0], pilotGeometry: geometry, sceneCapture: new(BattleSceneVisibleArea.Current, NativeBattleSceneCaptureKind.Image) { X = 384, Y = 256 });
             if (linked)

@@ -170,7 +170,7 @@ public sealed partial class BattleSession
                 NativeBattleEffectArena grid = NativeBattleUltraWavesGrid.Wave(NativeBattleEffectArena.Clear().Write(0, state.Grid.AsSpan()), frame);
                 byte buffer = NativeEffectMemory!.PrimitiveProcess!.Buffer80 ?? throw new NotSupportedException("Native Ultra Waves requires its current display buffer.");
                 short focalShadow = NativeCamera!.FocalLength ?? throw new NotSupportedException("Ultra Waves requires its actual signed focal shadow.");
-                NativeBattleUltraWavesGridDraw drawn = NativeBattleUltraWavesGrid.Draw(NativeEffectMemory!, grid, state.Quads, 0x241EF00, 0x24059F8, graphics.PrimitiveFrame!.Pending, projection, focalShadow, buffer, resources.WarpColors[frame], pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(154, task, 2));
+                NativeBattleUltraWavesGridDraw drawn = NativeBattleUltraWavesGrid.Draw(NativeEffectMemory!, grid, state.Quads, 0x241EF00, 0x24059F8, graphics.PrimitiveFrame!.Pending, projection, focalShadow, buffer, resources.WarpColors[frame], pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(154, task, 2), captureMaterial: presentationArena?.ReadCapture(384, 256));
                 state = state with { Grid = drawn.Grid.Read(0, NativeBattleUltraWavesGrid.GridLength).ToImmutableArray(), Quads = drawn.Quads };
                 NativeEffectMemory = drawn.Memory with { UltraWaves154 = state };
                 graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = drawn.Ordering } };

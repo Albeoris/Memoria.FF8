@@ -17,7 +17,9 @@ internal sealed partial class CrossoverGuestHostActions
 
     public int MagicCastCost(ushort ability, int casts)
     {
-        return NativeBattleMagicRepetition.Cost(casts, kit.StatusPassives, encounter.Working.MagicSystem.InfiniteMagic, encounter.Working.MagicSystem.UnlimitedMagic);
+        uint statuses = host.GetGuestOriginBattleStatuses(ActorSlot);
+        int mode = casts == 2 && (statuses & 0x20000) == 0 && (statuses & 0x40000) != 0 ? 3 : casts;
+        return Math.Min(casts, NativeBattleMagicRepetition.Cost(mode, kit.StatusPassives, encounter.Working.MagicSystem.InfiniteMagic, encounter.Working.MagicSystem.UnlimitedMagic));
     }
 
     public bool CanRepeatMagic(ushort ability, int ordinal)

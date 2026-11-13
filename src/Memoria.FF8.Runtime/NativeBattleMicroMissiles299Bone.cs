@@ -6,6 +6,27 @@ public sealed record NativeBattleMicroMissiles299BoneStep(NativeBattleMicroMissi
 
 public static class NativeBattleMicroMissiles299Bone
 {
+    public static NativeBattleMicroMissiles299BoneStep Query67E550(NativeBattleMicroMissiles299Frame frame, NativeBattlePosedActor pose, int selector)
+    {
+        NativeBattleFileStaging staging = frame.Staging ?? throw new NotSupportedException("Bone selection requires its actual temporary memory owner.");
+        NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(staging, 20);
+        NativeBattleVector? point = pose.Joint(selector);
+        if (point is { } joint)
+        {
+            byte[] xyz = new byte[12];
+            BinaryPrimitives.WriteInt32LittleEndian(xyz, joint.X - pose.World.X);
+            BinaryPrimitives.WriteInt32LittleEndian(xyz.AsSpan(4), joint.Y - pose.World.Y);
+            BinaryPrimitives.WriteInt32LittleEndian(xyz.AsSpan(8), joint.Z - pose.World.Z);
+            NativeBattleEffectArena temporary = NativeBattleEffectNodeContextMemory.Copy(NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 20), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 20), 0, 20).Write(0, xyz);
+            staging = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, temporary, 20);
+        }
+        else
+        {
+            staging = allocation.Staging;
+        }
+        return new(frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(staging, 20) }, point is null ? 1 : 0, point);
+    }
+
     public static NativeBattleMicroMissiles299BoneStep Query67E550(NativeBattleMicroMissiles299Frame frame, NativeBattleGraphicsModel model, NativeBattlePoseSource source, int selector)
     {
         NativeBattleFileStaging staging = frame.Staging ?? throw new NotSupportedException("Micro Missiles bone selection requires its actual physical temporary memory.");

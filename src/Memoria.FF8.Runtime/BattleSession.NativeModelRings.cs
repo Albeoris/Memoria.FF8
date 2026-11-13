@@ -20,7 +20,7 @@ public sealed partial class BattleSession
         }
         if (presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true && foreign.NativeResource is null)
         {
-            if ((requested & ~0x1000) == 5 && foreign.CanReact)
+            if ((requested & ~0x1000) is >= 4 and <= 6 && foreign.CanReact)
             {
                 presentationSequences.Add(new(index, NativeBattleForeignSequenceKind.Hit));
                 return graphics;

@@ -17,7 +17,7 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Electrocute requires its original interpolation constants.");
         Dictionary<uint, System.Numerics.Vector3> worldPoints = [];
         Dictionary<uint, System.Numerics.Vector3> bonePoints = [];
-        NativeBattleElectrocute275Inputs inputs = new(nativeActionPackets, actor => graphics.Models[actor], actor => (NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Electrocute requires its current skeleton.")).BoneCount, actor => graphics.Models[actor].ActiveStagedResourceRow100 ?? throw new NotSupportedException("Electrocute requires its current addressed caster binding."), _ => Camera().CapturePackedView1D97778(), Anchor, Bone, AdvanceAct, Execute) { Colors = colors };
+        NativeBattleElectrocute275Inputs inputs = new(nativeActionPackets, actor => graphics.Models[actor], actor => ReadNativeGraphicsBoneCount(graphics, actor), actor => graphics.Models[actor].ActiveStagedResourceRow100 ?? throw new NotSupportedException("Electrocute requires its current addressed caster binding."), _ => Camera().CapturePackedView1D97778(), Anchor, Bone, AdvanceAct, Execute) { Colors = colors };
         frame = initialize ? NativeBattleElectrocute275Controller.Initialize(frame, resources, inputs) : NativeBattleElectrocute275Controller.Advance(frame, resources, inputs);
         if (!initialize && frame.Effect.ReturnedDescriptor == 0)
         {
@@ -62,11 +62,10 @@ public sealed partial class BattleSession
             NativeBattleGraphicsModel model = graphics.Models[actor];
             if ((model.Flags0 & 2) != 0)
             {
-                NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Electrocute requires its current actor skeleton.");
                 foreach (byte selector in new byte[] { 0xF0, 0xF1 })
                 {
                     NativeFileStaging = current.Staging;
-                    current = current with { Memory = ObserveNativeBoneAnchor(current.Memory, NativeBattlePoseMatrices.ResolveBoneAnchor502170(model, source, selector, 0)), Staging = NativeFileStaging };
+                    current = current with { Memory = ObserveNativeGraphicsBoneAnchor(current.Memory, graphics, actor, selector, 0).Memory, Staging = NativeFileStaging };
                 }
             }
             NativeBattleModuleAnchor anchor = ReadNativeModelAnchor(graphics, actor);
@@ -76,12 +75,9 @@ public sealed partial class BattleSession
         NativeBattleElectrocute275PointStep Bone(NativeBattleElectrocute275Frame current, int actor, short selector, short distance)
         {
             Publish(current);
-            NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Electrocute requires its selected current actor skeleton.");
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[actor], pose, checked((byte)selector), distance);
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Electrocute bone query requires its addressed temporary memory.");
-            NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
-            NativeBattleVector point = producer.Enabled ? new(unchecked((short)observed.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
-            return new(current with { Memory = observed, Staging = NativeFileStaging }, point);
+            var observed = ObserveNativeGraphicsBoneAnchor(current.Memory, graphics, actor, checked((byte)selector), distance);
+            return new(current with { Memory = observed.Memory, Staging = NativeFileStaging }, observed.Point);
         }
 
         NativeBattleElectrocute275Frame Execute(NativeBattleElectrocute275Frame current, NativeBattleElectrocute275Operation operation)

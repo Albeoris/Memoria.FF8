@@ -6,6 +6,56 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleUltraWavesGridTests
 {
+    private sealed class Material : INativeBattleForeignMaterial
+    {
+    }
+
+    [Theory]
+    [InlineData((ushort)154, (byte)0)]
+    [InlineData((ushort)154, (byte)1)]
+    [InlineData((ushort)184, (byte)0)]
+    [InlineData((ushort)184, (byte)1)]
+    public void Host_scene_image_binds_every_native_grid_cell_without_changing_native_packets_or_projection(ushort effect, byte buffer)
+    {
+        NativeBattleForeignSurface original = new(new Material(), [System.Numerics.Vector2.Zero, System.Numerics.Vector2.UnitX, System.Numerics.Vector2.UnitY], [System.Numerics.Vector4.One, System.Numerics.Vector4.One, System.Numerics.Vector4.One]);
+        NativeBattleArenaGeometry arena = new([new(new(0, 0, 0), System.Numerics.Vector3.Zero, System.Numerics.Vector3.UnitX, System.Numerics.Vector3.UnitY, original)]);
+        NativeBattleArenaHost host = new(arena);
+        NativeBattlePilotVisualIdentity owner = new(effect, 1, 2, 3, 2);
+        NativeBattleArenaCaptureMaterial capture = host.Capture(owner, arena, Projection, 320, 216, 384, 256);
+        Assert.Same(capture, host.ReadCapture(384, 256));
+        uint actualGrid = effect == 184 ? NativeBattleUltraWaves184Profile.GridAddress : GridAddress;
+        uint actualQuads = effect == 184 ? NativeBattleUltraWaves184Profile.QuadsAddress : QuadsAddress;
+        NativeBattleUltraWavesGridDraw Run(NativeBattleArenaCaptureMaterial? material)
+        {
+            NativeBattleUltraWavesGridInitialization initialized = NativeBattleUltraWavesGrid.Initialize(NativeBattleEffectArena.Clear().MarkUnknown(0, NativeBattleUltraWavesGrid.GridLength), NativeBattleEffectArena.Clear(), actualGrid);
+            return NativeBattleUltraWavesGrid.Draw(Memory(), NativeBattleUltraWavesGrid.Wave(initialized.Grid, 11), initialized.Quads, actualGrid, actualQuads, NativeBattleLogicalOrdering.Clear(), Projection, 512, buffer, 0x123456, owner, material);
+        }
+        NativeBattleUltraWavesGridDraw native = Run(null);
+        NativeBattleUltraWavesGridDraw sampled = Run(capture);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Memory), NativeBattleTestSnapshots.Json(sampled.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Grid), NativeBattleTestSnapshots.Json(sampled.Grid));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Quads), NativeBattleTestSnapshots.Json(sampled.Quads));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Ordering), NativeBattleTestSnapshots.Json(sampled.Ordering));
+        Assert.Equal(1080, sampled.Ordering.Packets.Length);
+        for (int index = 0; index < sampled.Ordering.Packets.Length; index++)
+        {
+            NativeBattleLogicalPacket packet = sampled.Ordering.Packets[index];
+            Assert.Equal(native.Ordering.Packets[index].Words, packet.Words);
+            Assert.Equal(native.Ordering.Packets[index].Next, packet.Next);
+            Assert.Equal(native.Ordering.Packets[index].Reference, packet.Reference);
+            NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(packet.PilotGeometry);
+            NativeBattleForeignSurface surface = Assert.IsType<NativeBattleForeignSurface>(geometry.ForeignSurface);
+            Assert.Same(capture, surface.Material);
+            Assert.Equal(native.Ordering.Packets[index].PilotGeometry!.A, geometry.A);
+            Assert.Equal(native.Ordering.Packets[index].PilotGeometry!.D, geometry.D);
+            Assert.All(surface.Uv, uv =>
+            {
+                Assert.InRange(uv.X, 0, 319 / 320f);
+                Assert.InRange(uv.Y, 0, 215 / 216f);
+            });
+        }
+    }
+
     [Theory]
     [InlineData((ushort)154, (byte)0)]
     [InlineData((ushort)154, (byte)1)]

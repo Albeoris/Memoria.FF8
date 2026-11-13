@@ -170,13 +170,13 @@ public sealed partial class BattleSession
             if (previous?.TryGetValue(actor.Index, out NativeBattleForeignActor? old) == true && model.Transform is { } current)
             {
                 NativeBattleVector position = new(unchecked((short)(transform.Position28.X + current.Position28.X - old.Transform.Position28.X)), unchecked((short)(transform.Position28.Y + current.Position28.Y - old.Transform.Position28.Y)), unchecked((short)(transform.Position28.Z + current.Position28.Z - old.Transform.Position28.Z)));
-                transform = transform with { Position28 = position, Vertical34 = unchecked((short)(transform.Vertical34 + current.Vertical34 - old.Transform.Vertical34)) };
+                transform = transform with { Position28 = position, Vertical34 = unchecked((short)(transform.Vertical34 + current.Vertical34 - old.Transform.Vertical34)), Scale148 = current.Scale148, Scale154 = current.Scale154 };
                 rotationX = model.Rotation12 ?? 0;
                 rotationY = unchecked((short)(actor.Facing + (model.Rotation14 ?? old.Facing) - old.Facing));
                 rotationZ = model.Rotation16 ?? 0;
             }
             uint normal = definition.NativeGraphics?.Rules.SummonColors?.Normal ?? throw new NotSupportedException("Foreign model presentation requires its selected normal color.");
-            NativeBattleGraphicsModel bound = model with { Flags0 = (ushort)(model.Flags0 | 2), Flags2 = model.Flags2 ?? 0, Transform = transform, Rotation12 = rotationX, Rotation14 = rotationY, Rotation16 = rotationZ, GeometryBounds52 = actor.Geometry?.Anchors.LocalBounds, Color40 = model.Color40 ?? 0x808080, Color44 = model.Color44 ?? (normal & 0xFFFFFFu) | 0x32000000u, HasLinkedModelRing140 = false, LinkedModelIndex140 = null };
+            NativeBattleGraphicsModel bound = model with { Flags0 = (ushort)(model.Flags0 | 2), Flags2 = model.Flags2 ?? 0, Flags8 = actor.NativeModel?.Flags8 ?? actor.StatusFlags, Transform = transform, Rotation12 = rotationX, Rotation14 = rotationY, Rotation16 = rotationZ, GeometryBounds52 = actor.Geometry?.Anchors.LocalBounds, Color40 = model.Color40 ?? 0x808080, Color44 = model.Color44 ?? (normal & 0xFFFFFFu) | 0x32000000u, HasLinkedModelRing140 = false, LinkedModelIndex140 = null };
             models = models.SetItem(actor.Index, bound with { GeometryWorldMatrix = actor.Geometry is { } geometry ? NativeBattleGfMatrices.Compose56C2F0(NativeBattleForeignPlacement.Delta(actor, bound), geometry.World) : null });
         }
         return models;

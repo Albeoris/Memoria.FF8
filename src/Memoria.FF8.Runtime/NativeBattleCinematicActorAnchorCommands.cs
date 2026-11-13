@@ -21,7 +21,7 @@ public static class NativeBattleCinematicActorAnchorCommands
             uint pointer = CoreDword(frame, unchecked(owner + 0x60 + 4u * actor));
             NativeBattleCinematicBonePose pose = services.ReadPose(frame, pointer, true, false);
             frame = pose.Frame;
-            int count = pose.Skeleton[0];
+            int count = pose.BoneCount;
             NativeCrtRandomState random = frame.Random.Draw(out ushort value);
             frame = frame with { Random = random };
             int selected = (int)((uint)unchecked(value * count) >> 15);
@@ -29,7 +29,7 @@ public static class NativeBattleCinematicActorAnchorCommands
             {
                 selected = count - 1;
             }
-            NativeBattleWaterActorAnchorResult result = services.ActorAnchor.EvaluateB66B80(frame, pose.Skeleton, pose.Bones, unchecked((short)selected), 4096, pose.PhysicalBasis ?? throw new NotSupportedException("Native random anchor requires the actor's actual world matrix."));
+            NativeBattleWaterActorAnchorResult result = pose.Evaluate(services.ActorAnchor, frame, unchecked((short)selected), 4096, pose.PhysicalBasis ?? throw new NotSupportedException("Native random anchor requires the actor's actual world matrix."));
             frame = services.PublishInput(result.Frame, result.Frame.TemporaryFrame.Address + 0xC0);
             Store(0, result.Anchor.X);
             Store(1, result.Anchor.Y);
@@ -125,7 +125,7 @@ public static class NativeBattleCinematicActorAnchorCommands
         {
             NativeBattleCinematicBonePose pose = services.ReadPose(frame, actor, restore, linked);
             NativeBattleActionMatrix basis = pose.PhysicalBasis ?? throw new NotSupportedException("Native actor anchor requires the actual caller's physical matrix.");
-            return services.ActorAnchor.EvaluateB66B80(pose.Frame, pose.Skeleton, pose.Bones, selector, 4096, basis);
+            return pose.Evaluate(services.ActorAnchor, pose.Frame, selector, 4096, basis);
         }
 
         void Store(int lane, int value)

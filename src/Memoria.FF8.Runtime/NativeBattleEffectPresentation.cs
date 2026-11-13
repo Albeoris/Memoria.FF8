@@ -13,6 +13,8 @@ public sealed record NativeBattleForeignActor(int Index, NativeBattleModelTransf
     public NativeBattleGraphicsModel? NativeModel { get; init; }
     public NativeBattleGraphicsResource? NativeResource { get; init; }
     public bool CanReact { get; init; }
+    public bool? AtStandingPose { get; init; }
+    public uint? StatusFlags { get; init; }
 }
 
 public sealed record NativeBattleEffectPresentationInputs(BattleDefinition Resources, NativeBattleGraphicsModel Source, NativeBattleGraphicsResource SourceResource, NativeBattleActionPacketsState Packets, NativeBattleEffectParameters Parameters, ushort Effect, NativeBattleEffectTextureState Textures, NativeCrtRandomState Random, NativeBattleCameraProjection Projection, ImmutableArray<NativeBattleForeignActor> ForeignActors)
@@ -62,7 +64,7 @@ public sealed class NativeBattleEffectPresentation
     public int ReadSourceVariable(NativeBattleGraphicsModel source, byte variable) => owner.ReadEffectPresentationSourceVariable(source, variable);
     public void WriteSourceVariable(byte variable, int value) => owner.WriteEffectPresentationSourceVariable(variable, value);
     public NativeBattleGraphicsModel WriteSourceTargetVariable(NativeBattleGraphicsModel source, byte variable, int value) => owner.WriteEffectPresentationSourceTargetVariable(source, variable, value);
-    public byte NextGlobalRandom() => owner.NextEffectPresentationGlobalRandom();
+    public ushort NextGlobalRandom() => owner.NextEffectPresentationGlobalRandom();
 
     public NativeBattleEffectPresentationStep Advance(NativeBattleGraphicsModel source, NativeCrtRandomState random, NativeBattleCameraProjection projection, ImmutableArray<NativeBattleForeignActor> foreignActors, NativeBattleEffectTextureState textures)
     {

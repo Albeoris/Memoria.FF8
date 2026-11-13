@@ -8,6 +8,26 @@ public sealed partial class BattleSession
     private (NativeBattleGraphicsState Graphics, NativeBattleEffectMemory Memory, NativeBattlePandemona291Bounds Bounds) CaptureNativePandemona291Bounds(NativeBattleGraphicsState graphics, NativeBattleEffectMemory memory, int actorIndex)
     {
         NativeBattleGraphicsModel actor = graphics.Models[actorIndex];
+        if (ReadNativeForeignModel(graphics, actorIndex) is { } foreign)
+        {
+            NativeBattleCameraProjection hostProjection = NativeCamera?.Projection ?? throw new NotSupportedException("Native actor bounds require their live projection registers.");
+            NativeBattleScriptedGraphicsMemory hostControls = memory.ScriptedGraphics ?? throw new NotSupportedException("Native actor bounds require their live depth-cue controls.");
+            NativeBattleScriptedColorRegisters hostRegisters = memory.ScriptedColorRegisters ?? throw new NotSupportedException("Native actor bounds require their canonical packed V0 owner.");
+            NativeBattleActionMatrix groundBasis = foreign.World with { Y = 0 };
+            var captured = NativeBattleForeignModelDrawing.VerticalBounds(foreign, point =>
+            {
+                byte[] input = hostRegisters.NormalInput?.ToArray() ?? new byte[8];
+                bool[] known = hostRegisters.NormalInputKnown?.ToArray() ?? Enumerable.Repeat(hostRegisters.NormalInput is not null, 8).ToArray();
+                BinaryPrimitives.WriteInt16LittleEndian(input, point.X);
+                BinaryPrimitives.WriteInt16LittleEndian(input.AsSpan(2), point.Y);
+                BinaryPrimitives.WriteInt16LittleEndian(input.AsSpan(4), point.Z);
+                Array.Fill(known, true, 0, 6);
+                NativeBattleModuleDepthCueVertex projected = NativeBattleModuleProjection.ProjectWithCue45FAA0(groundBasis, point, hostProjection, hostControls.Dqa, hostControls.Dqb);
+                hostRegisters = hostRegisters with { NormalInput = input.ToImmutableArray(), NormalInputKnown = known.ToImmutableArray(), Mac = [null, null, null], Ir = [null, projected.Ir2, null], Flags = projected.Projected.Flags };
+                return projected.Ir2;
+            });
+            return (graphics, memory with { ScriptedColorRegisters = hostRegisters }, new(captured.Maximum, captured.Minimum));
+        }
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actorIndex);
         NativeBattlePoseSource pose = resource.PoseSource ?? throw new NotSupportedException("Native Pandemona requires its actual actor pose source.");
         NativeBattleActionMatrix world = actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native Pandemona bounds require the current actor world matrix.");

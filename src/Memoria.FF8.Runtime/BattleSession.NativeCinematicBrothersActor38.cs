@@ -40,6 +40,21 @@ public sealed partial class BattleSession
             graphics = graphics with { Models = graphics.Models.SetItem(index, graphics.Models[index] with { Flags0 = (ushort)(graphics.Models[index].Flags0 | 0x20) }) };
             NativeBattleCinematicBonePose pose = Restore(current, address);
             current = pose.Frame;
+            if (pose.Pose is { } foreignPose)
+            {
+                if (foreignPose.Endpoints.IsDefaultOrEmpty)
+                {
+                    throw new NotSupportedException("The host actor cannot supply its posed segment endpoints.");
+                }
+                NativeBattleFullMacVertex root = NativeBattleGfMatrices.TransformMac460840(basis, foreignPose.Endpoints[0]);
+                return NativeBattleCinematicBrothersModel3.DrawPreparedRing(current, foreignPose.Endpoints.Length, root.X, root.Z, null, null, position, -1, 0, 0, NativeBattleCameraMath.Cosine(512), _ => graphics.Models[index].Color44 ?? throw new NotSupportedException("Native actor fan requires its current packed color."), ringServices, !scaledActor, (active, endpoint) =>
+                {
+                    NativeBattleVector point = foreignPose.Endpoints[endpoint];
+                    active = active.WriteTemporaryWord(0xD0, unchecked((ushort)point.X)).WriteTemporaryWord(0xD2, unchecked((ushort)point.Y)).WriteTemporaryWord(0xD4, unchecked((ushort)point.Z));
+                    active = ringServices.PublishInput(active, active.TemporaryFrame.Address + 0xD0);
+                    return (active, NativeBattleGfMatrices.TransformMac460840(basis, point));
+                });
+            }
             graphics = graphics with { Models = graphics.Models.SetItem(index, NativeBattleBodyBoneMatrices.Compose5095B0(graphics.Models[index], basis)) };
             ImmutableArray<NativeBattleActionMatrix> bones = graphics.Models[index].CurrentBodyBoneMatrices!.Matrices;
             NativeBattleCinematicBrothersModelServices selectedRingServices = ringServices;
@@ -69,6 +84,12 @@ public sealed partial class BattleSession
         NativeBattleCinematicBonePose Restore(NativeBattleWaterExecutionFrame current, uint address)
         {
             int index = ActorIndex(address);
+            if (presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true)
+            {
+                NativeBattleGraphicsModel model = graphics.Models[index];
+                NativeBattlePosedActor pose = foreign.Pose ?? throw new NotSupportedException("The host actor cannot supply its current posed anchors.");
+                return new(current, [], [], NativeBattleGfMatrices.Compose56C2F0(NativeBattleForeignPlacement.Delta(foreign, model), pose.World)) { Pose = pose };
+            }
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Brothers actor positioning requires its current physical rig source.");
             NativeBattleGraphicsModel actor = NativeBattleBodyBoneMatrices.Publish508C90(graphics.Models[index], source);
             graphics = graphics with { Models = graphics.Models.SetItem(index, actor) };

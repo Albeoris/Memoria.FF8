@@ -16,7 +16,11 @@ public sealed partial class BattleSession
         NativeBattleMicroMissiles299Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Micro Missiles requires its CRT stream."), memory.MicroMissiles299 ?? throw new NotSupportedException("Micro Missiles requires its retained native globals.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Micro Missiles requires its addressed file and temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Micro Missiles requires its original interpolation constants.");
         NativeBattleMicroMissiles299Inputs inputs = new(nativeActionPackets, actor => graphics.Models[actor], actor => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Micro Missiles requires its current actor skeleton."), _ => Camera().CapturePackedView1D97778(), Anchor, Execute, (current, source, context, node) => NativeBattleMicroMissiles299Drawing.EmitNode(current, source, context, node, Camera().Projection ?? throw new NotSupportedException("Micro Missiles requires its published projection."), colors, Deliver), colors);
-        inputs = inputs with { EmitNodePresentation = (current, source, context, node, identity) => NativeBattleMicroMissiles299Drawing.EmitNode(current, source, context, node, Camera().Projection ?? throw new NotSupportedException("Micro Missiles requires its published projection."), colors, Deliver, pilotIdentity: identity) };
+        inputs = inputs with
+        {
+            EmitNodePresentation = (current, source, context, node, identity) => NativeBattleMicroMissiles299Drawing.EmitNode(current, source, context, node, Camera().Projection ?? throw new NotSupportedException("Micro Missiles requires its published projection."), colors, Deliver, pilotIdentity: identity),
+            ReadHostPose = actor => presentationForeignActors?.TryGetValue(actor, out NativeBattleForeignActor? foreign) == true && foreign.NativeResource is null ? ReadNativeForeignPose(graphics, actor) : null
+        };
         frame = initialize ? NativeBattleMicroMissiles299Controller.Initialize(frame, resources, inputs) : NativeBattleMicroMissiles299Controller.Advance(frame, resources, inputs);
         if (!initialize && frame.Effect.ReturnedDescriptor == 0)
         {
@@ -60,11 +64,10 @@ public sealed partial class BattleSession
             NativeBattleGraphicsModel model = graphics.Models[actor];
             if ((model.Flags0 & 2) != 0)
             {
-                NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Micro Missiles requires its current actor skeleton.");
                 foreach (byte selector in new byte[] { 0xF0, 0xF1 })
                 {
                     NativeFileStaging = current.Staging;
-                    current = current with { Memory = ObserveNativeBoneAnchor(current.Memory, NativeBattlePoseMatrices.ResolveBoneAnchor502170(model, source, selector, 0)), Staging = NativeFileStaging };
+                    current = current with { Memory = ObserveNativeGraphicsBoneAnchor(current.Memory, graphics, actor, selector, 0).Memory, Staging = NativeFileStaging };
                 }
             }
             NativeBattleModuleAnchor anchor = ReadNativeModelAnchor(graphics, actor);

@@ -18,7 +18,7 @@ public sealed partial class BattleSession
         return NativeGraphics.Models[0];
     }
 
-    internal byte NextEffectPresentationGlobalRandom() => NextNativeGlobalRandom();
+    internal ushort NextEffectPresentationGlobalRandom() => NextNativeGlobalRandom();
 
     private void InitializeEffectPresentationServices(NativeBattleEffectParameters parameters)
     {

@@ -31,8 +31,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Native Pandemona completion requires its actual target resource pointer.");
             }
-            ushort flags = graphics.Models[checked((int)(relative / 156))].ResourceFlags44 ?? throw new NotSupportedException("Native Pandemona completion requires its target resource flags.");
-            if ((flags & 0x40) == 0)
+            if (!NativeGraphicsActorAtStandingPose(graphics, checked((int)(relative / 156))))
             {
                 return true;
             }

@@ -22,6 +22,11 @@ public sealed class CrossoverParticipantResourceHostTests(ITestOutputHelper outp
     [InlineData("No Mercy", (byte)6, (byte)4)]
     public void Original_participant_resources_survive_full_host_queue_and_next_ordinary_action(string name, byte character, byte crisis)
     {
+        Run(name, character, crisis);
+    }
+
+    internal void Run(string name, byte character, byte crisis, CrossoverArenaSurfaceCapture? arenaCapture = null, Action<Ff7BattleRenderer, Ff7BattleSession, CrossoverGuestHostActions>? observe = null)
+    {
         string? ff8 = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         string? ff7 = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(ff8) && !string.IsNullOrWhiteSpace(ff7), "Select both original game installations.");
@@ -80,16 +85,24 @@ public sealed class CrossoverParticipantResourceHostTests(ITestOutputHelper outp
         Ff7BattleRenderer renderer = new(archive, formation.LocationId);
         MethodInfo actorVisual = typeof(Ff7Scene).GetMethod("BattleActorVisual", BindingFlags.Static | BindingFlags.NonPublic)!;
         provider.BindForeignGeometry(slot => renderer.CaptureActorGeometry((Ff7BattleActorVisual)actorVisual.Invoke(null, [host, host.Actors.Single(actor => actor.Actor.Slot == slot)])!));
-        provider.BindArena(renderer.CaptureArenaGeometry);
+        provider.BindArena(renderer.CaptureArenaGeometry, arenaCapture is null ? null : arenaCapture.Resolve);
         host.BindGuestAttack(provider);
         for (int tick = 0; tick < 1000 && host.ReadyPlayer != 0; tick++)
         {
             host.Advance(waitForCommand: true);
         }
         Assert.Equal(0, host.ReadyPlayer);
+        Assert.Equal(true, ReadHostCapabilities().AtStandingPose);
+        host.PresentGuestReaction(0, 4);
+        Assert.Equal(false, ReadHostCapabilities().AtStandingPose);
+        for (int tick = 0; tick < 512 && !host.IsGuestTargetStanding(4); tick++)
+        {
+            host.Advance(waitForCommand: true);
+        }
+        Assert.Equal(true, ReadHostCapabilities().AtStandingPose);
         typeof(CrossoverGuestHostActions).GetField("limitSelection", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(provider, new CrossoverNativeRenzokukenSelection(NativeBattleRandomState.Initialize(0), host.Tick, crisis));
         Ff7BattleCommandOption option = Assert.Single(host.Commands(0), option => option.Command == Ff7BattleCommand.Magic && option.Argument == ability.Key);
-        Assert.Null(option.UnsupportedReason);
+        Assert.True(option.UnsupportedReason is null, option.UnsupportedReason);
         int selected = name == "Mighty Guard" ? 0 : 4;
         ushort side = selected < 3 ? (ushort)7 : (ushort)0x3F0;
         ushort targets = option.SelectSingle && option.GroupUses == 0 ? (ushort)(1 << selected) : (ushort)((option.CandidateTargets ?? option.ValidTargets) & (option.AllTargets ? 0x3F7 : side));
@@ -102,11 +115,13 @@ public sealed class CrossoverParticipantResourceHostTests(ITestOutputHelper outp
         bool began = false;
         int contacts = 0;
         int visuals = 0;
+        bool capturedArena = false;
         NativeBattleGraphicsModel? restored = null;
         for (int tick = 0; tick < 10000; tick++)
         {
             host.Advance(waitForCommand: true);
-            Assert.Null(host.GuestAbilityFailure);
+            Assert.True(host.GuestAbilityFailure is null, host.GuestAbilityFailure?.Reason);
+            observe?.Invoke(renderer, host, provider);
             began |= provider.Invocation is not null;
             if (provider.ActiveAbility is { } active)
             {
@@ -115,6 +130,19 @@ public sealed class CrossoverParticipantResourceHostTests(ITestOutputHelper outp
                 restored = active.Presentation.Cast.Model;
                 Assert.Null(active.StockAction);
                 Assert.Null(active.ItemCost);
+                if (name == "Ultra Waves" && active.Presentation.Ordering is { } ordering)
+                {
+                    foreach (NativeBattleArenaCaptureMaterial capture in ordering.Packets.Select(packet => packet.PilotGeometry?.ForeignSurface?.Material).OfType<NativeBattleArenaCaptureMaterial>())
+                    {
+                        capture.Validate();
+                        Assert.Same(active.Presentation.Arena!.Geometry, capture.Geometry);
+                        Assert.Equal(384, capture.NativeX);
+                        Assert.Equal(256, capture.NativeY);
+                        Assert.Equal(320, capture.Width);
+                        Assert.Equal(216, capture.Height);
+                        capturedArena = true;
+                    }
+                }
             }
             if (began && provider.Invocation is null && host.Action is null)
             {
@@ -127,6 +155,10 @@ public sealed class CrossoverParticipantResourceHostTests(ITestOutputHelper outp
         Assert.Null(host.Action);
         Assert.Equal(BitOperations.PopCount(targets), contacts);
         Assert.True(visuals > 0);
+        if (name == "Ultra Waves")
+        {
+            Assert.True(capturedArena, "The native warp grid must sample the original host arena surface image.");
+        }
         Assert.NotNull(restored);
         Assert.Equal((byte)1, restored.Sequence);
         Assert.Null(restored.ResourceMagicId);
@@ -143,7 +175,7 @@ public sealed class CrossoverParticipantResourceHostTests(ITestOutputHelper outp
 
         for (int tick = 0; tick < 10000 && host.ReadyPlayer != 0; tick++)
         {
-            host.Advance(waitForCommand: true);
+            host.Advance();
         }
         Assert.Equal(0, host.ReadyPlayer);
         Assert.True(host.Submit(0, Ff7BattleCommand.Magic, fire.ActionId, (ushort)(1 << 4)));
@@ -151,7 +183,7 @@ public sealed class CrossoverParticipantResourceHostTests(ITestOutputHelper outp
         for (int tick = 0; tick < 4000; tick++)
         {
             host.Advance(waitForCommand: true);
-            Assert.Null(host.GuestAbilityFailure);
+            Assert.True(host.GuestAbilityFailure is null, host.GuestAbilityFailure?.Reason);
             nextBegan |= provider.Invocation is not null;
             if (nextBegan && provider.Invocation is null && host.Action is null)
             {
@@ -166,5 +198,11 @@ public sealed class CrossoverParticipantResourceHostTests(ITestOutputHelper outp
         output.WriteLine($"{name} Crisis{crisis}: mask {targets:X}, {contacts} contacts, {visuals} visual callbacks, no source debit, original source restored and following Fire completed.");
 
         Ff7BattleSession Create(Ff7BattleSnapshot? saved = null) => new(formation, progress, kernel, executable.NativeMateriaStatModifiers, 1, requestFlags: 4, snapshot: saved, animations: animations);
+        NativeBattleForeignActor ReadHostCapabilities()
+        {
+            Ff7BattleActorState actor = host.Actors.Single(actor => actor.Actor.Slot == 4);
+            Ff7BattleActorGeometry geometry = renderer.CaptureActorGeometry((Ff7BattleActorVisual)actorVisual.Invoke(null, [host, actor])!);
+            return CrossoverNativeForeignTarget.Read(host, 4, geometry, Matrix4x4.Identity, game.ReadNativeBattleGraphicsRules()).ToActor(3);
+        }
     }
 }

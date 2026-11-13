@@ -6,6 +6,20 @@ public sealed record NativeBattleEffectActorGeometry(NativeBattleVector Anchor24
 /// <summary>The shared8DC610/8DC740 anchors and8DC870 local posed-skeleton bounds.</summary>
 public static class NativeBattleEffectModelHelpers
 {
+    public static NativeBattleVector? ReadSemanticAnchor(NativeBattleEffectActorGeometry? geometry, byte selector)
+    {
+        if (geometry is null)
+        {
+            return null;
+        }
+        return selector switch
+        {
+            240 => geometry.Anchor240,
+            241 => geometry.Anchor241,
+            _ => throw new NotSupportedException("The host actor cannot supply the selected semantic model anchor.")
+        };
+    }
+
     public static NativeBattleModulePoolTask UpdateTargetWithBounds8DC610(NativeBattleModulePoolTask task, IReadOnlyList<NativeBattleGraphicsModel> models, Func<int, NativeBattlePoseSource> readSource, Func<int, NativeBattleEffectActorGeometry?>? readForeign = null)
     {
         int target = task.ReadByte(0x2D);

@@ -18,6 +18,15 @@ public sealed class NativeBattleBrothersTargetCommandTests
         Assert.Equal(0x1004u, Pc(result));
     }
 
+    [Fact]
+    public void Foreign_encounter_does_not_apply_original_formation_specific_target_correction()
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(0xD5);
+        frame = frame with { TemporaryFrame = frame.TemporaryFrame.MarkUnknown(0x14A, 2), Core = frame.Core.MarkUnknown(0x279744C, 4), Arena = frame.Arena.MarkUnknown(0x1000, 4) };
+        NativeBattleWaterExecutionFrame result = NativeBattleBrothersTargetCommand.Execute(frame, Program, Services(94) with { Encounter = null });
+        Assert.Equal(0x1004u, Pc(result));
+    }
+
     [Theory]
     [InlineData(0x20D5)]
     [InlineData(0xF0D5)]

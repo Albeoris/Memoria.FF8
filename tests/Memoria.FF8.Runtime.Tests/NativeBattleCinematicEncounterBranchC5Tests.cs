@@ -36,4 +36,13 @@ public sealed class NativeBattleCinematicEncounterBranchC5Tests
         NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.CoreDword(WaterSchedulerFixture.Create(), 0x2797450, 0x1000);
         return frame with { Arena = frame.Arena.Write(0x1002, BitConverter.GetBytes(operand)).Write(0x1004, BitConverter.GetBytes(displacement)) };
     }
+
+    [Fact]
+    public void Foreign_encounter_identity_cannot_equal_an_original_resource_identifier()
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(0, 12);
+        frame = frame with { Arena = frame.Arena.MarkUnknown(0x1004, 2) };
+        NativeBattleWaterExecutionFrame result = NativeBattleCinematicEncounterBranchC5.Execute(frame, new(0x1000, 6, 0x1000), null);
+        Assert.Equal(0x1006u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
+    }
 }

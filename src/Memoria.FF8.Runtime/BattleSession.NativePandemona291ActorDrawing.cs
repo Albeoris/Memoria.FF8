@@ -12,6 +12,19 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Pandemona target draw requires its current view.");
         graphics = SubmitNativeShadowPackets5088A0(graphics, actor, projection, 0x1010, false);
         frame = frame with { Memory = NativeEffectMemory! };
+        if (ReadNativeForeignModel(graphics, index) is { } foreign)
+        {
+            NativeBattleActionMatrix hostBasis = NativeBattlePandemona291ActorDrawing.Prepare68D1D0(foreign.World, view, angles, pivot, scale);
+            uint hostColor = actor.Color40 ?? throw new NotSupportedException("Native actor drawing requires its current packed color.");
+            NativeBattleSummonColors hostColors = definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Native actor drawing requires its original color arithmetic.");
+            if (Enter(hostColor))
+            {
+                NativeBattlePilotVisualIdentity identity = NativePilotSceneIdentity(0x502D40, index) ?? throw new NotSupportedException("Native actor drawing requires its current visual occurrence.");
+                ImmutableArray<NativeBattleGeometryPrimitive> primitives = NativeBattleForeignModelDrawing.Draw(foreign, hostBasis, projection, hostColor, hostColors, identity);
+                graphics = AppendNativeModelRendererPackets(graphics, primitives, !primitives.IsEmpty);
+            }
+            return (frame with { Memory = NativeEffectMemory! }, graphics);
+        }
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native Pandemona target draw requires its current body rig.");
         NativeBattleActionMatrix world = actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native Pandemona target draw requires its actual world matrix.");

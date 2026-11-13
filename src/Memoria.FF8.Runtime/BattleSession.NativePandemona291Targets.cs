@@ -135,7 +135,7 @@ public sealed partial class BattleSession
                     NativeBattleGraphicsModel model = graphics.Models[actor];
                     NativeBattleModelTransform transform = RequireTransform(model);
                     Store(row + 0x16, Word(row + 0x16) + ((index & 1) != 0 ? 256 : -256));
-                    int multiplier = (model.ModelId4 ?? throw new NotSupportedException("Native Pandemona restoration requires its current model ID.")) == 142 ? 480 : 350;
+                    int multiplier = NativeGraphicsModelIs(graphics, actor, 142) ? 480 : 350;
                     short y = unchecked((short)(unchecked(-elapsed * multiplier) - (index << 11)));
                     short doubled = unchecked((short)(y << 1));
                     short radial = unchecked((short)(BinaryPrimitives.ReadInt16LittleEndian(trigonometry.AsSpan().Slice((doubled & 0xFFE) * 2, 2)) >> 2));

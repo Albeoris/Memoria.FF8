@@ -10,7 +10,6 @@ namespace Memoria.FF8.App.Tests;
 public sealed class CrossoverNativeGuardianInvocationTests(ITestOutputHelper output)
 {
     [Theory]
-    [InlineData("Quezacotl", (ushort)64)]
     [InlineData("Shiva", (ushort)65)]
     [InlineData("Ifrit", (ushort)66)]
     [InlineData("Siren", (ushort)67)]
@@ -26,13 +25,13 @@ public sealed class CrossoverNativeGuardianInvocationTests(ITestOutputHelper out
     {
         string? hostRoot = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(hostRoot), "Select the original host game installation.");
-        (CrossoverNativeForeignTarget foreign, NativeBattleCameraProjection camera, NativeBattleArenaHost arena) = ReadHostTarget(hostRoot!);
         using GameAssets game = new(TestResources.GameDirectory);
+        (CrossoverNativeForeignTarget foreign, NativeBattleCameraProjection camera, NativeBattleArenaHost arena) = ReadHostTarget(hostRoot!, game.ReadNativeBattleGraphicsRules());
         using BattleAssets battle = new(TestResources.GameDirectory);
         NativeBattleGraphicsResource resource = battle.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = 0, WeaponId = 0 });
         NativeBattleGraphicsModel source = ReadSource(resource);
         BattleNativeAction action = Assert.Single(battle.NativeActions, action => action.Command == 254 && action.ActionId == ability);
-        CrossoverNativeMagicPresentation presentation = new(game, resource, battle, 300);
+        CrossoverNativeMagicPresentation presentation = new(game, resource, battle);
         CrossoverNativeMagicPresentationState state = presentation.Begin(source, 4, NativeCrtRandomState.FromColdProcess(), new(3, 4, 0, 0, 0, 83, 0), action, new(0), arena);
         Assert.True(state.Cast.GuardianInvocation);
         Assert.Equal((byte)14, state.Cast.Model.Sequence);
@@ -77,6 +76,57 @@ public sealed class CrossoverNativeGuardianInvocationTests(ITestOutputHelper out
     }
 
     [Fact]
+    public void Source_animation_return_does_not_complete_an_action_before_its_effect_returns()
+    {
+        using BattleAssets battle = new(TestResources.GameDirectory);
+        NativeBattleGraphicsResource resource = battle.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = 0, WeaponId = 0 });
+        CrossoverNativeCastState state = new(NativeBattleGraphicsModels.SelectSequence(ReadSource(resource), 5), 6, false);
+        bool returned = false;
+        for (int callback = 0; callback < 256 && !returned; callback++)
+        {
+            var step = CrossoverNativeCastPresentation.AdvanceModel(state, resource, new(0, 0));
+            state = step.State;
+            returned = step.Cues.Any(cue => cue.Kind == NativeBattleSequenceCueKind.RestoreStanding);
+        }
+        Assert.True(returned);
+        Assert.False(state.ReturnedToStanding);
+        Assert.False(state.Complete);
+        Assert.Equal((byte)6, CrossoverNativeCastPresentation.Poll(state, false, false).State.Phase);
+        state = CrossoverNativeCastPresentation.Poll(state, false, true).State;
+        state = CrossoverNativeCastPresentation.Poll(state, false, true).State;
+        for (int callback = 0; callback < 256 && !state.Complete; callback++)
+        {
+            state = CrossoverNativeCastPresentation.AdvanceModel(state, resource, new(0, 0)).State;
+        }
+        Assert.True(state.Complete);
+        Assert.Equal((byte)1, state.Model.Sequence);
+    }
+
+    [Fact]
+    public void A_missing_native_execution_stack_rejects_preflight_without_changing_source_or_publishing_contacts()
+    {
+        string? hostRoot = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(hostRoot), "Select the original host game installation.");
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets battle = new(TestResources.GameDirectory);
+        (CrossoverNativeForeignTarget foreign, NativeBattleCameraProjection camera, NativeBattleArenaHost arena) = ReadHostTarget(hostRoot!, game.ReadNativeBattleGraphicsRules());
+        NativeBattleGraphicsResource resource = battle.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = 0, WeaponId = 0 });
+        BattleNativeAction action = Assert.Single(battle.NativeActions, action => action.Command == 254 && action.ActionId == 64);
+        CrossoverNativeMagicPresentation presentation = new(game, resource, battle);
+        CrossoverNativeMagicPresentationState state = presentation.Begin(ReadSource(resource), 4, NativeCrtRandomState.FromColdProcess(), new(3, 4, 0, 0, 0, 83, 0), action, new(0), arena);
+        NativeBattleGraphicsModel before = state.Cast.Model;
+        NativeCrtRandomState random = state.Random;
+        Assert.False(presentation.TryPreflight(state, () => foreign.ToActor(3).Anchor, () => foreign.Transform, camera, () => foreign, out string? reason));
+        Assert.Contains("prior direction scratch", reason);
+        Assert.Equal(before, state.Cast.Model);
+        Assert.Equal(random, state.Random);
+        Assert.Null(state.Effect);
+        Assert.Equal(0, state.PublishedContacts);
+        Assert.Equal((byte)3, state.Cast.Phase);
+        output.WriteLine($"{action.Name}: capability rejected without source mutation: {reason}");
+    }
+
+    [Fact]
     public void Guardian_entry_waits_for_disappearance_and_restores_through_sequence_twenty()
     {
         NativeBattleGraphicsModel model = new(0, 2) { ModelId4 = 0, ResourceFlags44 = 0x20, Flags2 = 0, Flags8 = 0, SequenceState = new() };
@@ -112,7 +162,7 @@ public sealed class CrossoverNativeGuardianInvocationTests(ITestOutputHelper out
         return source with { Flags2 = (ushort)(source.Flags2!.Value & ~4), GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(source, resource.PoseSource!) };
     }
 
-    private static (CrossoverNativeForeignTarget Foreign, NativeBattleCameraProjection Camera, NativeBattleArenaHost Arena) ReadHostTarget(string directory)
+    internal static (CrossoverNativeForeignTarget Foreign, NativeBattleCameraProjection Camera, NativeBattleArenaHost Arena) ReadHostTarget(string directory, NativeBattleGraphicsRules graphicsRules, CrossoverGunbladeHostPlacement? sourcePlacement = null)
     {
         Ff7Installation installation = Ff7Installation.Discover(directory);
         using Ff7Session original = Ff7Session.NewGame(installation);
@@ -128,8 +178,8 @@ public sealed class CrossoverNativeGuardianInvocationTests(ITestOutputHelper out
         (int clip, int frame) = host.RenderActorPose(4);
         Ff7BattleActorVisual visual = new(Ff7BattleAnimationResources.ModelPrefix(selected.Identity, true), hostPlacement.Position, hostPlacement.Yaw * MathF.Tau / 4096, clip, frame, selected.Identity == 16 ? 0 : null, host.RenderActorLimit(4)) { ModelModifiers = host.ActorModelOutput(4) };
         Ff7BattleActorGeometry geometry = renderer.CaptureActorGeometry(visual);
-        CrossoverGunbladeHostPlacement placement = new(Ff7BattlePosition.FromVector(host.RenderActorPlacement(0).Position), host.RenderActorPlacement(0).Yaw);
-        CrossoverNativeForeignTarget foreign = CrossoverNativeForeignTarget.Read(host, 4, geometry, placement.Matrix);
+        CrossoverGunbladeHostPlacement placement = sourcePlacement ?? new(Ff7BattlePosition.FromVector(host.RenderActorPlacement(0).Position), host.RenderActorPlacement(0).Yaw);
+        CrossoverNativeForeignTarget foreign = CrossoverNativeForeignTarget.Read(host, 4, geometry, placement.Matrix, graphicsRules);
         return (foreign, CrossoverNativeSpriteRenderer.Camera(host.RenderCameraOutput, placement.Matrix), new(CrossoverNativeArena.Read(renderer.CaptureArenaGeometry(), placement.Matrix)));
     }
 }

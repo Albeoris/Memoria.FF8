@@ -24,7 +24,7 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Mighty Guard requires its published projection.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Mighty Guard requires its actual view matrix.");
         Func<int, NativeBattleGraphicsModel> readModel = index => graphics.Models[index];
-        NativeBattleMightyGuardInputs inputs = new(nativeActionPackets, view, readModel, PoseSource, Execute, AdvanceNodes) { PackedCamera = camera.CapturePackedView1D97778(), CopiedCameraPadding = camera.CanonicalViewPadding };
+        NativeBattleMightyGuardInputs inputs = new(nativeActionPackets, view, readModel, PoseSource, Execute, AdvanceNodes) { PackedCamera = camera.CapturePackedView1D97778(), CopiedCameraPadding = camera.CanonicalViewPadding, ReadForeignTarget = actor => ReadNativeForeignTarget(graphics, actor) };
         frame = NativeBattleMightyGuardController.Advance(frame, resources, inputs);
         Publish(frame);
         return graphics with { OriginalEffect = frame.Effect };

@@ -68,7 +68,10 @@ public sealed partial class BattleSession
                         var drawn = DrawNativeDiablosRecipient657CB0(active, actor, scale, graphics);
                         graphics = drawn.Graphics;
                         return drawn.Frame;
-                    });
+                    })
+                    {
+                        ReadForeignBounds = actor => ReadNativeForeignModel(graphics, actor) is { } foreign ? NativeBattleForeignModelDrawing.VerticalBounds(foreign, point => NativeBattleGfMatrices.Transform460840(foreign.World, point).Y) : null
+                    };
                     NativeBattleDiablos325ProgrammeStep advanced = NativeBattleDiablos325Recipients.Advance654E7E(current, task, nativeActionPackets, services);
                     NativeBattleDiablos325BodyDraw ground = NativeBattleDiablos325Ground.Draw659730(advanced.Frame, task.ReadWord(0xC), NativeCamera?.Projection ?? throw new NotSupportedException("Native Diablos sink requires its current projection."), definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Native Diablos sink requires its original interpolation constants."));
                     return new(SubmitCommon(advanced.Frame, ground), advanced.Task);

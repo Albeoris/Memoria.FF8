@@ -12,6 +12,9 @@ internal sealed record CrossoverNativeForeignTarget(int HostSlot, NativeBattleMo
     public short Facing { get; init; }
     public NativeBattleGraphicsModel? NativeModel { get; init; }
     public NativeBattleGraphicsResource? NativeResource { get; init; }
+    public bool CanReact { get; init; }
+    public bool? AtStandingPose { get; init; }
+    public uint? NativeStatusFlags { get; init; }
 
     public NativeBattleForeignActor ToActor(int index)
     {
@@ -40,9 +43,12 @@ internal sealed record CrossoverNativeForeignTarget(int HostSlot, NativeBattleMo
             Facing = Facing,
             NativeModel = NativeModel,
             NativeResource = NativeResource,
+            CanReact = CanReact,
+            AtStandingPose = AtStandingPose,
+            StatusFlags = NativeStatusFlags,
             BoneCount = Geometry.Bones.Length,
             Geometry = new(World, Anchors, faces),
-            Pose = new(poseWorld, Geometry.Bones.SelectMany(bone => new[] { bone.Start, bone.End }).Select(point => NativeBattleGfMatrices.Transform460840(inversePose, Word(Vector3.Transform(point, HostToOrigin)))).ToImmutableArray(), (selector, fraction) => NativeBattleGfMatrices.Transform460840(inversePose, ReadBone(selector, fraction)))
+            Pose = new(poseWorld, Geometry.Bones.SelectMany(bone => new[] { bone.Start, bone.End }).Select(point => NativeBattleGfMatrices.Transform460840(inversePose, Word(Vector3.Transform(point, HostToOrigin)))).ToImmutableArray(), (selector, fraction) => NativeBattleGfMatrices.Transform460840(inversePose, ReadBone(selector, fraction))) { BoneParents = Geometry.BoneParents }
         };
 
         NativeBattleVector ReadBone(byte selector, short fraction)
@@ -80,7 +86,7 @@ internal sealed record CrossoverNativeForeignTarget(int HostSlot, NativeBattleMo
         short Interpolate(short start, short end) => checked((short)(start + ((end - start) * fraction >> 12)));
     }
 
-    public static CrossoverNativeForeignTarget Read(Ff7BattleSession host, int slot, Ff7BattleActorGeometry geometry, Matrix4x4 originToHost)
+    public static CrossoverNativeForeignTarget Read(Ff7BattleSession host, int slot, Ff7BattleActorGeometry geometry, Matrix4x4 originToHost, NativeBattleGraphicsRules? graphicsRules = null)
     {
         if (slot is < 0 or 3 or > 9 || geometry.SkeletonPoints.IsDefaultOrEmpty || geometry.Faces.IsDefaultOrEmpty && geometry.GuestFaces.IsDefaultOrEmpty || !Matrix4x4.Invert(originToHost, out Matrix4x4 inverse))
         {
@@ -94,10 +100,22 @@ internal sealed record CrossoverNativeForeignTarget(int HostSlot, NativeBattleMo
         NativeBattleActionMatrix world = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], position.X, position.Y, position.Z, 4096);
         float yaw = host.RenderActorPlacement(slot).Yaw * MathF.Tau / 4096;
         Vector3 facing = Vector3.TransformNormal(new(MathF.Sin(yaw), 0, MathF.Cos(yaw)), inverse);
-        return new(slot, new(position, position, 0, position.Y, 4096), world, new(first, second, position.Y, bounds), geometry, inverse) { Facing = unchecked((short)NativePrecision53.RoundInteger(Math.Atan2(facing.X, facing.Z) * 4096 / (2 * Math.PI))) };
+        uint? statusFlags = null;
+        if (graphicsRules is not null)
+        {
+            uint hostStatuses = host.Actors.Single(actor => actor.Actor.Slot == slot).Actor.Statuses;
+            bool native = host.GuestVitalsBindings.Any(binding => binding.HostSlot == slot);
+            statusFlags = native ? graphicsRules.Project(host.GetGuestOriginSavedStatuses(slot), host.GetGuestOriginBattleStatuses(slot)) : ProjectHostStatusFlags(hostStatuses, graphicsRules);
+        }
+        return new(slot, new(position, position, 0, position.Y, 4096), world, new(first, second, position.Y, bounds), geometry, inverse) { Facing = unchecked((short)NativePrecision53.RoundInteger(Math.Atan2(facing.X, facing.Z) * 4096 / (2 * Math.PI))), CanReact = host.CanPresentGuestReaction(slot), AtStandingPose = host.IsGuestTargetStanding(slot), NativeStatusFlags = statusFlags };
     }
 
     public NativeBattleVector LocalVertex(Vector3 point) => Local(point, HostToOrigin, Transform.Position28);
+
+    internal static uint ProjectHostStatusFlags(uint statuses, NativeBattleGraphicsRules graphicsRules)
+    {
+        return graphicsRules.Project(Ff7GuestBattleStatuses.ToOrigin(statuses), Ff7GuestBattleStatuses.ToOriginBattle(statuses));
+    }
 
     private static NativeBattleVector Local(Vector3 point, Matrix4x4 inverse, NativeBattleVector position)
     {

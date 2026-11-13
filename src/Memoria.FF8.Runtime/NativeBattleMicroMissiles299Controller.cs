@@ -131,9 +131,17 @@ public static partial class NativeBattleMicroMissiles299Controller
         do
         {
             frame = DrawRandom(frame, out ushort random);
-            NativeBattlePoseSource pose = inputs.ReadPoseSource(target);
-            int selected = random * pose.BoneCount >> 15;
-            bone = NativeBattleMicroMissiles299Bone.Query67E550(frame, inputs.ReadModel(target), pose, selected);
+            if (inputs.ReadHostPose?.Invoke(target) is { } hostPose)
+            {
+                int selected = random * hostPose.RequireJointCount() >> 15;
+                bone = NativeBattleMicroMissiles299Bone.Query67E550(frame, hostPose, selected);
+            }
+            else
+            {
+                NativeBattlePoseSource pose = inputs.ReadPoseSource(target);
+                int selected = random * pose.BoneCount >> 15;
+                bone = NativeBattleMicroMissiles299Bone.Query67E550(frame, inputs.ReadModel(target), pose, selected);
+            }
             frame = bone.Frame;
         }
         while (bone.Result != 0);

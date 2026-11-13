@@ -16,4 +16,5 @@ public sealed record NativeBattleMicroMissiles299Inputs(NativeBattleActionPacket
 {
     [System.Text.Json.Serialization.JsonIgnore]
     public Func<NativeBattleMicroMissiles299Frame, NativeBattleGfAnimationSource, NativeBattleEffectArena, NativeBattleGfAnimationNode, NativeBattlePilotVisualIdentity, NativeBattleMicroMissiles299Frame>? EmitNodePresentation { get; init; }
+    public Func<int, NativeBattlePosedActor?>? ReadHostPose { get; init; }
 }

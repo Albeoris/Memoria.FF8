@@ -2,7 +2,14 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleGraphicsResource NativeActionResource(NativeBattleGraphicsState graphics, int index) => graphics.Models[index].ActiveStagedResourceRow100 is not null || graphics.Models[index].ModelId4 >= 16 && graphics.Models[index].ActiveResourceRow100 is not null ? NativeGraphicsPoseResource(graphics, index) : FindNativeGraphicsBinding(graphics.ActorIds[index] ?? throw new InvalidDataException("Native action model has no physical actor binding."))?.Resource ?? throw new NotSupportedException("Native action camera requires its original model resource.");
+    private NativeBattleGraphicsResource NativeActionResource(NativeBattleGraphicsState graphics, int index)
+    {
+        if (presentationSourceResource is not null && index == 0 || presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true && foreign.NativeResource is not null)
+        {
+            return NativeGraphicsPoseResource(graphics, index);
+        }
+        return graphics.Models[index].ActiveStagedResourceRow100 is not null || graphics.Models[index].ModelId4 >= 16 && graphics.Models[index].ActiveResourceRow100 is not null ? NativeGraphicsPoseResource(graphics, index) : FindNativeGraphicsBinding(graphics.ActorIds[index] ?? throw new InvalidDataException("Native action model has no physical actor binding."))?.Resource ?? throw new NotSupportedException("Native action camera requires its original model resource.");
+    }
 
     private (NativeBattleGraphicsState Graphics, bool Selected) ChooseNativeActionCamera(NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context)
     {

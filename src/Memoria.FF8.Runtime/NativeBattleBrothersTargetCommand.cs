@@ -3,7 +3,7 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleBrothersTargetServices(ushort Encounter, Func<byte> ReadFlag, Action<byte> WriteFlag, Func<NativeBattleWaterExecutionFrame, NativeBattleGraphicsModel> ReadModel3);
+public sealed record NativeBattleBrothersTargetServices(ushort? Encounter, Func<byte> ReadFlag, Action<byte> WriteFlag, Func<NativeBattleWaterExecutionFrame, NativeBattleGraphicsModel> ReadModel3);
 
 public static class NativeBattleBrothersTargetCommand
 {

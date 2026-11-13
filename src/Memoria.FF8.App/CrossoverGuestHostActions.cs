@@ -69,7 +69,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         ValidateItemQueue();
         fire = saved?.Fire;
         NativeBattleGraphicsResource sourceResource = assets.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = kit.CharacterId, WeaponId = kit.Weapon });
-        fireProgram = new(game, sourceResource, assets, host.Formation.FormationId);
+        fireProgram = new(game, sourceResource, assets);
         limitResource = sourceResource;
         limitProgram = new(game, sourceResource, graphicsRules);
         roughDivideProgram = new(game, sourceResource, graphicsRules.SummonColors!);
@@ -396,6 +396,15 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
             }, CrossoverNativeSpriteRenderer.Camera(host.RenderCameraOutput, current.Placement.Matrix), readForeignGeometry is null && encounter.GuestAt(current.Invocation.TargetSlot) is null ? null : () => ReadAbilityForeign(current.Placement, current.Invocation.TargetSlot),
                 readGroupForeign: readForeignGeometry is null && current.Presentation.BoundTargets.Any(target => encounter.GuestAt(target.HostSlot) is null) ? null : slot => ReadAbilityForeign(current.Placement, slot));
             current = current with { Presentation = next.State, ContactPublished = current.ContactPublished || next.Contact };
+            foreach (NativeBattleForeignSequenceRequest sequence in next.Sequences)
+            {
+                int slot = current.Presentation.BoundTargets.Single(target => target.Contact.ActorIndex == sequence.ActorIndex).HostSlot;
+                if (sequence.Kind != NativeBattleForeignSequenceKind.Hit)
+                {
+                    throw new NotSupportedException("The host has no presentation operation for the requested target sequence.");
+                }
+                host.PresentGuestReaction(ActorSlot, slot);
+            }
             encounter.CrtRandom = next.State.Random;
             encounter.GlobalRandom = next.State.GlobalRandom ?? encounter.GlobalRandom;
             LastSounds = next.Sounds;

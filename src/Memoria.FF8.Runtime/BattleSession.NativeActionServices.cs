@@ -75,6 +75,15 @@ public sealed partial class BattleSession
         return graphics with { ModuleEffects = graphics.ModuleEffects.BindCastingSequence(index, presentationSource) };
     }
 
+    private NativeBattleGraphicsState SelectNativeReadyHeaderSequence505CE0(NativeBattleGraphicsState graphics, byte index, int requestedSequence)
+    {
+        if (presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true && foreign.NativeResource is null)
+        {
+            return SelectNativeHeaderSequence(graphics, index, requestedSequence);
+        }
+        return NativeBattleSequenceSelections.CanSelectReady505CE0(graphics.Models[index]) ? SelectNativeHeaderSequence(graphics, index, requestedSequence) : graphics;
+    }
+
     private (NativeBattleGraphicsState Graphics, byte Phase, bool Complete) PollNativeOrdinaryGraphics(NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context, byte phase)
     {
         if (phase == 0)

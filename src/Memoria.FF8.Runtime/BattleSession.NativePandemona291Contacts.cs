@@ -86,7 +86,7 @@ public sealed partial class BattleSession
                 int row = start + 0x14 + index * 32;
                 int actor = Actor(row);
                 NativeBattleGraphicsModel model = graphics.Models[actor];
-                if (arena.Read(row + 0x1C, 1)[0] == 0 || ((model.ResourceFlags44 ?? throw new NotSupportedException("Native Pandemona requires its actual target resource flags.")) & 0x40) != 0 || (model.Flags0 & 2) == 0)
+                if (arena.Read(row + 0x1C, 1)[0] == 0 || NativeGraphicsActorAtStandingPose(graphics, actor) || (model.Flags0 & 2) == 0)
                 {
                     continue;
                 }

@@ -89,4 +89,5 @@ public sealed record NativeBattleMightyGuardInputs(NativeBattleActionPacketsStat
 {
     public NativeBattlePackedMatrix32? PackedCamera { get; init; }
     public ushort? CopiedCameraPadding { get; init; }
+    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeignTarget { get; init; }
 }

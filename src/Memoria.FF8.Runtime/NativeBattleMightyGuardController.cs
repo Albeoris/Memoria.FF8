@@ -156,11 +156,7 @@ public static class NativeBattleMightyGuardController
             NativeBattleModulePoolTask task = state.Read(address);
             if (task.Callback == profile.TargetCallback)
             {
-                task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, Models(), inputs.ReadPoseSource);
-                int actor = task.ReadByte(0x2D);
-                NativeBattlePoseSource source = inputs.ReadPoseSource(actor);
-                NativeBattleSequenceState pose = inputs.ReadModel(actor).SequenceState ?? throw new NotSupportedException("Mighty Guard requires its target's current pose.");
-                task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, source.Sample(pose.Pose ?? throw new NotSupportedException("Mighty Guard's target pose is unknown."), pose.PoseFrame114 ?? throw new NotSupportedException("Mighty Guard's target pose frame is unknown."), pose.PoseFlags109));
+                task = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, Models(), inputs.ReadPoseSource, inputs.ReadForeignTarget);
                 state = state.Write(address, task);
                 switch (Phase(task))
                 {
@@ -204,7 +200,7 @@ public static class NativeBattleMightyGuardController
                         if (unchecked((short)task.ReadWord(0x24)) >= unchecked((short)task.ReadWord(0x298)))
                         {
                             Publish(state);
-                            current = InitializeContext(current, address, resources, inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource);
+                            current = InitializeContext(current, address, resources, inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource, inputs.ReadForeignTarget);
                             state = new(current.Effect.Pools);
                             _ = Context(ref state, address);
                             state = Next(state, address);
@@ -306,7 +302,7 @@ public static class NativeBattleMightyGuardController
         return task.WriteWord(0x60, profile.RootWait).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) + 1)));
     }
 
-    public static NativeBattleMightyGuardFrame InitializeContext(NativeBattleMightyGuardFrame frame, uint address, NativeBattleMightyGuardResources resources, NativeBattleActionPacketsState packets, Func<int, NativeBattleGraphicsModel> readModel, Func<int, NativeBattlePoseSource> readPoseSource)
+    public static NativeBattleMightyGuardFrame InitializeContext(NativeBattleMightyGuardFrame frame, uint address, NativeBattleMightyGuardResources resources, NativeBattleActionPacketsState packets, Func<int, NativeBattleGraphicsModel> readModel, Func<int, NativeBattlePoseSource> readPoseSource, Func<int, NativeBattleEffectActorGeometry?>? readForeignTarget = null)
     {
         using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
         using NativeBattleNodeInitialization<NativeBattleMightyGuardState> initialization = frame.State.PrepareSource(resources);
@@ -316,7 +312,7 @@ public static class NativeBattleMightyGuardController
         {
             throw new InvalidDataException("Mighty Guard's node context belongs to another module.");
         }
-        task = NativeBattleEffectNodeContext.Initialize(task, hierarchy.Read(task.ReadDword(0x10)), frame.Effect.Parameters ?? throw new NotSupportedException("Mighty Guard requires its action context."), packets, readModel, readPoseSource, frame.Profile.SourceAddress, singleSelectedTarget: true);
+        task = NativeBattleEffectNodeContext.Initialize(task, hierarchy.Read(task.ReadDword(0x10)), frame.Effect.Parameters ?? throw new NotSupportedException("Mighty Guard requires its action context."), packets, readModel, readPoseSource, frame.Profile.SourceAddress, singleSelectedTarget: true, readForeignBone: (actor, selector) => NativeBattleEffectModelHelpers.ReadSemanticAnchor(readForeignTarget?.Invoke(actor), selector));
         if (frame.Profile.ScalesToTarget)
         {
             short scale = TargetScale(readModel(task.ReadByte(0x2D)).GeometryBounds52 ?? throw new NotSupportedException("Enemy Mighty Guard requires its target's actual native bounds."));

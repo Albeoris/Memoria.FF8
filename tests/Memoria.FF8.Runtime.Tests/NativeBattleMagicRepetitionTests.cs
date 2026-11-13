@@ -31,6 +31,8 @@ public sealed class NativeBattleMagicRepetitionTests
     [InlineData(2, 0x60u, 1)]
     [InlineData(3, 0x60u, 1)]
     [InlineData(1, 0x60u, 1)]
+    [InlineData(0, 0x60u, 0)]
+    [InlineData(4, 0x60u, 4)]
     public void EconomicalPassivesApplyOnlyToTheirOwnSelectedMode(int casts, uint passives, int expected)
     {
         Assert.Equal(expected, NativeBattleMagicRepetition.Cost(casts, passives, false, false));

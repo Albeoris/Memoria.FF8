@@ -12,7 +12,7 @@ internal sealed partial class CrossoverGuestHostActions
         CrossoverGuestHostActions? guest = encounter.GuestAt(slot);
         CrossoverFf8BattleActorVisual? visual = guest?.Visual;
         Ff7BattleActorGeometry geometry = visual is null ? (readForeignGeometry ?? throw new NotSupportedException("The target has no posed actor geometry provider."))(slot) : CrossoverFf8BattleActorRenderer.CaptureActorGeometry(visual);
-        CrossoverNativeForeignTarget foreign = CrossoverNativeForeignTarget.Read(host, slot, geometry, placement.Matrix);
+        CrossoverNativeForeignTarget foreign = CrossoverNativeForeignTarget.Read(host, slot, geometry, placement.Matrix, graphicsRules);
         if (visual is null)
         {
             return foreign;

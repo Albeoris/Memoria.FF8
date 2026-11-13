@@ -48,6 +48,7 @@ public sealed class CrossoverNativeCastPresentationTests(ITestOutputHelper outpu
         SceneBattleData scene = SceneBattleData.Read(formation);
         Ff7BattleRenderer arena = new(archive, formation.LocationId);
         CrossoverGunbladeHostPlacement placement = new(new(0, 0, 1700), 0);
+        CrossoverNativeForeignTarget target = CrossoverNativeGuardianInvocationTests.ReadHostTarget(hostRoot!, game.ReadNativeBattleGraphicsRules(), placement).Foreign;
         NativeBattleCameraProjection camera = CrossoverNativeSpriteRenderer.Camera(scene.Cameras[0], placement.Matrix);
         CrossoverNativeSpriteRenderer compositor = new(battle.ReadNativePrimitiveTables(), game.ReadNativeEffectMeshes(), game.ReadNativeBattleGraphicsRules().SummonColors!);
         using GpuTestDevice device = new();
@@ -113,7 +114,7 @@ public sealed class CrossoverNativeCastPresentationTests(ITestOutputHelper outpu
         }
         throw new InvalidOperationException("Embedded original Fire did not return through its source sequence.");
 
-        CrossoverNativeMagicPresentationStep Step(CrossoverNativeMagicPresentationState current) => presentation.Advance(current, () => new(0, -600, -2200, 500), () => new(new(0, 0, -2200), new(0, 0, -2200), 0, 0, 1024), camera);
+        CrossoverNativeMagicPresentationStep Step(CrossoverNativeMagicPresentationState current) => presentation.Advance(current, () => target.ToActor(3).Anchor, () => target.Transform, camera, () => target);
     }
 
     private sealed class OverlayRenderer(ITriangleRenderer inner, Action overlay) : ITriangleRenderer

@@ -43,6 +43,7 @@ public sealed class NativeBattleArenaHost(NativeBattleArenaGeometry geometry)
     private readonly HashSet<NativeBattleArenaPrimitiveId> primitiveIds = geometry.Faces.Select(face => face.Id).ToHashSet();
     private readonly Dictionary<NativeBattlePilotVisualIdentity, NativeBattleArenaReplacement> replacements = [];
     private readonly Dictionary<NativeBattlePilotVisualIdentity, NativeBattleArenaCaptureMaterial> captures = [];
+    private readonly Dictionary<(int X, int Y), NativeBattleArenaCaptureMaterial> captureRegions = [];
     private readonly Dictionary<NativeBattlePilotVisualIdentity, NativeBattleArenaGeometry> deformationSurfaces = [];
 
     public NativeBattleArenaGeometry Geometry { get; } = geometry;
@@ -53,6 +54,7 @@ public sealed class NativeBattleArenaHost(NativeBattleArenaGeometry geometry)
         NativeBattleArenaCaptureMaterial material = new(surface, projection, width, height) { NativeX = nativeX, NativeY = nativeY };
         material.Validate();
         captures[owner] = material;
+        captureRegions[(nativeX, nativeY)] = material;
         deformationSurfaces.Remove(owner);
         return material;
     }
@@ -60,6 +62,11 @@ public sealed class NativeBattleArenaHost(NativeBattleArenaGeometry geometry)
     public NativeBattleArenaCaptureMaterial ReadCapture(NativeBattlePilotVisualIdentity owner)
     {
         return captures.TryGetValue(owner, out NativeBattleArenaCaptureMaterial? material) ? material : throw new NotSupportedException("The arena surface image has no retained capture owner.");
+    }
+
+    public NativeBattleArenaCaptureMaterial ReadCapture(int nativeX, int nativeY)
+    {
+        return captureRegions.TryGetValue((nativeX, nativeY), out NativeBattleArenaCaptureMaterial? material) ? material : throw new NotSupportedException("The arena image region has no retained capture owner.");
     }
 
     public void RefineSurface(NativeBattlePilotVisualIdentity owner, ImmutableArray<(Vector3 A, Vector3 B, Vector3 C)> controlTriangles)

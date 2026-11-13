@@ -2,7 +2,10 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleDiablos325RecipientServices(Func<int, NativeBattleGraphicsModel> ReadActor, Action<int, NativeBattleGraphicsModel> WriteActor, Func<int, NativeBattlePoseSource> ReadPose, Func<int, ImmutableArray<NativeBattleRawMesh>> ReadGeometry, Func<NativeBattleDiablos325Frame, int, int, NativeBattleDiablos325Frame> DrawScaled);
+public sealed record NativeBattleDiablos325RecipientServices(Func<int, NativeBattleGraphicsModel> ReadActor, Action<int, NativeBattleGraphicsModel> WriteActor, Func<int, NativeBattlePoseSource> ReadPose, Func<int, ImmutableArray<NativeBattleRawMesh>> ReadGeometry, Func<NativeBattleDiablos325Frame, int, int, NativeBattleDiablos325Frame> DrawScaled)
+{
+    public Func<int, (short Maximum, short Minimum)?>? ReadForeignBounds { get; init; }
+}
 
 public static class NativeBattleDiablos325Recipients
 {
@@ -26,7 +29,7 @@ public static class NativeBattleDiablos325Recipients
             NativeBattleGraphicsModel actor = services.ReadActor(actorIndex);
             if (counter == 368)
             {
-                (short maximum, short minimum) = Bounds6DFD90(actor, services.ReadPose(actorIndex), services.ReadGeometry(actorIndex));
+                (short maximum, short minimum) = services.ReadForeignBounds?.Invoke(actorIndex) ?? Bounds6DFD90(actor, services.ReadPose(actorIndex), services.ReadGeometry(actorIndex));
                 task = task.WriteWord(record + 4, unchecked((ushort)maximum)).WriteWord(record + 6, unchecked((ushort)minimum));
                 actor = actor with { Flags0 = (ushort)(actor.Flags0 | 8) };
             }

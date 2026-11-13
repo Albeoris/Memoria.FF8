@@ -78,6 +78,20 @@ public sealed class CrossoverGuestStatusHostTests
         Assert.Equal(1, fixture.Providers[1].Capture().CommittedSpells!.Value.Count(cost => cost.Spell == cure));
     }
 
+    [Fact]
+    public void Abbreviated_triple_does_not_apply_the_economical_double_passive()
+    {
+        using Fixture fixture = new(0x20, 2);
+        fixture.Cast(0, "Triple", 2);
+        fixture.Ready(1);
+        ushort cure = fixture.Spell("Cure");
+        Assert.Equal(new[] { 1, 2 }, fixture.Providers[1].MagicCastCounts(cure));
+        Assert.Equal(2, fixture.Providers[1].MagicCastCost(cure, 2));
+        Assert.True(fixture.Host.SubmitGuestMagicSequence(1, cure, [1, 2]));
+        Assert.Equal(2, fixture.Complete(1, 2));
+        Assert.Equal(0, fixture.Stock(cure));
+    }
+
     private sealed class Fixture : IDisposable
     {
         private readonly GameAssets game;

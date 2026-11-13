@@ -74,11 +74,9 @@ internal static class CrossoverNativeCastPresentation
         NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(source.Model, resource, services with { OriginalResource = originalResource ?? resource });
         NativeBattlePoseSource pose = resource.PoseSource ?? throw new InvalidDataException("Mixed casting requires the original character skeleton.");
         NativeBattleGraphicsModel model = step.Model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(step.Model, pose) };
-        bool returned = source.ReturnedToStanding || step.Cues.Any(cue => cue.Kind == NativeBattleSequenceCueKind.RestoreStanding);
-        if (returned && source.Phase != 8)
-        {
-            throw new InvalidDataException("Mixed casting returned before its native effect completion handshake.");
-        }
+        bool originalBinding = model.ResourceMagicId is null && model.ResourceRenzokukenTargetBank is null && model.ActiveStagedResourceRow100 is null && model.ActiveResourceRow100 == model.OriginalResourceRow104;
+        bool standing = model.Sequence == NativeBattleGraphicsModels.PlayerStandingSequence(model.Flags8 ?? throw new InvalidDataException("Mixed casting lost its source status DWORD8.")) && (model.ResourceFlags44!.Value & 0x40) != 0;
+        bool returned = source.ReturnedToStanding || source.Phase == 8 && originalBinding && (standing || step.Cues.Any(cue => cue.Kind == NativeBattleSequenceCueKind.RestoreStanding));
         return (source with { Model = model, ReturnedToStanding = returned }, step.Cues);
     }
 }
