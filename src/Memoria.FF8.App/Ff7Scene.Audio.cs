@@ -129,7 +129,7 @@ internal sealed partial class Ff7Scene
             SetAudioPaused(audioPaused);
         }
         musicPlayback?.Update();
-        int gain = NativeGain(state.MusicVolume, dialoguePreferences?.Invoke().MusicVolume ?? 100);
+        int gain = NativeGain(ApplyRelativeMusicGain(state.MusicVolume, mixedCombat?.ActiveGuest?.CurrentRelativeMusicGain), dialoguePreferences?.Invoke().MusicVolume ?? 100);
         musicPlayback?.SetGain(gain);
         soundChannels.RetireFinished(audioPaused);
         audioOutput?.ThrowIfFailed();
@@ -328,6 +328,15 @@ internal sealed partial class Ff7Scene
         }
         soundChannels.Play(audioOutput, decoded.Pcm.Bytes, decoded.Pcm.SampleRate, decoded.Pcm.Channels, decoded.Streamed, audioNative.NativeSoundPan[pan], NativeGain(127, dialoguePreferences?.Invoke().SoundVolume ?? 100), request.Sound, decoded.Loop, decoded.LoopStart, decoded.LoopEnd, decoded.Fingerprint, channel: request.Channel, nativeVolume: 127, nativeSampleRate: decoded.NativeRate, nativeLoopDelaySeconds: decoded.LoopDelay);
         soundChannels.Pause(audioPaused);
+    }
+
+    internal static int ApplyRelativeMusicGain(int volume, int? relativeGain)
+    {
+        if (relativeGain is < 0 or > 127)
+        {
+            throw new NotSupportedException("The native presentation music gain exceeds its relative range0..127.");
+        }
+        return Math.Clamp(volume, 0, 127) * (relativeGain ?? 127) / 127;
     }
 
     private int NativeGain(int volume, int globalPercent)

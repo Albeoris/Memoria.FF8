@@ -37,7 +37,7 @@ internal static class CrossoverBattleAbilityRules
             return $"Native attack type {action.AttackType} requires a combat operation that the bridge cannot represent.";
         }
         bool healing = IsHealing(action.AttackType);
-        ushort unmappedSaved = (ushort)(action.Statuses0 & ~Ff7GuestBattleStatuses.SupportedOrigin);
+        ushort unmappedSaved = (ushort)(action.Statuses0 & ~(Ff7GuestBattleStatuses.SupportedOrigin | Ff7OriginSavedStatusRules.Supported));
         uint unmappedBattle = action.Statuses1 & ~(Ff7GuestBattleStatuses.SupportedOriginBattle | Ff7GuestBattleStatuses.OriginMulticast | NativeBattleParameterRules.DefenseReductionStatus | 0x8000u);
         if (!healing && !IgnoresStatuses(action.AttackType) && (unmappedSaved != 0 || unmappedBattle != 0))
         {
@@ -80,10 +80,11 @@ internal static class CrossoverBattleAbilityRules
             accuracy = hit == 255 ? byte.MaxValue : (byte)Math.Min(100, (int)hit);
         }
         uint originStatuses = IgnoresStatuses(action.AttackType) ? 0 : action.Statuses1 & Ff7GuestBattleStatuses.OriginMulticast;
+        ushort originSavedStatuses = IgnoresStatuses(action.AttackType) ? (ushort)0 : (ushort)(action.Statuses0 & Ff7OriginSavedStatusRules.Supported);
         NativeBattleParameterOperation? parameter = IgnoresStatuses(action.AttackType) ? null : NativeBattleParameterRules.Describe(action, parameterTuning ?? kit.ParameterTuning);
         Ff7BattleAttack? record = statuses == 0 && originStatuses == 0 ? null : new(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, (byte)((healing ? 0x40 : 0) | (revive || action.StatusAttack > 100 ? 63 : (action.StatusAttack + 3) / 4)), byte.MaxValue, 0, statuses, 0, revive ? (ushort)(ushort.MaxValue & ~0x900) : ushort.MaxValue);
         Ff7BattleDamageActor source = CrossoverGunbladeHostAttack.ProjectPhysicalSource(kit) with { Magic = ProjectMagic(kit.Stats.Magic), CriticalBonus = physical ? (byte)(action.Critical.GetValueOrDefault() * 100 / 256) : (byte)0 };
-        Ff7BattleDamageAction mechanics = new(formula, checked((byte)Math.Min(255, power)), accuracy, LongRange: !physical, Healing: healing, UsePhysicalStats: physical, IgnoreDefense: action.AttackType is 15 or 22 or 36, HasStatusOperation: record is not null || parameter is not null, AddsStatuses: (record is not null || parameter is not null) && !healing)
+        Ff7BattleDamageAction mechanics = new(formula, checked((byte)Math.Min(255, power)), accuracy, LongRange: !physical, Healing: healing, UsePhysicalStats: physical, IgnoreDefense: action.AttackType is 15 or 22 or 36, HasStatusOperation: record is not null || parameter is not null || originSavedStatuses != 0, AddsStatuses: (record is not null || parameter is not null || originSavedStatuses != 0) && !healing)
         {
             AlwaysHits = revive || IgnoresStatuses(action.AttackType) || action.Hit == 255,
             Reflectable = NativeBattleReflectionRules.CanReflect(action.Command, action.AttackFlags, action.AttackType),
@@ -104,6 +105,7 @@ internal static class CrossoverBattleAbilityRules
             FractionDenominator = action.AttackType == 20 ? (action.PowerModifier ?? 0) - (action.LevelModifier ?? 0) + 100 : 0,
             GuestDrainStatusAttack = !healing && !IgnoresStatuses(action.AttackType) && (action.Statuses1 & 0x8000) != 0 ? action.StatusAttack : (byte)0,
             GuestOriginBattleStatuses = originStatuses,
+            GuestOriginSavedStatuses = originSavedStatuses,
             GuestOriginStatusAttack = action.StatusAttack,
             ParameterOperation = parameter is null ? null : new(parameter.StatusMask, parameter.ResistanceIndex, parameter.VitalityReductionPercent, parameter.SpiritReductionPercent)
         };

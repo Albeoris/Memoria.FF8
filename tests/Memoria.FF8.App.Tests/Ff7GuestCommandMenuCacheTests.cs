@@ -33,6 +33,9 @@ public sealed class Ff7GuestCommandMenuCacheTests
     [InlineData("conditions")]
     [InlineData("mp")]
     [InlineData("source-status")]
+    [InlineData("origin-saved-status")]
+    [InlineData("parameter-status")]
+    [InlineData("parameter-initialized")]
     [InlineData("inventory")]
     [InlineData("all-uses")]
     [InlineData("token")]
@@ -57,6 +60,15 @@ public sealed class Ff7GuestCommandMenuCacheTests
                 break;
             case "source-status":
                 fixture.ChangeActor(0, actor => actor with { Actor = actor.Actor with { Statuses = 0x80 } });
+                break;
+            case "origin-saved-status":
+                fixture.ChangeActor(4, actor => actor with { OriginSavedStatuses = Ff7OriginSavedStatusRules.Zombie });
+                break;
+            case "parameter-status":
+                fixture.ChangeActor(4, actor => actor with { ParameterStatus = new(Ff7GuestBattleStatuses.OriginDefenseReduction, 32, 100, 100) });
+                break;
+            case "parameter-initialized":
+                fixture.ChangeActor(4, actor => actor with { ParameterStatusInitialized = !actor.ParameterStatusInitialized });
                 break;
             case "inventory":
                 fixture.State.Inventory[0] = new(0, 3);

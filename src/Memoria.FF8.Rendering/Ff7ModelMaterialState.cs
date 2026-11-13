@@ -5,6 +5,7 @@ namespace Memoria.FF8.Rendering;
 public sealed class Ff7ModelMaterialState
 {
     public TriangleBlend Blend = TriangleBlend.Replace;
+    public int BlendMode = 4;
     public bool DepthTest = true;
     public bool DepthWrite = true;
     public bool Cull;
@@ -23,6 +24,7 @@ public sealed class Ff7ModelMaterialState
         bool Enabled(uint flag) => (state.Options & flag) != 0;
         if (Updated(0x400))
         {
+            BlendMode = checked((int)state.BlendMode);
             Blend = !Enabled(0x400) ? TriangleBlend.Replace : state.BlendMode switch
             {
                 0 => TriangleBlend.HalfAdd,

@@ -56,7 +56,7 @@ public sealed partial class Ff7BattleSession
         private readonly int slot;
         private readonly IFf7BattleGuestAttack provider;
         private readonly object token;
-        private readonly (int Identity, Ff7BattleAiActor Actor, bool GuestVitals)[] actors;
+        private readonly (int Identity, Ff7BattleAiActor Actor, bool GuestVitals, ushort OriginSavedStatuses, Ff7BattleParameterOperation? ParameterStatus, bool ParameterStatusInitialized)[] actors;
         private readonly Ff7InventorySlot[] inventory;
         private readonly byte limitGauge;
         private readonly KeyValuePair<byte, int>[] allUses;
@@ -68,7 +68,7 @@ public sealed partial class Ff7BattleSession
             this.slot = slot;
             this.provider = provider;
             this.token = token;
-            actors = session.state.Actors.Select(actor => (actor.Identity, actor.Actor, session.IsGuestVitalsSlot(actor.Actor.Slot))).ToArray();
+            actors = session.state.Actors.Select(actor => (actor.Identity, actor.Actor, session.IsGuestVitalsSlot(actor.Actor.Slot), session.GetOriginSavedStatuses(actor.Actor.Slot), actor.ParameterStatus, actor.ParameterStatusInitialized)).ToArray();
             inventory = session.state.Inventory.ToArray();
             Ff7BattleActorState source = session.Actor(slot);
             limitGauge = source.LimitGauge;
@@ -98,7 +98,7 @@ public sealed partial class Ff7BattleSession
             {
                 Ff7BattleActorState current = session.state.Actors[index];
                 var previous = actors[index];
-                if (previous.Identity != current.Identity || previous.Actor != current.Actor || previous.GuestVitals != session.IsGuestVitalsSlot(current.Actor.Slot))
+                if (previous.Identity != current.Identity || previous.Actor != current.Actor || previous.GuestVitals != session.IsGuestVitalsSlot(current.Actor.Slot) || previous.OriginSavedStatuses != session.GetOriginSavedStatuses(current.Actor.Slot) || previous.ParameterStatus != current.ParameterStatus || previous.ParameterStatusInitialized != current.ParameterStatusInitialized)
                 {
                     return false;
                 }
@@ -167,7 +167,7 @@ public sealed partial class Ff7BattleSession
                         bool enemies = (ability.TargetFlags & 2) != 0;
                         bool locked = (ability.TargetFlags & 0x10) != 0;
                         bool single = (ability.TargetFlags & 4) == 0 || (ability.TargetFlags & 8) != 0;
-                        ushort candidates = Mask(state.Actors.Where(target => target.Actor.Slot != 3 && (!ability.CanTargetDead || target.Actor.Slot < 3) && ((target.Actor.Conditions & 8) != 0 || ability.CanTargetDead && target.Actor.Slot < 3) && (ability.CanTargetDead ? target.Actor.HitPoints == 0 || (target.Actor.Statuses & 1) != 0 : IsAlive(target)) && (!locked || (target.Actor.Slot >= 4) == enemies)));
+                        ushort candidates = Mask(state.Actors.Where(target => target.Actor.Slot != 3 && ((target.Actor.Conditions & 8) != 0 || ability.CanTargetDead && target.Actor.Slot < 3) && (ability.CanTargetDead ? GuestRevivalTarget(target) : IsAlive(target)) && (!locked || (target.Actor.Slot >= 4) == enemies)));
                         ushort abilityTargets = Mask(state.Actors.Where(target => (candidates & (1 << target.Actor.Slot)) != 0 && abilities.SupportsAbility(ability.Command, ability.Ability, DescribeGuestTarget(target.Actor.Slot))));
                         string? reason = ability.UnsupportedReason;
                         if (reason is null && ability.RequiresMagic && !Ff7GuestBattleStatuses.CanCastMagic(actor.Actor.Statuses))

@@ -104,10 +104,11 @@ public sealed class CrossoverGuestStatusHostTests
         private readonly CrossoverBattleRoster roster;
         private readonly Func<Ff7BattleSnapshot, Ff7BattleSession> restoreHost;
         private readonly Ff7BattleRenderer renderer;
+        private readonly GameplaySaveEconomy? economy;
         public Ff7BattleSession Host { get; private set; }
         public CrossoverGuestHostActions[] Providers { get; private set; }
 
-        public Fixture(uint economical = 0, int cureStock = 8, int guestCount = 2, string[]? additionalSpells = null)
+        public Fixture(uint economical = 0, int cureStock = 8, int guestCount = 2, string[]? additionalSpells = null, string[]? additionalItems = null)
         {
             string? ff8 = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
             string? ff7 = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
@@ -117,10 +118,11 @@ public sealed class CrossoverGuestStatusHostTests
             NativeCharacterVitals origin = game.ReadNewGameCharacterVitals().DeepCopy();
             origin = origin with { MagicSystem = origin.MagicSystem with { SharedMagicStock = true } };
             int command = origin.MenuDefinitions.CommandAbilityCommands.IndexOf((byte)2) + 20;
+            int itemCommand = origin.MenuDefinitions.CommandAbilityCommands.IndexOf((byte)4) + 20;
             for (byte id = 0; id < 2; id++)
             {
                 int row = origin.FindPhysicalRow(id);
-                origin.Records[row] = origin.Records[row] with { HitPointBonus = 9999, HitPoints = new((ushort)(id == 0 ? 1000 : 5000), (ushort)(id == 0 ? 1000 : 5000)), Status = 0, Junction = origin.Records[row].Junction with { Commands = (uint)command } };
+                origin.Records[row] = origin.Records[row] with { HitPointBonus = 9999, HitPoints = new((ushort)(id == 0 ? 1000 : 5000), (ushort)(id == 0 ? 1000 : 5000)), Status = 0, Junction = origin.Records[row].Junction with { Commands = (uint)(command | (additionalItems is null ? 0 : itemCommand << 8)) } };
             }
             if (economical != 0)
             {
@@ -134,6 +136,16 @@ public sealed class CrossoverGuestStatusHostTests
                 origin = origin.ChangeMagicStock(0, Spell(name), name == "Cure" ? cureStock : 8, MagicOperationReason.ScriptReward, out _);
             }
             source = origin;
+            if (additionalItems is not null)
+            {
+                NativeItemStock[] items = Enumerable.Repeat(new NativeItemStock(0, 0), 198).ToArray();
+                foreach (string name in additionalItems)
+                {
+                    ushort item = Item(name);
+                    items[item] = new(checked((byte)item), 8);
+                }
+                economy = new(items, null, 0, 0, 0, 0);
+            }
             CrossoverFf8BattleKit[] kits = Enumerable.Range(0, guestCount).Select(id => CrossoverFf8BattleKit.Read(origin, assets, id)).ToArray();
             Ff7Installation installation = Ff7Installation.Discover(ff7!);
             original = Ff7Session.NewGame(installation);
@@ -156,7 +168,7 @@ public sealed class CrossoverGuestStatusHostTests
             state = state with { Actors = state.Actors.Select(actor => actor.Actor.Slot >= 4 ? actor with { Actor = actor.Actor with { Statuses = 0x400 }, Timers = Ff7NativeBattleStatusClock.Apply(actor.Timers, actor.Actor.Statuses, 0x400) } : actor).ToArray() };
             Host = new(formation, progress, kernel, executable.NativeMateriaStatModifiers, 1, requestFlags: 4, snapshot: state, animations: animations);
             restoreHost = saved => new(formation, progress, kernel, executable.NativeMateriaStatModifiers, 1, requestFlags: 4, snapshot: saved, animations: animations);
-            encounter = new(roster, origin, Host, game.ReadNewGameGlobalRandom(), NativeCrtRandomState.FromColdProcess(), null, null);
+            encounter = new(roster, origin, Host, game.ReadNewGameGlobalRandom(), NativeCrtRandomState.FromColdProcess(), economy, null);
             Providers = new CrossoverGuestHostActions[guestCount];
             renderer = new(archive, formation.LocationId);
             MethodInfo actorVisual = typeof(Ff7Scene).GetMethod("BattleActorVisual", BindingFlags.Static | BindingFlags.NonPublic)!;
@@ -172,16 +184,28 @@ public sealed class CrossoverGuestStatusHostTests
         }
 
         public ushort Spell(string name) => assets.NativeActions.Single(action => action.Command == 2 && action.Name == name).ActionId;
+        public ushort Item(string name) => assets.NativeActions.Single(action => action.Command == 4 && action.Name == name).ActionId;
         public uint Hp(int slot) => Host.Actors.Single(actor => actor.Actor.Slot == slot).Actor.HitPoints;
         public int Stock(ushort spell) => encounter.Working.GetMagicCount(0, spell);
 
-        public void IsolateReadyPlayer(int slot)
+        public void IsolateReadyPlayer(int slot, bool preserveProviders = false)
         {
             Assert.Null(Host.Action);
             Ff7BattleSnapshot snapshot = Host.Capture();
             Assert.Equal(snapshot.Queue.ReadyRead, snapshot.Queue.ReadyWrite);
             Assert.All(snapshot.Queue.Slots, entry => Assert.Null(entry));
-            RestoreQueuedBoundary(snapshot with { Actors = snapshot.Actors.Select(actor => actor with { Gauge = actor.Actor.Slot == slot ? ushort.MaxValue : (ushort)0, AwaitingTurn = actor.Actor.Slot == slot }).ToArray() });
+            Ff7BattleSnapshot ready = snapshot with { Actors = snapshot.Actors.Select(actor => actor with { Gauge = actor.Actor.Slot == slot ? ushort.MaxValue : (ushort)0, AwaitingTurn = actor.Actor.Slot == slot }).ToArray() };
+            if (preserveProviders)
+            {
+                typeof(Ff7BattleSession).GetField("state", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(Host, ready);
+                Assert.Equal(JsonSerializer.Serialize(snapshot.Random), JsonSerializer.Serialize(Host.Capture().Random));
+                Assert.Equal(snapshot.Inventory, Host.Capture().Inventory);
+                Assert.Equal(snapshot.Actors.Select(actor => actor.Actor), Host.Capture().Actors.Select(actor => actor.Actor));
+            }
+            else
+            {
+                RestoreQueuedBoundary(ready);
+            }
         }
 
         public void Ready(int slot)
@@ -190,7 +214,14 @@ public sealed class CrossoverGuestStatusHostTests
             {
                 if (Host.ReadyPlayer is int other && other != slot)
                 {
-                    Assert.True(Host.Submit(other, Ff7BattleCommand.Defend, 0, (ushort)(1 << other)));
+                    if (Host.Commands(other).Any(command => command.Command == Ff7BattleCommand.Defend))
+                    {
+                        Assert.True(Host.Submit(other, Ff7BattleCommand.Defend, 0, (ushort)(1 << other)));
+                    }
+                    else
+                    {
+                        IsolateReadyPlayer(slot, preserveProviders: true);
+                    }
                 }
                 Host.Advance(waitForCommand: false);
             }
@@ -203,6 +234,19 @@ public sealed class CrossoverGuestStatusHostTests
             ushort spell = Spell(name);
             Assert.Null(Host.GuestAbilityTargetUnsupportedReason(caster, Ff7BattleCommand.Magic, spell, System.Numerics.BitOperations.TrailingZeroCount(targets)));
             Assert.True(Host.Submit(caster, Ff7BattleCommand.Magic, spell, targets));
+            Assert.Equal(1, Complete(caster, 1));
+        }
+
+        public void UseItem(int caster, string name, int target, bool restoreQueued = false)
+        {
+            Ready(caster);
+            ushort item = Item(name);
+            Assert.Null(Host.GuestAbilityTargetUnsupportedReason(caster, Ff7BattleCommand.Item, item, target));
+            Assert.True(Host.SubmitGuestItem(caster, target, item));
+            if (restoreQueued)
+            {
+                RestoreQueuedBoundary();
+            }
             Assert.Equal(1, Complete(caster, 1));
         }
 
@@ -246,7 +290,7 @@ public sealed class CrossoverGuestStatusHostTests
             CrossoverGuestActorSnapshot[] actors = Providers.Select(provider => Roundtrip(provider.CaptureActor())).ToArray();
             CrossoverGunbladeHostSnapshot[] attacks = Providers.Select(provider => Roundtrip(provider.Attack.Capture())).ToArray();
             Host = restoreHost(saved);
-            encounter = new(roster, source, Host, game.ReadNewGameGlobalRandom(), NativeCrtRandomState.FromColdProcess(), null, shared);
+            encounter = new(roster, source, Host, game.ReadNewGameGlobalRandom(), NativeCrtRandomState.FromColdProcess(), economy, shared);
             Providers = new CrossoverGuestHostActions[actors.Length];
             MethodInfo actorVisual = typeof(Ff7Scene).GetMethod("BattleActorVisual", BindingFlags.Static | BindingFlags.NonPublic)!;
             for (int slot = 0; slot < actors.Length; slot++)

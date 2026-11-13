@@ -265,7 +265,11 @@ public sealed class CrossoverForeignBodyBridgeTests(ITestOutputHelper output)
                         Assert.Equal(receipt.Receipt.Target.Statuses, current.Statuses);
                         if (receipt.Receipt.AddedParameterStatus is { } parameter)
                         {
-                            Assert.Equal(parameter, currentState.ParameterStatus);
+                            Assert.Equal((current.Statuses & Ff7NativeBattleActionResolver.Death) == 0 ? parameter : null, currentState.ParameterStatus);
+                        }
+                        if (receipt.Receipt.AddedOriginSavedStatuses is ushort saved && saved != 0)
+                        {
+                            Assert.Equal((current.Statuses & Ff7NativeBattleActionResolver.Death) == 0 ? saved : (ushort)0, (ushort)(host.GetOriginSavedStatuses(slot) & saved));
                         }
                     }
                 }

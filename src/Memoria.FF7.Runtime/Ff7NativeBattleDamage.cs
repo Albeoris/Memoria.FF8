@@ -195,21 +195,26 @@ public static class Ff7NativeBattleDamage
         action = action with { Affinity = action.IgnoreNativeAffinity ? Ff7BattleDamageAffinity.Normal : Ff7NativeBattleStatuses.ShieldAffinity(target.Statuses, action.NativeElements, action.IsItem, action.Affinity) };
         bool immune = (target.NativeConditions & ((action.NativePhysicalCategory ?? action.UsePhysicalStats) ? 0x100U : 0x200U)) != 0;
         int elementalDamage = immune ? 0 : ApplyAffinity(damage, action.Affinity);
-        if (!immune && !action.IgnoreNativeAffinity && action.GuestElementPercent is byte percent)
+        bool zombie = Ff7OriginSavedStatusRules.IsZombie(target.OriginSavedStatuses);
+        bool zombieHoly = zombie && (action.NativeElements & 0x100) != 0 && !action.Healing && !action.IgnoreNativeAffinity;
+        if (!immune && zombieHoly)
+        {
+            elementalDamage = damage + damage * (action.GuestElementPercent ?? 100) / 100;
+        }
+        else if (!immune && !action.IgnoreNativeAffinity && action.GuestElementPercent is byte percent)
         {
             elementalDamage = damage + (elementalDamage - damage) * percent / 100;
         }
-        if (!immune && !action.IgnoreNativeAffinity && action.GuestElementAdjustment != 0)
+        if (!immune && !zombieHoly && !action.IgnoreNativeAffinity && action.GuestElementAdjustment != 0)
         {
             elementalDamage = elementalDamage * (100 + action.GuestElementAdjustment) / 100;
         }
         int limit = action.TargetsMagicPoints ? 999 : 9999;
         damage = Math.Clamp(elementalDamage, -limit, limit);
         bool nullified = immune || (action.Affinity & Ff7BattleDamageAffinity.Nullify) != 0 && action.GuestElementPercent is null or 100;
-        bool zombie = Ff7OriginSavedStatusRules.IsZombie(target.OriginSavedStatuses);
-        if (zombie && (action.NativeElements & 0x100) != 0 && !action.Healing && !action.IgnoreNativeAffinity)
+        if (zombie && action.Healing && !action.TargetsMagicPoints)
         {
-            damage = Math.Clamp(Math.Abs(damage) * 2, -limit, limit);
+            damage = Math.Abs(damage);
         }
         bool healing = action.Healing && !(zombie && !action.TargetsMagicPoints);
         return new(false, critical && !nullified, healing ? -damage : damage);

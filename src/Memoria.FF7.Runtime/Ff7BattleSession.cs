@@ -419,7 +419,8 @@ public sealed partial class Ff7BattleSession
             changed |= status.Timers != actor.Timers || status.Statuses != actor.Actor.Statuses || status.HitPointDelta != 0 || status.Timers.Stop > 0;
             uint hp = (uint)Math.Clamp((long)actor.Actor.HitPoints + status.HitPointDelta, 0, actor.Actor.MaxHitPoints);
             uint statuses = hp == 0 ? status.Statuses | Ff7NativeBattleActionResolver.Death : status.Statuses;
-            actor = actor with { Timers = status.Timers, Actor = actor.Actor with { Statuses = statuses, HitPoints = hp } };
+            actor = actor with { Timers = status.Timers, Actor = actor.Actor with { Statuses = statuses, HitPoints = hp }, OriginSavedStatuses = hp == 0 ? (ushort)0 : actor.OriginSavedStatuses };
+            actor = NormalizeOriginKnockout(actor);
             state.Actors[index] = actor;
             if (status.PoisonDue)
             {
@@ -613,10 +614,7 @@ public sealed partial class Ff7BattleSession
     private void Replace(Ff7BattleActorState actor)
     {
         int index = Array.FindIndex(state.Actors, candidate => candidate.Actor.Slot == actor.Actor.Slot);
-        if ((actor.Actor.Statuses & Ff7NativeBattleActionResolver.Death) != 0)
-        {
-            actor = actor with { OriginSavedStatuses = (ushort)((actor.OriginSavedStatuses ?? GetOriginSavedStatuses(actor.Actor.Slot)) & ~Ff7OriginSavedStatusRules.Zombie) };
-        }
+        actor = NormalizeOriginKnockout(actor);
         if ((actor.Actor.Statuses & Ff7NativeBattleStatuses.Reflect) == 0)
         {
             actor = actor with { ReflectionCount = null };
@@ -638,6 +636,10 @@ public sealed partial class Ff7BattleSession
     private void ValidateSnapshot(Ff7BattleSnapshot snapshot, long requestId, List<Ff7BattleActorState> expected)
     {
         snapshot.GlobalStatusClock?.Validate();
+        if (snapshot.Actors?.Any(actor => actor?.OriginSavedStatuses is ushort saved && (saved & ~Ff7OriginSavedStatusRules.Supported) != 0) == true)
+        {
+            throw new InvalidDataException("FFVII battle snapshot contains an unsupported origin saved-status owner.");
+        }
         if (snapshot.Actors?.Any(actor => actor is not null && actor.Timers.Stop > 30) == true)
         {
             throw new InvalidDataException("FFVII battle snapshot has an invalid global status clock or Stop counter.");

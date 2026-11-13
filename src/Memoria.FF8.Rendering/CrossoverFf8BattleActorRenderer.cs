@@ -60,7 +60,7 @@ public static class CrossoverFf8BattleActorRenderer
     internal static Vector4? DrawWithBounds(ITriangleRenderer renderer, CrossoverFf8BattleActorVisual visual, Func<Vector3, Vector3> cameraTransform, int width, int height, float focal, bool captureBounds)
     {
         Ff7BattleScreenBounds bounds = default;
-        Dictionary<(ushort Page, ushort Clut), PixelImage> pages = [];
+        Dictionary<(ushort Page, ushort Clut, bool Alternate), PixelImage> pages = [];
         if ((visual.BodyTextures is null) != (visual.Textures is null))
         {
             throw new InvalidDataException("Mixed source texture animation requires both its model binding and VRAM owner.");
@@ -85,20 +85,28 @@ public static class CrossoverFf8BattleActorRenderer
             }
             foreach (BattleFace face in mesh.Faces)
             {
-                NativeBattleFaceMaterial? nativeMaterial = bodyOwner && visual.BodyTextures is { } binding ? NativeBattleFaceMaterialBinding.Apply507550(face.NativeMaterial ?? throw new InvalidDataException("Mixed source texture animation requires original polygon materials."), binding) : null;
+                NativeBattleModelTextureBinding? slots = bodyOwner ? visual.BodyTextures : visual.Textures is null ? null : visual.Model.LinkedTextureSlots;
+                NativeBattleFaceMaterial? nativeMaterial = slots is { } binding ? NativeBattleFaceMaterialBinding.Apply507550(face.NativeMaterial ?? throw new InvalidDataException("Mixed source texture animation requires original polygon materials."), binding) : null;
+                bool overrideColor = (visual.NativeColor is not null || (visual.Model.Flags0 & 0x800) != 0) && face.NativePolygon.Length == (face.Vertices.Length == 4 ? 20 : 16);
+                uint? rawColor = overrideColor ? visual.NativeColor?.Color ?? visual.Model.Color40 : null;
+                int blend = ((nativeMaterial ?? face.NativeMaterial)?.TexturePage ?? 0) >> 5 & 3;
+                bool alternate = rawColor is not null && blend == 2;
                 PixelImage texture = textures[face.Texture];
-                if (nativeMaterial is not null && !pages.TryGetValue((nativeMaterial.TexturePage, nativeMaterial.Clut), out texture!))
+                if (nativeMaterial is not null && visual.Textures is not null && !pages.TryGetValue((nativeMaterial.TexturePage, nativeMaterial.Clut, alternate), out texture!))
                 {
-                    texture = NativeBattleEffectTextureReader.DecodePcRegion(visual.Textures!, nativeMaterial.TexturePage, nativeMaterial.Clut, 0, 0, 256, 256);
-                    pages.Add((nativeMaterial.TexturePage, nativeMaterial.Clut), texture);
+                    texture = NativeBattleEffectTextureReader.DecodePcRegion(visual.Textures, nativeMaterial.TexturePage, nativeMaterial.Clut, 0, 0, 256, 256, alternatePaletteShift: alternate ? (byte)0 : null);
+                    pages.Add((nativeMaterial.TexturePage, nativeMaterial.Clut, alternate), texture);
                 }
                 Vector2 textureSize = new(texture.Width, texture.Height);
                 Vector4 tint = new(face.Color.R / 128f, face.Color.G / 128f, face.Color.B / 128f, face.Color.A / 255f);
-                if ((visual.NativeColor is not null || (visual.Model.Flags0 & 0x800) != 0) && (visual.NativeColor?.Color ?? visual.Model.Color40) is { } color && face.NativePolygon.Length == (face.Vertices.Length == 4 ? 20 : 16))
+                CrossoverNativeActorColor? actorColor = rawColor is { } color ? new(color) : null;
+                if (actorColor is { } selected)
                 {
-                    tint = new((byte)color / 128f, (byte)(color >> 8) / 128f, (byte)(color >> 16) / 128f, tint.W);
+                    NativeBattlePrimitiveColor diffuse = selected.Diffuse(blend);
+                    tint = new(diffuse.Rgb / 255f, diffuse.Alpha / 255f);
                 }
                 TriangleMaterial material = new(texture, TriangleBlend.Replace, TriangleDepthComparison.GreaterEqual, true, 1f / 255, TriangleSampler.PointClamp) { PreserveTargetAlpha = false, TextureSelectsAlpha = false };
+                material = actorColor?.ApplyMaterial(material, blend) ?? material;
                 CameraSpaceVertex Vertex(int index) => new(cameraPositions[face.Vertices[index]], (nativeMaterial?.Uv ?? face.Uv)[index] / textureSize, tint * (face.VertexColors?[index] ?? Vector4.One));
 
                 CameraSpaceVertex a = Vertex(0);

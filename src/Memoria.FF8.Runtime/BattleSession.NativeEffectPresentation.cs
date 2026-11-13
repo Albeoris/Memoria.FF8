@@ -13,6 +13,7 @@ public sealed partial class BattleSession
     private NativeBattleUiServices? presentationInitialUi;
     private ImmutableArray<NativeBattleGraphicsModel> presentationInitialModels = [];
     private int? presentationPartyActorCount;
+    private int? presentationInitialMusicGain;
     private readonly List<NativeBattleContactPacket> presentationContacts = [];
     private readonly List<NativeBattleModuleSound> presentationSounds = [];
     private readonly List<NativeBattleForeignSequenceRequest> presentationSequences = [];
@@ -41,6 +42,16 @@ public sealed partial class BattleSession
         NativeFileStaging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.FromColdProcess());
         NativeFileIo = NativeBattleFileIoState.FromColdProcess();
         NativeGlobalSoundProcess = definition.NativeGlobalSoundProcess ?? NativeGlobalSoundProcess.FromBufferlessColdProcess();
+        presentationInitialMusicGain = inputs.InitialMusicGain;
+        if (inputs.InitialMusicGain is { } musicGain)
+        {
+            if (musicGain is < 0 or > 127)
+            {
+                throw new InvalidDataException("The presentation music gain must be within its native relative range0..127.");
+            }
+            NativeMusicPlaybackState playback = NativeGlobalSoundProcess.MusicPlayback ?? throw new NotSupportedException("The presentation music gain requires its current playback owner.");
+            NativeGlobalSoundProcess = NativeGlobalSoundProcess with { MusicPlayback = playback.SetGain46BB40(0, musicGain) };
+        }
         NativeVibrationProcess = definition.NativeVibrationProcess ?? definition.NativeRetainedMemory?.VibrationProcess ?? NativeVibrationProcessState.FromColdProcess();
         NativeStage = inputs.Arena?.CreatePresentationStage() ?? NativeBattleStageState.FromColdProcess();
         presentationInitialStage = NativeStage;
@@ -67,6 +78,10 @@ public sealed partial class BattleSession
     {
         presentationArena?.ClearPresentation();
         NativeStage = presentationInitialStage;
+        if (presentationInitialMusicGain is { } musicGain && NativeGlobalSoundProcess is { MusicPlayback: { } playback } sound)
+        {
+            NativeGlobalSoundProcess = sound with { MusicPlayback = playback.SetGain46BB40(0, musicGain) };
+        }
         if (NativeGraphics is { } graphics)
         {
             ImmutableArray<NativeBattleGraphicsModel> models = graphics.Models.Select((model, index) =>
@@ -131,6 +146,7 @@ public sealed partial class BattleSession
 
     internal bool HasPendingEffectPresentationEvents => presentationContacts.Count != 0 || presentationSounds.Count != 0 || presentationSequences.Count != 0;
     internal NativeGlobalRandomState? ReadEffectPresentationGlobalRandom() => nativeGlobalRandom;
+    internal int? ReadEffectPresentationMusicGain() => presentationInitialMusicGain is null ? null : (NativeGlobalSoundProcess?.MusicPlayback ?? throw new InvalidDataException("Native presentation lost its music gain owner.")).ReadGain(0);
     internal NativeCrtRandomState ReadEffectPresentationRandom() => nativeCrtRandom ?? throw new InvalidDataException("Native presentation lost its random owner.");
     internal NativeBattleGraphicsResource ReadEffectPresentationSourceResource() => NativeGraphicsPoseResource(NativeGraphics!, 0);
 

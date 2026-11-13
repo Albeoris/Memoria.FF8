@@ -15,6 +15,7 @@ public readonly record struct Ff7BattleActionReceipt(Ff7BattleActionVitals Sourc
     public uint RemovedOriginBattleStatuses { get; init; }
     public ushort AddedOriginSavedStatuses { get; init; }
     public ushort RemovedOriginSavedStatuses { get; init; }
+    public bool OffensiveRevival { get; init; }
     public int SourceHitPointDamage { get; init; }
     public Ff7BattleParameterOperation? AddedParameterStatus { get; init; }
     public uint RemovedParameterStatus { get; init; }
@@ -111,8 +112,8 @@ public static class Ff7NativeBattleActionResolver
         {
             throw new NotSupportedException("The guest contact contains an unsupported source status operation.");
         }
-        sourceStats = sourceStats with { OriginSavedStatuses = (ushort)(sourceStats.OriginSavedStatuses | originSourceStatuses) };
-        targetStats = targetStats with { OriginSavedStatuses = (ushort)(targetStats.OriginSavedStatuses | originTargetStatuses) };
+        sourceStats = sourceStats with { OriginSavedStatuses = (ushort)(sourceStats.OriginSavedStatuses | source.OriginSavedStatuses | originSourceStatuses) };
+        targetStats = targetStats with { OriginSavedStatuses = (ushort)(targetStats.OriginSavedStatuses | target.OriginSavedStatuses | originTargetStatuses) };
         Ff7BattleActionReceipt receipt = ResolveCore(sourceStats, source, targetStats, target, action, record, random, sameActor, true, originStatusResistances);
         if (receipt.Damage.Missed)
         {
@@ -174,7 +175,12 @@ public static class Ff7NativeBattleActionResolver
         }
         if (addedSaved != 0 && (receipt.Target.Statuses & Ff7NativeBattleStatuses.DeathSentence) != 0)
         {
-            receipt = receipt with { Target = receipt.Target with { Statuses = receipt.Target.Statuses & ~Ff7NativeBattleStatuses.DeathSentence }, RemovedStatuses = receipt.RemovedStatuses | Ff7NativeBattleStatuses.DeathSentence, AddedStatuses = receipt.AddedStatuses & ~Ff7NativeBattleStatuses.DeathSentence };
+            receipt = receipt with { Target = receipt.Target with { Statuses = receipt.Target.Statuses & ~Ff7NativeBattleStatuses.DeathSentence }, RemovedStatuses = receipt.RemovedStatuses | (target.Statuses & Ff7NativeBattleStatuses.DeathSentence), AddedStatuses = receipt.AddedStatuses & ~Ff7NativeBattleStatuses.DeathSentence };
+        }
+        receipt = receipt with { Target = receipt.Target with { OriginSavedStatuses = (ushort)((targetStats.OriginSavedStatuses | addedSaved) & ~removedSaved) } };
+        if (sameActor)
+        {
+            nextSource = ApplyDamage(receipt.Target, sourceDamage, false);
         }
         Ff7BattleParameterOperation? addedParameter = null;
         uint removedParameter = 0;
@@ -217,6 +223,8 @@ public static class Ff7NativeBattleActionResolver
     private static Ff7BattleActionReceipt ResolveCore(Ff7BattleDamageActor sourceStats, Ff7BattleActionVitals source, Ff7BattleDamageActor targetStats, Ff7BattleActionVitals target, Ff7BattleDamageAction action, Ff7BattleAttack? record, Ff7BattleRng random, bool sameActor, bool guestContact, IReadOnlyList<byte>? originStatusResistances)
     {
         ArgumentNullException.ThrowIfNull(random);
+        sourceStats = sourceStats with { OriginSavedStatuses = (ushort)(sourceStats.OriginSavedStatuses | source.OriginSavedStatuses) };
+        targetStats = targetStats with { OriginSavedStatuses = (ushort)(targetStats.OriginSavedStatuses | target.OriginSavedStatuses) };
         source = source with { OriginSavedStatuses = sourceStats.OriginSavedStatuses };
         target = target with { OriginSavedStatuses = targetStats.OriginSavedStatuses };
         bool zombie = Ff7OriginSavedStatusRules.IsZombie(targetStats.OriginSavedStatuses);
@@ -254,7 +262,7 @@ public static class Ff7NativeBattleActionResolver
             {
                 return new(source, target, new(true, false, 0), 0, 0);
             }
-            if ((action.Affinity & Ff7BattleDamageAffinity.Absorb) != 0)
+            if ((action.Affinity & Ff7BattleDamageAffinity.Absorb) != 0 || zombie)
             {
                 if ((target.Statuses & Death) != 0)
                 {
@@ -290,7 +298,7 @@ public static class Ff7NativeBattleActionResolver
             damage = damage with { Damage = 0 };
         }
         Ff7BattleActionVitals nextTarget = ApplyDamage(target with { Hp = action.RequiresKnockedOutTarget ? 0 : target.Hp, Statuses = statuses }, damage.Damage, action.TargetsMagicPoints);
-        if (guestContact && (target.Statuses & Death) == 0 && (nextTarget.Statuses & Death) != 0)
+        if ((guestContact || offensiveRevival) && (target.Statuses & Death) == 0 && (nextTarget.Statuses & Death) != 0)
         {
             nextTarget = nextTarget with { Hp = 0 };
         }
@@ -303,6 +311,10 @@ public static class Ff7NativeBattleActionResolver
             {
                 drain = -drain;
             }
+            if (((sourceStats.OriginSavedStatuses ^ targetStats.OriginSavedStatuses) & Ff7OriginSavedStatusRules.Zombie) != 0)
+            {
+                drain = -drain;
+            }
             nextSource = ApplyDamage(nextSource, -drain, action.TargetsMagicPoints);
             if (sameActor)
             {
@@ -311,7 +323,8 @@ public static class Ff7NativeBattleActionResolver
         }
         return new(nextSource, nextTarget, damage, nextTarget.Statuses & ~target.Statuses, target.Statuses & ~nextTarget.Statuses)
         {
-            RemovedOriginSavedStatuses = (ushort)(target.OriginSavedStatuses & ~nextTarget.OriginSavedStatuses & Ff7OriginSavedStatusRules.Supported)
+            RemovedOriginSavedStatuses = (ushort)(target.OriginSavedStatuses & ~nextTarget.OriginSavedStatuses & Ff7OriginSavedStatusRules.Supported),
+            OffensiveRevival = offensiveRevival
         };
     }
 
@@ -334,7 +347,7 @@ public static class Ff7NativeBattleActionResolver
             return new(source, target, prepared.Damage, 0, 0);
         }
         uint statuses = (target.Statuses & ~prepared.RemovedStatuses) | prepared.AddedStatuses;
-        bool offensiveRevival = action.RequiresKnockedOutTarget && Ff7OriginSavedStatusRules.IsZombie(prepared.Target.OriginSavedStatuses) && (prepared.AddedStatuses & Death) != 0;
+        bool offensiveRevival = prepared.OffensiveRevival;
         ushort originSaved = (ushort)((target.OriginSavedStatuses | prepared.AddedOriginSavedStatuses) & ~prepared.RemovedOriginSavedStatuses);
         Ff7BattleActionVitals next = ApplyDamage(target with { Hp = action.RequiresKnockedOutTarget && !offensiveRevival ? 0 : target.Hp, Statuses = statuses, OriginSavedStatuses = originSaved }, prepared.Damage.Damage, action.TargetsMagicPoints);
         if ((target.Statuses & Death) == 0 && (next.Statuses & Death) != 0)
@@ -348,6 +361,7 @@ public static class Ff7NativeBattleActionResolver
             RemovedOriginBattleStatuses = prepared.RemovedOriginBattleStatuses,
             AddedOriginSavedStatuses = prepared.AddedOriginSavedStatuses,
             RemovedOriginSavedStatuses = prepared.RemovedOriginSavedStatuses,
+            OffensiveRevival = prepared.OffensiveRevival,
             SourceHitPointDamage = prepared.SourceHitPointDamage,
             AddedParameterStatus = prepared.AddedParameterStatus,
             RemovedParameterStatus = prepared.RemovedParameterStatus
@@ -356,25 +370,38 @@ public static class Ff7NativeBattleActionResolver
 
     internal static Ff7BattleActionReceipt ApplyGuestItem(Ff7BattleActionVitals source, Ff7BattleActionVitals target, Ff7BattleGuestItemEffect effect, Ff7BattleDamageResult? prepared = null, bool nullifyRecovery = false)
     {
-        if (effect.ReviveDivisor is not (0 or 4 or 8) || effect.FractionRecoveryLimit is 0 or > 60000 || effect.RecoveryMultiplier is not (1 or 2) || effect.MaximumHitPointFraction == 0 && effect.RecoveryMultiplier != 1 || effect.MaximumHitPointFraction > 16 || effect.MaximumHitPointFraction != 0 && effect.ReviveDivisor != 0 || (effect.RemoveStatuses & ~Ff7GuestBattleStatuses.SupportedHost) != 0 || (effect.RemoveStatuses & Death) != 0)
+        if (effect.ReviveDivisor is not (0 or 4 or 8) || effect.FractionRecoveryLimit is 0 or > 60000 || effect.RecoveryMultiplier is not (1 or 2) || effect.MaximumHitPointFraction == 0 && effect.RecoveryMultiplier != 1 || effect.MaximumHitPointFraction > 16 || effect.MaximumHitPointFraction != 0 && effect.ReviveDivisor != 0 || (effect.RemoveStatuses & ~Ff7GuestBattleStatuses.SupportedHost) != 0 || (effect.RemoveStatuses & Death) != 0 || (effect.RemoveOriginSavedStatuses & ~Ff7OriginSavedStatusRules.Supported) != 0)
         {
             throw new NotSupportedException("Guest recovery requires an admitted original item effect.");
         }
         bool revive = effect.ReviveDivisor != 0;
         bool dead = target.Hp == 0 || (target.Statuses & Death) != 0;
+        bool zombie = Ff7OriginSavedStatusRules.IsZombie(target.OriginSavedStatuses);
+        bool offensiveRevival = revive && zombie && !dead;
+        bool valid = dead == revive || offensiveRevival;
         int recovery = effect.MaximumHitPointFraction != 0 ? (int)Math.Min(effect.FractionRecoveryLimit, (long)target.MaxHp * effect.MaximumHitPointFraction / 16 * effect.RecoveryMultiplier) : effect.HitPoints;
-        Ff7BattleDamageResult damage = prepared ?? new(dead != revive, false, -(revive ? Math.Max(1, (int)target.MaxHp / effect.ReviveDivisor) : recovery));
+        Ff7BattleDamageResult damage = prepared ?? new(!valid, false, offensiveRevival ? 0 : (zombie && !revive ? 1 : -1) * (revive ? Math.Max(1, (int)target.MaxHp / effect.ReviveDivisor) : recovery));
         if (nullifyRecovery)
         {
             damage = damage with { Damage = 0 };
         }
-        if (damage.Missed || dead != revive)
+        if (damage.Missed || !valid || offensiveRevival && ((target.Statuses & (Petrify | Peerless | Resist | DeathForce)) != 0 || (target.StatusImmunities & Death) != 0))
         {
             return new(source, target, new(true, false, 0), 0, 0);
         }
-        uint statuses = target.Statuses & ~(effect.RemoveStatuses | (revive ? Death : 0u));
-        Ff7BattleActionVitals next = ApplyDamage(target with { Statuses = statuses }, damage.Damage, false);
-        return new(source, next, damage, next.Statuses & ~target.Statuses, target.Statuses & ~next.Statuses) { RemovedParameterStatus = effect.RemoveParameterStatuses };
+        uint statuses = target.Statuses & ~(effect.RemoveStatuses | (revive && !offensiveRevival ? Death : 0u));
+        if (offensiveRevival)
+        {
+            statuses |= Death;
+        }
+        ushort saved = (ushort)(target.OriginSavedStatuses & ~effect.RemoveOriginSavedStatuses);
+        Ff7BattleActionVitals next = ApplyDamage(target with { Statuses = statuses, Hp = offensiveRevival ? 0 : target.Hp, OriginSavedStatuses = saved }, damage.Damage, false);
+        return new(source, next, damage, next.Statuses & ~target.Statuses, target.Statuses & ~next.Statuses)
+        {
+            RemovedParameterStatus = effect.RemoveParameterStatuses,
+            RemovedOriginSavedStatuses = (ushort)(target.OriginSavedStatuses & ~next.OriginSavedStatuses),
+            OffensiveRevival = offensiveRevival
+        };
     }
 
     private static bool RollStatus(Ff7BattleAttack record, Ff7BattleDamageAction action, Ff7BattleRng random)

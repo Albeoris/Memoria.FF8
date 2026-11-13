@@ -26,7 +26,10 @@ public sealed partial class Ff7BattleSession
 
     public ushort GetGuestOriginSavedStatuses(int slot)
     {
-        Ff7BattleGuestVitalsBinding binding = GetGuestBinding(slot) ?? throw new InvalidOperationException("Origin saved statuses require an FFVIII guest binding.");
+        if (GetGuestBinding(slot) is null)
+        {
+            throw new InvalidOperationException("Origin saved statuses require an FFVIII guest binding.");
+        }
         return GetOriginSavedStatuses(slot);
     }
 
@@ -36,6 +39,33 @@ public sealed partial class Ff7BattleSession
         ushort original = GetGuestBinding(slot)?.OriginStatuses ?? 0;
         ushort owned = actor.OriginSavedStatuses ?? (ushort)(original & Ff7OriginSavedStatusRules.Supported);
         return Ff7GuestBattleStatuses.ToOrigin(actor.Actor.Statuses, (ushort)((original & ~Ff7OriginSavedStatusRules.Supported) | owned));
+    }
+
+    private Ff7BattleActorState NormalizeOriginKnockout(Ff7BattleActorState actor)
+    {
+        if ((actor.Actor.Statuses & Ff7NativeBattleActionResolver.Death) == 0)
+        {
+            return actor;
+        }
+        const ushort savedRemoval = 0x37E;
+        const uint battleRemoval = 0x38E7FFF;
+        ushort owned = (ushort)((actor.OriginSavedStatuses ?? GetOriginSavedStatuses(actor.Actor.Slot)) & ~savedRemoval & Ff7OriginSavedStatusRules.Supported);
+        Ff7BattleParameterOperation? parameter = actor.ParameterStatus;
+        if (parameter is not null && (parameter.SourceStatusMask & battleRemoval) != 0)
+        {
+            parameter = null;
+        }
+        if (GetGuestBinding(actor.Actor.Slot) is { } binding)
+        {
+            uint current = state.GuestOriginStatuses?.SingleOrDefault(value => value.HostSlot == actor.Actor.Slot)?.BattleStatuses ?? binding.OriginBattleStatuses;
+            uint remaining = current & ~battleRemoval;
+            if (current != remaining)
+            {
+                Ff7BattleGuestOriginStatus[] statuses = (state.GuestOriginStatuses ?? []).Where(value => value.HostSlot != actor.Actor.Slot).Append(new(actor.Actor.Slot, remaining)).OrderBy(value => value.HostSlot).ToArray();
+                state = state with { GuestOriginStatuses = statuses };
+            }
+        }
+        return actor with { OriginSavedStatuses = owned, ParameterStatus = parameter, ParameterStatusInitialized = true };
     }
 
     public uint GetGuestOriginBattleStatuses(int slot)

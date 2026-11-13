@@ -41,7 +41,8 @@ public sealed class CrossoverGuestRecoverySemanticsTests
         }
         BattleNativeAction statusRecovery = source with { Statuses0 = 0x7E, Statuses1 = 0x0100560D, StatusAttack = 200 };
         Assert.Null(CrossoverGuestHostActions.OriginItemStatusUnsupportedReason(statusRecovery, 0, 0));
-        Assert.NotNull(CrossoverGuestHostActions.OriginItemStatusUnsupportedReason(statusRecovery, 0x40, 0));
+        Assert.Null(CrossoverGuestHostActions.OriginItemStatusUnsupportedReason(statusRecovery, 0x40, 0));
+        Assert.Equal((ushort)0x40, CrossoverGuestHostActions.DescribeOriginItem(statusRecovery, 0).RemoveOriginSavedStatuses);
         Assert.Null(CrossoverGuestHostActions.OriginItemStatusUnsupportedReason(statusRecovery, 0, 0x01000000));
         Assert.Equal(0x01000000u, CrossoverGuestHostActions.DescribeOriginItem(statusRecovery, 0).RemoveParameterStatuses);
     }

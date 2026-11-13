@@ -6,6 +6,7 @@ using Memoria.FF7.Runtime;
 if (args.Contains("--stop-clock-only", StringComparer.Ordinal))
 {
     NativeStopClockTests.Run();
+    OriginZombieStatusTests.Run();
     return 0;
 }
 

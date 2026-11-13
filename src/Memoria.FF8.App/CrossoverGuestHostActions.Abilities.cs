@@ -16,7 +16,7 @@ internal sealed partial class CrossoverGuestHostActions
     private long capabilityVersion;
     private long menuCapabilityVersion;
     private object? menuState;
-    private readonly Dictionary<(ushort Ability, int Target, ushort Targets, bool Geometry), string?> abilityCapabilities = [];
+    private readonly Dictionary<(ushort Ability, int Target, ushort Targets, bool Geometry, string OriginStatuses), string?> abilityCapabilities = [];
 
     public void BindLimitProgress(GameplaySaveLimitProgress progress)
     {
@@ -99,7 +99,7 @@ internal sealed partial class CrossoverGuestHostActions
         if (reason is not null)
         {
             ushort key = item ? CrossoverGuestAbilityCatalog.Key(4, original.ActionId) : receipt.Invocation.GuestAbility;
-            abilityCapabilities[(key, receipt.Invocation.TargetSlot, AbilityTargetMask(original, receipt.Invocation.TargetSlot), readForeignGeometry is not null)] = reason;
+            abilityCapabilities[AbilityCapabilityKey(key, receipt.Invocation.TargetSlot, AbilityTargetMask(original, receipt.Invocation.TargetSlot))] = reason;
             capabilityVersion++;
         }
         return reason;
@@ -270,7 +270,7 @@ internal sealed partial class CrossoverGuestHostActions
     private string? PresentationUnsupportedReason(BattleNativeAction original, ushort ability, int target)
     {
         ushort targets = AbilityTargetMask(original, target);
-        var key = (ability, target, targets, readForeignGeometry is not null);
+        var key = AbilityCapabilityKey(ability, target, targets);
         if (attack.Visual is null || host.Actors.Any(actor => (targets & (1 << actor.Actor.Slot)) != 0 && !host.IsActorPresentationReady(actor.Actor.Slot)))
         {
             return "The original actor presentation is not ready.";
@@ -282,6 +282,12 @@ internal sealed partial class CrossoverGuestHostActions
             capabilityVersion++;
         }
         return reason;
+    }
+
+    private (ushort Ability, int Target, ushort Targets, bool Geometry, string OriginStatuses) AbilityCapabilityKey(ushort ability, int target, ushort targets)
+    {
+        string statuses = string.Join(";", host.Actors.Where(actor => (targets & (1 << actor.Actor.Slot)) != 0).OrderBy(actor => actor.Actor.Slot).Select(actor => $"{actor.Actor.Slot}:{host.GetOriginSavedStatuses(actor.Actor.Slot):X4}"));
+        return (ability, target, targets, readForeignGeometry is not null, statuses);
     }
 
     private string? ProbeAbility(BattleNativeAction original, int target, NativeBattleContactHalf? preparedContact = null)

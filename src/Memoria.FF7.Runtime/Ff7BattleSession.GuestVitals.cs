@@ -152,8 +152,12 @@ public sealed partial class Ff7BattleSession
         uint statuses = Ff7GuestBattleStatuses.ToHostStatuses(binding.OriginStatuses, binding.OriginBattleStatuses) | (binding.InitialHp == 0 ? 1u : 0u);
         Ff7BattleAiActor projected = actor.Actor with { HitPoints = binding.InitialHp, MaxHitPoints = binding.MaximumHp, MagicPoints = 0, MaxMagicPoints = 0, Statuses = statuses, Defense = binding.Defense, MagicDefense = binding.MagicDefense };
         Ff7BattleParameterOperation? parameter = (binding.OriginBattleStatuses & Ff7GuestBattleStatuses.OriginDefenseReduction) != 0 ? new(Ff7GuestBattleStatuses.OriginDefenseReduction, 32, 100, 100) : null;
-        Replace(actor with { Actor = projected, LimitGauge = 0, AllUses = null, Timers = Ff7NativeBattleStatusClock.Apply(default, 0, statuses), ParameterStatus = parameter, ParameterStatusInitialized = true });
+        Replace(actor with { Actor = projected, LimitGauge = 0, AllUses = null, Timers = Ff7NativeBattleStatusClock.Apply(default, 0, statuses), ParameterStatus = parameter, ParameterStatusInitialized = true, OriginSavedStatuses = (ushort)(binding.OriginStatuses & Ff7OriginSavedStatusRules.Supported) });
         SetGuestSlotState(new(binding));
+        if ((statuses & Ff7NativeBattleActionResolver.Death) != 0)
+        {
+            Replace(Actor(binding.HostSlot));
+        }
     }
 
     private bool IsGuestVitalsSlot(int slot) => GetGuestBinding(slot) is not null;

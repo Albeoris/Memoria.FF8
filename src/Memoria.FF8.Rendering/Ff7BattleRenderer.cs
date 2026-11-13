@@ -292,6 +292,7 @@ public sealed partial class Ff7BattleRenderer
                 }
             }
             TriangleMaterial triangleMaterial = new(image, opacity < 1 ? TriangleBlend.Alpha : material.Blend, material.DepthTest ? TriangleDepthComparison.GreaterEqual : TriangleDepthComparison.Always, material.DepthWrite && opacity == 1, material.AlphaReference, material.Sampler) { PreserveTargetAlpha = false, TextureSelectsAlpha = false };
+            triangleMaterial = nativeActorColor?.ApplyHostMaterial(triangleMaterial, material.BlendMode) ?? triangleMaterial;
             CameraSpaceVertex Vertex(int local)
             {
                 int vertex = group.VertexStart + local;
@@ -309,7 +310,7 @@ public sealed partial class Ff7BattleRenderer
                     blue = MathF.Round(blue * originalWeight + blend.Blue * tintWeight);
                 }
                 Vector4 color = new(red / 255f, green / 255f, blue / 255f, (argb >> 24) / 255f * state.VertexAlpha / 255f * opacity);
-                color = nativeActorColor?.Apply(color) ?? color;
+                color = nativeActorColor?.ApplyHost(color, material.BlendMode) ?? color;
                 Vector2 uv = image is null ? Vector2.Zero : model.TextureCoordinates[group.TextureCoordinateStart + local];
                 return new(view.Transform(Vector3.Transform(model.Vertices[vertex], transform)), uv, color);
             }

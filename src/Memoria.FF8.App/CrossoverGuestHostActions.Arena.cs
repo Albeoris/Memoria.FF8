@@ -29,6 +29,7 @@ internal sealed partial class CrossoverGuestHostActions
     public ImmutableArray<NativeBattleArenaReplacement> ArenaReplacements => fire?.Presentation.Effect?.ArenaReplacements ?? [];
     public ImmutableArray<NativeBattleArenaPrimitiveId> SuppressedArenaPrimitives => fire?.Presentation.Effect?.SuppressedArenaPrimitives ?? [];
     public NativeBattleUiServices? PresentationUi => fire?.Presentation.Effect?.Ui;
+    public int? CurrentRelativeMusicGain => fire?.Presentation.Effect?.MusicGain;
 }
 
 internal static class CrossoverNativeArena

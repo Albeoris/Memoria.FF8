@@ -23,6 +23,7 @@ public sealed record NativeBattleEffectPresentationInputs(BattleDefinition Resou
     public NativeBattleArenaHost? Arena { get; init; }
     public bool DeferInvocation { get; init; }
     public int? PartyActorCount { get; init; }
+    public int? InitialMusicGain { get; init; }
 }
 
 public enum NativeBattleForeignSequenceKind
@@ -63,6 +64,7 @@ public sealed class NativeBattleEffectPresentation : IDisposable
     public ImmutableArray<NativeBattleArenaReplacement> ArenaReplacements => owner.presentationArena?.Replacements ?? [];
     public NativeBattleUiServices Ui => Graphics.UiServices ?? throw new InvalidDataException("Native presentation lost its UI owner.");
     public NativeBattleStageState Stage => owner.NativeStage ?? throw new InvalidDataException("Native presentation lost its arena owner.");
+    public int? MusicGain => owner.ReadEffectPresentationMusicGain();
     public ImmutableArray<NativeBattleArenaPrimitiveId> SuppressedArenaPrimitives => owner.presentationArena?.SuppressedPrimitives(Stage) ?? [];
 
     public void Dispose() => owner.ReleaseEffectPresentation();

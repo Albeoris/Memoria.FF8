@@ -13,7 +13,12 @@ public static class NativeBattleParameterRules
         {
             return null;
         }
-        bool tuned = action is { Command: 2 or 247, ActionId: 49, KernelSection: 1, KernelIndex: 49 };
+        bool tuned = UsesConfiguredReduction(action);
         return new(DefenseReductionStatus, 32, tuned ? tuning?.MeltdownVitalityReductionPercent ?? 100 : 100, tuned ? tuning?.MeltdownSpiritReductionPercent ?? 100 : 100);
+    }
+
+    internal static bool UsesConfiguredReduction(BattleNativeAction action)
+    {
+        return action is { Command: 2 or 247, ActionId: 49, KernelSection: 1, KernelIndex: 49 } && (action.Statuses1 & DefenseReductionStatus) != 0;
     }
 }

@@ -13,6 +13,7 @@ public sealed class CrossoverPresentationOwnerTests(ITestOutputHelper output)
     {
         HashSet<int> stages = [];
         HashSet<int> modes = [];
+        HashSet<int> musicGains = [];
         NativeBattleEffectPresentation? owner = null;
         bool hidden = false;
         bool faded = false;
@@ -31,6 +32,10 @@ public sealed class CrossoverPresentationOwnerTests(ITestOutputHelper output)
                 return;
             }
             owner = effect;
+            int musicGain = Assert.IsType<int>(effect.MusicGain);
+            Assert.InRange(musicGain, 0, 127);
+            Assert.Equal(effect.MusicGain, current.CurrentRelativeMusicGain);
+            musicGains.Add(musicGain);
             modes.Add(effect.Ui.Flags942 & 0x300);
             if (effect.Memory.TheEnd85 is { } state)
             {
@@ -55,6 +60,13 @@ public sealed class CrossoverPresentationOwnerTests(ITestOutputHelper output)
                 Assert.True(colored.MaximumColor.X < normal.MaximumColor.X);
                 Assert.True(colored.MaximumColor.Y < normal.MaximumColor.Y);
                 Assert.True(colored.MaximumColor.Z < normal.MaximumColor.Z);
+                Assert.Contains(colored.Materials, material => material.Texture is not null && material.Blend != TriangleBlend.Replace && !material.DepthWrite && !material.TextureSelectsAlpha);
+                if (current.Visual is { } source)
+                {
+                    CountRenderer native = new();
+                    renderer.Render(native, 320, 240, new(host.GuestRenderCameraOutput, []) { Guests = [source], SuppressArenaPrimitives = arena });
+                    Assert.Contains(native.Materials, material => material.Texture is not null && material.Blend != TriangleBlend.Replace && !material.DepthWrite && material.TextureSelectsAlpha && material.PreserveTargetAlpha);
+                }
                 partyColorRendered = true;
             }
             if (!effect.SuppressedArenaPrimitives.IsEmpty)
@@ -96,8 +108,11 @@ public sealed class CrossoverPresentationOwnerTests(ITestOutputHelper output)
         Assert.All(new[] { 1, 2, 3, 4, 5, 6 }, stage => Assert.Contains(stage, stages));
         Assert.Contains(0x200, modes);
         Assert.Contains(0x100, modes);
+        Assert.Contains(48, musicGains);
+        Assert.Contains(127, musicGains);
         AssertReleased(owner);
         Assert.Null(provider.PresentationUi);
+        Assert.Null(provider.CurrentRelativeMusicGain);
         Assert.Empty(provider.SuppressedArenaPrimitives);
     }
 
@@ -151,9 +166,9 @@ public sealed class CrossoverPresentationOwnerTests(ITestOutputHelper output)
             var after = host.Capture();
             Assert.True(host.IsGuestTargetStanding(1));
             Assert.Equal(JsonSerializer.Serialize(before.Actors), JsonSerializer.Serialize(after.Actors));
-            Assert.Equal(before.Random, after.Random);
+            Assert.Equal(JsonSerializer.Serialize(before.Random), JsonSerializer.Serialize(after.Random));
             Assert.Equal(before.LastHit, after.LastHit);
-            Assert.Equal(before.Queue, after.Queue);
+            Assert.Equal(JsonSerializer.Serialize(before.Queue), JsonSerializer.Serialize(after.Queue));
             Assert.Equal(JsonSerializer.Serialize(before.Inventory), JsonSerializer.Serialize(after.Inventory));
             Assert.Equal(stock, JsonSerializer.Serialize(provider.WorkingStock));
             checkedStanding = true;
@@ -169,6 +184,7 @@ public sealed class CrossoverPresentationOwnerTests(ITestOutputHelper output)
         Assert.Equal((short)0, owner.StageColorDepth);
         Assert.Empty(owner.SuppressedArenaPrimitives);
         Assert.Empty(owner.ArenaReplacements);
+        Assert.Equal(127, owner.MusicGain);
     }
 
     private static void RequireInstallations()
@@ -180,6 +196,7 @@ public sealed class CrossoverPresentationOwnerTests(ITestOutputHelper output)
     {
         public int Count { get; private set; }
         public Vector4 MaximumColor { get; private set; }
+        public HashSet<TriangleMaterial> Materials { get; } = [];
 
         public void Begin(int width, int height, Vector4 clearColor, float clearDepth = 1)
         {
@@ -189,6 +206,7 @@ public sealed class CrossoverPresentationOwnerTests(ITestOutputHelper output)
         {
             Count++;
             MaximumColor = Vector4.Max(MaximumColor, Vector4.Max(a.Color, Vector4.Max(b.Color, c.Color)));
+            Materials.Add(material);
         }
 
         public void End()

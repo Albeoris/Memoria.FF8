@@ -8,6 +8,7 @@ internal static class NativeStatusCounterpartClockTests
     public static void Run()
     {
         NativeStopClockTests.Run();
+        OriginZombieStatusTests.Run();
         const uint regen = Ff7NativeBattleStatuses.Regen;
         const uint doom = Ff7NativeBattleStatuses.DeathSentence;
         const uint gradual = Ff7NativeBattleStatuses.SlowNumb;

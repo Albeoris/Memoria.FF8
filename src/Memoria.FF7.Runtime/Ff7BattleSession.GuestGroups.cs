@@ -43,8 +43,11 @@ public sealed partial class Ff7BattleSession
     {
         Ff7BattleGuestAbility? choice = (guest as IFf7BattleGuestAbilities)?.Abilities.SingleOrDefault(choice => choice.Command == Ff7BattleCommand.Magic && choice.Ability == ability);
         bool revive = choice?.CanTargetDead == true;
-        return target.Actor.Slot != 3 && (!revive || target.Actor.Slot < 3) && (revive ? target.Actor.HitPoints == 0 || (target.Actor.Statuses & 1) != 0 : IsAlive(target)) && ((target.Actor.Conditions & 8) != 0 || revive && target.Actor.Slot < 3);
+        return target.Actor.Slot != 3 && (revive ? GuestRevivalTarget(target) : IsAlive(target)) && ((target.Actor.Conditions & 8) != 0 || revive && target.Actor.Slot < 3);
     }
+
+    private bool GuestRevivalTarget(Ff7BattleActorState target)
+        => target.Actor.Slot < 3 && (target.Actor.HitPoints == 0 || (target.Actor.Statuses & 1) != 0) || IsAlive(target) && Ff7OriginSavedStatusRules.IsZombie(GetOriginSavedStatuses(target.Actor.Slot));
 
     private bool SubmitGuestMagicTargets(int slot, ushort targets, ushort ability, bool group)
     {
