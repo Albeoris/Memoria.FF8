@@ -27,6 +27,8 @@ internal sealed class AutoPlayRunState
     public string? ActiveConditionSignature { get; set; }
     public List<AutoPlayChoiceSelection>? ActiveSelections { get; set; } = [];
     public AutoPlayEventRoute? ActiveTravelRoute { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ActiveTravelForwarded { get; set; }
     public AutoPlayTravelGoal? ActiveTravelGoal { get; set; }
     public int? TravelStory { get; set; }
     public HashSet<AutoPlayJourneyHop> JourneyHops { get; set; } = [];
@@ -122,6 +124,7 @@ internal sealed partial class AutoPlayController
                 world.Events.OperationCompleted += ObserveSurveyOperation;
                 world.Events.BeforeNativePartyActionRequest += ObserveParticipantAction;
                 world.BeforeFieldAllocation += ObserveSurveySegmentChanges;
+                world.BeforeFieldAllocation += ObserveTravelForwarding;
                 world.BeforeWorldEntry += ObserveWorldEntry;
             }
             if (advancing)
@@ -453,6 +456,7 @@ internal sealed partial class AutoPlayController
                     watched.Events.OperationCompleted -= ObserveSurveyOperation;
                     watched.Events.BeforeNativePartyActionRequest -= ObserveParticipantAction;
                     watched.BeforeFieldAllocation -= ObserveSurveySegmentChanges;
+                    watched.BeforeFieldAllocation -= ObserveTravelForwarding;
                     watched.BeforeWorldEntry -= ObserveWorldEntry;
                 }
                 watchedWorlds.Clear();
@@ -875,6 +879,7 @@ internal sealed partial class AutoPlayController
             run.ActiveConditionSignature = source.ConditionSignature;
             run.ActiveSelections = [];
             run.ActiveTravelRoute = next.Route;
+            run.ActiveTravelForwarded = false;
             run.ActiveTravelGoal = next.Goal;
             run.ActiveBeforeCheckpoint = checkpoint;
             run.ActiveTargetId = selected.Id;
@@ -1641,6 +1646,7 @@ internal sealed partial class AutoPlayController
         run.ActiveConditionSignature = signature;
         run.ActiveSelections = [];
         run.ActiveTravelRoute = next.Route;
+        run.ActiveTravelForwarded = false;
         run.ActiveTravelGoal = next.Goal;
         run.ActiveBeforeCheckpoint = beforeCheckpoint;
         run.ActiveTargetId = target.Id;
@@ -2247,7 +2253,7 @@ internal sealed partial class AutoPlayController
         }
         string destination = session.State.Scene == SceneKind.WorldMap ? "world:" + session.State.Variables.GetValueOrDefault(256) : VisitKey();
         bool changedDestination = run.ActiveTravelRoute is { } route && route.DestinationVisitKey != destination;
-        if (changedDestination && !CanCorrectNativeGatewayDestination())
+        if (changedDestination && !run.ActiveTravelForwarded && !CanCorrectNativeGatewayDestination())
         {
             throw new NotSupportedException("The executed native choices returned to a different destination than the recorded travel route.");
         }
@@ -2259,8 +2265,11 @@ internal sealed partial class AutoPlayController
         string destinationNavigation = CurrentNavigationKey(world, destination);
         if (changedDestination)
         {
-            planner.RetireObservedGatewayDestination(run.ActiveNavigationKey!, eventId, run.ActiveTravelRoute!, destinationNavigation);
-            RecordRecentAction($"Correct gateway destination {eventId}: {run.ActiveTravelRoute!.DestinationVisitKey} -> {destination}");
+            if (!run.ActiveTravelForwarded)
+            {
+                planner.RetireObservedGatewayDestination(run.ActiveNavigationKey!, eventId, run.ActiveTravelRoute!, destinationNavigation);
+            }
+            RecordRecentAction($"Observe actual travel destination {eventId}: {run.ActiveTravelRoute!.DestinationVisitKey} -> {destination}");
         }
         if (run.SurveyInvalidationUnknown)
         {

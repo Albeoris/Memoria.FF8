@@ -5,6 +5,14 @@ namespace Memoria.FF8;
 
 internal sealed partial class AutoPlayController
 {
+    private void ObserveTravelForwarding(GameWorld world)
+    {
+        if (run.ActiveTravelRoute is { } route && run.ActiveField != world.Events.FieldId && world.Field?.Id == world.Events.FieldId && session.State.Scene == SceneKind.Field && session.State.FieldId != world.Events.FieldId && route.DestinationVisitKey == $"{world.Events.FieldId}:{world.Events.Variables.GetValueOrDefault(256)}")
+        {
+            run.ActiveTravelForwarded = true;
+        }
+    }
+
     internal static bool HasNativeGatewayDestinationContext(AutoPlayRunState state, GameState actual, out int gateway)
     {
         gateway = -1;
