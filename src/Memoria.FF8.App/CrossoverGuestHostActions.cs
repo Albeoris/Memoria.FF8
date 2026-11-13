@@ -11,6 +11,7 @@ namespace Memoria.FF8;
 internal sealed record CrossoverGuestFireHostState(Ff7BattleGuestInvocation Invocation, long HostTick, long Subticks, bool HalfSubtick, CrossoverGunbladeHostPlacement Placement, ushort TargetRadius, Ff7BattleGuestPhysicalHit Prepared, CrossoverBattleAction? StockAction, CrossoverNativeMagicPresentationState Presentation, bool ContactPublished)
 {
     public ImmutableArray<Ff7BattleGuestPhysicalHit> GroupPrepared { get; init; } = [];
+    public ImmutableArray<Ff7BattleGuestCompositeContact> CompositePrepared { get; init; } = [];
     public CrossoverGuestItemDebit? ItemCost { get; init; }
     public CrossoverDrawCastReceipt? DrawCast { get; init; }
     public bool PrepaidMagic { get; init; }
@@ -36,7 +37,7 @@ internal sealed record CrossoverGuestHostActionsSnapshot(CrossoverBattleStockSna
 internal sealed record CrossoverGuestActorSnapshot(CrossoverGuestFireHostState? Fire, CrossoverNativeRenzokukenSelection? LimitSelection, CrossoverGuestRenzokukenHostState? Limit, NativeBattleUiRandomState? LimitUiRandom);
 
 /// <summary>One host provider for original attacks and source-owned abilities through the common encounter bridge.</summary>
-internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack, IFf7BattleGuestMagic, IFf7BattleGuestGroupMagic, IFf7BattleGuestAbilities, IFf7BattleGuestCamera, IFf7BattleGuestItems, IFf7BattleGuestLimit, IFf7BattleGuestOperation
+internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack, IFf7BattleGuestMagic, IFf7BattleGuestGroupMagic, IFf7BattleGuestCompositeActions, IFf7BattleGuestAbilities, IFf7BattleGuestCamera, IFf7BattleGuestItems, IFf7BattleGuestLimit, IFf7BattleGuestOperation
 {
     private readonly CrossoverBattleRoster roster;
     private CrossoverFf8BattleKit kit;
@@ -283,7 +284,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
             encounter.GlobalRandom = attack.GlobalRandom;
             return;
         }
-        if (Invocation is not null || prepared is not { PreparedContact: { } receipt } hit || receipt.Invocation != invocation || (invocation.Reflected ? !hit.Attack.Reflectable : !SupportsMagic(invocation.GuestAbility, target)))
+        if (Invocation is not null || prepared is not { PreparedContact: { } receipt } hit || (preparedComposite.IsEmpty ? receipt.Invocation : receipt.Invocation with { TargetSlot = invocation.TargetSlot }) != invocation || (invocation.Reflected ? !hit.Attack.Reflectable : !SupportsMagic(invocation.GuestAbility, target)))
         {
             throw new InvalidDataException("The mixed ability requires one prepared native receipt and an admitted target occurrence.");
         }
@@ -304,8 +305,15 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         CrossoverNativeMagicPresentationState program;
         try
         {
-            ImmutableArray<CrossoverNativeMagicTarget> targets = PresentationTargets(preparedGroup.IsEmpty ? [hit] : preparedGroup, original);
-            program = fireProgram.Begin(model with { Index = 0 }, target.Slot, encounter.CrtRandom, targets[0].Contact, original, encounter.GlobalRandom, CreateArena(placement)) with { Targets = targets };
+            if (!preparedComposite.IsEmpty)
+            {
+                program = BeginCompositePresentation(model, invocation, original, preparedComposite, placement);
+            }
+            else
+            {
+                ImmutableArray<CrossoverNativeMagicTarget> targets = PresentationTargets(preparedGroup.IsEmpty ? [hit] : preparedGroup, original);
+                program = fireProgram.Begin(model with { Index = 0 }, target.Slot, encounter.CrtRandom, targets[0].Contact, original, encounter.GlobalRandom, CreateArena(placement)) with { Targets = targets };
+            }
         }
         catch
         {
@@ -327,10 +335,11 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         {
             throw new InvalidDataException("Draw Cast requires its committed source result before presentation.");
         }
-        fire = new(invocation, invocation.StartedAt, clock.Subticks, clock.HalfSubtick, placement, target.CollisionRadius, hit, stockAction, program, false) { DrawCast = preparedDrawCast, GroupPrepared = preparedGroup, PrepaidMagic = prepaidMagic };
+        fire = new(invocation, invocation.StartedAt, clock.Subticks, clock.HalfSubtick, placement, target.CollisionRadius, hit, stockAction, program, false) { DrawCast = preparedDrawCast, GroupPrepared = preparedGroup, CompositePrepared = preparedComposite, PrepaidMagic = prepaidMagic };
         preparedDrawCast = null;
         prepared = null;
         preparedGroup = [];
+        preparedComposite = [];
     }
 
     public Ff7BattleGuestAttackUpdate Advance(long hostTick)
@@ -379,6 +388,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         NativeBattleGraphicsPresentationStep clock = NativeBattleGraphicsPresentationClock.Advance(current.Subticks, current.HalfSubtick, TimeSpan.FromTicks(HostTime(hostTick) - HostTime(current.HostTick)));
         Ff7BattleGuestPhysicalHit? hit = null;
         ImmutableArray<Ff7BattleGuestPhysicalHit> groupHits = [];
+        ImmutableArray<int> compositeContacts = [];
         if (clock.Callbacks != 0)
         {
             if (clock.Callbacks != 1)
@@ -426,7 +436,11 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
             }
             if (next.Contact)
             {
-                if (current.GroupPrepared.IsEmpty)
+                if (!current.CompositePrepared.IsEmpty)
+                {
+                    compositeContacts = next.ContactOrdinals;
+                }
+                else if (current.GroupPrepared.IsEmpty)
                 {
                     hit = current.Prepared;
                 }
@@ -444,7 +458,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
             current.Presentation.Effect?.Dispose();
             fire = null;
         }
-        return new(hit, fire is null) { GroupHits = groupHits };
+        return new(hit, fire is null) { GroupHits = groupHits, CompositeContacts = compositeContacts };
     }
 
     public void AdvanceIdle(long hostTick, uint statuses, long? reactionTick) => attack.AdvanceIdle(hostTick, statuses, reactionTick);

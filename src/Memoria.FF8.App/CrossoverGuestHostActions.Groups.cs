@@ -9,6 +9,8 @@ internal sealed partial class CrossoverGuestHostActions
 {
     private ImmutableArray<Ff7BattleGuestPhysicalHit> preparedGroup = [];
 
+    public IReadOnlyList<Ff7BattleGuestPhysicalHit> PreparedGroupContacts => fire?.GroupPrepared ?? preparedGroup;
+
     public string? PrepareGroupUnsupportedReason(IReadOnlyList<Ff7BattleGuestPhysicalHit> values)
     {
         if (values.Count == 0 || values.Any(hit => hit.PreparedContact is null))

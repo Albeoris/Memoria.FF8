@@ -28,10 +28,6 @@ internal static class CrossoverBattleAbilityRules
         {
             return "This command requires its native invocation process.";
         }
-        if (action.HitCount > 1)
-        {
-            return "The bridge cannot yet publish multiple native contacts for this command.";
-        }
         if (action.AttackType is not (1 or 2 or 3 or 4 or 5 or 6 or 8 or 9 or 11 or 15 or 20 or 21 or 22 or 26 or 27 or 29 or 32 or 35 or 36))
         {
             return $"Native attack type {action.AttackType} requires a combat operation that the bridge cannot represent.";

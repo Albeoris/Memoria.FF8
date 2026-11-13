@@ -29,9 +29,11 @@ internal sealed record CrossoverNativeMagicTarget(int HostSlot, NativeBattleCont
 internal sealed record CrossoverNativeMagicPresentationState(CrossoverNativeCastState Cast, NativeBattleAuxiliaryState Auxiliary, NativeBattleModuleState Modules, NativeBattleEffectTextureState Textures, NativeBattleModelTextureBinding BodyTextures, ImmutableArray<byte> TextureAnimations, NativeCrtRandomState Random, int HostTarget, NativeBattleContactHalf Contact)
 {
     public ImmutableArray<CrossoverNativeMagicTarget> Targets { get; init; } = [];
+    public ImmutableArray<CrossoverNativeMagicTarget> Contacts { get; init; } = [];
     public ImmutableArray<int> Participants { get; init; } = [];
     public ushort PublishedTargetMask { get; init; }
     public ImmutableArray<CrossoverNativeMagicTarget> BoundTargets => Targets.IsEmpty ? [new(HostTarget, Contact)] : Targets;
+    public ImmutableArray<CrossoverNativeMagicTarget> BoundContacts => Contacts.IsEmpty ? BoundTargets : Contacts;
     public int PublishedContacts { get; init; }
     public ushort Ability { get; init; }
     public byte Command { get; init; }
@@ -74,6 +76,7 @@ internal sealed record CrossoverNativeMagicPresentationState(CrossoverNativeCast
 internal sealed record CrossoverNativeMagicPresentationStep(CrossoverNativeMagicPresentationState State, bool Contact, ImmutableArray<NativeBattleModuleDraw> Sounds)
 {
     public ImmutableArray<int> ContactTargets { get; init; } = [];
+    public ImmutableArray<int> ContactOrdinals { get; init; } = [];
     public ImmutableArray<NativeBattleModuleSound> EffectSounds { get; init; } = [];
     public ImmutableArray<NativeBattleForeignSequenceRequest> Sequences { get; init; } = [];
 }
@@ -112,7 +115,7 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
                 probe = Advance(probe, readTargetAnchor, readTargetTransform, projection, readForeign, readGroupForeign).State;
                 if (probe.Complete)
                 {
-                    reason = probe.PublishedContacts == probe.BoundTargets.Length ? null : "The native presentation did not publish exactly one contact for every selected target.";
+                    reason = probe.PublishedContacts == probe.BoundContacts.Length ? null : "The native presentation did not publish every planned contact occurrence.";
                     return reason is null;
                 }
             }
@@ -121,7 +124,7 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
         }
         catch (Exception error) when (error is NotSupportedException or InvalidDataException or InvalidOperationException or OverflowException or ArgumentException)
         {
-            reason = error.Message;
+            reason = error.InnerException is null ? error.Message : $"{error.Message} {error.GetBaseException().Message}";
             return false;
         }
         finally
@@ -194,6 +197,7 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
         ImmutableArray<NativeBattleForeignSequenceRequest> sequences = [];
         bool contact = false;
         ImmutableArray<int>.Builder contactTargets = ImmutableArray.CreateBuilder<int>();
+        ImmutableArray<int>.Builder contactOrdinals = ImmutableArray.CreateBuilder<int>();
         ushort published = source.PublishedTargetMask;
         if (effect is { Invoked: true, Complete: false })
         {
@@ -208,14 +212,20 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
                 {
                     throw new NotSupportedException("The native presentation requires a secondary contact operation that this host action cannot represent.");
                 }
-                CrossoverNativeMagicTarget target = source.BoundTargets.SingleOrDefault(target => target.Contact.ActorIndex == packet.Primary.ActorIndex) ?? throw new NotSupportedException("The native effect published an unselected target occurrence.");
-                ushort bit = (ushort)(1 << target.HostSlot);
-                if ((published & bit) != 0)
+                int ordinal = source.PublishedContacts + contactOrdinals.Count;
+                if (ordinal >= source.BoundContacts.Length)
                 {
-                    throw new NotSupportedException("The native action published a repeated contact for one target; its repeat process is unavailable to this host command.");
+                    throw new InvalidDataException("The native process published a contact beyond its planned stream.");
                 }
+                CrossoverNativeMagicTarget target = source.BoundContacts[ordinal];
+                if (target.Contact.ActorIndex != packet.Primary.ActorIndex)
+                {
+                    throw new InvalidDataException("The native process published a different recipient from its current contact occurrence.");
+                }
+                ushort bit = (ushort)(1 << target.HostSlot);
                 published |= bit;
                 contactTargets.Add(target.HostSlot);
+                contactOrdinals.Add(ordinal);
             }
             effectSounds = next.Sounds;
             sequences = next.Sequences;
@@ -256,19 +266,19 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
             }
         }, resource);
         textures = textures.Drain505D20(NativeBattleEffectMemory.FromColdProcess().Arena).State;
-        return new(source with { Cast = cast, Auxiliary = auxiliary, Modules = modules, Textures = textures, TextureAnimations = motion, Random = random, GlobalRandom = effect?.GlobalRandom ?? source.GlobalRandom, Effect = effect, BodyTextures = cast.Model.BodyTextureSlots ?? source.BodyTextures, Draws = draws, PublishedContacts = source.PublishedContacts + contactTargets.Count, PublishedTargetMask = published }, contact, shared.Draws.Where(draw => draw.Kind == NativeBattleModuleDrawKind.Sound).ToImmutableArray()) { EffectSounds = effectSounds, ContactTargets = contactTargets.ToImmutable(), Sequences = sequences };
+        return new(source with { Cast = cast, Auxiliary = auxiliary, Modules = modules, Textures = textures, TextureAnimations = motion, Random = random, GlobalRandom = effect?.GlobalRandom ?? source.GlobalRandom, Effect = effect, BodyTextures = cast.Model.BodyTextureSlots ?? source.BodyTextures, Draws = draws, PublishedContacts = source.PublishedContacts + contactOrdinals.Count, PublishedTargetMask = published }, contact, shared.Draws.Where(draw => draw.Kind == NativeBattleModuleDrawKind.Sound).ToImmutableArray()) { EffectSounds = effectSounds, ContactTargets = contactTargets.ToImmutable(), ContactOrdinals = contactOrdinals.ToImmutable(), Sequences = sequences };
 
         void PrepareEffect(bool defer)
         {
             NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[640], new byte[1176]);
             (packets, _) = packets.Prepare(new(0, action.Command, cast.Model.Sequence ?? throw new InvalidDataException("The source sequence has no native selector."), -1, action.ActionId, action.MagicId, null));
             ushort targetMask = 0;
-            foreach (CrossoverNativeMagicTarget target in source.BoundTargets)
+            foreach (CrossoverNativeMagicTarget target in source.BoundContacts)
             {
                 (packets, _) = packets.AppendContact(new(target.Contact, new(255, 0, 0, 0, 0, 0, 0)));
                 targetMask |= (ushort)(1 << target.Contact.ActorIndex);
             }
-            (packets, _) = packets.Publish(checked((byte)source.BoundTargets.Length));
+            (packets, _) = packets.Publish(checked((byte)source.BoundContacts.Length));
             NativeBattleGraphicsDefinition graphics = new(game.ReadNativeBattleGraphicsRules(), [new("source", checked((byte)cast.Model.ModelId4!.Value), resource)], []) { PrimitiveTables = battle.ReadNativePrimitiveTables(), SoftwarePrimitiveTable = battle.ReadNativeSoftwarePrimitiveTable(), PrimitiveCapabilities = NativeBattlePrimitiveCapabilities.PrimaryRgba8() };
             BattleDefinition resources = new() { NativeGraphics = graphics, NativeModuleResources = sprites, NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([action.MagicId]), NativeCommonEffectTexture = game.ReadNativeCommonEffectTexture(), NativeCommandSequences = game.ReadNativeBattleCommandSequences(), NativeGlobalRandom = source.GlobalRandom, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory() };
             effect = new(new(resources, cast.Model, resource, packets, new(0, 0, targetMask, 0, 0, 0), action.MagicId, textures, random, projection ?? throw new NotSupportedException("Native effects require the current host camera."), ForeignActors()) { Arena = source.Arena, DeferInvocation = defer, PartyActorCount = readParticipants is null ? null : source.Participants.Length + 1, InitialMusicGain = 127 });

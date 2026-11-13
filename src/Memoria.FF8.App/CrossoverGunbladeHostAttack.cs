@@ -488,7 +488,7 @@ internal sealed partial class CrossoverGunbladeHostAttack : IFf7BattleGuestAttac
         {
             Transform = new(Origin, Origin, 0, 0, 4096),
             SequenceState = new() { Locals = NativeBattleSequenceState.ColdProcessLocals() },
-            LinkedTransform = new(default, default),
+            LinkedTransform = resource.LinkedPoseSource is null ? null : new(default, default),
             FileSelector128 = resource.LinkedFileSelector128,
             FileSelector129 = resource.BodyFileSelector129
         };

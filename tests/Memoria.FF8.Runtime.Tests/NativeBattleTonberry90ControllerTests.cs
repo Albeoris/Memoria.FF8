@@ -193,6 +193,40 @@ public sealed class NativeBattleTonberry90ControllerTests
         Assert.Equal(savedModel, NativeBattleTestSnapshots.Json(target));
     }
 
+    [Fact]
+    public void Foreign_target_uses_current_semantic_anchors_and_bounds_without_reading_a_native_pose_resource()
+    {
+        var fixture = Fixture();
+        NativeBattleEffectActorGeometry geometry = new(new(100, -200, 300), new(400, -500, 600), -70, new(new(-10, -20, -30), new(40, 50, 60)));
+        NativeBattleTonberry90Inputs inputs = fixture.Inputs with
+        {
+            ReadModel = actor => new(actor, 0) { Flags0 = actor == 3 ? (ushort)2 : (ushort)0, Transform = new(default, default, 0, 0, 4096) },
+            ReadPoseSource = _ => throw new InvalidOperationException("Foreign geometry must not request a native skeleton."),
+            ReadForeign = actor => actor == 3 ? geometry : null,
+            InitializeTarget = (current, _) => current,
+            AdvanceLeaf = (current, _) => new(current, false)
+        };
+        NativeBattleTonberry90Frame frame = NativeBattleTonberry90Controller.Advance7624D0(WriteRoot(fixture.Frame, task => task.WriteByte(0x29, 3)), inputs);
+        NativeBattleModulePoolTask target = frame.Effect.Pools[1].Slots[0];
+        Assert.Equal((ushort)400, target.ReadWord(0x30));
+        Assert.Equal(unchecked((ushort)-70), target.ReadWord(0x32));
+        Assert.Equal((ushort)600, target.ReadWord(0x34));
+        Assert.Equal((ushort)250, target.ReadWord(0x38));
+        Assert.Equal(unchecked((ushort)-350), target.ReadWord(0x3A));
+        Assert.Equal((ushort)100, target.ReadWord(0x40));
+        Assert.Equal(unchecked((ushort)-10), target.ReadWord(0x48));
+        Assert.Equal((ushort)60, target.ReadWord(0x54));
+        string saved = NativeBattleTestSnapshots.Json(frame);
+        geometry = geometry with { Anchor240 = new(-100, -300, -500), LocalBounds = new(new(-11, -22, -33), new(44, 55, 66)) };
+        NativeBattleTonberry90Frame continued = NativeBattleTonberry90Controller.Advance7624D0(frame, inputs);
+        NativeBattleTonberry90Frame restored = NativeBattleTonberry90Controller.Advance7624D0(NativeBattleTestSnapshots.RestoreJson<NativeBattleTonberry90Frame>(saved)!, inputs);
+        Assert.Equal(NativeBattleTestSnapshots.Json(continued), NativeBattleTestSnapshots.Json(restored));
+        target = continued.Effect.Pools[1].Slots[0];
+        Assert.Equal(unchecked((ushort)-100), target.ReadWord(0x40));
+        Assert.Equal(unchecked((ushort)-22), target.ReadWord(0x4A));
+        Assert.Equal((ushort)66, target.ReadWord(0x54));
+    }
+
     private static NativeBattleModulePoolTask RootTask(NativeBattleTonberry90Frame frame) => new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(Root);
 
     private static NativeBattleTonberry90Frame WriteRoot(NativeBattleTonberry90Frame frame, Func<NativeBattleModulePoolTask, NativeBattleModulePoolTask> update)

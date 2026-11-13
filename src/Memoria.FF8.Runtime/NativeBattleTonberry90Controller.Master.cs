@@ -28,7 +28,7 @@ public static partial class NativeBattleTonberry90Controller
             uint work = state.ReadDword(odd ? 0x25A2B74u : 0x25A2B70u);
             state = state.WriteDword(0x259EEA8, packet).WriteDword(0x259EFB4, work);
             frame = frame with { Memory = frame.Memory with { Tonberry90 = state, SharedEffectView2793E58 = inputs.CameraMatrix }, Effect = frame.Effect with { DrawArenaOffset = ArenaOffset(packet, 0) } };
-            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, new ActorView(inputs.ReadModel), inputs.ReadPoseSource);
+            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, new ActorView(inputs.ReadModel), inputs.ReadPoseSource, readForeign: inputs.ReadForeign);
             Store(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {
@@ -131,10 +131,18 @@ public static partial class NativeBattleTonberry90Controller
         void Target(uint address)
         {
             NativeBattleModulePoolTask task = hierarchy.Read(address);
-            task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, new ActorView(inputs.ReadModel), inputs.ReadPoseSource);
-            NativeBattlePoseSource source = inputs.ReadPoseSource(task.ReadByte(0x2D));
-            NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadByte(0x2D));
-            task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, model, source);
+            int target = task.ReadByte(0x2D);
+            if (inputs.ReadForeign?.Invoke(target) is { } foreign)
+            {
+                task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, foreign);
+            }
+            else
+            {
+                task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, new ActorView(inputs.ReadModel), inputs.ReadPoseSource);
+                NativeBattlePoseSource source = inputs.ReadPoseSource(target);
+                NativeBattleGraphicsModel model = inputs.ReadModel(target);
+                task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, model, source);
+            }
             Store(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {

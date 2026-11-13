@@ -818,16 +818,7 @@ public sealed partial class BattleSession
 
         NativeBattleCinematicEntityAnchor ReadEntityAnchor(NativeBattleWaterExecutionFrame current, int actorIndex, short selector)
         {
-            uint pointer = CoreDword(current, unchecked(CoreDword(current, 0x279744C) + 0x60u + (uint)(4 * actorIndex)));
-            if (actorIndex < 0 || actorIndex >= graphics.Models.Length || pointer != ActorPointer(actorIndex))
-            {
-                throw new NotSupportedException("Native cinematic entity anchor requires its actual physical actor row.");
-            }
-            NativeBattleGraphicsModel actor = graphics.Models[actorIndex];
-            NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actorIndex).PoseSource ?? throw new NotSupportedException("Native cinematic entity anchor requires its actual current rig.");
-            NativeBattleActionMatrix basis = actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native cinematic entity anchor requires its current entity matrix.");
-            NativeBattleWaterActorAnchorResult result = CreateNativeActorAnchorServices().EvaluateB66B80(current, source.Skeleton, NativeBattleBodyBoneMatrices.Require(actor, source), selector, 4096, basis);
-            return new(result.Frame, result.Anchor);
+            return ReadNativeCinematicEntityAnchor(current, graphics, actorIndex, selector);
         }
 
         NativeBattleWaterExecutionFrame UpdateSlot(NativeBattleWaterExecutionFrame current, byte kind)

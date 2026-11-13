@@ -30,7 +30,7 @@ public sealed partial class Ff7BattleSession
                 return "The selected target does not meet the original ability's living or knocked-out target rule.";
             }
             Ff7BattleGuestAbility? choice = catalog.Abilities.SingleOrDefault(choice => choice.Command == command && choice.Ability == ability);
-            if (command == Ff7BattleCommand.Magic && choice is { TargetFlags: var flags } && (flags & 4) != 0 && guest is not IFf7BattleGuestGroupMagic)
+            if (command == Ff7BattleCommand.Magic && choice is { TargetFlags: var flags } && (flags & 4) != 0 && guest is not IFf7BattleGuestGroupMagic && guest is not IFf7BattleGuestCompositeActions)
             {
                 return "The origin has not supplied a group action bridge.";
             }
@@ -64,7 +64,7 @@ public sealed partial class Ff7BattleSession
         if (grouped)
         {
             ushort side = option.AllTargets ? (ushort)0x3F7 : (ushort)((targets & 7) != 0 ? 7 : 0x3F0);
-            if (guest is not IFf7BattleGuestGroupMagic || option.SelectSingle && option.GroupUses == 0 || targets != ((option.CandidateTargets ?? option.ValidTargets) & side))
+            if (guest is not IFf7BattleGuestGroupMagic && guest is not IFf7BattleGuestCompositeActions || option.SelectSingle && option.GroupUses == 0 || targets != ((option.CandidateTargets ?? option.ValidTargets) & side))
             {
                 return false;
             }
@@ -84,117 +84,23 @@ public sealed partial class Ff7BattleSession
         {
             throw new InvalidDataException("The queued group has no origin group action owner.");
         }
-        int[] targets = state.Actors.Where(actor => (command.TargetMask & (1 << actor.Actor.Slot)) != 0).Select(actor => actor.Actor.Slot).Order().ToArray();
-        if (!CanAct(Actor(command.ActorSlot)) || GuestAbilityRequiresMagic(guest, command.GuestAbility) && !Ff7GuestBattleStatuses.CanCastMagic(Actor(command.ActorSlot).Actor.Statuses))
-        {
-            FinishTurn(command.ActorSlot);
-            return;
-        }
-        foreach (int target in targets)
-        {
-            if (GuestAbilityTargetUnsupportedReason(command.ActorSlot, Ff7BattleCommand.Magic, command.GuestAbility, target) is { } reason)
-            {
-                RejectGuestAbility(command, reason);
-                return;
-            }
-        }
-        Ff7BattleRng candidateRandom = new(kernel[2].Data.Span, random.Capture());
-        if (!magic.PrepareSource(command.GuestAbility, candidateRandom.NextByte, out string? failure))
-        {
-            random.Adopt(candidateRandom);
-            state = state with { Messages = Ff7NativeBattleMessage.Enqueue(state.Messages ?? Ff7BattleMessageState.Empty, failure ?? "The source action failed.") };
-            FinishTurn(command.ActorSlot);
-            return;
-        }
-        Ff7BattleGuestPhysicalHit description = magic.DescribeMagic(command.GuestAbility);
-        ValidateGuestMagic(command.GuestAbility, description);
-        ReflectionPlan? reflection = PrepareReflections(command, description, candidateRandom, true);
-        if (reflection is not null)
-        {
-            if (reflection.Contacts.Select(contact => contact.TargetSlot).Distinct().Count() != reflection.Contacts.Count)
-            {
-                RejectGuestAbility(command, "The reflected group converges multiple contact occurrences on one recipient; the presentation bridge requires distinct recipients.");
-                return;
-            }
-            targets = reflection.Contacts.Select(contact => contact.TargetSlot).ToArray();
-            command = command with { TargetMask = (ushort)targets.Aggregate(0, (mask, slot) => mask | (1 << slot)), Reflected = true, GuestPrimaryTarget = targets[0] };
-            invocation = GuestInvocation(command, Tick);
-        }
-        List<Ff7BattleGuestPhysicalHit> prepared = [];
-        foreach (int slot in targets)
-        {
-            Ff7BattleActorState source = Actor(command.ActorSlot);
-            Ff7BattleActorState target = Actor(slot);
-            Ff7BattleActionVitals sourceVitals = GuestItemVitals(source);
-            Ff7BattleActionVitals targetVitals = GuestItemVitals(target) with { StatusImmunities = (slot >= 4 ? ~Enemy(slot).NativeStatusMask : 0) | target.StatusProtection };
-            Ff7BattleDamageAction attack = ProjectGuestOutgoingAttack(slot, description) with { Split = false };
-            Ff7BattleActionReceipt receipt;
-            if (reflection is not null)
-            {
-                Ff7BattleReflectedContact contact = reflection.Contacts.Single(contact => contact.TargetSlot == slot);
-                attack = contact.Attack;
-                receipt = contact.Receipt;
-            }
-            else
-            {
-                receipt = Ff7NativeBattleActionResolver.ResolveGuestContact(description.Source, sourceVitals, Stats(target), targetVitals, attack, description.StatusRecord, candidateRandom, sameActor: slot == command.ActorSlot, originStatusResistances: GetGuestProjection(slot)?.OriginStatusResistances, originBattleStatuses: GetGuestBinding(slot) is null ? 0 : GetGuestOriginBattleStatuses(slot), originSourceStatuses: GetGuestBinding(command.ActorSlot) is null ? (ushort)0 : GetGuestOriginSavedStatuses(command.ActorSlot), originTargetStatuses: GetGuestBinding(slot) is null ? (ushort)0 : GetGuestOriginSavedStatuses(slot));
-            }
-            prepared.Add(description with { Attack = attack, PreparedContact = new(invocation with { TargetSlot = slot }, sourceVitals, targetVitals, receipt) });
-        }
-        if (group.PrepareGroupUnsupportedReason(prepared) is { } unsupported)
-        {
-            RejectGuestAbility(command, unsupported);
-            return;
-        }
-        group.PrepareGroup(prepared);
-        guest.Begin(invocation, VisualPlacement(command.ActorSlot), DescribeGuestTarget(invocation.TargetSlot));
-        random.Adopt(candidateRandom);
-        if (reflection is not null)
-        {
-            CommitReflections(reflection);
-        }
-        state = state with { Action = new(command, Tick, -1), GuestAttackUsed = true };
+        Ff7BattleGuestCompositeAction program = new([new(magic.DescribeMagic(command.GuestAbility))]);
+        DispatchGuestCompositeAction(command, guest, new GuestGroupCompositeAdapter(group, magic, program), program, invocation, groupPublication: true);
     }
 
-    private void AdvanceGuestGroupMagic(Ff7BattleActionState active, IFf7BattleGuestAttack guest)
+    private sealed class GuestGroupCompositeAdapter(IFf7BattleGuestGroupMagic group, IFf7BattleGuestMagic magic, Ff7BattleGuestCompositeAction program) : IFf7BattleGuestCompositeActions
     {
-        Ff7BattleGuestInvocation invocation = GuestInvocation(active.Command, active.StartedAt);
-        if (guest.Invocation != invocation)
+        public Ff7BattleGuestCompositeAction DescribeCompositeAction(ushort ability) => program with { Phases = [new(magic.DescribeMagic(ability))] };
+
+        public string? PrepareCompositeUnsupportedReason(Ff7BattleGuestCompositeAction action, IReadOnlyList<Ff7BattleGuestCompositeContact> contacts)
         {
-            throw new InvalidDataException("The group presentation lost its host queue occurrence.");
+            return group.PrepareGroupUnsupportedReason(contacts.Select(contact => contact.HitDescription).ToArray());
         }
-        Ff7BattleGuestAttackUpdate update = guest.Advance(Tick);
-        if (update.Hit is not null || update.AttackTargetCue is not null || update.LimitPresentedContact is not null || update.LimitTargetCue is not null)
+
+        public void PrepareComposite(Ff7BattleGuestCompositeAction action, IReadOnlyList<Ff7BattleGuestCompositeContact> contacts)
         {
-            throw new InvalidDataException("A group action published an unowned single-action cue.");
-        }
-        foreach (Ff7BattleGuestPhysicalHit hit in update.GroupHits)
-        {
-            Ff7BattleGuestPreparedContact prepared = hit.PreparedContact ?? throw new InvalidDataException("The group contact lost its prepared receipt.");
-            ushort bit = checked((ushort)(1 << prepared.Invocation.TargetSlot));
-            if ((active.Command.TargetMask & bit) == 0 || (active.GuestAppliedTargets & bit) != 0)
-            {
-                throw new InvalidDataException("The native group repeated a contact or published an unselected target.");
-            }
-            ApplyGuestHit(active.Command, prepared.Invocation.TargetSlot, hit);
-            state = state with { DisplayedHit = state.LastHit };
-            active = active with { GuestAppliedTargets = (ushort)(active.GuestAppliedTargets | bit) };
-        }
-        active = active with { Applied = active.GuestAppliedTargets == active.Command.TargetMask };
-        if (update.Completed)
-        {
-            if (!active.Applied || guest.Invocation is not null)
-            {
-                throw new InvalidDataException("The native group completed without settling every selected target exactly once.");
-            }
-            PublishGuestSourceInteraction(active.Command, invocation.TargetSlot);
-            CompleteGuestMagic(active.Command);
-            state = state with { Action = null };
-            FlushFormationAi();
-        }
-        else
-        {
-            state = state with { Action = active };
+            group.PrepareGroup(contacts.Select(contact => contact.HitDescription).ToArray());
         }
     }
 }
+

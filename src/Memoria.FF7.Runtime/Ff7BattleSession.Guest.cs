@@ -30,6 +30,7 @@ public sealed record Ff7BattleGuestContactContext(Ff7BattleDamageActor Source, F
 public sealed record Ff7BattleGuestAbilityFailure(long Tick, int ActorSlot, ushort Ability, string Reason);
 public sealed record Ff7BattleGuestAttackUpdate(Ff7BattleGuestPhysicalHit? Hit, bool Completed)
 {
+    public IReadOnlyList<int> CompositeContacts { get; init; } = [];
     public IReadOnlyList<Ff7BattleGuestPhysicalHit> GroupHits { get; init; } = [];
     public byte? AttackTargetCue { get; init; }
     public int? LimitPresentedContact { get; init; }
@@ -99,7 +100,20 @@ public sealed partial class Ff7BattleSession
         if (state.Action is { Command.GuestAttack: true } active && active.Command.ActorSlot == guest.ActorSlot)
         {
             Ff7BattleCommandQueue.ValidateCommand(active.Command);
-            bool matches = active.GuestLimit is { } limitState
+            if (active is { Command.GroupTarget: true, GuestComposite: null } && guest is IFf7BattleGuestGroupMagic { PreparedGroupContacts.Count: > 0 } group)
+            {
+                System.Collections.Immutable.ImmutableArray<Ff7BattleGuestCompositeContact> contacts = [.. group.PreparedGroupContacts.Select((hit, index) => new Ff7BattleGuestCompositeContact(index, 0, 0, hit))];
+                int next = BitOperations.PopCount(active.GuestAppliedTargets);
+                if (next > contacts.Length || contacts.Take(next).Aggregate(0, (mask, contact) => mask | (1 << contact.HitDescription.PreparedContact!.Invocation.TargetSlot)) != active.GuestAppliedTargets)
+                {
+                    throw new InvalidDataException("The retained group receipts conflict with their saved contact prefix.");
+                }
+                active = active with { GuestComposite = new(contacts, next) { GroupPublication = true } };
+                state = state with { Action = active };
+            }
+            bool matches = active.GuestComposite is { } compositeState
+                ? (compositeState.GroupPublication ? guest is IFf7BattleGuestGroupMagic : guest is IFf7BattleGuestCompositeActions) && guest.Invocation == GuestInvocation(active.Command, active.StartedAt) && guest.ContactPublished == (compositeState.NextContact != 0)
+                : active.GuestLimit is { } limitState
                 ? guest is IFf7BattleGuestLimit limit && (limitState.PresentationCompleted ? guest.Invocation is null : guest.Invocation == GuestInvocation(active.Command, active.StartedAt) && limit.PublishedContacts == limitState.Contacts)
                 : guest.Invocation == GuestInvocation(active.Command, active.StartedAt) && guest.ContactPublished == active.Applied;
             if (!matches || guest.HostTick != Tick)
@@ -165,6 +179,11 @@ public sealed partial class Ff7BattleSession
         }
         command = command with { TargetMask = RedirectNativeSuccessorTargets(command.TargetMask, Mask(state.Actors.Where(actor => (actor.Actor.Conditions & 8) != 0))) };
         Ff7BattleGuestInvocation invocation = GuestInvocation(command, Tick);
+        if (command.CommandId == (byte)Ff7BattleCommand.Magic && !(guest is IFf7BattleGuestOperation operationOwner && operationOwner.HandlesOperation(command.GuestAbility)) && guest is IFf7BattleGuestCompositeActions composite && composite.DescribeCompositeAction(command.GuestAbility) is { } program)
+        {
+            DispatchGuestCompositeAction(command, guest, composite, program, invocation);
+            return true;
+        }
         if (command.CommandId == (byte)Ff7BattleCommand.Magic && command.GroupTarget)
         {
             DispatchGuestGroupMagic(command, guest, invocation);
@@ -297,10 +316,14 @@ public sealed partial class Ff7BattleSession
     private void AdvanceActiveGuestAttack(Ff7BattleActionState active)
     {
         IFf7BattleGuestAttack guest = RequireGuestAttack(active.Command);
+        if (active.GuestComposite is not null)
+        {
+            AdvanceGuestCompositeAction(active, guest);
+            return;
+        }
         if (active.Command.CommandId == (byte)Ff7BattleCommand.Magic && active.Command.GroupTarget)
         {
-            AdvanceGuestGroupMagic(active, guest);
-            return;
+            throw new InvalidDataException("The active guest group lost its occurrence contact owner.");
         }
         Ff7BattleGuestInvocation invocation = GuestInvocation(active.Command, active.StartedAt);
         if (active.GuestLimit is not null)
@@ -313,7 +336,7 @@ public sealed partial class Ff7BattleSession
             throw new InvalidDataException("The guest presentation and active host queue entry disagree about contact ownership.");
         }
         Ff7BattleGuestAttackUpdate update = guest.Advance(Tick);
-        if (update.LimitPresentedContact is not null || update.LimitTargetCue is not null)
+        if (update.LimitPresentedContact is not null || update.LimitTargetCue is not null || update.CompositeContacts.Count != 0)
         {
             throw new InvalidDataException("A guest Limit presentation cue has no active Limit owner.");
         }
@@ -397,7 +420,7 @@ public sealed partial class Ff7BattleSession
             Ff7BattleGuestPreparedContact prepared = hit.PreparedContact ?? throw new InvalidDataException("Guest magic lost its prepared native numeric receipt.");
             Ff7BattleActionVitals currentSource = new(source.Actor.HitPoints, source.Actor.MaxHitPoints, source.Actor.MagicPoints, source.Actor.MaxMagicPoints, source.Actor.Statuses) { OriginSavedStatuses = GetOriginSavedStatuses(command.ActorSlot) };
             Ff7BattleActionVitals currentTarget = new(target.Actor.HitPoints, target.Actor.MaxHitPoints, target.Actor.MagicPoints, target.Actor.MaxMagicPoints, target.Actor.Statuses, (targetSlot >= 4 ? ~Enemy(targetSlot).NativeStatusMask : 0) | target.StatusProtection) { OriginSavedStatuses = GetOriginSavedStatuses(targetSlot) };
-            if (prepared.Invocation != (GuestInvocation(command, state.Action!.StartedAt) with { TargetSlot = targetSlot }) || (!command.GroupTarget && prepared.SourceBefore.Mp != currentSource.Mp) || prepared.SourceBefore.MaxMp != currentSource.MaxMp || (targetSlot != command.ActorSlot && GetGuestProjection(targetSlot) is null && prepared.TargetBefore.MaxHp != currentTarget.MaxHp) || prepared.TargetBefore.MaxMp != currentTarget.MaxMp || prepared.TargetBefore.StatusImmunities != currentTarget.StatusImmunities)
+            if (prepared.Invocation != (GuestInvocation(command, state.Action!.StartedAt) with { TargetSlot = targetSlot }) || (!command.GroupTarget && state.Action.GuestComposite is null && prepared.SourceBefore.Mp != currentSource.Mp) || prepared.SourceBefore.MaxMp != currentSource.MaxMp || (targetSlot != command.ActorSlot && GetGuestProjection(targetSlot) is null && prepared.TargetBefore.MaxHp != currentTarget.MaxHp) || prepared.TargetBefore.MaxMp != currentTarget.MaxMp || prepared.TargetBefore.StatusImmunities != currentTarget.StatusImmunities)
             {
                 throw new InvalidDataException("Guest magic numeric receipt no longer matches its host action and vitals.");
             }

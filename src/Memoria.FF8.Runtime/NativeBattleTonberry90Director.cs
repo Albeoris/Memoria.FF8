@@ -5,14 +5,14 @@ public sealed record NativeBattleTonberry90DirectorServices(NativeBattleActionPa
 
 public static class NativeBattleTonberry90Director
 {
-    public static NativeBattleTonberry90Frame Initialize762BB0(NativeBattleTonberry90Frame frame, uint childAddress, Func<int, NativeBattleGraphicsModel> readModel, Func<int, NativeBattlePoseSource> readPoseSource)
+    public static NativeBattleTonberry90Frame Initialize762BB0(NativeBattleTonberry90Frame frame, uint childAddress, Func<int, NativeBattleGraphicsModel> readModel, Func<int, NativeBattlePoseSource> readPoseSource, Func<int, NativeBattleEffectActorGeometry?>? readForeign = null)
     {
         uint director = Director(frame);
         frame = Put(frame, director, new byte[0x54]);
         int target = new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(childAddress).ReadByte(0x2D);
         NativeBattleGraphicsModel model = readModel(target);
         NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Tonberry boot requires its current target transform.");
-        NativeBattleVector point = (model.Flags0 & 2) == 0 ? transform.Position28 : NativeBattlePoseMatrices.ReadBone(model, readPoseSource(target), 0xF0, 0);
+        NativeBattleVector point = (model.Flags0 & 2) == 0 ? transform.Position28 : NativeBattleEffectModelHelpers.ReadSemanticAnchor(readForeign?.Invoke(target), 0xF0) ?? NativeBattlePoseMatrices.ReadBone(model, readPoseSource(target), 0xF0, 0);
         frame = Word(frame, unchecked(director + 8), unchecked((ushort)point.X));
         frame = Word(frame, unchecked(director + 0xA), unchecked((ushort)point.Y));
         frame = Word(frame, unchecked(director + 0xC), unchecked((ushort)point.Z));

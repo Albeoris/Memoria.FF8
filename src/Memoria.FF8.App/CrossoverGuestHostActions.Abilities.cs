@@ -239,10 +239,6 @@ internal sealed partial class CrossoverGuestHostActions
         {
             return "The native command has no target selection contract.";
         }
-        if ((flags & 2) != 0)
-        {
-            return "The bridge cannot yet own the native random target selection process.";
-        }
         return (flags & 0x30) == 0x30 ? "The native command uses an unsupported target selection mode." : null;
     }
 
@@ -305,7 +301,10 @@ internal sealed partial class CrossoverGuestHostActions
             ushort mask = AbilityTargetMask(original, target);
             int[] slots = host.Actors.Where(actor => (mask & (1 << actor.Actor.Slot)) != 0).Select(actor => actor.Actor.Slot).Order().ToArray();
             ImmutableArray<CrossoverNativeMagicTarget> targets = CrossoverNativeMagicTarget.Bind(ActorSlot, slots, (_, index) => contact with { ActorIndex = index });
-            CrossoverNativeMagicPresentationState state = fireProgram.Begin(visual.Model with { Index = 0 }, target, encounter.CrtRandom, targets[0].Contact, original, encounter.GlobalRandom, CreateArena(placement)) with { Targets = targets };
+            ImmutableArray<CrossoverNativeMagicTarget> contacts = ((original.TargetFlags ?? throw new InvalidDataException("The original action has no target contract.")) & 2) != 0
+                ? Enumerable.Range(0, original.HitCount).Select(_ => targets.Single(selected => selected.HostSlot == target)).ToImmutableArray()
+                : Enumerable.Range(0, original.HitCount).SelectMany(_ => targets).ToImmutableArray();
+            CrossoverNativeMagicPresentationState state = fireProgram.Begin(visual.Model with { Index = 0 }, target, encounter.CrtRandom, targets[0].Contact, original, encounter.GlobalRandom, CreateArena(placement)) with { Targets = targets, Contacts = contacts };
             return fireProgram.TryPreflight(state,
                 () => ReadAbilityAnchor(placement, target),
                 () => ReadAbilityTransform(placement, target),

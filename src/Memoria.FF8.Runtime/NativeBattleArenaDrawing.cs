@@ -12,6 +12,45 @@ public static class NativeBattleArenaDrawing
         return batch with { Attempts = batch.Attempts.Select(attempt => attempt.Primitive is { } primitive ? attempt with { Primitive = BindCapture(primitive, material) } : attempt).ToImmutableArray() };
     }
 
+    public static NativeBattleGfGeometryBatch BindCaptureRegion(NativeBattleGfGeometryBatch batch, NativeBattleArenaCaptureMaterial material)
+    {
+        material.Validate();
+        return batch with { Attempts = batch.Attempts.Select(attempt => attempt.Primitive is { } primitive && SamplesCapture(primitive.Words, material) ? attempt with { Primitive = BindCapture(primitive, material) } : attempt).ToImmutableArray() };
+    }
+
+    private static bool SamplesCapture(ImmutableArray<uint> words, NativeBattleArenaCaptureMaterial material)
+    {
+        if (words.Length < 2 || ((words[1] >> 24) & 0xE4) != 0x24)
+        {
+            return false;
+        }
+        byte command = (byte)(words[1] >> 24);
+        int corners = (command & 8) != 0 ? 4 : 3;
+        int step = (command & 16) != 0 ? 3 : 2;
+        if (words.Length <= 3 + (corners - 1) * step)
+        {
+            throw new InvalidDataException("Arena capture sampling requires every textured polygon corner.");
+        }
+        ushort page = (ushort)(words[3 + step] >> 16);
+        int depth = page >> 7 & 3;
+        if (depth == 3)
+        {
+            throw new NotSupportedException("Arena capture sampling requires a supported native texture depth.");
+        }
+        int pixelsPerWord = 4 >> depth;
+        for (int corner = 0; corner < corners; corner++)
+        {
+            uint value = words[3 + corner * step];
+            float x = (page & 15) * 64 + (value & 255) / (float)pixelsPerWord;
+            int y = (page & 16) * 16 + (int)(value >> 8 & 255);
+            if (x < material.NativeX || x > material.NativeX + material.Width || y < material.NativeY || y > material.NativeY + material.Height)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private static NativeBattleGeometryPrimitive BindCapture(NativeBattleGeometryPrimitive primitive, NativeBattleArenaCaptureMaterial material)
     {
         NativeBattlePilotVisualGeometry geometry = primitive.PilotGeometry ?? throw new NotSupportedException("Arena image sampling requires retained primitive geometry.");

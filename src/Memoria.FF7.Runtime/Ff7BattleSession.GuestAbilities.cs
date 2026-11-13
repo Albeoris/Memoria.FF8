@@ -20,6 +20,7 @@ public interface IFf7BattleGuestAbilities
 
 public interface IFf7BattleGuestGroupMagic
 {
+    IReadOnlyList<Ff7BattleGuestPhysicalHit> PreparedGroupContacts => [];
     string? PrepareGroupUnsupportedReason(IReadOnlyList<Ff7BattleGuestPhysicalHit> prepared);
     void PrepareGroup(IReadOnlyList<Ff7BattleGuestPhysicalHit> prepared);
 }

@@ -40,7 +40,14 @@ if (args.Contains("--enemy-extensions-only", StringComparer.Ordinal))
 if (args.Contains("--guest-only", StringComparer.Ordinal))
 {
     NativeGuestLimitTests.Run();
+    GuestCompositeActionTests.Run();
     GuestBattleConversionTests.Run();
+    return 0;
+}
+
+if (args.Contains("--guest-composite-only", StringComparer.Ordinal))
+{
+    GuestCompositeActionTests.Run();
     return 0;
 }
 
@@ -212,6 +219,7 @@ var tests = new (string Name, Action Run)[]
     ("native battle sound dispatch and cold continuation", NativeBattleSoundTests.Run),
     ("native battle actor model callbacks", NativeBattleActorModelTests.Run),
     ("native guest limit contact continuation", NativeGuestLimitTests.Run),
+    ("guest composite action occurrences", GuestCompositeActionTests.Run),
     ("mixed battle element and status conversion", GuestBattleConversionTests.Run),
     ("native destroyed battle effect and cold continuation", NativeBattleDestroyedTests.Run),
     ("native battle camera archive and action selection", NativeBattleCameraTests.Run),

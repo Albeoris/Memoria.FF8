@@ -72,6 +72,29 @@ public sealed class NativeBattleArenaDrawingTests
     }
 
     [Fact]
+    public void Capture_region_binding_preserves_unrelated_textures_untextured_polygons_and_environment_commands()
+    {
+        NativeBattleArenaCaptureMaterial material = new(Geometry(Vector3.Zero), Projection(), 128, 256) { NativeX = 384, NativeY = 256 };
+        NativeBattlePilotVisualGeometry geometry = new(new(1, 2, 3, 4, 5), default, default, default, default, 3);
+        NativeBattleGeometryPrimitive captured = new(17, [0, 0x24808080, 0, 0, 0, 0x009600FF, 0, 0xFF00], [1, 2, 3, 0]) { PilotGeometry = geometry };
+        NativeBattleGeometryPrimitive texture = captured with { Words = captured.Words.SetItem(5, 0x009A00FF) };
+        NativeBattleGeometryPrimitive flat = new(17, [0, 0x20808080, 0, 0, 0], [1, 2, 3, 0]) { PilotGeometry = geometry };
+        NativeBattleGeometryPrimitive environment = new(17, [0x02000000, 0xE1000020, 0], []);
+        NativeBattleGeometryPrimitive[] primitives = [captured, texture, flat, environment];
+        NativeBattleGfGeometryBatch batch = new(primitives.Select((primitive, index) => new NativeBattleGfGeometryAttempt(index * 32, new byte[32].ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Known, 32).ToImmutableArray(), primitive)).ToImmutableArray(), 128);
+        NativeBattleGfGeometryBatch bound = NativeBattleArenaDrawing.BindCaptureRegion(batch, material);
+        Assert.Same(material, bound.Attempts[0].Primitive!.PilotGeometry!.ForeignSurface!.Material);
+        Assert.Equal(captured.Words, bound.Attempts[0].Primitive!.Words);
+        Assert.Equal(new Vector2(255 / 256f, 0), bound.Attempts[0].Primitive!.PilotGeometry!.ForeignSurface!.Uv[1]);
+        for (int index = 1; index < primitives.Length; index++)
+        {
+            Assert.Same(primitives[index], bound.Attempts[index].Primitive);
+        }
+        Assert.Equal(batch.AllocationBytes, bound.AllocationBytes);
+        Assert.Equal(batch.Attempts.Select(attempt => attempt.Data), bound.Attempts.Select(attempt => attempt.Data));
+    }
+
+    [Fact]
     public void Deformation_keeps_actual_material_and_native_output_coordinates()
     {
         NativeBattleArenaGeometry geometry = Geometry(Vector3.Zero);

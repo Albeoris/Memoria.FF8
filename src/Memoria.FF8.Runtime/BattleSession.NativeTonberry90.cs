@@ -20,14 +20,14 @@ public sealed partial class BattleSession
             NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native Tonberry requires its current camera owner.");
             NativeBattleTonberry90DirectorServices directorServices = new(nativeActionPackets, StartVibration, StopVibration, InitializeCreature);
             NativeBattleTonberry90ProgrammeServices programmeServices = new(ReadAddress, PublishCamera, PlaySound);
-            NativeBattleTonberry90Inputs inputs = new(nativeActionPackets, camera.CapturePackedView1D97778(), actor => graphics.Models[actor], ReadPoseSource, InitializeTarget, AdvanceLeaf, ApplyContact, Execute);
+            NativeBattleTonberry90Inputs inputs = new(nativeActionPackets, camera.CapturePackedView1D97778(), actor => graphics.Models[actor], ReadPoseSource, InitializeTarget, AdvanceLeaf, ApplyContact, Execute) { ReadForeign = actor => ReadNativeGraphicsForeignTarget(graphics, actor) };
             frame = NativeBattleTonberry90Controller.Advance7624D0(frame, inputs);
 
             NativeBattlePoseSource ReadPoseSource(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Tonberry requires its selected current actor pose source.");
 
             NativeBattleTonberry90Frame InitializeTarget(NativeBattleTonberry90Frame current, uint address)
             {
-                current = NativeBattleTonberry90Director.Initialize762BB0(current, address, actor => graphics.Models[actor], ReadPoseSource);
+                current = NativeBattleTonberry90Director.Initialize762BB0(current, address, actor => graphics.Models[actor], ReadPoseSource, actor => ReadNativeGraphicsForeignTarget(graphics, actor));
                 return NativeBattleTonberry90Io.Initialize762760(current, resources.ReadStatic(NativeBattleTonberry90Io.ScriptAddress, 0x40).ToArray().ToImmutableArray());
             }
 
@@ -219,6 +219,10 @@ public sealed partial class BattleSession
 
             NativeBattleTonberry90Frame SubmitActor(NativeBattleTonberry90Frame current, NativeBattleGfGeometryBatch batch, uint? farColor)
             {
+                if (presentationArena is { } arena)
+                {
+                    batch = NativeBattleArenaDrawing.BindCaptureRegion(batch, arena.ReadCapture(384, 256));
+                }
                 NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Tonberry actor draw requires its retained far-color controls.");
                 NativeBattleModelRendererRegisters registers = process.ModelRendererRegisters ?? new(null, null, null, null, null);
                 registers = farColor is uint color ? registers.PublishModelColor(color) : registers with { FarRed = null, FarGreen = null, FarBlue = null };
@@ -237,6 +241,13 @@ public sealed partial class BattleSession
                 ImmutableArray<byte> anchor = task.ReadRawPayloadSpan().Slice(0x1C - 12, 8).ToArray().ToImmutableArray();
                 NativeBattleCameraState currentCamera = NativeCamera ?? throw new NotSupportedException("Native ground capture requires its current camera globals.");
                 NativeBattleThundaga105CaptureTransform capture = NativeBattleThundaga105CaptureGeometry.TransformCapture(anchor, bounds, currentCamera.Projection ?? throw new NotSupportedException("Native ground capture requires its current GTE projection."), 128, 256, currentCamera.FocalLength ?? throw new NotSupportedException("Native ground capture requires its current global focal WORD."));
+                if (presentationArena is { } arena)
+                {
+                    NativeBattleVector center = new(BinaryPrimitives.ReadInt16LittleEndian(anchor.AsSpan()), 0, BinaryPrimitives.ReadInt16LittleEndian(anchor.AsSpan().Slice(4)));
+                    NativeBattleArenaGeometry surface = NativeBattleArenaSurfaceQueries.Select(arena.Geometry, center);
+                    arena.Capture(NativeBattlePilotVisualLifetimes.Identity(90, task, -1), surface, capture.Projection, 128, 256, 384, 256);
+                    return current;
+                }
                 NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native ground capture requires its current ordering table.");
                 byte stageIndex = graphics.StageResourceIndex98990 ?? throw new NotSupportedException("Native ground capture requires its current stage resource selector.");
                 NativeBattleGroundCaptureWrite written = NativeBattleGroundCapturePackets.Append8DE1F0(current.Memory, primitive.Pending, stageIndex, DrawGround);

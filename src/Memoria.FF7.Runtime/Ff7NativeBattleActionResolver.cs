@@ -357,6 +357,7 @@ public static class Ff7NativeBattleActionResolver
         Ff7BattleActionVitals nextSource = ApplyDamage(sameActor ? next : source, prepared.SourceHitPointDamage, false);
         return new(nextSource, sameActor ? nextSource : next, prepared.Damage, next.Statuses & ~target.Statuses, target.Statuses & ~next.Statuses)
         {
+            NativeResultMarker = prepared.NativeResultMarker,
             AddedOriginBattleStatuses = prepared.AddedOriginBattleStatuses,
             RemovedOriginBattleStatuses = prepared.RemovedOriginBattleStatuses,
             AddedOriginSavedStatuses = prepared.AddedOriginSavedStatuses,

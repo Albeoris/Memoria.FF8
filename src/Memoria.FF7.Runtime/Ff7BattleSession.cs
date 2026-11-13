@@ -33,6 +33,8 @@ public sealed record Ff7BattleActionState(Ff7BattleQueuedCommand Command, long S
     public bool GrenadeStarted { get; init; }
     public Ff7BattleGuestLimitState? GuestLimit { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7BattleGuestCompositeState? GuestComposite { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public byte? GuestAttackTargetCue { get; init; }
     public Ff7BattleBeatRushState? BeatRushEffect { get; init; }
     public Ff7BattleBigShotState? BigShot { get; init; }
@@ -653,6 +655,7 @@ public sealed partial class Ff7BattleSession
             throw new InvalidDataException("FFVII battle snapshot has invalid physical actor ownership.");
         }
         ValidateGuestLimitSnapshot(snapshot);
+        ValidateGuestCompositeSnapshot(snapshot);
         foreach (Ff7BattleActorState actor in snapshot.Actors)
         {
             actor.ParameterStatus?.Validate();

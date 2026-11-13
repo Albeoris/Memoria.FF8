@@ -38,6 +38,24 @@ public sealed class NativeBattleTonberry90DirectorTests
     }
 
     [Fact]
+    public void Boot_reads_the_foreign_target_semantic_anchor_and_preserves_the_current_native_scale_WORD()
+    {
+        var fixture = Fixture();
+        NativeBattleEffectActorGeometry geometry = new(new(321, -654, 987), new(111, 222, 333), 0, new(default, default));
+        NativeBattleTonberry90Frame frame = NativeBattleTonberry90Director.Initialize762BB0(fixture.Frame, fixture.Child, actor => new(actor, 0) { Flags0 = 2, Transform = new(default, new(1, 2, 3), 0, 0, unchecked((short)0xF123)) }, _ => throw new InvalidOperationException("Foreign semantic anchors must not request a native skeleton."), actor =>
+        {
+            Assert.Equal(3, actor);
+            return geometry;
+        });
+        NativeBattleTonberry90State state = frame.Memory.Tonberry90!;
+        Assert.Equal((ushort)321, state.ReadWord(Director + 8));
+        Assert.Equal((ushort)0, state.ReadWord(Director + 0xA));
+        Assert.Equal((ushort)987, state.ReadWord(Director + 0xC));
+        Assert.Equal((ushort)(987 + 0xC00), state.ReadWord(Director + 4));
+        Assert.Equal((ushort)0xF123, state.ReadWord(Director + 0x4E));
+    }
+
+    [Fact]
     public void Request_active_and_spawned_phases_require_two_distinct_callbacks_before_actor_spawning()
     {
         var fixture = Fixture(11);
