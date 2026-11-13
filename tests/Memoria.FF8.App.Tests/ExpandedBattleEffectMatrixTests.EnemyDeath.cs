@@ -8,30 +8,20 @@ namespace Memoria.FF8.App.Tests;
 public sealed partial class ExpandedBattleEffectMatrixTests
 {
     [Fact]
-    public void InstalledPoisonGasDeathCallbackCompletesAfterLethalAttackAndJsonRestore()
+    public void InstalledEarthquakeDeathCallbackCompletesAfterLethalAttackAndJsonRestore()
     {
         string directory = TestResources.GameDirectory;
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
-        NativeBattleEffectBinding effect = Assert.Single(game.ReadNativeEffectCatalog(), binding => binding.Effect == 171);
-        EnemyScenarioScriptedAction[] scripts = ScenarioEnemyDiscovery.Discover(assets).ScriptedActions.Where(IsTriFacePoisonGasDeath).ToArray();
+        NativeBattleEffectBinding effect = Assert.Single(game.ReadNativeEffectCatalog(), binding => binding.Effect == 233);
+        EnemyScenarioScriptedAction[] scripts = ScenarioEnemyDiscovery.Discover(assets).ScriptedActions.Where(script => script is { ModelId: 27, Callback: 3, Command: 8, ActionId: 49, NativeEffectId: 233, TargetSelector: 204 }).ToArray();
         Assert.NotEmpty(scripts);
-        BattleActionDefinition aero = ReadTriFaceLethalSpell(assets);
-        using GameWorld world = StartBattle(directory, PrepareField(directory), 71, aero);
+        using GameWorld world = StartBattle(directory, PrepareField(directory), 185);
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
-        BattleCombatant[] enemies = battle.Combatants.Reverse().Where(actor => !actor.IsPlayer && actor.ModelId == 36).Take(3).ToArray();
-        List<string> attempts = [];
-        foreach (BattleCombatant enemy in enemies)
-        {
-            Assert.Equal(assets.ReadEnemyAi(enemy.ModelId, enemy.Level).Scripts[3], enemy.NativeAi!.Scripts[3]);
-            EnemyRouteResult result = ObserveEnemyDeath(world, battle, effect, enemy, scripts, aero, verifyRestore: true);
-            if (result.Status is "native" or "logical")
-            {
-                return;
-            }
-            attempts.Add(result.Detail);
-        }
-        Assert.Fail(string.Join(" ", attempts));
+        BattleCombatant enemy = Assert.Single(battle.Combatants, actor => actor.Id == "enemy-10" && actor.ModelId == 27);
+        Assert.Equal(assets.ReadEnemyAi(enemy.ModelId, enemy.Level).Scripts[3], enemy.NativeAi!.Scripts[3]);
+        EnemyRouteResult result = ObserveEnemyDeath(world, battle, effect, enemy, scripts, verifyRestore: true);
+        Assert.True(result.Status is "native" or "logical", result.Detail);
     }
 
     private static bool IsTriFacePoisonGasDeath(EnemyScenarioScriptedAction script)
@@ -113,6 +103,11 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         BattleSession? restored = null;
         for (int attempt = 0; attempt < 24 && battle.Outcome == BattleOutcome.Active && attacker.IsAlive && enemy.IsAlive; attempt++)
         {
+            if (trigger is not null && !attacker.MagicStocks.Any(stock => stock.Id == triggerAction && stock.Count > 0))
+            {
+                lastBlocker = "enemy-death-trigger-stock";
+                break;
+            }
             // Set up a lethal contact while leaving the callback's KO, reward, memory and RNG owners to the real attack.
             enemy.CurrentHp = 1;
             attacker.Atb = BattleSession.AtbMaximum;
