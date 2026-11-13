@@ -113,7 +113,7 @@ public sealed partial class Ff7WorldRuntime
     {
         if (state.FieldDeparture is not { } departure)
         {
-            bool leavingForSpecialBattle = state.BattleState?.Pending is { } pending && (pending.ReturnsToField || pending.Timed);
+            bool leavingForSpecialBattle = state.BattleState?.Pending is { } pending && (pending.ReturnsToField || pending.ReloadsWorld);
             return state.MainState is >= -15 and <= 1 && (!state.Vm.Unloading || leavingForSpecialBattle);
         }
         return departure.RequestId >= 1 && departure.RequestId < state.Vm.NextRequestId && departure.ExecutingModel is >= -1 and <= 255 && departure.ProgramCounter > 0 &&

@@ -15,7 +15,7 @@ public readonly record struct WorldTerrainView(Matrix4x4 View, Vector3 Offset, f
     public Ff7WorldTerrainView? Ff7 { get; init; }
 }
 
-public readonly record struct Ff7WorldTerrainView(float CenterY, int CurvatureThreshold, Vector3? BridgeAxis);
+public readonly record struct Ff7WorldTerrainView(float CenterY, int CurvatureThreshold, Vector3? BridgeAxis, float OffsetX = 0);
 
 /// <summary>Optional hardware transformation, horizon curvature and clipping for retained terrain geometry.</summary>
 public interface IWorldTerrainRenderer

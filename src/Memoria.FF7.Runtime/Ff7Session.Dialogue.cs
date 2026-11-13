@@ -46,7 +46,8 @@ public sealed partial class Ff7Session
             World.EncounterPartyCount = Progress.Party.Count(character => character != 255);
             World.EncounterCloudLevel = Progress.Characters.FirstOrDefault(character => character.Id == 0)?.Level ?? 0;
             World.SetEncounterCountdown = seconds => Progress = Progress with { Clock = Clock with { CountdownSeconds = seconds } };
-            World.ValidateRandomBattleEquipment = ValidateEncounterMateria;
+            World.GetRandomBattleModifiers = GetWorldEncounterModifiers;
+            World.AllocateBattleRequestId = AllocateEncounterRequestId;
             World.NativeMessageSpeed = DialogueMessageSpeed?.Invoke(Progress.NativeMessageSpeed) ?? Progress.NativeMessageSpeed;
             World.ExpandDialogueToken = ExpandDialogueToken;
             World.AudioRequested = Host.SubmitNativeAudio;

@@ -22,7 +22,7 @@ float4x4 WorldView;
 float3 WorldOffset;
 float WorldFocal;
 float WorldNativeCurvature;
-float3 WorldFf7Projection; // enabled, screen centre Y, curvature threshold
+float4 WorldFf7Projection; // enabled, screen centre Y, curvature threshold, screen X offset
 float4 WorldFf7Bridge; // native rotation's Y axis, enabled
 #if VULKAN || DIRECTX12
 Texture2D SourceTexture : register(t0);
@@ -81,7 +81,7 @@ VSOutput WorldVertexMain(WorldVSInput input)
         float factor = (normal.x + normal.y + normal.z) * (110.0 / 255) + 64.0 / 255;
         float color = round(clamp(factor * 255, 0, 255)) / 255;
         VSOutput ff7;
-        ff7.Position = float4(camera.x * WorldFocal * 2 / ViewportSize.x, -camera.y * WorldFocal * 2 / ViewportSize.y + (1 - WorldFf7Projection.y * 2 / ViewportSize.y) * camera.z, camera.z - 1, camera.z);
+        ff7.Position = float4((camera.x * WorldFocal + WorldFf7Projection.w * camera.z) * 2 / ViewportSize.x, -camera.y * WorldFocal * 2 / ViewportSize.y + (1 - WorldFf7Projection.y * 2 / ViewportSize.y) * camera.z, camera.z - 1, camera.z);
         ff7.Color = float4(color, color, color, 1);
         ff7.Uv = float3(input.Uv / TextureSize, 1);
         ff7.TextureUv = ff7.Uv;

@@ -95,6 +95,8 @@ public sealed partial class WorldMachine
 
     public bool IsModelScriptEnabled(int model) => models.Any(entity => entity.Model == model && !entity.Detached && !entity.Disabled);
 
+    public bool IsModelAttached(int model) => models.Any(entity => entity.Model == model && !entity.Detached);
+
     public void SetModelScriptEnabled(int model, bool enabled)
     {
         models.Single(entity => entity.Model == model).Disabled = !enabled;
@@ -306,6 +308,11 @@ public sealed partial class WorldMachine
             return;
         }
         int right = Pop();
+        if (opcode == 0x19)
+        {
+            Push(new(0x110, host.ReadModelDistance(active.Model, right)));
+            return;
+        }
         if (opcode is 0x15 or 0x17)
         {
             Push(new(0x110, opcode == 0x15 ? unchecked(-right) : right == 0 ? 1 : 0));

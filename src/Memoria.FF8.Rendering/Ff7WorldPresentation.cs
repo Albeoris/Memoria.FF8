@@ -18,6 +18,8 @@ public sealed record Ff7WorldRenderFrame(int ControlledModel, bool Initialized, 
     public Ff7WorldBridgeDeformation? BridgeDeformation { get; init; }
     public int HeightSmoothVelocity { get; init; }
     public int CurvatureThreshold { get; init; } = 5000;
+    public int ShakeX { get; init; }
+    public int ShakeY { get; init; }
 }
 
 /// <summary>Composes original world resource adapters into the common triangle backend without advancing simulation.</summary>
@@ -73,7 +75,7 @@ public sealed class Ff7WorldPresentation
             }
             Vector3 focus = controlled.Position;
             Ff7WorldCameraView nativeCamera = frame.Camera;
-            Ff7WorldView view = camera.Create(focus, nativeCamera.Heading, nativeCamera.Pitch, nativeCamera.Distance, nativeCamera.GroundHeight, nativeCamera.Roll, nativeCamera.Focal, width, height, frame.ViewMode);
+            Ff7WorldView view = camera.Create(focus, nativeCamera.Heading, nativeCamera.Pitch, nativeCamera.Distance, nativeCamera.GroundHeight, nativeCamera.Roll, nativeCamera.Focal, width, height, frame.ViewMode, frame.ShakeX, frame.ShakeY);
             Ff7WorldSkyColors colors = environment.SkyColorsAt(focus, frame.SkyZones);
             environmentRenderer.DrawSky(renderer, view, focus, nativeCamera.Heading, nativeCamera.Distance, nativeCamera.GroundHeight, nativeCamera.Roll, frame.MainState >= 1, frame.CloudPhase, colors.Upper, colors.Lower);
             Func<int, int> textureFrame = texture => textureCycles.Frame(texture, frame.Counter);

@@ -93,20 +93,33 @@ internal static class WorldDepartureTests
 
         CheckReload(installation, overworld, events, 0x179D, 0x2D);
         CheckReload(installation, overworld, events, 0x2297, 0x33);
-        Check(events.Functions.Any(function => function.Header == 0x531D && function.Offset == 0x22A4) && events.Code.Skip(0x231B).Take(4).SequenceEqual(new ushort[] { 0x100, 0x110, 0x33, 0x33D }), "The model script must dispatch the same original reload selector.");
+        Check(events.Functions.Any(function => function.Header == 0x531D && function.Offset == 0x22A4), "The original model 19 event must own the third reload.");
+        CheckReload(installation, overworld, events, 0x231B, 0x33, 19);
         Console.WriteLine("PASS installed FFVII field departure and immediate world reloads");
     }
 
-    private static void CheckReload(Ff7Installation installation, Ff7SessionSave overworld, PcWorldEvents events, int pc, ushort selector)
+    private static void CheckReload(Ff7Installation installation, Ff7SessionSave overworld, PcWorldEvents events, int pc, ushort selector, int model = -1)
     {
         Ff7WorldProcess world = overworld.World!;
         Check(events.Code.Skip(pc).Take(4).SequenceEqual(new ushort[] { 0x100, 0x110, selector, 0x33D }), "The bounded continuation must execute the shipped immediate reload opcode and operand.");
-        Ff7SessionSave pending = overworld with { World = world with { Vm = world.Vm with { System = world.Vm.System with { ProgramCounter = pc, Priority = 3 } } } };
+        WorldSnapshot vm = world.Vm;
+        if (model == -1)
+        {
+            vm = vm with { System = vm.System with { ProgramCounter = pc, Priority = 3 } };
+        }
+        else
+        {
+            Check(!vm.Models.Any(entity => entity.Model == model), "The bounded model fixture requires an unused original model slot.");
+            WorldEntitySnapshot executing = new(model, pc, 0, 3, false, 0, []);
+            vm = vm with { Models = [executing, .. vm.Models] };
+            world = world with { Entities = [.. world.Entities, new(model, Flags: 8)], ControlLock = 3, MovementEnabled = false, EncounterRate = 0 };
+        }
+        Ff7SessionSave pending = overworld with { World = world with { Vm = vm } };
         using Ff7Session direct = Ff7Session.Restore(installation, pending);
         Ff7WorldRuntime outgoing = direct.World!;
         outgoing.Advance();
         Ff7WorldProcess boundary = outgoing.Process;
-        Check(boundary is { MainState: 8, Vm.Unloading: true, FieldDeparture: { Operation: WorldOperation.FieldTransitionSelector } } && boundary.FieldDeparture.Selector == selector && boundary.FieldDeparture.ProgramCounter == pc + 3, "The shipped opcode must own the original selector and drain the immediate reload boundary.");
+        Check(boundary is { MainState: 8, Vm.Unloading: true, FieldDeparture: { Operation: WorldOperation.FieldTransitionSelector } } && boundary.FieldDeparture.Selector == selector && boundary.FieldDeparture.ExecutingModel == model && boundary.FieldDeparture.ProgramCounter == pc + 3, "The shipped opcode must own the original selector and drain the immediate reload boundary.");
         using Ff7Session restored = Ff7Session.Restore(installation, Cold(direct.Capture()));
         List<FieldAudioCommand> audio = [];
         direct.Host.AudioRequested = audio.Add;

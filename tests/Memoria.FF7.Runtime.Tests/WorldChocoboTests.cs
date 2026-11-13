@@ -51,6 +51,14 @@ internal static class WorldChocoboTests
         AdvanceAndCompare(world, cold);
         Assert(Bird(world) is { X: 229046, Z: 141315, Direction: 256, TargetDirection: 1024, PoseAnimation: 1 }, "The yellow Chocobo must use the native doubled displacement and turn toward the travel direction.");
 
+        using Ff7WorldRuntime encounterProbe = new(installation, world.Machine.CopyPersistent(), 0, party);
+        Ff7WorldProcess moving = world.Process;
+        encounterProbe.Restore(moving with { BattleState = moving.BattleState! with { MovementCounter = 16, Danger = 1 << 18, Random = new byte[0x209], RandomIndex = 0 } });
+        encounterProbe.RandomBattlesEnabled = true;
+        encounterProbe.Advance();
+        Ff7WorldBattleState afterMountedStep = encounterProbe.Process.BattleState!;
+        Assert(Bird(encounterProbe).X != Bird(world).X && afterMountedStep is { MovementCounter: 0, Pending: null, Danger: 1 << 18, RandomIndex: 1 }, "Native caught Chocobo movement must sample input RNG and clear the encounter counter without sampling an encounter.");
+
         using Ff7WorldRuntime blocked = new(installation, world.Machine.CopyPersistent(), 0, party);
         RestoreAndCompare(world, blocked);
         blocked.SetMovement(0, 1, true);

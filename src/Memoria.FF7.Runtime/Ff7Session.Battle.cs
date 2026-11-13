@@ -95,6 +95,13 @@ public sealed partial class Ff7Session
             {
                 AdoptWorldField(world, world.ResolveFieldEntry(selector), new FieldVariables(world.CaptureNativeWorldExit(), new byte[256]), result, battleResult: 0);
             }
+            else if (request.ReloadsWorld)
+            {
+                Ff7WorldRuntime destination = PrepareWorldBattleReturn(world, request, null);
+                World = destination;
+                Progress = result;
+                world.Dispose();
+            }
             else
             {
                 world.ResumeWorldBattle(request, variables);
@@ -238,17 +245,9 @@ public sealed partial class Ff7Session
             AdoptWorldField(world, world.ResolveFieldEntry(selector), exitVariables, result, battle.ResolveNativeFieldResult(0), battle);
             return true;
         }
-        if (occurrence.Timed || occurrence.ReturnsToField && battle.Outcome == Ff7BattleOutcome.Escaped)
+        if (occurrence.ReloadsWorld || occurrence.ReturnsToField && battle.Outcome == Ff7BattleOutcome.Escaped)
         {
-            FieldVariables exitVariables = new(world.CaptureNativeWorldExit(), new byte[256]);
-            battle.ApplyNativeSaveWrites(exitVariables);
-            byte[] persistent = exitVariables.CopyPersistent();
-            byte[] party = persistent.AsSpan(0x109, 3).ToArray();
-            Ff7WorldRuntime destination = new(installation, persistent, occurrence.FieldReturnSelector ?? world.Process.EntrySelector, party, world.Resources.World, entryModule: 1);
-            if (battle.Outcome == Ff7BattleOutcome.Escaped)
-            {
-                destination.SetBattleReturnEscape();
-            }
+            Ff7WorldRuntime destination = PrepareWorldBattleReturn(world, occurrence, battle);
             FinishBattle(result, battle);
             World = destination;
             world.Dispose();
@@ -259,6 +258,23 @@ public sealed partial class Ff7Session
         world.ResumeWorldBattle(occurrence, variables, battle.Outcome == Ff7BattleOutcome.Escaped);
         FinishBattle(result, battle);
         return true;
+    }
+
+    private Ff7WorldRuntime PrepareWorldBattleReturn(Ff7WorldRuntime world, Ff7WorldBattleRequest occurrence, Ff7BattleSession? battle)
+    {
+        FieldVariables exitVariables = new(world.CaptureNativeWorldExit(), new byte[256]);
+        battle?.ApplyNativeSaveWrites(exitVariables);
+        byte[] persistent = exitVariables.CopyPersistent();
+        byte[] party = persistent.AsSpan(0x109, 3).ToArray();
+        Ff7WorldRuntime destination = new(installation, persistent, occurrence.FieldReturnSelector ?? world.Process.EntrySelector, party, world.Resources.World, entryModule: 1)
+        {
+            EncounterSeed = Clock.ElapsedSeconds
+        };
+        if (battle?.Outcome == Ff7BattleOutcome.Escaped)
+        {
+            destination.SetBattleReturnEscape();
+        }
+        return destination;
     }
 
     private void FinishBattle(Ff7Progress result, Ff7BattleSession battle)

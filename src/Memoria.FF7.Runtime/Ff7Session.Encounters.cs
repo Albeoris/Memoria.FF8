@@ -84,10 +84,22 @@ public sealed partial class Ff7Session
         }
         if (result.Formation is ushort formation)
         {
-            long requestId = Progress.NextEncounterRequestId;
-            Progress = Progress with { NextEncounterRequestId = checked(requestId + 1) };
+            long requestId = AllocateEncounterRequestId();
             Host.StartEncounter(new FieldHostRequest(requestId, actor.Entity, 7, 0, new FieldBattleCommand(formation)), result.Initiative);
         }
+    }
+
+    private long AllocateEncounterRequestId()
+    {
+        long requestId = Progress.NextEncounterRequestId;
+        Progress = Progress with { NextEncounterRequestId = checked(requestId + 1) };
+        return requestId;
+    }
+
+    private Ff7WorldEncounterModifiers GetWorldEncounterModifiers()
+    {
+        battleKernel ??= KernelArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.Kernel).Path));
+        return Ff7WorldEncounterModifiers.Read(Progress, battleKernel[8].Data.Span);
     }
 
     private void ValidateEncounterMateria()

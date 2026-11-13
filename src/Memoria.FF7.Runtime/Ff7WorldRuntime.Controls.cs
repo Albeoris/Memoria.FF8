@@ -37,6 +37,10 @@ public sealed partial class Ff7WorldRuntime
             radarMode = (radarMode + 1) % 3;
         }
         input = input with { PreviousControlHeld = held };
+        if ((held & 0xA00C) != 0)
+        {
+            WorldRandom.Next();
+        }
         if (viewMode == 3)
         {
             throw new NotSupportedException("FFVII foot controls do not support the native vehicle camera mode.");

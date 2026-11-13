@@ -23,18 +23,27 @@ internal sealed class Ff7WorldEncounterTable
         this.data = data;
     }
 
-    public int Select(int terrainInfo, int partyCount, bool yuffieEligible, int previous, ref int danger, Func<byte> random, out bool preemptive, int cloudLevel = 0)
+    public int Select(int terrainInfo, int partyCount, bool yuffieEligible, int previous, ref int danger, Func<byte> random, out bool preemptive, int cloudLevel = 0, Ff7WorldEncounterModifiers? equipment = null, bool canEncounterChocobo = false)
     {
+        return Select(terrainInfo, partyCount, yuffieEligible, previous, ref danger, random, out preemptive, out _, cloudLevel, equipment ?? Ff7WorldEncounterModifiers.Baseline, canEncounterChocobo);
+    }
+
+    public int Select(int terrainInfo, int partyCount, bool yuffieEligible, int previous, ref int danger, Func<byte> random, out bool preemptive, out byte? chocoboRating, int cloudLevel, Ff7WorldEncounterModifiers modifiers, bool canEncounterChocobo)
+    {
+        preemptive = false;
+        chocoboRating = null;
+        if (modifiers.EncounterRate == 0)
+        {
+            return -1;
+        }
         int region = Math.Min(15, (terrainInfo >> 9) & 31);
         int terrain = terrainInfo & 31;
         int selector = Array.IndexOf(TerrainSets[region], (byte)(terrain == 16 ? 0 : terrain == 24 ? 8 : terrain));
         int record = 0xA0 + (region * 4 + Math.Max(0, selector)) * 32;
         int rate = data[record + 1];
-        // Baseline equipment rates from the native party modifier builder.
-        const int encounterModifier = 16;
-        const int initiativeModifier = 16;
+        int encounterModifier = modifiers.EncounterRate;
+        int initiativeModifier = modifiers.InitiativeRate;
         danger = unchecked(danger + (rate == 0 ? 0x7FFF : (encounterModifier << 10) / rate));
-        preemptive = false;
         if (random() >= danger >> 8 || (data[record] & 1) == 0)
         {
             return -1;
@@ -50,17 +59,38 @@ internal sealed class Ff7WorldEncounterTable
             return yuffieFormation | Ff7WorldBattleRequest.FieldReturnFlag;
         }
         danger = 0;
+        int chocobo = -1;
+        if ((terrainInfo & 0x8000) != 0 && modifiers.ChocoboLure != 0 && canEncounterChocobo)
+        {
+            chocobo = Weighted(record + 0x16, 4, (random() << 12) / modifiers.ChocoboLure);
+            if (chocobo >= 0)
+            {
+                for (int offset = 0x20; offset < 0xA0; offset += 4)
+                {
+                    if (BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(offset)) == chocobo)
+                    {
+                        chocoboRating = data[offset + 2];
+                        break;
+                    }
+                }
+                chocoboRating ??= 0;
+            }
+        }
         preemptive = random() < initiativeModifier;
+        if (chocobo >= 0)
+        {
+            return chocobo;
+        }
         if (!preemptive)
         {
-            int special = Weighted(record + 0x0E, 2, random() << 8);
+            int special = Weighted(record + 0x0E, 2, random() << (8 + modifiers.SpecialRollShift));
             if (special < 0 && partyCount > 1)
             {
                 special = Weighted(record + 0x12, 1, random() << 8);
             }
             if (special < 0)
             {
-                special = Weighted(record + 0x14, 1, random() << 8);
+                special = Weighted(record + 0x14, 1, random() << (8 + modifiers.SpecialRollShift));
             }
             if (special >= 0)
             {

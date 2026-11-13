@@ -61,7 +61,7 @@ public sealed partial class GpuTriangleRenderer
                 effect.Parameters["WorldFocal"].SetValue(view.Focal);
                 effect.Parameters["WorldNativeCurvature"].SetValue(view.NativeCurvature ? 1f : 0f);
                 Ff7WorldTerrainView? ff7 = view.Ff7;
-                effect.Parameters["WorldFf7Projection"].SetValue(ff7 is { } selected ? new Vector3(1, selected.CenterY, selected.CurvatureThreshold) : Vector3.Zero);
+                effect.Parameters["WorldFf7Projection"].SetValue(ff7 is { } selected ? new Vector4(1, selected.CenterY, selected.CurvatureThreshold, selected.OffsetX) : Vector4.Zero);
                 System.Numerics.Vector3? axis = ff7?.BridgeAxis;
                 effect.Parameters["WorldFf7Bridge"].SetValue(axis is { } bridge ? new Vector4(bridge.X, bridge.Y, bridge.Z, 1) : Vector4.Zero);
                 terrainView = view;

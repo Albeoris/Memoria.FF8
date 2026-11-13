@@ -85,6 +85,10 @@ public sealed partial class Ff7WorldRuntime
             }
             return;
         }
+        if (Resources.World == 2 && player.Model == SubmarineModel && input.Held == 0 && input.Horizontal == 0 && input.Vertical == 0)
+        {
+            return;
+        }
         if (player.Model is not (0 or 1 or 2 or YellowChocoboModel))
         {
             throw new NotSupportedException($"FFVII world model {player.Model} has no supported physical movement contract.");
@@ -160,6 +164,11 @@ public sealed partial class Ff7WorldRuntime
             return;
         }
         Ff7WorldEntity player = RequireEntity(controlledModel);
+        if (Resources.World == 2 && player.Model == SubmarineModel && (mainState < 0 || pendingWorldBattle is not null))
+        {
+            ResolveUnderwaterSubmarineTerrain(player);
+            return;
+        }
         if (player.Model is not (0 or 1 or 2 or YellowChocoboModel))
         {
             throw new NotSupportedException($"FFVII world model {player.Model} has no supported terrain contract.");
@@ -331,7 +340,7 @@ public sealed partial class Ff7WorldRuntime
 
     private PcWorldMesh GetWorldCollisionMesh(int chunkX, int chunkZ)
     {
-        int block = Ff7WorldVisibility.ResolveBlockIndex((chunkZ >> 2) * 9 + (chunkX >> 2), WorldMapState);
+        int block = ResolveCollisionBlock(chunkX, chunkZ, WorldMapState);
         int index = (chunkZ & 3) * 4 + (chunkX & 3);
         if (!collisionMeshes.TryGetValue((block, index), out PcWorldMesh? mesh))
         {
@@ -339,6 +348,11 @@ public sealed partial class Ff7WorldRuntime
             collisionMeshes.Add((block, index), mesh);
         }
         return BridgeCollisionMesh(chunkX, chunkZ, mesh);
+    }
+
+    private int ResolveCollisionBlock(int chunkX, int chunkZ, int mapState)
+    {
+        return Resources.World == 2 ? ResolveUnderwaterBlock(chunkX, chunkZ) : Ff7WorldVisibility.ResolveBlockIndex((chunkZ >> 2) * 9 + (chunkX >> 2), mapState);
     }
 
     private (int Height, int Terrain)? QueryTerrain(int x, int z, int previousHeight, int previousTerrain, int model, bool dismount = false)
@@ -357,7 +371,13 @@ public sealed partial class Ff7WorldRuntime
         int selected = -1;
         int height = 0;
         bool cachedContains = false;
-        uint mask = (model != YellowChocoboModel || model == controlledModel) && (previousTerrain & 31) is 13 or 14 ? 0x20006000u : model == YellowChocoboModel ? YellowChocoboTerrainMask : 0x721B6F83u;
+        uint mask = model switch
+        {
+            SubmarineModel => SubmarineTerrainMask,
+            _ when (model != YellowChocoboModel || model == controlledModel) && (previousTerrain & 31) is 13 or 14 => 0x20006000u,
+            YellowChocoboModel => YellowChocoboTerrainMask,
+            _ => 0x721B6F83u
+        };
         bool Allowed(PcWorldTriangle face) => (mask & (1u << face.Terrain)) != 0 && (!dismount || (face.TerrainAndScript & 0xE0) != 0xE0);
         foreach (Ff7WorldTerrainReference cached in input.TerrainCache ?? [])
         {
@@ -465,7 +485,7 @@ public sealed partial class Ff7WorldRuntime
             {
                 throw new InvalidDataException("FFVII world terrain cache reference is corrupt.");
             }
-            int block = Ff7WorldVisibility.ResolveBlockIndex((reference.ChunkZ >> 2) * 9 + (reference.ChunkX >> 2), restoredMapState);
+            int block = ResolveCollisionBlock(reference.ChunkX, reference.ChunkZ, restoredMapState);
             int mesh = (reference.ChunkZ & 3) * 4 + (reference.ChunkX & 3);
             if (reference.Triangle >= Resources.Map.ReadMesh(block, mesh).Triangles.Count)
             {

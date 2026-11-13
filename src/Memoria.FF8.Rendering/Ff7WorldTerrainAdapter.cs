@@ -19,7 +19,7 @@ public sealed class Ff7WorldTerrainAdapter(Ff7WorldTextureResources textures)
             retained = CreateGeometry(mesh, bridge);
             geometry.Add(mesh, retained);
         }
-        WorldTerrainView camera = new(view.NativeView, nativeOrigin, view.Focal, false) { Ff7 = new(view.CenterY, curvatureThreshold, bridgeAxis) };
+        WorldTerrainView camera = new(view.NativeView, nativeOrigin, view.Focal, false) { Ff7 = new(view.CenterY, curvatureThreshold, bridgeAxis, view.OffsetX) };
         foreach (TerrainRun run in retained.Runs)
         {
             PcTexture texture = textures.Read(run.TextureIndex, textureFrame(run.TextureIndex));

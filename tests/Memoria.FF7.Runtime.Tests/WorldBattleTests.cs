@@ -10,6 +10,7 @@ internal static class WorldBattleTests
     public static void Run()
     {
         TestSelection();
+        WorldEncounterModifierTests.Run();
         string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
         if (string.IsNullOrWhiteSpace(root))
         {
@@ -102,13 +103,88 @@ internal static class WorldBattleTests
         Check(walking.World.PendingBattle is { Scripted: false } && walking.Battle is not null, "Original physical movement and terrain did not select a random world encounter.");
         Check(Snapshot(walking) == Snapshot(coldSelection), "Cold movement produced different world encounter or RNG owners.");
 
+        WorldEncounterModifierTests.RunSession(installation, fieldSave, variables, ready);
         TestSpecialReturns(installation, fieldSave, variables, ready, source);
+        TestChocoboCapture(installation, fieldSave);
+    }
+
+    private static void TestChocoboCapture(Ff7Installation installation, Ff7SessionSave fieldSave)
+    {
+        byte[] persistent = fieldSave.Vm.PersistentVariables.ToArray();
+        BinaryPrimitives.WriteUInt16LittleEndian(persistent, 386);
+        BinaryPrimitives.WriteUInt32LittleEndian(persistent.AsSpan(0x3B8), 235178);
+        BinaryPrimitives.WriteUInt32LittleEndian(persistent.AsSpan(0x3BC), 139946);
+        persistent[0x3FF] = unchecked((byte)-persistent.Skip(0x380).Take(127).Sum(value => value));
+        byte[] party = persistent.AsSpan(0x109, 3).ToArray();
+        using Ff7WorldRuntime fixture = new(installation, persistent, 0, party, entryModule: 1);
+        for (int step = 0; step < 20; step++)
+        {
+            fixture.Advance();
+        }
+        Ff7WorldProcess world = fixture.Process with
+        {
+            MainState = 1, MovementEnabled = true, ControlLock = 0,
+            BattleState = new(16, 1 << 18, -1, new byte[0x209], 0, null)
+        };
+        Ff7CharacterState[] characters = fieldSave.Progress.Characters.Select(character =>
+        {
+            if (character.Id != 0)
+            {
+                return character;
+            }
+            byte[] record = character.NativeRecord.ToArray();
+            BinaryPrimitives.WriteUInt32LittleEndian(record.AsSpan(64), 9);
+            record[2] = 230;
+            return character with { NativeRecord = record };
+        }).ToArray();
+        using Ff7Session session = Ff7Session.Restore(installation, fieldSave with
+        {
+            World = world,
+            Vm = fieldSave.Vm with { PersistentVariables = persistent },
+            Progress = fieldSave.Progress with { Characters = characters, FullCombatEnabled = true }
+        });
+        session.World!.SetMovement(1, 0, true);
+        session.AdvanceTick(false);
+        Check(session.World.PendingBattle is { Chocobo: true, Formation: 56 } && session.World.Process.Audio?.Song == 5 && session.World.ReadSpecial(9, -1) == 7, $"Original track did not select the Chocobo formation and rating. Terrain={session.World.Process.Entities.First(entity => entity.Model == 0).Terrain:X4}, battle={session.World.PendingBattle}, movement={session.World.MovementEnabled}.");
+        using Ff7Session cold = Ff7Session.Restore(installation, RoundTrip(session));
+        Check(Snapshot(session) == Snapshot(cold), "Cold Chocobo encounter changed the battle and world owners.");
+        for (int tick = 0; tick < 1800 && !cold.Battle!.ResultReady; tick++)
+        {
+            cold.AdvanceTick(false, escapeBattleHeld: true);
+        }
+        Check(cold.Battle is { Outcome: Ff7BattleOutcome.Escaped, ResultReady: true } && cold.ConfirmBattleEscape() && cold.World!.ReadSpecial(10, -1) == 1, "Escaping a Chocobo battle lost its native World return status.");
+        cold.AdvanceTick(false);
+        Check(cold.World!.ControlledModel == 0 && cold.World.Process.Chocobo is null, "Escaping a Chocobo battle must leave the party on foot.");
+        Ff7BattleSession battle = session.Battle!;
+        int bird = battle.Data.Enemies.Single(enemy => enemy.Rewards.EnemyId == 339).FormationSlot + 4;
+        FightToResult(session, bird);
+        Ff7BattleSnapshot victory = battle.Capture();
+        Check(battle is { Outcome: Ff7BattleOutcome.Victory, ResultReady: true } && victory.AiSaveBankDirty!.Contains((byte)0x54) && victory.AiSaveBank1![0x54] == 1, $"Original Chocobo AI failed to publish capture. Outcome={battle.Outcome}, actors={string.Join(',', battle.Actors.Select(actor => (actor.Actor.Slot, actor.Actor.HitPoints, actor.Actor.Conditions)))}.");
+        using Ff7Session coldVictory = Ff7Session.Restore(installation, RoundTrip(session));
+        Check(session.ConfirmBattleVictory() && coldVictory.ConfirmBattleVictory() && session.World is { PendingBattle: null } && session.World.ReadSpecial(5, -1) == 1, "Chocobo victory did not enter the original world battle return.");
+        session.AdvanceTick(false);
+        coldVictory.AdvanceTick(false);
+        Check(session.World!.ControlledModel == 4 && session.World.Process.Chocobo?.RiderModel == 0 && session.World.Process.Audio?.Song == 2, "The original battle return script did not board the caught Chocobo.");
+        Check(!session.ConfirmBattleVictory() && session.Progress.CompletedBattles.Count(receipt => receipt.RequestId == battle.RequestId) == 1 && Snapshot(session) == Snapshot(coldVictory), "Chocobo return replayed the capture or diverged after restoration.");
+        Ff7WorldProcess mounted = session.World.Process;
+        session.World.Execute(new(mounted.Vm.NextRequestId, -1, -1, 0, new(WorldOperation.Battle, [56])));
+        Check(session.World.PendingBattle is { } next && next.Id > battle.RequestId, "World reentry reset the encounter identity and could alias an already settled battle.");
     }
 
     private static void TestSpecialReturns(Ff7Installation installation, Ff7SessionSave fieldSave, byte[] variables, Ff7WorldProcess ready, byte[] table)
     {
         ushort yuffieFormation = (ushort)(BinaryPrimitives.ReadUInt16LittleEndian(table.AsSpan(2)) & 1023);
-        Ff7SessionSave start = fieldSave with { Vm = fieldSave.Vm with { PersistentVariables = variables }, World = ready };
+        Ff7SessionSave start = fieldSave with
+        {
+            Vm = fieldSave.Vm with { PersistentVariables = variables },
+            World = ready,
+            Progress = fieldSave.Progress with { Characters = fieldSave.Progress.Characters.Select(character =>
+            {
+                byte[] record = character.NativeRecord.ToArray();
+                record[2] = 230;
+                return character with { NativeRecord = record };
+            }).ToArray() }
+        };
         using Ff7Session special = Ff7Session.Restore(installation, start);
         special.SetFullCombatEnabled(true);
         special.SetRandomEncountersEnabled(false);
@@ -143,14 +219,10 @@ internal static class WorldBattleTests
             Check(Snapshot(encounter) == Snapshot(restoredEncounter), "Original special formation diverged during cold turn continuation.");
         }
 
-        Ff7BattleSnapshot victory = active.Battle! with
-        {
-            Outcome = Ff7BattleOutcome.Victory,
-            TerminalFrames = 49,
-            Actors = active.Battle.Actors.Select(actor => actor.Actor.Slot >= 4
-                ? actor with { Actor = actor.Actor with { HitPoints = 0, Statuses = actor.Actor.Statuses | Ff7NativeBattleActionResolver.Death } } : actor).ToArray()
-        };
-        using Ff7Session winning = Ff7Session.Restore(installation, active with { Battle = victory });
+        using Ff7Session winning = Ff7Session.Restore(installation, active);
+        FightToResult(winning);
+        Check(winning.Battle is { Outcome: Ff7BattleOutcome.Victory, ResultReady: true }, $"Original Yuffie scene did not reach a playable victory: {winning.Battle!.Outcome}, {string.Join(", ", winning.Battle.Actors.Select(actor => (actor.Actor.Slot, actor.Actor.HitPoints, actor.Actor.Conditions)))}, ready={winning.Battle.ReadyPlayer}.");
+        Ff7BattleSnapshot victory = winning.Battle!.Capture();
         string pending = Snapshot(winning);
         winning.ValidateWorldFieldDestination = _ => throw new IOException("fixture rejects destination");
         try
@@ -164,20 +236,20 @@ internal static class WorldBattleTests
         }
         winning.ValidateWorldFieldDestination = null;
         Check(winning.ConfirmBattleVictory() && winning.World is null && winning.Battle is null && winning.Field.Name == "yougan2", "Tagged world victory did not adopt the original field.");
-        Check(winning.Host.Process.BattleResult == 0 && winning.Progress.CompletedBattles.Count(receipt => receipt.RequestId == victory.RequestId) == 1 && !winning.ConfirmBattleVictory(), "Tagged world victory lost or duplicated the result.");
+        Check(winning.Host.Process.BattleResult == 17 && victory.AiSaveBank1?[2] == 17 && winning.Progress.CompletedBattles.Count(receipt => receipt.RequestId == victory.RequestId) == 1 && !winning.ConfirmBattleVictory(), $"Tagged world victory lost or duplicated the result. Field result={winning.Host.Process.BattleResult}, native byte={victory.AiSaveBank1?[2]}, receipts={winning.Progress.CompletedBattles.Count(receipt => receipt.RequestId == victory.RequestId)}.");
         using Ff7Session coldField = Ff7Session.Restore(installation, RoundTrip(winning));
         winning.AdvanceTick(false);
         coldField.AdvanceTick(false);
         Check(Snapshot(winning) == Snapshot(coldField), "Cold special field return replayed the encounter or changed field progression.");
 
-        using Ff7Session escaping = Ff7Session.Restore(installation, active with { Battle = active.Battle with { Outcome = Ff7BattleOutcome.Escaped, TerminalFrames = 8 } });
+        using Ff7Session escaping = Ff7Session.Restore(installation, active with { Battle = active.Battle! with { Outcome = Ff7BattleOutcome.Escaped, TerminalFrames = 8 } });
         Check(escaping.ConfirmBattleEscape() && escaping.World is { PendingBattle: null } && escaping.Progress.BattleEscapes == 1, "Tagged escape must return to World without a field departure.");
         Check(escaping.World!.Process.EntryModule == 1 && escaping.World.ReadSpecial(10, -1) == 1 && escaping.World.Process.Tick == 0, "Tagged escape did not preserve native battle-entry origin and escape bit.");
         using Ff7Session coldEscape = Ff7Session.Restore(installation, RoundTrip(escaping));
         escaping.AdvanceTick(false);
         coldEscape.AdvanceTick(false);
         Check(Snapshot(escaping) == Snapshot(coldEscape), "Tagged escape reentry changed the first world script callback after restore.");
-        using Ff7Session losing = Ff7Session.Restore(installation, active with { Battle = active.Battle with { Outcome = Ff7BattleOutcome.Defeat, TerminalFrames = 30 } });
+        using Ff7Session losing = Ff7Session.Restore(installation, active with { Battle = active.Battle! with { Outcome = Ff7BattleOutcome.Defeat, TerminalFrames = 30 } });
         Check(losing.Battle is { ReturnsAfterDefeat: false } && !losing.ConfirmBattleDefeat(), "A tagged loss must retain the normal game-over boundary.");
 
         using Ff7WorldResources underwater = Ff7WorldResources.Load(installation, 2);
@@ -213,6 +285,25 @@ internal static class WorldBattleTests
         Check(timelyVictory.ConfirmBattleVictory() && timelyVictory.World!.Process.EntryModule == 1 && timelyVictory.World.Process.Tick == 0, "Winning a timed world battle before zero did not prepare the original world module.");
         Check(timelyVictory.World!.ReadSpecial(10, -1) == 0, "Timed victory set the native escape bit.");
 
+    }
+
+    private static void FightToResult(Ff7Session session, int? excludedSlot = null)
+    {
+        Ff7BattleSession battle = session.Battle!;
+        for (int tick = 0; tick < 6000 && !battle.ResultReady; tick++)
+        {
+            session.AdvanceTick(false, turnBasedBattle: true);
+            if (battle.ReadyPlayer is int slot && battle.Outcome == Ff7BattleOutcome.Fighting)
+            {
+                Ff7BattleActorState? target = battle.Actors.FirstOrDefault(actor => actor.Actor.Slot >= 4 && actor.Actor.Slot != excludedSlot && actor.Actor.HitPoints > 0);
+                if (target is not null)
+                {
+                    ushort targetMask = (ushort)(1 << target.Actor.Slot);
+                    Ff7BattleCommandOption? attack = battle.Commands(slot).FirstOrDefault(option => option.Command is Ff7BattleCommand.Attack or Ff7BattleCommand.Limit && (option.ValidTargets & targetMask) != 0);
+                    Check(attack is not null && battle.Submit(slot, attack.Command, attack.Argument, targetMask), "The native battle did not admit the expected attack command.");
+                }
+            }
+        }
     }
 
     private static void TestSelection()

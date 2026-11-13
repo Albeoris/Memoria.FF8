@@ -56,7 +56,7 @@ public sealed class Ff7WorldFootShadowAdapter(PcTexture texture, Ff7WorldMath ma
         TriangleVertex Vertex(int index)
         {
             Vector3 point = camera[index];
-            float x = view.Width / 2f + point.X * view.Focal / point.Z;
+            float x = view.Width / 2f + view.OffsetX + point.X * view.Focal / point.Z;
             float y = view.CenterY + point.Y * view.Focal / point.Z;
             Vector2 screen = new(MathF.Round(x, MidpointRounding.ToEven), MathF.Round(y, MidpointRounding.ToEven));
             return new(screen, depth, 1, uv[index] / new Vector2(texture.Width, texture.Height), color);

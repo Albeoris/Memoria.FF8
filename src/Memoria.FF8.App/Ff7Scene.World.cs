@@ -46,7 +46,9 @@ internal sealed partial class Ff7Scene
             state.Lights.Select(light => new Memoria.FF7.Resources.Ff7WorldSkyZone(light.Index, light.X, light.Z, light.Enabled, light.Radius, light.Radius2, new(light.Red, light.Green, light.Blue), new(light.Red2, light.Green2, light.Blue2))).ToArray())
         {
             BridgeDeformation = state.Input?.Bridge?.Deformation,
-            HeightSmoothVelocity = state.Input?.HeightSmoothVelocity ?? 0
+            HeightSmoothVelocity = state.Input?.HeightSmoothVelocity ?? 0,
+            ShakeX = state.ScreenShake?.X ?? 0,
+            ShakeY = state.ScreenShake?.Y ?? 0
         };
     }
 

@@ -41,7 +41,7 @@ public sealed class Ff7RetainedWorldTerrainTests(ITestOutputHelper output)
         Matrix4x4 rotation = Matrix4x4.CreateRotationX(MathF.PI / 4);
         float centerY = mesh.Vertices.Average(position => position.Y);
         Matrix4x4 camera = Matrix4x4.CreateTranslation(-origin.X - 4096, -centerY, -origin.Z - 4096) * rotation * Matrix4x4.CreateTranslation(0, 0, 20000);
-        Ff7WorldView view = new(camera, rotation, 400, 640, 480, 320);
+        Ff7WorldView view = new(camera, rotation, 400, 640, 480, acrossSeam ? 312 : 320) { OffsetX = acrossSeam ? 4 : 0 };
 
         for (int i = 0; i < 2; i++)
         {

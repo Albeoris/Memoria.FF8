@@ -25,6 +25,10 @@ public sealed record Ff7WorldProcess(int WorldId, long Tick, int EntrySelector, 
     public Ff7WorldChocoboState? Chocobo { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public int EntryModule { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? SubmarineTint { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7WorldScreenShake? ScreenShake { get; init; }
     public IReadOnlyList<Ff7Window> Windows => Window is null ? [] : [Window];
     public IReadOnlyList<Ff7Dialogue> Dialogues => Dialogue is null ? [] : [Dialogue];
 }

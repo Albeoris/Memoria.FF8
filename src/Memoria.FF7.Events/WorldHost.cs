@@ -72,6 +72,7 @@ public interface IWorldHost
 {
     WorldHostReply Execute(WorldHostRequest request);
     int ReadSpecial(int selector, int activeModel);
+    int ReadModelDistance(int activeModel, int targetModel) => throw new NotSupportedException("The FFVII world host does not support model distances.");
 }
 
 public sealed record WorldStackValue(ushort Opcode, int Value);

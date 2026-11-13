@@ -15,7 +15,8 @@ public sealed partial class Ff7BattleSession
         {
             state = state with { PrimaryEffects = Ff7BattlePrimaryEffects.ScheduleActorDeath(EnsurePrimaryEffects(), slot, kind) };
         }
-        else
+        // Kind 16 exits the native dispatcher without allocating a death callback.
+        else if (kind != 16)
         {
             throw new NotSupportedException($"FFVII actor death kind {kind} requires its native callback owner.");
         }
