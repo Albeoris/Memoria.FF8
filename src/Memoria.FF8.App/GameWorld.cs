@@ -54,10 +54,11 @@ internal sealed partial class GameWorld : IDisposable
     public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, bool audioEnabled = false, bool validateWorldPresentation = true, Func<string, string>? resolveGameFile = null, GameAssets? sharedAssets = null, Func<FieldSceneMods>? readSceneMods = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null, Func<BattleDefinition, EncounterBindingContext, BattleDefinition>? applyEncounterMods = null, GameplaySaveSceneFacts? gameplaySaveFacts = null, bool legacyGameplayProjection = false, int? expandedBattleAllyCount = null)
     {
         this.session = session;
-        expandedRandomAllyCount = expandedBattleAllyCount ?? (Environment.GetEnvironmentVariable("MEMORIA_FF8_BATTLE_ROSTER") switch
+        defaultExpandedRandomAllyCount = expandedBattleAllyCount ?? (Environment.GetEnvironmentVariable("MEMORIA_FF8_BATTLE_ROSTER") switch
         {
             "4x6" => 4,
             "8x8" => 8,
+            "11x8" => 11,
             _ => 0
         });
         this.legacyGameplayProjection = legacyGameplayProjection;
@@ -152,6 +153,7 @@ internal sealed partial class GameWorld : IDisposable
         Events.ResolveNativeFieldItemStatRules = assets.ReadFieldItemStatRules;
         Events.ResolveNativeAutoJunction = (vitals, row, priority) => assets.ReadNativeTutorialCatalog().AutoJunction(vitals, row, priority);
         ConfigureTripleTriadHost();
+        EnsureGuestBattleRecords();
         ConfigureBattleHost();
         ConfigureRandomEncounterHost();
         Events.OperationCompleted += ObservePendingBattle;

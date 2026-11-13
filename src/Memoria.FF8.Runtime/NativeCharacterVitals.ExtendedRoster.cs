@@ -51,6 +51,11 @@ public sealed partial record NativeCharacterVitals
         return projected;
     }
 
+    public NativeCharacterVitals WithGuestBattleRecords()
+    {
+        return Records.Length == ExtendedRecordCount ? this : WithExtendedRoster(true) with { ExtendedRosterEnabled = false };
+    }
+
     public NativeCharacterVitals WithExtendedRoster(bool enabled)
     {
         Validate();

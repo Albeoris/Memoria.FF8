@@ -18,6 +18,7 @@ internal sealed partial class RecreateGame
 
     private async Task<(NativeCharacterVitals Source, short? PlaceId)> ReviewOriginalGuardianForceExportAsync(GameState snapshot)
     {
+        PlayerSaveStore.ValidateOriginalBattleRoster(snapshot);
         using GameAssets assets = new(options.GameDirectory, resources: resourceHost?.Resources);
         NativeCharacterVitals targetSource = assets.ReadNewGameCharacterVitals();
         NativeGuardianForceLegacyExportPlan plan = NativeGuardianForceLegacyCompatibility.Analyze(snapshot, targetSource);

@@ -1145,9 +1145,9 @@ public sealed partial class BattleSession
 
     private void ValidateDefinition(BattleDefinition source)
     {
-        if (source.UsesExpandedRoster && (source.NativeGraphics is not null || (source.Combatants.Count(actor => actor.IsPlayer), source.Combatants.Count(actor => !actor.IsPlayer)) is not ((4, 6) or (8, 8)) || source.Combatants.Any(actor => !actor.InitialActive) || source.GuardianFormsEnabled))
+        if (source.UsesExpandedRoster && (source.NativeGraphics is not null || (source.Combatants.Count(actor => actor.IsPlayer), source.Combatants.Count(actor => !actor.IsPlayer)) is not ((4, 6) or (8, 8) or (11, 8)) || source.Combatants.Any(actor => !actor.InitialActive) || source.GuardianFormsEnabled))
         {
-            throw new NotSupportedException("The expanded battle host requires a supported 4x6 or 8x8 roster and host-owned actions.");
+            throw new NotSupportedException("The expanded battle host requires a supported 4x6, 8x8 or 11x8 roster and host-owned actions.");
         }
         source.Tuning.Validate();
         source.MagicVitals?.Validate();
@@ -1170,7 +1170,8 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native persistent battle AI bank requires all eight executed DWORDs.");
         }
-        if (string.IsNullOrWhiteSpace(source.Name) || source.StageId < 0 || source.EncounterId < 0 || source.Combatants.Length is < 2 or > 16 || !source.Combatants.Any(actor => actor.IsPlayer) || !source.Combatants.Any(actor => !actor.IsPlayer))
+        int maximumCombatants = source.UsesExpandedRoster ? NativeCharacterVitals.ExtendedRecordCount + 8 : 16;
+        if (string.IsNullOrWhiteSpace(source.Name) || source.StageId < 0 || source.EncounterId < 0 || source.Combatants.Length < 2 || source.Combatants.Length > maximumCombatants || !source.Combatants.Any(actor => actor.IsPlayer) || !source.Combatants.Any(actor => !actor.IsPlayer))
         {
             throw new ArgumentException("Battle requires a name and both player and enemy combatants (2–16 total).");
         }

@@ -210,7 +210,8 @@ internal sealed partial class BattleHudElement : UiElement
         }
 
         IReadOnlyList<BattleCombatant> party = controller.CommandMenuHidden || session.NativeGraphics?.UiServices is { } nativeUi && !(nativeUi.Windows ?? throw new NotSupportedException("Native battle HUD requires its retained UI window bank; migrate the named snapshot explicitly.")).DrawsVitals4B1740(nativeUi.Flags942) ? [] : controller.Party;
-        float partyTop = party.Count > 4 ? 660 - party.Count * BattleHudLayout.PartyRowHeight : BattleHudLayout.PartyTop;
+        float partyRowHeight = party.Count > 8 ? 32 : BattleHudLayout.PartyRowHeight;
+        float partyTop = party.Count > 4 ? 660 - party.Count * partyRowHeight : BattleHudLayout.PartyTop;
         for (int index = 0; index < party.Count; index++)
         {
             BattleCombatant actor = party[index];
@@ -218,7 +219,7 @@ internal sealed partial class BattleHudElement : UiElement
             {
                 continue;
             }
-            float y = partyTop + index * BattleHudLayout.PartyRowHeight;
+            float y = partyTop + index * partyRowHeight;
             BattleGuardianForceCast? cast = session.GuardianForceCasts.FirstOrDefault(cast => cast.ActorId == actor.Id);
             BattleGuardianForceVital? gf = cast is null ? null : session.GuardianForces.Single(gf => gf.Id == cast.Command.ActionId);
             BattleGuardianFormState? form = session.GetGuardianForm(actor.Id);

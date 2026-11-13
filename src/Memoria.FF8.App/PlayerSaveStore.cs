@@ -153,8 +153,18 @@ internal sealed partial class PlayerSaveStore
 
     public static bool RequiresMemoriaFormat(GameState state, bool allowGuardianForceProjection = false)
     {
-        return state.GameplayPreferences.ChocoboWorldMode is not null || state.ChocoboRewards.HasState || (!allowGuardianForceProjection && state.CharacterVitals?.GuardianForceRequiresMemoriaFormat == true) || state.GameplayPreferences.LimitOncePerTurn || state.GameplayPreferences.SelphieCardSlots || state.GameplayPreferences.WeaponMagazineRequired || state.GameplayPreferences.WeaponUpgradeOrder || state.WeaponRecipes?.ObtainedWeaponsBits is > 0 || state.WeaponRecipes?.MagazineRecipeBits is > 0 || state.GameplayPreferences.CardModOnce || !state.RefinedCardIds.IsEmpty || state.GameplayPreferences.DrawOncePerSpell || state.GameplayPreferences.Difficulty != BattleDifficulty.Normal || state.CharacterVitals?.MagicSystem.RequiresMemoriaFormat == true || state.GameplayPreferences.SharedMagicStock || state.GameplayPreferences.InfiniteMagic || state.GameplayPreferences.GuardianFormsEnabled || state.PendingGameplayPreferences is not null;
+        return RequiresMemoriaBattleRoster(state) || state.GameplayPreferences.ChocoboWorldMode is not null || state.ChocoboRewards.HasState || (!allowGuardianForceProjection && state.CharacterVitals?.GuardianForceRequiresMemoriaFormat == true) || state.GameplayPreferences.LimitOncePerTurn || state.GameplayPreferences.SelphieCardSlots || state.GameplayPreferences.WeaponMagazineRequired || state.GameplayPreferences.WeaponUpgradeOrder || state.WeaponRecipes?.ObtainedWeaponsBits is > 0 || state.WeaponRecipes?.MagazineRecipeBits is > 0 || state.GameplayPreferences.CardModOnce || !state.RefinedCardIds.IsEmpty || state.GameplayPreferences.DrawOncePerSpell || state.GameplayPreferences.Difficulty != BattleDifficulty.Normal || state.CharacterVitals?.MagicSystem.RequiresMemoriaFormat == true || state.GameplayPreferences.SharedMagicStock || state.GameplayPreferences.InfiniteMagic || state.GameplayPreferences.GuardianFormsEnabled || state.PendingGameplayPreferences is not null;
     }
+
+    internal static void ValidateOriginalBattleRoster(GameState state)
+    {
+        if (RequiresMemoriaBattleRoster(state))
+        {
+            throw new NotSupportedException("The original FFVIII save format cannot retain expanded battle settings or guest progression. Choose a Memoria slot.");
+        }
+    }
+
+    private static bool RequiresMemoriaBattleRoster(GameState state) => state.GameplayPreferences.BattleAllyCount > 3 || state.PendingGameplayPreferences?.BattleAllyCount is > 3 || state.CharacterVitals?.Records.Length > NativeCharacterVitals.NativeRecordCount;
 
     public void Save(int slot, GameSession session, Action<GameState>? validateContinuation = null, NativeCharacterVitals? targetSource = null, bool allowGuardianForceLoss = false, short? originalPlaceId = null, Func<string, Action<GameState>?, DateTime?, GameState>? writeGameplay = null, bool combinedSession = false)
     {
@@ -173,6 +183,10 @@ internal sealed partial class PlayerSaveStore
         if (session.State.Scene == SceneKind.Title)
         {
             throw new InvalidOperationException("Start or load a game before saving.");
+        }
+        if (slot > MemoriaSlotCount)
+        {
+            ValidateOriginalBattleRoster(session.State);
         }
         if (slot != 0)
         {

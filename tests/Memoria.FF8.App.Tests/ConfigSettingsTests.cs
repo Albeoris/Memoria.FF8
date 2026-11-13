@@ -280,6 +280,8 @@ public sealed class ConfigSettingsTests
         Assert.Equal(defaults, defaults.WithInstallationSetting("GF Transformations", "On", activeGame: true));
         Assert.True(defaults.WithInstallationSetting("GF Transformations", "On", activeGame: false).GuardianFormsEnabled);
         Assert.Throws<ArgumentException>(() => defaults.WithSetting("GF Transformations", "Invalid"));
+        Assert.Equal(defaults, defaults.WithInstallationSetting("Battle roster size", "11", activeGame: true));
+        Assert.Equal(11, defaults.WithInstallationSetting("Battle roster size", "11", activeGame: false).BattleAllyCount);
         Assert.Equal(defaults, defaults.WithInstallationSetting("Battle ATB mode", "Classic", activeGame: true));
         Assert.Equal(Memoria.FF8.Runtime.BattleAtbMode.Normal, defaults.WithInstallationSetting("Battle ATB mode", "Classic", activeGame: false).AtbMode);
         UiPreferences volume = defaults.WithInstallationSetting("Music volume", "25%", activeGame: true);

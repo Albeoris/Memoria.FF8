@@ -31,6 +31,11 @@ public sealed class NewGameOption
 /// <summary>Recreation gameplay choices owned by one standalone save, separate from native FF8 configuration.</summary>
 public sealed record GameplayPreferences
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public int BattleAllyCount { get; init; }
+
+    public static bool IsBattleAllyCountSupported(int value) => value is 0 or 3 or 4 or 8 or 11;
+
     public BattleDifficulty Difficulty { get; init; } = BattleDifficulty.Normal;
     public BattleAtbMode AtbMode { get; init; } = BattleAtbMode.TurnBased;
     public BattleGunbladeMode GunbladeMode { get; init; } = BattleGunbladeMode.Automatic;
@@ -88,7 +93,7 @@ public sealed record GameplayPreferences
             throw new InvalidDataException("Triple Triad settings are missing.");
         }
         TripleTriad.Validate(Difficulty);
-        if (!Enum.IsDefined(Difficulty) || !Enum.IsDefined(AtbMode) || !Enum.IsDefined(GunbladeMode) || ChocoboWorldMode is { } mode && !Enum.IsDefined(mode))
+        if (!IsBattleAllyCountSupported(BattleAllyCount) || !Enum.IsDefined(Difficulty) || !Enum.IsDefined(AtbMode) || !Enum.IsDefined(GunbladeMode) || ChocoboWorldMode is { } mode && !Enum.IsDefined(mode))
         {
             throw new InvalidDataException("Invalid saved gameplay preferences.");
         }

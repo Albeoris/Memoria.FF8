@@ -39,7 +39,7 @@ public sealed partial class MenuController
     internal IReadOnlyList<MenuEntry> BattleSettingsEntries()
     {
         return [new MenuEntry("battle-laboratory", SystemText("ui.battlesettingsentries.entry.label.battle.laboratory", "Battle laboratory…"), SystemText("ui.battlesettingsentries.entry.help.edit.an.isolated.scenario.start.launches.it.explicitly", "Edit an isolated scenario; Start launches it explicitly."), Action: new("open-battle-debug"), Enabled: BattleDebugAvailable),
-            .. HostSettingsEntries("Battle policy", "Random encounters")];
+            .. HostSettingsEntries("Battle policy", "Random encounters", "Battle roster size")];
     }
 
     internal IReadOnlyList<string> BattleSettingsDetails() => [battleSource?.Invoke() ?? (_hasActiveBattle?.Invoke() == true ? SystemText("ui.battlesettingsdetails.details.active.battle", "Active battle") : SystemText("ui.battlesettingsdetails.details.no.active.battle", "No active battle")), FormatSystemText("ui.battlesettingsdetails.details.encounter.execution.template", "Encounter execution: {0}", (HostSettingValue("Battle policy") == "Instant victory" ? SystemText("ui.battlesettingsdetails.details.automatic.victory", "Automatic victory") : SystemText("ui.battlesettingsdetails.details.full.combat", "Full combat"))), SystemText("ui.battlesettingsdetails.details.applies.to.the.current.game.at.title.it", "Applies to the current game; at Title it is the new-game default."), SystemText("ui.battlesettingsdetails.details.save.normally.to.retain.current.game.changes", "Save normally to retain current-game changes."), SelectedEntry?.Help ?? ""];
@@ -119,6 +119,7 @@ public sealed partial class MenuController
             "Card Mod once" => preferences.CardModOnce ? "On" : "Off",
             "Weapon magazine required" => preferences.WeaponMagazineRequired ? "On" : "Off",
             "Weapon upgrade order" => preferences.WeaponUpgradeOrder ? "On" : "Off",
+            "Battle roster size" => (preferences.BattleAllyCount == 0 ? 3 : preferences.BattleAllyCount).ToString(System.Globalization.CultureInfo.InvariantCulture),
             "Draw once per spell" => preferences.DrawOncePerSpell ? "On" : "Off",
             "Difficulty" => preferences.Difficulty.ToString(),
             "Battle ATB mode" => preferences.AtbMode == Memoria.FF8.Runtime.BattleAtbMode.Normal ? "Classic" : "Turn Based",
@@ -178,7 +179,7 @@ public sealed partial class MenuController
             SetSystemMessage(() => SystemText("ui.executehostsettingsaction.message.local.settings.are.not.connected.to.this.menu", "Local settings are not connected to this menu host."));
             return true;
         }
-        if (action.SubjectId is not ("Battle policy" or "Random encounters"))
+        if (action.SubjectId is not ("Battle policy" or "Random encounters" or "Battle roster size"))
         {
             SetSystemMessage(() => SystemText("ui.executehostsettingsaction.message.this.preference.has.its.canonical.editor.in.config", "This preference has its canonical editor in Config."));
             return true;

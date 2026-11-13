@@ -74,6 +74,7 @@ internal sealed record UiPreferences
     public BattleDifficulty Difficulty { get; init; } = BattleDifficulty.Normal;
     public bool LimitOncePerTurn { get; init; }
     public bool SelphieCardSlots { get; init; }
+    public int BattleAllyCount { get; init; }
     public bool DrawOncePerSpell { get; init; }
     public bool CardModOnce { get; init; }
     public bool WeaponMagazineRequired { get; init; }
@@ -349,6 +350,17 @@ internal sealed record UiPreferences
                 _ => throw new ArgumentException("Random encounters requires On or Off.")
             };
         }
+        if (key == "Battle roster size")
+        {
+            return value switch
+            {
+                "3" => this with { BattleAllyCount = 3 },
+                "4" => this with { BattleAllyCount = 4 },
+                "8" => this with { BattleAllyCount = 8 },
+                "11" => this with { BattleAllyCount = 11 },
+                _ => throw new ArgumentException("Battle roster size requires 3, 4, 8 or 11.")
+            };
+        }
         if (key == "GF Transformations")
         {
             return value switch
@@ -470,7 +482,7 @@ internal sealed record UiPreferences
 
     public UiPreferences WithInstallationSetting(string key, string value, bool activeGame, bool allowDifficultyChange = false)
     {
-        if (activeGame && key is "Weapon magazine required" or "Weapon upgrade order" or "Card Mod once" or "Draw once per spell" or "Limit once per turn" or "Selphie card Slots" or "Difficulty" or "Battle ATB mode" or "Gunblade trigger" or "Battle policy" or "Random encounters" or "GF Transformations")
+        if (activeGame && key is "Weapon magazine required" or "Weapon upgrade order" or "Card Mod once" or "Draw once per spell" or "Limit once per turn" or "Selphie card Slots" or "Difficulty" or "Battle ATB mode" or "Gunblade trigger" or "Battle policy" or "Random encounters" or "GF Transformations" or "Battle roster size")
         {
             return this;
         }
@@ -500,6 +512,10 @@ internal sealed record UiPreferences
         if (WorldMovementSpeedPercent is < 50 or > 300 || FieldMovementSpeedPercent is < 50 or > 300 || BattleSpeedPercent is < 50 or > 300 || FastForwardMultiplier is < 2 or > 10)
         {
             throw new InvalidDataException("Speed preferences are outside their supported ranges.");
+        }
+        if (!GameplayPreferences.IsBattleAllyCountSupported(BattleAllyCount))
+        {
+            throw new InvalidDataException("Invalid battle roster size.");
         }
         if (TripleTriad is null)
         {

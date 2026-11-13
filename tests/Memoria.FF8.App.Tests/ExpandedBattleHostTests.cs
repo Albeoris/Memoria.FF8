@@ -15,6 +15,9 @@ public sealed class ExpandedBattleHostTests
     [InlineData(87, false, false, 8)]
     [InlineData(0, true, false, 8)]
     [InlineData(89, false, true, 8)]
+    [InlineData(87, false, false, 11)]
+    [InlineData(0, true, false, 11)]
+    [InlineData(89, false, true, 11)]
     public void ExpandedRandomBattleUsesInstalledContactsAndChargesEachCommandOnce(ushort formation, bool mass, bool exerciseAi, int allyCount)
     {
         string directory = TestResources.GameDirectory;
@@ -28,6 +31,10 @@ public sealed class ExpandedBattleHostTests
             initialSession.SetEventState(bootstrap.Events.Capture());
         }
         NativeCharacterVitals initial = initialSession.State.CharacterVitals!.Rest();
+        if (allyCount == 11)
+        {
+            initial = initial.WithGuestBattleRecords();
+        }
         NativeCharacterVital[] records = initial.Records.ToArray();
         BattleNativeAction fire;
         BattleNativeAction quake;
@@ -38,7 +45,7 @@ public sealed class ExpandedBattleHostTests
             quake = Assert.Single(battleAssets.NativeActions, action => action.Command == 2 && action.Name == "Quake");
             potion = Assert.Single(battleAssets.NativeActions, action => action.Command == 4 && action.Name == "Potion");
         }
-        for (int row = 0; row < allyCount; row++)
+        for (int row = 0; row < Math.Min(allyCount, NativeCharacterVitals.NativeRecordCount); row++)
         {
             ushort hp = (ushort)Math.Max(100, (int)records[row].HitPoints.Minimum);
             records[row] = records[row] with { MemberFlags = (ushort)(records[row].MemberFlags | 1), HitPoints = new(hp, hp) };
@@ -64,11 +71,19 @@ public sealed class ExpandedBattleHostTests
             FieldRequestPacket = null
         });
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
-        using GameWorld world = new(session, directory, expandedBattleAllyCount: allyCount);
+        using GameWorld world = new(session, directory);
         world.EnsureField();
         world.Apply(new(PlayerActionKind.Wait, Frames: 4));
         session.SetCharacterVitals(initial with { Records = records, CombatParty = [0, 1, 2] });
         session.SetEconomy(economy with { Items = items });
+        if (allyCount == 11)
+        {
+            session.SetCharacterVitals(initialSession.State.CharacterVitals! with { CombatParty = [0, 1, 2] });
+            world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = allyCount });
+            Assert.Equal(11, session.State.CharacterVitals!.Records.Length);
+            session.SetCharacterVitals(initial with { Records = records, CombatParty = [0, 1, 2] });
+        }
+        world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = allyCount });
         if (!mass)
         {
             Assert.Contains(formation, world.Field!.RandomEncounters!.Formations);
@@ -83,7 +98,7 @@ public sealed class ExpandedBattleHostTests
         Assert.False(original.UsesExpandedRoster);
         Assert.NotNull(original.NativeGraphics);
         Assert.Contains(original.Combatants, actor => actor.NativeAi is not null);
-        int enemyCount = allyCount == 8 ? 8 : 6;
+        int enemyCount = allyCount == 4 ? 6 : 8;
         string lastEnemy = $"enemy-{enemyCount - 1}";
         Assert.Equal(allyCount + enemyCount, battle.Combatants.Count);
         Assert.Equal(new byte[] { 0, 1, 2 }, session.State.CharacterVitals!.CombatParty);
@@ -93,10 +108,15 @@ public sealed class ExpandedBattleHostTests
         BattleCombatant[] enemies = battle.Combatants.Where(actor => !actor.IsPlayer).ToArray();
         BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { });
         Assert.Equal(allyCount, hud.Party.Count);
+        if (allyCount == 11)
+        {
+            Assert.Equal(Enumerable.Range(0, 11), hud.Party.Select(actor => actor.ModelId).Order());
+            Assert.False(session.State.CharacterVitals!.ExtendedRosterEnabled);
+        }
         Assert.Equal(allyCount + enemyCount, BattleSession.Restore(battle.Capture()).Combatants.Count);
         Assert.Equal(5, MagicCount(fire.ActionId));
         Assert.Equal(5, MagicCount(quake.ActionId));
-        if (allyCount == 8)
+        if (allyCount >= 8)
         {
             _ = presentation.Render(battle, 640, 448);
             Assert.All(battle.Combatants, actor =>
@@ -105,6 +125,13 @@ public sealed class ExpandedBattleHostTests
                 Assert.InRange(bounds.X + bounds.Width / 2, 0, 640);
                 Assert.InRange(bounds.Y + bounds.Height / 2, 0, 448);
             });
+        }
+        if (allyCount == 11 && exerciseAi)
+        {
+            world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = 3 });
+            Assert.Equal(3, session.State.PendingGameplayPreferences!.BattleAllyCount);
+            Assert.Equal(11, session.State.GameplayPreferences.BattleAllyCount);
+            Assert.Equal(11, battle.Combatants.Count(actor => actor.IsPlayer));
         }
         if (exerciseAi)
         {
@@ -146,6 +173,18 @@ public sealed class ExpandedBattleHostTests
             Assert.Null(world.Battle);
             Assert.Equal(new byte[] { 0, 1, 2 }, session.State.CharacterVitals!.CombatParty);
             Assert.Equal(4, session.State.CharacterVitals.Records[casterRow].MagicInventory.Single(spell => spell.SpellId == quake.ActionId).Count);
+            if (allyCount == 11)
+            {
+                string json = System.Text.Json.JsonSerializer.Serialize(session.PrepareSnapshot());
+                GameState restored = System.Text.Json.JsonSerializer.Deserialize<GameState>(json)!;
+                Assert.Equal(11, restored.GameplayPreferences.BattleAllyCount);
+                NativeCharacterVitals compact = GameplaySaveCharacters.Capture(restored.CharacterVitals!).Restore(assets.ReadNewGameCharacterVitals());
+                Assert.Equal(11, compact.Records.Length);
+                Assert.Equal(4, compact.Records[casterRow].MagicInventory.Single(spell => spell.SpellId == quake.ActionId).Count);
+                GameState reduced = restored with { GameplayPreferences = restored.GameplayPreferences with { BattleAllyCount = 3 } };
+                Assert.True(PlayerSaveStore.RequiresMemoriaFormat(reduced));
+                Assert.Throws<NotSupportedException>(() => PlayerSaveStore.ValidateOriginalBattleRoster(reduced));
+            }
         }
         else
         {

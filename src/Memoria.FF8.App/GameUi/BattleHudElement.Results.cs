@@ -149,7 +149,8 @@ internal sealed partial class BattleHudElement
 
     private void DrawExpandedResultExperience(IUiCanvas canvas, UiTheme theme)
     {
-        const float width = 174;
+        int columns = (controller.Party.Count + 3) / 4;
+        float width = (352f - 4 * (columns - 1)) / columns;
         const float height = 37;
         for (int index = 0; index < controller.Party.Count; index++)
         {
@@ -159,23 +160,24 @@ internal sealed partial class BattleHudElement
             theme.Panel(canvas, ResultRect(x, y, width, height));
             (uint? total, int level, uint? next) = controller.DisplayedExperience(actor);
             UiColor? nameColor = actor.IsAlive ? null : new UiColor(255, 96, 96);
-            ResultLabel(canvas, theme, actor.Name, x + 8, y + 3, 111, color: nameColor);
+            ResultLabel(canvas, theme, actor.Name, x + 8, y + 3, width - 46, color: nameColor);
             string levelLabel = controller.SystemText("battle.results.level-label", "Lv.");
-            ResultLabel(canvas, theme, $"{levelLabel} {level}", x + 123, y + 3, 44);
+            ResultLabel(canvas, theme, $"{levelLabel} {level}", x + width - 36, y + 3, 32);
             DrawAmount(controller.ResultText(29, "EXP received"), controller.RemainingExperience(actor).ToString(CultureInfo.InvariantCulture), x + 8, y + 14);
             DrawAmount(controller.ResultText(30, "Current EXP"), total?.ToString(CultureInfo.InvariantCulture) ?? "--", x + 8, y + 24);
-            DrawAmount(controller.ResultText(31, "Next level"), next?.ToString(CultureInfo.InvariantCulture) ?? "--", x + 91, y + 14);
+            DrawAmount(controller.ResultText(31, "Next level"), next?.ToString(CultureInfo.InvariantCulture) ?? "--", x + width / 2 + 5, y + 14);
             if (controller.ExperienceFinished && controller.CharacterResult(actor) is { } growth && growth.FinalLevel > growth.PreviousLevel)
             {
-                ResultLabel(canvas, theme, controller.ResultText(48, "Level Up!"), x + 91, y + 24, 75);
+                ResultLabel(canvas, theme, controller.ResultText(48, "Level Up!"), x + width / 2 + 5, y + 24, width / 2 - 8);
             }
         }
 
         void DrawAmount(string label, string amount, float x, float y)
         {
             float fontSize = 15 * Scale * controller.TextScale;
-            canvas.Text(label, fontSize, ResultRect(x, y, 50, 11), theme.Foreground, UiAlignment.Start, UiTextFlow.SingleLine);
-            canvas.AlignedText(amount, fontSize, ResultRect(x + 50, y, 27, 11), theme.Foreground, UiAlignment.End);
+            float labelWidth = width / 2 - 30;
+            canvas.Text(label, fontSize, ResultRect(x, y, labelWidth, 11), theme.Foreground, UiAlignment.Start, UiTextFlow.SingleLine);
+            canvas.AlignedText(amount, fontSize, ResultRect(x + labelWidth, y, 24, 11), theme.Foreground, UiAlignment.End);
         }
     }
 }

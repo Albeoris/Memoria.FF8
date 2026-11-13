@@ -223,6 +223,7 @@ public static class MenuSettings
         new("Weapon magazine required", "Remodel weapons only after their recipe has been unlocked by a Weapons Monthly magazine.", ["Off", "On"]),
         new("Weapon upgrade order", "Remodel weapons only after obtaining the preceding weapon in that character's upgrade sequence.", ["Off", "On"]),
         new("Card Mod once", "Refine each card ID once per game without consuming cards. The recipe still requires its normal card quantity. Conversion history is saved even while Off; switching modes or obtaining more copies does not reset it.", ["Off", "On"]),
+        new("Battle roster size", "Maximum allied combatants in compatible random encounters. 11 includes Seifer, Edea, Laguna, Kiros and Ward. Story battles use their authored parties. Changes apply after the current encounter.", ["3", "4", "8", "11"]),
         new("Draw once per spell", MagicUiText.Get("DrawOnceDescription"), ["Off", "On"]),
         new("Shared magic stock", MagicUiText.Get("SharedDescription"), ["Off", "On"]),
         new("Infinite magic", MagicUiText.Get("InfiniteDescription"), ["Off", "On"]),

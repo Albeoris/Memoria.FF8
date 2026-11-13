@@ -7,7 +7,16 @@ namespace Memoria.FF8;
 
 internal sealed partial class GameWorld
 {
-    private readonly int expandedRandomAllyCount;
+    private readonly int defaultExpandedRandomAllyCount;
+    internal int ConfiguredBattleAllyCount => session.State.GameplayPreferences.BattleAllyCount == 0 ? defaultExpandedRandomAllyCount : session.State.GameplayPreferences.BattleAllyCount;
+
+    private void EnsureGuestBattleRecords()
+    {
+        if (ConfiguredBattleAllyCount == 11 && session.State.CharacterVitals is { Records.Length: NativeCharacterVitals.NativeRecordCount } vitals && !session.HasActiveBattle && session.State.PendingBattleEncounter is null)
+        {
+            session.SetCharacterVitals(vitals.WithGuestBattleRecords());
+        }
+    }
 
     private static BattleEnemyPlacement[]? ExpandRandomEnemyRoster(BattleEncounter encounter, int enemyCount)
     {
@@ -95,6 +104,6 @@ internal sealed partial class GameWorld
 
     internal static BattleStageCamera ExpandedBattleCamera(int actorCount)
     {
-        return new(new(5400, -4800, 6600), new(0, -350, 0), actorCount > 10 ? 285 : 340);
+        return new(new(5400, -4800, 6600), new(0, -350, 0), actorCount > 16 ? 250 : actorCount > 10 ? 285 : 340);
     }
 }

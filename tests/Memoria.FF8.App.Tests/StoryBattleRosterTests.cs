@@ -9,6 +9,7 @@ public sealed class StoryBattleRosterTests
     [InlineData(0)]
     [InlineData(4)]
     [InlineData(8)]
+    [InlineData(11)]
     public void TowerStoryEntryPreservesOriginalSlotsWithAnEligibleFourthPartyMember(int expandedBattleAllyCount)
     {
         GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.TowerEntry.1")));

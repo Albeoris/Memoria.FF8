@@ -102,10 +102,10 @@ internal sealed partial class GameWorld
         }
         BattleEncounter encounter = effectPreviewRequest?.CreateArena() ?? BattleResources.LoadEncounter(encounterId);
         _ = BattleResources.LoadStage(encounter.StageId);
-        bool expandedRequested = restoredDefinition?.UsesExpandedRoster ?? (allowExpanded && effectPreviewRequest is null && Events.PendingHostedBattle is null && Events.PendingMenuBattle is null && session.State.RandomEncounters?.Pending?.Formation == encounterId && expandedRandomAllyCount != 0);
-        int allyCount = restoredDefinition?.Combatants.Count(actor => actor.IsPlayer) ?? expandedRandomAllyCount;
+        bool expandedRequested = restoredDefinition?.UsesExpandedRoster ?? (allowExpanded && effectPreviewRequest is null && Events.PendingHostedBattle is null && Events.PendingMenuBattle is null && session.State.RandomEncounters?.Pending?.Formation == encounterId && ConfiguredBattleAllyCount > 3);
+        int allyCount = restoredDefinition?.Combatants.Count(actor => actor.IsPlayer) ?? ConfiguredBattleAllyCount;
         byte[]? expandedParty = expandedRequested ? ExpandedBattlePartyRows.Select(entryVitals, allyCount) : null;
-        BattleEnemyPlacement[]? expandedEnemies = expandedParty is null ? null : ExpandRandomEnemyRoster(encounter, allyCount == 8 ? 8 : 6);
+        BattleEnemyPlacement[]? expandedEnemies = expandedParty is null ? null : ExpandRandomEnemyRoster(encounter, allyCount == 4 ? 6 : 8);
         bool expanded = expandedParty is not null && expandedEnemies is not null;
         if (restoredDefinition?.UsesExpandedRoster == true && !expanded)
         {
@@ -653,7 +653,7 @@ internal sealed partial class GameWorld
     private BattleResultOwners ProjectBattleResult(BattleResult result)
     {
         BattleEncounter formation = BattleResources.LoadEncounter(result.Encounter.Formation);
-        IReadOnlyList<BattleEnemyPlacement> slots = result.UsesExpandedRoster ? ExpandRandomEnemyRoster(formation, result.Party.Length == 8 ? 8 : 6) ?? throw new InvalidDataException("Expanded battle reward formation is unavailable.") : formation.Slots;
+        IReadOnlyList<BattleEnemyPlacement> slots = result.UsesExpandedRoster ? ExpandRandomEnemyRoster(formation, result.Party.Length == 4 ? 6 : 8) ?? throw new InvalidDataException("Expanded battle reward formation is unavailable.") : formation.Slots;
         if (result.DefeatedEnemySlots.Concat(result.RemainingEnemyExperience.Select(enemy => enemy.Slot)).Any(slot => !slots.Any(enemy => enemy.Slot == slot && enemy.NativeModelId >= 16 && enemy.NativeModelId != 255)) || result.RewardPolicy == BattleRewardPolicy.ResearchAutomaticApOnly && !formation.Enemies.Select(enemy => enemy.Slot).Order().SequenceEqual(result.DefeatedEnemySlots.Order()))
         {
             throw new InvalidDataException("Battle result defeated-enemy facts contradict the current original formation.");

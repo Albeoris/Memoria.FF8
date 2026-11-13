@@ -76,6 +76,7 @@ internal static class SettingsPlacement
             ["Card Mod once"] = "card-mod-once",
             ["Weapon magazine required"] = "weapon-magazine-required",
             ["Weapon upgrade order"] = "weapon-upgrade-order",
+            ["Battle roster size"] = "battle-roster-size",
             ["Draw once per spell"] = "draw-once-per-spell",
             ["Chocobo World"] = "chocobo-world",
             ["Difficulty"] = "difficulty",
@@ -129,7 +130,7 @@ internal static class SettingsPlacement
             {
                 "Sound" or "Controller" => SettingsAudience.Excluded,
                 "ATB" or "Battle message" or "Scan" or "Camera movement" or "Battle control" => SettingsAudience.Fixture,
-                "Battle policy" or "Random encounters" => SettingsAudience.Developer,
+                "Battle policy" or "Random encounters" or "Battle roster size" => SettingsAudience.Developer,
                 _ => SettingsAudience.Player
             };
             string page = placement.Key ?? (setting.Id == "Vibration" ? "config-controller-settings" : audience == SettingsAudience.Developer ? "debug-battle" : "");
@@ -141,7 +142,7 @@ internal static class SettingsPlacement
             {
                 _ when UiPreferences.TripleTriadSettingKeys.Contains(setting.Id) => "Game / Title default",
                 "Shared magic stock" or "Infinite magic" => "Game / Title session",
-                "Chocobo World" or "Weapon magazine required" or "Weapon upgrade order" or "Card Mod once" or "Draw once per spell" or "Limit once per turn" or "Selphie card Slots" or "Difficulty" or "Battle ATB mode" or "GF Transformations" or "Gunblade trigger" or "Battle policy" or "Random encounters" => "Game / Title default",
+                "Chocobo World" or "Weapon magazine required" or "Weapon upgrade order" or "Card Mod once" or "Draw once per spell" or "Limit once per turn" or "Selphie card Slots" or "Difficulty" or "Battle ATB mode" or "Battle roster size" or "GF Transformations" or "Gunblade trigger" or "Battle policy" or "Random encounters" => "Game / Title default",
                 _ => audience is SettingsAudience.Excluded or SettingsAudience.Fixture ? "Fixture" : "Global"
             };
             string target = setting.Id switch
@@ -172,6 +173,7 @@ internal static class SettingsPlacement
                 "Draw once per spell" => "GameplayPreferences.DrawOncePerSpell",
                 "Chocobo World" => "GameplayPreferences.ChocoboWorldMode",
                 "Difficulty" => "GameplayPreferences.Difficulty",
+                "Battle roster size" => "GameplayPreferences.BattleAllyCount",
                 "Battle ATB mode" => "GameplayPreferences.AtbMode",
                 "Shared magic stock" => "GameplayPreferences.SharedMagicStock",
                 "Infinite magic" => "GameplayPreferences.InfiniteMagic",
