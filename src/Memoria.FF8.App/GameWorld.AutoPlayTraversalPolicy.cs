@@ -12,7 +12,7 @@ internal static class AutoPlayTraversalPolicy
         return ProgressionEntryOrder(visit, item, 0, false, 0);
     }
 
-    public static int ProgressionEntryOrder(AutoPlayVisit visit, AutoPlayEvent item, int galbadiaKeys, bool hasIntroductionLetter, int laboratoryProgress)
+    public static int ProgressionEntryOrder(AutoPlayVisit visit, AutoPlayEvent item, int galbadiaKeys, bool hasIntroductionLetter, int laboratoryProgress, bool sphinxDefeated = false)
     {
         if (visit.Key.EndsWith(":894", StringComparison.Ordinal) && GalbadiaKeyRouteOrder(galbadiaKeys, item.Id) is int keyOrder)
         {
@@ -25,6 +25,10 @@ internal static class AutoPlayTraversalPolicy
         if (visit.Key.EndsWith(":1750", StringComparison.Ordinal) && LaboratoryRouteOrder(item.Id, laboratoryProgress) is int laboratoryOrder)
         {
             return laboratoryOrder;
+        }
+        if (visit.Key.EndsWith(":4050", StringComparison.Ordinal) && CastleRouteOrder(item.Id, sphinxDefeated) is int castleOrder)
+        {
+            return castleOrder;
         }
         return (visit.Key, item.Id) switch
         {
@@ -415,6 +419,17 @@ internal static class AutoPlayTraversalPolicy
         };
     }
 
+    internal static int? CastleRouteOrder(string eventId, bool sphinxDefeated)
+    {
+        // NG-083: Use the original side corridor and clock-tower exits.
+        return (sphinxDefeated, eventId) switch
+        {
+            (false, "569:gateway:1" or "569:gateway:2" or "569:gateway:3" or "570:push:6") => -1,
+            (true, "570:gateway:0" or "570:gateway:1" or "570:gateway:2" or "570:gateway:3" or "570:gateway:4" or "570:gateway:5" or "570:gateway:6" or "569:gateway:5" or "571:gateway:1" or "576:gateway:1" or "595:gateway:2" or "593:gateway:4" or "561:gateway:0" or "562:gateway:1" or "567:gateway:0" or "563:gateway:2" or "565:gateway:1" or "566:line:6" or "566:line:8" or "566:line-action:8" or "583:line:9" or "583:line-action:9") => -1,
+            _ => null
+        };
+    }
+
     internal static int? GalbadiaKeyRouteOrder(int keys, string eventId)
     {
         // NG-051: Use the original approaches gated by the card keys already awarded by the field scripts.
@@ -441,6 +456,10 @@ internal static class AutoPlayTraversalPolicy
             "539:3601:0:16:176:18:0:4" or "539:3602:0:16:176:18:0:4" => 0,
             // NG-080: Confirm readiness with the currently assigned pilot.
             "968:3800:1:16:130:3:2:3" or "968:3800:4:65:579:4:2:3" or "968:3800:5:82:760:5:2:3" => 2,
+            // NG-083: Release Draw from the Sphinx seal and accept the final battle.
+            "98:4050:6:25:204:9:1:8" => 4,
+            "583:4050:9:70:547:8:1:2" or "583:4050:9:70:577:9:1:2" or "583:4050:9:70:607:10:1:2" or "583:4050:9:70:637:11:1:2" => 1,
+            "583:4050:9:70:557:4:2:3" or "583:4050:9:70:587:5:2:3" or "583:4050:9:70:617:6:2:3" or "583:4050:9:70:647:7:2:3" => 2,
             "771:462:7:44:264:0:2:3" => 2,
             "771:462:7:44:331:5:1:2" or "771:462:7:44:497:5:1:2" => 1,
             "779:463:8:85:1114:22:2:3" => 3,
