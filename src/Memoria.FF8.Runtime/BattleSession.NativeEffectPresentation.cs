@@ -89,7 +89,11 @@ public sealed partial class BattleSession
         models = BindPresentationForeignModels(models);
         presentationInitialUi = NativeBattleUiServices.Initialize();
         NativeGraphics = InitializeNativePrimitiveFrame500400(new(models, Enumerable.Range(0, models.Length).Select(index => index == 0 ? "source" : presentationNativeTargets.TryGetValue(index, out NativeBattleEffectModelBinding? target) ? target.ActorId : presentationForeignActors.ContainsKey(index) ? $"host-{index}" : null).ToImmutableArray(), 0, 0) { UiServices = presentationInitialUi });
-        NativeGraphics = InitializeEffectPresentationSourceResources(NativeGraphics, inputs.SourceResource, preserveSelectedProgram: true);
+        byte sourceModel = inputs.Source.ModelId4 ?? throw new NotSupportedException("Native effect presentation requires its source model identity.");
+        if (sourceModel < 16)
+        {
+            NativeGraphics = InitializeEffectPresentationSourceResources(NativeGraphics, inputs.SourceResource, preserveSelectedProgram: true);
+        }
         if (inputs.SequenceGlobals is { } sequenceGlobals)
         {
             NativeEffectMemory = NativeEffectMemory with { SequenceSine = sequenceGlobals.Sine, SequenceCosine = sequenceGlobals.Cosine };
