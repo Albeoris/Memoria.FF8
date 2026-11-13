@@ -21,7 +21,7 @@ public sealed class EncounterModelLoadOwnershipTests
     {
         (BattleSession battle, BattleCombatant copy, NativeBattleGraphicsState graphics) = Staged();
         Assert.IsType<InvalidDataException>(Assert.Throws<TargetInvocationException>(() => Resolve(Create(), graphics)).InnerException);
-        typeof(BattleCombatant).GetProperty("NativeIndex", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(copy, -1);
+        copy.BindRosterSlot(null);
         Assert.IsType<InvalidDataException>(Assert.Throws<TargetInvocationException>(() => Resolve(battle, graphics)).InnerException);
     }
 
