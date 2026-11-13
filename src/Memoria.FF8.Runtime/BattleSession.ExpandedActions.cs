@@ -47,7 +47,10 @@ public sealed partial class BattleSession
         {
             return false;
         }
-        return action.Ability == BattleAbility.Magic && native.Command == 2 &&
+        return action.Ability == BattleAbility.GuardianForce && native is { Command: 254, KernelSection: 2, TargetFlags: byte flags } &&
+            action.Id is >= 0 and < 16 && native.ActionId == action.Id + 64 && native.KernelIndex == action.Id &&
+            native.AttackType is 11 or 15 or 20 or 29 && (flags & 0x30) == 0 ||
+            action.Ability == BattleAbility.Magic && native.Command == 2 &&
             (native.ActionId is >= 1 and <= 9 or >= 21 and <= 27 || native.MagicId is 38 or 39) ||
             action.Ability == BattleAbility.Item && native is { Command: 4, AttackType: 4, Power: > 0, Statuses0: 0, Statuses1: 0 } && action.Allies;
     }
@@ -66,7 +69,7 @@ public sealed partial class BattleSession
 
     private void StartExpandedAction(BattleCombatant actor, BattleAttackCommand command)
     {
-        if (!CanNativeBattleActorAct(actor) || !CanExecuteMagicReservation(actor, command) || ExpandedActionTargets(actor, command.TargetId, command.Ability, command.ActionId, command.AiRecipients).Length == 0)
+        if (!CanNativeBattleActorAct(actor) || !CanExecuteMagicReservation(actor, command) || ExpandedActionTargets(actor, command.TargetId, command.Ability, command.ActionId, command.AiRecipients, command.NativeAction).Length == 0)
         {
             RefundCancelledNativeItem(command);
             actor.IsBusy = false;
@@ -139,7 +142,7 @@ public sealed partial class BattleSession
             return;
         }
         BattleCombatant target = GetActor(command.TargetId);
-        BattleCombatant[] recipients = ExpandedActionTargets(actor, command.TargetId, command.Ability, command.ActionId, command.AiRecipients);
+        BattleCombatant[] recipients = ExpandedActionTargets(actor, command.TargetId, command.Ability, command.ActionId, command.AiRecipients, command.NativeAction);
         if (!CanNativeBattleActorAct(actor) || !CanExecuteMagicReservation(actor, new(command.ActorId, command.TargetId, command.Ability, command.ActionId) { MagicReservationId = command.MagicReservationId }) || recipients.Length == 0 ||
             (command.Ability == BattleAbility.Magic || command.NativeAction?.Command == 2) && (NativeSavedStatusBits(actor) & 0x10) != 0)
         {
@@ -153,19 +156,36 @@ public sealed partial class BattleSession
             CompleteActionPresentation(command, "Attack completed.");
             return;
         }
+        BattleActionDefinition? drawSpell = null;
         if (command.Ability == BattleAbility.Draw)
         {
-            BattleAttackCommand stock = PrepareNativeDrawCommand(actor, new(actor.Id, target.Id, BattleAbility.Draw, command.ActionId));
-            CompleteActionPresentation(command with { NativeDraw = stock.NativeDraw }, "Draw completed.");
-            return;
+            if (command.DrawCast)
+            {
+                drawSpell = FindAction(BattleAbility.Magic, command.ActionId);
+                recipients = ExpandedActionTargets(actor, command.DrawCastTargetId!, BattleAbility.Magic, command.ActionId, null);
+                if (recipients.Length == 0 || recipients.Any(recipient => NativeActionReflects(recipient, drawSpell.NativeAction!)) || recipients.Length >= NativeBattleSlots.Count && drawSpell.NativeAction!.MagicId != 38)
+                {
+                    CompleteActionPresentation(command, "Expanded Draw Cast has no supported recipient.");
+                    return;
+                }
+            }
+            BattleAttackCommand draw = PrepareNativeDrawCommand(actor, new(actor.Id, target.Id, BattleAbility.Draw, command.ActionId, command.DrawCast) { DrawCastTargetId = command.DrawCastTargetId });
+            command = command with { NativeDraw = draw.NativeDraw, NativeAction = draw.NativeAction };
+            if (draw.NativeDraw!.Failed || drawSpell is null)
+            {
+                CompleteActionPresentation(command, "Draw completed.");
+                return;
+            }
         }
 
-        BattleActionDefinition action = command.Ability == BattleAbility.Attack
-            ? new(BattleAbility.Attack, 0, actor.NativeAttack!.Name ?? "Attack", BattleActionEffect.Native, actor.NativeAttack.Power, false) { NativeAction = actor.NativeAttack }
-            : command.AiRecipients is not null
-                ? new(BattleAbility.EnemyAbility, command.ActionId, command.NativeAction!.Name ?? $"Enemy ability {command.ActionId}", BattleActionEffect.Native, command.NativeAction.Power, false) { NativeAction = command.NativeAction }
-                : FindAction(command.Ability, command.ActionId);
+        BattleActionDefinition action = drawSpell ?? ExpandedActionDefinition(actor, command);
         BattleNativeAction native = action.NativeAction!;
+        if (command.Ability == BattleAbility.GuardianForce && (native.TargetFlags.GetValueOrDefault() & 2) != 0)
+        {
+            BattleCombatant recipient = recipients[NextRandomByte() % recipients.Length];
+            recipients = [recipient];
+            command = command with { TargetId = recipient.Id };
+        }
         if (recipients.Any(recipient => NativeActionReflects(recipient, native)))
         {
             RefundCancelledNativeItem(command);
@@ -174,10 +194,12 @@ public sealed partial class BattleSession
         }
 
         int nativeContactLimit = NativeBattleSlots.Count - 1;
-        bool presentsNativeEffect = command.Ability == BattleAbility.Magic ||
+        bool spellPresentation = command.Ability == BattleAbility.Magic || drawSpell is not null;
+        bool presentsNativeEffect = spellPresentation ||
+            command.Ability == BattleAbility.LimitBreak && expandedEffectFactory is not null && CanPresentExpandedLimit(native, recipients.Length) ||
             command.Ability == BattleAbility.Item && native is { Command: 4, MagicId: 50 } && recipients.Length == 1 && expandedEffectFactory is not null ||
             expandedEffectFactory is not null && CanPresentExpandedEnemyEffect(actor, command, native, recipients.Length);
-        bool exceedsPresentationBank = command.Ability == BattleAbility.Magic && recipients.Length > nativeContactLimit;
+        bool exceedsPresentationBank = spellPresentation && recipients.Length > nativeContactLimit;
         if (exceedsPresentationBank && native.MagicId != 38)
         {
             RefundCancelledNativeItem(command);
@@ -189,8 +211,14 @@ public sealed partial class BattleSession
         int nextRow = recipients.Length == 1 ? NativeBattleSlots.AllyCount : 1;
         ImmutableArray<ExpandedBattleContact>.Builder contacts = ImmutableArray.CreateBuilder<ExpandedBattleContact>(recipients.Length);
         nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = false, EventLane = actor.IsPlayer ? (byte)2 : (byte)0, Command = command.NativeQueuedCommand ?? native.Command, Action = native.ActionId };
+        if (command.Ability == BattleAbility.GuardianForce)
+        {
+            // TODO(TD-009): Expanded GF impact uses the unboosted formula without the native summon presentation.
+            nativeActionScratch = nativeActionScratch with { GuardianFormulaE1E = true, GuardianBoostPercent = 100 };
+        }
         BattleActionPresentation resolved = command with { NativeAction = native };
         resolvingNativeAction = resolved;
+        BeginNativeReactionBatch();
         nativeActionCommitDepth++;
         try
         {
@@ -203,6 +231,11 @@ public sealed partial class BattleSession
                 contacts.Add(new(recipient.Id, packet));
             }
             CompleteNativeActionInventory(actor, resolved, false);
+            if (command.Ability == BattleAbility.GuardianForce)
+            {
+                nativeAffinityAction = native;
+                CompleteGuardianForceAffinity(actor, resolved);
+            }
             CompleteNativeActionStatuses(actor);
         }
         finally
@@ -210,6 +243,7 @@ public sealed partial class BattleSession
             nativeActionCommitDepth--;
             resolvingNativeAction = null;
         }
+        FlushExpandedEnemyReactions();
         if (command.Ability == BattleAbility.Attack)
         {
             CompleteActionPresentation(command, "Attack completed.");
@@ -217,7 +251,7 @@ public sealed partial class BattleSession
         }
         if (!presentsNativeEffect)
         {
-            // TODO(TD-009): Unadmitted enemy abilities and healing items use the host impact UI.
+            // TODO(TD-009): Actions without a native presentation bridge use the host impact UI.
             foreach (ExpandedBattleContact contact in contacts)
             {
                 Log("EffectContact", command.ActorId, contact.RecipientId, contact.Contact.PresentedAmount, action.Name);
@@ -230,12 +264,25 @@ public sealed partial class BattleSession
         expandedExpectedContacts = prepared.Length;
         expandedSharedContacts = exceedsPresentationBank ? prepared[nativeContactLimit..] : [];
         expandedContactBridge = new(presented.Select(contact => (contact.RecipientId, contact.Packet)));
-        expandedEffect = expandedEffectFactory!(actor, native, command.NativeSequence ?? 1, presented);
+        BattleNativeAction presentationAction = drawSpell is null ? native : native with { Command = 6 };
+        byte presentationSequence = drawSpell is null ? command.NativeSequence ?? 1 : NativeBattleActionGraphics.ResolvePlayerSequence(9, 0, native.ActionId, definition.NativeCommandSequences);
+        expandedEffect = expandedEffectFactory!(actor, presentationAction, presentationSequence, presented);
         expandedModelContacts = presented;
         ActiveAction = command with { Phase = BattleActionPhase.Recovery, RemainingFrames = 1, MagicReservationId = null };
     }
 
-    private BattleCombatant[] ExpandedActionTargets(BattleCombatant actor, string targetId, BattleAbility ability, int actionId, BattleAiRecipients? aiRecipients)
+    private BattleActionDefinition ExpandedActionDefinition(BattleCombatant actor, BattleActionPresentation command)
+    {
+        return command.Ability switch
+        {
+            BattleAbility.Attack => new(BattleAbility.Attack, 0, actor.NativeAttack!.Name ?? "Attack", BattleActionEffect.Native, actor.NativeAttack.Power, false) { NativeAction = actor.NativeAttack },
+            BattleAbility.EnemyAbility when command.AiRecipients is not null => new(BattleAbility.EnemyAbility, command.ActionId, command.NativeAction!.Name ?? $"Enemy ability {command.ActionId}", BattleActionEffect.Native, command.NativeAction.Power, false) { NativeAction = command.NativeAction },
+            BattleAbility.LimitBreak when command.NativeAction is { } limit => ExpandedLimitDefinition(actor, limit),
+            _ => FindAction(command.Ability, command.ActionId)
+        };
+    }
+
+    private BattleCombatant[] ExpandedActionTargets(BattleCombatant actor, string targetId, BattleAbility ability, int actionId, BattleAiRecipients? aiRecipients, BattleNativeAction? native = null)
     {
         if (aiRecipients is not null)
         {
@@ -246,7 +293,11 @@ public sealed partial class BattleSession
         {
             return target.IsActive && target.IsAlive && !target.Untargetable ? [target] : [];
         }
-        BattleActionDefinition action = FindAction(ability, actionId);
+        BattleActionDefinition action = ability == BattleAbility.LimitBreak && native is not null ? ExpandedLimitDefinition(actor, native) : FindAction(ability, actionId);
+        if (ability == BattleAbility.GuardianForce)
+        {
+            return ExpandedGuardianForceTargetGroup(action);
+        }
         return action.AllTargets
             ? Roster(target.Side).Where(candidate => IsValidSelectedActionTarget(actor, action, candidate)).ToArray()
             : IsValidSelectedActionTarget(actor, action, target) ? [target] : [];

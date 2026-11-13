@@ -16,7 +16,12 @@ public sealed partial class BattleSession
         }
         if (cast)
         {
-            ValidatePlayerDrawCastTarget(actor, FindAction(BattleAbility.Magic, selection), castTargetId);
+            BattleActionDefinition spell = FindAction(BattleAbility.Magic, selection);
+            ValidatePlayerDrawCastTarget(actor, spell, castTargetId);
+            if (UsesExpandedRoster)
+            {
+                RequireExpandedAction(spell);
+            }
         }
         BattleAttackCommand queued = new(actorId, sourceId, BattleAbility.Draw, selection, cast) { NativeQueuedCommand = 6, DrawCastTargetId = castTargetId, SmartAttack = pendingSmartAttack };
         OnNativePlayerCommandSubmitted(actor, 6);
@@ -85,6 +90,10 @@ public sealed partial class BattleSession
                 if (!command.DrawCast)
                 {
                     added = actor.AddMagic(command.ActionId, quantity);
+                    if (UsesExpandedRoster && added > 0 && nativeKnownMagic is not null)
+                    {
+                        DiscoverNativeMagic(command.ActionId);
+                    }
                 }
                 if (!failed && (command.DrawCast || added > 0) && definition.DrawOncePerSpell)
                 {
@@ -99,7 +108,7 @@ public sealed partial class BattleSession
                     DiscoverNativeMagic(command.ActionId);
                 }
                 native = spell.NativeAction;
-                if (native is not null)
+                if (native is not null && !UsesExpandedRoster)
                 {
                     mask = NativeBattleLimitRules.PlayerTargetMask(native.TargetFlags ?? throw new InvalidDataException("Draw spell lacks its original target flags."), recipient.EncodeNativeSlot());
                 }
@@ -242,7 +251,7 @@ public sealed partial class BattleSession
             BattleCombatant target = GetActor(recipient);
             BattleNativeAction? installed = FindAction(BattleAbility.Magic, selection).NativeAction;
             bool hasEffect = dispatched && result is { Failed: false };
-            if (hasEffect && installed is not null && (native is null || target.IsActive && targetMask != NativeBattleLimitRules.PlayerTargetMask(installed.TargetFlags ?? throw new InvalidDataException("Draw spell lacks target flags."), target.EncodeNativeSlot())) || !hasEffect && native is not null)
+            if (hasEffect && installed is not null && (native is null || !UsesExpandedRoster && target.IsActive && targetMask != NativeBattleLimitRules.PlayerTargetMask(installed.TargetFlags ?? throw new InvalidDataException("Draw spell lacks target flags."), target.EncodeNativeSlot())) || !hasEffect && native is not null || UsesExpandedRoster && targetMask != 0)
             {
                 throw new InvalidDataException("Saved Draw Cast effect disagrees with its prepared native spell and separate recipient.");
             }

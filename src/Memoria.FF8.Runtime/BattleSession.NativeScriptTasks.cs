@@ -4,6 +4,10 @@ public sealed partial class BattleSession
 {
     private void DispatchNativeScriptTasks()
     {
+        if (UsesExpandedRoster)
+        {
+            DispatchExpandedGuardianForceCharges();
+        }
         NativeBattleScriptTasks tasks = nativeScriptState.Tasks.Advance(Dispatch, _ => ObserveNativeUnknownStackCallback(0x482C30, "script task release"));
         nativeScriptState = nativeScriptState with { Tasks = tasks };
 

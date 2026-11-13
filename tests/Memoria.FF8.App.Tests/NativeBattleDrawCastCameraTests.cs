@@ -70,7 +70,7 @@ public sealed class NativeBattleDrawCastCameraTests
                     if (!restored)
                     {
                         Save(world, session, evidence, id + "-mid-draw");
-                        GameSession independent = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
+                        GameSession independent = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.PrepareSnapshot()))!);
                         clone = NativeBattleProductionEffectAdmissionTests.RestoreWorld(independent, directory);
                         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Battle!.Capture()));
                         Assert.Equal(NativeBattleProductionEffectAdmissionTests.RenderBattle(world), NativeBattleProductionEffectAdmissionTests.RenderBattle(clone));
@@ -110,6 +110,9 @@ public sealed class NativeBattleDrawCastCameraTests
     private static void Save(GameWorld world, GameSession session, string? evidence, string name)
     {
         session.SetEventState(world.Events.Capture());
-        NativeBattleProductionEffectAdmissionTests.Publish(evidence, name, session.State);
+        if (!string.IsNullOrWhiteSpace(evidence))
+        {
+            NativeBattleProductionEffectAdmissionTests.Publish(evidence, name, session.PrepareSnapshot());
+        }
     }
 }

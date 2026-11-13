@@ -86,6 +86,40 @@ public sealed class ExpandedBattleAiTests
         Assert.Equal(216, Assert.Single(restored.Combatants, actor => actor.Id == "enemy-4").Attack);
     }
 
+    [Fact]
+    public void HitCallbackQueuesOneCounterAgainstTheEleventhAllyAndSurvivesRestore()
+    {
+        BattleCombatantDefinition[] allies = Enumerable.Range(0, 11).Select(i => new BattleCombatantDefinition
+        {
+            Id = $"ally-{i}", Name = $"Ally {i}", IsPlayer = true, ModelId = i, CurrentHp = 1000, MaximumHp = 1000, Attack = 30, Hit = 255, Speed = 1,
+            Abilities = [BattleAbility.Attack], InitialAtb = i == 10 ? BattleSession.AtbMaximum : 0,
+            NativeAttack = Physical with { Command = 1, ActionId = 0 }
+        }).ToArray();
+        NativeBattleAiDefinition counter = new([[0], [0], [4, 203, 7, 1, 6, 0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(8, 0, 1), 48).ToArray(), 0, []);
+        BattleCombatantDefinition[] enemies = Enumerable.Range(0, 11).Select(i => new BattleCombatantDefinition
+        {
+            Id = $"enemy-{i}", Name = $"Enemy {i}", ModelId = 28, Level = 10, CurrentHp = 1000, MaximumHp = 1000, Speed = 1, Attack = 30,
+            NativeAi = i == 10 ? counter : null
+        }).ToArray();
+        BattleSession battle = new(new() { UsesExpandedRoster = true, Combatants = [.. allies, .. enemies], NativeActions = [Physical], NativeSeed = 0 }, BattleAtbMode.Normal);
+        battle.QueueAttack("ally-10", "enemy-10");
+        for (int tick = 0; tick <= BattleSession.AttackWindupFrames; tick++)
+        {
+            battle.Tick();
+        }
+        BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
+        Assert.Equal((byte)2, queued.NativeAiCallbackStage);
+        Assert.Equal("ally-10", Assert.Single(queued.AiRecipients!.ActorIds));
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        for (int tick = 0; tick <= BattleSession.AttackWindupFrames; tick++)
+        {
+            battle.Tick();
+            restored.Tick();
+        }
+        Assert.Single(battle.Events, entry => entry.Kind == "EffectContact" && entry.ActorId == "enemy-10" && entry.TargetId == "ally-10");
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+    }
+
     private static BattleSession Start(byte[] turn, int allyCount, int enemyCount, byte seed = 0)
     {
         BattleCombatantDefinition[] allies = Enumerable.Range(0, allyCount).Select(i => new BattleCombatantDefinition { Id = $"ally-{i}", Name = $"Ally {i}", IsPlayer = true, ModelId = i, CurrentHp = 100 + i, MaximumHp = 100 + i, Speed = 1 }).ToArray();

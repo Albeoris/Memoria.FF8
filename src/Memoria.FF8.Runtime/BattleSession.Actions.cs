@@ -9,7 +9,7 @@ public sealed partial class BattleSession
 
     public void QueueAction(string actorId, string targetId, BattleAbility ability, int actionId, bool drawCast = false, IReadOnlyList<string>? magicTargets = null, string? drawCastTargetId = null)
     {
-        if (UsesExpandedRoster && (ability is not (BattleAbility.Attack or BattleAbility.Magic or BattleAbility.Item or BattleAbility.Draw) || magicTargets is { Count: > 1 } || ability == BattleAbility.Draw && drawCast))
+        if (UsesExpandedRoster && (ability is not (BattleAbility.Attack or BattleAbility.Magic or BattleAbility.Item or BattleAbility.Draw or BattleAbility.GuardianForce or BattleAbility.LimitBreak) || magicTargets is { Count: > 1 }))
         {
             throw new NotSupportedException("This command requires a battle process outside the expanded host.");
         }
@@ -77,6 +77,10 @@ public sealed partial class BattleSession
                 reservedItemSlot = ConsumeNativeItem(actionId);
                 break;
             case BattleAbility.GuardianForce:
+                if (UsesExpandedRoster && !CanSelectExpandedGuardianForce(actor.Id, actionId))
+                {
+                    throw new InvalidOperationException("Summoning requires an available living junctioned GF and a caster able to charge.");
+                }
                 if ((!actor.EquipmentIds.Contains(actionId) || !action.Available) || guardianForms?.Values.Any(form => form.GuardianForceId == actionId) == true)
                 {
                     throw new InvalidOperationException("Summoning requires a living junctioned GF.");
@@ -89,7 +93,11 @@ public sealed partial class BattleSession
         BattleAttackCommand queued = new(actorId, targetId, ability, actionId, drawCast) { NativeMagicTargets = magicMasks, NativeMagicCastMode = magicMode, ReservedNativeItemSlot = reservedItemSlot, NativeQueuedCommand = ability switch { BattleAbility.Magic => 2, BattleAbility.Item => 4, BattleAbility.Draw => 6, BattleAbility.GuardianForce => 254, _ => null } };
         queued = EnsureMagicReservation(actor, queued with { SmartAttack = pendingSmartAttack });
         OnNativePlayerCommandSubmitted(actor, ability == BattleAbility.GuardianForce ? (byte)3 : queued.NativeQueuedCommand!.Value);
-        if (UsesExpandedRoster)
+        if (UsesExpandedRoster && ability == BattleAbility.GuardianForce)
+        {
+            QueueGuardianForce(actor, queued);
+        }
+        else if (UsesExpandedRoster)
         {
             actions.Enqueue(queued);
         }

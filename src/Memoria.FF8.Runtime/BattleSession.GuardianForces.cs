@@ -35,9 +35,12 @@ public sealed partial class BattleSession
         byte speed = definition.NativeBattleSpeed ?? throw new NotSupportedException("Native GF charge requires the saved battle speed BYTE.");
         //48D200 stores the compatibility/speed product as a WORD;4842B0 decrements it by2,3or1.
         ushort ticks = unchecked((ushort)(4 * ((speed + 1) * compatibility[gf.Id] / 35)));
-        byte flags = FindAction(BattleAbility.GuardianForce, gf.Id).NativeAction?.TargetFlags ?? throw new NotSupportedException("Native GF summoning requires its original target flags BYTE.");
-        ushort mask = NativeBattleLimitRules.PlayerTargetMask(flags, GetActor(command.TargetId).EncodeNativeSlot());
-        EnqueueNativeGuardianScriptTask(actor, mask, checked((byte)(64 + gf.Id)));
+        if (!UsesExpandedRoster)
+        {
+            byte flags = FindAction(BattleAbility.GuardianForce, gf.Id).NativeAction?.TargetFlags ?? throw new NotSupportedException("Native GF summoning requires its original target flags BYTE.");
+            ushort mask = NativeBattleLimitRules.PlayerTargetMask(flags, GetActor(command.TargetId).EncodeNativeSlot());
+            EnqueueNativeGuardianScriptTask(actor, mask, checked((byte)(64 + gf.Id)));
+        }
         guardianForceCasts.Add(actor.Id, new(actor.Id, command, diagnosticInstantGuardianForceCharge ? (ushort)0 : ticks, ticks));
         BeginNativePresentedGuardianForce(actor, gf);
         actor.NativeStatus1 |= 0x80000000;
@@ -113,26 +116,36 @@ public sealed partial class BattleSession
         }
         else
         {
-            if ((actor.NativeStatus0 & 1) == 0)
-            {
-                actor.Atb = 0;
-                actor.NativeCombatantFlags &= ~0xCu;
-                if (NativeGraphics is { } graphics)
-                {
-                    NativeGraphics = QueueNativeDescriptor(graphics, 114, 240, index);
-                }
-            }
-            actor.IsBusy = false;
-            if (cast.Command.GuardianFormInvocation is not null)
-            {
-                ReturnGuardianForm(actor, !actor.IsAlive);
-            }
-            Log("GuardianForceCancelled", actor.Id, actor.Id, cast.Command.ActionId, "GF summoning interrupted.");
+            CancelGuardianForceCharge(actor, cast);
         }
+        ReleaseGuardianForceCharge(actor);
+        return true;
+    }
+
+    private void CancelGuardianForceCharge(BattleCombatant actor, BattleGuardianForceCast cast)
+    {
+        if ((actor.NativeStatus0 & 1) == 0)
+        {
+            actor.Atb = 0;
+            actor.NativeCombatantFlags &= ~0xCu;
+            if (NativeGraphics is { } graphics)
+            {
+                NativeGraphics = QueueNativeDescriptor(graphics, 114, 240, checked((byte)actor.EncodeNativeSlot()));
+            }
+        }
+        actor.IsBusy = false;
+        if (cast.Command.GuardianFormInvocation is not null)
+        {
+            ReturnGuardianForm(actor, !actor.IsAlive);
+        }
+        Log("GuardianForceCancelled", actor.Id, actor.Id, cast.Command.ActionId, "GF summoning interrupted.");
+    }
+
+    private void ReleaseGuardianForceCharge(BattleCombatant actor)
+    {
         guardianForceCasts.Remove(actor.Id);
         actor.NativeStatus1 &= 0x7FFFFFFF;
         actor.NativeCombatantFlags &= ~0x400u;
-        return true;
     }
 
     private bool ApplyGuardianForceShield(BattleCombatant actor, int amount)
@@ -223,11 +236,18 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Invalid saved GF cast owner.");
             }
-            NativeBattleScriptTasks tasks = saved.NativeScriptState.Tasks;
-            int callbacks = Enumerable.Range(0, 16).Count(index => tasks.Allocated(index) && tasks.Slots[index].ReadDword(0) == 0x48E620 && tasks.Slots[index].ReadByte(12) == actor.EncodeNativeSlot() && tasks.Slots[index].ReadByte(13) == 254 && tasks.Slots[index].ReadByte(14) == 64 + cast.Command.ActionId);
-            if (callbacks != 1)
+            if (UsesExpandedRoster)
             {
-                throw new InvalidDataException("Saved GF charge requires its single canonical48E620 callback record.");
+                ValidateExpandedGuardianForceCharge(actor, cast);
+            }
+            else
+            {
+                NativeBattleScriptTasks tasks = saved.NativeScriptState.Tasks;
+                int callbacks = Enumerable.Range(0, 16).Count(index => tasks.Allocated(index) && tasks.Slots[index].ReadDword(0) == 0x48E620 && tasks.Slots[index].ReadByte(12) == actor.EncodeNativeSlot() && tasks.Slots[index].ReadByte(13) == 254 && tasks.Slots[index].ReadByte(14) == 64 + cast.Command.ActionId);
+                if (callbacks != 1)
+                {
+                    throw new InvalidDataException("Saved GF charge requires its single canonical48E620 callback record.");
+                }
             }
             actor.IsBusy = true;
         }

@@ -37,7 +37,7 @@ public sealed partial class BattleSession
         if (limits)
         {
             byte crisis = GetNativeLimitLevel(actorId);
-            if (crisis == 0 || actor.NativeLimit is not { } limit)
+            if (crisis == 0 || actor.NativeLimit is not { } limit || !SupportsPlayerLimitSelection(actorId))
             {
                 return [];
             }
@@ -84,13 +84,30 @@ public sealed partial class BattleSession
             }
         }
         BattleAbility ability = limits ? BattleAbility.LimitBreak : BattleAbility.NativeCommand;
+        if (UsesExpandedRoster && limits)
+        {
+            return choices.Where(SupportsExpandedLimit).Select(action => ExpandedLimitDefinition(actor, action)).ToArray();
+        }
         return choices.Select(action =>
         {
             byte targetFlags = action.TargetFlags ?? actor.NativeCommands.Single(binding => binding.Command == action.Command).TargetFlags;
-            int id = (action.Command << 16) | action.ActionId;
             string? name = action.Command == 38 ? actor.NativeCommands.Single(binding => binding.Command == 38).Name : action.Name;
-            return new BattleActionDefinition(ability, id, name ?? $"Command {action.Command}", BattleActionEffect.Native, action.Power, (targetFlags & 0x40) == 0, (targetFlags & 0x30) != 0x10 && (targetFlags & 2) == 0) { NativeAction = action, NativeAttackFlags = action.AttackFlags, Available = action.Command != 14 || nativeItems.Any(stock => stock.ItemId == action.ActionId + 101 && stock.Count != 0), DisplayName = action.Command == 16 ? $"{action.Name} ×{nativeSlotsRolls[actorId].Repetitions}" : null };
+            return CreateNativePlayerActionChoice(ability, action, targetFlags, name) with
+            {
+                Available = action.Command != 14 || nativeItems.Any(stock => stock.ItemId == action.ActionId + 101 && stock.Count != 0),
+                DisplayName = action.Command == 16 ? $"{action.Name} ×{nativeSlotsRolls[actorId].Repetitions}" : null
+            };
         }).ToArray();
+    }
+
+    private static BattleActionDefinition CreateNativePlayerActionChoice(BattleAbility ability, BattleNativeAction action, byte targetFlags, string? name)
+    {
+        int id = (action.Command << 16) | action.ActionId;
+        return new(ability, id, name ?? $"Command {action.Command}", BattleActionEffect.Native, action.Power, (targetFlags & 0x40) == 0, (targetFlags & 0x30) != 0x10 && (targetFlags & 2) == 0)
+        {
+            NativeAction = action,
+            NativeAttackFlags = action.AttackFlags
+        };
     }
 
     public byte RefreshNativeLimit(string actorId)
@@ -101,6 +118,10 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("Native Limit selection requires a ready player with its original character record.");
         }
+        if (!SupportsPlayerLimitSelection(actorId))
+        {
+            return 0;
+        }
         if (definition.LimitOncePerTurn && actor.LimitTurnCrisis is byte retainedCrisis)
         {
             nativeLimitLevels[actorId] = retainedCrisis;
@@ -108,6 +129,11 @@ public sealed partial class BattleSession
         }
         bool disabled = definition.NativeLimitsDisabled ?? throw new NotSupportedException("Native Limit selection requires the actual battle prohibition flag.");
         int deadParty = combatants.Count(member => member.IsPlayer && member.IsActive && (NativeSavedStatusBits(member) & 1) != 0);
+        if (UsesExpandedRoster)
+        {
+            // The expanded roster saturates the KO contribution at the original physical party capacity.
+            deadParty = Math.Min(deadParty, NativeBattleSlots.AllyCount);
+        }
         ushort savedStatuses = NativeSavedStatusBits(actor);
         uint battleStatuses = NativeBattleStatusBits(actor);
         byte roll = disabled || (battleStatuses & 0x200) != 0 ? (byte)0 : (byte)NextRandomByte();
@@ -133,6 +159,10 @@ public sealed partial class BattleSession
             throw new InvalidOperationException("Native player command requires an active battle and a ready player.");
         }
         bool limit = actor.NativeLimit?.Command == command;
+        if (UsesExpandedRoster && (!limit || !SupportsPlayerLimitSelection(actorId)))
+        {
+            throw new NotSupportedException("This command requires a battle process outside the expanded host.");
+        }
         if (limit)
         {
             byte currentCrisis = nativeLimitLevels.GetValueOrDefault(actorId);
@@ -146,6 +176,11 @@ public sealed partial class BattleSession
         else if (!actor.NativeCommands.Any(binding => binding.Command == command && NativeBindingActionId(binding) == actionId))
         {
             throw new InvalidOperationException("Native command is not equipped in this character's saved command slots.");
+        }
+        if (UsesExpandedRoster)
+        {
+            QueueExpandedLimit(actor, target, FindNativeCommandAction(actor, command, actionId, crisis), sequence);
+            return;
         }
         if (target.EncodeNativeSlot() is < 0 or >= 16)
         {

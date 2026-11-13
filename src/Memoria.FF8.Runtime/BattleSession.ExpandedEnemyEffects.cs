@@ -6,6 +6,6 @@ public sealed partial class BattleSession
     {
         return command.Ability == BattleAbility.EnemyAbility && command.NativeSequence == 11 && actor is { IsPlayer: false, ModelId: 99 } &&
             action is { Command: 8, ActionId: 182, MagicId: NativeBattleSonic139Profile.Effect, HitCount: 1 } &&
-            recipientCount is >= 1 and <= NativeBattleSonic139Profile.TargetCapacity;
+            recipientCount is >= 1 and <= NativeBattleSonic139Profile.HostedTargetCapacity;
     }
 }

@@ -26,6 +26,8 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         using GameWorld admissionWorld = StartBattle(directory, field, 0);
         BattleSession admission = Assert.IsType<BattleSession>(admissionWorld.Battle);
         BattleActionDefinition[] admitted = admission.ActionDefinitions.Where(action => action.Ability is BattleAbility.Magic or BattleAbility.Item && admission.SupportsExpandedAction(action)).ToArray();
+        ILookup<int, BattleActionDefinition> guardianMappings = assets.ActionDefinitions.Where(action => action.Ability == BattleAbility.GuardianForce && action.NativeAction is not null).ToLookup(action => (int)action.NativeAction!.MagicId);
+        ILookup<int, BattleNativeAction> limitMappings = assets.NativeActions.Where(action => action.KernelSection == 19 && action.CrisisLevel == 4 || action.KernelSection == 18 && action.CharacterId == action.KernelIndex + 6).ToLookup(action => (int)action.MagicId);
         bool requireFull = Environment.GetEnvironmentVariable("MEMORIA_FF8_REQUIRE_FULL_EFFECT_MATRIX") == "1";
         bool probeEnemies = requireFull || Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT_MATRIX_PROBE_ENEMIES") == "1";
         EnemyScenarioDiscoveryResult enemies = ScenarioEnemyDiscovery.Discover(assets);
@@ -53,6 +55,15 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                 else if (effect.Effect == sonicWave.MagicId)
                 {
                     (status, detail) = RunSonicWave(directory, field, effect, sonicWave);
+                }
+                else if (guardianMappings[effect.Effect].FirstOrDefault() is { } guardian && ExpandedBattleGuardianForceTests.RunGuardianForce(assets, guardian) is int guardianContacts)
+                {
+                    status = "logical";
+                    detail = $"Original GF charge and impact used {guardianContacts} roster recipients through the HUD contact path.";
+                }
+                else if (limitMappings[effect.Effect].FirstOrDefault() is { } limit)
+                {
+                    (status, detail) = RunExpandedLimit(directory, field, limit);
                 }
                 else if (scripts.Length > 0)
                 {
@@ -267,7 +278,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         throw new InvalidDataException("The installed Oilboyle AI did not complete its first Sonic Wave in the expanded host.");
     }
 
-    private static GameState PrepareField(string directory)
+    internal static GameState PrepareField(string directory)
     {
         GameSession initial = GameSession.CreateColdProcess();
         initial.StartNewGame();
@@ -285,7 +296,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         };
     }
 
-    private static GameWorld StartBattle(string directory, GameState field, ushort formation, BattleActionDefinition? action = null, bool requireExpanded = true)
+    private static GameWorld StartBattle(string directory, GameState field, ushort formation, BattleActionDefinition? action = null, bool requireExpanded = true, BattleNativeAction? limit = null)
     {
         GameSession session = new(field);
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
@@ -302,6 +313,15 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                 HitPoints = new(1200, 1200),
                 Status = 0
             }).ToArray();
+            if (limit is { CharacterId: int characterId })
+            {
+                records[characterId] = records[characterId] with { HitPoints = new(1, 1) };
+                foreach (int knockedOut in Enumerable.Range(0, 11).Where(id => id != characterId).Take(4))
+                {
+                    records[knockedOut] = records[knockedOut] with { HitPoints = new(0, 0), Status = 1 };
+                }
+                session.SetLimitProgress(session.State.LimitProgress! with { BlueMagicFlags = ushort.MaxValue });
+            }
             if (action is not null)
             {
                 if (action.NativeAction?.AttackType is 5 or 6)

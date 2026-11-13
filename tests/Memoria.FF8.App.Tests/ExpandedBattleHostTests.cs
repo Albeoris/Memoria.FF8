@@ -18,6 +18,7 @@ public sealed class ExpandedBattleHostTests
     [InlineData(0, true, false, 8)]
     [InlineData(89, false, true, 8)]
     [InlineData(87, false, false, 11)]
+    [InlineData(87, false, false, 11, false, 11)]
     [InlineData(0, true, false, 11)]
     [InlineData(89, false, true, 11)]
     [InlineData(0, true, false, 11, true)]
@@ -225,7 +226,7 @@ public sealed class ExpandedBattleHostTests
                 Assert.True(caster.IsReady);
                 hud.SelectParty(caster.Id);
                 Assert.Contains(BattleAbility.Draw, hud.Commands);
-                Assert.False(hud.DrawCastAvailable);
+                Assert.True(hud.DrawCastAvailable);
                 world.ApplyBattleInput(new(BattleInputKind.Action) { ActorId = caster.Id, TargetId = drawSource.Id, Ability = BattleAbility.Draw, ActionId = draw.Id });
                 for (int frame = 0; frame < 512 && caster.IsBusy; frame++)
                 {
@@ -233,6 +234,39 @@ public sealed class ExpandedBattleHostTests
                 }
                 Assert.False(caster.IsBusy);
                 Assert.Contains(battle.Events, entry => entry.Kind == "Draw" && entry.ActorId == caster.Id && entry.TargetId == drawSource.Id);
+                if (enemyCount == 11)
+                {
+                    BattleActionDefinition spell = battle.ActionDefinitions.First(action => action.Ability == BattleAbility.Magic && battle.SupportsExpandedAction(action) && drawSource.NativeDrawSlots.Any(slot => slot.Id == action.Id));
+                    BattleCombatant recipient = battle.Combatants.Last(actor => actor.Id != drawSource.Id && BattleSession.IsValidSelectedActionTarget(caster, spell, actor));
+                    for (int turn = 0; turn < 32 && !caster.IsReady; turn++)
+                    {
+                        world.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
+                        world.ApplyBattleInput(new(BattleInputKind.Tick, Frames: 30));
+                    }
+                    Assert.True(caster.IsReady);
+                    int stockBefore = caster.MagicStocks.FirstOrDefault(stock => stock.Id == spell.Id)?.Count ?? 0;
+                    world.ApplyBattleInput(new(BattleInputKind.Action) { ActorId = caster.Id, TargetId = drawSource.Id, Ability = BattleAbility.Draw, ActionId = spell.Id, DrawCast = true, DrawCastTargetId = recipient.Id });
+                    BattleSnapshot windup = battle.Capture();
+                    using var checkpoint = new TemporaryBattleCheckpoint();
+                    session.Save(checkpoint.Path, compact: true);
+                    GameSession resumed = new(GameSession.Load(checkpoint.Path));
+                    using GameWorld resumedWorld = new(resumed, directory, expandedBattleEnemyCount: 11);
+                    resumedWorld.EnsureField();
+                    BattleSession restored = Assert.IsType<BattleSession>(resumedWorld.Battle);
+                    Assert.Equal(recipient.Id, restored.ActiveAction?.DrawCastTargetId ?? Assert.Single(restored.QueuedActions).DrawCastTargetId);
+                    bool presented = false;
+                    for (int frame = 0; frame < 512 && caster.IsBusy; frame++)
+                    {
+                        world.ApplyBattleInput(new(BattleInputKind.Tick));
+                        resumedWorld.ApplyBattleInput(new(BattleInputKind.Tick));
+                        presented |= battle.ExpandedEffect is not null;
+                    }
+                    Assert.False(caster.IsBusy);
+                    Assert.True(presented);
+                    Assert.Equal(stockBefore, caster.MagicStocks.FirstOrDefault(stock => stock.Id == spell.Id)?.Count ?? 0);
+                    Assert.Single(battle.Events, entry => entry.Kind == "EffectContact" && entry.ActorId == caster.Id && entry.TargetId == recipient.Id && entry.Frame >= windup.Frame);
+                    AssertEquivalentBattle(battle, restored);
+                }
             }
 
         }

@@ -51,7 +51,8 @@ public static partial class NativeBattleSonic139Controller
             int count = Signed(task, 14);
             for (int index = 0; index < count; index++)
             {
-                (frame, bounds) = IncludeActor6A9AD0(frame, inputs.ReadModel(frame, Read(frame, address).ReadDword(20 + index * 4)), bounds, inputs);
+                (uint actor, _) = ReadTarget(frame, inputs, task, index);
+                (frame, bounds) = IncludeActor6A9AD0(frame, inputs.ReadModel(frame, actor), bounds, inputs);
             }
             int bucketDepth = unchecked(bounds.MinimumDepth - 512);
             if (bounds.Visible && bucketDepth > 0)
@@ -90,9 +91,9 @@ public static partial class NativeBattleSonic139Controller
                 (frame, uint childAddress) = Append(frame, 2, TargetCallback);
                 if (childAddress != 0)
                 {
-                    uint actor = main.ReadDword(20 + index * 4);
+                    (uint actor, byte contactIndex) = ReadTarget(frame, inputs, main, index);
                     uint color = inputs.ReadModel(frame, actor).Color40 ?? throw new NotSupportedException("Sonic Wave requires the actual target color DWORD.");
-                    NativeBattleModulePoolTask child = Read(frame, childAddress).WriteWord(12, 0).WriteWord(14, main.ReadByte(16 + index)).WriteDword(16, actor).WriteDword(20, color);
+                    NativeBattleModulePoolTask child = Read(frame, childAddress).WriteWord(12, 0).WriteWord(14, contactIndex).WriteDword(16, actor).WriteDword(20, color);
                     frame = Write(frame, childAddress, child);
                     NativeBattleSonic139PointStep anchor = inputs.ReadAnchor571400(frame, actor);
                     frame = WriteBytes(anchor.Frame, childAddress + 24, anchor.Point8, 8);

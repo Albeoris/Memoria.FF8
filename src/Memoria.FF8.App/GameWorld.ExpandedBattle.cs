@@ -52,7 +52,7 @@ internal sealed partial class GameWorld
             {
                 NativeBattleGraphicsModel target = posedActors[contact.RecipientId] with { Index = contact.Contact.ActorIndex };
                 NativeBattleGraphicsResource resource = actorResources[contact.RecipientId];
-                if (action.MagicId is 1 or 25 or 39 or 50 or 139)
+                if (action.MagicId is 1 or 25 or 39 or 50 or 139 || definition.NativeEffectCatalog.Any(binding => binding.Effect == action.MagicId && binding.Entry == NativeBattleLaserEye71Profile.Entry))
                 {
                     (target, textures) = NativeEffectActorTextures.Allocate(target, resource, textures, occupiedSlots);
                     occupiedSlots |= target.TextureAllocationMask.GetValueOrDefault();

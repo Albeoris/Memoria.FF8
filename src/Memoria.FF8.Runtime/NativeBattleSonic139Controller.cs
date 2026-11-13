@@ -81,20 +81,22 @@ public static partial class NativeBattleSonic139Controller
             NativeBattleModulePoolTask task = Read(frame, mainAddress).WriteBytes(12, new byte[0x4D0]);
             NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 0x30, 0x4AC).Initialize7016B0(resources.MainAct, 0x4AC);
             task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, 0x30, workspace);
-            int header = Parameters(frame).HeaderIndex7C;
-            int count = inputs.Packets.Headers[header].ReadByte(16);
-            if (count is < 1 or > TargetCapacity)
+            int count = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C].ReadByte(16);
+            int capacity = inputs.AllowFourthTarget ? HostedTargetCapacity : TargetCapacity;
+            if (count < 1 || count > capacity)
             {
-                throw new NotSupportedException("Sonic Wave target list must fit its three actual actor fields and nonzero native divisor.");
+                throw new NotSupportedException("Sonic Wave target list exceeds the selected target capacity or has a zero divisor.");
             }
-            int firstContact = inputs.Packets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Sonic Wave requires its captured contacts.");
             task = task.WriteWord(14, checked((ushort)count));
             frame = Write(frame, mainAddress, task);
             short[] sum = new short[3];
             for (int index = 0; index < count; index++)
             {
-                uint actor = ModelAddress(inputs.Packets.ReadContact(firstContact + index).Primary.ActorIndex);
-                frame = Write(frame, mainAddress, Read(frame, mainAddress).WriteByte(16 + index, checked((byte)index)).WriteDword(20 + index * 4, actor));
+                uint actor = ReadContactActor(frame, inputs, index);
+                if (index < TargetCapacity)
+                {
+                    frame = Write(frame, mainAddress, Read(frame, mainAddress).WriteByte(16 + index, checked((byte)index)).WriteDword(20 + index * 4, actor));
+                }
                 NativeBattleSonic139PointStep anchor = inputs.ReadAnchor571400(frame, actor);
                 frame = anchor.Frame;
                 NativeBattleVector point = Point(anchor.Point8);
@@ -118,6 +120,28 @@ public static partial class NativeBattleSonic139Controller
             return (frame, 2);
         }
         return (Write(frame, address, Read(frame, address).WriteWord(12, unchecked((ushort)(Read(frame, address).ReadWord(12) + 1)))), 0);
+    }
+
+    private static uint ReadContactActor(NativeBattleSonic139Frame frame, NativeBattleSonic139Inputs inputs, int index)
+    {
+        NativeBattleActionHeaderSlot header = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C];
+        int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Sonic Wave requires its captured contacts.");
+        return ModelAddress(inputs.Packets.ReadContact(firstContact + index).Primary.ActorIndex);
+    }
+
+    private static (uint Actor, byte ContactIndex) ReadTarget(NativeBattleSonic139Frame frame, NativeBattleSonic139Inputs inputs, NativeBattleModulePoolTask task, int index)
+    {
+        if (index < TargetCapacity)
+        {
+            return (task.ReadDword(20 + index * 4), task.ReadByte(16 + index));
+        }
+        if (!inputs.AllowFourthTarget || index != TargetCapacity)
+        {
+            throw new InvalidDataException("Sonic Wave reached an unavailable hosted target.");
+        }
+
+        // The fourth contact remains in its action packet. A fourth task index or pointer would overwrite the completion byte or emitter anchor.
+        return (ReadContactActor(frame, inputs, index), checked((byte)index));
     }
 
     private static (NativeBattleSonic139Frame Frame, int Survivors) Scan(NativeBattleSonic139Frame frame, int index, NativeBattleSonic139Resources resources, NativeBattleSonic139Inputs inputs)

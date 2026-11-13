@@ -972,7 +972,7 @@ public sealed partial class BattleSession
 
         bool CanRetainTargets(string actorId, string targetId, BattleAbility ability, int actionId, BattleNativeAction? native, ushort mask, BattleNativeGraphicCommand? graphic, BattleAiRecipients? aiRecipients)
         {
-            return UsesExpandedRoster ? ExpandedActionTargets(GetActor(actorId), targetId, ability, actionId, aiRecipients).Length != 0 : ActionHasValidTarget(targetId, ability, actionId, native, mask, graphic, aiRecipients);
+            return UsesExpandedRoster ? ExpandedActionTargets(GetActor(actorId), targetId, ability, actionId, aiRecipients, native).Length != 0 : ActionHasValidTarget(targetId, ability, actionId, native, mask, graphic, aiRecipients);
         }
     }
 
@@ -1396,7 +1396,7 @@ public sealed partial class BattleSession
             ValidateNativeEventOwner(action.ActorId, action.NativeHeaderIndex, action.NativeEventOwner, action.NativeAiCallbackStage, action.NativeAction);
             ValidateNativeAiCommandStage(GetActor(action.ActorId), action.Ability, action.NativeAiCallbackStage);
             ValidateNativeMagicTargets(action.Ability, action.ActionId, action.NativeMagicTargets, action.NativeMagicCastMode);
-            ValidateNativeDrawPacket(action.Ability, action.ActionId, action.DrawCast, action.DrawCastTargetId, action.NativeDraw, true, action.NativeAction, action.NativeTargetMask);
+            ValidateNativeDrawPacket(action.Ability, action.ActionId, action.DrawCast, action.DrawCastTargetId, action.NativeDraw, !UsesExpandedRoster || action.Phase == BattleActionPhase.Recovery, action.NativeAction, action.NativeTargetMask);
             ValidateNativeActionInventory(byId[action.ActorId], action.Ability, action.NativeAction, action.ReservedNativeItemSlot, action.FreeNativeMagic);
             int maximum = action.Phase == BattleActionPhase.Windup ? NativeActionWindupFrames(byId[action.ActorId], action.NativeSequence) : AttackRecoveryFrames;
             if (!Enum.IsDefined(action.Phase) || action.RemainingFrames < 1 || action.RemainingFrames > maximum)
@@ -1566,10 +1566,18 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Queued native action differs from its installed kernel contract.");
             }
         }
+        if (UsesExpandedRoster && ability == BattleAbility.LimitBreak && (nativeAction is null || !SupportsPlayerLimitSelection(actorId) || !SupportsExpandedLimit(nativeAction) || actor.NativeLimit?.Command != nativeAction.Command || nativeQueuedCommand != nativeAction.Command || actionId != (nativeAction.Command << 16 | nativeAction.ActionId) || nativeTargetMask != 0 || factualHeader || !allowDefeatedTarget && ExpandedActionTargets(actor, targetId, ability, actionId, null, nativeAction).Length == 0))
+        {
+            throw new InvalidDataException("Saved expanded Limit lacks its installed command or logical recipients.");
+        }
         bool formEntry = ability == BattleAbility.GuardianForce && actorId == targetId && GetGuardianForm(actorId) is { Phase: BattleGuardianFormPhase.Charging };
         bool validTargetSide = native || formEntry || ability == BattleAbility.Attack || (ability == BattleAbility.Draw ? actor.IsPlayer != target.IsPlayer : CanSelectEitherTargetSide(FindAction(ability, actionId)) || (actor.IsPlayer == target.IsPlayer) == FindAction(ability, actionId).Allies);
         bool unique = busy.Add(actorId);
         bool validTarget = renzokuken is not null || graphic is not null || allowDefeatedTarget || (native ? ActionHasValidTarget(targetId, ability, actionId, nativeAction, nativeTargetMask, aiRecipients: aiRecipients) : target.IsAlive || IsRevive(ability, actionId));
+        if (UsesExpandedRoster && ability == BattleAbility.GuardianForce)
+        {
+            validTarget = ExpandedActionTargets(actor, targetId, ability, actionId, null).Length != 0;
+        }
         //4842B0 grows DWORD20 despite pending flags4/8; only the native clock/status/80 gates stop it.
         //A validated physical action header may therefore retain a nonzero owned gauge between queueing and action-pause publication.
         //Ordinary Attack/Magic resolve installed metadata through the actor/action catalog and legitimately leave nativeAction null.

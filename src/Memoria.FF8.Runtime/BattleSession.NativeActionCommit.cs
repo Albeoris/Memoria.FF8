@@ -69,7 +69,7 @@ public sealed partial class BattleSession
 
     private void QueueNativeReaction(BattleCombatant actor, int stage)
     {
-        if (UsesExpandedRoster || actor.NativeAi is null && !actor.IsPlayer)
+        if (actor.NativeAi is null && !actor.IsPlayer || UsesExpandedRoster && (actor.IsPlayer || stage != 2 || actor.NativeAi?.Scripts[2].Length is not > 0 || nativeReactionOrder is null))
         {
             return;
         }
@@ -88,6 +88,20 @@ public sealed partial class BattleSession
         if (actor.IsPlayer && stage == 3)
         {
             SetNativeReactionActionGate(true);
+        }
+    }
+
+    private void FlushExpandedEnemyReactions()
+    {
+        byte count = nativeReactionOrder ?? 0;
+        nativeReactionOrder = null;
+        foreach (BattleCombatant actor in enemies.Where(actor => actor.NativePendingReaction is { Stage: 2, Order: byte order } && order < count).OrderBy(actor => actor.NativePendingReaction.Order))
+        {
+            actor.NativePendingReaction = new(0, 0);
+            if (actor.IsActive && (NativeSavedStatusBits(actor) & 1) == 0)
+            {
+                RunExpandedNativeAi(actor, 2);
+            }
         }
     }
 

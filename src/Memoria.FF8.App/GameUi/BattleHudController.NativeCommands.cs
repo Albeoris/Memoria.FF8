@@ -46,12 +46,12 @@ public sealed partial class BattleHudController
 
     public bool CommandMenuHidden => session.Outcome == BattleOutcome.Active && (session.NativeGraphics?.UiServices is { } ui ? (ui.Flags942 & 0x841) != 0x40 : (nativeCommandHeldButtons & 0x100) != 0);
 
-    public bool NativeLimitAvailable => !HasGuardianFormCommands && SelectedActor is { } actor && session.GetNativeLimitLevel(actor.Id) > 0;
+    public bool NativeLimitAvailable => !HasGuardianFormCommands && SelectedActor is { } actor && session.SupportsPlayerLimitSelection(actor.Id) && session.GetNativeLimitLevel(actor.Id) > 0;
     private bool NativeLimitDirectTarget => SelectedCommand == BattleAbility.LimitBreak && SelectedActor?.NativeLimit?.Command is 5 or 11;
 
     public void SetNativeCommandButtons(ushort buttons)
     {
-        if (session.UsesExpandedRoster || CardSlotsOwnsInput)
+        if (CardSlotsOwnsInput)
         {
             return;
         }
@@ -208,17 +208,17 @@ public sealed partial class BattleHudController
         {
             return [BattleCommandPresentation.Default(BattleAbility.Attack), BattleCommandPresentation.Default(BattleAbility.Magic), BattleCommandPresentation.Default(BattleAbility.GuardianForce)];
         }
+        IEnumerable<BattleCommandPresentation> choices = BattleCommandPresentation.Read(actor);
         if (session.UsesExpandedRoster)
         {
-            return BattleCommandPresentation.Read(actor).Where(choice => choice.Ability is BattleAbility.Attack or BattleAbility.Magic or BattleAbility.Item or BattleAbility.Draw).ToArray();
+            choices = choices.Where(choice => choice.Ability is BattleAbility.Attack or BattleAbility.Magic or BattleAbility.Item or BattleAbility.Draw or BattleAbility.GuardianForce);
         }
-        if (nativeLimitCommandSelected && NativeLimitAvailable && actor.Abilities.Count > 0)
+        BattleCommandPresentation[] commands = choices.Select(choice => choice.Ability == BattleAbility.LimitBreak ? LimitCommand(actor) : choice).ToArray();
+        if (nativeLimitCommandSelected && NativeLimitAvailable && commands.Length > 0)
         {
-            BattleCommandPresentation[] commands = BattleCommandPresentation.Read(actor).ToArray();
             commands[0] = LimitCommand(actor);
-            return commands;
         }
-        return BattleCommandPresentation.Read(actor).Select(choice => choice.Ability == BattleAbility.LimitBreak ? LimitCommand(actor) : choice).ToArray();
+        return commands;
     }
 
     private void RefreshNativeLimitSelection()
@@ -252,7 +252,7 @@ public sealed partial class BattleHudController
         nativeLimitCommandSelected = false;
         limitCommandReveal = 0;
         RestoreCommandCursor(actor);
-        if (actor?.NativeLimit is not null && !ownedSelection)
+        if (actor is not null && session.SupportsPlayerLimitSelection(actor.Id) && !ownedSelection)
         {
             session.SelectPlayerCommandActor(actor.Id);
         }
