@@ -8,7 +8,7 @@ public static partial class NativeBattleArenaSurfaceQueries
     private readonly record struct SurfacePoint(double X, double Z);
     private const int MaximumRefinedFaces = 65536;
 
-    /// <summary>Overlays a nonoverlapping projected control mesh on the original surface, retaining the area outside that mesh and interpolating original materials.</summary>
+    /// <summary>Overlays every projected control boundary on the original surface, retaining exterior area and interpolating original materials, including where controls overlap.</summary>
     public static NativeBattleArenaGeometry Refine(NativeBattleArenaGeometry geometry, ImmutableArray<(Vector3 A, Vector3 B, Vector3 C)> controlTriangles)
     {
         ArgumentNullException.ThrowIfNull(geometry);
@@ -58,7 +58,10 @@ public static partial class NativeBattleArenaSurfaceQueries
                         }
                         inside = Clip(inside, a, b, controlArea > 0);
                     }
-                    Emit(inside);
+                    if (HasArea(inside))
+                    {
+                        next.Add(inside);
+                    }
                     if (next.Count + output.Count > MaximumRefinedFaces)
                     {
                         throw new NotSupportedException("The projected arena control mesh exceeds the bounded surface refinement budget.");
@@ -172,5 +175,47 @@ public static partial class NativeBattleArenaSurfaceQueries
         return false;
     }
 
-    private static bool Overlap(List<SurfacePoint> polygon, SurfacePoint[] triangle) => polygon.Min(point => point.X) <= triangle.Max(point => point.X) && polygon.Max(point => point.X) >= triangle.Min(point => point.X) && polygon.Min(point => point.Z) <= triangle.Max(point => point.Z) && polygon.Max(point => point.Z) >= triangle.Min(point => point.Z);
+    private static bool Overlap(List<SurfacePoint> polygon, SurfacePoint[] triangle)
+    {
+        if (polygon.Min(point => point.X) >= triangle.Max(point => point.X) || polygon.Max(point => point.X) <= triangle.Min(point => point.X) || polygon.Min(point => point.Z) >= triangle.Max(point => point.Z) || polygon.Max(point => point.Z) <= triangle.Min(point => point.Z))
+        {
+            return false;
+        }
+        for (int edge = 0; edge < polygon.Count; edge++)
+        {
+            if (Separated(polygon[edge], polygon[(edge + 1) % polygon.Count]))
+            {
+                return false;
+            }
+        }
+        for (int edge = 0; edge < triangle.Length; edge++)
+        {
+            if (Separated(triangle[edge], triangle[(edge + 1) % triangle.Length]))
+            {
+                return false;
+            }
+        }
+        return true;
+
+        bool Separated(SurfacePoint a, SurfacePoint b)
+        {
+            double firstMinimum = double.PositiveInfinity;
+            double firstMaximum = double.NegativeInfinity;
+            foreach (SurfacePoint point in polygon)
+            {
+                double value = Side(a, b, point);
+                firstMinimum = Math.Min(firstMinimum, value);
+                firstMaximum = Math.Max(firstMaximum, value);
+            }
+            double secondMinimum = double.PositiveInfinity;
+            double secondMaximum = double.NegativeInfinity;
+            foreach (SurfacePoint point in triangle)
+            {
+                double value = Side(a, b, point);
+                secondMinimum = Math.Min(secondMinimum, value);
+                secondMaximum = Math.Max(secondMaximum, value);
+            }
+            return firstMaximum <= secondMinimum || secondMaximum <= firstMinimum;
+        }
+    }
 }
