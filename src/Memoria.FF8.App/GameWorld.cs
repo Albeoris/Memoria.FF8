@@ -476,6 +476,7 @@ internal sealed partial class GameWorld : IDisposable
         {
             SynchronizeExtendedRoster(GameplayPolicy);
         }
+        EnsureGuestBattleRecords();
         if (snapshot is null && session.State.RandomEncounters is { } encounter)
         {
             session.SetRandomEncounters(encounter with { Native = encounter.Native with { WorldInitialized = false } });

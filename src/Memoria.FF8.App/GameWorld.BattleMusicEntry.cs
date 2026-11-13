@@ -120,9 +120,14 @@ internal sealed partial class GameWorld
         }
     }
 
+    private static long ReadExecutedBattleCallbacks(BattleSession active)
+    {
+        return active.NativeGraphics is null ? active.Frame : active.NativeHostCallbacks ?? throw new NotSupportedException("Native battle host transport requires its executed47CF60 callback ledger; explicitly migrate the named older checkpoint.");
+    }
+
     private void SynchronizeNativeBattleHostCallbacks(BattleSession active)
     {
-        long executed = active.NativeGraphics is null ? active.Frame : active.NativeHostCallbacks ?? throw new NotSupportedException("Native battle host transport requires its executed47CF60 callback ledger; explicitly migrate the named older checkpoint.");
+        long executed = ReadExecutedBattleCallbacks(active);
         long remaining = executed - synchronizedNativeBattleCallbacks;
         if (remaining < 0)
         {

@@ -25,9 +25,13 @@ public sealed partial class BattleSession
 
     public bool SupportsExpandedAction(BattleActionDefinition action)
     {
-        return action.NativeAction is { HitCount: 1 } native &&
-            (action.Ability, native.Command, native.ActionId, native.MagicId) is
-                (BattleAbility.Magic, 2, 1, _) or (BattleAbility.Magic, 2, _, 38) or (BattleAbility.Item, 4, 1, _);
+        if (action.NativeAction is not { HitCount: 1 } native)
+        {
+            return false;
+        }
+        return (action.Ability, native.Command, native.ActionId, native.MagicId) is
+            (BattleAbility.Magic, 2, 1, _) or (BattleAbility.Magic, 2, _, 38) ||
+            action.Ability == BattleAbility.Item && native is { Command: 4, AttackType: 4, Power: > 0, Statuses0: 0, Statuses1: 0 } && action.Allies;
     }
 
     private void RequireExpandedAction(BattleActionDefinition action)
@@ -184,7 +188,7 @@ public sealed partial class BattleSession
         }
         if (command.Ability is BattleAbility.Item or BattleAbility.EnemyAbility)
         {
-            // TODO(TD-009): Expanded enemy abilities and Potion use the host impact UI pending native presentation admission.
+            // TODO(TD-009): Expanded enemy abilities and healing items use the host impact UI pending native presentation admission.
             foreach (ExpandedBattleContact contact in contacts)
             {
                 Log("EffectContact", command.ActorId, contact.RecipientId, contact.Contact.PresentedAmount, action.Name);
