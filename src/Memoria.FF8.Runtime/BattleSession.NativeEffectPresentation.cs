@@ -37,7 +37,7 @@ public sealed partial class BattleSession
         nativeActionPackets = inputs.Packets.ActivateHeader(inputs.Parameters.HeaderIndex7C);
         NativeEffectMemory = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(definition.NativeRetainedMemory?.EffectMemory ?? NativeBattleEffectMemory.FromColdProcess())) with { Textures = inputs.Textures };
         NativeEffectMemory = NativeBattleGraphicsInitialization.Initialize500520(NativeEffectMemory);
-        NativeCamera = NativeBattleCameraState.FromColdProcess() with { Projection = inputs.Projection };
+        NativeCamera = BindEffectPresentationHostProjection(NativeBattleCameraState.FromColdProcess(), inputs.Projection);
         presentationHostCamera = NativeCamera;
         NativeFileStaging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.FromColdProcess());
         NativeFileIo = NativeBattleFileIoState.FromColdProcess();
@@ -138,6 +138,11 @@ public sealed partial class BattleSession
         return host with { ControlResource = camera.ControlResource, ControlStagingSource = camera.ControlStagingSource, ControlCursor = null, ViewTranslationScratch = new(0, 0, 0) };
     }
 
+    internal static NativeBattleCameraState BindEffectPresentationHostProjection(NativeBattleCameraState camera, NativeBattleCameraProjection projection)
+    {
+        return camera with { Projection = projection, FocalLength = projection.FocalLength is ushort focal ? unchecked((short)focal) : null };
+    }
+
     internal NativeBattleStageColor ReadEffectPresentationStageColor()
     {
         NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("The host has no native arena color owner.");
@@ -160,8 +165,8 @@ public sealed partial class BattleSession
         Dictionary<int, NativeBattleForeignActor> previousForeignActors = presentationForeignActors;
         presentationForeignActors = foreignActors.ToDictionary(actor => actor.Index);
         nativeCrtRandom = randomState;
+        presentationHostCamera = BindEffectPresentationHostProjection(presentationHostCamera!, projection);
         NativeCamera = NativeCamera! with { Projection = projection, ViewTranslationScratch = new(0, 0, 0) };
-        presentationHostCamera = presentationHostCamera! with { Projection = projection };
         NativeBattleGraphicsState graphics = NativeGraphics! with { Models = BindPresentationForeignModels(NativeGraphics!.Models.SetItem(0, source), previousForeignActors), ModuleDraws = presentationFirstAdvance ? NativeGraphics.ModuleDraws : [], PrimitiveFrame = presentationFirstAdvance ? NativeGraphics.PrimitiveFrame : NativeBattlePrimitiveFrame.Clear() };
         NativeEffectMemory = NativeEffectMemory! with { PrimitiveProcess = presentationFirstAdvance ? NativeEffectMemory.PrimitiveProcess : NativeEffectMemory.PrimitiveProcess!.Reset500900(graphics.Flags), Textures = textures };
         presentationFirstAdvance = false;

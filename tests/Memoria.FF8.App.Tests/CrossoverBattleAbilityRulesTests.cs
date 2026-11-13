@@ -241,7 +241,8 @@ public sealed class CrossoverBattleAbilityRulesTests
     [Fact]
     public void UnsupportedOperationsAndStatusBitsFailBeforeProducingMechanics()
     {
-        List<BattleNativeAction> unsupported = [Action(2) with { PresentationOnly = true }, Action(2) with { HitCount = 2 }, Action(2) with { Statuses1 = 0x2000 }];
+        List<BattleNativeAction> unsupported = [Action(2) with { PresentationOnly = true }, Action(2) with { Statuses1 = 0x2000 }];
+        Assert.Null(CrossoverBattleAbilityRules.UnsupportedReason(Action(2) with { HitCount = 2 }));
         for (byte type = 0; type <= 36; type++)
         {
             if (type is not (1 or 2 or 3 or 4 or 5 or 6 or 8 or 9 or 11 or 15 or 20 or 21 or 22 or 26 or 27 or 29 or 32 or 35 or 36))

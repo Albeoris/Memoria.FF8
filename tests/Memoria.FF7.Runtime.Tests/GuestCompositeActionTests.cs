@@ -38,6 +38,8 @@ internal static class GuestCompositeActionTests
         CheckSourceDrain();
         CheckSelfDrain();
         CheckReflectedConvergence();
+        CheckMixedReflectedGroupOrder();
+        CheckReflectionTransitionOrder();
         CheckSourceFailure();
 
         Ff7BattleSession Create(Ff7BattleSnapshot? snapshot = null) => new(formation, original.Progress, kernel, executable.NativeMateriaStatModifiers, 1, snapshot: snapshot, animations: animations);
@@ -69,8 +71,13 @@ internal static class GuestCompositeActionTests
             Check(schedule.Contacts.Length == 6 && schedule.Contacts.Select(contact => contact.Ordinal).SequenceEqual(Enumerable.Range(0, 6)), "Repeated hits were deduplicated by their recipient.");
             for (int index = 1; index < schedule.Contacts.Length; index++)
             {
-                Check(schedule.Contacts[index].HitDescription.PreparedContact!.TargetBefore == schedule.Contacts[index - 1].HitDescription.PreparedContact!.Receipt.Target, "The next occurrence did not use the preceding occurrence's projected vitals.");
+                Ff7BattleActionVitals previous = schedule.Contacts[index - 1].HitDescription.PreparedContact!.Receipt.Target;
+                Ff7BattleActionVitals expected = previous with { OriginSavedStatuses = Ff7GuestBattleStatuses.ToOrigin(previous.Statuses, previous.OriginSavedStatuses) };
+                Ff7BattleActionVitals actual = schedule.Contacts[index].HitDescription.PreparedContact!.TargetBefore;
+                Check(actual == expected, $"The next occurrence did not use the preceding occurrence's projected vitals. Expected {JsonSerializer.Serialize(expected)}; actual {JsonSerializer.Serialize(actual)}.");
             }
+            Ff7BattleGuestPreparedContact knockout = schedule.Contacts.Select(contact => contact.HitDescription.PreparedContact!).First(contact => (contact.Receipt.AddedStatuses & Ff7NativeBattleActionResolver.Death) != 0);
+            Check(knockout.Receipt.Target.Hp == 0 && (knockout.Receipt.Target.Statuses & Ff7NativeBattleActionResolver.Death) != 0 && (Ff7GuestBattleStatuses.ToOrigin(knockout.Receipt.Target.Statuses, knockout.Receipt.Target.OriginSavedStatuses) & 1) != 0, "Projected KO must publish host death and derive the origin saved-bank death alias for the next occurrence.");
             Check(battle.Actors.Single(actor => actor.Actor.Slot == 4).Actor.HitPoints == 25, "Packet preparation applied damage before a presentation contact.");
             Ff7BattleSession cold = Create(JsonSerializer.Deserialize<Ff7BattleSnapshot>(JsonSerializer.Serialize(battle.Capture())));
             Probe restored = source.Restore();
@@ -98,7 +105,7 @@ internal static class GuestCompositeActionTests
 
         void CheckRandomSchedule()
         {
-            (Ff7BattleSession battle, Probe source) = Start(Ff7BattleGuestCompositeTargetPolicy.RandomSelected);
+            (Ff7BattleSession battle, Probe source) = Start(Ff7BattleGuestCompositeTargetPolicy.RandomSelected, configure: probe => probe.Attack = probe.Attack with { Formula = 0x22, FixedDamage = null, BaseDamage = 40 });
             Ff7BattleGuestCompositeState schedule = battle.Action!.GuestComposite!;
             Check(schedule.Contacts.Length == 6 && source.RandomBeforePreparation is not null, "The random action lost its native repetition schedule.");
             Ff7BattleRng expected = new(kernel[2].Data.Span, source.RandomBeforePreparation!);
@@ -199,9 +206,71 @@ internal static class GuestCompositeActionTests
             Check(battle.Action is null && source.Published == enemySlots.Length && source.SourceStock == 99 && source.Commits == 1, "The converging reflected group did not settle under one source cost and queue owner.");
         }
 
+        void CheckMixedReflectedGroupOrder()
+        {
+            Ff7BattleSnapshot snapshot = JsonSerializer.Deserialize<Ff7BattleSnapshot>(JsonSerializer.Serialize(seed))!;
+            int[] slots = snapshot.Actors.Where(actor => actor.Actor.Slot >= 4).Select(actor => actor.Actor.Slot).Order().ToArray();
+            Check(slots.Length == 2, "The original opening formation must supply one reflector and one direct recipient.");
+            int reflectorIndex = Array.FindIndex(snapshot.Actors, actor => actor.Actor.Slot == slots[0]);
+            snapshot.Actors[reflectorIndex] = snapshot.Actors[reflectorIndex] with { ReflectionCount = 3, Actor = snapshot.Actors[reflectorIndex].Actor with { Statuses = snapshot.Actors[reflectorIndex].Actor.Statuses | Ff7NativeBattleStatuses.Reflect } };
+            ushort mask = (ushort)slots.Aggregate(0, (targets, slot) => targets | (1 << slot));
+            (Ff7BattleSession battle, Probe source) = Start(snapshot: snapshot, configure: probe =>
+            {
+                probe.Group = true;
+                probe.Repetitions = 1;
+                probe.Attack = probe.Attack with { Formula = 0x22, FixedDamage = null, BaseDamage = 120, Reflectable = true };
+            }, targetMask: mask, group: true);
+            Ff7BattleGuestCompositeState schedule = battle.Action!.GuestComposite!;
+            Check(schedule.Contacts.Length == 2 && schedule.Contacts[0].HitDescription.PreparedContact!.Invocation.TargetSlot == slots[1] && !schedule.Contacts[0].Reflected && schedule.Contacts[1].HitDescription.PreparedContact!.Invocation.TargetSlot == 0 && schedule.Contacts[1].Reflected, "A reflected group lost breadth-first direct-then-bounced contact order.");
+            Ff7BattleRng expectedRandom = new(kernel[2].Data.Span, source.RandomBeforePreparation!);
+            expectedRandom.NextByte();
+            Ff7BattleGuestPhysicalHit description = source.DescribeMagic(1);
+            Ff7BattleActionReceipt ignoredReflector = Resolve(slots[0]);
+            Ff7BattleActionReceipt direct = Resolve(slots[1]);
+            Ff7BattleActionReceipt bounced = Resolve(0);
+            Check(!ignoredReflector.Damage.Missed && schedule.Contacts[0].HitDescription.PreparedContact!.Receipt.Damage == direct.Damage && schedule.Contacts[1].HitDescription.PreparedContact!.Receipt.Damage == bounced.Damage, "A reflected group assigned formula RNG to recipients in a different order from the shared reflection pass.");
+            Check(JsonSerializer.Serialize(battle.Capture().Random) == JsonSerializer.Serialize(expectedRandom.Capture()), "A reflected group consumed a different RNG sequence from original-mask evaluation followed by the bounced round.");
+            Check(schedule.Contacts[0].Reflections.IsEmpty && schedule.Contacts[1].Reflections is [{ Slot: var reflector, Remaining: 2, Exhausted: false }] && reflector == slots[0], "A reflection transition was attached to an unrelated direct contact.");
+            battle.Advance(waitForCommand: true);
+            Check(battle.Actors.Single(actor => actor.Actor.Slot == slots[1]).Actor.HitPoints == direct.Target.Hp && battle.Actors.Single(actor => actor.Actor.Slot == 0).Actor.HitPoints == 400 && battle.Actors.Single(actor => actor.Actor.Slot == slots[0]).ReflectionCount == 3, "The first direct contact applied the later bounce or its reflection counter early.");
+            battle.Advance(waitForCommand: true);
+            Check(battle.Actors.Single(actor => actor.Actor.Slot == 0).Actor.HitPoints == bounced.Target.Hp && battle.Actors.Single(actor => actor.Actor.Slot == slots[0]).ReflectionCount == 2, "The second reflected contact did not commit its matching receipt and reflection transition.");
+
+            Ff7BattleActionReceipt Resolve(int slot)
+            {
+                Ff7BattleGuestContactContext context = battle.GuestContactContext(0, slot, description, false);
+                return Ff7NativeBattleActionResolver.ResolveGuestContact(context.Source, context.SourceVitals, context.Target, context.TargetVitals, context.Attack, description.StatusRecord, expectedRandom, sameActor: slot == 0);
+            }
+        }
+
+        void CheckReflectionTransitionOrder()
+        {
+            Ff7BattleSnapshot snapshot = JsonSerializer.Deserialize<Ff7BattleSnapshot>(JsonSerializer.Serialize(seed))!;
+            snapshot.Actors[0] = snapshot.Actors[0] with { ReflectionCount = 3, Actor = snapshot.Actors[0].Actor with { Statuses = snapshot.Actors[0].Actor.Statuses | Ff7NativeBattleStatuses.Reflect } };
+            (Ff7BattleSession prepared, Probe source) = Start(snapshot: snapshot);
+            Ff7BattleSnapshot retained = prepared.Capture();
+            Ff7BattleActionState action = retained.Action!;
+            Ff7BattleGuestCompositeState composite = action.GuestComposite!;
+            ImmutableArray<Ff7BattleGuestCompositeContact> contacts = composite.Contacts
+                .SetItem(0, composite.Contacts[0] with { Reflections = [new(0, 1, false)] })
+                .SetItem(1, composite.Contacts[1] with { Reflections = [new(0, 2, false)] })
+                .SetItem(2, composite.Contacts[2] with { Reflections = [new(0, 0, true)] })
+                .SetItem(3, composite.Contacts[3] with { Reflections = [new(0, 2, false)] });
+            Ff7BattleSession battle = Create(retained with { Action = action with { GuestComposite = composite with { Contacts = contacts } } });
+            battle.BindGuestAttack(source.Restore());
+            battle.Advance(waitForCommand: true);
+            Check(battle.Actors[0].ReflectionCount == 1, "The first settled path did not consume its prepared reflection count.");
+            battle.Advance(waitForCommand: true);
+            Check(battle.Actors[0].ReflectionCount == 1, "A later-settling path increased a reflector's already consumed counter.");
+            battle.Advance(waitForCommand: true);
+            Check(battle.Actors[0].ReflectionCount is null && (battle.Actors[0].Actor.Statuses & Ff7NativeBattleStatuses.Reflect) == 0, "An exhausted path retained its Reflect owner.");
+            battle.Advance(waitForCommand: true);
+            Check(battle.Actors[0].ReflectionCount is null && (battle.Actors[0].Actor.Statuses & Ff7NativeBattleStatuses.Reflect) == 0, "An older prepared path restored an exhausted reflector.");
+        }
+
         void CheckSourceFailure()
         {
-            (Ff7BattleSession battle, Probe source) = Start(configure: probe => probe.FailSource = true);
+            (Ff7BattleSession battle, Probe source) = Start(Ff7BattleGuestCompositeTargetPolicy.RandomSelected, configure: probe => probe.FailSource = true);
             Ff7BattleRng expected = new(kernel[2].Data.Span, source.RandomBeforePreparation!);
             expected.NextByte();
             Check(source.SawSourceFailure && source.SourcePreparations == 0 && source.SourceStock == 100 && source.Commits == 0 && source.Invocation is null && battle.Action is null && battle.GuestAbilityFailure is null, "A failed source preparation retained stock, preparation or an action occurrence.");
@@ -234,7 +303,7 @@ internal static class GuestCompositeActionTests
         public int SourceStock { get; private set; } = 100;
         public bool FailSource { get; set; }
         public bool SawSourceFailure { get; private set; }
-        public Ff7BattleDamageAction Attack { get; set; } = new(0x22, 1, 255) { AlwaysHits = true, FixedDamage = 10 };
+        public Ff7BattleDamageAction Attack { get; set; } = new(0x26, 1, 255) { AlwaysHits = true, FixedDamage = 10 };
         public Ff7BattleRngState? RandomBeforePreparation { get; set; }
         public Func<Ff7BattleRngState>? CaptureRandom { get; set; }
         private ImmutableArray<Ff7BattleGuestCompositeContact> contacts = [];

@@ -303,6 +303,11 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
                     actors.Add(foreign.ToActor(target.Contact.ActorIndex) with { ReadGeometry = () => foreign.Anchors });
                     continue;
                 }
+                if (readParticipantGeometry is not null)
+                {
+                    actors.Add(readParticipantGeometry(target.HostSlot, target.Contact.ActorIndex));
+                    continue;
+                }
                 NativeBattleModuleAnchor anchor = readTargetAnchor();
                 NativeBattleModelTransform transform = readTargetTransform();
                 actors.Add(new(target.Contact.ActorIndex, transform, anchor, (selector, fraction) => CrossoverNativeForeignTarget.ReadSemanticBone(selector, fraction, new(anchor.X, anchor.Y, anchor.Z), () => throw new NotSupportedException("The host target has no posed root geometry provider."))));

@@ -252,7 +252,7 @@ public sealed class CrossoverForeignBodyBridgeTests(ITestOutputHelper output)
                 {
                     foreignIndices.Add(bound.Contact.ActorIndex);
                 }
-                IReadOnlyList<Ff7BattleGuestPhysicalHit> hits = active.GroupPrepared.IsEmpty ? [active.Prepared] : active.GroupPrepared;
+                IReadOnlyList<Ff7BattleGuestPhysicalHit> hits = active.CompositePrepared.Select(contact => contact.HitDescription).ToArray();
                 foreach (Ff7BattleGuestPhysicalHit hit in hits)
                 {
                     Ff7BattleGuestPreparedContact receipt = hit.PreparedContact!;

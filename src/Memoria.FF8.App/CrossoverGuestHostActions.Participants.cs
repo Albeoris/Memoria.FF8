@@ -27,7 +27,15 @@ internal sealed partial class CrossoverGuestHostActions
             CrossoverNativeForeignTarget foreign = ReadAbilityForeign(placement, slot);
             return foreign.ToActor(index) with { ReadGeometry = () => foreign.Anchors };
         }
-        return new(index, ReadAbilityTransform(placement, slot), ReadAbilityAnchor(placement, slot), (_, _) => throw new NotSupportedException("The host participant has no posed skeleton provider.")) { IsParty = true };
+        NativeBattleModuleAnchor anchor = ReadAbilityAnchor(placement, slot);
+        NativeBattleVector impact = new(anchor.X, anchor.Y, anchor.Z);
+        bool canReact = host.CanPresentGuestReaction(slot);
+        return new(index, ReadAbilityTransform(placement, slot), anchor, (selector, fraction) => CrossoverNativeForeignTarget.ReadSemanticBone(selector, fraction, impact, () => placement.ResolvePosition(host.GuestEffectTargetBone(slot, 0))))
+        {
+            IsParty = slot < 3,
+            CanReact = canReact,
+            AtStandingPose = canReact ? host.IsGuestTargetStanding(slot) : null
+        };
     }
 
     private CrossoverNativeForeignTarget ReadAbilityForeign(CrossoverGunbladeHostPlacement placement, int slot)

@@ -1,12 +1,18 @@
+using System.Collections.Immutable;
 using System.Numerics;
 
 namespace Memoria.FF7.Runtime;
 
-public sealed record Ff7BattleReflectedContact(int TargetSlot, Ff7BattleActionReceipt Receipt, Ff7BattleDamageAction Attack);
+public sealed record Ff7BattleReflectedContact(int TargetSlot, Ff7BattleActionReceipt Receipt, Ff7BattleDamageAction Attack)
+{
+    public bool Reflected { get; init; }
+    public ImmutableArray<Ff7BattleGuestCompositeReflection> Reflections { get; init; } = [];
+}
 
 public sealed partial class Ff7BattleSession
 {
     private sealed record ReflectionPlan(IReadOnlyList<Ff7BattleReflectedContact> Contacts, IReadOnlyDictionary<int, byte> Counts, ushort RemovedReflect);
+    private sealed record ReflectionPath(bool Reflected, ImmutableArray<Ff7BattleGuestCompositeReflection> Reflections);
 
     private ReflectionPlan? PrepareReflections(Ff7BattleQueuedCommand command, Ff7BattleGuestPhysicalHit description, Ff7BattleRng candidateRandom, bool guest, Ff7BattleActionVitals? sourceOverride = null)
     {
@@ -26,13 +32,16 @@ public sealed partial class Ff7BattleSession
         ushort permanentVisited = 0;
         List<Ff7BattleReflectedContact> contacts = [];
         SortedDictionary<int, ushort> pending = new() { [command.ActorSlot] = command.TargetMask };
+        Dictionary<(int Sender, int Target), ReflectionPath> pendingPaths = state.Actors.Where(actor => (command.TargetMask & (1 << actor.Actor.Slot)) != 0).ToDictionary(actor => (command.ActorSlot, actor.Actor.Slot), _ => new ReflectionPath(false, []));
         while (pending.Count != 0)
         {
             SortedDictionary<int, ushort> next = [];
+            Dictionary<(int Sender, int Target), ReflectionPath> nextPaths = [];
             foreach ((int sender, ushort targetMask) in pending)
             {
                 foreach (Ff7BattleActorState actor in state.Actors.Where(actor => (targetMask & (1 << actor.Actor.Slot)) != 0).OrderBy(actor => actor.Actor.Slot))
                 {
+                    ReflectionPath path = pendingPaths[(sender, actor.Actor.Slot)];
                     int slot = actor.Actor.Slot;
                     Ff7BattleActionVitals source = vitals[command.ActorSlot];
                     Ff7BattleActionVitals target = vitals[slot];
@@ -49,7 +58,7 @@ public sealed partial class Ff7BattleSession
                     ushort bit = (ushort)(1 << slot);
                     if (receipt.Damage.Missed || (target.Statuses & Ff7NativeBattleStatuses.Reflect) == 0 || (permanentVisited & bit) != 0)
                     {
-                        contacts.Add(new(slot, receipt, attack));
+                        contacts.Add(new(slot, receipt, attack) { Reflected = path.Reflected, Reflections = path.Reflections });
                         vitals[command.ActorSlot] = receipt.Source;
                         vitals[slot] = receipt.Target;
                         continue;
@@ -74,7 +83,7 @@ public sealed partial class Ff7BattleSession
                         recipient = BitOperations.TrailingZeroCount(candidates);
                         cachedRecipients[slot] = recipient;
                     }
-                    next[slot] = (ushort)(next.GetValueOrDefault(slot) | (1 << recipient));
+                    ImmutableArray<Ff7BattleGuestCompositeReflection> transitions = path.Reflections;
                     if ((target.StatusImmunities & Ff7NativeBattleStatuses.Reflect) != 0)
                     {
                         permanentVisited |= bit;
@@ -92,10 +101,18 @@ public sealed partial class Ff7BattleSession
                             remaining--;
                         }
                         counts[slot] = remaining;
+                        transitions = transitions.Add(new(slot, remaining, (exhausted & bit) != 0));
                     }
+                    next[slot] = (ushort)(next.GetValueOrDefault(slot) | (1 << recipient));
+                    if (nextPaths.TryGetValue((slot, recipient), out ReflectionPath? existingPath))
+                    {
+                        transitions = existingPath.Reflections.AddRange(transitions).GroupBy(value => value.Slot).Select(group => new Ff7BattleGuestCompositeReflection(group.Key, group.Min(value => value.Remaining), group.Any(value => value.Exhausted))).ToImmutableArray();
+                    }
+                    nextPaths[(slot, recipient)] = new(true, transitions);
                 }
             }
             pending = next;
+            pendingPaths = nextPaths;
         }
         return new(contacts, counts, exhausted);
     }

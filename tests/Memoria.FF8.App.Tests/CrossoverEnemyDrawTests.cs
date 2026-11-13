@@ -172,7 +172,7 @@ public sealed class CrossoverEnemyDrawTests
         Assert.Equal(spellId, active.DrawCast.Magic);
         Assert.InRange(active.DrawCast.Quantity, 1, 9);
         Assert.Equal(0, active.Invocation.TargetSlot);
-        Assert.Equal(grouped ? 2 : 0, active.GroupPrepared.Length);
+        Assert.Equal(grouped ? 2 : 1, active.CompositePrepared.Length);
         Assert.Null(active.StockAction);
         Ff7BattleSnapshot continuation = JsonSerializer.Deserialize<Ff7BattleSnapshot>(JsonSerializer.Serialize(host.Capture()))!;
         CrossoverGunbladeHostSnapshot caster = JsonSerializer.Deserialize<CrossoverGunbladeHostSnapshot>(JsonSerializer.Serialize(attack.Capture()))!;
@@ -183,7 +183,7 @@ public sealed class CrossoverEnemyDrawTests
         BindForeignGeometry();
         Assert.Null(actions.DescribeScriptInteraction(2, 0xE001, 4).DrawSourceSlot);
         host.BindGuestAttack(actions);
-        IReadOnlyList<Ff7BattleGuestPhysicalHit> preparedHits = grouped ? active.GroupPrepared : [active.Prepared];
+        IReadOnlyList<Ff7BattleGuestPhysicalHit> preparedHits = active.CompositePrepared.Select(contact => contact.HitDescription).ToArray();
         HashSet<int> healedTargets = [];
         bool effect = false;
         for (int tick = 0; tick < 1000 && actions.Invocation is not null; tick++)

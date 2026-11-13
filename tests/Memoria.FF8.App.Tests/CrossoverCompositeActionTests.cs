@@ -77,9 +77,9 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
         fixture.AssertSourceAvailability();
     }
 
-    private sealed record Result(ImmutableArray<Ff7BattleGuestCompositeContact> Contacts, string Random, string Actors, int VisualCallbacks);
+    internal sealed record Result(ImmutableArray<Ff7BattleGuestCompositeContact> Contacts, string Random, string Actors, int VisualCallbacks);
 
-    private sealed class Fixture : IDisposable
+    internal sealed class Fixture : IDisposable
     {
         private readonly GameAssets game;
         private readonly BattleAssets assets;
@@ -102,16 +102,18 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
         private readonly int row;
         private readonly byte crisis;
         private readonly bool separateLinkedRig;
+        private readonly CrossoverArenaSurfaceCapture? arenaCapture;
         private Ff7BattleSession host;
         private CrossoverGunbladeHostAttack attack = null!;
         private CrossoverGuestHostActions provider = null!;
 
-        public Fixture(string name, byte character, byte crisis, int? deadTarget = null)
+        public Fixture(string name, byte character, byte crisis, int? deadTarget = null, CrossoverArenaSurfaceCapture? arenaCapture = null)
         {
             string? ff8 = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
             string? ff7 = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
             Assert.SkipUnless(!string.IsNullOrWhiteSpace(ff8) && !string.IsNullOrWhiteSpace(ff7), "Select both original game installations.");
             this.crisis = crisis;
+            this.arenaCapture = arenaCapture;
             game = new(ff8!);
             assets = new(ff8!);
             if (character >= 6)
@@ -233,7 +235,7 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
             Assert.Contains(CrossoverGuestAbilityCatalog.Read(assets, origin, kit, learned, crisis), choice => choice.Key == ability.Key);
         }
 
-        public Result Execute(bool queuedRoundTrip = false)
+        public Result Execute(bool queuedRoundTrip = false, Action<Ff7BattleRenderer, Ff7BattleSession, CrossoverGuestHostActions>? observe = null)
         {
             Ff7BattleCommandOption option = Option();
             Assert.True(option.UnsupportedReason is null, option.UnsupportedReason);
@@ -265,6 +267,7 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
             {
                 host.Advance(waitForCommand: true);
                 Assert.True(host.GuestAbilityFailure is null, host.GuestAbilityFailure?.Reason);
+                observe?.Invoke(renderer, host, provider);
                 began |= provider.Invocation is not null;
                 if (host.Action?.GuestComposite is { } composite)
                 {
@@ -280,7 +283,7 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
                             int target = receipt.Invocation.TargetSlot;
                             if (projected.TryGetValue(target, out Ff7BattleActionVitals previous))
                             {
-                                Assert.Equal(previous, receipt.TargetBefore);
+                                Assert.Equal(previous with { OriginSavedStatuses = Ff7GuestBattleStatuses.ToOrigin(previous.Statuses, previous.OriginSavedStatuses) }, receipt.TargetBefore);
                             }
                             projected[target] = receipt.Receipt.Target;
                         }
@@ -379,7 +382,7 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
             provider.BindLimitProgress(learned);
             MethodInfo actorVisual = typeof(Ff7Scene).GetMethod("BattleActorVisual", BindingFlags.Static | BindingFlags.NonPublic)!;
             provider.BindForeignGeometry(slot => renderer.CaptureActorGeometry((Ff7BattleActorVisual)actorVisual.Invoke(null, [host, host.Actors.Single(actor => actor.Actor.Slot == slot)])!));
-            provider.BindArena(renderer.CaptureArenaGeometry);
+            provider.BindArena(renderer.CaptureArenaGeometry, arenaCapture is null ? null : arenaCapture.Resolve);
             host.BindGuestAttack(provider);
         }
 

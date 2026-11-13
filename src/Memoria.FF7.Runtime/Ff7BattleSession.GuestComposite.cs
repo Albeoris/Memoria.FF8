@@ -102,38 +102,33 @@ public sealed partial class Ff7BattleSession
             foreach ((int phaseIndex, int hit, ushort targets) in schedule)
             {
                 Ff7BattleGuestPhysicalHit phaseDescription = program.Phases[phaseIndex].Description;
-                foreach (int selected in state.Actors.Where(actor => (targets & (1 << actor.Actor.Slot)) != 0).Select(actor => actor.Actor.Slot).Order())
+                Ff7BattleActorState currentSource = Actor(command.ActorSlot);
+                Ff7BattleGuestPhysicalHit description = phaseDescription with { Source = phaseDescription.Source with { Statuses = currentSource.Actor.Statuses, CurrentHitPoints = currentSource.Actor.HitPoints, OriginSavedStatuses = GetOriginSavedStatuses(command.ActorSlot) } };
+                ReflectionPlan? reflection = PrepareReflections(command with { TargetMask = targets }, description, candidateRandom, true);
+                int[] selected = state.Actors.Where(actor => (targets & (1 << actor.Actor.Slot)) != 0).Select(actor => actor.Actor.Slot).Order().ToArray();
+                int count = reflection?.Contacts.Count ?? selected.Length;
+                for (int index = 0; index < count; index++)
                 {
-                    Ff7BattleActorState currentSource = Actor(command.ActorSlot);
-                    Ff7BattleGuestPhysicalHit description = phaseDescription with { Source = phaseDescription.Source with { Statuses = currentSource.Actor.Statuses, CurrentHitPoints = currentSource.Actor.HitPoints, OriginSavedStatuses = GetOriginSavedStatuses(command.ActorSlot) } };
-                    ReflectionPlan? reflection = PrepareReflections(command with { TargetMask = (ushort)(1 << selected) }, description, candidateRandom, true);
-                    ImmutableArray<Ff7BattleGuestCompositeReflection> reflections = reflection is null ? [] : reflection.Counts.Select(pair => new Ff7BattleGuestCompositeReflection(pair.Key, pair.Value, (reflection.RemovedReflect & (1 << pair.Key)) != 0)).ToImmutableArray();
-                    if (reflection is not null)
+                    Ff7BattleReflectedContact? reflected = reflection?.Contacts[index];
+                    ImmutableArray<Ff7BattleGuestCompositeReflection> reflections = reflected?.Reflections ?? [];
+                    ApplyGuestCompositeReflections(reflections);
+                    int slot = reflected?.TargetSlot ?? selected[index];
+                    Ff7BattleActorState source = Actor(command.ActorSlot);
+                    Ff7BattleActorState target = Actor(slot);
+                    Ff7BattleActionVitals sourceVitals = GuestItemVitals(source);
+                    Ff7BattleActionVitals targetVitals = GuestItemVitals(target) with { StatusImmunities = (slot >= 4 ? ~Enemy(slot).NativeStatusMask : 0) | target.StatusProtection };
+                    Ff7BattleDamageAction attack = reflected?.Attack ?? ProjectGuestOutgoingAttack(slot, description) with { Split = false };
+                    Ff7BattleDamageActor sourceStats = description.Source with { Statuses = source.Actor.Statuses, CurrentHitPoints = source.Actor.HitPoints, OriginSavedStatuses = sourceVitals.OriginSavedStatuses };
+                    Ff7BattleActionReceipt receipt = reflected?.Receipt ?? Ff7NativeBattleActionResolver.ResolveGuestContact(sourceStats, sourceVitals, Stats(target), targetVitals, attack, description.StatusRecord, candidateRandom, slot == command.ActorSlot, GetGuestProjection(slot)?.OriginStatusResistances, GetGuestBinding(slot) is null ? 0 : GetGuestOriginBattleStatuses(slot), GetGuestBinding(command.ActorSlot) is null ? (ushort)0 : GetGuestOriginSavedStatuses(command.ActorSlot), GetGuestBinding(slot) is null ? (ushort)0 : GetGuestOriginSavedStatuses(slot));
+                    receipt = Ff7NativeBattleActionResolver.ApplyPreparedGuestContact(sourceVitals, targetVitals, receipt, attack, slot == command.ActorSlot);
+                    Ff7BattleGuestPhysicalHit prepared = description with { Attack = attack, PreparedContact = new(invocation with { TargetSlot = slot }, sourceVitals, targetVitals, receipt) };
+                    contacts.Add(new(contacts.Count, phaseIndex, hit, prepared) { Reflected = reflected?.Reflected == true, Reflections = reflections });
+                    if (slot != command.ActorSlot)
                     {
-                        CommitReflections(reflection);
+                        Replace(source with { Actor = source.Actor with { HitPoints = receipt.Source.Hp, MagicPoints = receipt.Source.Mp, Statuses = receipt.Source.Statuses } });
                     }
-                    IReadOnlyList<Ff7BattleReflectedContact>? reflectedContacts = reflection?.Contacts;
-                    int count = reflectedContacts?.Count ?? 1;
-                    for (int index = 0; index < count; index++)
-                    {
-                        int slot = reflectedContacts?[index].TargetSlot ?? selected;
-                        Ff7BattleActorState source = Actor(command.ActorSlot);
-                        Ff7BattleActorState target = Actor(slot);
-                        Ff7BattleActionVitals sourceVitals = GuestItemVitals(source);
-                        Ff7BattleActionVitals targetVitals = GuestItemVitals(target) with { StatusImmunities = (slot >= 4 ? ~Enemy(slot).NativeStatusMask : 0) | target.StatusProtection };
-                        Ff7BattleDamageAction attack = reflectedContacts?[index].Attack ?? ProjectGuestOutgoingAttack(slot, description) with { Split = false };
-                        Ff7BattleDamageActor sourceStats = description.Source with { Statuses = source.Actor.Statuses, CurrentHitPoints = source.Actor.HitPoints, OriginSavedStatuses = sourceVitals.OriginSavedStatuses };
-                        Ff7BattleActionReceipt receipt = reflectedContacts?[index].Receipt ?? Ff7NativeBattleActionResolver.ResolveGuestContact(sourceStats, sourceVitals, Stats(target), targetVitals, attack, description.StatusRecord, candidateRandom, slot == command.ActorSlot, GetGuestProjection(slot)?.OriginStatusResistances, GetGuestBinding(slot) is null ? 0 : GetGuestOriginBattleStatuses(slot), GetGuestBinding(command.ActorSlot) is null ? (ushort)0 : GetGuestOriginSavedStatuses(command.ActorSlot), GetGuestBinding(slot) is null ? (ushort)0 : GetGuestOriginSavedStatuses(slot));
-                        receipt = Ff7NativeBattleActionResolver.ApplyPreparedGuestContact(sourceVitals, targetVitals, receipt, attack, slot == command.ActorSlot);
-                        Ff7BattleGuestPhysicalHit prepared = description with { Attack = attack, PreparedContact = new(invocation with { TargetSlot = slot }, sourceVitals, targetVitals, receipt) };
-                        contacts.Add(new(contacts.Count, phaseIndex, hit, prepared) { Reflected = reflection is not null, Reflections = index == 0 ? reflections : [] });
-                        if (slot != command.ActorSlot)
-                        {
-                            Replace(source with { Actor = source.Actor with { HitPoints = receipt.Source.Hp, MagicPoints = receipt.Source.Mp, Statuses = receipt.Source.Statuses } });
-                        }
-                        PublishHit(command, target, attack, receipt, runCounters: false);
-                        ApplyGuestOriginContact(slot, receipt);
-                    }
+                    PublishHit(command, target, attack, receipt, runCounters: false);
+                    ApplyGuestOriginContact(slot, receipt);
                 }
             }
             return contacts.ToImmutable();
@@ -173,11 +168,7 @@ public sealed partial class Ff7BattleSession
         foreach (int ordinal in ordinals)
         {
             Ff7BattleGuestCompositeContact contact = current.Contacts[ordinal];
-            foreach (Ff7BattleGuestCompositeReflection reflection in contact.Reflections)
-            {
-                Ff7BattleActorState reflector = Actor(reflection.Slot);
-                Replace(reflector with { ReflectionCount = reflection.Remaining, Actor = reflector.Actor with { Statuses = reflection.Exhausted ? reflector.Actor.Statuses & ~Ff7NativeBattleStatuses.Reflect : reflector.Actor.Statuses } });
-            }
+            ApplyGuestCompositeReflections(contact.Reflections);
             int target = contact.HitDescription.PreparedContact!.Invocation.TargetSlot;
             ApplyGuestHit(active.Command, target, contact.HitDescription);
             state = state with { DisplayedHit = state.LastHit };
@@ -198,6 +189,16 @@ public sealed partial class Ff7BattleSession
         else
         {
             state = state with { Action = active };
+        }
+    }
+
+    private void ApplyGuestCompositeReflections(ImmutableArray<Ff7BattleGuestCompositeReflection> reflections)
+    {
+        foreach (Ff7BattleGuestCompositeReflection reflection in reflections)
+        {
+            Ff7BattleActorState reflector = Actor(reflection.Slot);
+            byte remaining = Math.Min(reflector.ReflectionCount ?? (byte)3, reflection.Remaining);
+            Replace(reflector with { ReflectionCount = remaining, Actor = reflector.Actor with { Statuses = reflection.Exhausted ? reflector.Actor.Statuses & ~Ff7NativeBattleStatuses.Reflect : reflector.Actor.Statuses } });
         }
     }
 
