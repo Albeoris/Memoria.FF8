@@ -5,6 +5,56 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeShotInvocationTests
 {
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(1, 11)]
+    [InlineData(7, 1)]
+    public void ExpandedShotRetainsItsOriginalControlPhasesAndSelectedRecipientsAcrossJson(int shot, int expectedContacts)
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleDefinition definition = CreateBattle(game, assets, 2).ReadDefinition();
+        BattleCombatantDefinition irvine = definition.Combatants[0];
+        BattleCombatantDefinition enemy = definition.Combatants[1];
+        BattleSession battle = new(definition with
+        {
+            UsesExpandedRoster = true,
+            Items = [new(shot + 101, 2)],
+            Combatants =
+            [
+                .. Enumerable.Range(0, 10).Select(index => new BattleCombatantDefinition { Id = $"party-{index}", Name = $"Party {index}", ModelId = index, IsPlayer = true }),
+                irvine,
+                .. Enumerable.Range(0, 11).Select(index => enemy with { Id = $"enemy-{index}" })
+            ]
+        }, BattleAtbMode.TurnBased);
+        battle = BattleSession.Restore(battle.Capture() with { NativeLimits = [new("irvine", 4)] });
+        battle.QueueNativePlayerCommand("irvine", "enemy-10", 14, (ushort)shot);
+        Assert.Equal("enemy-10", battle.GetNativeShot("irvine")!.ExpandedTargetId);
+        Assert.Equal(2, Assert.Single(battle.Items).Count);
+        Until(battle, () => battle.GetNativeShot("irvine")?.Phase == BattleNativeShotPhase.Ready);
+        Assert.DoesNotContain(battle.Events, entry => entry.Kind == "EffectContact");
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        Assert.True(battle.TriggerNativeShot("irvine"));
+        Assert.True(restored.TriggerNativeShot("irvine"));
+        Assert.False(battle.TriggerNativeShot("irvine"));
+        for (int frame = 0; frame < BattleSession.AttackWindupFrames + 2; frame++)
+        {
+            battle.Tick();
+            restored.Tick();
+        }
+        Assert.Equal(BattleNativeShotPhase.Ready, battle.GetNativeShot("irvine")!.Phase);
+        Assert.Equal((byte)(1 << shot), battle.NativeScriptState.ShotFlagsSetMask);
+        Assert.Equal(1, Assert.Single(battle.Items).Count);
+        BattleEvent[] contacts = battle.Events.Where(entry => entry.Kind == "EffectContact" && entry.ActorId == "irvine").ToArray();
+        Assert.Equal(expectedContacts, contacts.Length);
+        Assert.Contains(contacts, contact => contact.TargetId == "enemy-10");
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        battle.EndNativeShot("irvine");
+        Until(battle, () => battle.GetNativeShot("irvine") is null);
+        Assert.Contains(battle.Events, entry => entry.Kind == "NativeLimitControl" && entry.Message == "Shot ended.");
+        Assert.False(Assert.Single(battle.Combatants, actor => actor.Id == "irvine").IsBusy);
+    }
+
     [Fact]
     public void Shot_timeout_queues_its_zero_damage_end_control_and_preserves_fractional_presentation_time()
     {

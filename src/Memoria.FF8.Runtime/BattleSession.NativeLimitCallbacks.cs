@@ -14,15 +14,15 @@ public sealed partial class BattleSession
     {
         foreach (BattleAttackCommand command in QueuedActions)
         {
-            ValidateNativeLimitCallback(command.ActorId, command.NativeLimitCallback);
+            ValidateNativeLimitCallback(command.ActorId, command.NativeLimitCallback, command.TargetId, command.NativeAction);
         }
         if (ActiveAction is { } active)
         {
-            ValidateNativeLimitCallback(active.ActorId, active.NativeLimitCallback);
+            ValidateNativeLimitCallback(active.ActorId, active.NativeLimitCallback, active.TargetId, active.NativeAction);
         }
     }
 
-    private void ValidateNativeLimitCallback(string actorId, NativeLimitCallback? callback)
+    private void ValidateNativeLimitCallback(string actorId, NativeLimitCallback? callback, string targetId, BattleNativeAction? action)
     {
         if (callback is not NativeLimitCallback value)
         {
@@ -30,7 +30,8 @@ public sealed partial class BattleSession
         }
         bool owned = value switch
         {
-            NativeLimitCallback.ShotOpening or NativeLimitCallback.ShotEffect or NativeLimitCallback.ShotEnding => nativeShotProcesses.ContainsKey(actorId),
+            NativeLimitCallback.ShotOpening or NativeLimitCallback.ShotEffect or NativeLimitCallback.ShotEnding => nativeShotProcesses.TryGetValue(actorId, out BattleNativeShotState? shot) &&
+                (!UsesExpandedRoster || shot.ExpandedTargetId == targetId && action?.ActionId == shot.ActionId && action.Command == (value == NativeLimitCallback.ShotOpening ? 14 : value == NativeLimitCallback.ShotEffect ? 237 : 238)),
             NativeLimitCallback.DuelOpening or NativeLimitCallback.DuelEffect or NativeLimitCallback.DuelFinisher => nativeDuelProcesses.ContainsKey(actorId),
             _ => false
         };

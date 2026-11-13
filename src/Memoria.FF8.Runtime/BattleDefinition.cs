@@ -793,6 +793,7 @@ public sealed partial class BattleCombatant
     }
     public bool IsBusy { get; internal set; }
     public bool IsAlive => IsActive && (BattleSession.NativeSavedStatusBits(this) & 1) == 0;
+    public bool IsEjected => (NativeStatus1 & 0x10000) != 0;
     public bool CanAct => BattleSession.CanNativeBattleActorAct(this);
     public bool IsReady => CanAct && !IsBusy && Atb == BattleSession.AtbMaximum;
 }

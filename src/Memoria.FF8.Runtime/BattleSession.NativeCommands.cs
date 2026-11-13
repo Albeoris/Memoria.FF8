@@ -86,6 +86,13 @@ public sealed partial class BattleSession
         BattleAbility ability = limits ? BattleAbility.LimitBreak : BattleAbility.NativeCommand;
         if (UsesExpandedRoster && limits)
         {
+            if (actor.NativeLimit?.Command == 14)
+            {
+                return choices.Where(IsExpandedShotAction).Select(action => ExpandedLimitDefinition(actor, action) with
+                {
+                    Available = nativeItems.Any(stock => stock.ItemId == action.ActionId + 101 && stock.Count != 0)
+                }).ToArray();
+            }
             return choices.Where(SupportsExpandedLimit).Select(action => ExpandedLimitDefinition(actor, action)).ToArray();
         }
         if (UsesExpandedRoster)
@@ -199,6 +206,12 @@ public sealed partial class BattleSession
         if (UsesExpandedRoster)
         {
             BattleNativeAction native = FindNativeCommandAction(actor, command, actionId, crisis);
+            if (limit && command == 14 && IsExpandedShotAction(native))
+            {
+                BeginNativeShot(actor, target, native, crisis!.Value);
+                OnNativePlayerCommandSubmitted(actor, command);
+                return;
+            }
             if (!limit && !SupportsExpandedOrdinaryCommand(native))
             {
                 throw new NotSupportedException("The equipped command requires a battle process outside the expanded host.");

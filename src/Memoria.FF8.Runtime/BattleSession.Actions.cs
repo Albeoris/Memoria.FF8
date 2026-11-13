@@ -24,6 +24,10 @@ public sealed partial class BattleSession
         RequireNoPendingSlotsDeal();
         RequireNativeEntryReady();
         RequireNormalGuardianFormCommands(actorId);
+        if (UsesExpandedRoster && nativeShotProcesses.Count != 0)
+        {
+            throw new InvalidOperationException("The active Shot process owns player command input.");
+        }
         if (magicTargets is not null && ability != BattleAbility.Magic)
         {
             throw new InvalidOperationException("Only a native Magic command can retain several cast targets.");

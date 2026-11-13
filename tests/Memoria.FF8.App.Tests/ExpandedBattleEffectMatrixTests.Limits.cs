@@ -7,9 +7,10 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed partial class ExpandedBattleEffectMatrixTests
 {
-    internal static (string Status, string Detail) RunExpandedLimit(string directory, GameState field, BattleNativeAction limit, ushort formation = 0, int? expectedContacts = null)
+    internal static (string Status, string Detail) RunExpandedLimit(string directory, GameState field, BattleNativeAction limit, ushort? formation = null, int? expectedContacts = null, bool? expectedEjection = null)
     {
-        using GameWorld world = StartBattle(directory, field, formation, limit: limit);
+        bool eject = (limit.Statuses1 & 0x10000) != 0;
+        using GameWorld world = StartBattle(directory, field, formation ?? (eject ? (ushort)22 : (ushort)0), limit: limit);
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         BattleCombatant caster = Assert.Single(battle.Combatants, actor => actor.IsPlayer && actor.ModelId == limit.CharacterId);
         for (int turn = 0; turn < 24 && (!caster.IsReady || battle.ActiveAction is not null); turn++)
@@ -46,6 +47,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         BattleCombatant[] recipients = hud.SelectingTargetGroup ? hud.Targets.ToArray() : [target];
         Dictionary<string, int> priorHp = recipients.ToDictionary(actor => actor.Id, actor => actor.CurrentHp);
         int missingCasterHp = caster.MaximumHp - caster.CurrentHp;
+        ushort priorKills = caster.NativeKillCount;
         int start = battle.Events.Count;
         hud.Attack();
 
@@ -56,7 +58,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         Assert.Equal(limit.Command, command.NativeQueuedCommand);
         Assert.Equal(limit.ActionId, command.NativeAction!.ActionId);
         NativeBattleEffectPresentation? presentation = null;
-        if (limit.KernelSection == 19 && limit.ActionId == 1 || command.NativeAction.HitCount > 1 || command.NativeAction.AttackType == 25)
+        if (limit.KernelSection == 19 && limit.ActionId == 1 || command.NativeAction.HitCount > 1 || command.NativeAction.AttackType == 25 || eject)
         {
             BattleSnapshot queued = JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!;
             BattleSession restored = BattleSession.Restore(queued);
@@ -112,6 +114,29 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                 Assert.Equal(Math.Min(recipient.MaximumHp, priorHp[recipient.Id] + missingCasterHp), recipient.CurrentHp);
             }
         }
+        if (expectedEjection.HasValue || eject && formation is null)
+        {
+            bool ejected = expectedEjection ?? true;
+            Assert.Equal(ejected, target.IsEjected);
+            Assert.Equal(!ejected, target.IsAlive);
+            Assert.True(target.IsActive);
+            Assert.NotNull(target.Slot);
+            Assert.Equal(ejected ? 0 : priorHp[target.Id], target.CurrentHp);
+            Assert.Equal(ejected ? unchecked((ushort)(priorKills + 1)) : priorKills, caster.NativeKillCount);
+            if (ejected)
+            {
+                BattleEnemyDefeat defeat = Assert.Single(battle.EnemyDefeats, entry => entry.AllocationId == target.Id);
+                Assert.Equal(command.NativeQueuedCommand, defeat.NativeCommand);
+                Assert.False(battle.Capture().Combatants.Single(actor => actor.Id == target.Id).NativeParticipant!.DeathHandled);
+                BattleModel model = world.BattleResources.LoadEnemy(target.ModelId);
+                BattleAnimationPresentation animation = new(model, model.Sequences, battle.GetCombatantDefinition(target.Id));
+                Assert.Equal(0f, animation.Sample(battle, target, default, default).Opacity);
+            }
+            else
+            {
+                Assert.DoesNotContain(battle.EnemyDefeats, entry => entry.AllocationId == target.Id);
+            }
+        }
         Assert.True(presentation is null || presentation.Complete);
         return (presentation is null ? "logical" : "native", $"{limit.Name} used its installed Limit row for {contacts.Length} recipient(s).");
     }
@@ -122,7 +147,7 @@ public sealed class ExpandedBattleLimitTests
     [Theory]
     [InlineData(19, 0, "native")]
     [InlineData(19, 1, "logical")]
-    [InlineData(19, 4, "blocked")]
+    [InlineData(19, 4, "logical")]
     [InlineData(19, 11, "logical")]
     [InlineData(18, 0, "logical")]
     [InlineData(18, 3, "logical")]
@@ -145,6 +170,17 @@ public sealed class ExpandedBattleLimitTests
         GameState field = ExpandedBattleEffectMatrixTests.PrepareField(directory);
         field = field with { GameplayPreferences = field.GameplayPreferences with { Tuning = field.GameplayPreferences.Tuning with { MaximumDamage = 1 } } };
         (string status, _) = ExpandedBattleEffectMatrixTests.RunExpandedLimit(directory, field, limit, formation: 89, expectedContacts: 6);
+        Assert.Equal("logical", status);
+    }
+
+    [Fact]
+    public void InstalledDegeneratorRetainsEjectImmuneEnemy()
+    {
+        string directory = TestResources.GameDirectory;
+        using BattleAssets assets = new(directory);
+        BattleNativeAction limit = Assert.Single(assets.NativeActions, action => action.KernelSection == 19 && action.KernelIndex == 4 && action.CrisisLevel == 4);
+        Assert.Equal((byte)255, assets.ReadEnemyNativeStatusData(56).Resistances[24]);
+        (string status, _) = ExpandedBattleEffectMatrixTests.RunExpandedLimit(directory, ExpandedBattleEffectMatrixTests.PrepareField(directory), limit, formation: 238, expectedEjection: false);
         Assert.Equal("logical", status);
     }
 }

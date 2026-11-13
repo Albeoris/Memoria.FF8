@@ -13,6 +13,8 @@ public sealed record BattleNativeShotState(byte ActionId, ushort TargetMask, sho
     public long UiSubframeTicks { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public BattleTimedInputUi? Ui { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ExpandedTargetId { get; init; }
 }
 
 public sealed partial class BattleSession
@@ -54,13 +56,31 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Shot invocation requires one process and all four original kernel29 timers.");
         }
-        NativeItemStock ammo = nativeItems.First(stock => stock.ItemId == action.ActionId + 101 && stock.Count != 0);
+        NativeItemStock? ammo = nativeItems.FirstOrDefault(stock => stock.ItemId == action.ActionId + 101 && stock.Count != 0);
+        if (ammo is null)
+        {
+            throw new InvalidOperationException("The selected Shot ammunition is exhausted.");
+        }
         short timer = (short)(4 * actor.NativeLimit.ShotTimers[crisis - 1]);
         if (timer == 0)
         {
             throw new InvalidDataException("Original Shot timer cannot be zero.");
         }
         byte flags = (action.TargetFlags!.Value & 0x10) != 0 ? (byte)0x50 : (byte)0x40;
+        if (UsesExpandedRoster)
+        {
+            if (!CanSelectExpandedShotTarget(target) || definition.NativeShotAvailability is null)
+            {
+                throw new InvalidOperationException("Shot requires a living enemy and its installed ammunition owner.");
+            }
+            QueueExpandedShot(actor, target.Id, action, NativeLimitCallback.ShotOpening);
+            nativeShotProcesses.Add(actor.Id, new((byte)action.ActionId, 0, timer, timer, ammo.Count, BattleNativeShotPhase.Opening)
+            {
+                ExpandedTargetId = target.Id,
+                Ui = new(BattleTimedInputUiPhase.Opening)
+            });
+            return;
+        }
         ushort mask = NativeBattleLimitRules.PlayerTargetMask(flags, target.EncodeNativeSlot());
         QueueNativeCommand(actor, 14, action.ActionId, 0, mask, crisis, NativeLimitCallback.ShotOpening, playerInput: true);
         nativeShotProcesses.Add(actor.Id, new((byte)action.ActionId, mask, timer, timer, ammo.Count, BattleNativeShotPhase.Opening) { Ui = new(BattleTimedInputUiPhase.Opening) });
@@ -128,9 +148,21 @@ public sealed partial class BattleSession
         }
         BattleNativeAction action = FindInstalledNativeAction(237, state.ActionId);
         ValidateNativeActionContract(action);
+        if (UsesExpandedRoster && !enemies.Any(CanSelectExpandedShotTarget))
+        {
+            EndNativeShot(actorId);
+            return false;
+        }
         _ = ConsumeNativeItem(state.ActionId + 101);
         nativeShotProcesses[actorId] = state with { RemainingAmmo = (byte)(state.RemainingAmmo - 1), Phase = BattleNativeShotPhase.AwaitingEffect };
-        QueueNativeCommand(actor, 237, state.ActionId, 0, state.TargetMask, callback: NativeLimitCallback.ShotEffect, playerInput: true);
+        if (UsesExpandedRoster)
+        {
+            QueueExpandedShot(actor, state.ExpandedTargetId!, action, NativeLimitCallback.ShotEffect);
+        }
+        else
+        {
+            QueueNativeCommand(actor, 237, state.ActionId, 0, state.TargetMask, callback: NativeLimitCallback.ShotEffect, playerInput: true);
+        }
         return true;
     }
 
@@ -140,9 +172,17 @@ public sealed partial class BattleSession
         {
             return;
         }
-        ValidateNativeActionContract(FindInstalledNativeAction(238, state.ActionId));
+        BattleNativeAction ending = FindInstalledNativeAction(238, state.ActionId);
+        ValidateNativeActionContract(ending);
         nativeShotProcesses[actorId] = state with { Phase = BattleNativeShotPhase.Ending, RemainingTimer = -1, Ui = new(BattleTimedInputUiPhase.Closing) };
-        QueueNativeCommand(GetActor(actorId), 238, state.ActionId, 0, 0x80F8, callback: NativeLimitCallback.ShotEnding, playerInput: true);
+        if (UsesExpandedRoster)
+        {
+            QueueExpandedShot(GetActor(actorId), state.ExpandedTargetId!, ending, NativeLimitCallback.ShotEnding);
+        }
+        else
+        {
+            QueueNativeCommand(GetActor(actorId), 238, state.ActionId, 0, 0x80F8, callback: NativeLimitCallback.ShotEnding, playerInput: true);
+        }
     }
 
     private bool CompleteNativeShotAction(BattleActionPresentation action)
@@ -160,7 +200,13 @@ public sealed partial class BattleSession
         //TODO(TD-009): Graphicsless components project48D1A0/4AD7C0 at action completion; native descriptors own raw readiness. The remaining zero-ammo widget close still uses this completion boundary.
         if (action.NativeLimitCallback is NativeLimitCallback.ShotOpening or NativeLimitCallback.ShotEffect && state.Phase != BattleNativeShotPhase.Ending)
         {
-            if (state.RemainingAmmo == 0)
+            if (UsesExpandedRoster && !enemies.Any(CanSelectExpandedShotTarget))
+            {
+                // A control opening can finish after an already queued action defeated its final recipient.
+                nativeShotProcesses[action.ActorId] = state with { Phase = BattleNativeShotPhase.Ready };
+                EndNativeShot(action.ActorId);
+            }
+            else if (state.RemainingAmmo == 0)
             {
                 EndNativeShot(action.ActorId);
             }
@@ -175,6 +221,16 @@ public sealed partial class BattleSession
     private void RestoreNativeShot(string actorId, byte crisis, BattleNativeShotState state)
     {
         BattleCombatant actor = GetActor(actorId);
+        if (UsesExpandedRoster
+            ? state.TargetMask != 0 || state.ExpandedTargetId is not string targetId || !byId.TryGetValue(targetId, out BattleCombatant? target) || target.IsPlayer
+            : state.ExpandedTargetId is not null)
+        {
+            throw new InvalidDataException("Saved Shot process lacks its original host's target owner.");
+        }
+        if (UsesExpandedRoster && nativeItems.Where(stock => stock.ItemId == state.ActionId + 101).Sum(stock => stock.Count) != state.RemainingAmmo)
+        {
+            throw new InvalidDataException("Saved expanded Shot ammunition differs from its inventory owner.");
+        }
         if (Outcome != BattleOutcome.Active || !actor.IsAlive || actor.NativeLimit is not { Command: 14 } rules || rules.ShotTimers.IsDefault || rules.ShotTimers.Length != 4 || crisis == 0 || state.ActionId >= 8 || state.InitialTimer != 4 * rules.ShotTimers[crisis - 1] || state.InitialTimer == 0 || state.RemainingTimer < -1 || state.RemainingTimer > state.InitialTimer || state.RemainingAmmo > 100 || state.UiSubframeTicks is < 0 or >= TimeSpan.TicksPerSecond || !Enum.IsDefined(state.Phase) || state.Phase == BattleNativeShotPhase.Ready && state.RemainingTimer <= 0)
         {
             string timers = actor.NativeLimit is { } limit && !limit.ShotTimers.IsDefault ? string.Join("/", limit.ShotTimers) : "missing";
@@ -184,5 +240,70 @@ public sealed partial class BattleSession
         actor.IsBusy = true;
         NativeLimitCallback? expected = state.Phase switch { BattleNativeShotPhase.Opening => NativeLimitCallback.ShotOpening, BattleNativeShotPhase.AwaitingEffect => NativeLimitCallback.ShotEffect, BattleNativeShotPhase.Ending => NativeLimitCallback.ShotEnding, _ => null };
         RequireNativeLimitCallback(actorId, expected);
+    }
+
+    private static bool IsExpandedShotAction(BattleNativeAction? action)
+    {
+        return action is { Command: 14 or 237 or 238, KernelSection: 21, HitCount: 1, AttackType: 1 or 36, TargetFlags: byte flags } &&
+            (flags & 0x70) is 0x40 or 0x50;
+    }
+
+    private static bool IsShotCallback(NativeLimitCallback? callback)
+    {
+        return callback is NativeLimitCallback.ShotOpening or NativeLimitCallback.ShotEffect or NativeLimitCallback.ShotEnding;
+    }
+
+    private static bool CanSelectExpandedShotTarget(BattleCombatant actor)
+    {
+        return !actor.IsPlayer && actor.IsAlive && !actor.Untargetable;
+    }
+
+    private void QueueExpandedShot(BattleCombatant actor, string targetId, BattleNativeAction action, NativeLimitCallback callback)
+    {
+        actions.Enqueue(new(actor.Id, targetId, BattleAbility.LimitBreak, action.Command << 16 | action.ActionId)
+        {
+            NativeAction = action,
+            NativeQueuedCommand = action.Command,
+            NativeLimitCallback = callback
+        });
+        actor.Atb = 0;
+        actor.IsBusy = true;
+        Log("Queued", actor.Id, targetId, 0, $"{actor.Name}: {action.Name} queued.");
+    }
+
+    private BattleCombatant[] ExpandedShotTargets(BattleCombatant original, BattleNativeAction shot)
+    {
+        if ((shot.TargetFlags!.Value & 0x10) == 0)
+        {
+            return enemies.Where(CanSelectExpandedShotTarget).ToArray();
+        }
+        if (CanSelectExpandedShotTarget(original))
+        {
+            return [original];
+        }
+        // The original single-target mask searches higher rows before lower rows when its target is gone.
+        BattleCombatant? replacement = enemies.Where(CanSelectExpandedShotTarget)
+            .OrderBy(candidate => candidate.Slot!.Value.Position < original.Slot!.Value.Position)
+            .ThenBy(candidate => Math.Abs(candidate.Slot!.Value.Position - original.Slot!.Value.Position))
+            .FirstOrDefault();
+        return replacement is null ? [] : [replacement];
+    }
+
+    private void ReconcileExpandedShot()
+    {
+        if (!UsesExpandedRoster || nativeShotProcesses.Count == 0)
+        {
+            return;
+        }
+        (string actorId, BattleNativeShotState state) = nativeShotProcesses.Single();
+        if (!CanNativeBattleActorAct(GetActor(actorId)))
+        {
+            nativeShotProcesses.Remove(actorId);
+            nativeLimitLevels.Remove(actorId);
+        }
+        else if (state.Phase == BattleNativeShotPhase.Ready && !enemies.Any(CanSelectExpandedShotTarget))
+        {
+            EndNativeShot(actorId);
+        }
     }
 }

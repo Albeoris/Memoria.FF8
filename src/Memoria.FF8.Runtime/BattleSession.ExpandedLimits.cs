@@ -5,7 +5,7 @@ public sealed partial class BattleSession
     public bool SupportsPlayerLimitSelection(string actorId)
     {
         BattleCombatant actor = GetActor(actorId);
-        return actor.NativeLimit is { } limit && (!UsesExpandedRoster || limit.Command == 15 ||
+        return actor.NativeLimit is { } limit && (!UsesExpandedRoster || limit.Command is 14 or 15 ||
             actor.ModelId is >= 6 and <= 10 && SupportsExpandedLimit(FindInstalledNativeAction(limit.Command, NativeBattleLimitRules.GuestActionId(actor.ModelId))));
     }
 
@@ -13,7 +13,8 @@ public sealed partial class BattleSession
     {
         // Commands that require another invocation process never enter this route.
         return action.KernelSection is 18 or 19 && action.HitCount > 0 && action.TargetFlags is byte flags && (flags & 0xB3) is 0 or 0x10 &&
-            (action.AttackType == 1 || action.HitCount == 1 && action.AttackType is 2 or 8 or 25 or 26) && (action.Statuses1 & 0x10000) == 0;
+            (action.AttackType == 1 || action.HitCount == 1 && action.AttackType is 2 or 8 or 25 or 26) &&
+            ((action.Statuses1 & 0x10000) == 0 || action is { KernelSection: 19, AttackType: 2, Power: 0, HitCount: 1, Statuses0: 0, Statuses1: 0x10000 } && (flags & 0x70) == 0x50);
     }
 
     private bool CanPresentExpandedLimit(BattleNativeAction action, int recipients)
@@ -23,6 +24,11 @@ public sealed partial class BattleSession
 
     private static BattleActionDefinition ExpandedLimitDefinition(BattleCombatant actor, BattleNativeAction native)
     {
+        if (actor.NativeLimit?.Command == 14 && IsExpandedShotAction(native))
+        {
+            byte flags = (native.TargetFlags!.Value & 0x10) != 0 ? (byte)0x50 : (byte)0x40;
+            return CreateNativePlayerActionChoice(BattleAbility.LimitBreak, native, flags, native.Name);
+        }
         if (actor.NativeLimit?.Command != native.Command || !SupportsExpandedLimit(native))
         {
             throw new NotSupportedException("The expanded battle cannot execute this Limit's native invocation or contact contract.");

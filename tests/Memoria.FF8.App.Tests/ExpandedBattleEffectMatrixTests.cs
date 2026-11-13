@@ -100,6 +100,11 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                         firstBlockerStage = "limit-admission";
                     }
                 }
+                else if (mappings.FirstOrDefault(action => action is { KernelSection: 21, Command: 237 }) is { } shot)
+                {
+                    firstBlockerStage = "shot-execution";
+                    (status, detail) = RunExpandedShot(directory, field, assets, shot);
+                }
                 else if (mappings.FirstOrDefault(action => action.KernelSection == 10 && action.Command is 23 or 24 or 25 or 26 or 27 or 32 or 33 or 34) is { } equipped)
                 {
                     firstBlockerStage = "command-execution";

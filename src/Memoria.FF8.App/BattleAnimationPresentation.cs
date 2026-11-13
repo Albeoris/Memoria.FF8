@@ -31,6 +31,11 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
             int index = graphics.ActorIds.IndexOf(actor.Id);
             return index < 0 ? new BattleAnimationSample(0, 0, Vector3.Zero, 0) : SampleNativeModel(graphics.Models[index]);
         }
+        if (session.UsesExpandedRoster && !actor.IsPlayer && actor.IsEjected)
+        {
+            // Native enemy Eject removes the model while retaining the battle slot and status.
+            return new BattleAnimationSample(0, 0, Vector3.Zero, 0);
+        }
         idleOriginFrame ??= session.Frame - frames;
         if (sequences is null)
         {

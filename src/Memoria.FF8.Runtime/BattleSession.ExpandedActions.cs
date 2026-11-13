@@ -67,7 +67,7 @@ public sealed partial class BattleSession
 
     private void StartExpandedAction(BattleCombatant actor, BattleAttackCommand command)
     {
-        if (!CanExecuteExpandedAction(actor, command.NativeAiCallbackStage, command.AiRecipients) || !CanExecuteMagicReservation(actor, command) || ExpandedActionTargets(actor, command.TargetId, command.Ability, command.ActionId, command.AiRecipients, command.NativeAction).Length == 0)
+        if (!CanExecuteExpandedAction(actor, command.NativeAiCallbackStage, command.AiRecipients) || !CanExecuteMagicReservation(actor, command) || !IsShotCallback(command.NativeLimitCallback) && ExpandedActionTargets(actor, command.TargetId, command.Ability, command.ActionId, command.AiRecipients, command.NativeAction).Length == 0)
         {
             RefundCancelledNativeItem(command);
             actor.IsBusy = false;
@@ -144,6 +144,12 @@ public sealed partial class BattleSession
             return;
         }
         BattleCombatant target = GetActor(command.TargetId);
+        if (command.NativeLimitCallback is NativeLimitCallback.ShotOpening or NativeLimitCallback.ShotEnding)
+        {
+            Log("NativeLimitControl", actor.Id, target.Id, 0, command.NativeLimitCallback == NativeLimitCallback.ShotOpening ? "Shot started." : "Shot ended.");
+            CompleteActionPresentation(command, "Shot control completed.");
+            return;
+        }
         BattleCombatant[] recipients = ExpandedActionTargets(actor, command.TargetId, command.Ability, command.ActionId, command.AiRecipients, command.NativeAction);
         if (!CanExecuteExpandedAction(actor, command.NativeAiCallbackStage, command.AiRecipients) || !CanExecuteMagicReservation(actor, new(command.ActorId, command.TargetId, command.Ability, command.ActionId) { MagicReservationId = command.MagicReservationId }) || recipients.Length == 0 ||
             (command.Ability == BattleAbility.Magic || command.NativeAction?.Command == 2) && (NativeSavedStatusBits(actor) & 0x10) != 0)
@@ -245,6 +251,14 @@ public sealed partial class BattleSession
         nativeActionCommitDepth++;
         try
         {
+            if (command.NativeLimitCallback == NativeLimitCallback.ShotEffect)
+            {
+                PrepareNativeLimitCommand(new(command.ActorId, command.TargetId, command.Ability, command.ActionId)
+                {
+                    NativeQueuedCommand = command.NativeQueuedCommand,
+                    NativeAction = native
+                });
+            }
             if (phoenixPinion)
             {
                 SetNativeSavedBattleFlag(4);
@@ -427,6 +441,10 @@ public sealed partial class BattleSession
             return CurrentExpandedAiTargets(aiRecipients);
         }
         BattleCombatant target = GetActor(targetId);
+        if (ability == BattleAbility.LimitBreak && IsExpandedShotAction(native))
+        {
+            return native!.Command is 14 or 238 ? [target] : ExpandedShotTargets(target, native);
+        }
         if (ability is BattleAbility.Attack or BattleAbility.Draw)
         {
             return target.IsActive && target.IsAlive && !target.Untargetable ? [target] : [];
