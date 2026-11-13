@@ -85,11 +85,13 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         int before = battle.Events.Count;
         BattleActionPresentation? cast = null;
         NativeBattleEffectPresentation? presentation = null;
+        HashSet<string>? recipientsAtFirstContact = null;
         for (int turn = 0; turn < 24 && battle.Outcome == BattleOutcome.Active; turn++)
         {
             world.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
             for (int frame = 0; frame < 30 && battle.Outcome == BattleOutcome.Active; frame++)
             {
+                HashSet<string> eligibleBeforeContact = battle.Combatants.Where(actor => actor.IsActive && actor.IsAlive && !actor.Untargetable && (actor.PersistentStatus & 5) == 0).Select(actor => actor.Id).ToHashSet(StringComparer.Ordinal);
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
                 BattleActionPresentation? active = battle.ActiveAction;
                 if (cast is null && active is { Ability: BattleAbility.EnemyAbility, NativeAction: { } native, AiRecipients: not null }
@@ -114,6 +116,10 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                 }
 
                 BattleEvent[] events = battle.Events.Skip(before).Where(entry => entry.ActorId == cast.ActorId).ToArray();
+                if (events.Any(entry => entry.Kind == "EffectContact" && entry.Ability == BattleAbility.EnemyAbility))
+                {
+                    recipientsAtFirstContact ??= eligibleBeforeContact;
+                }
                 if (!events.Any(entry => entry.Kind == "ActionComplete"))
                 {
                     continue;
@@ -126,10 +132,12 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                     // The ordinary runtime can cancel if its original recipients become ineligible during windup.
                     cast = null;
                     presentation = null;
+                    recipientsAtFirstContact = null;
                     before = battle.Events.Count;
                     continue;
                 }
-                Assert.Equal(cast.AiRecipients!.ActorIds.Order(), contacts.Select(entry => entry.TargetId).Order());
+                Assert.NotNull(recipientsAtFirstContact);
+                Assert.Equal(cast.AiRecipients!.ActorIds.Where(recipientsAtFirstContact.Contains).Order(), contacts.Select(entry => entry.TargetId).Order());
                 Assert.True(presentation is null || presentation.Complete);
                 BattleCombatant actor = Assert.Single(battle.Combatants, candidate => candidate.Id == cast.ActorId);
                 return (presentation is null ? "logical" : "native", $"c0m{actor.ModelId:D3} {actor.Id}, callback {cast.NativeAiCallbackStage}, command {cast.NativeQueuedCommand}/{cast.ActionId}, sequence {cast.NativeSequence}, {contacts.Length} recipient(s)");

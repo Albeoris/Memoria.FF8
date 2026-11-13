@@ -144,6 +144,8 @@ public sealed record BattleCombatantDefinition
     public ushort? NativeDeathCount { get; init; }
     public uint NativeStatus1 { get; init; }
     public byte[] NativeStatusResistances { get; init; } = [];
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public System.Collections.Immutable.ImmutableArray<int>? ExpandedEnemyBaseStatistics { get; init; }
 }
 
 public sealed record BattleDefinition
@@ -704,7 +706,7 @@ public sealed partial class BattleCombatant
         {
             throw new NotSupportedException("Native battle AI statistic multiplier requires one of the six enemy statistic rows.");
         }
-        if (definition.NativeTemplate is not { } template || template.Levels[Level].BaseStatistics.Length != 6)
+        if (definition.ExpandedEnemyBaseStatistics is not { Length: 6 } && definition.NativeTemplate?.Levels[Level].BaseStatistics.Length != 6)
         {
             throw new NotSupportedException("Native battle AI statistic multiplier requires the original six pre-byte statistic values.");
         }
@@ -714,11 +716,12 @@ public sealed partial class BattleCombatant
     private int ScaleNativeStat(int index, int projected)
     {
         int[]? originalStats = definition.NativeTemplate?.Levels[Level].BaseStatistics;
-        if (NativeStatMultipliers[index] == 10 && originalStats is not { Length: 6 })
+        System.Collections.Immutable.ImmutableArray<int>? expandedStats = definition.ExpandedEnemyBaseStatistics;
+        if (NativeStatMultipliers[index] == 10 && originalStats is not { Length: 6 } && expandedStats is null)
         {
             return projected;
         }
-        int original = originalStats is { Length: 6 } ? originalStats[index] : projected;
+        int original = expandedStats is { Length: 6 } expanded ? expanded[index] : originalStats is { Length: 6 } ? originalStats[index] : projected;
         //48C1C0 multiplies the signed495930 result, divides by10, then caps and writes its lowBYTE.
         return unchecked((byte)Math.Min(255, original * NativeStatMultipliers[index] / 10));
     }

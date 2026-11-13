@@ -1193,6 +1193,10 @@ public sealed partial class BattleSession
         foreach (BattleCombatantDefinition actor in source.Combatants)
         {
             ValidateNativeAi(actor, enemySlotCount);
+            if (actor.ExpandedEnemyBaseStatistics is { } baseStatistics && (!source.UsesExpandedRoster || actor.IsPlayer || baseStatistics.Length != 6))
+            {
+                throw new InvalidDataException("Expanded enemy statistics require exactly six original values on an expanded enemy.");
+            }
             if (actor.Luck is < 0 or > 255 || actor.Hit is < 0 or > 255 || actor.Evasion is < 0 or > 255)
             {
                 throw new ArgumentException("Native hit, luck and evasion statistics require their BYTE widths.");

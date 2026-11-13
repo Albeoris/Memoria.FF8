@@ -76,13 +76,24 @@ public sealed class ExpandedBattleAiTests
         Assert.Equal(ExpandedAiAdmission.RequiresUnsupportedService, NativeBattleExpandedAi.Evaluate(Ai([14, 96, 0, 0]), [Physical], 0));
     }
 
+    [Fact]
+    public void EnemyStatisticOpcodeUsesOriginalSignedOperandAfterRestore()
+    {
+        BattleSession battle = Start([40, 0, 20, 0], 11, 11);
+        BattleCombatant enemy = Assert.Single(battle.Combatants, actor => actor.Id == "enemy-4");
+        Assert.Equal(216, enemy.Attack);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
+        Assert.Equal(216, Assert.Single(restored.Combatants, actor => actor.Id == "enemy-4").Attack);
+    }
+
     private static BattleSession Start(byte[] turn, int allyCount, int enemyCount, byte seed = 0)
     {
         BattleCombatantDefinition[] allies = Enumerable.Range(0, allyCount).Select(i => new BattleCombatantDefinition { Id = $"ally-{i}", Name = $"Ally {i}", IsPlayer = true, ModelId = i, CurrentHp = 100 + i, MaximumHp = 100 + i, Speed = 1 }).ToArray();
         BattleCombatantDefinition[] enemies = Enumerable.Range(0, enemyCount).Select(i => new BattleCombatantDefinition
         {
             Id = $"enemy-{i}", Name = $"Enemy {i}", ModelId = 28, Level = 10, CurrentHp = 100, MaximumHp = 100, Speed = 1, Attack = 30,
-            InitialAtb = i == 4 ? BattleSession.AtbMaximum : 0, NativeAi = i == 4 ? Ai(turn) : null
+            InitialAtb = i == 4 ? BattleSession.AtbMaximum : 0, NativeAi = i == 4 ? Ai(turn) : null,
+            ExpandedEnemyBaseStatistics = turn[0] == 40 ? [-20, 0, 0, 0, 1, 0] : null
         }).ToArray();
         BattleSession battle = new(new() { UsesExpandedRoster = true, Combatants = [.. allies, .. enemies], NativeActions = [Physical], NativeSeed = seed }, BattleAtbMode.Normal);
         battle.Tick();
