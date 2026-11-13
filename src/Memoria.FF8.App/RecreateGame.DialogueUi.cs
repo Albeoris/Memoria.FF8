@@ -105,7 +105,6 @@ internal sealed partial class RecreateGame
                 presentation.Pager.UpdatePopup(elapsed, presentation.Pages, DialoguePager.CharactersPerSecond(uiPreferences.FieldMessageSpeed));
             }
         }
-        SynchronizeFieldVoices();
     }
 
     private void SynchronizeFieldVoices()

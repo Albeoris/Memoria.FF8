@@ -603,6 +603,10 @@ internal sealed partial class RecreateGame : Game
                 fieldSeconds = 0;
                 return;
             }
+            if (world?.HasCurrentFieldAllocation == true)
+            {
+                UpdateDialoguePages(gameTime.ElapsedGameTime);
+            }
             session.SetMoviePlayback(movie.Playback);
             session.SetMoviePosition(movie.PositionSeconds);
             if (movie.Error is string playbackError)
@@ -679,6 +683,7 @@ internal sealed partial class RecreateGame : Game
                 world.Apply(new PlayerAction(PlayerActionKind.FieldButtons, fieldButtons));
             }
             UpdateDialoguePages(elapsed);
+            SynchronizeFieldVoices();
             DialogueState? dialogue = events!.CurrentDialogue;
             NativeLimitProgress? previousLimits = session.State.LimitProgress;
             if (dialogue != presentedDialogue)
@@ -838,6 +843,7 @@ internal sealed partial class RecreateGame : Game
             locationMovement.Observe(world.WorldScene!, elapsed, false);
             input = locationMovement.Filter(input);
             UpdateDialoguePages(elapsed);
+            SynchronizeFieldVoices();
             DialogueState? dialogue = world.CurrentDialogue;
             if (dialogue != presentedDialogue)
             {
