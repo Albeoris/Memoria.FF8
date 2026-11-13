@@ -4,14 +4,20 @@ namespace Memoria.FF7.Runtime;
 
 public static class Ff7NativeBattleStatuses
 {
+    public const uint Confusion = 0x40;
     public const uint Silence = 0x80;
+    public const uint SlowNumb = 0x2000;
+    public const uint Regen = 0x8000;
     public const uint Barrier = 0x10000;
     public const uint MagicBarrier = 0x20000;
+    public const uint Reflect = 0x40000;
     public const uint Shield = 0x100000;
+    public const uint DeathSentence = 0x200000;
+    public const uint Peerless = 0x1000000;
     public const uint DeathForce = 0x10000000;
     public const uint Resist = 0x20000000;
     public const uint Imprisoned = 0x80000000;
-    public const uint SupportedRecordStatuses = Silence | Barrier | MagicBarrier | Shield | DeathForce | Resist | Imprisoned;
+    public const uint SupportedRecordStatuses = Confusion | Silence | SlowNumb | Regen | Barrier | MagicBarrier | Reflect | Shield | DeathSentence | Peerless | DeathForce | Resist | Imprisoned;
 
     public static uint ReadRecordMask(Ff7BattleAttack? record)
     {

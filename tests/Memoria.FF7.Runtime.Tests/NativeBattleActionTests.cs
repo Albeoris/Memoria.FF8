@@ -21,7 +21,7 @@ internal static class NativeBattleActionTests
         Ff7BattleStatusTimers almostDue = new(8000, 1, 1);
         Ff7BattleStatusTimers restored = JsonSerializer.Deserialize<Ff7BattleStatusTimers>(JsonSerializer.Serialize(almostDue));
         Ff7BattleStatusTick due = Ff7NativeBattleStatusClock.Advance(restored, poisonAndSleep, 0);
-        Check(due == new Ff7BattleStatusTick(new(354, 0, 10), Ff7NativeBattleActionResolver.Poison, true), "Native status phase changed Sleep expiry or Poison scheduling after restore.");
+        Check(due == new Ff7BattleStatusTick(new(354, 0, 10) { FixedRemainder = 68 }, Ff7NativeBattleActionResolver.Poison, true), "Native status phase changed Sleep expiry or Poison scheduling after restore.");
         Ff7BattleStatusTick slow = Ff7NativeBattleStatusClock.Advance(almostDue, poisonAndSleep | Ff7NativeBattleActionResolver.Slow, 0);
         Check(slow.Timers.Remainder == 81 && slow.PoisonDue, "Slow must halve the original status clock rate.");
         Ff7BattleStatusTick stopped = Ff7NativeBattleStatusClock.Advance(almostDue, poisonAndSleep | 0x400, 0);

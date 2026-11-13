@@ -23,6 +23,13 @@ internal sealed partial class CrossoverGuestHostActions
         try
         {
             BattleNativeAction original = NativeAbility(invocation.GuestAbility);
+            foreach (Ff7BattleGuestPhysicalHit value in values)
+            {
+                if (SourceStatusTargetUnsupportedReason(original, value.PreparedContact!.Invocation.TargetSlot) is { } unsupported)
+                {
+                    return unsupported;
+                }
+            }
             ImmutableArray<CrossoverNativeMagicTarget> targets = PresentationTargets(values, original);
             CrossoverGunbladeHostPlacement placement = new(Ff7BattlePosition.FromVector(host.VisualPlacement(ActorSlot).Position), host.VisualPlacement(ActorSlot).Yaw);
             CrossoverNativeMagicPresentationState state = fireProgram.Begin(visual.Model with { Index = 0 }, invocation.TargetSlot, encounter.CrtRandom, targets[0].Contact, original, encounter.GlobalRandom, CreateArena(placement)) with { Targets = targets };

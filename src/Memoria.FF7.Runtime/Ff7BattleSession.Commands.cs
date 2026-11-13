@@ -293,6 +293,10 @@ public sealed partial class Ff7BattleSession
 
     private int Animation(Ff7BattleQueuedCommand command)
     {
+        if (command.StatusCountdown)
+        {
+            return 0x34;
+        }
         if (command.ActorSlot >= 4 && command.CommandId is 0x20 or (byte)Ff7BattleCommand.Magic)
         {
             ushort attackId = command.AttackId ?? command.Argument;
@@ -336,7 +340,7 @@ public sealed partial class Ff7BattleSession
             eligible |= (ushort)(selection.KnockedOut & ~selection.ExcludedKnockouts);
         }
         ushort redirected = RedirectNativeSuccessorTargets(command.TargetMask, eligible);
-        ushort targets = Ff7NativeBattleTargets.Resolve(slot, redirected, flags, special, command.GroupTarget, selection, random);
+        ushort targets = Ff7NativeBattleTargets.Resolve(slot, redirected, flags, special, command.GroupTarget, selection, random, Actor(slot).Actor.Statuses, command.CommandId);
         return Ff7NativeBattleTargets.ResolveNumericalPass(targets, flags, command.CommandId, random);
     }
 
@@ -474,7 +478,7 @@ public sealed partial class Ff7BattleSession
             state = state with { Action = active };
             return;
         }
-        if (command.Priority != 0 && command.CommandId != 0x23)
+        if (command.Priority != 0 && command.CommandId != 0x23 && !command.StatusCountdown)
         {
             FinishTurn(command.ActorSlot);
         }
@@ -520,6 +524,12 @@ public sealed partial class Ff7BattleSession
     private void ApplyAction(Ff7BattleQueuedCommand command)
     {
         Ff7BattleActorState source = Actor(command.ActorSlot);
+        if (command.StatusCountdown)
+        {
+            Ff7BattleAiActor updated = source.Actor with { Statuses = source.Actor.Statuses & ~0x200000u };
+            source = source with { Actor = updated, Timers = Ff7NativeBattleStatusClock.Apply(source.Timers, source.Actor.Statuses, updated.Statuses) };
+            Replace(source);
+        }
         switch (command.CommandId)
         {
             case 0x24:
@@ -572,6 +582,21 @@ public sealed partial class Ff7BattleSession
         {
             return;
         }
+        Ff7BattleDamageAction action = record is null ? party[slot]!.Value.Attack : Ff7BattleDamageAction.FromAttack(record);
+        if (command.GroupTarget && (command.TargetMask & (command.TargetMask - 1)) != 0)
+        {
+            action = action with { Split = true };
+        }
+        ushort elements = record is null ? party[slot]!.Value.AttackElements : record.Elements;
+        Ff7BattleRng candidateRandom = new(kernel[2].Data.Span, random.Capture());
+        ReflectionPlan? reflection = PrepareReflections(command, new(Stats(source), action, elements) { StatusRecord = record }, candidateRandom, false, sourceVitals);
+        if (reflection is not null)
+        {
+            foreach (Ff7BattleReflectedContact contact in reflection.Contacts)
+            {
+                ValidateGuestIncoming(command, contact.TargetSlot, record);
+            }
+        }
         if (command.CommandId == (byte)Ff7BattleCommand.Item)
         {
             if (!Ff7NativeBattleActionResolver.TrySpendItem(state.Inventory, command.Argument, out Ff7InventorySlot[] remaining))
@@ -603,12 +628,16 @@ public sealed partial class Ff7BattleSession
                 return;
             }
         }
-        Ff7BattleDamageAction action = record is null ? party[slot]!.Value.Attack : Ff7BattleDamageAction.FromAttack(record);
-        if (command.GroupTarget && (command.TargetMask & (command.TargetMask - 1)) != 0)
+        if (reflection is not null)
         {
-            action = action with { Split = true };
+            random.Adopt(candidateRandom);
+            CommitReflections(reflection);
+            foreach (Ff7BattleReflectedContact contact in reflection.Contacts)
+            {
+                ApplyHit(command, contact.TargetSlot, contact.Attack, record, elements, contact.Receipt);
+            }
+            return;
         }
-        ushort elements = record is null ? party[slot]!.Value.AttackElements : record.Elements;
         foreach (Ff7BattleActorState target in state.Actors.Where(target => (command.TargetMask & 1 << target.Actor.Slot) != 0).ToArray())
         {
             if (!Ff7NativeBattleActionResolver.CanTarget(new(target.Actor.HitPoints, target.Actor.MaxHitPoints, target.Actor.MagicPoints, target.Actor.MaxMagicPoints, target.Actor.Statuses), record))
@@ -620,7 +649,7 @@ public sealed partial class Ff7BattleSession
         }
     }
 
-    private void ApplyHit(Ff7BattleQueuedCommand command, int targetSlot, Ff7BattleDamageAction action, Ff7BattleAttack? record, ushort elements)
+    private void ApplyHit(Ff7BattleQueuedCommand command, int targetSlot, Ff7BattleDamageAction action, Ff7BattleAttack? record, ushort elements, Ff7BattleActionReceipt? preparedReceipt = null)
     {
         ushort properties = record?.SpecialFlags ?? (command.ActorSlot < 3 ? party[command.ActorSlot]!.Value.AttackFlags : ushort.MaxValue);
         PublishNativeActionContext(command, elements, action.NativePhysicalCategory == true ? (ushort)(properties & ~4) : properties);
@@ -639,7 +668,11 @@ public sealed partial class Ff7BattleSession
         Ff7BattleActionVitals sourceVitals = new(source.Actor.HitPoints, source.Actor.MaxHitPoints, source.Actor.MagicPoints, source.Actor.MaxMagicPoints, source.Actor.Statuses);
         Ff7BattleActionVitals targetVitals = new(native.HitPoints, native.MaxHitPoints, native.MagicPoints, native.MaxMagicPoints, native.Statuses, immunity);
         Ff7BattleActionReceipt result;
-        if (GetGuestProjection(targetSlot) is { } projection)
+        if (preparedReceipt is { } prepared)
+        {
+            result = prepared;
+        }
+        else if (GetGuestProjection(targetSlot) is { } projection)
         {
             if (projection.OriginElementDefenses is { } defenses)
             {

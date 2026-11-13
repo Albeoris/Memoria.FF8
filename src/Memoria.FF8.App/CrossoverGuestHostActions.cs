@@ -282,7 +282,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
             encounter.GlobalRandom = attack.GlobalRandom;
             return;
         }
-        if (Invocation is not null || prepared is not { PreparedContact: { } receipt } hit || receipt.Invocation != invocation || !SupportsMagic(invocation.GuestAbility, target))
+        if (Invocation is not null || prepared is not { PreparedContact: { } receipt } hit || receipt.Invocation != invocation || (invocation.Reflected ? !hit.Attack.Reflectable : !SupportsMagic(invocation.GuestAbility, target)))
         {
             throw new InvalidDataException("The mixed ability requires one prepared native receipt and an admitted target occurrence.");
         }

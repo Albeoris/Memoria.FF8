@@ -9,6 +9,7 @@ public sealed record Ff7BattleGuestInvocation(long RequestId, int FormationId, l
     public ushort TargetMask { get; init; }
     public ushort GuestAbility { get; init; }
     public byte? GuestCommand { get; init; }
+    public bool Reflected { get; init; }
 }
 public sealed record Ff7BattleGuestAttackTarget(int Slot, SceneBattleEnemy? Native, Ff7BattleAiActor Actor, Ff7BattlePlacement Placement, ushort CollisionRadius)
 {
@@ -151,6 +152,16 @@ public sealed partial class Ff7BattleSession
             FinishTurn(command.ActorSlot);
             return true;
         }
+        if (command.CompelledAttack)
+        {
+            ushort selected = Ff7NativeBattleTargets.Resolve(command.ActorSlot, 0, party[command.ActorSlot]!.Value.AttackTargetFlags, ushort.MaxValue, false, CompelledTargetMasks(), random, Actor(command.ActorSlot).Actor.Statuses, command.CommandId);
+            if (selected == 0)
+            {
+                FinishTurn(command.ActorSlot);
+                return true;
+            }
+            command = command with { TargetMask = selected, CompelledAttack = false };
+        }
         command = command with { TargetMask = RedirectNativeSuccessorTargets(command.TargetMask, Mask(state.Actors.Where(actor => (actor.Actor.Conditions & 8) != 0))) };
         Ff7BattleGuestInvocation invocation = GuestInvocation(command, Tick);
         if (command.CommandId == (byte)Ff7BattleCommand.Magic && command.GroupTarget)
@@ -218,7 +229,28 @@ public sealed partial class Ff7BattleSession
             ValidateGuestMagic(command.GuestAbility, hit);
             Ff7BattleDamageAction attack = ProjectGuestOutgoingAttack(invocation.TargetSlot, hit);
             Ff7BattleRng candidateRandom = new(kernel[2].Data.Span, random.Capture());
-            Ff7BattleActionReceipt receipt = Ff7NativeBattleActionResolver.ResolveGuestContact(hit.Source, sourceVitals, Stats(target), targetVitals, attack, hit.StatusRecord, candidateRandom, sameActor: command.ActorSlot == invocation.TargetSlot, originStatusResistances: GetGuestProjection(invocation.TargetSlot)?.OriginStatusResistances, originBattleStatuses: GetGuestBinding(invocation.TargetSlot) is null ? 0 : GetGuestOriginBattleStatuses(invocation.TargetSlot), originSourceStatuses: GetGuestBinding(command.ActorSlot) is null ? (ushort)0 : GetGuestOriginSavedStatuses(command.ActorSlot), originTargetStatuses: GetGuestBinding(invocation.TargetSlot) is null ? (ushort)0 : GetGuestOriginSavedStatuses(invocation.TargetSlot));
+            ReflectionPlan? reflection = PrepareReflections(command, hit, candidateRandom, true);
+            Ff7BattleActionReceipt receipt;
+            if (reflection is not null)
+            {
+                if (reflection.Contacts.Count != 1)
+                {
+                    RejectGuestAbility(command, "The reflected action requires one representable target occurrence.");
+                    return true;
+                }
+                Ff7BattleReflectedContact contact = reflection.Contacts[0];
+                command = command with { TargetMask = (ushort)(1 << contact.TargetSlot), Reflected = true };
+                invocation = GuestInvocation(command, Tick);
+                target = Actor(invocation.TargetSlot);
+                targetDescription = DescribeGuestTarget(invocation.TargetSlot);
+                targetVitals = GuestItemVitals(target) with { StatusImmunities = (invocation.TargetSlot >= 4 ? ~Enemy(invocation.TargetSlot).NativeStatusMask : 0) | target.StatusProtection };
+                attack = contact.Attack;
+                receipt = contact.Receipt;
+            }
+            else
+            {
+                receipt = Ff7NativeBattleActionResolver.ResolveGuestContact(hit.Source, sourceVitals, Stats(target), targetVitals, attack, hit.StatusRecord, candidateRandom, sameActor: command.ActorSlot == invocation.TargetSlot, originStatusResistances: GetGuestProjection(invocation.TargetSlot)?.OriginStatusResistances, originBattleStatuses: GetGuestBinding(invocation.TargetSlot) is null ? 0 : GetGuestOriginBattleStatuses(invocation.TargetSlot), originSourceStatuses: GetGuestBinding(command.ActorSlot) is null ? (ushort)0 : GetGuestOriginSavedStatuses(command.ActorSlot), originTargetStatuses: GetGuestBinding(invocation.TargetSlot) is null ? (ushort)0 : GetGuestOriginSavedStatuses(invocation.TargetSlot));
+            }
             Ff7BattleGuestPhysicalHit preparedHit = hit with { Attack = attack, PreparedContact = new(invocation, sourceVitals, targetVitals, receipt) };
             if (magic.PrepareMagicUnsupportedReason(preparedHit) is { } reason)
             {
@@ -227,6 +259,10 @@ public sealed partial class Ff7BattleSession
             }
             random.Adopt(candidateRandom);
             magic.PrepareMagic(preparedHit);
+            if (reflection is not null)
+            {
+                CommitReflections(reflection);
+            }
         }
         guest.Begin(invocation, VisualPlacement(command.ActorSlot), targetDescription);
         state = state with { Action = new(command, Tick, -1), GuestAttackUsed = true };
@@ -394,7 +430,7 @@ public sealed partial class Ff7BattleSession
         Replace(source);
         Ff7BattleActionVitals sourceVitals = new(source.Actor.HitPoints, source.Actor.MaxHitPoints, source.Actor.MagicPoints, source.Actor.MaxMagicPoints, source.Actor.Statuses);
         Ff7BattleActionVitals targetVitals = new(target.Actor.HitPoints, target.Actor.MaxHitPoints, target.Actor.MagicPoints, target.Actor.MaxMagicPoints, target.Actor.Statuses, (targetSlot >= 4 ? ~Enemy(targetSlot).NativeStatusMask : 0) | target.StatusProtection);
-        Ff7BattleActionReceipt result = Ff7NativeBattleActionResolver.ResolveGuestContact(hit.Source with { BackRow = (source.Actor.Conditions & 0x40) != 0 }, sourceVitals, Stats(target), targetVitals, attack, hit.StatusRecord, random);
+        Ff7BattleActionReceipt result = Ff7NativeBattleActionResolver.ResolveGuestContact(hit.Source with { BackRow = (source.Actor.Conditions & 0x40) != 0 }, sourceVitals, Stats(target), targetVitals, attack, hit.StatusRecord, random, sameActor: command.ActorSlot == targetSlot, originStatusResistances: GetGuestProjection(targetSlot)?.OriginStatusResistances);
         PublishHit(command, target, attack, result);
         if (!result.Damage.Missed)
         {
@@ -409,7 +445,7 @@ public sealed partial class Ff7BattleSession
     }
 
     private Ff7BattleGuestInvocation GuestInvocation(Ff7BattleQueuedCommand command, long startedAt)
-        => new(RequestId, Formation.FormationId, startedAt, command.ActorSlot, BitOperations.TrailingZeroCount(command.TargetMask)) { TargetMask = command.GroupTarget ? command.TargetMask : (ushort)0, GuestAbility = command.GuestAbility, GuestCommand = command.CommandId switch { (byte)Ff7BattleCommand.Item => command.CommandId, (byte)Ff7BattleCommand.Limit => 5, _ => null } };
+        => new(RequestId, Formation.FormationId, startedAt, command.ActorSlot, BitOperations.TrailingZeroCount(command.TargetMask)) { TargetMask = command.GroupTarget ? command.TargetMask : (ushort)0, GuestAbility = command.GuestAbility, GuestCommand = command.CommandId switch { (byte)Ff7BattleCommand.Item => command.CommandId, (byte)Ff7BattleCommand.Limit => 5, _ => null }, Reflected = command.Reflected };
 
     private static bool SupportsGuestAbility(IFf7BattleGuestAttack guest, ushort ability, Ff7BattleGuestAttackTarget target)
         => ability == 0 ? guest.Supports(target) : guest is IFf7BattleGuestAbilities catalog ? catalog.SupportsAbility(Ff7BattleCommand.Magic, ability, target) : guest is IFf7BattleGuestMagic magic && magic.MagicStock(ability) > 0 && magic.SupportsMagic(ability, target);

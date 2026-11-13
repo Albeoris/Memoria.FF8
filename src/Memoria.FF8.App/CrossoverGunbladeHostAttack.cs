@@ -267,8 +267,16 @@ internal sealed partial class CrossoverGunbladeHostAttack : IFf7BattleGuestAttac
         }
     }
 
-    public bool Supports(Ff7BattleGuestAttackTarget target) => target.Native is not null && target.CollisionRadius > 0 && (kit.CharacterId != 8 || target.JointCount is > 1 and <= 256)
-        && roster.Participants.Any(actor => actor.HostSlot == target.Slot && actor.Combat.Origin == SessionGame.Ff7 && actor.Combat.Kind == CrossoverBattleActorKind.Enemy && actor.Combat.NativeId == target.Native.Placement.EnemyId);
+    public bool Supports(Ff7BattleGuestAttackTarget target)
+    {
+        if (target.CollisionRadius == 0 || kit.CharacterId == 8 && target.JointCount is not (> 1 and <= 256))
+        {
+            return false;
+        }
+        return roster.Participants.Any(actor => actor.HostSlot == target.Slot && (target.Native is { } native
+            ? actor.Combat.Origin == SessionGame.Ff7 && actor.Combat.Kind == CrossoverBattleActorKind.Enemy && actor.Combat.NativeId == native.Placement.EnemyId
+            : actor.Combat.Kind == CrossoverBattleActorKind.Character && target.Slot < 3));
+    }
 
     public void PressTrigger()
     {

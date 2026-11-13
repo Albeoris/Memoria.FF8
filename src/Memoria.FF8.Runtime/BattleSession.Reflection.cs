@@ -4,7 +4,7 @@ public sealed partial class BattleSession
 {
     private static bool NativeActionReflects(BattleCombatant recipient, BattleNativeAction native)
     {
-        return native.Command != 247 && (native.AttackFlags & 0x10) != 0 && (recipient.NativeStatus1 & 0x80) != 0 && native.AttackType is 2 or 3 or 5 or 6 or 8 or 11 or 15 or 20 or 21 or 22 or 26 or 33;
+        return NativeBattleReflectionRules.CanReflect(native.Command, native.AttackFlags, native.AttackType) && (recipient.NativeStatus1 & 0x80) != 0;
     }
 
     private void ResolveNativeReflection(BattleCombatant actor, BattleCombatant reflector, BattleActionPresentation command, BattleNativeAction source, int sourceHeader)

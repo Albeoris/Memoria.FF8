@@ -3,6 +3,16 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--status-counterparts-only", StringComparer.Ordinal))
+{
+    GuestBattleConversionTests.Run();
+    NativeStatusCounterpartClockTests.Run();
+    NativeStatusConsumersTests.Run();
+    NativeSpecialStatusTests.Run();
+    NativeBattleActionTests.Run();
+    return 0;
+}
+
 if (args.Contains("--special-enemies-only", StringComparer.Ordinal))
 {
     NativeSpecialAiTests.RunContracts();

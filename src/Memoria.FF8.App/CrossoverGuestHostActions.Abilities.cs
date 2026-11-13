@@ -87,6 +87,10 @@ internal sealed partial class CrossoverGuestHostActions
     {
         Ff7BattleGuestPreparedContact receipt = prepared.PreparedContact ?? throw new InvalidDataException("The native action requires its prepared host contact.");
         BattleNativeAction original = item ? OriginalItem(receipt.Invocation.GuestAbility) : NativeAbility(receipt.Invocation.GuestAbility);
+        if (SourceStatusTargetUnsupportedReason(original, receipt.Invocation.TargetSlot) is { } unsupported)
+        {
+            return unsupported;
+        }
         byte flags = receipt.Receipt.Damage.Missed ? (byte)1 : original.AttackType is 5 or 6 ? (byte)4 : (byte)0;
         byte healing = receipt.Receipt.Damage.Damage < 0 ? (byte)1 : (byte)0;
         NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(original.DamagePresentation, flags, healing, original.AttackType, 255);

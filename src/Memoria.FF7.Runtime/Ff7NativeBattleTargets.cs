@@ -16,7 +16,7 @@ public static class Ff7NativeBattleTargets
         return Resolve(sourceSlot, queued, targetFlags, specialFlags, groupCast, masks, random);
     }
 
-    public static ushort Resolve(int sourceSlot, ushort queued, byte targetFlags, ushort specialFlags, bool groupCast, Ff7BattleTargetMasks masks, Ff7BattleRng random)
+    public static ushort Resolve(int sourceSlot, ushort queued, byte targetFlags, ushort specialFlags, bool groupCast, Ff7BattleTargetMasks masks, Ff7BattleRng random, uint sourceStatuses = 0, byte command = 0)
     {
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)sourceSlot, 10u);
         ArgumentNullException.ThrowIfNull(random);
@@ -36,7 +36,17 @@ public static class Ff7NativeBattleTargets
         }
 
         bool defaultToEnemies = ((targetFlags & 2) != 0) == (sourceSlot < 4);
+        bool confused = command is not (3 or 0x14) && (sourceStatuses & Ff7NativeBattleStatuses.Confusion) != 0;
+        if (command is not (3 or 0x14) && (sourceStatuses & (Ff7NativeBattleStatuses.Confusion | 0x400000)) != 0)
+        {
+            defaultToEnemies = !defaultToEnemies;
+        }
         int defaultSide = defaultToEnemies ? Enemies : Party;
+        int originalCount = BitOperations.PopCount(queued);
+        if (confused)
+        {
+            queued = (ushort)(originalCount == 1 ? Pick(defaultSide, random) : defaultSide);
+        }
         if ((targetFlags & 0x10) != 0)
         {
             eligible &= defaultSide;
@@ -47,7 +57,6 @@ public static class Ff7NativeBattleTargets
         }
 
         int targets = queued & eligible;
-        int originalCount = BitOperations.PopCount(queued);
         bool selectedGroup = originalCount != 1;
         if ((targetFlags & 0x0C) == 4 || (targets != 0 && originalCount > 1))
         {

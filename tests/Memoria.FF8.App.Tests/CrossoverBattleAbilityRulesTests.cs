@@ -148,13 +148,46 @@ public sealed class CrossoverBattleAbilityRulesTests
     [Fact]
     public void CommonStatusBanksReachTheHostWithoutChangingTheirIdentity()
     {
-        BattleNativeAction action = Action(2) with { Statuses0 = 0x3F, Statuses1 = 0x67, StatusAttack = 100 };
+        BattleNativeAction action = Action(2) with { Statuses0 = 0x3F, Statuses1 = Ff7GuestBattleStatuses.SupportedOriginBattle & ~8u, StatusAttack = 100 };
         Assert.Null(CrossoverBattleAbilityRules.UnsupportedReason(action));
         Ff7BattleGuestPhysicalHit hit = CrossoverBattleAbilityRules.Describe(Kit(), action);
         Assert.Equal(Ff7GuestBattleStatuses.SupportedHost & ~0x400u, hit.StatusRecord!.StatusMask);
         Assert.True(hit.Attack.HasStatusOperation);
         Assert.True(hit.Attack.AddsStatuses);
         Assert.Equal(0, hit.StatusRecord.StatusChange >> 6);
+    }
+
+    [Theory]
+    [InlineData(0x10u, 0x8000u)]
+    [InlineData(0x80u, 0x40000u)]
+    [InlineData(0x400u, 0x200000u)]
+    [InlineData(0x800u, 0x1000000u)]
+    [InlineData(0x1000u, 0x2000u)]
+    [InlineData(0x4000u, 0x40u)]
+    public void EveryAdditionalExactStatusCounterpartUsesTheSharedMapping(uint origin, uint host)
+    {
+        BattleNativeAction action = Action(2) with { Statuses1 = origin, StatusAttack = 100 };
+        Assert.Null(CrossoverBattleAbilityRules.UnsupportedReason(action));
+        Ff7BattleGuestPhysicalHit hit = CrossoverBattleAbilityRules.Describe(Kit(), action);
+        Assert.Equal(host, hit.StatusRecord!.StatusMask);
+        Assert.Equal(hit, CrossoverBattleAbilityRules.Describe(Kit(), action with { MagicId = 511, ActionId = 200, Name = "Different status producer" }));
+        Ff7BattleGuestPhysicalHit cure = CrossoverBattleAbilityRules.Describe(Kit(), action with { AttackType = 3 });
+        Assert.Equal(host, cure.StatusRecord!.StatusMask);
+        Assert.Equal(1, cure.StatusRecord.StatusChange >> 6);
+    }
+
+    [Theory]
+    [InlineData(0x40, 0u)]
+    [InlineData(0, 0x100u)]
+    [InlineData(0, 0x200u)]
+    [InlineData(0, 0x2000u)]
+    [InlineData(0, 0x1000000u)]
+    public void OriginOnlyStatusesReportMissingCounterpartsWithoutInventingHostAliases(ushort saved, uint battle)
+    {
+        BattleNativeAction action = Action(2) with { Statuses0 = saved, Statuses1 = battle };
+        Assert.Contains("no direct FFVII counterpart", CrossoverBattleAbilityRules.UnsupportedReason(action));
+        Assert.Throws<NotSupportedException>(() => CrossoverBattleAbilityRules.Describe(Kit(), action));
+        Assert.Equal(0u, Ff7GuestBattleStatuses.ToHostStatuses(saved, battle));
     }
 
     [Theory]
@@ -210,7 +243,7 @@ public sealed class CrossoverBattleAbilityRulesTests
     [Fact]
     public void UnsupportedOperationsAndStatusBitsFailBeforeProducingMechanics()
     {
-        List<BattleNativeAction> unsupported = [Action(2) with { PresentationOnly = true }, Action(2) with { HitCount = 2 }, Action(2) with { Statuses0 = 0x40 }, Action(2) with { Statuses1 = 0x10 }];
+        List<BattleNativeAction> unsupported = [Action(2) with { PresentationOnly = true }, Action(2) with { HitCount = 2 }, Action(2) with { Statuses0 = 0x40 }, Action(2) with { Statuses1 = 0x2000 }];
         for (byte type = 0; type <= 36; type++)
         {
             if (type is not (1 or 2 or 3 or 4 or 5 or 6 or 8 or 9 or 11 or 15 or 20 or 21 or 22 or 26 or 27 or 29 or 32 or 35 or 36))

@@ -8,6 +8,7 @@ internal static class GuestBattleConversionTests
     {
         Elements();
         Statuses();
+        StatusCounterparts();
         OriginStatusOperations();
         Drain();
     }
@@ -62,6 +63,63 @@ internal static class GuestBattleConversionTests
         junction[3] = 200;
         Ff7BattleActionReceipt defended = Hit(incoming, target with { Statuses = 0 }, junction);
         Check(defended.Target.Statuses == 0 && defended.Damage.Damage > 0, "FFVIII status defense must block Blind without blocking the hit.");
+    }
+
+    private static void StatusCounterparts()
+    {
+        (ushort Saved, uint Battle, uint Host, int Defense)[] counterparts =
+        [
+            (1, 0, 1, 0),
+            (2, 0, 8, 1),
+            (4, 0, 0x4000, 2),
+            (8, 0, 0x4000000, 3),
+            (16, 0, 0x80, 4),
+            (32, 0, 0x800000, 5),
+            (0, 1, 4, 8),
+            (0, 2, 0x100, 9),
+            (0, 4, 0x200, 10),
+            (0, 8, 0x400, 11),
+            (0, 0x10, 0x8000, 12),
+            (0, 0x20, 0x10000, 13),
+            (0, 0x40, 0x20000, 14),
+            (0, 0x80, 0x40000, 15),
+            (0, 0x400, 0x200000, 18),
+            (0, 0x800, 0x1000000, 19),
+            (0, 0x1000, 0x2000, 20),
+            (0, 0x4000, 0x40, 22)
+        ];
+        uint union = 0;
+        Ff7BattleDamageActor stats = new(10, 20, 25, 0, 0, 0, 0, 0, 0);
+        Ff7BattleActionVitals source = new(100, 100, 0, 0, 0);
+        Ff7BattleDamageAction action = new(0x50, 0, 255, HasStatusOperation: true, AddsStatuses: true);
+        foreach ((ushort saved, uint battle, uint host, int defense) in counterparts)
+        {
+            Check(Ff7GuestBattleStatuses.ToHostStatuses(saved, battle) == host, $"The counterpart at resistance row {defense} must retain its exact host identity.");
+            Check(Ff7GuestBattleStatuses.ToOrigin(host, 0xFFC0) == (saved | 0xFFC0), "Saved origin-only bits must survive host status round-trip.");
+            uint originalBattle = ~Ff7GuestBattleStatuses.SupportedOriginBattle;
+            Check(Ff7GuestBattleStatuses.ToOriginBattle(host, originalBattle) == (battle | originalBattle), "Battle origin-only bits must survive host status round-trip.");
+            Ff7BattleAttack record = Ff7GuestBattleStatuses.ToHostStatusRecord(saved, battle, 200)!;
+            Check(record.StatusMask == host && Ff7GuestBattleStatuses.ProjectIncoming(record)!.StatusMask == host, "Both contact directions must carry every exact counterpart.");
+            byte[] defenses = Enumerable.Repeat((byte)100, 40).ToArray();
+            defenses[defense] = 200;
+            Ff7BattleActionReceipt resisted = Ff7NativeBattleActionResolver.ResolveGuestContact(stats, source, stats, source, action, record, Random(), originStatusResistances: defenses);
+            Check(resisted.AddedStatuses == 0, $"Counterpart resistance must read the native row {defense}.");
+            defenses[defense] = 100;
+            Ff7BattleActionReceipt admitted = Ff7NativeBattleActionResolver.ResolveGuestContact(stats, source, stats, source, action, record, Random(), originStatusResistances: defenses);
+            Check(admitted.AddedStatuses == host, "A neutral native resistance must admit the counterpart.");
+            Ff7BattleActionReceipt immune = Ff7NativeBattleActionResolver.ResolveGuestContact(stats, source, stats, source with { StatusImmunities = host }, action, record, Random());
+            Check(immune.AddedStatuses == 0, "The destination host immunity must reject the counterpart.");
+            if ((host & Ff7NativeBattleStatuses.SupportedRecordStatuses) != 0)
+            {
+                Ff7BattleActionReceipt native = Ff7NativeBattleActionResolver.Resolve(stats, source, stats, source, action, record, Random());
+                Check(native.AddedStatuses == host, "A supported native FFVII record must retain the same status identity outside the guest adapter.");
+            }
+            union |= host;
+        }
+        Check(union == Ff7GuestBattleStatuses.SupportedHost, "The reversible counterpart inventory must cover the complete supported host mask.");
+        Check(Ff7GuestBattleStatuses.ToHostStatuses(0xFFC0, ~Ff7GuestBattleStatuses.SupportedOriginBattle) == 0, "Origin-only statuses and flags must never alias a host status.");
+        Check(Ff7GuestBattleStatuses.ToOriginBattle(0x100000 | 0x400000) == 0, "Shield and Manipulate must never become Invincible or Float.");
+        Check(Ff7GuestBattleStatuses.ToOriginBattle(0, uint.MaxValue) == ~Ff7GuestBattleStatuses.SupportedOriginBattle, "Removing mapped statuses must preserve every unmapped original battle bit.");
     }
 
     private static void OriginStatusOperations()

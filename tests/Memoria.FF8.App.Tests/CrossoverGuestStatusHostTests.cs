@@ -92,7 +92,7 @@ public sealed class CrossoverGuestStatusHostTests
         Assert.Equal(0, fixture.Stock(cure));
     }
 
-    private sealed class Fixture : IDisposable
+    internal sealed class Fixture : IDisposable
     {
         private readonly GameAssets game;
         private readonly BattleAssets assets;
@@ -107,7 +107,7 @@ public sealed class CrossoverGuestStatusHostTests
         public Ff7BattleSession Host { get; private set; }
         public CrossoverGuestHostActions[] Providers { get; private set; }
 
-        public Fixture(uint economical = 0, int cureStock = 8)
+        public Fixture(uint economical = 0, int cureStock = 8, int guestCount = 2, string[]? additionalSpells = null)
         {
             string? ff8 = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
             string? ff7 = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
@@ -129,12 +129,12 @@ public sealed class CrossoverGuestStatusHostTests
                 int row = origin.FindPhysicalRow(1);
                 origin.Records[row] = origin.Records[row] with { Junction = origin.Records[row].Junction with { Abilities = checked((uint)(58 + passive)) } };
             }
-            foreach (string name in new[] { "Drain", "Double", "Triple", "Cure" })
+            foreach (string name in new[] { "Drain", "Double", "Triple", "Cure" }.Concat(additionalSpells ?? []).Distinct())
             {
                 origin = origin.ChangeMagicStock(0, Spell(name), name == "Cure" ? cureStock : 8, MagicOperationReason.ScriptReward, out _);
             }
             source = origin;
-            CrossoverFf8BattleKit[] kits = Enumerable.Range(0, 2).Select(id => CrossoverFf8BattleKit.Read(origin, assets, id)).ToArray();
+            CrossoverFf8BattleKit[] kits = Enumerable.Range(0, guestCount).Select(id => CrossoverFf8BattleKit.Read(origin, assets, id)).ToArray();
             Ff7Installation installation = Ff7Installation.Discover(ff7!);
             original = Ff7Session.NewGame(installation);
             archive = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
@@ -145,8 +145,8 @@ public sealed class CrossoverGuestStatusHostTests
             IReadOnlyList<KernelSection> kernel = KernelArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.Kernel).Path));
             Ff7BattleAnimationResources animations = new(archive, Ff7PcExecutableData.LoadBattlePlacement(installation), magic, Ff7PcExecutableData.LoadBattleJumpDeltas(installation), Ff7PcExecutableData.LoadBattleHitmarks(installation), Ff7PcExecutableData.LoadBattleActorModelResources(installation));
             Ff7BattleSession initial = new(formation, progress, kernel, executable.NativeMateriaStatModifiers, 1, requestFlags: 4, animations: animations);
-            roster = CrossoverBattleRoster.Create(Guid.NewGuid(), initial.Capture(), [new(0, 0, 0), new(1, 1, 1)], []);
-            for (int slot = 0; slot < 2; slot++)
+            roster = CrossoverBattleRoster.Create(Guid.NewGuid(), initial.Capture(), Enumerable.Range(0, guestCount).Select(slot => new CrossoverBattleBinding(slot, slot, slot)).ToArray(), []);
+            for (int slot = 0; slot < guestCount; slot++)
             {
                 CrossoverFf8BattleKit kit = kits[slot];
                 Ff7BattleGuestProjection projection = CrossoverGuestHostActions.Projection(kit);
@@ -157,10 +157,10 @@ public sealed class CrossoverGuestStatusHostTests
             Host = new(formation, progress, kernel, executable.NativeMateriaStatModifiers, 1, requestFlags: 4, snapshot: state, animations: animations);
             restoreHost = saved => new(formation, progress, kernel, executable.NativeMateriaStatModifiers, 1, requestFlags: 4, snapshot: saved, animations: animations);
             encounter = new(roster, origin, Host, game.ReadNewGameGlobalRandom(), NativeCrtRandomState.FromColdProcess(), null, null);
-            Providers = new CrossoverGuestHostActions[2];
+            Providers = new CrossoverGuestHostActions[guestCount];
             renderer = new(archive, formation.LocationId);
             MethodInfo actorVisual = typeof(Ff7Scene).GetMethod("BattleActorVisual", BindingFlags.Static | BindingFlags.NonPublic)!;
-            for (int slot = 0; slot < 2; slot++)
+            for (int slot = 0; slot < guestCount; slot++)
             {
                 CrossoverGunbladeHostAttack attack = new(roster, kits[slot], assets, game, encounter.GlobalRandom, () => Host.RenderCameraOutput, _ => 128, readHostImpactAnchor: Host.GuestEffectTargetAnchor, readHostTargetBone: Host.GuestEffectTargetBone);
                 attack.PrepareStanding(Host.VisualPlacement(slot));
@@ -230,17 +230,17 @@ public sealed class CrossoverGuestStatusHostTests
             return contacts;
         }
 
-        private void RestoreQueuedBoundary()
+        public void RestoreQueuedBoundary(Ff7BattleSnapshot? snapshot = null)
         {
-            Ff7BattleSnapshot saved = Roundtrip(Host.Capture());
+            Ff7BattleSnapshot saved = Roundtrip(snapshot ?? Host.Capture());
             CrossoverGuestEncounterSnapshot shared = Roundtrip(encounter.Capture());
             CrossoverGuestActorSnapshot[] actors = Providers.Select(provider => Roundtrip(provider.CaptureActor())).ToArray();
             CrossoverGunbladeHostSnapshot[] attacks = Providers.Select(provider => Roundtrip(provider.Attack.Capture())).ToArray();
             Host = restoreHost(saved);
             encounter = new(roster, source, Host, game.ReadNewGameGlobalRandom(), NativeCrtRandomState.FromColdProcess(), null, shared);
-            Providers = new CrossoverGuestHostActions[2];
+            Providers = new CrossoverGuestHostActions[actors.Length];
             MethodInfo actorVisual = typeof(Ff7Scene).GetMethod("BattleActorVisual", BindingFlags.Static | BindingFlags.NonPublic)!;
-            for (int slot = 0; slot < 2; slot++)
+            for (int slot = 0; slot < actors.Length; slot++)
             {
                 CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.Read(encounter.Working, assets, slot);
                 CrossoverGunbladeHostAttack attack = new(roster, kit, assets, game, encounter.GlobalRandom, () => Host.RenderCameraOutput, _ => 128, attacks[slot], Host.GuestEffectTargetAnchor, Host.GuestEffectTargetBone);

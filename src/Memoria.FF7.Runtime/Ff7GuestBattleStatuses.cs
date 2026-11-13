@@ -13,8 +13,9 @@ public static class Ff7GuestBattleStatuses
     private const uint Berserk = 0x800000;
     private const uint Silence = 0x80;
 
-    public const uint SupportedHost = Ff7NativeBattleActionResolver.Death | Ff7NativeBattleActionResolver.Sleep | Ff7NativeBattleActionResolver.Poison | Ff7NativeBattleActionResolver.Slow | Ff7NativeBattleActionResolver.Darkness | Silence | Haste | Stop | Petrify | Barrier | MagicBarrier | Berserk;
+    public const uint SupportedHost = Ff7NativeBattleActionResolver.Death | Ff7NativeBattleActionResolver.Sleep | Ff7NativeBattleActionResolver.Poison | Ff7NativeBattleActionResolver.Slow | Ff7NativeBattleActionResolver.Darkness | Silence | Haste | Stop | Petrify | Barrier | MagicBarrier | Berserk | Ff7NativeBattleStatuses.Confusion | Ff7NativeBattleStatuses.SlowNumb | Ff7NativeBattleStatuses.Regen | Ff7NativeBattleStatuses.Reflect | Ff7NativeBattleStatuses.DeathSentence | Ff7NativeBattleStatuses.Peerless;
     public const ushort SupportedOrigin = 0x3F;
+    public const uint SupportedOriginBattle = 0x5CFF;
     public const uint OriginMulticast = 0x60000;
 
     // FFVIII keeps the saved and battle banks separate. Its defense row indexes battle bits after the saved byte.
@@ -30,8 +31,14 @@ public static class Ff7GuestBattleStatuses
         (9, Haste),
         (10, Ff7NativeBattleActionResolver.Slow),
         (11, Stop),
+        (12, Ff7NativeBattleStatuses.Regen),
         (13, Barrier),
-        (14, MagicBarrier)
+        (14, MagicBarrier),
+        (15, Ff7NativeBattleStatuses.Reflect),
+        (18, Ff7NativeBattleStatuses.DeathSentence),
+        (19, Ff7NativeBattleStatuses.Peerless),
+        (20, Ff7NativeBattleStatuses.SlowNumb),
+        (22, Ff7NativeBattleStatuses.Confusion)
     ];
 
     public static bool CanCastMagic(uint host) => (host & (Ff7NativeBattleActionResolver.Death | Ff7NativeBattleActionResolver.Sleep | Petrify | Silence | Stop | Berserk)) == 0;
@@ -65,9 +72,9 @@ public static class Ff7GuestBattleStatuses
         return saved;
     }
 
-    public static uint ToOriginBattle(uint host)
+    public static uint ToOriginBattle(uint host, uint originalBattle = 0)
     {
-        uint battle = 0;
+        uint battle = originalBattle & ~SupportedOriginBattle;
         foreach ((int index, uint mask) in Common)
         {
             if (index >= 8 && (host & mask) != 0)

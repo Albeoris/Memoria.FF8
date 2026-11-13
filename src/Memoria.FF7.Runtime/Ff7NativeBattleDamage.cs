@@ -20,6 +20,7 @@ public enum Ff7BattleDamageAffinity : byte
 public readonly record struct Ff7BattleDamageAction(byte Formula, byte Power, byte Accuracy, bool LongRange = false, bool BackAttack = false, byte BackAttackMultiplier = 16, bool Split = false, bool ForceCritical = false, bool Healing = false, bool CanBeBlinded = false, Ff7BattleDamageAffinity Affinity = Ff7BattleDamageAffinity.Normal, bool UsePhysicalStats = false, bool IgnoreDefense = false, bool HasStatusOperation = false, bool AddsStatuses = false, bool TargetsMagicPoints = false)
 {
     public bool SuppressCritical { get; init; }
+    public bool Reflectable { get; init; }
     public ushort NativeElements { get; init; }
     public bool IsItem { get; init; }
     public bool IgnoreNativeAffinity { get; init; }

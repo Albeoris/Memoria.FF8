@@ -105,6 +105,18 @@ public sealed partial class Ff7BattleSession
         }
         Ff7BattleGuestPhysicalHit description = magic.DescribeMagic(command.GuestAbility);
         ValidateGuestMagic(command.GuestAbility, description);
+        ReflectionPlan? reflection = PrepareReflections(command, description, candidateRandom, true);
+        if (reflection is not null)
+        {
+            if (reflection.Contacts.Select(contact => contact.TargetSlot).Distinct().Count() != reflection.Contacts.Count)
+            {
+                RejectGuestAbility(command, "The reflected group converges multiple contact occurrences on one recipient; the presentation bridge requires distinct recipients.");
+                return;
+            }
+            targets = reflection.Contacts.Select(contact => contact.TargetSlot).ToArray();
+            command = command with { TargetMask = (ushort)targets.Aggregate(0, (mask, slot) => mask | (1 << slot)), Reflected = true };
+            invocation = GuestInvocation(command, Tick);
+        }
         List<Ff7BattleGuestPhysicalHit> prepared = [];
         foreach (int slot in targets)
         {
@@ -113,7 +125,17 @@ public sealed partial class Ff7BattleSession
             Ff7BattleActionVitals sourceVitals = GuestItemVitals(source);
             Ff7BattleActionVitals targetVitals = GuestItemVitals(target) with { StatusImmunities = (slot >= 4 ? ~Enemy(slot).NativeStatusMask : 0) | target.StatusProtection };
             Ff7BattleDamageAction attack = ProjectGuestOutgoingAttack(slot, description) with { Split = false };
-            Ff7BattleActionReceipt receipt = Ff7NativeBattleActionResolver.ResolveGuestContact(description.Source, sourceVitals, Stats(target), targetVitals, attack, description.StatusRecord, candidateRandom, sameActor: slot == command.ActorSlot, originStatusResistances: GetGuestProjection(slot)?.OriginStatusResistances, originBattleStatuses: GetGuestBinding(slot) is null ? 0 : GetGuestOriginBattleStatuses(slot), originSourceStatuses: GetGuestBinding(command.ActorSlot) is null ? (ushort)0 : GetGuestOriginSavedStatuses(command.ActorSlot), originTargetStatuses: GetGuestBinding(slot) is null ? (ushort)0 : GetGuestOriginSavedStatuses(slot));
+            Ff7BattleActionReceipt receipt;
+            if (reflection is not null)
+            {
+                Ff7BattleReflectedContact contact = reflection.Contacts.Single(contact => contact.TargetSlot == slot);
+                attack = contact.Attack;
+                receipt = contact.Receipt;
+            }
+            else
+            {
+                receipt = Ff7NativeBattleActionResolver.ResolveGuestContact(description.Source, sourceVitals, Stats(target), targetVitals, attack, description.StatusRecord, candidateRandom, sameActor: slot == command.ActorSlot, originStatusResistances: GetGuestProjection(slot)?.OriginStatusResistances, originBattleStatuses: GetGuestBinding(slot) is null ? 0 : GetGuestOriginBattleStatuses(slot), originSourceStatuses: GetGuestBinding(command.ActorSlot) is null ? (ushort)0 : GetGuestOriginSavedStatuses(command.ActorSlot), originTargetStatuses: GetGuestBinding(slot) is null ? (ushort)0 : GetGuestOriginSavedStatuses(slot));
+            }
             prepared.Add(description with { Attack = attack, PreparedContact = new(invocation with { TargetSlot = slot }, sourceVitals, targetVitals, receipt) });
         }
         if (group.PrepareGroupUnsupportedReason(prepared) is { } unsupported)
@@ -124,6 +146,10 @@ public sealed partial class Ff7BattleSession
         group.PrepareGroup(prepared);
         guest.Begin(invocation, VisualPlacement(command.ActorSlot), DescribeGuestTarget(invocation.TargetSlot));
         random.Adopt(candidateRandom);
+        if (reflection is not null)
+        {
+            CommitReflections(reflection);
+        }
         state = state with { Action = new(command, Tick, -1), GuestAttackUsed = true };
     }
 

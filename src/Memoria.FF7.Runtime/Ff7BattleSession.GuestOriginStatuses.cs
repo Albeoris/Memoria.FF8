@@ -4,6 +4,21 @@ public sealed record Ff7BattleGuestOriginStatus(int HostSlot, uint BattleStatuse
 
 public sealed partial class Ff7BattleSession
 {
+    private void RestoreGuestStatusProjection()
+    {
+        const uint originalProjection = 0x6F;
+        uint added = Ff7GuestBattleStatuses.SupportedOriginBattle & ~(state.GuestProjectedBattleMask ?? originalProjection);
+        foreach (Ff7BattleGuestSlotState guest in state.GetGuestSlotStates())
+        {
+            int slot = guest.Binding.HostSlot;
+            uint origin = state.GuestOriginStatuses?.SingleOrDefault(value => value.HostSlot == slot)?.BattleStatuses ?? guest.Binding.OriginBattleStatuses;
+            Ff7BattleActorState actor = Actor(slot);
+            uint statuses = actor.Actor.Statuses | Ff7GuestBattleStatuses.ToHostStatuses(0, origin & added);
+            Replace(actor with { Actor = actor.Actor with { Statuses = statuses }, Timers = Ff7NativeBattleStatusClock.Apply(actor.Timers, actor.Actor.Statuses, statuses) });
+        }
+        state = state with { GuestProjectedBattleMask = Ff7GuestBattleStatuses.SupportedOriginBattle };
+    }
+
     public ushort GetGuestOriginSavedStatuses(int slot)
     {
         Ff7BattleGuestVitalsBinding binding = GetGuestBinding(slot) ?? throw new InvalidOperationException("Origin saved statuses require an FFVIII guest binding.");

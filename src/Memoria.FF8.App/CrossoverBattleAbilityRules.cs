@@ -39,13 +39,13 @@ internal static class CrossoverBattleAbilityRules
         bool healing = IsHealing(action.AttackType);
         if (!healing && !IgnoresStatuses(action.AttackType) && (action.Statuses1 & 8) != 0)
         {
-            return "Stop requires a native timer operation that the mixed battle host does not support.";
+            return "Producing Stop remains deferred in mixed battles; the command bridge does not admit its timer operation.";
         }
-        ushort saved = Ff7GuestBattleStatuses.ToOrigin(Ff7GuestBattleStatuses.ToHostStatuses(action.Statuses0, action.Statuses1));
-        uint battle = Ff7GuestBattleStatuses.ToOriginBattle(Ff7GuestBattleStatuses.ToHostStatuses(action.Statuses0, action.Statuses1));
-        if (!healing && !IgnoresStatuses(action.AttackType) && (saved != action.Statuses0 || (battle | (action.Statuses1 & 0x68000)) != action.Statuses1))
+        ushort unmappedSaved = (ushort)(action.Statuses0 & ~Ff7GuestBattleStatuses.SupportedOrigin);
+        uint unmappedBattle = action.Statuses1 & ~(Ff7GuestBattleStatuses.SupportedOriginBattle | Ff7GuestBattleStatuses.OriginMulticast | 0x8000u);
+        if (!healing && !IgnoresStatuses(action.AttackType) && (unmappedSaved != 0 || unmappedBattle != 0))
         {
-            return "This command changes native statuses or execution flags that have no FFVII counterpart.";
+            return $"This command changes FFVIII statuses or execution flags with no direct FFVII counterpart (saved 0x{unmappedSaved:X4}, battle 0x{unmappedBattle:X8}).";
         }
         return null;
     }
@@ -89,6 +89,7 @@ internal static class CrossoverBattleAbilityRules
         Ff7BattleDamageAction mechanics = new(formula, checked((byte)Math.Min(255, power)), accuracy, LongRange: !physical, Healing: healing, UsePhysicalStats: physical, IgnoreDefense: action.AttackType is 15 or 22 or 36, HasStatusOperation: record is not null, AddsStatuses: record is not null && !healing)
         {
             AlwaysHits = revive || IgnoresStatuses(action.AttackType) || action.Hit == 255,
+            Reflectable = NativeBattleReflectionRules.CanReflect(action.Command, action.AttackFlags, action.AttackType),
             SuppressCritical = !physical,
             RequiresKnockedOutTarget = revive,
             MinimumDamage = action.AttackType == 5 ? 1 : 0,
