@@ -5,7 +5,8 @@ internal static class ExpandedBattleActionRules
     public static bool SupportsContacts(BattleNativeAction action)
     {
         return action.HitCount > 0 && !action.PresentationOnly && action.CrisisLevel is null &&
-            action.AttackType is 1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or 11 or 15 or 18 or 20 or 21 or 22 or 25 or 26 or 27 or 28 or 29 or 30 or 32 or 33 or 34 or 35 or 36 &&
+            (action.AttackType is 1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or 11 or 15 or 18 or 20 or 21 or 22 or 25 or 26 or 27 or 28 or 29 or 30 or 32 or 33 or 34 or 35 or 36 ||
+             action is { Command: 2 or 6, KernelSection: 1, AttackType: 12, HitCount: 1, Power: 0, Element: 0, StatusAttack: 0, Statuses0: 0, Statuses1: 0 }) &&
             (action.Statuses1 & 0x10000) == 0;
     }
 
