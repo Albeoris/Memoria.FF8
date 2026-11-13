@@ -215,7 +215,9 @@ public sealed partial class BattleSession
 
     private bool HasGuardianForceTimeBoundary => guardianForceCasts.Values.Any(cast => cast.RemainingTicks == 0 || (byId[cast.ActorId].NativeStatus1 & 0x80000000) == 0);
 
-    private bool CanExplicitlyAdvanceTurn => Outcome == BattleOutcome.Active && !HasPendingNativeOutcome && NativeEntryReady && !HasGuardianForceTimeBoundary && nativeScriptState.WaitCounters.Length == 0 && !NativeScriptAllocationPaused && NativeGraphics?.UiServices?.PauseDE9 != true && (nativeBattleClock is null || NativeGraphics is null || nativeBattleClock.Active != 0) && (!UsesExpandedRoster || nativeShotProcesses.Count == 0);
+    private bool ExpandedTimedLimitOwnsInput => nativeShotProcesses.Count != 0 || nativeRenzokukenProcesses.Count != 0;
+
+    private bool CanExplicitlyAdvanceTurn => Outcome == BattleOutcome.Active && !HasPendingNativeOutcome && NativeEntryReady && !HasGuardianForceTimeBoundary && nativeScriptState.WaitCounters.Length == 0 && !NativeScriptAllocationPaused && NativeGraphics?.UiServices?.PauseDE9 != true && (nativeBattleClock is null || NativeGraphics is null || nativeBattleClock.Active != 0) && (!UsesExpandedRoster || !ExpandedTimedLimitOwnsInput);
 
     private bool CanAdvanceTurnBasedTime => Outcome == BattleOutcome.Active && !HasPendingNativeOutcome && NativeEntryReady && !HasPendingTurn && !HasGuardianForceTimeBoundary && NativeGraphics?.UiServices?.PauseDE9 != true && (nativeBattleClock is null || NativeGraphics is null || NativeBattleClockRules.Admit(nativeBattleClock, true, false, NativeScriptAllocationPaused).AtbAdmitted != 0);
 
@@ -302,7 +304,7 @@ public sealed partial class BattleSession
         RequireNormalGuardianFormCommands(actorId);
         BattleCombatant actor = GetActor(actorId);
         BattleCombatant target = GetActor(targetId);
-        if (Outcome != BattleOutcome.Active || UsesExpandedRoster && actor.IsPlayer && nativeShotProcesses.Count != 0 || !actor.IsReady || !CanNativeBattleActorAct(actor) || !target.IsActive || !target.IsAlive || target.Untargetable || !actor.Abilities.Contains(BattleAbility.Attack))
+        if (Outcome != BattleOutcome.Active || UsesExpandedRoster && actor.IsPlayer && ExpandedTimedLimitOwnsInput || !actor.IsReady || !CanNativeBattleActorAct(actor) || !target.IsActive || !target.IsAlive || target.Untargetable || !actor.Abilities.Contains(BattleAbility.Attack))
         {
             throw new InvalidOperationException("Attack requires a ready living actor with Attack and a living target in an active battle.");
         }
@@ -517,7 +519,7 @@ public sealed partial class BattleSession
             return becameReady;
         }
         // TODO(TD-009): Components without the raw descriptor bank retain the existing gauge clock.
-        bool clockAdmitted = UsesRealTimeBattleClock && (!UsesExpandedRoster || nativeShotProcesses.Count == 0) && (HasNativeUiServiceClock ? nativeBattleClock!.AtbAdmitted != 0 : nativeBattleClock is null || NativeGraphics is null || AdmitNativeBattleClock(true, false));
+        bool clockAdmitted = UsesRealTimeBattleClock && (!UsesExpandedRoster || !ExpandedTimedLimitOwnsInput) && (HasNativeUiServiceClock ? nativeBattleClock!.AtbAdmitted != 0 : nativeBattleClock is null || NativeGraphics is null || AdmitNativeBattleClock(true, false));
         if (clockAdmitted)
         {
             AdvanceBattleTime(becameReady, !HasNativeUiServiceClock);
@@ -532,7 +534,7 @@ public sealed partial class BattleSession
         DispatchNativeCompelledActors();
         foreach (BattleCombatant enemy in combatants.Where(actor => !actor.IsPlayer && actor.IsReady && CanNativeBattleActorAct(actor)).ToArray())
         {
-            if (diagnosticHoldEnemyCommands || UsesExpandedRoster && nativeShotProcesses.Count != 0)
+            if (diagnosticHoldEnemyCommands || UsesExpandedRoster && ExpandedTimedLimitOwnsInput)
             {
                 continue;
             }
@@ -602,7 +604,14 @@ public sealed partial class BattleSession
                     BattleCombatant actor = byId[command.ActorId];
                     if (UsesExpandedRoster)
                     {
-                        StartExpandedAction(actor, command);
+                        if (command.NativeRenzokuken is not null)
+                        {
+                            StartNativeRenzokuken(command);
+                        }
+                        else
+                        {
+                            StartExpandedAction(actor, command);
+                        }
                         return;
                     }
                     if (command.NativeHeaderIndex is not null)
@@ -1625,7 +1634,8 @@ public sealed partial class BattleSession
         }
         bool expandedShot = UsesExpandedRoster && IsShotCallback(limitCallback) && IsExpandedShotAction(nativeAction) && actor.NativeLimit?.Command == 14;
         bool expandedSlots = UsesExpandedRoster && nativeAction is not null && slots is not null && CanCastExpandedSlots(nativeAction, slots) && actor.NativeLimit?.Command == 16;
-        if (UsesExpandedRoster && ability == BattleAbility.LimitBreak && (nativeAction is null || !SupportsPlayerLimitSelection(actorId) || !expandedShot && !expandedSlots && (!SupportsExpandedLimit(nativeAction) || actor.NativeLimit?.Command != nativeAction.Command) || nativeQueuedCommand != nativeAction.Command || actionId != (nativeAction.Command << 16 | nativeAction.ActionId) || nativeTargetMask != 0 || factualHeader || !allowDefeatedTarget && !expandedShot && ExpandedActionTargets(actor, targetId, ability, actionId, null, nativeAction).Length == 0))
+        bool expandedRenzokuken = UsesExpandedRoster && renzokuken is not null && nativeQueuedCommand == 5 && nativeTargetMask == 0 && !factualHeader && actor.IsPlayer && !target.IsPlayer;
+        if (UsesExpandedRoster && ability == BattleAbility.LimitBreak && !expandedRenzokuken && (nativeAction is null || !SupportsPlayerLimitSelection(actorId) || !expandedShot && !expandedSlots && (!SupportsExpandedLimit(nativeAction) || actor.NativeLimit?.Command != nativeAction.Command) || nativeQueuedCommand != nativeAction.Command || actionId != (nativeAction.Command << 16 | nativeAction.ActionId) || nativeTargetMask != 0 || factualHeader || !allowDefeatedTarget && !expandedShot && ExpandedActionTargets(actor, targetId, ability, actionId, null, nativeAction).Length == 0))
         {
             throw new InvalidDataException("Saved expanded Limit lacks its installed command or logical recipients.");
         }

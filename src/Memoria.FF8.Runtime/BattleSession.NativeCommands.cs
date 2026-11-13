@@ -215,6 +215,11 @@ public sealed partial class BattleSession
         }
         if (UsesExpandedRoster)
         {
+            if (limit && command == 5)
+            {
+                QueueNativeRenzokuken(actor, target, crisis!.Value);
+                return;
+            }
             BattleNativeAction native = FindNativeCommandAction(actor, command, actionId, crisis);
             if (limit && command == 16)
             {

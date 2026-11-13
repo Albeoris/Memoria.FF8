@@ -215,6 +215,42 @@ public sealed class NativeRenzokukenInvocationTests
         Assert.Single(battle.Events, item => item.Kind == "Damage" && item.TargetId == "squall" && item.Message.StartsWith("Poison:", StringComparison.Ordinal));
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void Expanded_Renzokuken_applies_the_installed_finisher_once_before_the_retained_trigger_timeline(byte finisher)
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleSession battle = Create(game, assets, enemyHp: 1, crisis: 4, finisher: true, chosenFinisher: finisher, expanded: true);
+        BattleNativeAction action = Assert.Single(assets.NativeActions, row => row.Command == 249 && row.ActionId == finisher);
+        battle.QueueNativePlayerCommand("squall", "enemy", 5, 0);
+        battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        battle.Tick();
+
+        BattleNativeRenzokukenState process = Assert.IsType<BattleNativeRenzokukenState>(battle.GetNativeRenzokuken("squall"));
+        Assert.Equal(finisher, process.FinisherActionId);
+        Assert.Equal(0, process.Input.ContactIndex);
+        Assert.Equal(0, battle.Capture().NativeTimedAction!.Contacts);
+        Assert.Equal(BattleOutcome.Active, battle.Outcome);
+        Assert.False(battle.Combatants.Single(actor => actor.Id == "enemy").IsAlive);
+        bool group = (action.TargetFlags!.Value & 0x10) == 0;
+        Assert.Equal(action.HitCount * (group ? 6 : 1), battle.Events.Count(entry => entry.Kind == "EffectContact" && entry.Message == action.Name));
+
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        Until(battle, () => battle.GetNativeRenzokuken("squall") is null);
+        Until(restored, () => restored.GetNativeRenzokuken("squall") is null);
+        int contacts = game.ReadNativeRenzokukenResources().Single(resource => resource.MagicId == process.MagicId).Timeline.InputThresholds.Length;
+        BattleEvent[] trigger = battle.Events.Where(entry => entry.Kind == "EffectContact" && entry.Message == "Renzokuken").ToArray();
+        Assert.Equal(contacts, trigger.Length);
+        Assert.All(trigger, entry => Assert.Equal("enemy", entry.TargetId));
+        Assert.Single(battle.Events, entry => entry.Kind == "Defeated" && entry.TargetId == "enemy");
+        Assert.Null(battle.Capture().NativeTimedAction);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+    }
+
     private static int FirstHit(BattleSession battle)
     {
         return battle.Events.First(item => item.Kind == "Damage" && item.TargetId == "enemy").Amount;
@@ -229,12 +265,17 @@ public sealed class NativeRenzokukenInvocationTests
         Assert.True(complete());
     }
 
-    private static BattleSession Create(GameAssets game, BattleAssets assets, int enemyHp = 50000, bool secondEnemy = false, bool poison = false, bool counter = false, ushort options = 0, byte crisis = 1, bool finisher = false, bool precedingActor = false, byte? chosenFinisher = null)
+    private static BattleSession Create(GameAssets game, BattleAssets assets, int enemyHp = 50000, bool secondEnemy = false, bool poison = false, bool counter = false, ushort options = 0, byte crisis = 1, bool finisher = false, bool precedingActor = false, byte? chosenFinisher = null, bool expanded = false)
     {
         NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals();
+        if (expanded && chosenFinisher is byte desired)
+        {
+            vitals = Enumerable.Range(0, 7).Select(weapon => vitals with { Records = vitals.Records.Select((row, index) => index == 0 ? row with { Weapon = checked((byte)weapon) } : row).ToArray() })
+                .First(candidate => (assets.ReadPlayerNativeStatRules(candidate, 0).WeaponRecord[2] & (1 << desired)) != 0);
+        }
         NativeCharacterVital character = vitals.Records[0];
         BattleNativePlayerStatRules rules = assets.ReadPlayerNativeStatRules(vitals, 0);
-        if (chosenFinisher is not null)
+        if (!expanded && chosenFinisher is not null)
         {
             rules = rules with { WeaponRecord = rules.WeaponRecord.SetItem(2, 15) };
         }
@@ -252,7 +293,12 @@ public sealed class NativeRenzokukenInvocationTests
         {
             actors.Add(new() { Id = "ally", Name = "Ally", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum });
         }
-        BattleSession battle = new(new BattleDefinition { NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), NativeActions = assets.NativeActions.ToArray(), NativeRenzokukenResources = game.ReadNativeRenzokukenResources(), NativeStatusRules = assets.ReadNativeStatusRules(0), NativeBattleUiRandom = new(100), LimitProgress = game.ReadNewGameLimitProgress() with { Options978 = options }, NativeLimitsDisabled = false, Combatants = actors.ToArray() }, BattleAtbMode.TurnBased);
+        if (expanded)
+        {
+            actors.AddRange(Enumerable.Range(1, 3).Select(index => new BattleCombatantDefinition { Id = $"ally-{index}", Name = "Ally", IsPlayer = true }));
+            actors.AddRange(Enumerable.Range(1, 5).Select(index => actors[1] with { Id = $"enemy-{index}", MaximumHp = 50000, CurrentHp = 50000 }));
+        }
+        BattleSession battle = new(new BattleDefinition { UsesExpandedRoster = expanded, NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), NativeActions = assets.NativeActions.ToArray(), NativeRenzokukenResources = game.ReadNativeRenzokukenResources(), NativeStatusRules = assets.ReadNativeStatusRules(0), NativeBattleUiRandom = new(100), LimitProgress = game.ReadNewGameLimitProgress() with { Options978 = options }, NativeLimitsDisabled = false, Combatants = actors.ToArray() }, BattleAtbMode.TurnBased);
         NativeBattleRandomState random = Enumerable.Range(0, 256).Select(seed => NativeBattleRandomState.Initialize((byte)seed)).First(candidate =>
         {
             candidate = candidate.Draw(out _).Draw(out byte roll);

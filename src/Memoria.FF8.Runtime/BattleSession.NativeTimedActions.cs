@@ -10,6 +10,92 @@ public sealed partial class BattleSession
     private NativeBattleTimedAction? nativeTimedAction;
     private bool suppressNativeImmediateCounter;
 
+    private void BeginExpandedRenzokuken(BattleAttackCommand queued, BattleCombatant actor, BattleCombatant target, ushort magicId, byte? finisher)
+    {
+        if (nativeTimedAction is not null || nativeActionCommitDepth != 0)
+        {
+            throw new InvalidOperationException("Expanded Renzokuken requires the serialized action boundary.");
+        }
+        BattleActionPresentation command = NativeCommandPresentation(queued);
+        BeginNativeReactionBatch();
+        nativeTimedAction = new(command, 0);
+        nativeActionCommitDepth = 1;
+        nativeRenzokukenProcesses.Add(actor.Id, new(magicId, 0, finisher, new()));
+        nativeActionScratch = nativeActionScratch with { EventLane = 1, Command = 5, Action = finisher is null ? (ushort)0xFFFD : (ushort)0xFFFE, DeferredEffectsE00 = false };
+        LogRenzokukenBoundary(command, "Windup", $"{actor.Name}: Renzokuken.");
+        if (finisher is byte index)
+        {
+            ResolveExpandedRenzokukenFinisher(actor, target, command, FindInstalledNativeAction(249, index));
+        }
+    }
+
+    private static void ValidateExpandedRenzokukenFinisher(BattleNativeAction finisher)
+    {
+        if (finisher is not { Command: 249, KernelSection: 5, ActionId: < 4, AttackType: 9, TargetFlags: 0x48 or 0x58, HitCount: > 0 })
+        {
+            throw new NotSupportedException("Expanded Renzokuken requires the installed hostile finisher formula and target mode.");
+        }
+    }
+
+    private void ResolveExpandedRenzokukenFinisher(BattleCombatant actor, BattleCombatant target, BattleActionPresentation owner, BattleNativeAction finisher)
+    {
+        ValidateExpandedRenzokukenFinisher(finisher);
+        bool group = (finisher.TargetFlags!.Value & 0x10) == 0;
+        if (!group)
+        {
+            // Native483880 draws a single candidate before command250 substitutes command5's selected target.
+            _ = NextRandomByte();
+        }
+        BattleCombatant[] recipients = group ? enemies.Where(IsExpandedRenzokukenTarget).ToArray() : [target];
+        BattleActionPresentation command = owner with { ActionId = 249 << 16 | finisher.ActionId, NativeQueuedCommand = 250, NativeAction = finisher };
+        BattleNativeAction formula = finisher with { ActionId = ushort.MaxValue };
+        foreach (BattleCombatant recipient in recipients)
+        {
+            recipient.NativeRemainingHits = finisher.HitCount;
+        }
+        for (int hit = 0; hit < finisher.HitCount; hit++)
+        {
+            foreach (BattleCombatant recipient in recipients)
+            {
+                PublishExpandedRenzokukenContact(actor, recipient, command, formula, deferred: false);
+            }
+        }
+    }
+
+    private void ResolveExpandedRenzokukenTrigger(BattleNativeAction physical, short timing, bool last, bool finisher)
+    {
+        NativeBattleTimedAction timed = nativeTimedAction ?? throw new InvalidOperationException("Renzokuken trigger has no command owner.");
+        BattleCombatant actor = GetActor(timed.Command.ActorId);
+        BattleCombatant target = GetActor(timed.Command.TargetId);
+        bool deferred = !last || finisher;
+        byte sequence = !deferred && (NativeSavedStatusBits(target) & 1) != 0 ? (byte)4 : (byte)255;
+        BattleNativeAction formula = physical with { Name = "Renzokuken", ActionId = finisher ? ushort.MaxValue : (ushort)0, DamagePresentation = sequence };
+        BattleActionPresentation contact = timed.Command with { NativeQueuedCommand = finisher ? (byte)250 : (byte)5, NativeAction = formula, GunbladeTriggerTiming = timing };
+        target.NativeRemainingHits = 1;
+        PublishExpandedRenzokukenContact(actor, target, contact, formula, deferred);
+        nativeTimedAction = timed with { Contacts = checked(timed.Contacts + 1) };
+    }
+
+    private void PublishExpandedRenzokukenContact(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command, BattleNativeAction formula, bool deferred)
+    {
+        BattleActionPresentation? previous = resolvingNativeAction;
+        bool previousSuppression = suppressNativeImmediateCounter;
+        nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = deferred, Command = formula.Command };
+        resolvingNativeAction = command with { NativeAction = formula };
+        suppressNativeImmediateCounter = deferred;
+        try
+        {
+            BattleActionDefinition action = new(command.Ability, command.ActionId, formula.Command == 251 ? "Renzokuken" : formula.Name ?? "Renzokuken finisher", BattleActionEffect.Native, formula.Power, false) { NativeAction = formula };
+            NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, target, resolvingNativeAction, action, formula, 255, presentationRow: 0);
+            PublishExpandedImpacts(command, [new(target.Id, packet)]);
+        }
+        finally
+        {
+            suppressNativeImmediateCounter = previousSuppression;
+            resolvingNativeAction = previous;
+        }
+    }
+
     private void BeginNativeTimedAction(BattleActionPresentation command, ushort magicId, byte? finisher, ushort finisherTargets)
     {
         if (nativeTimedAction is not null || nativeActionCommitDepth != 0 || HasNativePendingReactions)
@@ -123,6 +209,17 @@ public sealed partial class BattleSession
         BattleCombatant actor = GetActor(timed.Command.ActorId);
         CompleteNativeTimedActionOwners(actor, timed.Command);
         nativeTimedAction = null;
+        if (UsesExpandedRoster)
+        {
+            nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = false };
+            CompleteNativeActionStatuses(actor);
+            nativeActionCommitDepth = 0;
+            FlushExpandedEnemyReactions();
+            LogRenzokukenBoundary(timed.Command, "ActionComplete", "Renzokuken completed.");
+            RefreshNativeKnownMagicStocks();
+            RefreshNativeEnemyDrawSlots();
+            return;
+        }
         nativeActionCommitDepth = 0;
         QueueNativeActionClockCompletion(0x47DE70);
         RefreshNativeKnownMagicStocks();
@@ -167,6 +264,20 @@ public sealed partial class BattleSession
         return nativeTimedAction;
     }
 
+    private void LogRenzokukenBoundary(BattleActionPresentation command, string kind, string message)
+    {
+        BattleActionPresentation? previous = resolvingNativeAction;
+        resolvingNativeAction = command;
+        try
+        {
+            Log(kind, command.ActorId, command.TargetId, 0, message);
+        }
+        finally
+        {
+            resolvingNativeAction = previous;
+        }
+    }
+
     private void RestoreNativeTimedAction(NativeBattleTimedAction? saved)
     {
         nativeTimedAction = null;
@@ -178,6 +289,10 @@ public sealed partial class BattleSession
         if (saved.Command is null || saved.Command.NativeQueuedCommand != 5 || !byId.TryGetValue(saved.Command.ActorId, out BattleCombatant? actor) || !actor.IsPlayer || !byId.ContainsKey(saved.Command.TargetId) || saved.Contacts < 0)
         {
             throw new InvalidDataException("Saved native timed command lacks its canonical actor, contact or reaction owners.");
+        }
+        if (UsesExpandedRoster && (saved.Command is not { NativeHeaderIndex: null, NativeTargetMask: 0, NativeAction: null, NativeRenzokuken.CrisisLevel: >= 1 and <= 4, Ability: BattleAbility.LimitBreak, ActionId: 5 << 16 } || actor.Atb != 0))
+        {
+            throw new InvalidDataException("Saved expanded Renzokuken lacks its logical command5 transaction.");
         }
         actor.IsBusy = true;
         nativeTimedAction = saved;

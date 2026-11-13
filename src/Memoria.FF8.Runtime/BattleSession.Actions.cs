@@ -24,9 +24,9 @@ public sealed partial class BattleSession
         RequireNoPendingSlotsDeal();
         RequireNativeEntryReady();
         RequireNormalGuardianFormCommands(actorId);
-        if (UsesExpandedRoster && nativeShotProcesses.Count != 0)
+        if (UsesExpandedRoster && ExpandedTimedLimitOwnsInput)
         {
-            throw new InvalidOperationException("The active Shot process owns player command input.");
+            throw new InvalidOperationException("The active timed Limit owns player command input.");
         }
         if (magicTargets is not null && ability != BattleAbility.Magic)
         {
