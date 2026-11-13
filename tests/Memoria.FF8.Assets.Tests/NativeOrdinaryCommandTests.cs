@@ -309,6 +309,7 @@ public sealed class NativeOrdinaryCommandTests
     [InlineData(26, "ally-3", 100, 0)]
     [InlineData(27, "ally-3", 0, 1)]
     [InlineData(30, "enemy-5", 1000, 0)]
+    [InlineData(31, "enemy-5", 1000, 0)]
     [InlineData(32, "enemy-5", 1000, 0)]
     public void ExpandedEquippedCommandsPreserveEffectsAndTheirLogicalRecipients(byte command, string targetId, int allyHp, ushort allyStatus)
     {
@@ -366,12 +367,117 @@ public sealed class NativeOrdinaryCommandTests
             case 30:
                 Assert.Equal(0x400u, saved.NativeStatus!.Battle & 0x400);
                 break;
+            case 31:
+                Assert.Equal(5000, recipient.MaximumHp - recipient.CurrentHp);
+                BattleCombatant sacrificed = battle.Combatants.Single(actor => actor.Id == caster.Id);
+                Assert.False(sacrificed.IsActive);
+                Assert.Equal(0, sacrificed.CurrentHp);
+                Assert.Equal((ushort)1, sacrificed.PersistentStatus);
+                Assert.Equal((ushort)1, sacrificed.NativeDeathCount);
+                BattleSession completed = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+                completed.Tick();
+                Assert.Equal((ushort)1, completed.Combatants.Single(actor => actor.Id == caster.Id).NativeDeathCount);
+                break;
             case 32:
                 Assert.True(recipient.CurrentHp < recipient.MaximumHp);
                 Assert.True(battle.Combatants.Single(actor => actor.Id == caster.Id).CurrentHp > 500);
                 Assert.Single(battle.Events, entry => entry.Kind == "SecondaryEffectContact" && entry.TargetId == caster.Id);
                 break;
         }
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ExpandedInstalledCardCommitsAtContactAndRestoresWithoutReplay(bool succeeds)
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleDefinition original = Create(game, assets, 29).ReadDefinition();
+        BattleNativeEnemySpecial special = assets.ReadNativeEnemySpecial(4);
+        Assert.InRange(special.CommonCard, (byte)0, (byte)109);
+        BattleCombatantDefinition caster = original.Combatants[0];
+        BattleCombatantDefinition ally = original.Combatants[1];
+        BattleCombatantDefinition enemy = original.Combatants[2] with { ModelId = 4, MaximumHp = 1000, CurrentHp = succeeds ? 1 : 1000, NativeSpecial = special };
+        NativeCardInventory cards = NativeCardInventory.CreateNewGame();
+        BattleSession battle = new(original with
+        {
+            UsesExpandedRoster = true,
+            NativeCards = cards,
+            NativeCardNames = Enumerable.Range(0, 110).Select(id => (string?)$"Card {id}").ToArray(),
+            InitialRandom = NativeBattleRandomState.ForecastPhase(0),
+            Combatants = [caster, ally, ally with { Id = "ally-2", ModelId = 2 }, ally with { Id = "ally-3", ModelId = 3 },
+                .. Enumerable.Range(0, 6).Select(index => enemy with { Id = $"enemy-{index}" })]
+        }, BattleAtbMode.Normal);
+        BattleActionDefinition action = Assert.Single(battle.GetNativePlayerActionChoices(caster.Id, limits: false));
+        Assert.Throws<InvalidOperationException>(() => battle.QueueAction(caster.Id, ally.Id, BattleAbility.NativeCommand, action.Id));
+        battle.QueueAction(caster.Id, "enemy-5", BattleAbility.NativeCommand, action.Id);
+        battle.Tick();
+        BattleSnapshot windup = battle.Capture();
+        Assert.Null(windup.ActiveAction!.NativeSpecial);
+        Assert.Equal(JsonSerializer.Serialize(cards), JsonSerializer.Serialize(windup.NativeCards));
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(windup))!);
+        for (int tick = 0; tick <= BattleSession.AttackWindupFrames; tick++)
+        {
+            battle.Tick();
+            restored.Tick();
+        }
+        BattleCombatant target = battle.Combatants.Single(actor => actor.Id == "enemy-5");
+        Assert.Equal(succeeds, target.IsEjected);
+        Assert.Equal(!succeeds, target.IsAlive);
+        Assert.Equal(succeeds ? Math.Max(0, cards.AvailableCount(special.CommonCard)) + 1 : cards.AvailableCount(special.CommonCard), battle.Capture().NativeCards!.AvailableCount(special.CommonCard));
+        Assert.Single(battle.Events, item => item.Kind == "ActionComplete");
+        Assert.Single(battle.Events, item => item.Kind == "EffectContact" && item.TargetId == target.Id);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+    }
+
+    [Fact]
+    public void ExpandedInstalledDevourUsesTheAllocatedBandAndOriginalGrowthEffect()
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleDefinition original = Create(game, assets, 7).ReadDefinition();
+        const int enemyModel = 46;
+        const int enemyLevel = 32;
+        NativeBattleAiDefinition program = assets.ReadEnemyAi(enemyModel, enemyLevel);
+        BattleNativeEnemySpecial special = assets.ReadNativeEnemySpecial(enemyModel);
+        int effectIndex = special.DevourEffects[program.LevelBand];
+        BattleNativeDevourEffect[] effects = assets.ReadNativeDevourEffects();
+        BattleNativeDevourEffect effect = effects[effectIndex];
+        Assert.Equal(30, effect.Effect);
+        Assert.NotEqual(0, effect.StatFlags);
+
+        BattleNativeCharacterGrowth growth = new(0, [0, 0, 0, 0, 0, 0]);
+        BattleCombatantDefinition caster = original.Combatants[0] with { NativeGrowth = growth };
+        BattleCombatantDefinition ally = original.Combatants[1];
+        BattleCombatantDefinition enemy = original.Combatants[2] with
+        {
+            ModelId = enemyModel, Level = enemyLevel, MaximumHp = 1000, CurrentHp = 1, NativeSpecial = special, NativeAi = program
+        };
+        BattleSession battle = new(original with
+        {
+            UsesExpandedRoster = true,
+            NativeDevourEffects = effects,
+            InitialRandom = NativeBattleRandomState.ForecastPhase(0),
+            Combatants = [caster, ally, ally with { Id = "ally-2", ModelId = 2 }, ally with { Id = "ally-3", ModelId = 3 },
+                .. Enumerable.Range(0, 6).Select(index => enemy with { Id = $"enemy-{index}" })]
+        }, BattleAtbMode.Normal);
+        BattleActionDefinition action = Assert.Single(battle.GetNativePlayerActionChoices(caster.Id, limits: false));
+        battle.QueueAction(caster.Id, "enemy-5", BattleAbility.NativeCommand, action.Id);
+        battle.Tick();
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        for (int tick = 0; tick <= BattleSession.AttackWindupFrames; tick++)
+        {
+            battle.Tick();
+            restored.Tick();
+        }
+        BattleCombatant target = battle.Combatants.Single(actor => actor.Id == "enemy-5");
+        Assert.True(target.IsEjected);
+        BattleNativeCharacterGrowth after = battle.Combatants.Single(actor => actor.Id == caster.Id).NativeGrowth!;
+        Assert.Equal(effect.HitPointBonus, after.HitPointBonus);
+        Assert.Equal(Enumerable.Range(0, 6).Select(index => (byte)((effect.StatFlags >> index) & 1)), after.StatBonuses);
+        Assert.Single(battle.Events, entry => entry.Kind == "NativeText" && entry.Message == effect.Description);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
     }
 
     private static void QueueAndHit(BattleSession battle, string target, byte command, ushort id)

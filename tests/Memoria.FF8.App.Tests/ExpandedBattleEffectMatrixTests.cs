@@ -105,7 +105,12 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                     firstBlockerStage = "shot-execution";
                     (status, detail) = RunExpandedShot(directory, field, assets, shot);
                 }
-                else if (mappings.FirstOrDefault(action => action.KernelSection == 10 && action.Command is 23 or 24 or 25 or 26 or 27 or 32 or 33 or 34) is { } equipped)
+                else if (mappings.FirstOrDefault(action => action is { Command: 16, KernelSection: 1, AttackType: 2, Statuses1: 0x10000 }) is { } rapture)
+                {
+                    firstBlockerStage = "slots-execution";
+                    (status, detail) = RunExpandedRapture(directory, field, assets, rapture);
+                }
+                else if (mappings.FirstOrDefault(action => action.KernelSection == 10 && action.Command is 7 or 23 or 24 or 25 or 26 or 27 or 29 or 31 or 32 or 33 or 34) is { } equipped)
                 {
                     firstBlockerStage = "command-execution";
                     (status, detail) = RunEquippedCommand(directory, field, effect, equipped);

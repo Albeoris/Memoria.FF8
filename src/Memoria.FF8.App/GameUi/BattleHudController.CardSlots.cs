@@ -14,6 +14,11 @@ public sealed partial class BattleHudController
     public string SlotsConfirmHint { get; set; } = new KeyboardInput().BindingPrompt(ControlAction.Confirm);
     internal SlotsCardController? SlotsCards => slotsCards;
 
+    internal string SlotsCardLabel(BattleNativeSlotsRoll roll)
+    {
+        return SlotsResultLabel(session.GetNativeSlotsCardName(roll.MagicId), session.CanCastNativeSlotsCard(roll));
+    }
+
     private bool TryBeginCardSlots(BattleCombatant actor)
     {
         if (!session.SelphieCardSlots || SelectedCommand != BattleAbility.LimitBreak || actor.NativeLimit?.Command != 16 || SelectingAction || SelectingTarget)

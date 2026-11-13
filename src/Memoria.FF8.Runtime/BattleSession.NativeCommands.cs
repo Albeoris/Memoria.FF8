@@ -86,6 +86,14 @@ public sealed partial class BattleSession
         BattleAbility ability = limits ? BattleAbility.LimitBreak : BattleAbility.NativeCommand;
         if (UsesExpandedRoster && limits)
         {
+            if (actor.NativeLimit?.Command == 16 && nativeSlotsRolls.TryGetValue(actorId, out BattleNativeSlotsRoll? expandedRoll))
+            {
+                return choices.Select(action => CreateNativePlayerActionChoice(ability, action, action.TargetFlags!.Value, action.Name) with
+                {
+                    Available = CanCastExpandedSlots(action, expandedRoll),
+                    DisplayName = $"{action.Name} ×{expandedRoll.Repetitions}"
+                }).ToArray();
+            }
             if (actor.NativeLimit?.Command == 14)
             {
                 return choices.Where(IsExpandedShotAction).Select(action => ExpandedLimitDefinition(actor, action) with
@@ -123,12 +131,14 @@ public sealed partial class BattleSession
 
     private bool SupportsExpandedOrdinaryCommand(BattleNativeAction action)
     {
-        // Section 10 also contains special invocations and a physical action that removes its owner.
+        // Section 10 also contains special invocations with separate admission state.
         return action.KernelSection == 10 && action.TargetFlags is byte flags && (flags & 0x30) != 0x30 &&
             ((flags & 1) == 0 || action.AttackType is 5 or 6) &&
             (IsNativeLevelCommand(action)
                 ? definition.ExpandedEnemyLevels is not null && action.HitCount == 1 && !action.PresentationOnly && action.CrisisLevel is null && (flags & 0x32) == 0x10
-                : action.AttackType is 2 or 3 or 4 or 5 or 6 or 25 or 32 && ExpandedBattleActionRules.SupportsContacts(action));
+                : IsExpandedTargetedSpecial(action)
+                    ? enemies.Any(enemy => CanTargetExpandedSpecial(action, enemy)) && action.HitCount == 1 && !action.PresentationOnly && action.CrisisLevel is null && (flags & 0x72) == 0x50
+                    : action.AttackType is 2 or 3 or 4 or 5 or 6 or 18 or 25 or 32 && ExpandedBattleActionRules.SupportsContacts(action));
     }
 
     private static BattleActionDefinition ExpandedOrdinaryCommandDefinition(BattleNativeAction native)
@@ -206,6 +216,11 @@ public sealed partial class BattleSession
         if (UsesExpandedRoster)
         {
             BattleNativeAction native = FindNativeCommandAction(actor, command, actionId, crisis);
+            if (limit && command == 16)
+            {
+                QueueExpandedSlots(actor, native, sequence, nativeSlotsRolls[actorId]);
+                return;
+            }
             if (limit && command == 14 && IsExpandedShotAction(native))
             {
                 BeginNativeShot(actor, target, native, crisis!.Value);

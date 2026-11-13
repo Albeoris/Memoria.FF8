@@ -8,11 +8,14 @@ namespace Memoria.FF8.App.Tests;
 public sealed partial class ExpandedBattleEffectMatrixTests
 {
     [Theory]
+    [InlineData(7)]
     [InlineData(23)]
     [InlineData(24)]
     [InlineData(25)]
     [InlineData(26)]
     [InlineData(27)]
+    [InlineData(29)]
+    [InlineData(31)]
     [InlineData(32)]
     [InlineData(33)]
     [InlineData(34)]
@@ -29,7 +32,12 @@ public sealed partial class ExpandedBattleEffectMatrixTests
 
     private static (string Status, string Detail) RunEquippedCommand(string directory, GameState field, NativeBattleEffectBinding effect, BattleNativeAction action)
     {
-        ushort formation = action.Command is 33 or 34 ? (ushort)89 : (ushort)0;
+        bool special = action.Command is 7 or 29;
+        ushort formation = special ? (ushort)22 : action.Command is 33 or 34 ? (ushort)89 : (ushort)0;
+        if (special)
+        {
+            field = field with { GameplayPreferences = field.GameplayPreferences with { Tuning = field.GameplayPreferences.Tuning with { MaximumDamage = 4 } } };
+        }
         using GameWorld world = StartBattle(directory, field, formation, equipped: action);
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         BattleCombatant caster = Assert.Single(battle.Combatants, actor => actor.Id == CasterId);
@@ -50,6 +58,10 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         BattleCombatant target = hud.Targets.Last();
         hud.SelectTarget(target.Id, false);
         target = Assert.IsType<BattleCombatant>(hud.SelectedTarget);
+        if (special)
+        {
+            WeakenSpecialTarget(world, battle, caster, target);
+        }
         int level = target.Level;
         string[] expected = hud.SelectingTargetGroup ? hud.Targets.Select(actor => actor.Id).Order().ToArray() : [target.Id];
         int start = battle.Events.Count;
@@ -85,7 +97,43 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             Assert.Equal(Math.Clamp(action.Power * level / 8, 1, 100), target.Level);
             Assert.Single(events, entry => entry.Kind == "LevelChanged" && entry.TargetId == target.Id);
         }
+        if (action.Command == 31)
+        {
+            Assert.False(caster.IsActive);
+            Assert.False(caster.IsAlive);
+            Assert.All(battle.Combatants.Where(actor => actor.IsPlayer && actor != caster), ally => Assert.True(ally.IsActive));
+        }
+        if (special)
+        {
+            Assert.True(target.IsEjected);
+            Assert.False(target.IsAlive);
+            Assert.True(target.IsActive);
+            Assert.Single(battle.EnemyDefeats, entry => entry.AllocationId == target.Id && entry.NativeCommand == action.Command);
+        }
         Assert.True(presentation is null || presentation.Complete);
         return (presentation is null ? "logical" : "native", $"Equipped {action.Name} used the original command {action.Command}/{action.ActionId} and completed with {expected.Length} roster contact(s).");
+    }
+
+    private static void WeakenSpecialTarget(GameWorld world, BattleSession battle, BattleCombatant caster, BattleCombatant target)
+    {
+        // The fixture's damage cap allows genuine Attack to approach the native Card or Devour threshold without KO.
+        for (int attempt = 0; attempt < 40 && target.CurrentHp > 4; attempt++)
+        {
+            BattleCombatant? attacker = battle.Combatants.FirstOrDefault(actor => actor.IsPlayer && actor != caster && actor.IsReady && actor.Abilities.Contains(BattleAbility.Attack));
+            if (attacker is null)
+            {
+                world.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
+                world.ApplyBattleInput(new(BattleInputKind.Tick, Frames: 30));
+                continue;
+            }
+            world.ApplyBattleInput(new(BattleInputKind.Attack, ActorId: attacker.Id, TargetId: target.Id));
+            for (int frame = 0; frame < 120 && attacker.IsBusy; frame++)
+            {
+                world.ApplyBattleInput(new(BattleInputKind.Tick));
+            }
+            Assert.True(target.IsAlive);
+        }
+        Assert.InRange(target.CurrentHp, 1, 4);
+        Assert.True(caster.IsReady);
     }
 }

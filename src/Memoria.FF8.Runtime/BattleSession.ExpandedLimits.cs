@@ -5,7 +5,7 @@ public sealed partial class BattleSession
     public bool SupportsPlayerLimitSelection(string actorId)
     {
         BattleCombatant actor = GetActor(actorId);
-        return actor.NativeLimit is { } limit && (!UsesExpandedRoster || limit.Command is 14 or 15 ||
+        return actor.NativeLimit is { } limit && (!UsesExpandedRoster || limit.Command is 14 or 15 or 16 ||
             actor.ModelId is >= 6 and <= 10 && SupportsExpandedLimit(FindInstalledNativeAction(limit.Command, NativeBattleLimitRules.GuestActionId(actor.ModelId))));
     }
 
@@ -29,7 +29,7 @@ public sealed partial class BattleSession
             byte flags = (native.TargetFlags!.Value & 0x10) != 0 ? (byte)0x50 : (byte)0x40;
             return CreateNativePlayerActionChoice(BattleAbility.LimitBreak, native, flags, native.Name);
         }
-        if (actor.NativeLimit?.Command != native.Command || !SupportsExpandedLimit(native))
+        if (actor.NativeLimit?.Command != native.Command || !SupportsExpandedLimit(native) && !SupportsExpandedSlotsAction(native))
         {
             throw new NotSupportedException("The expanded battle cannot execute this Limit's native invocation or contact contract.");
         }
@@ -40,7 +40,8 @@ public sealed partial class BattleSession
     {
         BattleNativeAction native = action.NativeAction!;
         ValidateNativeActionContract(native);
-        if (!IsValidSelectedActionTarget(actor, action, target) || IsNativeLevelCommand(native) && !CanRebindExpandedEnemyLevel(target, ProjectNativeLevel(native, target.Level)))
+        if (!IsValidSelectedActionTarget(actor, action, target) || IsNativeLevelCommand(native) && !CanRebindExpandedEnemyLevel(target, ProjectNativeLevel(native, target.Level)) ||
+            IsExpandedTargetedSpecial(native) && !CanTargetExpandedSpecial(native, target))
         {
             throw new InvalidOperationException("The command requires a valid target for its installed targeting mode.");
         }

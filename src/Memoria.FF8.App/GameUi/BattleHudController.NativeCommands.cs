@@ -12,7 +12,12 @@ public sealed partial class BattleHudController
     private int nativeSlotsChoice;
 
     public bool SelectingNativeSlots => SelectingAction && !SelectingTarget && SelectedCommand == BattleAbility.LimitBreak && SelectedActor?.NativeLimit?.Command == 16;
-    public string? NativeSlotsLabel => SelectingNativeSlots && SelectedAction is { } action ? ChoiceLabel(action) : null;
+    public string? NativeSlotsLabel => SelectingNativeSlots && SelectedAction is { } action ? SlotsResultLabel(ChoiceLabel(action), action.Available) : null;
+
+    private string SlotsResultLabel(string name, bool available)
+    {
+        return available ? name : FormatSystemText("battle.ui.slots.result.unavailable", "{0} (Unavailable)", name);
+    }
 
     private bool NavigateNativeSlots(MenuInput input)
     {

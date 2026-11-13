@@ -69,7 +69,7 @@ internal sealed partial class BattleHudElement : UiElement
         {
             if (controller.SlotsCards is { } cards && controller.Session.PendingSlotsDeal is { } deal)
             {
-                SlotsCardView.Draw(canvas, theme, Bounds, cards, index => controller.Session.GetNativeSlotsCardName(deal.Candidates[index].MagicId), index => deal.Candidates[index].Repetitions, controller.TextScale, controller.SlotsNavigationHint, controller.SlotsConfirmHint);
+                SlotsCardView.Draw(canvas, theme, Bounds, cards, index => controller.SlotsCardLabel(deal.Candidates[index]), index => deal.Candidates[index].Repetitions, controller.TextScale, controller.SlotsNavigationHint, controller.SlotsConfirmHint);
             }
             return;
         }

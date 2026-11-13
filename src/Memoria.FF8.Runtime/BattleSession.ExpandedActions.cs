@@ -200,6 +200,20 @@ public sealed partial class BattleSession
             action = action with { Name = child.Name ?? action.Name, Level = independent.Level, NativeAction = child };
         }
         BattleNativeAction native = action.NativeAction!;
+        if (command.Ability == BattleAbility.NativeCommand && IsExpandedTargetedSpecial(native))
+        {
+            // The expanded host prepares and applies the contact at the same callback, after windup revalidation.
+            BattleNativeSpecialContext special = PrepareNativeSpecialTarget(recipients.Single(), native.AttackType);
+            if (special.Failed)
+            {
+                int message = native.AttackType == 17 ? 50 : 112;
+                QueueNativeSpecialText(actor, target, NativeBattleGlobalText(message), BattleTextIdentity.Global(message));
+                CompleteNativeActionStatuses(actor);
+                CompleteActionPresentation(command, $"{action.Name} failed.");
+                return;
+            }
+            command = command with { NativeSpecial = special };
+        }
         if (command.Ability == BattleAbility.GuardianForce && (native.TargetFlags.GetValueOrDefault() & 2) != 0)
         {
             BattleCombatant recipient = recipients[NextRandomByte() % recipients.Length];
@@ -251,7 +265,7 @@ public sealed partial class BattleSession
         nativeActionCommitDepth++;
         try
         {
-            if (command.NativeLimitCallback == NativeLimitCallback.ShotEffect)
+            if (command.NativeLimitCallback == NativeLimitCallback.ShotEffect || command.NativeSlots is not null)
             {
                 PrepareNativeLimitCommand(new(command.ActorId, command.TargetId, command.Ability, command.ActionId)
                 {
@@ -289,6 +303,7 @@ public sealed partial class BattleSession
                     }
                 }
             }
+            CompleteNativeOrdinaryCommand(actor, resolved);
             CompleteNativeActionInventory(actor, resolved, false);
             if (command.Ability == BattleAbility.GuardianForce)
             {
@@ -457,6 +472,10 @@ public sealed partial class BattleSession
         };
         if (ability == BattleAbility.NativeCommand && native is not null && IsNativeLevelCommand(native) &&
             !CanRebindExpandedEnemyLevel(target, ProjectNativeLevel(native, target.Level)))
+        {
+            return [];
+        }
+        if (ability == BattleAbility.NativeCommand && native is not null && IsExpandedTargetedSpecial(native) && !CanTargetExpandedSpecial(native, target))
         {
             return [];
         }

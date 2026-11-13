@@ -41,6 +41,41 @@ public sealed partial class BattleSession
         EnqueueNativePacket(actor, command, action.Name ?? "Slots", playerInput: true);
     }
 
+    private static bool SupportsExpandedSlotsAction(BattleNativeAction? action)
+    {
+        // This hostile group contract requires one ejection pass, without stock or a second casting process.
+        return action is { Command: 16, KernelSection: 1, AttackType: 2, Power: 0, HitCount: 1, TargetFlags: 0x48, AttackFlags: 0x23, Statuses0: 0, Statuses1: 0x10000, StatusAttack: 254 };
+    }
+
+    private bool CanCastExpandedSlots(BattleNativeAction action, BattleNativeSlotsRoll roll)
+    {
+        return SupportsExpandedSlotsAction(action) && roll is { Repetitions: 1 } && roll.MagicId == action.ActionId && definition.LimitProgress?.SpecialMagicFlags is not null;
+    }
+
+    private void QueueExpandedSlots(BattleCombatant actor, BattleNativeAction action, byte sequence, BattleNativeSlotsRoll roll)
+    {
+        if (!CanCastExpandedSlots(action, roll))
+        {
+            throw new NotSupportedException("This Slots result is unavailable in expanded battles.");
+        }
+        BattleCombatant target = enemies.FirstOrDefault(enemy => enemy.IsAlive && !enemy.Untargetable) ?? throw new InvalidOperationException("Slots requires a living targetable enemy.");
+        ValidateNativeActionContract(action);
+        byte nativeSequence = NativeBattleActionGraphics.ResolvePlayerSequence(16, sequence, action.ActionId, definition.NativeCommandSequences);
+        OnNativePlayerCommandSubmitted(actor, 16);
+        actions.Enqueue(new(actor.Id, target.Id, BattleAbility.LimitBreak, 16 << 16 | action.ActionId)
+        {
+            NativeQueuedCommand = 16,
+            NativeAction = action,
+            NativeSlots = roll,
+            NativeSequence = nativeSequence
+        });
+        actor.Atb = 0;
+        actor.IsBusy = true;
+        nativeLimitLevels.Remove(actor.Id);
+        nativeSlotsRolls.Remove(actor.Id);
+        Log("Queued", actor.Id, target.Id, 0, $"{actor.Name}: {action.Name} queued.");
+    }
+
     private BattleAttackCommand PrepareNativeSlotsCommand(BattleCombatant actor, BattleNativeAction action, byte sequence, BattleNativeSlotsRoll roll)
     {
         ValidateNativeActionContract(action);

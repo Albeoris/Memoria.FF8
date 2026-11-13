@@ -8,6 +8,16 @@ public sealed partial class BattleSession
     private NativeCardInventory? nativeCards;
     private NativeCrtRandomState? nativeCrtRandom;
 
+    private static bool IsExpandedTargetedSpecial(BattleNativeAction action)
+    {
+        return action.AttackType is 17 or 19;
+    }
+
+    private bool CanTargetExpandedSpecial(BattleNativeAction action, BattleCombatant target)
+    {
+        return !target.IsPlayer && target.NativeSpecial is not null && (action.AttackType == 17 ? nativeCards is not null : target.NativeAi is not null);
+    }
+
     private BattleAttackCommand PrepareNativeSpecialCommand(BattleCombatant actor, BattleAttackCommand command)
     {
         if (command.NativeAction?.AttackType is not (17 or 19))
@@ -15,29 +25,34 @@ public sealed partial class BattleSession
             return command;
         }
         BattleCombatant? target = ResolveNativeActionMask(command.NativeTargetMask).FirstOrDefault();
+        return command with { NativeSpecial = PrepareNativeSpecialTarget(target, command.NativeAction.AttackType) };
+    }
+
+    private BattleNativeSpecialContext PrepareNativeSpecialTarget(BattleCombatant? target, byte attackType)
+    {
         if (target is null)
         {
-            return command with { NativeSpecial = new(null, null, null, true) };
+            return new(null, null, null, true);
         }
         BattleNativeEnemySpecial data = target.NativeSpecial ?? throw new NotSupportedException("Card and Devour require their target's original DAT special-action records.");
-        if (command.NativeAction.AttackType == 17)
+        if (attackType == 17)
         {
             NativeCardInventory inventory = nativeCards ?? throw new NotSupportedException("Card requires its current saved card inventory, including acquisition bits and capacity.");
             if (data.CommonCard == 255 && data.RareCard == 255)
             {
-                return command with { NativeSpecial = new(null, null, null, true) };
+                return new(null, null, null, true);
             }
             //48FBA0 performs these rolls before48E830 executes the effect, including a guaranteed miss's first roll.
             uint chance = unchecked(256u - 255u * (uint)target.CurrentHp / (uint)target.MaximumHp);
             int cardRoll = NextRandomByte();
             if (chance == 0 || chance < cardRoll)
             {
-                return command with { NativeSpecial = new(255, null, null, false) };
+                return new(255, null, null, false);
             }
             byte selected = NextRandomByte() >= 16 ? data.CommonCard : data.RareCard;
             NativeCardInventory next = inventory.Acquire(selected, out int acquisitionResult);
             nativeCards = next;
-            return command with { NativeSpecial = new(selected, null, null, acquisitionResult != 0) };
+            return new(selected, null, null, acquisitionResult != 0);
         }
         if (data.DevourEffects.IsDefault || data.DevourEffects.Length != 3 || target.NativeAi is not { } ai)
         {
@@ -49,7 +64,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Devour effect index exceeds its original kernel bank.");
         }
-        return command with { NativeSpecial = new(null, failed ? null : effect, data.DevourOutcome, failed) };
+        return new(null, failed ? null : effect, data.DevourOutcome, failed);
     }
 
     private bool TryResolveNativeSpecialHit(BattleCombatant actor, BattleCombatant recipient, BattleActionPresentation command, BattleNativeAction native)

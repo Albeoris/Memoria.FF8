@@ -31,6 +31,11 @@ public sealed partial class BattleSession
         return FindInstalledNativeAction(16, magicId).Name ?? throw new NotSupportedException("Slots requires installed spell names.");
     }
 
+    public bool CanCastNativeSlotsCard(BattleNativeSlotsRoll roll)
+    {
+        return !UsesExpandedRoster || CanCastExpandedSlots(FindInstalledNativeAction(16, roll.MagicId), roll);
+    }
+
     public BattleNativeSlotsDeal BeginNativeSlotsDeal(string actorId)
     {
         RefreshNativeSlotsDeal();
@@ -63,7 +68,7 @@ public sealed partial class BattleSession
                 BattleNativeSlotsRoll roll = GenerateNativeSlotsRoll(rules, actor.Level, crisis);
                 BattleNativeAction action = FindInstalledNativeAction(16, roll.MagicId);
                 ValidateNativeActionContract(action);
-                if (roll.Repetitions is < 1 or > 3 || action.TargetFlags is null || (action.TargetFlags.Value & 0x30) == 0x30 || action.ActionId >= 51 && definition.LimitProgress?.SpecialMagicFlags is null)
+                if (roll.Repetitions is < 1 or > 3 || action.TargetFlags is null || (action.TargetFlags.Value & 0x30) == 0x30 || !UsesExpandedRoster && action.ActionId >= 51 && definition.LimitProgress?.SpecialMagicFlags is null)
                 {
                     throw new NotSupportedException("Card Slots requires supported native repetitions, targeting and saved special magic ownership.");
                 }
@@ -112,6 +117,13 @@ public sealed partial class BattleSession
             BattleCombatant actor = GetActor(deal.ActorId);
             BattleNativeSlotsRoll roll = deal.Candidates[selected];
             BattleNativeAction action = FindNativeCommandAction(actor, 16, roll.MagicId, deal.CrisisLevel);
+            if (UsesExpandedRoster)
+            {
+                QueueExpandedSlots(actor, action, 0, roll);
+                pendingSlotsDeal = null;
+                CloseNativeActionMenu();
+                return true;
+            }
             BattleAttackCommand command = PrepareNativeSlotsCommand(actor, action, 0, roll);
             NativeBattleCommandBanks input = PrepareNativeInputCommand(command);
             NativeBattleGraphicsState? graphics = PrepareNativeUiReadyRemoval(actor);

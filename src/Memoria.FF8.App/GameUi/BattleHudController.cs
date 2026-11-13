@@ -478,6 +478,11 @@ public sealed partial class BattleHudController
         {
             return;
         }
+        if (SelectingNativeSlots && SelectedAction is { Available: false })
+        {
+            ShowCommandError(SystemText("battle.ui.attack.the.selected.action.is.unavailable", "The selected action is unavailable."));
+            return;
+        }
         if (ConfirmDrawSelection())
         {
             return;

@@ -59,6 +59,10 @@ internal sealed partial class GameWorld
             {
                 saved = saved with { Definition = BindExpandedEnemyLevels(saved.Definition) };
             }
+            if (saved.Definition.EncounterId is not null)
+            {
+                saved = saved with { Definition = BindExpandedEnemySpecials(saved.Definition) };
+            }
         }
         battle = saved is null ? null : AttachNativeEffectResources(BattleSession.Restore(saved));
         synchronizedNativeBattleCallbacks = battle is null ? 0 : ReadExecutedBattleCallbacks(battle);
@@ -231,7 +235,7 @@ internal sealed partial class GameWorld
         };
         if (effectPreviewRequest is null)
         {
-            definition = BindExpandedEnemyLevels(definition);
+            definition = BindExpandedEnemySpecials(BindExpandedEnemyLevels(definition));
         }
         else
         {
@@ -292,6 +296,31 @@ internal sealed partial class GameWorld
                 [.. template.NativeDrawTables!.Select(band => band.ToImmutableArray())]));
         }
         return definition with { ExpandedEnemyLevels = profiles.ToImmutable() };
+    }
+
+    private BattleDefinition BindExpandedEnemySpecials(BattleDefinition definition)
+    {
+        if (!definition.UsesExpandedRoster || !definition.Combatants.Any(actor => actor.IsPlayer && actor.NativeCommands.Any(binding => binding.Command is 7 or 29)))
+        {
+            return definition;
+        }
+        Dictionary<int, BattleNativeEnemySpecial> specials = [];
+        return definition with
+        {
+            Combatants = definition.Combatants.Select(actor =>
+            {
+                if (actor.IsPlayer || actor.NativeSpecial is not null)
+                {
+                    return actor;
+                }
+                if (!specials.TryGetValue(actor.ModelId, out BattleNativeEnemySpecial? special))
+                {
+                    special = BattleResources.ReadNativeEnemySpecial(actor.ModelId);
+                    specials.Add(actor.ModelId, special);
+                }
+                return actor with { NativeSpecial = special };
+            }).ToArray()
+        };
     }
 
     public BattleCombatantDefinition[] CreateBattleParty()
