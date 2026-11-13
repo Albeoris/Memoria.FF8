@@ -1,10 +1,13 @@
-﻿using Memoria.FF7.Events;
+using Memoria.FF7.Events;
 using Memoria.FF7.Formats;
 
 namespace Memoria.FF7.Runtime;
 
-internal sealed record Ff7HighwayRoadSegment(int Z, ushort Width, byte Surface, byte Stripe, bool BeyondBrokenRoad);
-internal sealed record Ff7HighwayGauge(ushort Value, ushort Maximum);
+public sealed record Ff7HighwayGauge(ushort Value, ushort Maximum)
+{
+    public byte PortraitState { get; init; } = 1;
+    public byte HitFlash { get; init; }
+}
 
 internal sealed class Ff7HighwayStart
 {

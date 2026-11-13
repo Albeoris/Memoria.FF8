@@ -8,6 +8,7 @@ public enum Ff7BattleCommand : byte
 {
     Attack = 1,
     Magic = 2,
+    Summon = 3,
     Item = 4,
     Limit = 0x14,
     Change = 0x12,
@@ -17,6 +18,7 @@ public enum Ff7BattleCommand : byte
 public sealed record Ff7BattleCommandOption(Ff7BattleCommand Command, ushort Argument, ushort ValidTargets, bool SelectSingle, bool DefaultsToEnemies, int Cost = 0, int GroupUses = 0)
 {
     public bool AllTargets { get; init; }
+    public int? RemainingUses { get; init; }
     public ushort? CandidateTargets { get; init; }
     public string? DisplayName { get; init; }
     public string? Category { get; init; }
@@ -119,7 +121,7 @@ public sealed partial class Ff7BattleSession
         {
             foreach (byte limit in Ff7NativeBattleLimits.ReadLearnedIds(characters[slot]!, kernel))
             {
-                if (limit is 0x80 or 0x87 || limit == 0x95 && beatRushSymbols.Count != 0)
+                if (limit is 0x80 or 0x81 or 0x87 or 0x89 || limit == 0x95 && beatRushSymbols.Count != 0)
                 {
                     commands.Add(Option(Ff7BattleCommand.Limit, limit, limits[limit - 0x80].TargetFlags));
                 }
@@ -134,6 +136,15 @@ public sealed partial class Ff7BattleSession
             if (spell.Attack.CastingCost <= actor.Actor.MagicPoints && (actor.Actor.Statuses & 0x80) == 0)
             {
                 commands.Add(Option(Ff7BattleCommand.Magic, spell.AttackId, spell.Attack.TargetFlags, spell.Attack.CastingCost) with { GroupUses = actor.AllUses?.GetValueOrDefault(spell.AttackId) ?? 0 });
+            }
+        }
+        foreach (Ff7BattleSummon summon in NativeBattleSummons(slot))
+        {
+            int uses = SummonUses(actor, summon);
+            if (summon.AttackId == 0x38 && uses > 0 && summon.Attack.CastingCost <= actor.Actor.MagicPoints && (actor.Actor.Statuses & 0x80) == 0 && HasChocoMogResources)
+            {
+                Ff7BattleCommandOption option = Option(Ff7BattleCommand.Summon, summon.AttackId, summon.Attack.TargetFlags, summon.Attack.CastingCost);
+                commands.Add(option with { AllTargets = true, RemainingUses = uses });
             }
         }
         foreach (Ff7InventorySlot item in state.Inventory)
@@ -237,6 +248,10 @@ public sealed partial class Ff7BattleSession
         {
             return false;
         }
+        if (command == Ff7BattleCommand.Summon && (group || (targets & 15) != 0))
+        {
+            return false;
+        }
         if (group ? option.GroupUses <= 0 || targets != (option.ValidTargets & ((targets & 15) == 0 ? 0x3F0 : 15)) : option.SelectSingle && (targets & (targets - 1)) != 0)
         {
             return false;
@@ -309,9 +324,10 @@ public sealed partial class Ff7BattleSession
         {
             (byte)Ff7BattleCommand.Attack => Actor(command.ActorSlot).Identity == 1 ? 0x14 + (WeaponModelSelector(command.ActorSlot) >> 4) : 0x14,
             (byte)Ff7BattleCommand.Magic => 0x1D,
+            (byte)Ff7BattleCommand.Summon => 0x1F,
             (byte)Ff7BattleCommand.Item => (command.TargetMask & 15) != 0 ? 0x20 : 0x21,
             (byte)Ff7BattleCommand.Change => (Actor(command.ActorSlot).Actor.Conditions & 0x40) != 0 ? 3 : 4,
-            (byte)Ff7BattleCommand.Limit => command.Argument == 0x95 && BeatRushVisible == Ff7BeatRushSlot.Miss ? -1 : 0x3C,
+            (byte)Ff7BattleCommand.Limit => command.Argument == 0x95 && BeatRushVisible == Ff7BeatRushSlot.Miss ? -1 : Ff7NativeBattleLimits.ReadActionAnimation(characters[command.ActorSlot]!, kernel, command.Argument),
             _ => -1
         };
     }
@@ -322,7 +338,7 @@ public sealed partial class Ff7BattleSession
         Ff7BattleAttack? record = command.CommandId switch
         {
             0x20 => Data.Attacks.Single(attack => attack.Slot == command.Argument && attack.Id == command.AttackId).Data,
-            (byte)Ff7BattleCommand.Magic => ReadKernelAttack(command.Argument),
+            (byte)Ff7BattleCommand.Magic or (byte)Ff7BattleCommand.Summon => ReadKernelAttack(command.Argument),
             (byte)Ff7BattleCommand.Item => ReadBattleItem(command.Argument),
             (byte)Ff7BattleCommand.Limit => limits[command.Argument - 0x80],
             _ => null
@@ -350,6 +366,19 @@ public sealed partial class Ff7BattleSession
     private void AdvanceAction(Ff7BattleActionState active)
     {
         Ff7BattleQueuedCommand command = active.Command;
+        if (active.DelayedEffectFrames is int frames)
+        {
+            if (frames > 0)
+            {
+                active = active with { DelayedEffectFrames = frames - 1 };
+            }
+            else if (state.PrimaryEffects?.HasOwner(0) != true)
+            {
+                Ff7BattleActionState pending = active with { DelayedEffectFrames = null };
+                active = StartEffect(pending);
+                EffectEntrySound(pending, active);
+            }
+        }
         if (command.CommandId == 0x24 && state.Messages is { BlocksQueue: true })
         {
             return;
@@ -359,7 +388,16 @@ public sealed partial class Ff7BattleSession
             BeginSourceModel(active);
             BeginSoundAction();
             cameraTargetRows = [];
-            ApplyAction(command);
+            if (command.CommandId == (byte)Ff7BattleCommand.Summon)
+            {
+                byte? selected = ResolveSummon(command);
+                active = active with { ResolvedSummonAttack = selected };
+                command = command with { AttackId = selected };
+            }
+            else
+            {
+                ApplyAction(command);
+            }
             command = command with { TargetMask = BeginCameraAction(command) };
             active = active with { Command = command };
             Ff7BattleHit? hit = state.LastHit is { } current && current.Tick == Tick ? current : null;
@@ -397,6 +435,14 @@ public sealed partial class Ff7BattleSession
                 {
                     BeginActorFade(command.ActorSlot, instruction.Opcode == 0xE1);
                 }
+                else if (instruction.Opcode == 0xC3)
+                {
+                    StartScriptedActorFade(command.ActorSlot);
+                }
+                else if (instruction.Opcode == 0xB8)
+                {
+                    SetActorModelVisibility(command.ActorSlot, false);
+                }
                 else if (instruction.Opcode == 0xC6)
                 {
                     state = state with { ActorFadeDuration = instruction.Operands.Span[0] };
@@ -420,6 +466,14 @@ public sealed partial class Ff7BattleSession
                 else if (instruction.Opcode == 0xB9)
                 {
                     SetCameraEntry(instruction.Operands.Span[0]);
+                }
+                else if (instruction.Opcode == 0xBF)
+                {
+                    SetActionClockFlag(instruction.Operands.Span);
+                }
+                else if (instruction.Opcode is 0x8E or 0x8F)
+                {
+                    UpdateActionCursor(instruction.Opcode);
                 }
                 else if (instruction.Opcode == 0xC8)
                 {
@@ -465,9 +519,17 @@ public sealed partial class Ff7BattleSession
                     active = StartEffect(active);
                     EffectEntrySound(beforeEffect, active);
                 }
+                else if (instruction.Opcode == 0xD6 && command.TargetMask != 0)
+                {
+                    active = active with { DelayedEffectFrames = instruction.Operands.Span[0] };
+                }
+                else if (instruction.Opcode == 0xA5 && command.CommandId == (byte)Ff7BattleCommand.Summon)
+                {
+                    EmitSummonSound(489, command.ActorSlot);
+                }
                 else if (instruction.Opcode == 0xEA)
                 {
-                    state = state with { PrimaryEffects = Ff7BattlePrimaryEffects.ScheduleActionTitle(EnsurePrimaryEffects(), command.CommandId, command.Argument, Ff7NativeBattleMessage.DefaultSpeed) };
+                    state = state with { PrimaryEffects = Ff7BattlePrimaryEffects.ScheduleActionTitle(EnsurePrimaryEffects(), command.CommandId, command.CommandId == (byte)Ff7BattleCommand.Summon ? command.AttackId ?? command.Argument : command.Argument, Ff7NativeBattleMessage.DefaultSpeed) };
                 }
                 else if (instruction.Opcode == 0xEB && command is { CommandId: (byte)Ff7BattleCommand.Item, TargetMask: not 0 })
                 {
@@ -503,10 +565,33 @@ public sealed partial class Ff7BattleSession
         state = state with { Action = active };
     }
 
+    public bool CursorSuppressedByAction => state.CursorSuppressedByAction;
+
+    private void UpdateActionCursor(byte opcode)
+    {
+        if (opcode == 0x8F)
+        {
+            state = state with { CursorSuppressedByAction = false };
+        }
+        else if (!state.CursorSuppressionUsed)
+        {
+            state = state with { CursorSuppressedByAction = true, CursorSuppressionUsed = true };
+        }
+    }
+
+    private void SetActionClockFlag(ReadOnlySpan<byte> operands)
+    {
+        if (operands[0] != 0)
+        {
+            throw new NotSupportedException($"FFVII battle action clock selector {operands[0]} requires its original byte owner.");
+        }
+        state = state with { ActionClockPaused = operands[1] != 0 };
+    }
+
     private void FinishActionPresentation(Ff7BattleActionState active)
     {
         Ff7BattleQueuedCommand command = active.Command;
-        if (animations is not null && active.Animation >= 0 && active.Pose?.Completed != true || !NativeActorModelsReady || HasTargetReactions(active) || state.PrimaryEffects?.HasOwner(0) == true)
+        if (active.Summon is { Completed: false } || animations is not null && active.Animation >= 0 && active.Pose?.Completed != true || !NativeActorModelsReady || HasTargetReactions(active) || active.DelayedEffectFrames is not null || state.PrimaryEffects?.HasOwner(0) == true)
         {
             state = state with { Action = active };
             return;

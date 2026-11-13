@@ -4,7 +4,7 @@ using Memoria.FF7.Formats;
 
 namespace Memoria.FF7.Resources;
 
-public sealed record Ff7BattleActorModelResources(Ff7BattleActorDeathResources Death, IReadOnlyList<byte> PlayerHurtActions);
+public sealed record Ff7BattleActorModelResources(Ff7BattleActorDeathResources Death, IReadOnlyList<byte> PlayerHurtActions, Ff7BattleSummonCameraResources? SummonCameras = null);
 
 public sealed partial class Ff7PcExecutableData
 {
@@ -19,6 +19,6 @@ public sealed partial class Ff7PcExecutableData
             lift[index] = BinaryPrimitives.ReadInt16LittleEndian(values.AsSpan(index * sizeof(short)));
         }
         Ff7BattleActorDeathResources death = new(BitConverter.ToSingle(ReadVirtual(stream, pe, 0x7B7680, sizeof(float))), Array.AsReadOnly(lift));
-        return new(death, Array.AsReadOnly(ReadVirtual(stream, pe, 0x7B76C0, 5)));
+        return new(death, Array.AsReadOnly(ReadVirtual(stream, pe, 0x7B76C0, 5)), new(ReadSummonCamera(stream, pe, 0x898738, 160), ReadSummonCamera(stream, pe, 0x8987D8, 160), ReadSummonCamera(stream, pe, 0x8981F0, 128), ReadSummonCamera(stream, pe, 0x898270, 128)));
     }
 }

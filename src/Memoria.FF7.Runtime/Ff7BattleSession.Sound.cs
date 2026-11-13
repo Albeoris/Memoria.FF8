@@ -77,7 +77,7 @@ public sealed partial class Ff7BattleSession
             Ff7BattleAttack? record = command.CommandId switch
             {
                 0x20 => Data.Attacks.Single(attack => attack.Slot == command.Argument && attack.Id == command.AttackId).Data,
-                (byte)Ff7BattleCommand.Magic => ReadKernelAttack(command.Argument),
+                (byte)Ff7BattleCommand.Magic or (byte)Ff7BattleCommand.Summon => ReadKernelAttack(command.AttackId ?? command.Argument),
                 (byte)Ff7BattleCommand.Item => ReadBattleItem(command.Argument),
                 (byte)Ff7BattleCommand.Limit => limits[command.Argument - 0x80],
                 _ => null

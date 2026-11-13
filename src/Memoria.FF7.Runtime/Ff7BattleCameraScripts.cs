@@ -21,7 +21,7 @@ public sealed record Ff7BattleCameraScriptState(short CameraId, byte InitialCame
     public sbyte ActiveAction { get; init; }
 }
 public sealed record Ff7BattleCameraActorInput(Ff7BattleCameraModelParameters Model, short ScaleControl, short CurrentYaw, short IdleYaw, short ActionAnimation);
-public sealed record Ff7BattleCameraActors(int Attacker, int Target, Func<int, int, int> JointSelector, Func<int, int, Ff7BattleCameraPoint> Joint, Func<int, Ff7BattleCameraActorInput> Actor, Func<Ff7BattleCameraPoint> GroupCenter, Ff7BattleCameraMath Math);
+public sealed record Ff7BattleCameraActors(int Attacker, int Target, Func<int, int, int> JointSelector, Func<int, int, Ff7BattleCameraPoint> Joint, Func<int, Ff7BattleCameraActorInput> Actor, Func<Ff7BattleCameraPoint> GroupCenter, Ff7BattleCameraMath Math, Func<int, int, bool, Ff7BattleCameraPoint>? TargetOffset = null);
 public readonly record struct Ff7BattleCameraScriptUpdate(Ff7BattleCameraScriptState State, int? TargetWrite);
 
 public static class Ff7NativeBattleCameraScripts
@@ -226,6 +226,16 @@ public static class Ff7NativeBattleCameraScripts
                         target = 15;
                         targetWrite = target;
                         break;
+                    case 0xE0:
+                        int targetOffset = unchecked((sbyte)Byte());
+                        short targetOffsetDuration = unchecked((sbyte)Byte());
+                        if (targetOffsetDuration <= 0)
+                        {
+                            throw new NotSupportedException("FFVII camera target offset requires a positive native duration.");
+                        }
+                        var resolveOffset = RequireActors().TargetOffset ?? throw new InvalidDataException("FFVII camera target offset requires the native model offset bank.");
+                        Move(resolveOffset(target, targetOffset, component == Ff7BattleCameraComponent.Focus), targetOffsetDuration);
+                        break;
                     case 0xE1:
                         current = current with { Point = IdlePoint() };
                         break;
@@ -258,6 +268,13 @@ public static class Ff7NativeBattleCameraScripts
                         Ff7BattleCameraPoint followingOffset = Vector();
                         short followingDuration = unchecked((sbyte)Byte());
                         Register(new(index, null, component == Ff7BattleCameraComponent.Position ? Ff7BattleCameraCallbackKind.FollowPosition : Ff7BattleCameraCallbackKind.FollowFocus, followingActor, followingBone, followingOffset, followingDuration, followTarget));
+                        break;
+                    case 0xF0 when component == Ff7BattleCameraComponent.Focus:
+                        int focusActor = unchecked((sbyte)Byte());
+                        int focusBone = Bone(focusActor);
+                        Ff7BattleCameraPoint focusOffset = Vector();
+                        current = current with { Point = Relative(focusActor, focusBone, focusOffset, index, false, true, true) };
+                        running = false;
                         break;
                     case 0xF0 when component == Ff7BattleCameraComponent.Position:
                     case 0xF7 when component == Ff7BattleCameraComponent.Position:

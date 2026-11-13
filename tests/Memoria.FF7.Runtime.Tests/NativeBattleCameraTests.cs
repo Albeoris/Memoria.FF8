@@ -376,18 +376,20 @@ internal static class NativeBattleCameraTests
             [8] = (59, "C3D7B1F506DF46373CBD19E4D61907A36D5E7FEB916718427F7B1B68AF454EBB"),
             [42] = (63, "D954AFDF8433243546707D00D5D3559F8483F62D802E280A0E02EA5B40903EA1"),
             [50] = (75, "C3834FFCEDD263079A8EE1A40E5E2BA978C137216303476681FA16C0FE853EEF"),
+            [52] = (83, "F91D4BFB8757048517E920B0436D08203B0E0F36BAA936C6B51A8436CFF70ACB"),
             [62] = (85, "CB0A89004D9D50F403A97225468E002DE2969000BC625F6F805396F9C0C86AC4"),
             [70] = (74, "CF7F6CD2AB1AA96149692008CBDB4D3CDB8BB441D03DF0B1892CCD8C63D1FE57"),
+            [73] = (70, "33154C50EAA030E10CE17B28E158548DEE7253B5A77D5345556783F3F73AA887"),
             [210] = (51, "7848D22536E172D1AE0F1062E67779C11BFE0D705BCE6CF7E2757B5C5084DE37"),
             [272] = (51, "FBB8FF023B959C8D6441F1B5761911DF755919F9A9E7560C655302E0FE7AABC8"),
             [350] = (54, "768A19F467BC5E132A7AE8F51A306D5329ED7BB049FF5FA18E292CDB9AD77F87")
         };
-        int[] cameras = [0, 6, 7, 8, 36, 40, 42, 44, 45, 50, 62, 70, 210, 211, 212, 213, 214, 215, 216, 217, 218, 219, 240, 250, 261, 267, 268, 272, 275, 350];
+        int[] cameras = [0, 6, 7, 8, 36, 40, 42, 44, 45, 50, 52, 62, 70, 73, 210, 211, 212, 213, 214, 215, 216, 217, 218, 219, 240, 250, 261, 267, 268, 272, 275, 350];
         SceneCameraPlacement idle = new(new(2500, -1500, 4000), new(0, -300, 0));
         SceneCameraPlacement[] placements = [idle, idle, idle];
         BattleActionBank bank = BattleActionBank.Read(models.ReadEntry(models.Find("rtab").Single()));
         Ff7BattleCameraModelParameters parameters = Ff7BattleCameraModelParameters.Read(models.ReadEntry(models.Find("rtab").Single()));
-        Ff7BattleCameraActors input = new(0, 4, (_, selector) => bank.JointSelectors.Span[selector], (actor, bone) => new((short)(actor * 100 + bone), (short)(-bone * 10), (short)(actor * -200)), _ => new(parameters, 0x1000, 0, 2048, 0), () => new(0, 0, 0), math);
+        Ff7BattleCameraActors input = new(0, 4, (_, selector) => bank.JointSelectors.Span[selector], (actor, bone) => new((short)(actor * 100 + bone), (short)(-bone * 10), (short)(actor * -200)), _ => new(parameters, 0x1000, 0, 2048, 0), () => new(0, 0, 0), math, (_, _, _) => default);
         foreach (byte layout in new byte[] { 0, 2, 3 })
         {
             Ff7BattleCameraArchive archive = Ff7BattleCameraResources.Load(installation, layout);

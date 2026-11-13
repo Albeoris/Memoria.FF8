@@ -205,7 +205,7 @@ public sealed partial class Ff7Session : IDisposable
         }
         if (tickContinuation is null && Host.PendingMinigame is { } minigame)
         {
-            AdvanceMinigame(minigame);
+            AdvanceMinigame(minigame, advanceClock);
             return;
         }
         if (tickContinuation is null && Host.Process.Transition is not null)
@@ -270,9 +270,9 @@ public sealed partial class Ff7Session : IDisposable
 
     public Ff7SessionSave Capture()
     {
-        if (fieldLoadIncomplete || tickTailInProgress)
+        if (fieldLoadIncomplete || tickTailInProgress || Highway is not null)
         {
-            throw new InvalidOperationException("Snapshots require a completed field load and an atomic field-update tail.");
+            throw new InvalidOperationException("Snapshots require a completed field load outside an active highway chase and an atomic field-update tail.");
         }
         FieldVmSnapshot vm = Machine.Capture();
         if (World is not null)
@@ -352,6 +352,11 @@ public sealed partial class Ff7Session : IDisposable
 
     private FieldHostReply ExecuteExternal(FieldCommand command)
     {
+        if (command is FieldMenuCommand { Mode: 18 })
+        {
+            ApplyHighwayHealth();
+            return new(true);
+        }
         if (command is FieldMenuCommand { Mode: 17 } equipment)
         {
             Ff7EquipmentRemovalResult removed = Ff7NativeEquipmentRemoval.Apply(Progress, equipment.Parameter, materiaTypes, executable.NativeMateriaClasses);
@@ -379,7 +384,11 @@ public sealed partial class Ff7Session : IDisposable
         }
         if (command is FieldItemCommand item)
         {
-            return AcquireItem(item);
+            return UpdateInventory(item);
+        }
+        if (command is FieldItemQuantityQuery itemQuantity)
+        {
+            return new(true, Ff7NativeInventory.Quantity(Progress.Inventory, itemQuantity.ItemId));
         }
         if (command is FieldGilCommand gil)
         {

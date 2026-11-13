@@ -34,6 +34,7 @@ public sealed record Ff7BattleRenderFrame(SceneCameraPlacement Camera, IReadOnly
     public Ff7BattleStageFadeState? StageFade { get; init; }
     public Ff7BattleRocketState? Rockets { get; init; }
     public Ff7BattlePrimaryState? PrimaryEffects { get; init; }
+    public Ff7BattleSummonModelDraw? SummonModel { get; init; }
     public IReadOnlySet<NativeBattleArenaPrimitiveId> SuppressArenaPrimitives { get; init; } = new HashSet<NativeBattleArenaPrimitiveId>();
 }
 
@@ -223,6 +224,10 @@ public sealed partial class Ff7BattleRenderer
                 {
                     DrawActor(renderer, actor, view, frame.CaptureActorBounds);
                 }
+            }
+            if (frame.SummonModel is { } summon)
+            {
+                DrawSummonModel(renderer, summon, view);
             }
             foreach (CrossoverNativeEffectVisual guestEffect in guestEffects)
             {

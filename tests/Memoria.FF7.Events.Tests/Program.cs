@@ -1,6 +1,20 @@
 using System.Text.Json;
 using Memoria.FF7.Events;
 
+if (args.Contains("--item-opcodes-only", StringComparer.Ordinal))
+{
+    ExtendedTests.ItemOperandsAndContinuation();
+    Console.WriteLine("PASS native item acquisition, removal and quantity operands");
+    return 0;
+}
+
+if (args.Contains("--party-coordinate-only", StringComparer.Ordinal))
+{
+    ExtendedTests.PartyCoordinateQuery();
+    Console.WriteLine("PASS native party coordinate operands and continuation");
+    return 0;
+}
+
 if (args.Contains("--meal-only", StringComparer.Ordinal))
 {
     NativeMealOpcodeTests.Run();
@@ -137,7 +151,8 @@ var tests = new (string Name, Action Run)[]
     ("native view offset operands and yield", ExtendedTests.ViewOffsetOperandsAndYield),
     ("native materia operands and status", ExtendedTests.MateriaOperandsAndStatus),
     ("native fade operands and yield", ExtendedTests.FadeOperandsAndYield),
-    ("native coordinate query and signed remainder", ExtendedTests.CoordinateQueryAndRemainder)
+    ("native coordinate query and signed remainder", ExtendedTests.CoordinateQueryAndRemainder),
+    ("native party coordinate operands and continuation", ExtendedTests.PartyCoordinateQuery)
 };
 int failed = 0;
 foreach (var test in tests)

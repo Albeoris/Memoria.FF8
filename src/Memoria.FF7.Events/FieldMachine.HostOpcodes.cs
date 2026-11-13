@@ -126,8 +126,12 @@ public sealed partial class FieldMachine
                 uint encodedMateria = (uint)(R8(id, 1, 3) | R8(id, 2, 4) << 8 | R8(id, 3, 5) << 16 | R8(id, 4, 6) << 24);
                 return Host(id, new FieldMateriaCommand(encodedMateria), 7, result: value => Variables.WriteByte(FieldBank.Persistent3Byte, 31, value == -1 ? (byte)0 : (byte)1));
             case 0x58:
+            case 0x59:
                 ushort encodedItem = unchecked((ushort)((R8(id, 2, 4) << 9) | unchecked((ushort)R16(id, 1, 2))));
-                return Host(id, new FieldItemCommand(encodedItem), 5);
+                return Host(id, new FieldItemCommand(encodedItem, Remove: opcode == 0x59), 5);
+            case 0x5A:
+                int itemId = R16(id, 1, 2) & 511;
+                return Host(id, new FieldItemQuantityQuery(itemId), 5, result: value => Variables.WriteByte(Bank(id, 2), B(id, 4), checked((byte)value)));
             case 0x60:
                 return Host(id, new FieldTransitionCommand(W(id, 1), S(id, 3), S(id, 5), W(id, 7), B(id, 9)), 10, firstCallYields: true);
             case 0x61:
@@ -175,6 +179,11 @@ public sealed partial class FieldMachine
                 return Host(id, new FieldControlCommand(FieldControlKind.BattlesDisabled, B(id, 1)), 2);
             case 0x72:
                 return Host(id, new FieldControlCommand(FieldControlKind.BattleMode, B(id, 1), B(id, 2)), 3);
+            case 0x75:
+                int positionPartySlot = B(id, 3);
+                int positionCharacter = positionPartySlot < 3 ? ReadParty()[positionPartySlot] : 255;
+                int partyPositionTarget = positionCharacter < 9 ? Array.FindIndex(entities, actor => actor.PartyCharacter == positionCharacter) : -1;
+                return QueryActorPosition(id, partyPositionTarget);
             case 0x7E:
                 return ActorProperty(id, FieldActorPropertyKind.TalkEnabled, B(id, 1) == 0 ? 1 : 0, 2);
             case 0x7F:
@@ -350,19 +359,7 @@ public sealed partial class FieldMachine
                 {
                     throw new InvalidDataException("FFVII AXYZI references an absent target entity.");
                 }
-                if (!entities[positionTarget].ModelBound)
-                {
-                    Advance(id, 8);
-                    return false;
-                }
-                return Host(id, new FieldActorQuery(FieldActorQueryKind.Position, positionTarget), 8, replyResult: reply =>
-                {
-                    FieldActorPosition position = reply.Position ?? throw new InvalidDataException("FFVII AXYZI host omitted its native coordinate result.");
-                    Variables.WriteWord(Bank(id, 1), B(id, 4), position.X);
-                    Variables.WriteWord(Bank(id, 2), B(id, 5), position.Y);
-                    Variables.WriteWord(Bank(id, 3), B(id, 6), position.Z);
-                    Variables.WriteWord(Bank(id, 4), B(id, 7), position.Triangle);
-                });
+                return QueryActorPosition(id, positionTarget);
             case 0xC2:
                 return Actor(id, new FieldActorLadder(R16(id, 1, 3), R16(id, 2, 5), R16(id, 3, 7), R16(id, 4, 9), B(id, 11), B(id, 12), B(id, 13), B(id, 14)), 15);
             case 0xC3:
@@ -479,5 +476,22 @@ public sealed partial class FieldMachine
             return yieldWithoutModel;
         }
         return Host(id, command, length, yieldAfter, firstCallYields);
+    }
+
+    private bool QueryActorPosition(int id, int target)
+    {
+        if (target < 0 || !entities[target].ModelBound)
+        {
+            Advance(id, 8);
+            return false;
+        }
+        return Host(id, new FieldActorQuery(FieldActorQueryKind.Position, target), 8, replyResult: reply =>
+        {
+            FieldActorPosition position = reply.Position ?? throw new InvalidDataException("The FFVII actor position query omitted its native coordinate result.");
+            Variables.WriteWord(Bank(id, 1), B(id, 4), position.X);
+            Variables.WriteWord(Bank(id, 2), B(id, 5), position.Y);
+            Variables.WriteWord(Bank(id, 3), B(id, 6), position.Z);
+            Variables.WriteWord(Bank(id, 4), B(id, 7), position.Triangle);
+        });
     }
 }

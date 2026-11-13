@@ -8,11 +8,15 @@ public static class Ff7NativeBlink
 {
     public static bool Eligible(Ff7Actor actor, PcFieldCamera? camera, Ff7NativeModelPresentation configuration, Vector2 cameraOffset, bool screenMarginOverride, int originX = 0, int originY = 0)
     {
-        if (!actor.Visible || configuration.Mask == 0 || camera is null || camera.AxisZ == Vector3.Zero && camera.Translation.Z <= 0)
+        return actor.Visible && configuration.Mask != 0 && EligiblePoint(Ff7NativeModelPosition.PresentationPoint(actor, configuration), camera, cameraOffset, screenMarginOverride, originX, originY);
+    }
+
+    public static bool EligiblePoint(Vector3 point, PcFieldCamera? camera, Vector2 cameraOffset, bool screenMarginOverride, int originX = 0, int originY = 0)
+    {
+        if (camera is null || camera.AxisZ == Vector3.Zero && camera.Translation.Z <= 0)
         {
             return false;
         }
-        Vector3 point = Ff7NativeModelPosition.PresentationPoint(actor, configuration);
         Vector3 projected = PcFieldProjection.Project(point, camera, new(originX, originY));
         int depth = unchecked((int)((double)projected.Z * 0.25));
         if (depth >= 3840)

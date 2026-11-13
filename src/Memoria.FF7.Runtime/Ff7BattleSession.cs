@@ -14,6 +14,8 @@ public enum Ff7BattleOutcome
 
 public sealed record Ff7BattleActorState(int Identity, Ff7BattleAiActor Actor, ushort Gauge, byte[] AiMemory, bool AwaitingTurn = false, bool Defending = false, Ff7BattleStatusTimers Timers = default, byte LimitGauge = 0, Dictionary<byte, int>? AllUses = null)
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<byte, int>? SummonUses { get; init; }
     public int? SuccessorSlot { get; init; }
     public uint StatusProtection { get; init; }
     public byte? ReflectionCount { get; init; }
@@ -51,6 +53,14 @@ public sealed record Ff7BattleActionState(Ff7BattleQueuedCommand Command, long S
     public bool BeamGunStarted { get; init; }
     public bool BigBomberStarted { get; init; }
     public bool LaserCannonStarted { get; init; }
+    public bool CrossSlashStarted { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool MindblowStarted { get; init; }
+    public int? DelayedEffectFrames { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7BattleSummonPresentation? Summon { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public byte? ResolvedSummonAttack { get; init; }
     public bool PrimaryCallbacksRunning { get; init; }
     public bool EffectRunning => PrimaryCallbacksRunning || Fire is { Completed: false } || Ice is { Completed: false } || Bolt is { Completed: false } || Cure is { Completed: false } || Braver is { Completed: false } || BeatRushEffect is { Completed: false } || BigShot is { Completed: false } || SmokeShot is { Completed: false } || Smog is { Completed: false } || Destroyed is { Completed: false } || SearchScope is { Completed: false } || Rockets is { Completed: false };
 }
@@ -113,6 +123,9 @@ public sealed record Ff7BattleSnapshot(long RequestId, int FormationId, byte Lay
     public Ff7BattleStageFadeState? StageFade { get; init; }
     public Ff7BattleStageFadeState? RenderStageFade { get; init; }
     public short SearchScopeScaleCounter { get; init; }
+    public bool ActionClockPaused { get; init; }
+    public bool CursorSuppressedByAction { get; init; }
+    public bool CursorSuppressionUsed { get; init; }
 }
 
 /// <summary>One FFVII encounter, bound to a single field request and its native physical actor slots.</summary>
@@ -344,14 +357,14 @@ public sealed partial class Ff7BattleSession
         {
             AdvanceBeatRush(confirmLimit);
         }
-        else if (turnBased && !escapeHeld)
+        else if (turnBased && !escapeHeld && !state.ActionClockPaused)
         {
             if (ReadyPlayer is null)
             {
                 RefillTurnBasedGauges();
             }
         }
-        else if (!waitForCommand)
+        else if (!waitForCommand && !state.ActionClockPaused)
         {
             state = state with { Escape = Ff7NativeBattleEscape.AdvanceClock(state.Escape, escapeHeld, NativeBattleSpeed, Ff7NativeAtb.BattleTypeForLayout(Layout)) };
             AdvanceGauges();
@@ -667,6 +680,10 @@ public sealed partial class Ff7BattleSession
         {
             throw new InvalidDataException("FFVII battle snapshot has an invalid presentation or action cursor.");
         }
+        if (snapshot.Action?.DelayedEffectFrames is < 0 or > byte.MaxValue || snapshot.CursorSuppressedByAction && !snapshot.CursorSuppressionUsed)
+        {
+            throw new InvalidDataException("FFVII battle snapshot has an invalid action effect delay or cursor owner.");
+        }
         if (snapshot.Action is { GuestAttackTargetCue: byte cue } guest && (cue != 4 || guest.Applied || guest.GuestLimit is not null || !guest.Command.GuestAttack || guest.Command.GuestAbility != 0 || guest.Command.CommandId != (byte)Ff7BattleCommand.Attack))
         {
             throw new InvalidDataException("FFVII battle snapshot has an unowned guest Attack target cue.");
@@ -676,6 +693,7 @@ public sealed partial class Ff7BattleSession
         ValidateSoundSnapshot(snapshot);
         ValidateSecondaryEffects(snapshot);
         ValidatePrimaryEffects(snapshot);
+        ValidateSummonSnapshot(snapshot);
         ValidateCamera(snapshot);
         ValidateActorModels(snapshot);
         if (snapshot.Hitmarks is null || snapshot.Hitmarks.Any(hitmark => hitmark is null || hitmark.Target is < 0 or > 9 or 3 || hitmark.Definition?.Cues is null || hitmark.Frame < -1 || hitmark.Frame > hitmark.Definition.FrameCount || snapshot.Actors.All(actor => actor.Actor.Slot != hitmark.Target)))
@@ -689,7 +707,7 @@ public sealed partial class Ff7BattleSession
         Ff7BattleCommandQueueState queue = source.Queue;
         return source with
         {
-            Actors = source.Actors.Select(actor => actor with { AiMemory = (byte[])actor.AiMemory.Clone(), AllUses = actor.AllUses is null ? null : new(actor.AllUses) }).ToArray(),
+            Actors = source.Actors.Select(actor => actor with { AiMemory = (byte[])actor.AiMemory.Clone(), AllUses = actor.AllUses is null ? null : new(actor.AllUses), SummonUses = actor.SummonUses is null ? null : new(actor.SummonUses) }).ToArray(),
             Inventory = (Ff7InventorySlot[])source.Inventory.Clone(),
             AiGlobalMemory = source.AiGlobalMemory?.ToArray(),
             AiSaveBank1 = source.AiSaveBank1?.ToArray(),

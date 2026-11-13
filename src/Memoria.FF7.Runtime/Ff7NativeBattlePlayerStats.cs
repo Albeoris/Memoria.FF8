@@ -52,7 +52,7 @@ public static class Ff7NativeBattlePlayerStats
                 throw new InvalidDataException("Equipped FFVII materia references an absent original record.");
             }
             ReadOnlySpan<byte> equipped = materia.Slice(id * 20, 20);
-            if (id is not (7 or 8 or 9 or 10) && (equipped[13] != 0 || equipped[14] != 12) && (equipped[13] & 15) != 9 && ((equipped[13] & 15) != 5 || equipped[14] is not (0x51 or 0x58)))
+            if (id is not (7 or 8 or 9 or 10) && (equipped[13] != 0 || equipped[14] != 12) && (equipped[13] & 15) is not (9 or 11) && ((equipped[13] & 15) != 5 || equipped[14] is not (0x51 or 0x58)))
             {
                 throw new NotSupportedException($"FFVII battle materia {id} has unsupported equipment effects.");
             }

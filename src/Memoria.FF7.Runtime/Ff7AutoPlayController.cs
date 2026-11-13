@@ -67,7 +67,7 @@ public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDr
         {
             try
             {
-                if (CompleteIfReached())
+                if (session.Highway is not null || CompleteIfReached())
                 {
                     return;
                 }
@@ -152,7 +152,7 @@ public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDr
                     advanceTick();
                 }
                 Steps++;
-                if (CompleteIfReached())
+                if (session.Highway is not null || CompleteIfReached())
                 {
                     return;
                 }
@@ -196,7 +196,7 @@ public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDr
         Ff7SessionSave snapshot;
         try
         {
-            snapshot = session.Capture();
+            snapshot = session.Highway is null ? session.Capture() : lastSafe;
         }
         catch (Exception captureError)
         {

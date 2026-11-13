@@ -6,6 +6,12 @@ public static class Ff7HighwayResources
 {
     public static PcHighwayCourse Load(Ff7Installation installation, bool arcade)
     {
+        using LgpArchive archive = Open(installation);
+        return PcHighwayCourse.Read(ReadMember(archive, "aaaa.adr"), ReadMember(archive, "baaa.bin"), arcade);
+    }
+
+    public static LgpArchive Open(Ff7Installation installation)
+    {
         ArgumentNullException.ThrowIfNull(installation);
         string archiveName = installation.Language switch
         {
@@ -15,8 +21,7 @@ public static class Ff7HighwayResources
             "es" => "high-sp.lgp",
             _ => throw new NotSupportedException($"FFVII highway archive for language '{installation.Language}' is unsupported.")
         };
-        using LgpArchive archive = LgpArchive.Open(Path.Combine(installation.DataDirectory, "minigame", archiveName));
-        return PcHighwayCourse.Read(ReadMember(archive, "aaaa.adr"), ReadMember(archive, "baaa.bin"), arcade);
+        return LgpArchive.Open(Path.Combine(installation.DataDirectory, "minigame", archiveName));
     }
 
     private static byte[] ReadMember(LgpArchive archive, string name)

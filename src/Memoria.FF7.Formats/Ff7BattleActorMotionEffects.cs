@@ -11,7 +11,7 @@ public static class Ff7BattleActorMotionEffects
 {
     public const int Capacity = 10;
 
-    public static Ff7BattleActorMotionState ScheduleDeath(Ff7BattleActorMotionState state, int target, bool playSound = true)
+    public static Ff7BattleActorMotionState ScheduleDeath(Ff7BattleActorMotionState state, int target, bool playSound = true, bool scriptedFade = false)
     {
         Ff7BattleActorDeathState?[] slots = (Ff7BattleActorDeathState?[])state.Slots.Clone();
         int free = Array.FindIndex(slots, slot => slot is null);
@@ -19,7 +19,7 @@ public static class Ff7BattleActorMotionEffects
         {
             throw new InvalidOperationException("FFVII actor-motion callback pool is full.");
         }
-        slots[free] = new(target, 1, playSound);
+        slots[free] = new(target, 1, playSound) { ScriptedFade = scriptedFade };
         return state with { Slots = slots };
     }
 

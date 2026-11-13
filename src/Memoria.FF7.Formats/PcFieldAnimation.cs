@@ -22,6 +22,16 @@ public sealed class PcFieldAnimation
     public int BoneCount { get; }
     public IReadOnlyList<PcFieldAnimationFrame> Frames { get; }
 
+    public PcFieldAnimation BindSingleFrame(IReadOnlyList<Vector3> rotations)
+    {
+        ArgumentNullException.ThrowIfNull(rotations);
+        if (Frames.Count != 1 || rotations.Count == 0 || rotations.Any(rotation => !float.IsFinite(rotation.X) || !float.IsFinite(rotation.Y) || !float.IsFinite(rotation.Z)))
+        {
+            throw new InvalidDataException("A field bind pose requires one frame and finite bone rotations.");
+        }
+        return new(Version, RotationOrder, ReservedHeader.ToArray(), rotations.Count, [Frames[0] with { BoneRotations = Array.AsReadOnly(rotations.ToArray()) }]);
+    }
+
     /// <summary>Reads an ordinal channel from the native contiguous frame allocation, without extending its bounds.</summary>
     public Vector3 ReadNativeBoneRotation(int frameIndex, int boneIndex, float nativeTranslationScale)
     {

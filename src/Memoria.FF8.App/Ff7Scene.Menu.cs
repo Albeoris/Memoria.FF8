@@ -73,6 +73,7 @@ internal sealed partial class Ff7Scene
         playerMenu.Register(new() { Id = "ff7-status", Title = "Status", Help = "Current party.", Entries = menu => menu.Data.Characters.Where(character => character.InParty).Select(character => new MenuEntry(character.Id, $"{character.Name}   Lv {character.Level}   HP {character.CurrentHp}", $"MP {character.Stats["MP"]}   EXP {character.Experience}")).ToArray(), Details = menu => [menu.SelectedEntry?.Help ?? ""] });
         RegisterMateriaMenus(playerMenu);
         RegisterNativeCharacterMenus(playerMenu);
+        RegisterStoryPartyMenu(playerMenu);
         playerMenu.Register(new()
         {
             Id = "config",
@@ -118,6 +119,10 @@ internal sealed partial class Ff7Scene
 
     private void ApplyPlayerMenuAction(MenuAction action)
     {
+        if (ApplyStoryPartyMenuAction(action))
+        {
+            return;
+        }
         if (ApplyEnemyIntegrationMenuAction(action))
         {
             return;
@@ -167,6 +172,10 @@ internal sealed partial class Ff7Scene
 
     private bool UpdatePlayerMenu(GameTime time, KeyboardState keys, GamePadState pad)
     {
+        if (UpdateStoryPartyMenu(time, keys, pad))
+        {
+            return true;
+        }
         if ((sharedInput.GameMenuRequested || pendingPlayerMenuRequest) && ActivePlayerMenu?.IsCapturingControls != true)
         {
             pendingPlayerMenuRequest = false;
@@ -308,6 +317,7 @@ internal sealed partial class Ff7Scene
     {
         playerMenu?.Close();
         playerMenu = null;
+        storyPartyMenuRequest = null;
         guestPlayerMenu?.Close();
         guestPlayerMenu = null;
         guestMenuAssets?.Dispose();

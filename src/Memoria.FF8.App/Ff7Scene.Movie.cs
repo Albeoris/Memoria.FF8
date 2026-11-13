@@ -20,7 +20,7 @@ internal sealed partial class Ff7Scene
     private (long Generation, long? Request)? movieSkipIdentity;
     private bool movieCompletionPending;
 
-    internal bool IsMovieBuffering => Session?.World is null && Session?.Battle is null && Session?.Host.Process.Movie is { Playing: true } && movie?.HasFrame != true;
+    internal bool IsMovieBuffering => Session?.World is null && Session?.Battle is null && Session?.Highway is null && Session?.Host.Process.Movie is { Playing: true } && movie?.HasFrame != true;
 
     private void AdvanceFieldTick()
     {

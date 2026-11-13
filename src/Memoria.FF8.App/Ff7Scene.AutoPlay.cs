@@ -24,6 +24,10 @@ internal sealed partial class Ff7Scene
                 {
                     throw new InvalidOperationException("Start or restore a valid FFVII session before automatic play.");
                 }
+                if (Session.Highway is not null)
+                {
+                    return;
+                }
                 if (autoPlay is null || !autoPlay.Running)
                 {
                     Ff7OpeningAutoPlayPolicy policy = new(Session, Ff7AutoPlayGoal.MidgarWorldMap);

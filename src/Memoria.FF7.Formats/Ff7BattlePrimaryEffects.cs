@@ -52,6 +52,13 @@ namespace Memoria.FF7.Formats;
 [JsonDerivedType(typeof(Ff7BattlePrimaryFireSprite), "FireSprite")]
 [JsonDerivedType(typeof(Ff7BattlePrimaryIceInitializer), "IceInitializer")]
 [JsonDerivedType(typeof(Ff7BattlePrimaryIceMesh), "IceMesh")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryMindblowGroup), "MindblowGroup")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryMindblowController), "MindblowController")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryMindblowMesh), "MindblowMesh")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryMindblowParticle), "MindblowParticle")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryCrossSlashGroup), "CrossSlashGroup")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryCrossSlashController), "CrossSlashController")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryCrossSlashSprite), "CrossSlashSprite")]
 [JsonDerivedType(typeof(Ff7BattlePrimaryBraverGroup), "BraverGroup")]
 [JsonDerivedType(typeof(Ff7BattlePrimaryBraverController), "BraverController")]
 [JsonDerivedType(typeof(Ff7BattlePrimaryBraverShine), "BraverShine")]
@@ -122,6 +129,10 @@ public sealed record Ff7BattlePrimaryScopeSprite(Ff7BattleBraverPoint Position, 
 [JsonDerivedType(typeof(Ff7BattlePrimaryDestroyedPulseDraw), "DestroyedPulse")]
 [JsonDerivedType(typeof(Ff7BattlePrimaryFireDraw), "Fire")]
 [JsonDerivedType(typeof(Ff7BattlePrimaryIceDraw), "Ice")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryMindblowMeshDraw), "MindblowMesh")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryMindblowParticleDraw), "MindblowParticle")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryMindblowPulseDraw), "MindblowPulse")]
+[JsonDerivedType(typeof(Ff7BattlePrimaryCrossSlashDraw), "CrossSlash")]
 [JsonDerivedType(typeof(Ff7BattlePrimaryBraverDraw), "Braver")]
 [JsonDerivedType(typeof(Ff7BattlePrimaryBeatRushDraw), "BeatRush")]
 [JsonDerivedType(typeof(Ff7BattlePrimaryBigShotDraw), "BigShot")]
@@ -296,6 +307,15 @@ public static partial class Ff7BattlePrimaryEffects
             case Ff7BattlePrimaryBeatRushTrail:
             case Ff7BattlePrimaryBeatRushSprite:
                 return ExecuteBeatRush(callback, pass);
+            case Ff7BattlePrimaryMindblowGroup:
+            case Ff7BattlePrimaryMindblowController:
+            case Ff7BattlePrimaryMindblowMesh:
+            case Ff7BattlePrimaryMindblowParticle:
+                return ExecuteMindblow(callback, pass);
+            case Ff7BattlePrimaryCrossSlashGroup:
+            case Ff7BattlePrimaryCrossSlashController:
+            case Ff7BattlePrimaryCrossSlashSprite:
+                return ExecuteCrossSlash(callback, pass);
             case Ff7BattlePrimaryBraverGroup:
             case Ff7BattlePrimaryBraverController:
             case Ff7BattlePrimaryBraverShine:

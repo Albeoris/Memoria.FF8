@@ -4,6 +4,26 @@ public static class Ff7NativeInventory
 {
     public const int SlotCount = 320;
 
+    public static int Quantity(IReadOnlyList<Ff7InventorySlot> inventory, int itemId) => inventory.FirstOrDefault(slot => slot.ItemId == itemId)?.Quantity ?? 0;
+
+    public static Ff7InventorySlot[] Remove(Ff7InventorySlot[] inventory, ushort encoded)
+    {
+        int itemId = encoded & 511;
+        int index = Array.FindIndex(inventory, slot => slot.ItemId == itemId);
+        if (index < 0)
+        {
+            return inventory;
+        }
+        int remaining = inventory[index].Quantity - (encoded >> 9);
+        if (remaining <= 0)
+        {
+            return [.. inventory.AsSpan(0, index), .. inventory.AsSpan(index + 1)];
+        }
+        Ff7InventorySlot[] result = inventory.ToArray();
+        result[index] = result[index] with { Quantity = remaining };
+        return result;
+    }
+
     public static Ff7InventorySlot[] Acquire(IReadOnlyList<Ff7InventorySlot> inventory, ushort encoded)
     {
         ArgumentNullException.ThrowIfNull(inventory);

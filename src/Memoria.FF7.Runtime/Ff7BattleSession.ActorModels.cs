@@ -243,6 +243,19 @@ public sealed partial class Ff7BattleSession
                     case 0x97:
                         StartExplicitActorDeath(previous.Slot, instruction.Operands.Span);
                         break;
+                    case 0xC3:
+                        StartScriptedActorFade(previous.Slot);
+                        break;
+                    case 0xB8:
+                        SetActorModelVisibility(previous.Slot, false);
+                        break;
+                    case 0xBF:
+                        SetActionClockFlag(instruction.Operands.Span);
+                        break;
+                    case 0x8E:
+                    case 0x8F:
+                        UpdateActionCursor(instruction.Opcode);
+                        break;
                     case 0xC7:
                         if (!previous.LinkedAction)
                         {
@@ -344,9 +357,9 @@ public sealed partial class Ff7BattleSession
         ReplaceActorModel(model with { Action = selector, Pose = new(ClipIndex: clip, ClipFrame: frame), Ready = false, IdleStarted = null, Reaction = true, PendingSince = PresentationTick, ReactionKnockedOut = impact.PostActionKnockedOut, LinkedAction = false, Motion = null });
     }
 
-    private void BeginActorFade(int slot, bool appearing)
+    private void BeginActorFade(int slot, bool appearing, byte? requestedDuration = null)
     {
-        byte duration = state.ActorFadeDuration ?? 14;
+        byte duration = requestedDuration ?? state.ActorFadeDuration ?? 14;
         if (duration is 0 or > 127)
         {
             throw new InvalidDataException("FFVII actor fade duration is outside its native signed byte range.");

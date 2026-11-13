@@ -65,5 +65,44 @@ public sealed class Ff7KnownFieldPoseBinding
         return new(source, sourceBind, motion, target, targetBind, mapping);
     }
 
+    internal static PcFieldAnimation BindIfalnaIdle(PcFieldAnimation idle, ReadOnlySpan<byte> idleBytes, HrcHierarchy target, ReadOnlySpan<byte> hierarchyBytes, LgpArchive characters)
+    {
+        // TODO(TD-026): The original idle has no Ifalna hair channels or matching channel order.
+        if (!Matches(idleBytes, "DE37B1BA4E67D6B4CAF7F1DE1B8A9C0446D8D2DBC3893F6606260FB5E5235EFA") || !Matches(hierarchyBytes, "C1D53FB79FCF90B11B2A8B31F5169160FE6E1B38E46D5EAAB27BE7F8E9AADA82"))
+        {
+            return idle;
+        }
+        byte[] sourceBytes = characters.ReadEntry(characters.Find("cogb.hrc").Single());
+        byte[] hairBytes = characters.ReadEntry(characters.Find("cqff.a").Single());
+        if (!Matches(sourceBytes, "B93DE0DB740F1104AC8753B75C6E854BAF392B676F33A4729A1FA0920B0B8911") || !Matches(hairBytes, "7CE8314EB361FB7DBC3B43E6DB078994CE9739795E42C51C43E6527FC54EACE7"))
+        {
+            return idle;
+        }
+        HrcHierarchy source = HrcHierarchy.Read(sourceBytes);
+        PcFieldAnimation hair = PcFieldAnimation.Read(hairBytes);
+        if (idle.RotationOrder != hair.RotationOrder || source.Bones.Count != idle.BoneCount || target.Bones.Count != hair.BoneCount)
+        {
+            throw new InvalidDataException("The authenticated field idle and hair poses do not match their animation contracts.");
+        }
+        Dictionary<string, HrcBone> sourceBones = source.Bones.ToDictionary(bone => bone.Name, StringComparer.OrdinalIgnoreCase);
+        System.Numerics.Vector3[] rotations = new System.Numerics.Vector3[target.Bones.Count];
+        foreach (HrcBone bone in target.Bones)
+        {
+            if (sourceBones.TryGetValue(bone.Name, out HrcBone? counterpart) && counterpart.ParentName == bone.ParentName && counterpart.Length == bone.Length)
+            {
+                rotations[bone.Index] = idle.Frames[0].BoneRotations[counterpart.Index];
+            }
+            else if (bone.Name is "non_1" or "kami")
+            {
+                rotations[bone.Index] = hair.Frames[0].BoneRotations[bone.Index];
+            }
+            else
+            {
+                throw new InvalidDataException("The authenticated field idle has an unknown joint binding.");
+            }
+        }
+        return idle.BindSingleFrame(rotations);
+    }
+
     private static bool Matches(ReadOnlySpan<byte> bytes, string expected) => Convert.ToHexString(SHA256.HashData(bytes)).Equals(expected, StringComparison.Ordinal);
 }

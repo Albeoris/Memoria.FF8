@@ -13,6 +13,18 @@ public sealed partial class Ff7BattleAnimationResources(LgpArchive archive, Ff7B
     private readonly Dictionary<(string Prefix, int Clip, ushort Limit), IReadOnlyList<BattleClipFrame>> limitWeaponClips = [];
     private readonly Dictionary<(string Prefix, int Clip, ushort Limit), IReadOnlyList<BattleClipFrame>> limitBodyClips = [];
 
+    private readonly Dictionary<bool, Ff7BattleSummonModel> summonModels = [];
+
+    public Ff7BattleSummonModel GetSummonModel(bool fatChocobo)
+    {
+        if (!summonModels.TryGetValue(fatChocobo, out Ff7BattleSummonModel? model))
+        {
+            model = Ff7BattleSummonModel.Load(magicArchive, fatChocobo);
+            summonModels.Add(fatChocobo, model);
+        }
+        return model;
+    }
+
     public Ff7BattlePlacementTables Placement { get; } = placement;
     public IReadOnlyList<Ff7BattleHitmarkDefinition> Hitmarks { get; } = hitmarks;
     public Ff7BattleActorModelResources? ActorResources { get; } = actorResources;

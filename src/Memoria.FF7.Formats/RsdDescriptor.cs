@@ -11,7 +11,7 @@ public sealed record RsdDescriptor(string Id, string Polygon, IReadOnlyList<stri
         {
             throw new InvalidDataException("RSD text exceeds its limit or is not ASCII.");
         }
-        string[] lines = Encoding.ASCII.GetString(source).Split(['\r', '\n'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        string[] lines = Encoding.ASCII.GetString(source).Split(['\r', '\n'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).SkipWhile(line => line.StartsWith('#')).ToArray();
         if (lines.Length == 0 || !lines[0].StartsWith("@RSD", StringComparison.Ordinal))
         {
             throw new InvalidDataException("Unsupported RSD signature.");

@@ -22,6 +22,11 @@ public sealed partial class Ff7BattleSession
         }
     }
 
+    private void StartScriptedActorFade(int slot)
+    {
+        state = state with { ActorMotion = Ff7BattleActorMotionEffects.ScheduleDeath(state.ActorMotion ?? new(), slot, scriptedFade: true) };
+    }
+
     private void StartExplicitActorDeath(int slot, ReadOnlySpan<byte> operands)
     {
         byte kind = operands[0];

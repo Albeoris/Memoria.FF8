@@ -41,6 +41,7 @@ public sealed record FieldActorPosition(short X, short Y, short Z, short Triangl
 [JsonDerivedType(typeof(FieldRandomStrideCommand), "random-stride")]
 [JsonDerivedType(typeof(FieldMateriaCommand), "materia")]
 [JsonDerivedType(typeof(FieldItemCommand), "item")]
+[JsonDerivedType(typeof(FieldItemQuantityQuery), "itemQuantity")]
 [JsonDerivedType(typeof(FieldGilCommand), "gil")]
 [JsonDerivedType(typeof(FieldGilQuery), "gil-query")]
 [JsonDerivedType(typeof(FieldHitPointCommand), "hit-point")]
@@ -261,4 +262,6 @@ public sealed record FieldActorLadder(short X, short Y, short Z, short Triangle,
 public sealed record FieldActorJump(short X, short Y, short Triangle, short Duration) : FieldCommand;
 
 public sealed record FieldMateriaCommand(uint Encoded) : FieldCommand;
-public sealed record FieldItemCommand(ushort Encoded) : FieldCommand;
+public sealed record FieldItemCommand(ushort Encoded, bool Remove = false) : FieldCommand;
+
+public sealed record FieldItemQuantityQuery(int ItemId) : FieldCommand;

@@ -356,7 +356,7 @@ internal sealed partial class Ff7Scene
         if (pointerCategory >= 0 || validCategory && semanticInput.Confirm)
         {
             var category = categories[commandIndex];
-            if (category.Command is Ff7BattleCommand.Magic or Ff7BattleCommand.Item || category.Command == Ff7BattleCommand.Limit && commands.Count(option => BattleCategory(option) == category) > 1)
+            if (category.Command is Ff7BattleCommand.Magic or Ff7BattleCommand.Item or Ff7BattleCommand.Summon || category.Command == Ff7BattleCommand.Limit && commands.Count(option => BattleCategory(option) == category) > 1)
             {
                 battleCommandPage = category;
                 highlightedBattleArgument = PresentationPreferences.CursorMemory ? battleCursor.Selection(BattleCursorActor(battle, owner), category)?.Action : null;
@@ -413,7 +413,7 @@ internal sealed partial class Ff7Scene
         {
             { Command: 0x20, Argument: var slot } => battle.SceneAttackName(slot),
             { Command: (byte)Ff7BattleCommand.Item, Argument: var item } => BattleItemName(item),
-            { Command: (byte)Ff7BattleCommand.Magic, Argument: var spell } => BattleSpellName(spell),
+            { Command: (byte)Ff7BattleCommand.Magic or (byte)Ff7BattleCommand.Summon, Argument: var spell } => BattleSpellName(spell),
             { Command: (byte)Ff7BattleCommand.Limit, Argument: var limit } => BattleLimitName(limit),
             _ => null
         };
@@ -433,7 +433,7 @@ internal sealed partial class Ff7Scene
 
     private static string BattleLimitName(int limit)
     {
-        return limit switch { 0x80 => "Braver", 0x87 => "Big Shot", 0x95 => "Beat Rush", _ => Ff7BattleCommand.Limit.ToString() };
+        return limit switch { 0x80 => "Braver", 0x81 => "Cross-slash", 0x87 => "Big Shot", 0x89 => "Mindblow", 0x95 => "Beat Rush", _ => Ff7BattleCommand.Limit.ToString() };
     }
 
     private string CommandName(Ff7BattleCommandOption option, int owner)
@@ -450,6 +450,10 @@ internal sealed partial class Ff7Scene
                 return guest.ItemName(option.Argument);
             }
             return BattleItemName(option.Argument);
+        }
+        if (option.Command == Ff7BattleCommand.Summon)
+        {
+            return BattleSpellName(option.Argument);
         }
         if (option.Command == Ff7BattleCommand.Magic)
         {
@@ -529,7 +533,7 @@ internal sealed partial class Ff7Scene
         arenaSurfaceCapture!.Prepare(guestEffects.SelectMany(effect => effect.Ordering?.Packets.Select(packet => packet.PilotGeometry?.ForeignSurface?.Material).OfType<INativeBattleForeignMaterial>() ?? []));
         HashSet<NativeBattleArenaPrimitiveId> replacedArena = mixedCombat?.Guests.SelectMany(guest => guest.ArenaReplacements).SelectMany(replacement => replacement.Geometry.Faces).Select(face => face.Id).ToHashSet() ?? [];
         replacedArena.UnionWith(mixedCombat?.Guests.SelectMany(guest => guest.SuppressedArenaPrimitives) ?? []);
-        renderer.Render(triangles, bounds.Width, bounds.Height, new(battle.GuestRenderCameraOutput, visuals, battle.Action?.Fire, battle.Action?.Ice, battle.Action?.Bolt, Cure: battle.Action?.Cure, Braver: battle.Action?.Braver) { CaptureActorBounds = selectedBattleCommand is not null, BeatRush = battle.Action?.BeatRushEffect, BigShot = battle.Action?.BigShot, Hitmarks = battle.Hitmarks, SecondaryEffects = battle.SecondaryEffects, PrimaryEffects = battle.PrimaryEffects, SmokeShot = battle.Action?.SmokeShot, Smog = battle.Action?.Smog, Destroyed = battle.Action?.Destroyed, SearchScope = battle.Action?.SearchScope, Rockets = battle.Action?.Rockets, StageFade = battle.RenderStageFade, Guests = MixedBattleVisuals(battle), GuestEffectLayers = guestEffects, SuppressArenaPrimitives = replacedArena });
+        renderer.Render(triangles, bounds.Width, bounds.Height, new(battle.GuestRenderCameraOutput, visuals, battle.Action?.Fire, battle.Action?.Ice, battle.Action?.Bolt, Cure: battle.Action?.Cure, Braver: battle.Action?.Braver) { CaptureActorBounds = selectedBattleCommand is not null, BeatRush = battle.Action?.BeatRushEffect, BigShot = battle.Action?.BigShot, Hitmarks = battle.Hitmarks, SecondaryEffects = battle.SecondaryEffects, PrimaryEffects = battle.PrimaryEffects, SummonModel = battle.Action?.Summon?.Model, SmokeShot = battle.Action?.SmokeShot, Smog = battle.Action?.Smog, Destroyed = battle.Action?.Destroyed, SearchScope = battle.Action?.SearchScope, Rockets = battle.Action?.Rockets, StageFade = battle.RenderStageFade, Guests = MixedBattleVisuals(battle), GuestEffectLayers = guestEffects, SuppressArenaPrimitives = replacedArena });
     }
 
     private void ResetBattlePresentation()

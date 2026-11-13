@@ -19,7 +19,7 @@ public sealed partial class Ff7FieldHost
         {
             return new(false);
         }
-        if (command.Mode is not (6 or 8 or 17))
+        if (command.Mode is not (6 or 7 or 8 or 17 or 18))
         {
             throw new NotSupportedException($"FFVII menu mode {command.Mode} requires its native menu process.");
         }
@@ -27,20 +27,24 @@ public sealed partial class Ff7FieldHost
         {
             throw new NotSupportedException("The native shop index is outside the recognized executable directory.");
         }
+        if (command.Mode == 7 && command.Parameter != 0)
+        {
+            throw new NotSupportedException($"FFVII party selector parameter {command.Parameter} requires its native roster contract.");
+        }
         Process = Process with { Menu = new(requestId, command.Mode, command.Parameter, Shop: command.Mode == 8 ? new(requestId, command.Parameter) : null), GlobalCommand = Ff7GlobalCommand.Menu, GlobalRequestId = requestId };
         return new(false);
     }
 
     public void AdvanceNativeMenu()
     {
-        if (Process.Menu is not { Mode: 17, Completed: false } menu || Process.GlobalCommand != Ff7GlobalCommand.Menu || Process.GlobalRequestId != menu.RequestId)
+        if (Process.Menu is not { Mode: 17 or 18, Completed: false } menu || Process.GlobalCommand != Ff7GlobalCommand.Menu || Process.GlobalRequestId != menu.RequestId)
         {
             return;
         }
-        FieldHostReply reply = ExternalCommand?.Invoke(new FieldMenuCommand(menu.Mode, menu.Parameter)) ?? throw new NotSupportedException("FFVII equipment removal requires its native progress owner.");
+        FieldHostReply reply = ExternalCommand?.Invoke(new FieldMenuCommand(menu.Mode, menu.Parameter)) ?? throw new NotSupportedException("FFVII automatic menu operation requires its native progress owner.");
         if (!reply.Completed)
         {
-            throw new NotSupportedException("FFVII equipment removal must complete within its native global process.");
+            throw new NotSupportedException("FFVII automatic menu operation must complete within its native global process.");
         }
         CompleteMenu(menu.RequestId);
     }
@@ -62,6 +66,30 @@ public sealed partial class Ff7FieldHost
 
 public sealed partial class Ff7Session
 {
+    public bool CompleteStoryPartyMenu(long requestId, IReadOnlyList<int> members)
+    {
+        ArgumentNullException.ThrowIfNull(members);
+        if (Host.Process.Menu is not { Mode: 7, Parameter: 0, Completed: false } menu || menu.RequestId != requestId || Host.Process.GlobalCommand != Ff7GlobalCommand.Menu || Host.Process.GlobalRequestId != requestId)
+        {
+            return false;
+        }
+        if (members.Count != 3 || members.Distinct().Count() != 3 || members.Any(id => (uint)id > 8))
+        {
+            return false;
+        }
+        int selected = members.Aggregate(0, (mask, id) => mask | 1 << id);
+        int active = Progress.Party.Where(id => id != 255).Aggregate(0, (mask, id) => mask | 1 << id);
+        if ((selected & ~Progress.AvailableCharacters) != 0 || (selected & Progress.LockedCharacters & ~active) != 0 || Progress.Party.Where((id, index) => id != 255 && (Progress.LockedCharacters & 1 << id) != 0 && members[index] != id).Any())
+        {
+            return false;
+        }
+        Ff7Progress next = Progress with { Party = members.ToArray() };
+        next.Validate();
+        Host.CompleteMenu(requestId);
+        PublishFieldParty(next);
+        return true;
+    }
+
     public void CompleteNamingMenu(long requestId, string name)
     {
         ArgumentNullException.ThrowIfNull(name);

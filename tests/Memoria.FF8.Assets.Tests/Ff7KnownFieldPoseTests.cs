@@ -110,6 +110,29 @@ public sealed class Ff7KnownFieldPoseTests
         }
     }
 
+    [Fact]
+    public void InstalledIfalnaIdleBindsTheElmyraBodyAndOriginalIfalnaHair()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(root), "Select an original FFVII installation.");
+        Ff7Installation installation = Ff7Installation.Discover(root!);
+        Ff7FieldResources field = Ff7FieldResources.Load(installation, "mds7st32");
+        PcFieldModelDescriptor descriptor = field.Models.Models[7];
+        using LgpArchive archive = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.CharacterArchive).Path);
+        Ff7FieldModelResources ifalna = Ff7FieldModelResources.Load(archive, descriptor);
+        PcFieldAnimation original = PcFieldAnimation.Read(archive.ReadEntry(archive.Find("coab.a").Single()));
+        PcFieldAnimation idle = ifalna.Animations["coab.a"];
+        PcFieldAnimation talk = ifalna.Animations["cqff.a"];
+        Assert.Equal(21, original.BoneCount);
+        Assert.Equal(23, idle.BoneCount);
+        Assert.Equal(original.Frames[0].RootRotation, idle.Frames[0].RootRotation);
+        Assert.Equal(original.Frames[0].RootTranslation, idle.Frames[0].RootTranslation);
+        Assert.Equal(talk.Frames[0].BoneRotations.Skip(3).Take(2), idle.Frames[0].BoneRotations.Skip(3).Take(2));
+        Assert.Equal(original.Frames[0].BoneRotations, idle.Frames[0].BoneRotations.Take(3).Concat(idle.Frames[0].BoneRotations.Skip(5)));
+        Assert.Equal(23, Ff7FieldRenderer.Pose(ifalna, idle, 0).Count);
+        Assert.Throws<NotSupportedException>(() => original.ReadNativeBoneRotation(0, 21, 1));
+    }
+
     private sealed class Capture : ITriangleRenderer
     {
         public List<Vector2> Positions { get; } = [];

@@ -24,7 +24,7 @@ public sealed partial class Ff7BattleSession
         }
         foreach (Ff7BattlePrimaryPositionedSound cue in primary.PositionedSounds)
         {
-            byte pan = cue.Actor == -1 ? cue.FallbackPan : Ff7NativeBattleSound.ActorPan(SoundScreenX(cue.Actor));
+            byte pan = cue.Point is { } point ? SoundPointPan(point.Position) : cue.Actor == -1 ? cue.FallbackPan : Ff7NativeBattleSound.ActorPan(SoundScreenX(cue.Actor));
             Ff7BattleSoundState sounds = state.Sounds ?? Ff7BattleSoundState.Empty;
             AppendSounds(cue.RawPan ? Ff7NativeBattleSound.EmitRawPan(sounds, cue.Sound, pan, cue.Channel) : Ff7NativeBattleSound.Emit(sounds, cue.Sound, pan, cue.Channel));
         }

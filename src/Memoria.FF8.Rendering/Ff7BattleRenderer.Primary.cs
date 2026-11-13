@@ -73,6 +73,18 @@ public sealed partial class Ff7BattleRenderer
                 case Ff7BattlePrimaryBeatRushDraw beatRush:
                     DrawBeatRush(renderer, beatRush.State, view);
                     break;
+                case Ff7BattlePrimaryMindblowMeshDraw mindblowMesh:
+                    DrawMindblowMesh(renderer, mindblowMesh, view);
+                    break;
+                case Ff7BattlePrimaryMindblowPulseDraw mindblowPulse:
+                    DrawScreenPulse(renderer, mindblowPulse.Brightness, mindblowPulse.Brightness, mindblowPulse.Brightness, view);
+                    break;
+                case Ff7BattlePrimaryMindblowParticleDraw mindblowParticle:
+                    DrawMindblowParticle(renderer, mindblowParticle, view);
+                    break;
+                case Ff7BattlePrimaryCrossSlashDraw crossSlash:
+                    DrawCrossSlash(renderer, crossSlash, view);
+                    break;
                 case Ff7BattlePrimaryBraverDraw braver:
                     DrawBraver(renderer, braver.State, view);
                     break;

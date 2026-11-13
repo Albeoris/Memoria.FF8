@@ -58,6 +58,29 @@ public static class Ff7NativeBattleLimits
         return ReadLearnedIds(character, data, level);
     }
 
+    public static int ReadActionAnimation(Ff7CharacterState character, IReadOnlyList<KernelSection> kernel, ushort attack)
+    {
+        ReadOnlySpan<byte> data = ReadBattleKernel(character, kernel);
+        int level = character.NativeRecord[14];
+        if (!ReadLearnedIds(character, data, level).Contains((byte)attack))
+        {
+            throw new InvalidDataException("FFVII Limit action requires a learned technique at the active Limit level.");
+        }
+        int animation = 0x3C;
+        foreach (byte technique in data.Slice(12 + character.Id * 56, 12))
+        {
+            if (technique == attack)
+            {
+                return animation;
+            }
+            if (technique != byte.MaxValue)
+            {
+                animation++;
+            }
+        }
+        throw new InvalidDataException("FFVII Limit action has no original animation selector.");
+    }
+
     public static int ReadLearnedMask(Ff7CharacterState character, int level)
     {
         ArgumentNullException.ThrowIfNull(character);

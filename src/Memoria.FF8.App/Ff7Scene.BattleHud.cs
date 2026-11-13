@@ -74,6 +74,7 @@ internal sealed partial class Ff7Scene
     {
         return option.Command switch
         {
+            Ff7BattleCommand.Summon => $"{option.Cost} MP  ?{option.RemainingUses}",
             Ff7BattleCommand.Magic when !guest => option.Cost > 0 ? $"{option.Cost} MP" : "",
             Ff7BattleCommand.Magic or Ff7BattleCommand.Item => option.Cost.ToString(),
             _ => ""
@@ -207,7 +208,7 @@ internal sealed partial class Ff7Scene
         for (int index = 0; index < rows.Length; index++)
         {
             int slot = rows[index].Slot;
-            if ((index == selected || group && (action.AllTargets || (slot >= 4) == enemies)) && battleRenderer!.TryGetActorBounds(slot, out System.Numerics.Vector4 model))
+            if (!battle.CursorSuppressedByAction && (index == selected || group && (action.AllTargets || (slot >= 4) == enemies)) && battleRenderer!.TryGetActorBounds(slot, out System.Numerics.Vector4 model))
             {
                 UiRect projected = new(viewport.X + model.X * viewportX, viewport.Y + model.Y * viewportY, (model.Z - model.X) * viewportX, (model.W - model.Y) * viewportY);
                 BattleHudElement.DrawModelPointer(canvas, theme, viewport, layout.Scale, projected);

@@ -178,6 +178,10 @@ public sealed partial class Ff7BattleSession
         {
             action = action with { Destroyed = Ff7BattlePrimaryEffects.ProjectDestroyed(primary, destroyed) };
         }
+        if (action.Summon is { Completed: false })
+        {
+            action = AdvanceSummonPresentation(action);
+        }
         EffectCallbackSounds(before, action);
         action = PublishTargetReactions(action, primary.TargetReactions.Select(reaction => reaction.Target));
         state = state with { Action = action };
@@ -209,6 +213,12 @@ public sealed partial class Ff7BattleSession
         return action with { Bolt = Ff7BattleBoltEffect.Start(action.Command.TargetMask) with { Primary = null }, PrimaryCallbacksRunning = true };
     }
 
+    private Ff7BattleActionState StartPrimaryCrossSlash(Ff7BattleActionState action)
+    {
+        state = state with { PrimaryEffects = Ff7BattlePrimaryEffects.ScheduleCrossSlash(EnsurePrimaryEffects(), action.Command.TargetMask) };
+        return action with { CrossSlashStarted = true, PrimaryCallbacksRunning = true };
+    }
+
     private Ff7BattleActionState StartPrimaryBraver(Ff7BattleActionState action)
     {
         state = state with { PrimaryEffects = Ff7BattlePrimaryEffects.ScheduleBraver(EnsurePrimaryEffects(), action.Command.ActorSlot, action.Command.TargetMask) };
@@ -219,6 +229,12 @@ public sealed partial class Ff7BattleSession
     {
         state = state with { PrimaryEffects = Ff7BattlePrimaryEffects.ScheduleBeatRush(EnsurePrimaryEffects(), action.Command.ActorSlot, action.Command.TargetMask) };
         return action with { BeatRushEffect = Ff7BattleBeatRushEffect.Start(action.Command.TargetMask) with { Primary = null }, PrimaryCallbacksRunning = true };
+    }
+
+    private Ff7BattleActionState StartPrimaryMindblow(Ff7BattleActionState action)
+    {
+        state = state with { PrimaryEffects = Ff7BattlePrimaryEffects.ScheduleMindblow(EnsurePrimaryEffects(), action.Command.ActorSlot, action.Command.TargetMask) };
+        return action with { MindblowStarted = true, PrimaryCallbacksRunning = true };
     }
 
     private Ff7BattleActionState StartPrimaryBigShot(Ff7BattleActionState action)

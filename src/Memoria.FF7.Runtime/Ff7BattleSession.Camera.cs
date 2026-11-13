@@ -18,7 +18,7 @@ public sealed partial class Ff7BattleSession
     private List<int>? cameraTargetRows;
 
     public SceneCameraPlacement CameraOutput => state.Camera?.Output.ToPlacement() ?? Data.Cameras[0];
-    public SceneCameraPlacement RenderCameraOutput => state.Camera?.RenderOutput.ToPlacement() ?? Data.Cameras[0];
+    public SceneCameraPlacement RenderCameraOutput => state.Action?.Summon?.CameraView?.ToPlacement() ?? state.Camera?.RenderOutput.ToPlacement() ?? Data.Cameras[0];
     public SceneCameraPlacement GuestRenderCameraOutput
     {
         get
@@ -110,7 +110,7 @@ public sealed partial class Ff7BattleSession
             (slot, selector) => animations!.JointSelector(ActorModel(slot), selector),
             (slot, bone) => CameraJoint(slot, bone),
             slot => CameraActor(slot),
-            CameraGroupCenter, cameraScripts!.Math);
+            CameraGroupCenter, cameraScripts!.Math, CameraTargetOffset);
         Ff7BattleCameraScriptUpdate update = Ff7NativeBattleCameraScripts.Advance(camera.Scripts, true, false, cameraScripts.Script, Data.Cameras, camera.Output.ToPlacement(), cameraScripts.Math.Cosine, actors);
         sbyte phase = Outcome == Ff7BattleOutcome.Victory ? (sbyte)100 : (sbyte)0;
         Ff7BattleCameraOutput selected = Ff7NativeBattleCameraOutput.Select(update.State, new(unchecked((ushort)Formation.LocationId), camera.Options, phase, camera.MenuPhase, camera.PrimaryQueueState), Data.Cameras, camera.Output.ToPlacement());
@@ -151,6 +151,13 @@ public sealed partial class Ff7BattleSession
         Ff7BattleActorState actor = Actor(slot);
         short action = state.ActorModels.Length != 0 ? ActorModelState(slot).Action : checked((short)actor.Actor.IdleAction);
         return new(animations!.CameraModelParameters(ActorModel(slot)), 0x1000, unchecked((short)VisualPlacement(slot).Yaw), unchecked((short)HomePlacement(slot).Yaw), action);
+    }
+
+    private Ff7BattleCameraPoint CameraTargetOffset(int slot, int index, bool focus)
+    {
+        Ff7BattleCameraOffset offset = animations!.CameraTargetOffset(ActorModel(slot), index, focus);
+        Vector3 position = VisualPlacement(slot).Position;
+        return new(unchecked((short)((int)position.X + offset.X)), unchecked((short)(offset.Y + (index == 0 ? 0 : (int)position.Y))), unchecked((short)((int)position.Z + offset.Z)));
     }
 
     private Ff7BattleCameraPoint CameraGroupCenter() => TargetRootCenter(state.Camera!.TargetMask);
@@ -210,7 +217,7 @@ public sealed partial class Ff7BattleSession
         Ff7BattleAttack? attack = command.CommandId switch
         {
             0x20 => Data.Attacks.Single(attack => attack.Slot == command.Argument && attack.Id == command.AttackId).Data,
-            (byte)Ff7BattleCommand.Magic => ReadKernelAttack(command.Argument),
+            (byte)Ff7BattleCommand.Magic or (byte)Ff7BattleCommand.Summon => ReadKernelAttack(command.Argument),
             (byte)Ff7BattleCommand.Limit => limits[command.Argument - 0x80],
             _ => null
         };

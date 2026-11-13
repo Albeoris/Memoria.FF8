@@ -223,6 +223,11 @@ internal sealed partial class Ff7Scene : IDisposable
                 UpdateBattle(gameTime, battle);
                 return;
             }
+            if (Session.Highway is not null)
+            {
+                UpdateHighway(gameTime);
+                return;
+            }
             if (UpdateShop(gameTime, keys, pad) || UpdatePlayerMenu(gameTime, keys, pad))
             {
                 return;
@@ -272,7 +277,7 @@ internal sealed partial class Ff7Scene : IDisposable
                 }
                 RememberReportCheckpoint();
                 UpdateAudio();
-                if (IsShopMenuPresentation || Session.Battle is not null)
+                if (IsShopMenuPresentation || Session.Battle is not null || Session.Highway is not null)
                 {
                     tickRemainder = 0;
                     return false;
@@ -307,6 +312,10 @@ internal sealed partial class Ff7Scene : IDisposable
                 {
                     RenderBattle(battle, renderBounds);
                 }
+                else if (Session.Highway is { } highway)
+                {
+                    RenderHighway(highway, renderBounds);
+                }
                 else
                 {
                     RenderField(renderBounds);
@@ -326,11 +335,11 @@ internal sealed partial class Ff7Scene : IDisposable
                 {
                     batch.Draw(pixel, windowBounds, Color.Black);
                 }
-                if (Session.World is null && Session.Battle is null)
+                if (Session.World is null && Session.Battle is null && Session.Highway is null)
                 {
                     DrawMovie(batch, bounds);
                 }
-                if (!bufferingMovie && (renderer is not null || Session.World is not null || Session.Battle is not null) && error is null)
+                if (!bufferingMovie && (renderer is not null || Session.World is not null || Session.Battle is not null || Session.Highway is not null) && error is null)
                 {
                     PixelBounds fieldFit = ViewportLayout.Fit(triangles.Target.Width, triangles.Target.Height, windowBounds.Width, windowBounds.Height);
                     sceneBounds = new(windowBounds.X + fieldFit.X, windowBounds.Y + fieldFit.Y, fieldFit.Width, fieldFit.Height);
@@ -341,6 +350,10 @@ internal sealed partial class Ff7Scene : IDisposable
                     if (Session.Battle is { } battle)
                     {
                         DrawBattle(windowBounds, sceneBounds, battle);
+                    }
+                    else if (Session.Highway is { } highway)
+                    {
+                        DrawHighwayHud(batch, sceneBounds, highway);
                     }
                     else
                     {
@@ -387,6 +400,7 @@ internal sealed partial class Ff7Scene : IDisposable
 
     private void Attach(Ff7Session session, Ff7AudioPresentationState? savedAudio = null, bool restoring = false)
     {
+        highwayOwner = null;
         autoPlay = null;
         DisposeNamingPresentation();
         DisposePlayerMenu();
@@ -446,7 +460,8 @@ internal sealed partial class Ff7Scene : IDisposable
         PcFieldCamera? camera = CurrentMovieCamera();
         PcFieldCamera effectCamera = camera ?? session.Field.Cameras[0];
         var (sampledActors, cameraOffset) = SampleFieldPresentation(session, state, camera);
-        Ff7ActorVisual[] actors = sampledActors.Select(actor => new Ff7ActorVisual(actor.Entity, actor.Model, checked(actor.X4096 + actor.OffsetX * 4096), checked(actor.Y4096 + actor.OffsetY * 4096), checked(actor.Z4096 + actor.OffsetZ * 4096), checked((byte)actor.Direction), actor.Animation, actor.AnimationFrame16, actor.Visible)
+        PcFieldCamera? eligibilityCamera = state.Movie is { Playing: true } ? BlinkCamera() : effectCamera;
+        Ff7ActorVisual[] actors = sampledActors.Where(actor => IsDrawableActor(actor, eligibilityCamera, cameraOffset, state.CameraFollowPlayer == false)).Select(actor => new Ff7ActorVisual(actor.Entity, actor.Model, checked(actor.X4096 + actor.OffsetX * 4096), checked(actor.Y4096 + actor.OffsetY * 4096), checked(actor.Z4096 + actor.OffsetZ * 4096), checked((byte)actor.Direction), actor.Animation, actor.AnimationFrame16, actor.Visible)
         {
             PartyCharacter = actor.PartyCharacter,
             AutomaticBlinkDisabled = actor.AutomaticBlinkDisabled,
@@ -459,6 +474,16 @@ internal sealed partial class Ff7Scene : IDisposable
         }).ToArray();
         Ff7FieldRenderFrame frame = new(0, cameraOffset, actors, state.BackgroundStates, state.Movie is { Playing: true }, camera, state.MovieBackgroundEnabled, state.PaletteRows, state.PaletteVersion) { FieldHidden = state.FadeState?.HidesField == true, FieldColorArgb = state.FadeState?.FieldColorArgb, QuadColorArgb = state.FadeState?.QuadColorArgb, QuadBlend = FadeQuadBlend(state.FadeState), PlayerPointer = PlayerPointer(sampledActors, effectCamera, cameraOffset) };
         renderer.Render(triangles, Math.Max(1, bounds.Width), Math.Max(1, bounds.Height), frame);
+    }
+
+    internal static bool IsDrawableActor(Ff7Actor presented, PcFieldCamera? camera, Vector2N cameraOffset, bool screenMarginOverride)
+    {
+        if (!presented.Visible)
+        {
+            return false;
+        }
+        System.Numerics.Vector3 point = new(presented.X4096 / 4096f + presented.OffsetX, presented.Y4096 / 4096f + presented.OffsetY, presented.Z4096 / 4096f + presented.OffsetZ);
+        return Ff7NativeBlink.EligiblePoint(point, camera, cameraOffset, screenMarginOverride);
     }
 
     internal static TriangleBlend FadeQuadBlend(Ff7FadeProcess? fade)
@@ -733,6 +758,8 @@ internal sealed partial class Ff7Scene : IDisposable
         battleArchive?.Dispose();
         battleMagicArchive?.Dispose();
         arenaSurfaceCapture?.Dispose();
+        highwayGaugeTexture?.Dispose();
+        highwayPortraitTexture?.Dispose();
         triangles.Dispose();
         titleArtwork.Dispose();
         pixel.Dispose();

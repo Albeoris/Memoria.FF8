@@ -9,6 +9,10 @@ public sealed partial class Ff7BattleSession
     private Ff7BattleActionState StartEffect(Ff7BattleActionState action)
     {
         Ff7BattleQueuedCommand command = action.Command;
+        if (command.CommandId == (byte)Ff7BattleCommand.Summon)
+        {
+            return StartSummonPresentation(action);
+        }
         if (command.CommandId == 0x20)
         {
             byte effect = Data.Attacks.Single(attack => attack.Slot == command.Argument && attack.Id == command.AttackId).Data.AttackEffect;
@@ -38,7 +42,9 @@ public sealed partial class Ff7BattleSession
             0x1E when action.Ice is null => StartPrimaryIce(action),
             0x21 when action.Bolt is null => StartPrimaryBolt(action),
             0x80 when action.Braver is null => StartPrimaryBraver(action),
+            0x81 when !action.CrossSlashStarted => StartPrimaryCrossSlash(action),
             0x87 when action.BigShot is null => StartPrimaryBigShot(action),
+            0x89 when !action.MindblowStarted => StartPrimaryMindblow(action),
             _ => action
         };
     }

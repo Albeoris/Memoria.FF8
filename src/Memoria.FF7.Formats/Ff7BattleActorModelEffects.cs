@@ -19,7 +19,11 @@ public sealed record Ff7BattleActorModelWrite(int Target, Ff7BattleActorModelMod
 public sealed record Ff7BattleActorModelSound(int Target, ushort Sound, int Channel = 3);
 public sealed record Ff7BattleBossDeathShakeRequest(int Target, short BaseZ);
 public sealed record Ff7BattleActorDeathResources(float AngleStep, IReadOnlyList<short> LiftSteps);
-public sealed record Ff7BattleActorDeathState(int Target, byte Kind, bool PlaySound = true, short Remaining = -1);
+public sealed record Ff7BattleActorDeathState(int Target, byte Kind, bool PlaySound = true, short Remaining = -1)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ScriptedFade { get; init; }
+}
 public sealed record Ff7BattleActorDeathUpdate(Ff7BattleActorDeathState? State, Ff7BattleActorModelWrite Write, Ff7BattleActorModelSound? Sound = null, bool StartShake = false);
 public sealed record Ff7BattleBossDeathShakeState(int Target, short BaseZ, short Remaining = 64);
 public sealed record Ff7BattleBossDeathShakeUpdate(Ff7BattleBossDeathShakeState? State, Ff7BattleActorModelWrite? Write = null, bool Flash = false);
@@ -39,17 +43,17 @@ public static class Ff7BattleActorDeath
         bool done = state.Kind >= 17 ? remaining == 1 : remaining == 0;
         if (done)
         {
-            Ff7BattleActorModelModifiers hidden = current with { ScaleOverride = false, Visible = false };
+            Ff7BattleActorModelModifiers hidden = state.ScriptedFade ? new(Visible: false) : current with { ScaleOverride = false, Visible = false };
             if (state.Kind >= 17)
             {
                 hidden = hidden with { Red = 0, Transparency = 4096 };
             }
             return new(null, new(state.Target, hidden, RestoreHome: true, Ready: true));
         }
-        Ff7BattleActorModelModifiers next = first ? current with { ScaleOverride = true, Red = state.Kind >= 17 ? (byte)255 : (byte)248, Green = 0, Blue = 0, Transparency = 2048, Deferred = true } : current;
+        Ff7BattleActorModelModifiers next = first ? current with { ScaleOverride = true, Red = state.ScriptedFade ? (byte)0 : state.Kind >= 17 ? (byte)255 : (byte)248, Green = 0, Blue = 0, Transparency = 2048, Deferred = true } : current;
         int redStep = state.Kind >= 17 ? 4 : 16;
         int transparencyStep = state.Kind >= 17 ? 32 : 128;
-        next = next with { Red = unchecked((byte)(next.Red - redStep)), Transparency = unchecked((ushort)(next.Transparency + transparencyStep)) };
+        next = next with { Red = state.ScriptedFade ? (byte)0 : unchecked((byte)(next.Red - redStep)), Transparency = unchecked((ushort)(next.Transparency + transparencyStep)) };
         if (state.Kind == 1)
         {
             if (resources is not { LiftSteps.Count: 15 } || !float.IsFinite(resources.AngleStep))

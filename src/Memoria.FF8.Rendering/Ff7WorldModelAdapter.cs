@@ -31,9 +31,19 @@ public sealed class Ff7WorldModelAdapter(Ff7WorldCharacterDescriptor descriptor,
                 return mapped.Select(triangle => new Ff7WorldModelTriangle(Convert(triangle.A), Convert(triangle.B), Convert(triangle.C), triangle.Material with { DepthComparison = TriangleDepthComparison.GreaterEqual, DepthMapping = TriangleDepthMapping.Positive, DepthScale = 1 }, false)).ToArray();
             }
         }
-        IReadOnlyList<Matrix4x4> pose = Ff7FieldRenderer.Pose(resources, animation, animationFrame, descriptor.Scale);
         Matrix4x4 normalBasis = Matrix4x4.CreateRotationX(MathF.PI / 2) * Matrix4x4.CreateRotationY(direction * MathF.Tau / 4096);
         Matrix4x4 basis = Matrix4x4.CreateScale(descriptor.Scale) * normalBasis * Matrix4x4.CreateTranslation(nativePosition);
+        return CreateOriginal(animation, animationFrame, descriptor.Scale, basis, normalBasis);
+    }
+
+    public IReadOnlyList<Ff7WorldModelTriangle> CreateOriginal(int animationIndex, int animationFrame, float scale, Matrix4x4 basis, Matrix4x4 normalBasis)
+    {
+        return CreateOriginal(resources.Animations[descriptor.Animations[animationIndex]], animationFrame, scale, basis, normalBasis);
+    }
+
+    private IReadOnlyList<Ff7WorldModelTriangle> CreateOriginal(PcFieldAnimation animation, int animationFrame, float scale, Matrix4x4 basis, Matrix4x4 normalBasis)
+    {
+        IReadOnlyList<Matrix4x4> pose = Ff7FieldRenderer.Pose(resources, animation, animationFrame, scale);
         Ff7ModelMaterialState materialState = new();
         List<Ff7WorldModelTriangle> triangles = new();
         foreach (Ff7BoneGeometry part in resources.Geometry)

@@ -7,6 +7,18 @@ public sealed partial class Ff7BattleAnimationResources
     private readonly Dictionary<string, byte> deathTypes = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Ff7BattleCameraModelParameters> cameraModelParameters = new(StringComparer.OrdinalIgnoreCase);
 
+    private readonly Dictionary<(string Prefix, int Index, bool Focus), Ff7BattleCameraOffset> cameraOffsets = [];
+
+    public Ff7BattleCameraOffset CameraTargetOffset(string prefix, int index, bool focus)
+    {
+        if (!cameraOffsets.TryGetValue((prefix, index, focus), out Ff7BattleCameraOffset offset))
+        {
+            offset = Ff7BattleCameraModelParameters.ReadTargetOffset(Read(prefix + "ab"), index, focus);
+            cameraOffsets.Add((prefix, index, focus), offset);
+        }
+        return offset;
+    }
+
     public byte DeathType(string prefix)
     {
         if (!deathTypes.TryGetValue(prefix, out byte kind))

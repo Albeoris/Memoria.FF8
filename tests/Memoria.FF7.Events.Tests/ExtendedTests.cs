@@ -510,6 +510,14 @@ internal static class ExtendedTests
         vm.Initialize();
         vm.AdvanceTick();
         Check(new FieldItemCommand(ushort.MaxValue), host.Requests.Single().Command);
+        host = new RecordingHost { Complete = true, Value = 127 };
+        vm = New(Code(0, 0x5A, 0x65, 0, 0, 2, 0x59, 0x65, 0, 0, 2, 0x5F, 0x12, 1), host);
+        vm.Initialize();
+        vm.Variables.WriteWord(FieldBank.MapWord, 0, 0x0601);
+        vm.AdvanceTick();
+        Check(new FieldItemQuantityQuery(1), host.Requests[0].Command);
+        Check((byte)127, vm.Variables.ReadByte(FieldBank.MapByte, 2));
+        Check(new FieldItemCommand(0xFE01, Remove: true), host.Requests[1].Command);
         byte[] truncated = new byte[20];
         truncated[17] = 0x58;
         vm = New(truncated, host);
@@ -635,6 +643,40 @@ internal static class ExtendedTests
         vm = New(Code(0, 0x8D, 0x50, 0, 0));
         vm.Initialize();
         Throws<FieldExecutionException>(() => vm.AdvanceTick());
+    }
+
+    public static void PartyCoordinateQuery()
+    {
+        byte[] code = Code(0xA1, 0, 0xA0, 2, 0, 0x75, 0x62, 0x46, 1, 6, 8, 10, 12, 0x80, 0x50, 20, 7, 0x5F, 0x12, 1);
+        var host = new RecordingHost { Complete = true, Position = new(-123, 456, -7, 321) };
+        FieldMachine original = New(code, host);
+        original.Initialize();
+        original.Variables.WriteByte(FieldBank.Persistent1Byte, 10, 2);
+        var coldHost = new RecordingHost { Complete = true, Position = host.Position };
+        FieldMachine restored = FieldMachine.Restore(Program(code), original.Capture(), coldHost);
+        original.AdvanceTick();
+        restored.AdvanceTick();
+        Check(new FieldActorQuery(FieldActorQueryKind.Position, 0), host.Requests.Last().Command);
+        Check((short)-123, original.Variables.ReadWord(FieldBank.MapWord, 6));
+        Check((short)456, original.Variables.ReadWord(FieldBank.Persistent0Word, 8));
+        Check((short)-7, original.Variables.ReadWord(FieldBank.Persistent1Word, 10));
+        Check((short)321, original.Variables.ReadWord(FieldBank.MapWord, 12));
+        Check((byte)7, original.Variables.ReadByte(FieldBank.MapByte, 20));
+        Check(JsonSerializer.Serialize(original.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        foreach (int slot in new[] { 0, 3, 255 })
+        {
+            byte[] absent = (byte[])code.Clone();
+            absent[8] = (byte)slot;
+            host = new RecordingHost { Complete = true, Position = host.Position };
+            original = New(absent, host);
+            original.Initialize();
+            original.Variables.WriteByte(FieldBank.Persistent1Byte, 9, 255);
+            original.Variables.WriteWord(FieldBank.MapWord, 6, 42);
+            original.AdvanceTick();
+            Check(false, host.Requests.Any(request => request.Command is FieldActorQuery));
+            Check((short)42, original.Variables.ReadWord(FieldBank.MapWord, 6));
+            Check((byte)7, original.Variables.ReadByte(FieldBank.MapByte, 20));
+        }
     }
 
     public static void OpeningHostOperands()

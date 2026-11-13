@@ -20,6 +20,11 @@ internal static class NativeItemTests
         Ff7InventorySlot[] full = Enumerable.Range(0, Ff7NativeInventory.SlotCount).Select(id => new Ff7InventorySlot(id, 1)).ToArray();
         Check(Ff7NativeInventory.Acquire(full, (1 << 9) | 400).SequenceEqual(full), "A full inventory must silently retain unmatched offers.");
         Check(Ff7NativeInventory.Acquire(full, 1 << 9)[0].Quantity == 2, "A full inventory must still merge an existing item.");
+        Check(Ff7NativeInventory.Quantity(inserted, 400) == 127 && Ff7NativeInventory.Quantity(source, 400) == 0, "Native quantity query must read all seven bits and return zero for a missing slot.");
+        Check(Ff7NativeInventory.Remove(source, (3 << 9) | 0)[0].Quantity == 95 && source[0].Quantity == 98, "A partial removal must preserve the prior snapshot.");
+        Check(Ff7NativeInventory.Remove(source, (2 << 9) | 2).SequenceEqual([source[0]]), "A removal greater than the stack must clear that slot.");
+        Check(Ff7NativeInventory.Remove(source, (1 << 9) | 400).SequenceEqual(source), "A missing removal must preserve inventory.");
+        Check(Ff7NativeInventory.Remove([new(1, 0)], 1).Length == 0, "A matching zero-count native slot must retire on a zero removal.");
         InstalledContinuation();
     }
 

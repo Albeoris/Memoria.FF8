@@ -10,7 +10,9 @@ public static class Ff7BattleLimitAnimationResources
         string name = attackId switch
         {
             0x80 => "blaver.a00",
+            0x81 => "kyou.a00",
             0x87 => "hvshot.a00",
+            0x89 => "limbr2.a00",
             0x95 => "limfast.a00",
             _ => throw new NotSupportedException($"FFVII Limit {attackId:X2} requires its original animation overlay.")
         };
