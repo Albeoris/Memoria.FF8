@@ -39,12 +39,15 @@ internal sealed partial class WorldMapScene
         {
             return new(PlayerActionKind.Wait, Frames: 12);
         }
+        // NG-080: The native contact tests the actual allocated Pandora object.
+        NativeRagnarokWorldObject? pandora = story is >= 3790 and < 3900 ? ship.Objects.SingleOrDefault(item => item.ShapeId == 91) : null;
         // NG-076, NG-078, NG-079: Approach the original landing or dock area.
         (int X, int Z)? landing = story switch
         {
             3167 => (76288, 11520),
             3400 or 3410 => (-28160, 69632),
             3600 => (54813, 5197),
+            _ when pandora is not null => (pandora.Position.X, -pandora.Position.Z),
             _ => null
         };
         if (landing is not { } target)
@@ -58,7 +61,7 @@ internal sealed partial class WorldMapScene
         {
             return new(PlayerActionKind.WorldButtons, releaseConfirm || ship.PreviousButtons is null ? 0 : 0x40);
         }
-        if (distance < 650 && ship.Motor.Speed == 0 && PrepareRagnarokLanding(current) is not null)
+        if (story != 3600 && pandora is null && distance < 650 && ship.Motor.Speed == 0 && PrepareRagnarokLanding(current) is not null)
         {
             return new(releaseConfirm || ship.PreviousButtons is null ? PlayerActionKind.Wait : PlayerActionKind.Confirm);
         }
@@ -74,7 +77,7 @@ internal sealed partial class WorldMapScene
         {
             buttons |= 0x4000;
         }
-        else if (distance < 2200 && current.NativeHeight < (story == 3600 ? -1000 : -550))
+        else if (distance < 5500 && pandora is not null && current.NativeHeight < pandora.Position.Y - 450 || distance < 2200 && pandora is null && current.NativeHeight < (story == 3600 ? -1000 : -550))
         {
             buttons |= 0x1000;
         }
