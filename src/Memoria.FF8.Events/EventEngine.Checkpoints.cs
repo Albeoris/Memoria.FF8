@@ -69,13 +69,17 @@ public sealed partial class EventEngine
             backgroundFps, nameEntity,
             actors.ToArray(), fibers.Select(fiber => new FiberCheckpoint(fiber.ObjectId, fiber.Script.Id, fiber.Priority, fiber.Sequence, fiber.Initialization, fiber.Position, fiber.Complete, fiber.Started, fiber.NativeResultFrameEntered, fiber.Stack.Capture(), fiber.StackExpressions.ToArray(), new Dictionary<int, NativeScalarValue>(fiber.Results), fiber.WaitReason, fiber.WaitUntil, fiber.Request?.Sequence, fiber.DialogueChannel, fiber.BackgroundId, fiber.SoundResourceId, fiber.NativeDoorSlot, fiber.NativeActorSlot, fiber.NativeMoveOperation, fiber.NativeMoveTarget, fiber.NativeDoorRequestWait, fiber.NativeDoorDefaultFrame, fiber.NativeDoorSavedResults, fiber.NativeShadeOperation, fiber.NativePartyRequestPointer, fiber.NativeGlobalJumps.ToArray(), fiber.NativeDialogueConsumer)).ToArray(),
             dialogues.Values.ToArray(), CurrentDialogue?.Channel, new Dictionary<int, int>(backgroundStates), backgroundAnimations.Select(pair => new BackgroundCheckpoint(pair.Key, pair.Value.First, pair.Value.Last, pair.Value.Speed, pair.Value.Complete, pair.Value.NativeVersion, pair.Value.Counter, pair.Value.Position, pair.Value.Active, pair.Value.Loop, pair.Value.NativeFlag404)).ToArray(), EventMemory, sceneSnapshot, axisStart, axisTarget, axisDuration, axisElapsed, InputAxisDirection, movieProgressExpected, CurrentMoviePlayback, pendingArrival, LastFault, partyJoin, partySplit, services.WorldControls, services.ExamTimer, services.CharacterVitals, services.CharacterAppearance, services.CardInventory, services.SeeD, services.MessageVariables, services.Economy, services.GlobalSoundProcess, services.SalaryPresentation, services.FieldShake, services.InputConfiguration, services.FieldButtonInput, services.ShotAvailability, partyMenu, services.EventRandom, services.NativeFieldLocation, services.VibrationProcess, services.FieldFade, services.ShopHistory, services.MenuRandom, services.WeaponRecipes, services.WorldEntryMemory, services.DiscProcess, services.MovieSource, userControlSequenceDisabled, services.FieldBars, services.FieldRequestPacket, services.NativeGameOver, (services as GameSession)?.State.SavedBattleFlags, services.NativeFieldDebugRequested, services.LimitProgress);
-        return JsonSerializer.SerializeToElement(snapshot, CheckpointOptions);
+        return JsonSerializer.SerializeToElement(snapshot with { FieldCallbackInterrupted = FieldCallbackInterrupted }, CheckpointOptions);
     }
 
     /// <summary>Restores a captured VM after LoadField has supplied exactly the same field's bytes and messages.</summary>
     private void RestoreCore(JsonElement snapshot, bool restoreSharedState = true)
     {
         Checkpoint saved = snapshot.Deserialize<Checkpoint>(CheckpointOptions) ?? throw new InvalidDataException("Empty event checkpoint.");
+        if (saved.FieldCallbackInterrupted)
+        {
+            throw new NotSupportedException("The field snapshot records an interrupted native callback. Resume from a completed callback or location entry.");
+        }
         RestoreMissingGameplayBattleCallbackBase(saved, snapshot);
         saved.SavedBattleFlags?.Validate();
         if (restoreSharedState && saved.NativeFieldDebugRequested == true && !services.CanStoreNativeFieldDebugRequested)
@@ -817,6 +821,7 @@ public sealed partial class EventEngine
         {
             RefreshCurrentDialogue();
         }
+        FieldCallbackInterrupted = false;
     }
 
     private sealed record FiberCheckpoint(int ObjectId, int ScriptId, int Priority, long Sequence, bool Initialization, int Position, bool Complete, bool Started, [property: JsonRequired] bool NativeResultFrameEntered, NativeScalarValue[] Stack, string[] StackExpressions, Dictionary<int, NativeScalarValue> Results, WaitReason WaitReason, long WaitUntil, long? RequestSequence, int DialogueChannel, int BackgroundId, int SoundResourceId = 0, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] byte? NativeDoorSlot = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] byte? NativeActorSlot = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? NativeMoveOperation = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? NativeMoveTarget = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeDoorRequestWaitState? NativeDoorRequestWait = null, [property: JsonRequired] bool NativeDoorDefaultFrame = false, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeScalarValue[]? NativeDoorSavedResults = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? NativeShadeOperation = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativePartyRequestPointer? NativePartyRequestPointer = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeGlobalJumpFrame[]? NativeGlobalJumps = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeDialogueConsumer? NativeDialogueConsumer = null);
@@ -828,5 +833,8 @@ public sealed partial class EventEngine
 
         [JsonIgnore]
         public IReadOnlyDictionary<int, NativeMemoryValue> NativeVariableValues => EventMemory.UncertainValues;
+
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+        public bool FieldCallbackInterrupted { get; init; }
     }
 }

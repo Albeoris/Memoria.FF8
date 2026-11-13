@@ -8,7 +8,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
-internal sealed class AutoPlayRunState
+internal sealed partial class AutoPlayRunState
 {
     public List<AutoPlayRecentAction> RecentActions { get; set; } = [];
     public int Version { get; set; } = 1;
@@ -271,6 +271,7 @@ internal sealed partial class AutoPlayController
         manifest = Path.GetFullPath(manifest);
         string json = File.ReadAllText(manifest);
         AutoPlayRunState saved = JsonSerializer.Deserialize<AutoPlayRunState>(json, JsonOptions) ?? throw new InvalidDataException("Empty automatic play manifest.");
+        RejectDiagnosticFailureManifest(saved, manifest);
         if (saved.ParticipantPolicyDiagnosticOnly)
         {
             throw new NotSupportedException("This participant-policy bundle preserves a diagnostic callback boundary. Resume the separately saved authentic pre-choice or pre-event return bundle.");

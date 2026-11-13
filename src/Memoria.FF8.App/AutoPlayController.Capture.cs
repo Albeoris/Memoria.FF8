@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
@@ -7,8 +8,16 @@ namespace Memoria.FF8;
 
 internal sealed record AutoPlayRecentAction(long Step, int Field, string Scene, string Action);
 
+internal sealed partial class AutoPlayRunState
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? InterruptedFieldCallbackEntry { get; set; }
+}
+
 internal sealed partial class AutoPlayController
 {
+    internal string? DiagnosticFailurePath { get; private set; }
+
     private bool captureDirty;
     private bool pendingLocationCheckpoint;
     private const long MaximumCaptureBytes = 128L * 1024 * 1024;
@@ -23,6 +32,7 @@ internal sealed partial class AutoPlayController
         bundleCaptureRoots = null;
         stagedAttempt = null;
         pendingLocationCheckpoint = false;
+        DiagnosticFailurePath = null;
     }
 
     internal static bool EnteredLocation(GameState before, GameState after)
@@ -78,7 +88,16 @@ internal sealed partial class AutoPlayController
         using IDisposable suspended = idleDeadline.Suspend();
         try
         {
-            ReproductionPath = SaveFailureBundle(directory, exception);
+            (string manifest, bool interruptedCallback) = SaveFailureBundle(directory, exception);
+            if (interruptedCallback)
+            {
+                DiagnosticFailurePath = manifest;
+                Status += " The exact snapshot records an interrupted field callback. Resume from the location checkpoint.";
+            }
+            else
+            {
+                ReproductionPath = manifest;
+            }
         }
         catch (Exception captureError)
         {
@@ -101,7 +120,7 @@ internal sealed partial class AutoPlayController
         }
     }
 
-    private string SaveFailureBundle(string directory, Exception exception)
+    private (string Manifest, bool InterruptedCallback) SaveFailureBundle(string directory, Exception exception)
     {
         long remainingBytes = RemainingCaptureBytes(directory);
         if (remainingBytes <= 0)
@@ -110,6 +129,7 @@ internal sealed partial class AutoPlayController
         }
 
         GameState failure = CaptureFailureState(exception);
+        bool interrupted = HasInterruptedFieldCallback(failure.EventState) || HasInterruptedFieldCallback(failure.DepartingFieldState);
         string snapshot = $"failure-{run.Steps:D10}.json";
         string manifest = Path.ChangeExtension(snapshot, ".run.json");
         string? previousSnapshot = run.Snapshot;
@@ -149,6 +169,10 @@ internal sealed partial class AutoPlayController
             }
 
             run.Snapshot = snapshot;
+            if (interrupted)
+            {
+                run.InterruptedFieldCallbackEntry = Path.GetFileName(latestBundleManifest) ?? "latest.run.json";
+            }
             StageFile(snapshot, path => new GameSession(failure).Save(path, compact: true));
             StageFile(manifest, path => File.WriteAllText(path, JsonSerializer.Serialize(run, BeforeSnapshotJsonOptions)));
             foreach (string file in files)
@@ -156,7 +180,7 @@ internal sealed partial class AutoPlayController
                 File.Move(Path.Combine(staging, file), Path.Combine(directory, file));
                 published++;
             }
-            return Path.Combine(directory, manifest);
+            return (Path.Combine(directory, manifest), interrupted);
         }
         catch
         {
@@ -169,6 +193,7 @@ internal sealed partial class AutoPlayController
         finally
         {
             run.Snapshot = previousSnapshot;
+            run.InterruptedFieldCallbackEntry = null;
             try
             {
                 Directory.Delete(staging, recursive: true);
@@ -207,6 +232,18 @@ internal sealed partial class AutoPlayController
 
     private static bool HasFaultedVirtualMachine(JsonElement? state, EventFaultContext fault) =>
         state is { } vm && vm.GetProperty("FieldId").GetInt32() == fault.FieldId && vm.GetProperty("Frame").GetInt64() == fault.Frame;
+
+    private static bool HasInterruptedFieldCallback(JsonElement? state) =>
+        state is { } vm && vm.TryGetProperty("FieldCallbackInterrupted", out JsonElement interrupted) && interrupted.ValueKind == JsonValueKind.True;
+
+    private static void RejectDiagnosticFailureManifest(AutoPlayRunState saved, string manifest)
+    {
+        if (saved.InterruptedFieldCallbackEntry is string entry)
+        {
+            string fallback = Path.Combine(Path.GetDirectoryName(manifest)!, Path.GetFileName(entry));
+            throw new NotSupportedException($"This failure bundle records an interrupted field callback. Resume from the location checkpoint '{fallback}'.");
+        }
+    }
 
     private static long RemainingCaptureBytes(string directory) =>
         MaximumCaptureBytes - Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories).Sum(path => new FileInfo(path).Length);

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
@@ -61,6 +62,51 @@ public sealed class AutoPlayCaptureTests(ITestOutputHelper output)
         finally
         {
             world?.Dispose();
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, true);
+            }
+        }
+    }
+
+    [Fact]
+    public void InterruptedNativeCallbackKeepsExactDiagnosticAndResumesFromEntry()
+    {
+        string gameDirectory = TestResources.GameDirectory;
+        GameSession session = GameWorld.CreateColdProcess(gameDirectory);
+        string directory = Path.Combine(Path.GetTempPath(), "autoplay-interrupted-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            session.StartNewGame();
+            using GameWorld world = new(session, gameDirectory, validateWorldPresentation: false);
+            AutoPlayController controller = new(session, () => world, session.Restore, directory);
+            controller.StartFromCurrentState();
+            string entry = Assert.Single(Directory.GetFiles(directory, "start.run.json", SearchOption.AllDirectories));
+            world.EnsureField();
+            world.Events.Step();
+            long completedFrame = world.Events.Frame;
+            Assert.False(world.Events.FieldCallbackInterrupted);
+            world.Events.CommandExecuted += _ => throw new InvalidDataException("Synthetic host failure inside the VM callback.");
+            EventScriptException failure = Assert.Throws<EventScriptException>(world.Events.Step);
+            Assert.True(world.Events.Frame > completedFrame);
+            Assert.True(world.Events.FieldCallbackInterrupted);
+
+            controller.ReportHostFailure(failure);
+
+            Assert.Equal(entry, controller.ReproductionPath);
+            string diagnostic = Assert.IsType<string>(controller.DiagnosticFailurePath);
+            AutoPlayRunState manifest = ReadManifest(diagnostic);
+            Assert.Equal(Path.GetFileName(entry), manifest.InterruptedFieldCallbackEntry);
+            GameState exact = GameSession.Load(Path.Combine(Path.GetDirectoryName(diagnostic)!, manifest.Snapshot!));
+            JsonElement vm = Assert.IsType<JsonElement>(exact.EventState);
+            Assert.True(vm.GetProperty("FieldCallbackInterrupted").GetBoolean());
+            Assert.Equal(world.Events.Frame, vm.GetProperty("Frame").GetInt64());
+            Assert.Contains("interrupted native callback", Assert.Throws<NotSupportedException>(() => world.Events.Restore(vm)).Message);
+            Assert.Contains(entry, Assert.Throws<NotSupportedException>(() => controller.ResumeFrom(diagnostic)).Message);
+            Assert.Equal("start.json", ReadManifest(entry).Snapshot);
+        }
+        finally
+        {
             if (Directory.Exists(directory))
             {
                 Directory.Delete(directory, true);

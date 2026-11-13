@@ -111,6 +111,10 @@ internal static class AutoPlayCommand
             {
                 Console.Error.WriteLine(controller.Error);
             }
+            if (controller.DiagnosticFailurePath is string diagnostic)
+            {
+                Console.WriteLine($"Exact failure diagnostic: {diagnostic}");
+            }
             if (controller.ResumeCommand is not null)
             {
                 Console.WriteLine(controller.ResumeCommand);

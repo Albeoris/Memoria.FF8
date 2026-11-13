@@ -48,6 +48,7 @@ public sealed partial class EventEngine
     public bool HasFieldProgram => program is not null;
     public long Frame { get; private set; }
     public EventFaultContext? LatestFaultContext { get; private set; }
+    public bool FieldCallbackInterrupted { get; private set; }
     private bool userControlEnabled = true;
     private bool userControlSequenceDisabled;
     public bool IsUserControlEnabled
@@ -158,6 +159,7 @@ public sealed partial class EventEngine
         pendingArrival = arrival;
         LastFault = null;
         LatestFaultContext = null;
+        FieldCallbackInterrupted = false;
         axisStart = InitInputAxisDirection;
         axisTarget = InitInputAxisDirection;
         axisDuration = 0;
@@ -345,13 +347,22 @@ public sealed partial class EventEngine
 
     private void StepCore()
     {
+        long beforeFrame = Frame;
         long before = Scene.FieldCallbackClock is { } previous ? previous.OrdinaryCallbacks + previous.MovieCallbacks : 0;
-        StepFieldCallback();
-        long after = Scene.FieldCallbackClock is { } current ? current.OrdinaryCallbacks + current.MovieCallbacks : 0;
-        if (after > before)
+        try
         {
-            //46FEE0 increments1D9CDCC after the field callback, including a departure callback.
-            AdvanceNativeSpuCallback();
+            StepFieldCallback();
+            long after = Scene.FieldCallbackClock is { } current ? current.OrdinaryCallbacks + current.MovieCallbacks : 0;
+            if (after > before)
+            {
+                //46FEE0 increments1D9CDCC after the field callback, including a departure callback.
+                AdvanceNativeSpuCallback();
+            }
+        }
+        catch
+        {
+            FieldCallbackInterrupted |= Frame != beforeFrame || Scene.FieldCallbackClock is { } clock && clock.OrdinaryCallbacks + clock.MovieCallbacks != before;
+            throw;
         }
     }
 
