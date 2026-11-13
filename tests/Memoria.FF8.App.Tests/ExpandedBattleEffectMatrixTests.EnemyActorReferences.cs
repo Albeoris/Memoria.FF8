@@ -22,18 +22,18 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         EnemyRouteResult result = RunDiscoveredEnemyCast(directory, PrepareField(directory), assets, effect, scripts, probeEnemies: true, verifyActorReference: true);
         Assert.True(result.Status is "native" or "logical", result.Detail);
         Assert.Contains($"Formation {formation},", result.Detail);
-        Assert.Contains("retaliated against", result.Detail);
+        Assert.Contains(effectId == 120 ? "restored Fire caster party-10" : "retaliated against", result.Detail);
     }
 
     private static EnemyActorReferenceSetup? ActorReferenceSetup(int effect) => effect switch
     {
-        13 => new(new(21, 14, 1, 5, HigherEnemyBand), 0, 8, 11, 15),
-        120 => new(new(41, 6, 0, 0, HigherEnemyBand), 1, 2, 41, 11, UsesFire: true),
-        235 => new(new(615, 41, 3, 0), 0, 8, 93, 13),
+        13 => new(new(21, 14, 1, 5, HigherEnemyBand), 0, (8, 11, 15)),
+        120 => new(new(41, 6, 0, 0, HigherEnemyBand), 1, null, UsesFire: true),
+        235 => new(new(615, 41, 3, 0), 0, (8, 93, 13)),
         _ => null
     };
 
-    private sealed record EnemyActorReferenceSetup(EnemyAttackSetup Attacks, int VariableIndex, int Command, int ActionId, int Sequence, bool UsesFire = false);
+    private sealed record EnemyActorReferenceSetup(EnemyAttackSetup Attacks, int VariableIndex, (int Command, int ActionId, int Sequence)? Retaliation, bool UsesFire = false);
 
     private sealed class EnemyActorReferencePreparation(EnemyActorReferenceSetup setup, BattleCombatant owner, EnemyAttackPreparation attacks, BattleActionDefinition? fire)
     {
@@ -43,13 +43,15 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         private bool retaliationContact;
         private int eventCursor;
 
-        public bool RetaliationContact => retaliationContact;
+        public bool Verified => storedAttacker is not null && (setup.Retaliation is null || retaliationContact);
 
         public string Describe()
         {
-            string source = fire is null ? attacks.Describe() : $"Fire from {CasterId}";
-            string observation = retaliationContact ? $"retaliated against {storedAttacker}" : $"stored attacker {storedAttacker ?? "unobserved"}, retaliation pending";
-            return $"{source}; {observation}";
+            if (fire is not null)
+            {
+                return storedAttacker is null ? $"Fire caster {CasterId}, reference pending" : $"restored Fire caster {storedAttacker}";
+            }
+            return retaliationContact ? $"{attacks.Describe()}; retaliated against {storedAttacker}" : $"{attacks.Describe()}; stored attacker {storedAttacker ?? "unobserved"}, retaliation pending";
         }
 
         public void SubmitIfReady(GameWorld world, BattleSession battle)
@@ -87,7 +89,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         public void Observe(BattleSession battle)
         {
             attacks.Observe(battle);
-            if (retaliationContact || !fireSubmitted && !attacks.HasHit)
+            if (Verified || !fireSubmitted && !attacks.HasHit)
             {
                 return;
             }
@@ -111,6 +113,10 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                 if (fire is not null)
                 {
                     Assert.Equal(CasterId, attacker);
+                    Assert.Equal(1u, participant.Variables[0]);
+                    Assert.Contains(battle.Events, entry => entry is { Kind: "EffectContact", Ability: BattleAbility.Magic, ActorId: CasterId } && entry.TargetId == owner.Id);
+                    BattleCombatant caster = Assert.Single(battle.Combatants, actor => actor.Id == attacker);
+                    Assert.Equal(InitialStock - 1, Assert.Single(caster.MagicStocks, stock => stock.Id == fire.Id).Count);
                 }
                 string json = JsonSerializer.Serialize(snapshot);
                 BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!);
@@ -119,7 +125,11 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                 eventCursor = battle.Events.Count;
             }
 
-            if (battle.ActiveAction is { ActorId: var actorId, Ability: BattleAbility.EnemyAbility, NativeAiCallbackStage: 1 } active && actorId == owner.Id && active.NativeQueuedCommand == setup.Command && active.ActionId == setup.ActionId && active.NativeSequence == setup.Sequence)
+            if (setup.Retaliation is not { } retaliation)
+            {
+                return;
+            }
+            if (battle.ActiveAction is { ActorId: var actorId, Ability: BattleAbility.EnemyAbility, NativeAiCallbackStage: 1 } active && actorId == owner.Id && active.NativeQueuedCommand == retaliation.Command && active.ActionId == retaliation.ActionId && active.NativeSequence == retaliation.Sequence)
             {
                 Assert.NotNull(active.AiRecipients);
                 Assert.Equal(storedAttacker, Assert.Single(active.AiRecipients.ActorIds));

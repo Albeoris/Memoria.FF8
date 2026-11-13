@@ -34,12 +34,19 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         string firstBlocker = "enemy-formation-entry";
         // Adamantoise's White Wind requires two successful random conditions in the same low-band turn.
         // Retry with independent entry seeds so unrelated AI admissions cannot hide this route by changing the RNG stream.
-        IEnumerable<byte> seeds = effect.Effect == 226 || seededFormation is not null || attackSetup is not null ? [0, 5, 9] : [0];
+        byte[] seeds = effect.Effect switch
+        {
+            153 or 158 => [0, 5, 9, 12, 16, 23, 37, 51],
+            _ when effect.Effect == 226 || seededFormation is not null || attackSetup is not null => [0, 5, 9],
+            _ => [0]
+        };
         foreach (var (routes, seed) in seeds.SelectMany(seed => candidates.Select(routes => (routes, seed))))
         {
             ushort formation = checked((ushort)routes.Key);
             BattleActionDefinition? fire = verifyActorReference && referenceSetup?.UsesFire == true ? Assert.Single(assets.ActionDefinitions, action => action.Ability == BattleAbility.Magic && action.Id == 1) : null;
-            using GameWorld world = StartBattle(directory, field, formation, fire, requireExpanded: false, nativeSeed: seed, prepareHigherBand: higherBandFormation.HasValue || attackSetup?.Band == HigherEnemyBand, prepareParty: effect.Effect == 238 ? PrepareThreeLivingParty : null);
+            BattleActionDefinition? demi = attackSetup?.UsesDemi == true ? Assert.Single(assets.ActionDefinitions, action => action.Ability == BattleAbility.Magic && action.Id == DemiSpellId) : null;
+            Action<NativeCharacterVital[]>? prepareParty = demi is not null ? PrepareDemiStock : effect.Effect == 238 ? PrepareThreeLivingParty : null;
+            using GameWorld world = StartBattle(directory, field, formation, fire ?? demi, requireExpanded: false, nativeSeed: seed, prepareHigherBand: higherBandFormation.HasValue || attackSetup?.Band == HigherEnemyBand, prepareParty: prepareParty);
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
             if (!battle.UsesExpandedRoster)
             {
@@ -74,7 +81,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                 }
                 else if (referenceSetup?.UsesFire != true)
                 {
-                    preparation = new(attackSetup, target, battle.Events.Count);
+                    preparation = new(attackSetup, target, battle.Events.Count, demi);
                 }
                 actors = new() { [target.Id] = actors[target.Id] };
                 world.ApplyBattleInput(new(BattleInputKind.SetMode, Mode: BattleAtbMode.Normal));
@@ -83,7 +90,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             {
                 world.ApplyBattleInput(new(BattleInputKind.SetMode, Mode: BattleAtbMode.Normal));
             }
-            EnemyRouteResult witnessed = ObserveEnemyCast(world, battle, effect, actors, preparation, references, referenceSetup is not null);
+            EnemyRouteResult witnessed = ObserveEnemyCast(world, battle, effect, actors, preparation, references, referenceSetup is not null || demi is not null);
             if (witnessed.Status is "native" or "logical")
             {
                 return witnessed with { Detail = $"Formation {formation}, seed {seed}, {witnessed.Detail}" };
@@ -131,7 +138,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         BattleActionPresentation? cast = null;
         NativeBattleEffectPresentation? presentation = null;
         HashSet<string>? recipientsAtFirstContact = null;
-        int observationWindows = effect.Effect is 153 or 154 ? 300 : extendOriginalTurns ? 240 : battle.Mode == BattleAtbMode.Normal ? 120 : 24;
+        int observationWindows = effect.Effect == 158 ? 360 : effect.Effect is 153 or 154 ? 300 : extendOriginalTurns ? 240 : battle.Mode == BattleAtbMode.Normal ? 120 : 24;
         for (int turn = 0; turn < observationWindows && battle.Outcome == BattleOutcome.Active; turn++)
         {
             if (battle.Mode == BattleAtbMode.TurnBased)
@@ -146,7 +153,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
                 preparation?.Observe(battle);
                 references?.Observe(battle);
-                if (references?.RetaliationContact == true)
+                if (references?.Verified == true)
                 {
                     return new("logical", references.Describe(), null);
                 }

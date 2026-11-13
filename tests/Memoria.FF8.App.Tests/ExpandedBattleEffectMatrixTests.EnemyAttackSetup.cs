@@ -1,5 +1,6 @@
 using Memoria.FF8.Assets;
 using Memoria.FF8.BattleEffects;
+using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
@@ -34,9 +35,9 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         _ => HpTurnSetup(effect)
     };
 
-    private sealed record EnemyAttackSetup(int Formation, int Model, int RequiredHits, int HpTenths, int Band = 0);
+    private sealed record EnemyAttackSetup(int Formation, int Model, int RequiredHits, int HpTenths, int Band = 0, bool UsesDemi = false, bool QuarterHp = false);
 
-    private sealed class EnemyAttackPreparation(EnemyAttackSetup setup, BattleCombatant target, int firstEvent)
+    private sealed class EnemyAttackPreparation(EnemyAttackSetup setup, BattleCombatant target, int firstEvent, BattleActionDefinition? demi = null)
     {
         private const int MaximumAttacks = 24;
         private int submitted;
@@ -44,15 +45,22 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         private int hits;
 
         public bool HasHit => hits > 0;
-        public bool Ready => hits > 0 && hits >= setup.RequiredHits && (setup.HpTenths == 0 || target.CurrentHp < setup.HpTenths * (target.MaximumHp / 10));
-        public string Describe() => $"{target.Id}, {hits} damaging hit(s), {target.CurrentHp}/{target.MaximumHp} HP after genuine Attack setup";
+        private bool ReachedHpThreshold => setup.QuarterHp ? target.CurrentHp < (target.MaximumHp >> 2) : setup.HpTenths == 0 || target.CurrentHp < setup.HpTenths * (target.MaximumHp / 10);
+        private BattleAbility SetupAbility => demi?.Ability ?? BattleAbility.Attack;
+        public bool Ready => hits > 0 && hits >= setup.RequiredHits && ReachedHpThreshold;
+        public string Describe() => $"{target.Id}, {hits} damaging hit(s), {target.CurrentHp}/{target.MaximumHp} HP after genuine {demi?.Name ?? "Attack"} setup";
 
         public void SubmitIfReady(GameWorld world, BattleSession battle)
         {
             if (Ready || submitted >= MaximumAttacks || !target.IsAlive || !target.IsActive || target.Untargetable ||
-                battle.ActiveAction is { Ability: BattleAbility.Attack, TargetId: var activeTarget } && activeTarget == target.Id ||
-                battle.QueuedActions.Any(action => action.Ability == BattleAbility.Attack && action.TargetId == target.Id))
+                battle.ActiveAction is { } active && active.Ability == SetupAbility && active.TargetId == target.Id ||
+                battle.QueuedActions.Any(action => action.Ability == SetupAbility && action.TargetId == target.Id))
             {
+                return;
+            }
+            if (demi is not null)
+            {
+                SubmitDemi(world, battle, demi);
                 return;
             }
             BattleCombatant? attacker = battle.Combatants.Where(actor => actor.IsPlayer && actor.IsReady && actor.Abilities.Contains(BattleAbility.Attack))
@@ -72,12 +80,35 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             for (; scannedEvents < events.Count; scannedEvents++)
             {
                 BattleEvent entry = events[scannedEvents];
-                if (entry is { Kind: "Damage", Ability: BattleAbility.Attack, Amount: > 0 } && entry.TargetId == target.Id &&
+                if (entry is { Kind: "Damage", Amount: > 0 } && entry.Ability == SetupAbility && entry.TargetId == target.Id &&
                     battle.Combatants.Any(actor => actor.IsPlayer && actor.Id == entry.ActorId))
                 {
                     hits++;
                 }
             }
+        }
+
+        private void SubmitDemi(GameWorld world, BattleSession battle, BattleActionDefinition action)
+        {
+            BattleCombatant? caster = battle.Combatants.FirstOrDefault(actor => actor.IsPlayer && battle.CanChoosePlayerCommand(actor.Id) && actor.MagicStocks.Any(stock => stock.Id == action.Id && stock.Count > 0));
+            if (caster is null || submitted >= 5)
+            {
+                return;
+            }
+            BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: input => world.ApplyBattleInput(input));
+            hud.SelectParty(caster.Id);
+            int commandIndex = hud.Commands.ToList().IndexOf(action.Ability);
+            Assert.InRange(commandIndex, 0, hud.Commands.Count - 1);
+            hud.Choose(commandIndex);
+            int actionIndex = hud.ActionChoices.ToList().FindIndex(candidate => candidate.Id == action.Id);
+            Assert.InRange(actionIndex, 0, hud.ActionChoices.Count - 1);
+            hud.Choose(actionIndex);
+            Assert.True(hud.SelectingTarget);
+            hud.SelectTarget(target.Id, false);
+            Assert.Equal(target.Id, hud.SelectedTarget?.Id);
+            hud.Attack();
+            Assert.Contains(battle.QueuedActions, queued => queued.ActorId == caster.Id && queued.TargetId == target.Id && queued.Ability == action.Ability && queued.ActionId == action.Id);
+            submitted++;
         }
     }
 }
