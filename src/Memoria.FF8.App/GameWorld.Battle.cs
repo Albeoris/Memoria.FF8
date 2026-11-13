@@ -189,7 +189,7 @@ internal sealed partial class GameWorld
             {
                 ExpandedAiAdmission admission = NativeBattleExpandedAi.Evaluate(enemyAi, BattleResources.NativeActions, encounterId, originalEnemySlots: useOriginalEnemySlots);
                 bool retainedPrimitive = restoredDefinition is not null && restoredDefinition.Combatants.Single(actor => actor.Id == $"enemy-{enemy.Slot}").NativeAi is null;
-                if (restoredDefinition is null && (admission == ExpandedAiAdmission.RequiresOriginalSlots || useOriginalEnemySlots && admission != ExpandedAiAdmission.Supported))
+                if (restoredDefinition is null && admission != ExpandedAiAdmission.Supported && (!legacyExpandedEntry || admission == ExpandedAiAdmission.RequiresOriginalSlots))
                 {
                     return CreateEncounterBattle(encounterId, nativeSeed, activeFlags, null, allowExpanded: false);
                 }

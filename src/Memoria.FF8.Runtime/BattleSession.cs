@@ -1244,6 +1244,20 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Original enemy slots require unique formation prototypes, native templates and one to four initial enemy allocations.");
             }
         }
+        if (source.AddedEnemySources is { } added)
+        {
+            int authoredCount = enemyCount - added.Count;
+            if (!source.UsesExpandedRoster || source.UsesOriginalEnemySlots || authoredCount is < 1 or > NativeBattleSlots.EnemyCount ||
+                !added.Keys.SequenceEqual(Enumerable.Range(authoredCount, added.Count)) ||
+                !source.Combatants.Where(actor => !actor.IsPlayer).Select(actor => actor.RewardSlot).SequenceEqual(Enumerable.Range(0, enemyCount).Select(slot => (int?)slot)))
+            {
+                throw new InvalidDataException("Added enemy provenance does not match the ordered battle roster.");
+            }
+            foreach (BattleEnemyRosterSource sourcePlacement in added.Values)
+            {
+                (sourcePlacement ?? throw new InvalidDataException("Added enemy provenance requires its source formation placement.")).Validate();
+            }
+        }
         if (source.ExpandedEnemyLevels is { } levelProfiles)
         {
             if (!source.UsesExpandedRoster || !levelProfiles.Keys.ToHashSet().SetEquals(source.Combatants.Where(actor => !actor.IsPlayer).Select(actor => actor.ModelId)))
