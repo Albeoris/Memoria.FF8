@@ -165,9 +165,11 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         {
             return new("blocked", "The exact dispatch reached contact but did not complete within the bounded original turns.", "enemy-turn-completion");
         }
+        string observedTurns = string.Join(", ", battle.Capture().Combatants.Where(actor => actors.ContainsKey(actor.Id))
+            .Select(actor => $"{actor.Id}={actor.NativeParticipant?.TurnCount ?? 0}"));
         return dispatched
             ? new("blocked", "The exact dispatch did not reach contact within the bounded original turns.", "enemy-turn-contact")
-            : new("blocked", "The exact dispatch was not observed within the bounded original turns.", "enemy-turn-dispatch");
+            : new("blocked", $"The exact dispatch was not observed within the bounded original turns ({observedTurns}).", "enemy-turn-dispatch");
     }
 
     private static bool MatchesEnemyDispatch(BattleActionPresentation active, EnemyScenarioScriptedAction script, NativeBattleEffectBinding effect)

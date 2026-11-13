@@ -114,12 +114,14 @@ public sealed partial class BattleSession
         };
     }
 
-    private static bool SupportsExpandedOrdinaryCommand(BattleNativeAction action)
+    private bool SupportsExpandedOrdinaryCommand(BattleNativeAction action)
     {
         // Section 10 also contains special invocations and a physical action that removes its owner.
         return action.KernelSection == 10 && action.TargetFlags is byte flags && (flags & 0x30) != 0x30 &&
-            ((flags & 1) == 0 || action.AttackType is 5 or 6) && action.AttackType is 2 or 3 or 4 or 5 or 6 or 25 or 32 &&
-            ExpandedBattleActionRules.SupportsContacts(action);
+            ((flags & 1) == 0 || action.AttackType is 5 or 6) &&
+            (IsNativeLevelCommand(action)
+                ? definition.ExpandedEnemyLevels is not null && action.HitCount == 1 && !action.PresentationOnly && action.CrisisLevel is null && (flags & 0x32) == 0x10
+                : action.AttackType is 2 or 3 or 4 or 5 or 6 or 25 or 32 && ExpandedBattleActionRules.SupportsContacts(action));
     }
 
     private static BattleActionDefinition ExpandedOrdinaryCommandDefinition(BattleNativeAction native)

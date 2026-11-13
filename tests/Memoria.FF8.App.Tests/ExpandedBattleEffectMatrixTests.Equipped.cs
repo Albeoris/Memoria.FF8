@@ -14,6 +14,8 @@ public sealed partial class ExpandedBattleEffectMatrixTests
     [InlineData(26)]
     [InlineData(27)]
     [InlineData(32)]
+    [InlineData(33)]
+    [InlineData(34)]
     public void Installed_equipped_command_reaches_its_original_recipients_once(byte command)
     {
         string directory = TestResources.GameDirectory;
@@ -27,7 +29,8 @@ public sealed partial class ExpandedBattleEffectMatrixTests
 
     private static (string Status, string Detail) RunEquippedCommand(string directory, GameState field, NativeBattleEffectBinding effect, BattleNativeAction action)
     {
-        using GameWorld world = StartBattle(directory, field, 0, equipped: action);
+        ushort formation = action.Command is 33 or 34 ? (ushort)89 : (ushort)0;
+        using GameWorld world = StartBattle(directory, field, formation, equipped: action);
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         BattleCombatant caster = Assert.Single(battle.Combatants, actor => actor.Id == CasterId);
         for (int turn = 0; turn < 24 && (!caster.IsReady || battle.ActiveAction is not null); turn++)
@@ -47,6 +50,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         BattleCombatant target = hud.Targets.Last();
         hud.SelectTarget(target.Id, false);
         target = Assert.IsType<BattleCombatant>(hud.SelectedTarget);
+        int level = target.Level;
         string[] expected = hud.SelectingTargetGroup ? hud.Targets.Select(actor => actor.Id).Order().ToArray() : [target.Id];
         int start = battle.Events.Count;
         hud.Attack();
@@ -75,6 +79,11 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         if (action.AttackType is 5 or 6)
         {
             Assert.True(target.IsAlive);
+        }
+        if (action.Command is 33 or 34)
+        {
+            Assert.Equal(Math.Clamp(action.Power * level / 8, 1, 100), target.Level);
+            Assert.Single(events, entry => entry.Kind == "LevelChanged" && entry.TargetId == target.Id);
         }
         Assert.True(presentation is null || presentation.Complete);
         return (presentation is null ? "logical" : "native", $"Equipped {action.Name} used the original command {action.Command}/{action.ActionId} and completed with {expected.Length} roster contact(s).");

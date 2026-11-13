@@ -207,6 +207,8 @@ public sealed record BattleDefinition
     public int? StageId { get; init; }
     public int? EncounterId { get; init; }
     public BattleCombatantDefinition[] Combatants { get; init; } = [];
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableSortedDictionary<int, ExpandedEnemyLevelProfile>? ExpandedEnemyLevels { get; init; }
     public BattleActionDefinition[] ActionDefinitions { get; init; } = [];
     public BattleNativeAction[] NativeActions { get; init; } = [];
     public BattleGuardianForceVital[] GuardianForces { get; init; } = [];
@@ -241,6 +243,10 @@ public enum BattleActionPhase
     Windup,
     Recovery
 }
+
+public sealed record ExpandedEnemyLevel(int MaximumHp, ImmutableArray<int> BaseStatistics, int AiLevelBand);
+
+public sealed record ExpandedEnemyLevelProfile(ImmutableArray<ExpandedEnemyLevel> Levels, ImmutableArray<ImmutableArray<NativeBattleDrawSlot>> DrawBands);
 
 public sealed record BattleNativeEventOwner(string ActorId, int SourceHeaderIndex);
 public sealed record BattleAttackCommand(string ActorId, string TargetId, BattleAbility Ability = BattleAbility.Attack, int ActionId = 0, bool DrawCast = false, int NativeTargetSelector = 0)
@@ -602,10 +608,30 @@ public sealed partial class BattleCombatant
     internal int EncodeNativeSlot() => NativeBattleSlots.Encode(Slot);
 
     internal int? ResolvedNativeLevel { get; set; }
+    internal ExpandedEnemyLevelProfile? ExpandedEnemyLevels { get; set; }
     internal byte[] NativeStatMultipliers { get; } = [10, 10, 10, 10, 10, 10];
 
     internal void BindNativeLevel(int level)
     {
+        if (ExpandedEnemyLevels is { } expanded)
+        {
+            if (level is < 1 or > 100)
+            {
+                throw new InvalidDataException("Expanded enemy level exceeds its installed level projections.");
+            }
+            ExpandedEnemyLevel row = expanded.Levels[level - 1];
+            ImmutableArray<int> stats = row.BaseStatistics;
+            int maximum = definition.MaximumHpMultiplier == 1 ? row.MaximumHp : EncounterActorProperties.ScaleMaximumHp(row.MaximumHp, definition.MaximumHpMultiplier);
+            definition = definition with
+            {
+                Level = level, MaximumHp = maximum, Attack = unchecked((byte)stats[0]), Defense = unchecked((byte)stats[1]),
+                Magic = unchecked((byte)stats[2]), Spirit = unchecked((byte)stats[3]), Speed = Math.Max(1, (int)unchecked((byte)stats[4])),
+                Evasion = unchecked((byte)stats[5]), ExpandedEnemyBaseStatistics = stats,
+                NativeAi = definition.NativeAi is null ? null : definition.NativeAi with { LevelBand = row.AiLevelBand }
+            };
+            ResolvedNativeLevel = level;
+            return;
+        }
         NativeBattleEnemyTemplate template = definition.NativeTemplate ?? throw new InvalidDataException("Native reserve allocation lacks its installed level template.");
         if ((uint)level >= template.Levels.Length)
         {

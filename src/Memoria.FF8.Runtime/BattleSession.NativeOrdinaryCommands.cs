@@ -35,7 +35,13 @@ public sealed partial class BattleSession
         }
         int previousLevel = recipient.Level;
         int missingHp = recipient.MaximumHp - recipient.CurrentHp;
-        int level = Math.Clamp(native.Power * recipient.Level / 8, 1, 100);
+        int level = ProjectNativeLevel(native, recipient.Level);
+        if (UsesExpandedRoster && !CanRebindExpandedEnemyLevel(recipient, level))
+        {
+            Log("Miss", actor.Id, recipient.Id, 0, $"{native.Name}: the resulting level is unavailable in this battle.");
+            return;
+        }
+        int? previousBand = UsesExpandedRoster ? recipient.ExpandedEnemyLevels!.Levels[previousLevel - 1].AiLevelBand : null;
         BattleLevelChange change = new(previousLevel, level);
         MarkNativeContactFlags(1, 0);
         recipient.BindNativeLevel(level);
@@ -44,6 +50,44 @@ public sealed partial class BattleSession
         RecordNativeActionMemory(actor, recipient, command);
         Log("LevelChanged", actor.Id, recipient.Id, Math.Abs(level - previousLevel), $"{recipient.Name}: level {previousLevel} → {level}.");
         DispatchNativeActionCounter(recipient);
+        if (previousBand is int band && band != recipient.ExpandedEnemyLevels!.Levels[level - 1].AiLevelBand)
+        {
+            RefreshExpandedLevelDrawSlots(recipient);
+        }
+    }
+
+    private static bool IsNativeLevelCommand(BattleNativeAction action)
+    {
+        return action.AttackType is 13 or 16;
+    }
+
+    private static int ProjectNativeLevel(BattleNativeAction action, int currentLevel)
+    {
+        return Math.Clamp(action.Power * currentLevel / 8, 1, 100);
+    }
+
+    private bool CanRebindExpandedEnemyLevel(BattleCombatant recipient, int level)
+    {
+        if (recipient.IsPlayer || recipient.Level is < 1 or > 100 || recipient.ExpandedEnemyLevels is not { } profile)
+        {
+            return false;
+        }
+        int currentBand = profile.Levels[recipient.Level - 1].AiLevelBand;
+        int destinationBand = profile.Levels[level - 1].AiLevelBand;
+        if (currentBand == destinationBand)
+        {
+            return true;
+        }
+        return recipient.NativeAi is { } ai && definition.EncounterId is int formation &&
+            NativeBattleExpandedAi.Evaluate(ai with { LevelBand = destinationBand }, definition.NativeActions, formation) == ExpandedAiAdmission.Supported;
+    }
+
+    private void RefreshExpandedLevelDrawSlots(BattleCombatant enemy)
+    {
+        ExpandedEnemyLevelProfile profile = enemy.ExpandedEnemyLevels ?? throw new InvalidDataException("Expanded level change lacks its installed level profile.");
+        int band = profile.Levels[enemy.Level - 1].AiLevelBand;
+        NativeBattleDrawSlot[] slots = profile.DrawBands[band].Select(slot => slot.Id >= 64 && guardianForces.TryGetValue(slot.Id - 64, out BattleGuardianForceVital? gf) && gf.Acquired ? slot with { Id = 0 } : slot).ToArray();
+        enemy.RestoreDrawSlots(slots);
     }
 
     private void CompleteNativeOrdinaryCommand(BattleCombatant actor, BattleActionPresentation action)

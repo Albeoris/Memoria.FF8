@@ -68,6 +68,10 @@ public sealed partial class BattleSession
             (actor.IsPlayer ? allies : enemies).Add(actor);
             actor.NativeActionMemoryOwner = UsesExpandedRoster ? null : nativeActionMemory;
             actor.NativePresentationStatusOwner = UsesExpandedRoster ? null : nativePresentationStatusMemory;
+            if (!actor.IsPlayer)
+            {
+                actor.ExpandedEnemyLevels = this.definition.ExpandedEnemyLevels?.GetValueOrDefault(actor.ModelId);
+            }
             InitializeNativeAtb(actor);
         }
         Combatants = combatants.AsReadOnly();
@@ -1176,6 +1180,29 @@ public sealed partial class BattleSession
         if (source.UsesExpandedRoster && (source.NativeGraphics is not null || !ExpandedBattleFormation.SupportsRoster(source.Combatants.Length - enemyCount, enemyCount) || source.Combatants.Any(actor => !actor.InitialActive) || source.GuardianFormsEnabled))
         {
             throw new NotSupportedException("The expanded battle host requires a supported 4x6, 8x8, 11x8 or 11x11 roster and host-owned actions.");
+        }
+        if (source.ExpandedEnemyLevels is { } levelProfiles)
+        {
+            if (!source.UsesExpandedRoster || !levelProfiles.Keys.ToHashSet().SetEquals(source.Combatants.Where(actor => !actor.IsPlayer).Select(actor => actor.ModelId)))
+            {
+                throw new InvalidDataException("Expanded level projections require an installed profile for every enemy model.");
+            }
+            foreach (ExpandedEnemyLevelProfile profile in levelProfiles.Values)
+            {
+                if (profile is null || profile.Levels.IsDefault || profile.Levels.Length != 100 || profile.DrawBands.IsDefault || profile.DrawBands.Length != 3 ||
+                    profile.Levels.Any(level => level is null || level.MaximumHp <= 0 || level.BaseStatistics.IsDefault || level.BaseStatistics.Length != 6 || level.AiLevelBand is < 0 or > 2))
+                {
+                    throw new InvalidDataException("Expanded level projections require all 100 original levels and three Draw banks.");
+                }
+                foreach (var band in profile.DrawBands)
+                {
+                    if (band.IsDefault)
+                    {
+                        throw new InvalidDataException("Expanded level projections lack an original Draw bank.");
+                    }
+                    BattleCombatant.ValidateDrawSlots(band.ToArray());
+                }
+            }
         }
         source.Tuning.Validate();
         source.MagicVitals?.Validate();

@@ -47,6 +47,10 @@ public sealed partial class BattleSession
         {
             return false;
         }
+        if (action.Ability == BattleAbility.Item && native.AttackType == 14)
+        {
+            return SupportsExpandedIndependentGuardianItem(native);
+        }
         return action.Ability == BattleAbility.GuardianForce && native is { Command: 254, KernelSection: 2, HitCount: 1, TargetFlags: byte flags } &&
             action.Id is >= 0 and < 16 && native.ActionId == action.Id + 64 && native.KernelIndex == action.Id &&
             native.AttackType is 11 or 15 or 20 or 29 && (flags & 0x30) == 0 ||
@@ -68,6 +72,10 @@ public sealed partial class BattleSession
             RefundCancelledNativeItem(command);
             actor.IsBusy = false;
             return;
+        }
+        if (command.Ability == BattleAbility.Item)
+        {
+            command = PrepareIndependentGuardianItem(actor, command);
         }
         ActiveAction = NativeCommandPresentation(command) with
         {
@@ -172,7 +180,19 @@ public sealed partial class BattleSession
             }
         }
 
+        if (command.IndependentGuardian?.FailureMessage is int failureMessage)
+        {
+            PublishIndependentGuardianFailure(actor, target, failureMessage);
+            CompleteNativeActionInventory(actor, command, false);
+            CompleteNativeActionStatuses(actor);
+            CompleteActionPresentation(command, "Guardian item completed.");
+            return;
+        }
         BattleActionDefinition action = drawSpell ?? ExpandedActionDefinition(actor, command);
+        if (command.IndependentGuardian is { Action: { } child } independent)
+        {
+            action = action with { Name = child.Name ?? action.Name, Level = independent.Level, NativeAction = child };
+        }
         BattleNativeAction native = action.NativeAction!;
         if (command.Ability == BattleAbility.GuardianForce && (native.TargetFlags.GetValueOrDefault() & 2) != 0)
         {
@@ -181,7 +201,7 @@ public sealed partial class BattleSession
             command = command with { TargetId = recipient.Id };
         }
         bool randomTarget = command.AiRecipients?.RandomSide is not null ||
-            (drawSpell is not null || command.Ability is BattleAbility.Magic or BattleAbility.Item or BattleAbility.NativeCommand or BattleAbility.EnemyAbility) && (native.TargetFlags.GetValueOrDefault() & 2) != 0;
+            command.IndependentGuardian is null && (drawSpell is not null || command.Ability is BattleAbility.Magic or BattleAbility.Item or BattleAbility.NativeCommand or BattleAbility.EnemyAbility) && (native.TargetFlags.GetValueOrDefault() & 2) != 0;
         BattleCombatant[][] hitPlan = PlanExpandedHits(recipients, native.HitCount, randomTarget);
         bool hasReflector = hitPlan.Any(targets => targets.Any(recipient => NativeActionReflects(recipient, native)));
         bool spellPresentation = command.Ability == BattleAbility.Magic || drawSpell is not null;
@@ -401,6 +421,11 @@ public sealed partial class BattleSession
             BattleAbility.NativeCommand when native is not null => ExpandedOrdinaryCommandDefinition(native),
             _ => FindAction(ability, actionId)
         };
+        if (ability == BattleAbility.NativeCommand && native is not null && IsNativeLevelCommand(native) &&
+            !CanRebindExpandedEnemyLevel(target, ProjectNativeLevel(native, target.Level)))
+        {
+            return [];
+        }
         if (ability == BattleAbility.GuardianForce)
         {
             return ExpandedGuardianForceTargetGroup(action);

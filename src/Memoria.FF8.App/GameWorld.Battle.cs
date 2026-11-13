@@ -52,7 +52,15 @@ internal sealed partial class GameWorld
             NativeBattleGil gil = new(economy.Gil, economy.PastGil);
             saved = saved with { Definition = saved.Definition with { NativeGil = gil }, NativeGil = gil };
         }
-        battle = saved is null ? null : AttachNativeEffectResources(BattleSession.Restore(BattlePartyProjection.RestoreLegacyCommandProjection(saved, BattleResources)));
+        if (saved is not null)
+        {
+            saved = BattlePartyProjection.RestoreLegacyCommandProjection(saved, BattleResources);
+            if (saved.Definition.ExpandedEnemyLevels is null && saved.Definition.EncounterId is not null)
+            {
+                saved = saved with { Definition = BindExpandedEnemyLevels(saved.Definition) };
+            }
+        }
+        battle = saved is null ? null : AttachNativeEffectResources(BattleSession.Restore(saved));
         synchronizedNativeBattleCallbacks = battle is null ? 0 : ReadExecutedBattleCallbacks(battle);
         if (battle is not null)
         {
@@ -221,7 +229,11 @@ internal sealed partial class GameWorld
             NativeBattleUiRandom = session.State.Playtime?.CreateBattleUiRandom(),
             Combatants = definition.Combatants.Select(actor => actor.IsPlayer ? actor : actor with { NativeRenzokukenMagicIds = BattleResources.ReadNativeRenzokukenMagicIds(actor.ModelId) }).ToArray()
         };
-        if (effectPreviewRequest is not null)
+        if (effectPreviewRequest is null)
+        {
+            definition = BindExpandedEnemyLevels(definition);
+        }
+        else
         {
             definition = definition with { EncounterId = null, Combatants = definition.Combatants.Select(actor => actor with { NativeAi = null, NativeTemplate = actor.NativeTemplate is { } template ? template with { NativeDrawTables = null } : null, NativeCombatantFlags = 1, NativeStatus0 = 0, NativeStatus1 = 0, InitialAtb = 0 }).ToArray() };
         }
@@ -264,6 +276,24 @@ internal sealed partial class GameWorld
         NativeCharacterVitals vitals = session.State.CharacterVitals ?? throw new NotSupportedException("Battle actions require the canonical GF owner.");
         return BattlePartyProjection.CreateActions(vitals, BattleResources.ActionDefinitions);
     }
+
+    private BattleDefinition BindExpandedEnemyLevels(BattleDefinition definition)
+    {
+        if (!definition.UsesExpandedRoster || !definition.Combatants.Any(actor => actor.IsPlayer && actor.NativeCommands.Any(binding => binding.Command is 33 or 34)))
+        {
+            return definition;
+        }
+        ImmutableSortedDictionary<int, ExpandedEnemyLevelProfile>.Builder profiles = ImmutableSortedDictionary.CreateBuilder<int, ExpandedEnemyLevelProfile>();
+        foreach (int model in definition.Combatants.Where(actor => !actor.IsPlayer).Select(actor => actor.ModelId).Distinct())
+        {
+            NativeBattleEnemyTemplate template = BattleResources.ReadEnemyTemplate(model, 0);
+            profiles.Add(model, new(
+                [.. template.Levels.Skip(1).Select(row => new ExpandedEnemyLevel(row.MaximumHp, row.BaseStatistics.ToImmutableArray(), row.AiLevelBand))],
+                [.. template.NativeDrawTables!.Select(band => band.ToImmutableArray())]));
+        }
+        return definition with { ExpandedEnemyLevels = profiles.ToImmutable() };
+    }
+
     public BattleCombatantDefinition[] CreateBattleParty()
     {
         return CreateBattleParty(session.State.CharacterVitals ?? throw new NotSupportedException("Battle party requires its saved character owner."));

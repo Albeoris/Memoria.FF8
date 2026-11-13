@@ -34,7 +34,7 @@ public sealed partial class BattleSession
     {
         BattleNativeAction native = action.NativeAction!;
         ValidateNativeActionContract(native);
-        if (!IsValidSelectedActionTarget(actor, action, target))
+        if (!IsValidSelectedActionTarget(actor, action, target) || IsNativeLevelCommand(native) && !CanRebindExpandedEnemyLevel(target, ProjectNativeLevel(native, target.Level)))
         {
             throw new InvalidOperationException("The command requires a valid target for its installed targeting mode.");
         }

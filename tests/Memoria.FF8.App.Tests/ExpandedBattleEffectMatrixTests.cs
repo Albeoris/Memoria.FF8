@@ -26,7 +26,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         GameState field = PrepareField(directory);
         using GameWorld admissionWorld = StartBattle(directory, field, 0);
         BattleSession admission = Assert.IsType<BattleSession>(admissionWorld.Battle);
-        BattleActionDefinition[] admitted = admission.ActionDefinitions.Where(action => action.Ability is BattleAbility.Magic or BattleAbility.Item && admission.SupportsExpandedAction(action)).ToArray();
+        BattleActionDefinition[] admitted = admission.ActionDefinitions.Where(action => action.Ability is BattleAbility.Magic or BattleAbility.Item && action.NativeAction?.AttackType != 14 && admission.SupportsExpandedAction(action)).ToArray();
         ILookup<int, BattleActionDefinition> guardianMappings = assets.ActionDefinitions.Where(action => action.Ability == BattleAbility.GuardianForce && action.NativeAction is not null).ToLookup(action => (int)action.NativeAction!.MagicId);
         ILookup<int, BattleNativeAction> limitMappings = assets.NativeActions.Where(action => action.KernelSection == 19 && action.CrisisLevel == 4 || action.KernelSection == 18 && action.CharacterId == action.KernelIndex + 6).ToLookup(action => (int)action.MagicId);
         bool requireFull = Environment.GetEnvironmentVariable("MEMORIA_FF8_REQUIRE_FULL_EFFECT_MATRIX") == "1";
@@ -76,6 +76,11 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                     firstBlockerStage = "player-execution";
                     (status, detail) = RunPlayerCast(directory, field, effect, player);
                 }
+                else if (mappings.FirstOrDefault(action => action is { KernelSection: 9, Command: 244, ActionId: >= 2 and <= 5 or 15 }) is { } independentGuardian)
+                {
+                    firstBlockerStage = "independent-guardian-item-execution";
+                    (status, detail) = RunIndependentGuardianItem(directory, field, assets, effect, independentGuardian);
+                }
                 else if (effect.Effect == sonicWave.MagicId)
                 {
                     firstBlockerStage = "enemy-turn-execution";
@@ -95,7 +100,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                         firstBlockerStage = "limit-admission";
                     }
                 }
-                else if (mappings.FirstOrDefault(action => action.KernelSection == 10 && action.Command is 23 or 24 or 25 or 26 or 27 or 32) is { } equipped)
+                else if (mappings.FirstOrDefault(action => action.KernelSection == 10 && action.Command is 23 or 24 or 25 or 26 or 27 or 32 or 33 or 34) is { } equipped)
                 {
                     firstBlockerStage = "command-execution";
                     (status, detail) = RunEquippedCommand(directory, field, effect, equipped);
@@ -167,13 +172,13 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
 
     private sealed record EffectResult(ushort Effect, uint Entry, uint Initializer, string Status, string? FirstBlockerStage, string Actions, string[] EnemyCallbacks, string[] EnemyAbilityRows, string Detail, EnemyRouteResult? EnemyReaction, EnemyRouteResult? EnemyDeath, string[] AdmissionBlockers);
 
-    private static (string Status, string Detail) RunPlayerCast(string directory, GameState field, NativeBattleEffectBinding effect, BattleActionDefinition action)
+    private static (string Status, string Detail) RunPlayerCast(string directory, GameState field, NativeBattleEffectBinding effect, BattleActionDefinition action, BattleNativeAction? independentGuardian = null)
     {
         GameWorld world = StartBattle(directory, field, 0, action);
         (string Status, string Detail) result;
         try
         {
-            result = RunPlayerCast(world, effect, action);
+            result = RunPlayerCast(world, effect, action, independentGuardian);
         }
         catch (Exception failure)
         {
@@ -191,7 +196,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         return result;
     }
 
-    private static (string Status, string Detail) RunPlayerCast(GameWorld world, NativeBattleEffectBinding effect, BattleActionDefinition action)
+    private static (string Status, string Detail) RunPlayerCast(GameWorld world, NativeBattleEffectBinding effect, BattleActionDefinition action, BattleNativeAction? independentGuardian)
     {
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         BattleCombatant caster = Assert.Single(battle.Combatants, actor => actor.Id == CasterId);
@@ -266,6 +271,11 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         Assert.Single(castEvents, entry => entry.Kind == "Windup" && entry.Ability == action.Ability);
         Assert.Single(castEvents, entry => entry.Kind == "ActionComplete");
         BattleEvent[] contacts = castEvents.Where(entry => entry.Kind == "EffectContact").ToArray();
+        if (independentGuardian is not null)
+        {
+            Assert.All(contacts, contact => Assert.Equal(independentGuardian.Name, contact.Message));
+            Assert.All(contacts, contact => Assert.True(contact.Amount > 0));
+        }
         if (random)
         {
             Assert.InRange(contacts.Length, 1, action.NativeAction!.HitCount);
@@ -379,7 +389,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         };
     }
 
-    private static GameWorld StartBattle(string directory, GameState field, ushort formation, BattleActionDefinition? action = null, bool requireExpanded = true, BattleNativeAction? limit = null, BattleNativeAction? equipped = null, byte nativeSeed = 0)
+    internal static GameWorld StartBattle(string directory, GameState field, ushort formation, BattleActionDefinition? action = null, bool requireExpanded = true, BattleNativeAction? limit = null, BattleNativeAction? equipped = null, byte nativeSeed = 0, Action<GameSession>? captureSession = null)
     {
         GameSession session = new(field);
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
@@ -451,6 +461,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                 Assert.Equal(11, battle.Combatants.Count(actor => actor.IsPlayer));
                 Assert.Equal(11, battle.Combatants.Count(actor => !actor.IsPlayer && actor.IsActive));
             }
+            captureSession?.Invoke(session);
             return world;
         }
         catch

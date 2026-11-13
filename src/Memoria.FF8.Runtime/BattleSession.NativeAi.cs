@@ -589,6 +589,10 @@ public sealed partial class BattleSession
             }
             else
             {
+                if (UsesExpandedRoster && (level is < 1 or > 100 || !CanRebindExpandedEnemyLevel(actor, level)))
+                {
+                    throw new InvalidDataException("Saved expanded enemy level is outside its installed level or AI contract.");
+                }
                 actor.BindNativeLevel(level);
             }
         }
