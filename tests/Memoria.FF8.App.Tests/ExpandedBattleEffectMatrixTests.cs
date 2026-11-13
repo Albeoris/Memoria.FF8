@@ -71,7 +71,12 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                     firstBlockerStage = "enemy-death-execution";
                     enemyDeath = RunDiscoveredEnemyDeath(directory, field, assets, effect, deaths, probeEnemies);
                 }
-                if (player is not null)
+                if (effect.Effect == OchuDrawEffect)
+                {
+                    firstBlockerStage = "enemy-draw-contact";
+                    (status, detail) = RunExpandedEnemyDraw(directory, field, assets, 530);
+                }
+                else if (player is not null)
                 {
                     firstBlockerStage = "player-execution";
                     (status, detail) = RunPlayerCast(directory, field, effect, player);

@@ -58,6 +58,76 @@ public sealed class NativeBattleAiDrawTests
         Assert.Equal(expected.Lane, battle.Capture().Random!.Lane);
     }
 
+    [Theory]
+    [InlineData(41, 1, false, false)]
+    [InlineData(46, 3, false, false)]
+    [InlineData(41, 1, true, false)]
+    [InlineData(46, 3, false, true)]
+    public void ExpandedDrawDebitsTheFirstActualContactAndUsesPreviousQueuedRecipient(byte opcode, int removed, bool miss, bool group)
+    {
+        BattleNativeAction attack = Spell(1) with
+        {
+            Command = 8, ActionId = 194, KernelSection = 3, KernelIndex = 194, Name = "No damage",
+            AttackType = (byte)(miss ? 1 : 0), AttackFlags = (byte)(miss ? 0 : 3), Hit = (byte)(miss ? 0 : 255), TargetFlags = null, MagicId = 37
+        };
+        NativeBattleAiAbility[] abilities = Enumerable.Repeat(new NativeBattleAiAbility(8, 12, 194), 48).ToArray();
+        // Queue a hit on a different ally before selecting the stocked source. Only the second target
+        // owns three stocks, but the first actual contact owns the debit.
+        NativeBattleAiDefinition ai = new([[0], [4, group ? (byte)204 : (byte)9, 12, 0, 4, 10, 12, 0, 4, 200, opcode, 0], [0], [0], [0]], abilities, 0, []);
+        string?[] messages = new string?[119];
+        messages[11] = " 0123456789";
+        messages[19] = "Drew";
+        messages[27] = " has";
+        messages[117] = "stocked";
+        messages[118] = " stock";
+        BattleCombatantDefinition[] allies = Enumerable.Range(0, 11).Select(index => new BattleCombatantDefinition
+        {
+            Id = $"ally-{index}", Name = $"Ally {index}", IsPlayer = true, ModelId = index, Speed = 1,
+            NativeMagicInventory = BattleCombatant.ExpandMagicStocks(index switch { 0 or 9 => [new BattleStock(1, 5)], 10 => [new BattleStock(1, 3)], _ => [] })
+        }).ToArray();
+        BattleCombatantDefinition[] enemies = Enumerable.Range(0, 11).Select(index => new BattleCombatantDefinition
+        {
+            Id = $"enemy-{index}", Name = $"Enemy {index}", ModelId = 45, Speed = 1,
+            InitialAtb = index == 10 ? BattleSession.AtbMaximum : 0, NativeAi = index == 10 ? ai : null
+        }).ToArray();
+        BattleSession battle = new(new()
+        {
+            UsesExpandedRoster = true,
+            Combatants = [.. allies, .. enemies],
+            NativeActions = [Spell(1), attack],
+            NativeSeed = 0,
+            NativeGlobalMessages = messages,
+            NativeMessageSpeed = 0
+        }, BattleAtbMode.Normal);
+        battle.Tick();
+        BattleSnapshot pending = battle.Capture();
+        Assert.Equal(new BattlePendingEnemyDraw("enemy-10", 1, (byte)removed), pending.PendingEnemyDraw);
+        string firstRecipient = group ? "ally-0" : "ally-9";
+        Assert.Equal(firstRecipient, pending.ActiveAction?.TargetId);
+        Assert.Equal("ally-10", Assert.Single(pending.QueuedActions).TargetId);
+        BattleSession restored = BattleSession.Restore(pending);
+
+        string[] expectedContacts = group ? [.. allies.Select(ally => ally.Id), "ally-10"] : ["ally-9", "ally-10"];
+        for (int frame = 0; frame < 160 && restored.Events.Count(entry => entry.Kind == "EffectContact") < expectedContacts.Length; frame++)
+        {
+            restored.Tick();
+        }
+
+        BattleEvent debit = Assert.Single(restored.Events, entry => entry.Kind == "EnemyDrawStock");
+        Assert.Equal(firstRecipient, debit.TargetId);
+        Assert.Equal(removed, debit.Amount);
+        BattleEvent[] contacts = restored.Events.Where(entry => entry.Kind == "EffectContact").ToArray();
+        Assert.Equal(expectedContacts, contacts.Select(entry => entry.TargetId));
+        if (miss)
+        {
+            Assert.Contains(restored.Events, entry => entry.Kind == "Miss" && entry.TargetId == firstRecipient);
+        }
+        Assert.Equal(contacts[0].Frame, debit.Frame);
+        Assert.Equal(5 - removed, Assert.Single(restored.Combatants.Single(actor => actor.Id == firstRecipient).MagicStocks).Count);
+        Assert.Equal(3, Assert.Single(restored.Combatants.Single(actor => actor.Id == "ally-10").MagicStocks).Count);
+        Assert.Null(restored.Capture().PendingEnemyDraw);
+    }
+
     private static BattleSession Create(byte[] initial, NativeMagicStock[] slots)
     {
         NativeBattleAiDefinition ai = new([initial, [0], [0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray(), 0, []);

@@ -172,6 +172,7 @@ public sealed partial class BattleSession
         }
         if (command.Ability == BattleAbility.Attack && actor.NativeAttack is null)
         {
+            CommitExpandedEnemyDraw(target.Id, ref pendingEnemyDraw);
             ResolveAction(actor, target, command);
             CompleteActionPresentation(command, "Attack completed.");
             return;
@@ -349,6 +350,20 @@ public sealed partial class BattleSession
             nativeActionCommitDepth--;
             expandedRecoverSourceHp = null;
             resolvingNativeAction = null;
+        }
+        if (presentsNativeEffect && !contacts.IsEmpty)
+        {
+            // A reaction to this action can queue another Draw before its graphics emit contact.
+            expandedEffectEnemyDraw = pendingEnemyDraw;
+            pendingEnemyDraw = null;
+        }
+        else
+        {
+            ExpandedBattleContact? first = contacts.FirstOrDefault() ?? reflectedContacts.FirstOrDefault() ?? phoenixRevival?.Contacts.FirstOrDefault();
+            if (first is not null)
+            {
+                CommitExpandedEnemyDraw(first.RecipientId, ref pendingEnemyDraw);
+            }
         }
         FlushExpandedEnemyReactions();
         if (command.Ability == BattleAbility.Attack)
@@ -554,6 +569,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("The expanded effect repeated a published recipient.");
         }
+        CommitExpandedEnemyDraw(recipient, ref expandedEffectEnemyDraw);
         PublishExpandedImpact(command, recipient, contact, "EffectContact");
     }
 

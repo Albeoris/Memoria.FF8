@@ -45,6 +45,8 @@ public sealed record NativeBattleParticipantSnapshot(bool Active, bool Hidden, b
     public bool AllocationPendingStatistics { get; init; }
     public NativeBattleLastAction? LastAction { get; init; }
     public ushort PreviousTargetMask { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ExpandedPreviousAiTargetId { get; init; }
     public byte? DrawnSpell { get; init; }
     public ushort? KillCount { get; init; }
     public ushort? DeathCount { get; init; }

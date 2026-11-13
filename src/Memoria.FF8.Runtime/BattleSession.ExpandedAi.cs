@@ -170,6 +170,7 @@ public sealed partial class BattleSession
         }
         actor.Atb = 0;
         actor.IsBusy = true;
+        actor.ExpandedPreviousAiTargetId = recipients.ActorIds[0];
         actions.Enqueue(new(actor.Id, recipients.ActorIds[0], BattleAbility.EnemyAbility, id)
         {
             NativeQueuedCommand = command,

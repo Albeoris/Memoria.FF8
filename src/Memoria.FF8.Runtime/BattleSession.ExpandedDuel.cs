@@ -211,6 +211,7 @@ public sealed partial class BattleSession
             NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, target, contact, action, move, 255, presentationRow: 0);
             if (publish)
             {
+                CommitExpandedEnemyDraw(target.Id, ref pendingEnemyDraw);
                 PublishExpandedImpacts(contact, [new(target.Id, packet)]);
             }
         }

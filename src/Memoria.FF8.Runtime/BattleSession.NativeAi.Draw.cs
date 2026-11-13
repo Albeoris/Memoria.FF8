@@ -1,14 +1,31 @@
 namespace Memoria.FF8.Runtime;
 
+public sealed record BattlePendingEnemyDraw(string ActorId, byte SpellId, byte Quantity);
+
 public sealed partial class BattleSession
 {
+    private BattlePendingEnemyDraw? pendingEnemyDraw;
+    private BattlePendingEnemyDraw? expandedEffectEnemyDraw;
+
     private void DrawNativeAiSpell(BattleCombatant actor, bool reportStock)
     {
         //487DF0 reads the previous queued target WORD B94, rather than the interpreter's local target mask.
-        int index = System.Numerics.BitOperations.TrailingZeroCount((uint)actor.NativePreviousTargetMask);
-        BattleCombatant source = combatants.FirstOrDefault(candidate => candidate.EncodeNativeSlot() == index) ?? throw new NotSupportedException("Native AI Draw requires an allocated actor in its previous queued target mask.");
-        bool logical = source.MagicOwner is not null && (source.MagicOwner().MagicSystem.SharedMagicStock || source.MagicOwner().MagicSystem.RecordZeroExtension.Length != 0 && source.MagicRecordId == 0);
-        NativeMagicStock[] inventory = logical ? source.MagicStocks.Select(stock => new NativeMagicStock((byte)stock.Id, (byte)stock.Count)).ToArray() : source.NativeMagicInventory;
+        BattleCombatant source;
+        if (UsesExpandedRoster)
+        {
+            if (actor.ExpandedPreviousAiTargetId is not string sourceId)
+            {
+                actor.NativeDrawnSpell = 255;
+                return;
+            }
+            source = GetActor(sourceId);
+        }
+        else
+        {
+            int index = System.Numerics.BitOperations.TrailingZeroCount((uint)actor.NativePreviousTargetMask);
+            source = combatants.FirstOrDefault(candidate => candidate.EncodeNativeSlot() == index) ?? throw new NotSupportedException("Native AI Draw requires an allocated actor in its previous queued target mask.");
+        }
+        NativeMagicStock[] inventory = NativeAiDrawInventory(source);
         int occupied = inventory.Count(stock => stock.SpellId != 0);
         if (occupied == 0)
         {
@@ -23,6 +40,11 @@ public sealed partial class BattleSession
         }
         NativeMagicStock selected = inventory[slot];
         actor.NativeDrawnSpell = selected.SpellId;
+        if (UsesExpandedRoster)
+        {
+            // The original E11..E13 owner is global. A new successful Draw replaces its pending result.
+            pendingEnemyDraw = new(actor.Id, selected.SpellId, reportStock ? selected.Count : (byte)1);
+        }
         BattleNativeAction spell = FindInstalledNativeAction(2, selected.SpellId);
         string spellName = spell.Name ?? throw new InvalidDataException("Native AI Draw requires the installed spell name.");
         string separator = NativeBattleGlobalText(11);
@@ -33,6 +55,34 @@ public sealed partial class BattleSession
         string message = reportStock ? source.Name + NativeBattleGlobalText(27) + separator[0] + spellName + separator[0] + NativeBattleGlobalText(117) : NativeBattleGlobalText(19) + separator[0] + "1" + separator[0] + spellName + NativeBattleGlobalText(118);
         int duration = 8 * (definition.NativeMessageSpeed ?? throw new NotSupportedException("Native Draw message requires its saved message-speed BYTE.")) + 8;
         QueueNativeDescriptorMessage(new BattleEvent(Frame, "NativeText", actor.Id, source.Id, duration, message) { NativeMessageMode = 3 });
+    }
+
+    private static NativeMagicStock[] NativeAiDrawInventory(BattleCombatant source)
+    {
+        bool logical = source.MagicOwner is not null && (source.MagicOwner().MagicSystem.SharedMagicStock || source.MagicOwner().MagicSystem.RecordZeroExtension.Length != 0 && source.MagicRecordId == 0);
+        return logical ? source.MagicStocks.Select(stock => new NativeMagicStock((byte)stock.Id, (byte)stock.Count)).ToArray() : source.NativeMagicInventory;
+    }
+
+    private void CommitExpandedEnemyDraw(string recipientId, ref BattlePendingEnemyDraw? pending)
+    {
+        if (pending is not { } draw)
+        {
+            return;
+        }
+        // 493D80 debits the primary contact's recipient, including misses, and clears the shared result.
+        BattleCombatant recipient = GetActor(recipientId);
+        int removed = recipient.RemoveMagicStock(draw.SpellId, draw.Quantity);
+        pending = null;
+        Log("EnemyDrawStock", draw.ActorId, recipient.Id, removed, NativeBattleGlobalText(19));
+    }
+
+    private void RestoreExpandedEnemyDraw(BattlePendingEnemyDraw? saved)
+    {
+        if (saved is not null && (!UsesExpandedRoster || !byId.TryGetValue(saved.ActorId, out BattleCombatant? actor) || actor.IsPlayer || actor.NativeAi is null || saved.SpellId is 0 or >= 64 || saved.Quantity is 0 or > 100))
+        {
+            throw new InvalidDataException("Battle snapshot has an invalid deferred enemy Draw result.");
+        }
+        pendingEnemyDraw = saved;
     }
 
     private void CastNativeAiDrawnSpell(BattleCombatant actor)

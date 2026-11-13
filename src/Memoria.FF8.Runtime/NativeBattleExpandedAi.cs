@@ -139,7 +139,7 @@ public static class NativeBattleExpandedAi
                         }
                         break;
                     case 8 when callback != 3:
-                    case 30 or 41 or 42 or 44 or 46 or 49 or 50 or 51 or 54 or 55 or 56 or 57 or 61:
+                    case 30 or 42 or 44 or 49 or 50 or 51 or 54 or 55 or 56 or 57 or 61:
                         MarkUnsupportedService($"opcode:{opcode}");
                         break;
                     case 27 or 31 or 43 or 52 or 53 or 58 or 59:

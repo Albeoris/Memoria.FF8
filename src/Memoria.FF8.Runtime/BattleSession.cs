@@ -87,6 +87,21 @@ public sealed partial class BattleSession
         }
         if (initializeNativeAi)
         {
+            if (UsesExpandedRoster)
+            {
+                foreach (BattleCombatant ally in allies)
+                {
+                    // 48B310 records whether the entry inventory contains any magic.
+                    if (NativeAiDrawInventory(ally).Any(stock => stock.SpellId != 0))
+                    {
+                        ally.NativeStatus1 |= 1u << 30;
+                    }
+                    else
+                    {
+                        ally.NativeStatus1 &= ~(1u << 30);
+                    }
+                }
+            }
             RefreshNativeEnemyDrawSlots();
         }
         random = this.definition.InitialRandom ?? NativeBattleRandomState.Initialize(this.definition.NativeSeed);
@@ -428,6 +443,7 @@ public sealed partial class BattleSession
             ScanKnowledge = scanKnowledge,
             NativeKnownMagic = nativeKnownMagic,
             NativeSupport = nativeSupport,
+            PendingEnemyDraw = pendingEnemyDraw,
             NativeClock = nativeBattleClock,
             EnemyDefeats = enemyDefeats.ToArray(),
             Random = random,
@@ -1429,6 +1445,7 @@ public sealed partial class BattleSession
         RestoreGuardianForces(snapshot);
         RestoreGuardianForms(snapshot.GuardianForms, snapshot.Outcome);
         RestoreNativeSupport(snapshot.NativeSupport);
+        RestoreExpandedEnemyDraw(snapshot.PendingEnemyDraw);
         RestoreNativeBattleClock(snapshot.NativeClock);
         RestoreNativeGraphics(snapshot.NativeGraphics);
         ValidateNativeSupportEntryOwner();
@@ -1820,6 +1837,7 @@ public sealed partial class BattleSession
         RestoreGuardianForces(candidateSnapshot);
         RestoreGuardianForms(candidate.CaptureGuardianForms(), candidate.Outcome);
         RestoreNativeSupport(candidate.nativeSupport);
+        RestoreExpandedEnemyDraw(candidate.pendingEnemyDraw);
         RestoreNativeBattleClock(candidate.nativeBattleClock);
         turnAdvance = candidate.turnAdvance;
         RestoreOriginalStockDrawOperations(candidate.originalStockDrawOperations.ToArray());

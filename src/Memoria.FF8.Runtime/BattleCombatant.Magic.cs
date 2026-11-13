@@ -45,26 +45,36 @@ public sealed partial class BattleCombatant
 
     internal bool TryConsumeMagic(int id)
     {
+        if (MagicOwner?.Invoke() is { MagicSystem.UnlimitedMagic: true } owner && SetMagicOwner is not null && MagicRecordId is int row)
+        {
+            return MagicJunctionPolicy.CanAccess(owner, row, id);
+        }
+        return RemoveMagicStock(id, 1) != 0;
+    }
+
+    internal int RemoveMagicStock(int id, int quantity)
+    {
         if (MagicOwner is not null && SetMagicOwner is not null && MagicRecordId is int row)
         {
             NativeCharacterVitals owner = MagicOwner();
             if (owner.MagicSystem.UnlimitedMagic)
             {
-                return MagicJunctionPolicy.CanAccess(owner, row, id);
+                return 0;
             }
-            NativeCharacterVitals next = owner.ChangeMagicStock(row, id, -1, MagicOperationReason.ScriptRemoval, out MagicStockMutation result);
+            NativeCharacterVitals next = owner.ChangeMagicStock(row, id, -quantity, MagicOperationReason.ScriptRemoval, out MagicStockMutation result);
             SetMagicOwner(next);
-            return result.Accepted != 0;
+            return result.Accepted;
         }
         int index = Array.FindIndex(NativeMagicInventory, stock => stock.SpellId == id && stock.Count > 0);
         if (index < 0)
         {
-            return false;
+            return 0;
         }
         NativeMagicStock stock = NativeMagicInventory[index];
         //486A10 clears the exhausted ID in place; other physical slots never move.
-        NativeMagicInventory[index] = stock.Count == 1 ? new NativeMagicStock(0, 0) : stock with { Count = (byte)(stock.Count - 1) };
-        return true;
+        int removed = Math.Min(stock.Count, quantity);
+        NativeMagicInventory[index] = stock.Count == removed ? new NativeMagicStock(0, 0) : stock with { Count = (byte)(stock.Count - removed) };
+        return removed;
     }
 
     internal int AddMagic(int id, int quantity)

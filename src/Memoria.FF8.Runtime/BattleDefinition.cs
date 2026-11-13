@@ -414,6 +414,8 @@ public sealed record BattleSnapshot
     public byte? NativeReactionOrder { get; init; }
     public NativeBattleClockState? NativeClock { get; init; }
     public NativeBattleSupportState? NativeSupport { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public BattlePendingEnemyDraw? PendingEnemyDraw { get; init; }
     public NativeBattleGraphicsState? NativeGraphics { get; init; }
     public NativeBattleTimedAction? NativeTimedAction { get; init; }
     public NativeBattleCameraState? NativeCamera { get; init; }
@@ -590,6 +592,7 @@ public sealed partial class BattleCombatant
         }
     }
     internal ushort NativePreviousTargetMask { get; set; }
+    internal string? ExpandedPreviousAiTargetId { get; set; }
     internal byte? NativeDrawnSpell { get; set; }
     internal BattleAbility? LastAttackerAbility { get; set; }
     internal bool AiDeathHandled { get; set; }
