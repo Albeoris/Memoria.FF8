@@ -57,7 +57,7 @@ public sealed class AutoPlayDreamAbsenceTests
         Assert.Equal(new[] { 8, 9, 10 }, run.World.Events.Scene.Party);
         Assert.Equal(new[] { 10, 11, 12 }, run.World.Events.Scene.FieldPartyNativeActorIds);
         Assert.DoesNotContain(run.Controller.State.Coverage.Visits, visit => visit.Visit.Key == "742:223");
-        AutoPlayPlanner planner = new(run.Controller.State.Coverage, (visit, item) => AutoPlayTraversalPolicy.PhaseOrder(visit.Region, item.Order), AutoPlayTraversalPolicy.ProgressionEntryOrder);
+        AutoPlayPlanner planner = new(run.Controller.State.Coverage, (visit, item) => AutoPlayTraversalPolicy.PhaseOrder(visit.Region, item.Order), (visit, item) => AutoPlayTraversalPolicy.ProgressionEntryOrder(visit, item));
         AutoPlayPlanStep next = planner.Plan("741:223")!;
         Assert.StartsWith("741:gateway:", next.Event.Id, StringComparison.Ordinal);
         Assert.NotEqual(entry.Event.Id, next.Event.Id);

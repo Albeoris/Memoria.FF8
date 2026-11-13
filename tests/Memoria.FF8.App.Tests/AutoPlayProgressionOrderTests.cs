@@ -85,7 +85,7 @@ public sealed class AutoPlayProgressionOrderTests
     [Fact]
     public void MissileBaseReusesTheObservedMaintenanceRouteBeforeTheLauncherEntrance()
     {
-        AutoPlayPlanner planner = new(progressionOrder: AutoPlayTraversalPolicy.ProgressionEntryOrder);
+        AutoPlayPlanner planner = new(progressionOrder: (visit, item) => AutoPlayTraversalPolicy.ProgressionEntryOrder(visit, item));
         planner.Observe(new("781:458", "gm"), [new("781:gateway:1", AutoPlayEventKind.Transition), new("781:gateway:2", AutoPlayEventKind.Transition, "772:458")]);
         planner.Observe(new("772:458", "gm"), [new("772:talk:15", AutoPlayEventKind.Transition, ChangesStory: true)]);
         planner.Completed("781:458", "781:gateway:2", "772:458", observedStoryChanged: false, selections: []);
@@ -161,7 +161,7 @@ public sealed class AutoPlayProgressionOrderTests
     [Fact]
     public void ARecordedReturnRouteMakesThePendingWardrobePrecedeTheTrainingEntry()
     {
-        AutoPlayPlanner planner = new(progressionOrder: AutoPlayTraversalPolicy.ProgressionEntryOrder);
+        AutoPlayPlanner planner = new(progressionOrder: (visit, item) => AutoPlayTraversalPolicy.ProgressionEntryOrder(visit, item));
         planner.Observe(new("163:155", "bg"), [new("163:line:17", AutoPlayEventKind.Transition), new("163:line:18", AutoPlayEventKind.Transition), new("return-route", AutoPlayEventKind.Transition)]);
         planner.Observe(new("241:155", "bg"), [new("241:line:12", AutoPlayEventKind.Transition, ChangesStory: true)]);
         planner.Completed("163:155", "return-route", "241:155", observedStoryChanged: false, selections: []);
@@ -181,7 +181,7 @@ public sealed class AutoPlayProgressionOrderTests
     [Fact]
     public void TheObservedTrainingAreaReturnAllowsItsUntriedOrdinaryGateBeforeEitherLateEntry()
     {
-        AutoPlayPlanner planner = new(progressionOrder: AutoPlayTraversalPolicy.ProgressionEntryOrder);
+        AutoPlayPlanner planner = new(progressionOrder: (visit, item) => AutoPlayTraversalPolicy.ProgressionEntryOrder(visit, item));
         planner.Observe(new("163:155", "bg"), [new("163:line:17", AutoPlayEventKind.Transition), new("163:line:18", AutoPlayEventKind.Transition), new("163:gateway:0", AutoPlayEventKind.Transition)]);
         planner.Observe(new("165:155", "bg"), [new("165:gateway:0", AutoPlayEventKind.Transition), new("165:gateway:3", AutoPlayEventKind.Transition)]);
         planner.Completed("163:155", "163:gateway:0", "165:155", observedStoryChanged: false, selections: [], targetId: "163:gateway:0");
@@ -208,7 +208,7 @@ public sealed class AutoPlayProgressionOrderTests
         AutoPlayRunState saved = JsonSerializer.Deserialize<AutoPlayRunState>(originalManifest, AutoPlayController.JsonOptions)!;
         string snapshot = Path.Combine(Path.GetDirectoryName(manifest)!, saved.Snapshot!);
         byte[] originalSnapshot = File.ReadAllBytes(snapshot);
-        AutoPlayPlanner planner = new(saved.Coverage, (visit, item) => AutoPlayTraversalPolicy.PhaseOrder(visit.Region, item.Order), AutoPlayTraversalPolicy.ProgressionEntryOrder);
+        AutoPlayPlanner planner = new(saved.Coverage, (visit, item) => AutoPlayTraversalPolicy.PhaseOrder(visit.Region, item.Order), (visit, item) => AutoPlayTraversalPolicy.ProgressionEntryOrder(visit, item));
         string before = JsonSerializer.Serialize(planner.State);
         AutoPlayPlanStep next = planner.Plan("163:155")!;
         Assert.True(next.IsTravel);
@@ -304,7 +304,7 @@ public sealed class AutoPlayProgressionOrderTests
         Record("237:142", "237:gateway:1", "240:142");
         Record("168:142", "168:line:24", "227:142");
         Record("227:142", "227:gateway:0", "179:142");
-        return new(JsonSerializer.Deserialize<AutoPlayPlannerState>(JsonSerializer.Serialize(planner.State))!, progressionOrder: AutoPlayTraversalPolicy.ProgressionEntryOrder);
+        return new(JsonSerializer.Deserialize<AutoPlayPlannerState>(JsonSerializer.Serialize(planner.State))!, progressionOrder: (visit, item) => AutoPlayTraversalPolicy.ProgressionEntryOrder(visit, item));
 
         void Record(string source, string eventId, string destination)
         {

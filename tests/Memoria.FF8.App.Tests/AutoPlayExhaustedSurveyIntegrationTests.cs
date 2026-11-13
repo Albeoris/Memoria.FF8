@@ -30,7 +30,7 @@ public sealed class AutoPlayExhaustedSurveyIntegrationTests
             current.EnsureField();
             string visit = $"{session.State.FieldId}:{session.State.Variables.GetValueOrDefault(256)}";
             string navigation = current.CaptureAutoPlayNavigationReceipt().Key(visit);
-            AutoPlayPlanner planner = new(controller.State.Coverage, (source, item) => AutoPlayTraversalPolicy.PhaseOrder(source.Region, item.Order), AutoPlayTraversalPolicy.ProgressionEntryOrder);
+            AutoPlayPlanner planner = new(controller.State.Coverage, (source, item) => AutoPlayTraversalPolicy.PhaseOrder(source.Region, item.Order), (visit, item) => AutoPlayTraversalPolicy.ProgressionEntryOrder(visit, item));
             Assert.Null(planner.PlanNavigation(navigation));
             Assert.Contains(controller.State.VisitGuards, item => controller.State.InspectedVisitsSinceProgress.Contains(item.Key) && current.Events.ReadPersistentPredicateFingerprint(item.Value.Reads) is string fingerprint && fingerprint != item.Value.Fingerprint);
 
