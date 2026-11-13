@@ -76,6 +76,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
     public Func<int, IReadOnlyList<int>>? ModelPartPolygonCounts { get; set; }
     public Func<FieldByteOperand, byte>? ReadFieldByte { get; set; }
     public Func<int[]>? ReadScriptParty { get; set; }
+    internal Func<byte, byte>? ReadScriptPartyByte { get; set; }
     public Func<ushort>? ReadInputHeld { get; set; }
     public Func<Ff7Dialogue, Ff7Window, Ff7Dialogue>? AdvanceDialogue { get; set; }
 
@@ -222,6 +223,8 @@ public sealed partial class Ff7FieldHost : IFieldHost
                 return Menu(request.Id, menu);
             case FieldMovieCommand movie:
                 return Movie(request.Id, movie);
+            case FieldMinigameCommand:
+                return RequestMinigame(request);
             case FieldTransitionCommand transition:
                 if (Process.GlobalCommand is not (Ff7GlobalCommand.None or Ff7GlobalCommand.Transition))
                 {
@@ -498,6 +501,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
         SetActor(entity, actor => property.Property switch
         {
             FieldActorPropertyKind.Visible => actor with { Visible = property.Value == 1 },
+            FieldActorPropertyKind.AutomaticBlinkDisabled => actor with { AutomaticBlinkDisabled = property.Value == 1 },
             FieldActorPropertyKind.Direction => actor with { Direction = property.Value & 255, TurnMode = 0, TurnStep = 0 },
             FieldActorPropertyKind.MoveSpeed => actor with { MoveSpeed = property.Value },
             FieldActorPropertyKind.AnimationSpeed => actor with { BaseAnimationSpeed = property.Value, AnimationSpeed = property.Value },

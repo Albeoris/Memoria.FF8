@@ -56,6 +56,7 @@ public readonly record struct Ff7BattleDamageAction(byte Formula, byte Power, by
     public Ff7BattleParameterOperation? ParameterOperation { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     internal byte? GuestElementPercent { get; init; }
+    internal byte MpTurboLevel { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     internal int GuestElementAdjustment { get; init; }
 
@@ -322,7 +323,7 @@ public static class Ff7NativeBattleDamage
         {
             damage >>= 2;
         }
-        damage = ApplyDamageModifiers(damage, target.Statuses, Barrier, action.Split);
+        damage = ApplyDamageModifiers(damage, target.Statuses, Barrier, action.Split, action.MpTurboLevel);
         return (attacker.Statuses & Small) == 0 ? damage : 0;
     }
 
@@ -337,7 +338,7 @@ public static class Ff7NativeBattleDamage
         uint barrier = action.UsePhysicalStats ? Barrier : MagicBarrier;
         if (action.Formula == 0x25)
         {
-            return ApplyDamageModifiers(basis + action.Power * 22, target.Statuses & ~Sadness, barrier, action.Split);
+            return ApplyDamageModifiers(basis + action.Power * 22, target.Statuses & ~Sadness, barrier, action.Split, action.MpTurboLevel);
         }
         int defense = action.UsePhysicalStats ? ApplyModifier(target.Defense, target.DefenseModifier) : ApplyModifier(target.MagicDefense, target.MagicDefenseModifier);
         defense = action.IgnoreDefense ? 0 : Math.Min(512, defense);
@@ -346,10 +347,10 @@ public static class Ff7NativeBattleDamage
             return (512 - defense) * action.Power / 32;
         }
         int damage = action.BaseDamage is int supplied ? checked((int)((long)supplied * (512 - defense) / 512)) : basis * (512 - defense) * action.Power / 8192;
-        return ApplyDamageModifiers(damage, target.Statuses, barrier, action.Split);
+        return ApplyDamageModifiers(damage, target.Statuses, barrier, action.Split, action.MpTurboLevel);
     }
 
-    private static int ApplyDamageModifiers(int damage, uint statuses, uint barrier, bool split)
+    private static int ApplyDamageModifiers(int damage, uint statuses, uint barrier, bool split, int mpTurboLevel)
     {
         if ((statuses & Sadness) != 0)
         {
@@ -363,7 +364,7 @@ public static class Ff7NativeBattleDamage
         {
             damage /= 2;
         }
-        return damage;
+        return damage + damage * mpTurboLevel / 10;
     }
 
     private static int ApplyModifier(int value, int modifier) => value + value * modifier / 100;

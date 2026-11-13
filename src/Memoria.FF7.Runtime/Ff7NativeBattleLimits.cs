@@ -94,9 +94,9 @@ public static class Ff7NativeBattleLimits
         ArgumentNullException.ThrowIfNull(kernel);
         ReadOnlySpan<byte> native = character.NativeRecord;
         ReadOnlySpan<byte> data = kernel.Single(section => section.Type == 2).Data.Span;
-        if (native.Length != 132 || data.Length != 3988 || character.Id is < 0 or > 2 || native[14] is < 1 or > 4)
+        if (native.Length != 132 || data.Length != 3988 || character.Id is < 0 or > 8 || native[14] is < 1 or > 4)
         {
-            throw new InvalidDataException("FFVII opening Limit admission requires its original character and battle kernel records.");
+            throw new InvalidDataException("FFVII Limit admission requires its original character and battle kernel records.");
         }
         return data;
     }

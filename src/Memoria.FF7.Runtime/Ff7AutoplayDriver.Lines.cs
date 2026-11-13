@@ -36,12 +36,17 @@ public sealed partial class Ff7AutoplayDriver
         return new(direction.X, direction.Y, Held: talk ? (ushort)0x20 : (ushort)0, Talk: talk, Run: run);
     }
 
-    private bool AllowsPlannedMove(Ff7Actor from, Ff7Actor to)
+    private bool AllowsPlannedMove(Ff7Actor from, Ff7NativeMoveResult move)
     {
+        if (plannedGateway is { } target && !session.Host.Process.MapJumpDisabled && session.Field.Triggers.Gateways.Any(gateway => gateway != target && Ff7Session.CrossesGateway(gateway, from, move.Actor)))
+        {
+            return false;
+        }
         if (avoidedLineGeneration != session.FieldGeneration)
         {
             return true;
         }
+        Ff7Actor to = move.ProbeActor ?? move.Actor;
         Vector3 start = new(from.X4096 >> 12, from.Y4096 >> 12, from.Z4096 >> 12);
         Vector3 end = new(to.X4096 >> 12, to.Y4096 >> 12, start.Z);
         int radiusSquared = from.CollisionRadius * from.CollisionRadius;

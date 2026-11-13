@@ -42,7 +42,7 @@ public sealed partial class Ff7MidgarAutoPlayPolicy(Ff7Session session)
     {
         input = default;
         string field = session.Field.Name;
-        if (field is not ("ealin_1" or "ealin_2" or "niv_cl" or "eals_1" or "mds5_1" or "mds5_3" or "mds6_1" or "mds6_2" or "mds6_3" or "mrkt2" or "mrkt1" or "mrkt3" or "mkt_s1" or "mktpb" or "mkt_mens" or "colne_1" or "colne_2" or "colne_3" or "colne_4" or "colne_5" or "colne_6" or "blin70_1" or "blin70_2" or "colne_b1" or "colne_b3"))
+        if (field is not ("ealin_1" or "ealin_2" or "niv_cl" or "eals_1" or "mds5_1" or "mds5_3" or "mds6_1" or "mds6_2" or "mds6_3" or "mrkt2" or "mrkt1" or "mrkt3" or "mkt_s1" or "mktpb" or "mkt_mens" or "colne_1" or "colne_2" or "colne_3" or "colne_4" or "colne_5" or "colne_6" or "blin70_1" or "blin70_2" or "colne_b1" or "colne_b3" or "mds7st1" or "mds7st2" or "mds7st3" or "mds7plr1" or "mds7plr2" or "pillar_1" or "pillar_2"))
         {
             return false;
         }
@@ -52,8 +52,14 @@ public sealed partial class Ff7MidgarAutoPlayPolicy(Ff7Session session)
             return false;
         }
         Ff7FieldProcess process = session.Host.Process;
+        if (field == "pillar_2" && story == 221 && process.Dialogues.Any(dialogue => dialogue is { Window: 3, Text: 29, Completed: false }))
+        {
+            // Barret's equipment prompt is a persistent window. Its script reads Confirm separately.
+            input = new(Held: (session.Machine.Input.Held & 32) == 0 ? (ushort)32 : (ushort)0);
+            return true;
+        }
         Ff7Actor? player = process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
-        if (player is null || process.Tick == 0 || process.Join is not null || process.Dialogues.Any(dialogue => !dialogue.Completed && session.Host.CanConfirmDialogue(dialogue.RequestId)))
+        if (player is null || process.Tick == 0 || process.FadeState is { EntryCurve: true, Completed: false } || process.Join is not null || process.Dialogues.Any(dialogue => !dialogue.Completed && session.Host.CanConfirmDialogue(dialogue.RequestId)))
         {
             return true;
         }
@@ -97,10 +103,10 @@ public sealed partial class Ff7MidgarAutoPlayPolicy(Ff7Session session)
             "mkt_mens" when story == 191 => HasWig ? driver.Gateway(205) : driver.TalkTo(12),
             "colne_2" when story == 192 => driver.Gateway(209),
             "colne_4" when story == 192 => driver.TalkTo(12),
-            "colne_4" when story == 197 => driver.Gateway(207),
-            "colne_2" when story == 197 => driver.Gateway(210),
+            "colne_4" when story == 197 => ChooseCorneoBasementInput(driver),
+            "colne_2" when story == 197 => ChooseCorneoHallInput(driver),
             "colne_5" when story == 197 => driver.Gateway(211),
-            "colne_3" when story == 197 => (session.Machine.Variables.ReadByte(FieldBank.Persistent1Byte, 0xA3) & 8) != 0 ? driver.Gateway(207) : driver.TalkTo(11),
+            "colne_3" when story == 197 => ChooseCorneoLoungeInput(driver),
             "colne_6" when story == 197 => ApproachLineWithConfirm(driver, 16),
             "colne_6" when story == 203 => default,
             "blin70_1" when story == 203 => default,
@@ -108,6 +114,14 @@ public sealed partial class Ff7MidgarAutoPlayPolicy(Ff7Session session)
             "colne_b1" when story == 206 => session.Machine.Variables.ReadByte(FieldBank.MapByte, 0x0A) == 0 ? driver.TalkTo(2) : session.Machine.Variables.ReadByte(FieldBank.MapByte, 9) == 0 ? driver.TalkTo(3) : default,
             "colne_b1" when story == 209 => default,
             "colne_b3" when story == 209 => ApproachLineWithConfirm(driver, 2),
+            "mds7st1" when story is 209 or 212 => ChooseTrainGraveyardEntryInput(driver, player),
+            "mds7st2" when story == 212 => ChooseTrainGraveyardSwitchInput(driver, player),
+            "mds7st3" when story == 212 => driver.Gateway(156),
+            "mds7plr1" when story is 212 or 218 => default,
+            "mds7plr2" when story == 215 => default,
+            "mds7plr1" when story == 221 => ChoosePillarApproach(driver, player),
+            "pillar_1" when story == 221 => driver.Gateway(159),
+            "pillar_2" when story == 221 => driver.TalkTo(4),
             _ => throw new NotSupportedException($"FFVII Midgar autoplay has reached an unproved story goal in {field} at story {story}.")
         };
         return true;
@@ -136,7 +150,41 @@ public sealed partial class Ff7MidgarAutoPlayPolicy(Ff7Session session)
         {
             return driver.Gateway(195);
         }
+        if (session.Machine.Variables.ReadByte(FieldBank.MapByte, 4) == 4)
+        {
+            return ApproachLine(driver, 3);
+        }
         return ApproachLineWithConfirm(driver, 2);
+    }
+
+    private Ff7AutoplayInput ChooseCorneoHallInput(Ff7AutoplayDriver driver)
+    {
+        bool thresholdBlocked = (session.Host.Process.BlockedTriangles[78 >> 3] & (1 << (78 & 7))) != 0;
+        if (thresholdBlocked && (session.Machine.Variables.ReadByte(FieldBank.Persistent1Byte, 0xA3) & 8) != 0)
+        {
+            return driver.Gateway(209);
+        }
+        return thresholdBlocked ? driver.TalkToLine(13) : driver.Gateway(210);
+    }
+
+    private Ff7AutoplayInput ChooseCorneoBasementInput(Ff7AutoplayDriver driver)
+    {
+        int scene = session.Machine.Variables.ReadByte(FieldBank.Persistent1Byte, 0xA3);
+        return (scene & 0x0C) == 8 ? ApproachLine(driver, 20) : driver.Gateway(207);
+    }
+
+    private Ff7AutoplayInput ChooseCorneoLoungeInput(Ff7AutoplayDriver driver)
+    {
+        if ((session.Machine.Variables.ReadByte(FieldBank.Persistent1Byte, 0xA3) & 8) != 0)
+        {
+            return driver.Gateway(207);
+        }
+        int approaches = session.Machine.Variables.ReadByte(FieldBank.MapByte, 2);
+        if (session.Machine.Variables.ReadByte(FieldBank.MapByte, 0) != 0 && approaches < 3)
+        {
+            return driver.TalkTo(13 + approaches);
+        }
+        return driver.TalkTo(11);
     }
 
     private Ff7AutoplayInput ApproachLineWithConfirm(Ff7AutoplayDriver driver, int entity)

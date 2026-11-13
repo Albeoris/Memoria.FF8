@@ -154,7 +154,7 @@ public sealed partial class Ff7Session
     private void AdvancePlayerInput()
     {
         Ff7FieldProcess process = Host.Process;
-        if (process.PlayerLocked || process.Join is not null || process.Transition is not null || process.GlobalCommand is Ff7GlobalCommand.Battle or Ff7GlobalCommand.Menu)
+        if (process.PlayerLocked || process.Join is not null || process.Transition is not null || process.GlobalCommand is Ff7GlobalCommand.Battle or Ff7GlobalCommand.Menu or Ff7GlobalCommand.Minigame)
         {
             Host.ClearLineOnLine();
             return;
@@ -217,27 +217,31 @@ public sealed partial class Ff7Session
 
     private void CheckGateways(Ff7Actor from, Ff7Actor to)
     {
-        Vector3 start = new(from.X4096 >> 12, from.Y4096 >> 12, from.Z4096 >> 12);
-        Vector3 end = new(to.X4096 >> 12, to.Y4096 >> 12, from.Z4096 >> 12);
         foreach (PcFieldGateway gateway in Field.Triggers.Gateways)
         {
-            if (gateway.DestinationField == 0x7FFF)
-            {
-                continue;
-            }
-            int distance = DistanceToSegment(gateway.A, gateway.B, start);
-            if (distance < 0 || distance >= unchecked(from.CollisionRadius * from.CollisionRadius))
-            {
-                continue;
-            }
-            int fromSide = Side(gateway.A, gateway.B, start);
-            int toSide = Side(gateway.A, gateway.B, end);
-            bool crossed = fromSide >= 0 && toSide < 0 || toSide >= 0 && fromSide < 0 || fromSide > 0 && toSide <= 0 || toSide > 0 && fromSide <= 0;
-            if (crossed)
+            if (CrossesGateway(gateway, from, to))
             {
                 Host.RequestGateway(new FieldTransitionCommand(checked((ushort)gateway.DestinationField), gateway.DestinationX, gateway.DestinationY, gateway.DestinationTriangle, checked((byte)gateway.Direction)));
             }
         }
+    }
+
+    internal static bool CrossesGateway(PcFieldGateway gateway, Ff7Actor from, Ff7Actor to)
+    {
+        if (gateway.DestinationField == 0x7FFF)
+        {
+            return false;
+        }
+        Vector3 start = new(from.X4096 >> 12, from.Y4096 >> 12, from.Z4096 >> 12);
+        int distance = DistanceToSegment(gateway.A, gateway.B, start);
+        if (distance < 0 || distance >= unchecked(from.CollisionRadius * from.CollisionRadius))
+        {
+            return false;
+        }
+        Vector3 end = new(to.X4096 >> 12, to.Y4096 >> 12, start.Z);
+        int fromSide = Side(gateway.A, gateway.B, start);
+        int toSide = Side(gateway.A, gateway.B, end);
+        return fromSide >= 0 && toSide < 0 || toSide >= 0 && fromSide < 0 || fromSide > 0 && toSide <= 0 || toSide > 0 && fromSide <= 0;
     }
 
     internal static int Side(Vector3 a, Vector3 b, Vector3 point)

@@ -17,7 +17,9 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
     private bool finalApproach;
     private long gatewayGeneration = -1;
     private int gatewayDestination = -1;
+    private int gatewayDestinationTriangle = -1;
     private Vector3? gatewayCrossingTarget;
+    private PcFieldGateway? plannedGateway;
     private static readonly (int X, int Y, int Direction)[] Directions = [(-1, -1, 32), (0, -1, 0), (1, -1, 224), (-1, 0, 64), (1, 0, 192), (-1, 1, 96), (0, 1, 128), (1, 1, 160)];
 
     public void Apply(Ff7AutoplayInput input)
@@ -53,16 +55,39 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
 
     public Ff7AutoplayInput Gateway(int destinationField, bool run = true)
     {
-        PcFieldGateway gateway = session.Field.Triggers.Gateways.Single(gateway => gateway.DestinationField == destinationField);
-        if (gatewayGeneration != session.FieldGeneration || gatewayDestination != destinationField)
+        return Gateway(session.Field.Triggers.Gateways.Single(gateway => gateway.DestinationField == destinationField), run);
+    }
+
+    public Ff7AutoplayInput Gateway(int destinationField, int destinationTriangle, bool run = true)
+    {
+        return Gateway(session.Field.Triggers.Gateways.Single(gateway => gateway.DestinationField == destinationField && gateway.DestinationTriangle == destinationTriangle), run);
+    }
+
+    private Ff7AutoplayInput Gateway(PcFieldGateway gateway, bool run)
+    {
+        plannedGateway = gateway;
+        try
+        {
+            return ApproachGateway(gateway, run);
+        }
+        finally
+        {
+            plannedGateway = null;
+        }
+    }
+
+    private Ff7AutoplayInput ApproachGateway(PcFieldGateway gateway, bool run)
+    {
+        if (gatewayGeneration != session.FieldGeneration || gatewayDestination != gateway.DestinationField || gatewayDestinationTriangle != gateway.DestinationTriangle)
         {
             gatewayGeneration = session.FieldGeneration;
-            gatewayDestination = destinationField;
+            gatewayDestination = gateway.DestinationField;
+            gatewayDestinationTriangle = gateway.DestinationTriangle;
             gatewayCrossingTarget = null;
         }
         if (gatewayCrossingTarget is Vector3 crossingTarget)
         {
-            return Steer(crossingTarget, run);
+            return Approach(crossingTarget, run: run);
         }
         Vector3 midpoint = (gateway.A + gateway.B) / 2;
         PcWalkmeshTriangle interior = session.Field.Walkmesh.MinBy(triangle => Vector3.DistanceSquared((triangle.A + triangle.B + triangle.C) / 3, midpoint))!;
@@ -76,7 +101,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
                 normal = -normal;
             }
             gatewayCrossingTarget = midpoint + new Vector3(normal * 96, 0);
-            return Steer(gatewayCrossingTarget.Value, run);
+            return Approach(gatewayCrossingTarget.Value, interior.Index, run);
         }
         return Approach(midpoint, interior.Index, run);
     }
@@ -201,7 +226,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         {
             byte nativeDirection = unchecked((byte)(direction.Direction + session.Field.Triggers.ControlDirection));
             Ff7NativeMoveResult probe = movement.StepDirection(controlled, nativeDirection, session.Host.Process.Actors, session.Host.Process.BlockedTriangles, false, session.Host.Process.LineBlocked);
-            if (!AllowsPlannedMove(controlled, probe.ProbeActor ?? probe.Actor))
+            if (!AllowsPlannedMove(controlled, probe))
             {
                 continue;
             }

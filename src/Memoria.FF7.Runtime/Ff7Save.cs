@@ -110,6 +110,10 @@ public sealed record Ff7SessionSave
             throw new InvalidDataException("The preserved native FFVII save slot has an invalid size.");
         }
         Process.Validate();
+        if (Process.GlobalCommand == Ff7GlobalCommand.Minigame && (World is not null || Battle is not null || Process.Transition is not null || Process.GlobalRequestId is not long minigameId || Process.Receipts.Count(receipt => receipt.Request.Id == minigameId && receipt.Request.Command is FieldMinigameCommand && !receipt.Reply.Completed && Vm.PendingRequests?.Contains(receipt.Request) == true) != 1))
+        {
+            throw new InvalidDataException("The FFVII minigame departure requires its matching unfinished field request.");
+        }
         if (Battle is not null)
         {
             bool hasOwner = World is { } world

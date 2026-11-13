@@ -18,10 +18,14 @@ public sealed partial class FieldMachine
                 return Host(id, new FieldControlCommand(FieldControlKind.CursorDisabled, B(id, 2)), 3);
             case 0x0F when B(id, 1) == 0xFB:
                 return Host(id, new FieldControlCommand(FieldControlKind.BattleMusicSuppressed, B(id, 2)), 3);
+            case 0x20:
+                return Host(id, ReadMinigameCommand(entities[id].Pc), 11, firstCallYields: true);
             case 0x22:
                 return Host(id, new FieldControlCommand(FieldControlKind.BattleMode2, W(id, 1), W(id, 3)), 5);
             case 0x23:
                 return Host(id, new FieldControlCommand(FieldControlKind.BattleResult, 0), 3, result: value => Variables.WriteWord(Bank(id, 2), B(id, 2), unchecked((short)value)));
+            case 0x26:
+                return ActorProperty(id, FieldActorPropertyKind.AutomaticBlinkDisabled, B(id, 1), 2);
             case 0x28:
                 int effectLength = B(id, 1);
                 if (effectLength < 4)
@@ -81,6 +85,8 @@ public sealed partial class FieldMachine
                 return Host(id, new FieldTimerCommand((uint)(R8(id, 1, 3) * 3600 + R8(id, 2, 4) * 60 + R8(id, 4, 5))), 6);
             case 0x40:
                 return Host(id, new FieldDialogueCommand(B(id, 1), B(id, 2)), 3);
+            case 0x41:
+                return Host(id, new FieldWindowCommand(FieldWindowOperation.Parameter, B(id, 2), Parameter: R8(id, 1, 3), ParameterBank: (FieldBank)(B(id, 1) & 15), ParameterAddress: B(id, 4)), 5);
             case 0x42:
                 return Host(id, new FieldWindowCommand(FieldWindowOperation.Parameter, B(id, 2), Parameter: R8(id, 1, 3), ParameterBank: (FieldBank)(B(id, 1) & 15), ParameterAddress: W(id, 4)), 6);
             case 0x43:
@@ -171,6 +177,8 @@ public sealed partial class FieldMachine
                 return Host(id, new FieldControlCommand(FieldControlKind.BattleMode, B(id, 1), B(id, 2)), 3);
             case 0x7E:
                 return ActorProperty(id, FieldActorPropertyKind.TalkEnabled, B(id, 1) == 0 ? 1 : 0, 2);
+            case 0x7F:
+                return Host(id, new FieldRandomStrideCommand(unchecked((byte)((R8(id, 2, 2) << 4) + 1))), 3);
             case 0x99:
                 return Host(id, new FieldRandomCommand(), 3, result: value => Variables.WriteByte(Bank(id, 2), B(id, 2), checked((byte)value)));
             case 0xA0:

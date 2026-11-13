@@ -37,6 +37,7 @@ public sealed record Ff7Progress
     public ushort BattleEscapes { get; init; }
     public long NextEncounterRequestId { get; init; } = 1L << 60;
     public byte FieldRandomIndex { get; init; }
+    public byte? FieldRandomStride { get; init; }
     public Ff7BattleRngState? BattleRng { get; init; }
     public string DebugVictoryPolicy { get; init; } = "instant-defeat-v1";
     public Ff7BattleReceipt[] CompletedBattles { get; init; } = [];

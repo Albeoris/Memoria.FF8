@@ -124,6 +124,12 @@ public sealed partial class Ff7BattleAnimationResources(LgpArchive archive, Ff7B
             0 => "rt",
             1 => "sb",
             2 => "ru",
+            3 => "rv",
+            4 => "rw",
+            5 => "rx",
+            6 => "ry",
+            7 => "rz",
+            8 => "sa",
             _ => throw new NotSupportedException($"FFVII party battle model {identity} is unsupported.")
         };
     }

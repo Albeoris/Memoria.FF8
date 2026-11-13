@@ -6,16 +6,24 @@ public sealed partial class Ff7FieldHost
 {
     private FieldHostReply FacePartyActor(int entity, FieldActorFaceParty command)
     {
-        if (command.PartySlot >= 3)
+        int character;
+        if (ReadScriptPartyByte is { } readByte && command.PartySlot <= byte.MaxValue - 9)
         {
-            throw new NotSupportedException("Native party facing requires a valid script-party slot.");
+            character = readByte(command.PartySlot);
         }
-        int[] party = ReadScriptParty?.Invoke() ?? throw new NotSupportedException("Native party facing requires the script-party owner.");
-        if (party.Length != 3 || party.Any(character => character is < 0 or > 255))
+        else
         {
-            throw new InvalidDataException("The native script-party byte identities are invalid.");
+            if (command.PartySlot >= 3)
+            {
+                throw new NotSupportedException("Native party facing reads beyond its script-party bank.");
+            }
+            int[] party = ReadScriptParty?.Invoke() ?? throw new NotSupportedException("Native party facing requires the script-party owner.");
+            if (party.Length != 3 || party.Any(member => member is < 0 or > 255))
+            {
+                throw new InvalidDataException("The native script-party byte identities are invalid.");
+            }
+            character = party[command.PartySlot];
         }
-        int character = party[command.PartySlot];
         if (character == 255)
         {
             return new(true);

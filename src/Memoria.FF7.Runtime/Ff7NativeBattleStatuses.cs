@@ -4,6 +4,7 @@ namespace Memoria.FF7.Runtime;
 
 public static class Ff7NativeBattleStatuses
 {
+    public const uint Sadness = 0x10;
     public const uint Confusion = 0x40;
     public const uint Silence = 0x80;
     public const uint SlowNumb = 0x2000;
@@ -14,10 +15,11 @@ public static class Ff7NativeBattleStatuses
     public const uint Shield = 0x100000;
     public const uint DeathSentence = 0x200000;
     public const uint Peerless = 0x1000000;
+    public const uint Paralysis = 0x2000000;
     public const uint DeathForce = 0x10000000;
     public const uint Resist = 0x20000000;
     public const uint Imprisoned = 0x80000000;
-    public const uint SupportedRecordStatuses = Confusion | Silence | SlowNumb | Regen | Barrier | MagicBarrier | Reflect | Shield | DeathSentence | Peerless | DeathForce | Resist | Imprisoned;
+    public const uint SupportedRecordStatuses = Confusion | Silence | SlowNumb | Regen | Barrier | MagicBarrier | Reflect | Shield | DeathSentence | Peerless | Paralysis | DeathForce | Resist | Imprisoned;
 
     public static uint ReadRecordMask(Ff7BattleAttack? record)
     {
@@ -52,7 +54,7 @@ public static class Ff7NativeBattleStatuses
         return imprisonedType switch
         {
             0 or 3 => statuses | 0x400,
-            1 => statuses | 0x02000000,
+            1 => statuses | Paralysis,
             _ => statuses
         };
     }

@@ -51,6 +51,12 @@ if (args.Contains("--guest-composite-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--minigame-only", StringComparer.Ordinal))
+{
+    NativeMinigameTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-saves-only", StringComparer.Ordinal))
 {
     NativeSaveBankTests.Run();
@@ -192,6 +198,7 @@ var tests = new (string Name, Action Run)[]
     ("native main-street local subset and frontiers", NativeWallMarketMainStreetCoverageTests.Run),
     ("native main-street nested tour entry and gate", NativeWallMarketMainStreetCoverageTests.RunNested),
     ("native autoplay rail crossing and pure previews", NativeAutoPlayRailTests.Run),
+    ("native train graveyard route and cold continuation", NativeTrainGraveyardTests.Run),
     ("native autoplay triangle handoff and pure previews", NativeAutoPlayBridgeTests.Run),
     ("native rejected movement binding and cold continuation", NativeMovementBindingTests.Run),
     ("native movement authored contracts", NativeMovementTests.Run),
@@ -214,6 +221,10 @@ var tests = new (string Name, Action Run)[]
     ("FFVII native Equip transactions and cold continuation", NativeMenuEquipmentTests.Run),
     ("FFVII native Limit level selection and cold continuation", NativeLimitMenuTests.Run),
     ("FFVII native field Item and Magic recovery", NativeFieldRecoveryTests.Run),
+    ("native MP Turbo materia in battle", NativeBattleMpTurboTests.Run),
+    ("native later party battle roster", NativeBattlePartyRosterTests.Run),
+    ("native Ruby Weapon phase", NativeBattleRubyPhaseTests.Run),
+    ("native story boss phases", NativeBattleStoryBossTests.Run),
     ("installed opening arena and battle actor resources", NativeBattleTests.RunOpeningRoster),
     ("native opening combat damage", NativeBattleDamageTests.Run),
     ("native opening action transactions and Limit reel", NativeBattleActionTests.Run),

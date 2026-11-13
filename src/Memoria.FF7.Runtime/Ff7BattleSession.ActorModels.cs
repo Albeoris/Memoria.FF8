@@ -13,10 +13,13 @@ public readonly record struct Ff7BattleWorldJoint(float X, float Y, float Z)
 }
 
 public sealed record Ff7BattleActorRenderState(int Clip, int Frame, Ff7BattlePosition Position, int Yaw, Ff7BattleActorModelModifiers Modifiers, ushort? Limit = null, short ProjectedScreenX = -1);
+public sealed record Ff7BattleActorFade(byte Remaining, ushort Step, bool Appearing, byte RedStep, byte GreenStep, byte BlueStep);
+
 public sealed record Ff7BattleActorModelState(int Slot, short Action = 0, BattleActionPoseState? Pose = null, bool Ready = true, ushort? Limit = null, long? IdleStarted = null, bool Reaction = false, long PendingSince = -1, Ff7BattleActorModelModifiers? Modifiers = null, Ff7BattlePosition? Position = null, int? FacingYaw = null, Ff7BattleWorldJoint[]? Joints = null, Ff7BattleActorRenderState? Render = null, bool ReactionKnockedOut = false, bool? PresentedKnockedOut = null)
 {
     public bool LinkedAction { get; init; }
     public Ff7BattleMotion? Motion { get; init; }
+    public Ff7BattleActorFade? Fade { get; init; }
 }
 
 public sealed partial class Ff7BattleSession
@@ -27,7 +30,7 @@ public sealed partial class Ff7BattleSession
 
     public short ActorProjectedScreenX(int slot) => ActorModelState(slot).Render?.ProjectedScreenX ?? -1;
 
-    public bool NativeActorModelsReady => state.ActorModels.All(model => model.Ready);
+    public bool NativeActorModelsReady => state.ActorModels.All(model => model.Ready && model.Fade is null);
     public Ff7BattleActorModelModifiers ActorModelOutput(int slot) => ActorModelState(slot).Render?.Modifiers ?? LiveActorModelOutput(slot);
     public (int Clip, int Frame) RenderActorPose(int slot) => ActorModelState(slot).Render is { } render ? (render.Clip, render.Frame) : VisualPose(slot);
     public Ff7BattlePlacement RenderActorPlacement(int slot) => ActorModelState(slot).Render is { } render ? new(render.Position.ToVector(), render.Yaw) : VisualPlacement(slot);
@@ -53,7 +56,7 @@ public sealed partial class Ff7BattleSession
         {
             state = state with { ActorModels = state.Actors.Select(actor => new Ff7BattleActorModelState(actor.Actor.Slot)).ToArray() };
         }
-        state = state with { ActorModels = state.ActorModels.Select(model => model with { Modifiers = model.Modifiers ?? new(Visible: model.Slot < 3 || IsAlive(Actor(model.Slot)) || state.Action is { } action && (action.Command.TargetMask & (1 << model.Slot)) != 0) }).ToArray() };
+        state = state with { ActorModels = state.ActorModels.Select(model => model with { Modifiers = model.Modifiers ?? new(Visible: model.Slot < 3 || IsAlive(Actor(model.Slot)) && (Enemy(model.Slot).InitialConditionFlags & 1) != 0 || state.Action is { } action && (action.Command.TargetMask & (1 << model.Slot)) != 0) }).ToArray() };
         if (absent && state.Action is { Applied: true } source)
         {
             PublishSourceModel(source, source.Pose);
@@ -170,7 +173,7 @@ public sealed partial class Ff7BattleSession
     {
         ReadOnlySpan<byte> operands = instruction.Operands.Span;
         int target = source + BinaryPrimitives.ReadInt16LittleEndian(operands);
-        if (target is < 4 or >= 10 || state.ActorModels.SingleOrDefault(model => model.Slot == target && model.Modifiers!.Visible) is not { } model)
+        if (target is < 4 or >= 10 || state.ActorModels.SingleOrDefault(model => model.Slot == target) is not { } model)
         {
             return;
         }
@@ -234,6 +237,10 @@ public sealed partial class Ff7BattleSession
                             DispatchLinkedActorAction(previous.Slot, instruction, copyFacing: false);
                         }
                         break;
+                    case 0xFB:
+                        model = ActorModelState(previous.Slot);
+                        ReplaceActorModel(model with { Position = PositionBesidePrimaryTarget(instruction.Operands.Span), Motion = null });
+                        break;
                     case 0xFA when previous.LinkedAction:
                         ResetActorPosition(previous.Slot);
                         ReplaceActorModel(ActorModelState(previous.Slot) with { Motion = null });
@@ -260,6 +267,19 @@ public sealed partial class Ff7BattleSession
                     case 0xB6 when previous.LinkedAction:
                     case 0xF2:
                     case 0x9E:
+                        break;
+                    case 0xE1:
+                    case 0xE2:
+                        BeginActorFade(previous.Slot, instruction.Opcode == 0xE1);
+                        break;
+                    case 0xE7:
+                        SetActorModelVisibility(previous.Slot, instruction.Operands.Span[0] != 0);
+                        break;
+                    case 0xF7:
+                        if (state.Action?.Command.TargetMask is ushort targets && targets != 0)
+                        {
+                            state = state with { PrimaryEffects = Ff7BattlePrimaryEffects.ScheduleTargetReactions(EnsurePrimaryEffects(), targets, instruction.Operands.Span[0]) };
+                        }
                         break;
                     case 0xF6:
                         if (previous.ReactionKnockedOut)
@@ -310,6 +330,55 @@ public sealed partial class Ff7BattleSession
             return;
         }
         ReplaceActorModel(model with { Action = selector, Pose = new(ClipIndex: clip, ClipFrame: frame), Ready = false, IdleStarted = null, Reaction = true, PendingSince = PresentationTick, ReactionKnockedOut = impact.PostActionKnockedOut, LinkedAction = false, Motion = null });
+    }
+
+    private void BeginActorFade(int slot, bool appearing)
+    {
+        byte duration = state.ActorFadeDuration ?? 14;
+        if (duration is 0 or > 127)
+        {
+            throw new InvalidDataException("FFVII actor fade duration is outside its native signed byte range.");
+        }
+        Ff7BattleActorModelState model = ActorModelState(slot);
+        Ff7BattleActorModelModifiers modifiers = model.Modifiers!;
+        Ff7BattleActorFade fade = new(duration, (ushort)(4096 / duration), appearing, (byte)(modifiers.Red / duration), (byte)(modifiers.Green / duration), (byte)(modifiers.Blue / duration));
+        ReplaceActorModel(model with { Fade = fade, Modifiers = modifiers with { Visible = appearing || modifiers.Visible, Transparency = appearing ? (ushort)4096 : (ushort)0 } });
+    }
+
+    private void AdvanceActorFades()
+    {
+        foreach (Ff7BattleActorModelState model in state.ActorModels)
+        {
+            if (model.Fade is not { } fade)
+            {
+                continue;
+            }
+            Ff7BattleActorModelModifiers modifiers = model.Modifiers!;
+            if (fade.Remaining == 0)
+            {
+                ReplaceActorModel(model with { Fade = null, Modifiers = modifiers with { Visible = fade.Appearing, Transparency = 0 } });
+                continue;
+            }
+
+            int direction = fade.Appearing ? 1 : -1;
+            ReplaceActorModel(model with
+            {
+                Fade = fade with { Remaining = (byte)(fade.Remaining - 1) },
+                Modifiers = modifiers with
+                {
+                    Transparency = (ushort)(modifiers.Transparency - direction * fade.Step),
+                    Red = unchecked((byte)(modifiers.Red + direction * fade.RedStep)),
+                    Green = unchecked((byte)(modifiers.Green + direction * fade.GreenStep)),
+                    Blue = unchecked((byte)(modifiers.Blue + direction * fade.BlueStep))
+                }
+            });
+        }
+    }
+
+    private void SetActorModelVisibility(int slot, bool visible)
+    {
+        Ff7BattleActorModelState model = ActorModelState(slot);
+        ReplaceActorModel(model with { Modifiers = model.Modifiers! with { Visible = visible } });
     }
 
     private void SetActorModelDeferral(int slot, bool deferred)
@@ -404,6 +473,10 @@ public sealed partial class Ff7BattleSession
             if (model.Action < 0 || model.PendingSince < -1 || model.PendingSince > presentation || model.PendingSince >= 0 && !model.Reaction || (model.ReactionKnockedOut || model.LinkedAction) && !model.Reaction || model.IdleStarted < 0 || model.IdleStarted > presentation || model.Pose is { TerminalOpcode: not (null or 0x9E or 0xEE or 0xFF) })
             {
                 throw new InvalidDataException("FFVII saved actor model readiness or pose cursor is invalid.");
+            }
+            if (model.Fade is { } fade && (fade.Remaining > 127 || fade.Step is 0 or > 4096 || fade.Remaining * fade.Step > 4096))
+            {
+                throw new InvalidDataException("FFVII saved actor fade is invalid.");
             }
             if (model.Motion is { } motion && (!model.LinkedAction || motion.Remaining is < 0 or > 255 || motion.VerticalSteps is not null))
             {

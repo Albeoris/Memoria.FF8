@@ -17,33 +17,7 @@ public static class Ff7NativeFieldRecovery
         return (items[itemId * Ff7BattleAttack.RecordSize + 10] & 4) == 0;
     }
 
-    public static IReadOnlyList<Ff7BattleSpell> ReadMagic(Ff7CharacterState caster, IReadOnlyList<KernelSection> kernel)
-    {
-        IReadOnlyList<Ff7BattleSpell> spells = Ff7NativeBattleSpells.Read(caster, kernel);
-        if (spells.Count == 0)
-        {
-            return spells;
-        }
-
-        ReadOnlySpan<byte> record = caster.NativeRecord;
-        ReadOnlySpan<byte> weapon = ReadGear(kernel, 5, 128, 44, record[28]);
-        ReadOnlySpan<byte> armor = ReadGear(kernel, 6, 32, 36, record[29]);
-        ReadOnlySpan<byte> materia = ReadSection(kernel, 8, 96 * 20);
-        Span<int> turboLevels = stackalloc int[56];
-        turboLevels.Clear();
-        ReadMpTurbo(weapon.Slice(28, 8), record.Slice(64, 32), materia, turboLevels);
-        ReadMpTurbo(armor.Slice(9, 8), record.Slice(96, 32), materia, turboLevels);
-
-        List<Ff7BattleSpell> projected = new(spells.Count);
-        foreach (Ff7BattleSpell spell in spells)
-        {
-            int level = turboLevels[spell.AttackId];
-            int cost = spell.Attack.CastingCost;
-            int adjusted = level == 0 ? cost : Math.Min(255, cost + cost * level / 10 + 1);
-            projected.Add(spell with { Attack = spell.Attack with { CastingCost = checked((ushort)adjusted) } });
-        }
-        return projected.AsReadOnly();
-    }
+    public static IReadOnlyList<Ff7BattleSpell> ReadMagic(Ff7CharacterState caster, IReadOnlyList<KernelSection> kernel) => Ff7NativeBattleSpells.Read(caster, kernel);
 
     public static bool SupportsMagic(int spellId) => spellId is 0 or 1 or 2 or 7 or 8 or 51;
 
@@ -223,46 +197,6 @@ public static class Ff7NativeFieldRecovery
             }
         }
         return bonus;
-    }
-
-    private static void ReadMpTurbo(ReadOnlySpan<byte> slots, ReadOnlySpan<byte> equipped, ReadOnlySpan<byte> materia, Span<int> levels)
-    {
-        for (int slot = 0; slot < slots.Length; slot += 2)
-        {
-            if ((slots[slot], slots[slot + 1]) is not ((2, 3) or (6, 7)))
-            {
-                continue;
-            }
-            uint left = BinaryPrimitives.ReadUInt32LittleEndian(equipped[(slot * 4)..]);
-            uint right = BinaryPrimitives.ReadUInt32LittleEndian(equipped[((slot + 1) * 4)..]);
-            AddMpTurbo(left, right, materia, levels);
-            AddMpTurbo(right, left, materia, levels);
-        }
-    }
-
-    private static void AddMpTurbo(uint support, uint magic, ReadOnlySpan<byte> materia, Span<int> levels)
-    {
-        if ((byte)support == byte.MaxValue || (byte)magic == byte.MaxValue)
-        {
-            return;
-        }
-
-        ReadOnlySpan<byte> supportRecord = ReadMateria(materia, (byte)support);
-        ReadOnlySpan<byte> magicRecord = ReadMateria(materia, (byte)magic);
-        if ((supportRecord[13] & 15) != 5 || supportRecord[14] != 0x58 || (magicRecord[13] & 15) != 9)
-        {
-            return;
-        }
-
-        int supportLevel = Ff7NativeMateriaInventory.ReadLevel(supportRecord, support >> 8);
-        int magicLevel = Ff7NativeMateriaInventory.ReadLevel(magicRecord, magic >> 8);
-        foreach (byte spell in magicRecord.Slice(14, magicLevel))
-        {
-            if (spell < levels.Length)
-            {
-                levels[spell] = Math.Min(5, levels[spell] + supportLevel);
-            }
-        }
     }
 
     private static ReadOnlySpan<byte> ReadMateria(ReadOnlySpan<byte> materia, int id)

@@ -117,7 +117,8 @@ public enum Ff7GlobalCommand
     Movie,
     Battle,
     Transition,
-    Menu
+    Menu,
+    Minigame
 }
 
 public sealed record Ff7FieldProcess

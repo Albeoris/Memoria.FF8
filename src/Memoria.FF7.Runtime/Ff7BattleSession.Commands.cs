@@ -26,6 +26,9 @@ public sealed record Ff7BattleCommandOption(Ff7BattleCommand Command, ushort Arg
 public sealed partial class Ff7BattleSession
 {
     private GuestCommandMenuCache? guestCommandMenuCache;
+    private readonly IReadOnlyList<Ff7BattleSpell>?[] nativeBattleSpells = new IReadOnlyList<Ff7BattleSpell>?[3];
+
+    private IReadOnlyList<Ff7BattleSpell> NativeBattleSpells(int slot) => nativeBattleSpells[slot] ??= Ff7NativeBattleSpells.Read(characters[slot]!, kernel);
 
     public IReadOnlyList<Ff7BattleCommandOption> Commands(int slot)
     {
@@ -126,7 +129,7 @@ public sealed partial class Ff7BattleSession
         {
             commands.Add(Option(Ff7BattleCommand.Attack, 0, stats.AttackTargetFlags));
         }
-        foreach (Ff7BattleSpell spell in Ff7NativeBattleSpells.Read(characters[slot]!, kernel))
+        foreach (Ff7BattleSpell spell in NativeBattleSpells(slot))
         {
             if (spell.Attack.CastingCost <= actor.Actor.MagicPoints && (actor.Actor.Statuses & 0x80) == 0)
             {
@@ -390,6 +393,18 @@ public sealed partial class Ff7BattleSession
                 {
                     ApplyActorPaletteColor(command.ActorSlot, instruction.Operands.Span);
                 }
+                else if (instruction.Opcode is 0xE1 or 0xE2)
+                {
+                    BeginActorFade(command.ActorSlot, instruction.Opcode == 0xE1);
+                }
+                else if (instruction.Opcode == 0xC6)
+                {
+                    state = state with { ActorFadeDuration = instruction.Operands.Span[0] };
+                }
+                else if (instruction.Opcode == 0xE7)
+                {
+                    SetActorModelVisibility(command.ActorSlot, instruction.Operands.Span[0] != 0);
+                }
                 else if (instruction.Opcode == 0x97)
                 {
                     StartExplicitActorDeath(command.ActorSlot, instruction.Operands.Span);
@@ -416,6 +431,10 @@ public sealed partial class Ff7BattleSession
                     ReadOnlySpan<byte> operands = instruction.Operands.Span;
                     short[] vertical = presentation.JumpDeltas(operands[2]);
                     active = active with { Motion = BeginApproach(active, BinaryPrimitives.ReadInt16LittleEndian(operands), vertical.Length, vertical)?.Advance() };
+                }
+                else if (instruction.Opcode == 0xFB)
+                {
+                    active = active with { Motion = new(PositionBesidePrimaryTarget(instruction.Operands.Span), default, 0) };
                 }
                 else if (instruction.Opcode == 0xFA)
                 {
@@ -569,10 +588,13 @@ public sealed partial class Ff7BattleSession
         int slot = command.ActorSlot;
         Ff7BattleActorState source = Actor(slot);
         bool beatRush = command.CommandId == (byte)Ff7BattleCommand.Limit && command.Argument == 0x95;
+        Ff7BattleSpell? spell = slot < 3 && command.CommandId == (byte)Ff7BattleCommand.Magic
+            ? NativeBattleSpells(slot).SingleOrDefault(spell => spell.AttackId == command.Argument)
+            : null;
         Ff7BattleAttack? record = command.CommandId switch
         {
             0x20 => Data.Attacks.Single(attack => attack.Slot == command.Argument && attack.Id == command.AttackId).Data,
-            (byte)Ff7BattleCommand.Magic => ReadKernelAttack(command.Argument),
+            (byte)Ff7BattleCommand.Magic => spell?.Attack ?? ReadKernelAttack(command.Argument),
             (byte)Ff7BattleCommand.Limit when beatRush => Ff7NativeBattleLimits.ReadBeatRush(kernel, state.BeatRush!.Reel.ReadResult(beatRushSymbols)),
             (byte)Ff7BattleCommand.Limit => limits[command.Argument - 0x80],
             (byte)Ff7BattleCommand.Item => ReadBattleItem(command.Argument) ?? throw new InvalidDataException("FFVII action references a non-battle item."),
@@ -593,6 +615,10 @@ public sealed partial class Ff7BattleSession
             return;
         }
         Ff7BattleDamageAction action = record is null ? party[slot]!.Value.Attack : Ff7BattleDamageAction.FromAttack(record);
+        if (spell is { MpTurboLevel: > 0 })
+        {
+            action = action with { MpTurboLevel = spell.MpTurboLevel };
+        }
         if (command.GroupTarget && (command.TargetMask & (command.TargetMask - 1)) != 0)
         {
             action = action with { Split = true };
@@ -619,13 +645,13 @@ public sealed partial class Ff7BattleSession
         Dictionary<byte, int>? allUses = source.AllUses;
         if (command.GroupTarget)
         {
-            byte spell = checked((byte)command.Argument);
-            int available = allUses?.GetValueOrDefault(spell) ?? 0;
+            byte spellId = checked((byte)command.Argument);
+            int available = allUses?.GetValueOrDefault(spellId) ?? 0;
             if (available <= 0)
             {
                 return;
             }
-            allUses = new(allUses!) { [spell] = available - 1 };
+            allUses = new(allUses!) { [spellId] = available - 1 };
         }
         Replace(source with { Defending = false, LimitGauge = limitGauge, AllUses = allUses, Actor = source.Actor with { MagicPoints = sourceVitals.Mp } });
         if (beatRush)
@@ -671,6 +697,7 @@ public sealed partial class Ff7BattleSession
         if (action.Formula >> 4 is 1 or 0xB)
         {
             (source, action) = ProjectPhysicalFacing(source, target, action);
+            action = Ff7NativeBattleActionResolver.ApplyFacingEffect(action, record, target.Actor.Conditions);
             Replace(source);
         }
         Ff7BattleAiActor native = target.Actor;

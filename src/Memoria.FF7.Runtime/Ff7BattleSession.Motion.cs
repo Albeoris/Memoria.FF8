@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Numerics;
 using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
@@ -195,6 +196,19 @@ public sealed partial class Ff7BattleSession
         int cosine = (int)Math.Round(Math.Cos(radians) * 4096);
         Ff7BattlePosition destination = new(center.X - (sine * distance >> 12), targets.Length == 1 && source >= 4 ? center.Y : origin.Y, center.Z + (cosine * distance >> 12));
         return new(origin, (destination - origin) / steps, steps, verticalSteps);
+    }
+
+    private Ff7BattlePosition PositionBesidePrimaryTarget(ReadOnlySpan<byte> operands)
+    {
+        int target = state.ModelPrimaryTarget;
+        Ff7BattlePlacement placement = VisualPlacement(target);
+        Ff7BattlePosition position = Ff7BattlePosition.FromVector(placement.Position);
+        int distance = BinaryPrimitives.ReadInt16LittleEndian(operands) + animations!.CollisionRadius(ActorModel(target));
+        int angle = (0x800 - placement.Yaw) & 0xFFF;
+        double radians = angle * Math.Tau / 4096;
+        int sine = (int)(Math.Sin(radians) * 4096);
+        int cosine = (int)(Math.Cos(radians) * 4096);
+        return new(unchecked((short)(position.X - (sine * distance >> 12))), BinaryPrimitives.ReadInt16LittleEndian(operands[2..]), unchecked((short)(position.Z + (cosine * distance >> 12))));
     }
 
     private int? TurnTowardTarget(Ff7BattleActionState action, int? actor = null)

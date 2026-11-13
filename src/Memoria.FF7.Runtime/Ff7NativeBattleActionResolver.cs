@@ -32,7 +32,7 @@ public static class Ff7NativeBattleActionResolver
     private const uint Stop = 0x400;
 
     private const uint PhysicalWakeStatuses = Sleep | 0x40 | 0x00400000;
-    private const uint SupportedRecordStatuses = Death | Sleep | Poison | Slow | Darkness | Ff7NativeBattleStatuses.SupportedRecordStatuses;
+    private const uint SupportedRecordStatuses = Death | Sleep | Poison | Ff7NativeBattleStatuses.Sadness | Slow | Darkness | Ff7NativeBattleStatuses.SupportedRecordStatuses;
     private const uint Petrify = 0x4000;
     private const uint Peerless = 0x01000000;
     private const uint DeathForce = 0x10000000;
@@ -246,8 +246,9 @@ public static class Ff7NativeBattleActionResolver
         {
             supportedStatuses |= 0x100 | Stop;
         }
+        action = ApplyFacingEffect(action, record, targetStats.NativeConditions);
         // The original 0x87 entry has no handler in any native damage-resolution phase.
-        bool unsupportedEffect = record is { AdditionalEffect: not byte.MaxValue } && record is not { DamageCalculation: 0x6D, AdditionalEffect: 0x87 };
+        bool unsupportedEffect = record is { AdditionalEffect: not byte.MaxValue } && record is not ({ DamageCalculation: 0x6D, AdditionalEffect: 0x87 } or { AdditionalEffect: 4, AdditionalEffectModifier: <= 1 });
         if ((mask & ~supportedStatuses) != 0 || unsupportedEffect)
         {
             throw new NotSupportedException($"FFVII attack has unsupported additional effect or status mask 0x{mask:X8}.");
@@ -332,6 +333,15 @@ public static class Ff7NativeBattleActionResolver
             RemovedOriginSavedStatuses = (ushort)(target.OriginSavedStatuses & ~nextTarget.OriginSavedStatuses & Ff7OriginSavedStatusRules.Supported),
             OffensiveRevival = offensiveRevival
         };
+    }
+
+    internal static Ff7BattleDamageAction ApplyFacingEffect(Ff7BattleDamageAction action, Ff7BattleAttack? record, uint targetConditions)
+    {
+        if (record is { AdditionalEffect: 4, AdditionalEffectModifier: <= 1 } facing && ((targetConditions >> 7) & 1) == facing.AdditionalEffectModifier)
+        {
+            return action with { BackAttack = true };
+        }
+        return action;
     }
 
     private static uint ReadStatusMask(Ff7BattleAttack? record) => Ff7NativeBattleStatuses.ReadRecordMask(record);
@@ -487,7 +497,7 @@ public static class Ff7NativeBattleActionResolver
             return target with { Mp = (ushort)Math.Clamp((long)target.Mp - damage, 0, target.MaxMp) };
         }
         uint hp = (uint)Math.Clamp((long)target.Hp - damage, 0, target.MaxHp);
-        uint statuses = hp == 0 ? target.Statuses | Death : target.Statuses;
+        uint statuses = hp == 0 && target.Hp != 0 ? target.Statuses | Death : target.Statuses;
         if ((statuses & Death) != 0 && (target.StatusImmunities & Stop) == 0)
         {
             statuses &= ~Stop;

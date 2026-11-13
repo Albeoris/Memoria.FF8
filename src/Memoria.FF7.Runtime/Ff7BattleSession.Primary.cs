@@ -99,6 +99,7 @@ public sealed partial class Ff7BattleSession
             }
             return;
         }
+        AdvanceActorFades();
         Ff7BattlePrimaryState primary = Ff7BattlePrimaryEffects.Advance(EnsurePrimaryEffects(), PrimaryContext());
         state = state with { PrimaryEffects = primary, StageFade = primary.StageFade, SearchScopeScaleCounter = primary.SearchScopeCounter, SilkDirection = primary.SilkLines.Direction };
         foreach (Ff7BattleActorModelWrite write in primary.ActorWrites)

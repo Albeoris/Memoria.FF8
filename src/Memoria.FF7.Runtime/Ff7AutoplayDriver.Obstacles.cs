@@ -66,7 +66,7 @@ public sealed partial class Ff7AutoplayDriver
         var direction = Directions.Single(direction => direction.X == next.Input.Horizontal && direction.Y == next.Input.Vertical);
         byte heading = unchecked((byte)(direction.Direction + session.Field.Triggers.ControlDirection));
         Ff7NativeMoveResult preview = movement.StepDirection(player, heading, session.Host.Process.Actors, session.Host.Process.BlockedTriangles, false, session.Host.Process.LineBlocked);
-        if (!AllowsPlannedMove(player, preview.ProbeActor ?? preview.Actor))
+        if (!AllowsPlannedMove(player, preview))
         {
             obstacleEscape.Clear();
             return false;
@@ -120,7 +120,7 @@ public sealed partial class Ff7AutoplayDriver
                 for (; frames < framesPerEdge; frames++)
                 {
                     Ff7NativeMoveResult preview = movement.StepDirection(actor, heading, session.Host.Process.Actors, session.Host.Process.BlockedTriangles, false, false);
-                    if (!AllowsPlannedMove(actor, preview.ProbeActor ?? preview.Actor))
+                    if (!AllowsPlannedMove(actor, preview))
                     {
                         break;
                     }

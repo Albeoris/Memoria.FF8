@@ -23,6 +23,7 @@ public readonly record struct Ff7BattleStatusTimers(ushort Remainder, byte Sleep
     public byte? SlowPetrify { get; init; }
     public byte? Peerless { get; init; }
     public byte? Stop { get; init; }
+    public byte? Paralysis { get; init; }
 }
 
 public readonly record struct Ff7BattleStatusTick(Ff7BattleStatusTimers Timers, uint Statuses, bool PoisonDue)
@@ -51,6 +52,7 @@ public static class Ff7NativeBattleStatusClock
     private const uint Peerless = 0x1000000;
     private const uint Stop = 0x400;
     private const byte StopDuration = 30;
+    private const byte ParalysisDuration = 20;
 
     public static Ff7BattleStatusTimers Apply(Ff7BattleStatusTimers timers, uint previousStatuses, uint statuses)
     {
@@ -60,7 +62,7 @@ public static class Ff7NativeBattleStatusClock
         byte? Duration(uint mask, byte? saved, byte duration) => (statuses & mask) == 0 ? saved is null ? null : (byte)0 : (added & mask) != 0 || saved is null or 0 ? duration : saved.Value;
         byte? doom = (statuses & DeathSentence) == 0 ? timers.DeathSentence is null ? null : (byte)0 : (added & DeathSentence) != 0 || timers.DeathSentence is null ? (byte)60 : timers.DeathSentence;
         byte? stop = (statuses & Stop) == 0 || (statuses & Ff7NativeBattleActionResolver.Death) != 0 ? timers.Stop is null ? null : (byte)0 : (added & Stop) != 0 || timers.Stop is null ? StopDuration : timers.Stop;
-        return timers with { Sleep = sleep, Poison = poison, Barrier = Duration(Ff7NativeBattleStatuses.Barrier, timers.Barrier, 127), MagicBarrier = Duration(Ff7NativeBattleStatuses.MagicBarrier, timers.MagicBarrier, 127), Shield = Duration(Ff7NativeBattleStatuses.Shield, timers.Shield, 64), Regen = Duration(Regen, timers.Regen, 127), DeathSentence = doom, SlowPetrify = Duration(SlowPetrify, timers.SlowPetrify, 30), Peerless = Duration(Peerless, timers.Peerless, 64), Stop = stop };
+        return timers with { Sleep = sleep, Poison = poison, Barrier = Duration(Ff7NativeBattleStatuses.Barrier, timers.Barrier, 127), MagicBarrier = Duration(Ff7NativeBattleStatuses.MagicBarrier, timers.MagicBarrier, 127), Shield = Duration(Ff7NativeBattleStatuses.Shield, timers.Shield, 64), Regen = Duration(Regen, timers.Regen, 127), DeathSentence = doom, SlowPetrify = Duration(SlowPetrify, timers.SlowPetrify, 30), Peerless = Duration(Peerless, timers.Peerless, 64), Stop = stop, Paralysis = Duration(Ff7NativeBattleStatuses.Paralysis, timers.Paralysis, ParalysisDuration) };
     }
 
     public static bool AdvanceGlobalClock(ref Ff7BattleGlobalStatusClock clock, byte battleSpeed)
@@ -74,7 +76,7 @@ public static class Ff7NativeBattleStatusClock
 
     public static Ff7BattleStatusTick Advance(Ff7BattleStatusTimers timers, uint statuses, byte battleSpeed, byte imprisonedType = 0, uint maximumHitPoints = 0, bool globalTick = false, ushort originSavedStatuses = 0)
     {
-        if (timers.Remainder >= TimeUnit || timers.Sleep > SleepDuration || timers.Poison > PoisonInterval || timers.Barrier > 127 || timers.MagicBarrier > 127 || timers.Shield > 64 || timers.HitPointRemainder >= 32768 || timers.FixedRemainder >= 4096 || timers.Regen > 127 || timers.DeathSentence > 60 || timers.SlowPetrify > 30 || timers.Peerless > 64 || timers.Stop > StopDuration || imprisonedType > 3)
+        if (timers.Remainder >= TimeUnit || timers.Sleep > SleepDuration || timers.Poison > PoisonInterval || timers.Barrier > 127 || timers.MagicBarrier > 127 || timers.Shield > 64 || timers.HitPointRemainder >= 32768 || timers.FixedRemainder >= 4096 || timers.Regen > 127 || timers.DeathSentence > 60 || timers.SlowPetrify > 30 || timers.Peerless > 64 || timers.Stop > StopDuration || timers.Paralysis > ParalysisDuration || imprisonedType > 3)
         {
             throw new InvalidDataException("FFVII battle status timer continuation is invalid.");
         }
@@ -167,7 +169,7 @@ public static class Ff7NativeBattleStatusClock
             }
             return remaining;
         }
-        timers = timers with { Barrier = Expire(timers.Barrier, Ff7NativeBattleStatuses.Barrier), MagicBarrier = Expire(timers.MagicBarrier, Ff7NativeBattleStatuses.MagicBarrier), Shield = Expire(timers.Shield, Ff7NativeBattleStatuses.Shield), Regen = Expire(timers.Regen, Regen), Peerless = Expire(timers.Peerless, Peerless) };
+        timers = timers with { Barrier = Expire(timers.Barrier, Ff7NativeBattleStatuses.Barrier), MagicBarrier = Expire(timers.MagicBarrier, Ff7NativeBattleStatuses.MagicBarrier), Shield = Expire(timers.Shield, Ff7NativeBattleStatuses.Shield), Regen = Expire(timers.Regen, Regen), Peerless = Expire(timers.Peerless, Peerless), Paralysis = Expire(timers.Paralysis, Ff7NativeBattleStatuses.Paralysis) };
         return new(timers, statuses, poisonDue) { HitPointDelta = hpDelta, DeathSentenceDue = deathSentenceDue };
     }
 

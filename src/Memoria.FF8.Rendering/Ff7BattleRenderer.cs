@@ -77,13 +77,7 @@ public sealed partial class Ff7BattleRenderer
 
     public static string PartyModelPrefix(int characterId)
     {
-        return characterId switch
-        {
-            0 => "rt",
-            1 => "sb",
-            2 => "ru",
-            _ => throw new NotSupportedException($"FFVII party battle model {characterId} is unsupported.")
-        };
+        return Ff7BattleAnimationResources.ModelPrefix(characterId, enemy: false);
     }
 
     public static string EnemyModelPrefix(int enemyId)

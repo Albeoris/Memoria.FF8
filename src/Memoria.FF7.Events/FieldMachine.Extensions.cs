@@ -47,6 +47,15 @@ public sealed partial class FieldMachine
         return yieldAfter;
     }
 
+    private FieldMinigameCommand ReadMinigameCommand(int pc)
+    {
+        ushort Word(int offset) => (ushort)(program.Read(pc + offset) | program.Read(pc + offset + 1) << 8);
+        if (program.Read(pc) != 0x20)
+        {
+            throw new InvalidDataException("A native minigame request requires its original MINIGAME instruction.");
+        }
+        return new(new(Word(1), unchecked((short)Word(3)), unchecked((short)Word(5)), Word(7), program.Read(pc + 9)), program.Read(pc + 10));
+    }
     private FieldModelEffectCommand ReadModelEffectCommand(int pc)
     {
         int length = program.Read(pc + 1);
@@ -81,6 +90,10 @@ public sealed partial class FieldMachine
                     throw new InvalidDataException("The saved model-effect request differs from its original script operands.");
                 }
                 restored = request with { Command = decoded };
+            }
+            if (request.Command is FieldMinigameCommand minigame && minigame != ReadMinigameCommand(request.ProgramCounter))
+            {
+                throw new InvalidDataException("The saved minigame request differs from its original script operands.");
             }
             if (!pendingRequests.TryAdd((request.Entity, request.Priority, request.ProgramCounter), restored))
             {

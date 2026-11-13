@@ -68,6 +68,10 @@ internal sealed partial class Ff7ModelAppearance
             calibrationDescriptorScale = float.Parse(closeupDescriptor.Scale, System.Globalization.CultureInfo.InvariantCulture),
             ProfileId = appearance.ProfileId
         });
+        Ff7FieldResources wallMarket = Ff7FieldResources.Load(installation, "mrkt2");
+        PcFieldModelDescriptor dressedDescriptor = wallMarket.Models.Models.Single(model => Path.GetFileName(model.Hrc).Equals("dlfb.hrc", StringComparison.OrdinalIgnoreCase));
+        Ff7FieldModelResources dressed = Ff7FieldModelResources.Load(characters, dressedDescriptor);
+        appearance.variants.Add("dlfb.hrc", CreateFieldCharacter(assets, 0, dressedDescriptor, dressed));
         return appearance;
     }
 

@@ -30,6 +30,7 @@ public sealed record FieldActorPosition(short X, short Y, short Z, short Triangl
 [JsonDerivedType(typeof(FieldTimerCommand), "timer")]
 [JsonDerivedType(typeof(FieldDialogueCommand), "dialogue")]
 [JsonDerivedType(typeof(FieldTransitionCommand), "transition")]
+[JsonDerivedType(typeof(FieldMinigameCommand), "minigame")]
 [JsonDerivedType(typeof(FieldBattleCommand), "battle")]
 [JsonDerivedType(typeof(FieldControlCommand), "control")]
 [JsonDerivedType(typeof(FieldBackgroundCommand), "background")]
@@ -37,6 +38,7 @@ public sealed record FieldActorPosition(short X, short Y, short Z, short Triangl
 [JsonDerivedType(typeof(FieldMenuCommand), "menu")]
 [JsonDerivedType(typeof(FieldPreloadCommand), "preload")]
 [JsonDerivedType(typeof(FieldRandomCommand), "random")]
+[JsonDerivedType(typeof(FieldRandomStrideCommand), "random-stride")]
 [JsonDerivedType(typeof(FieldMateriaCommand), "materia")]
 [JsonDerivedType(typeof(FieldItemCommand), "item")]
 [JsonDerivedType(typeof(FieldGilCommand), "gil")]
@@ -96,7 +98,8 @@ public enum FieldActorPropertyKind
     StopAnimation,
     PartyCharacter,
     OffsetWait,
-    TurnWait
+    TurnWait,
+    AutomaticBlinkDisabled
 }
 public sealed record FieldActorProperty(FieldActorPropertyKind Property, int Value) : FieldCommand;
 public enum FieldWindowOperation
@@ -115,6 +118,7 @@ public enum FieldWindowOperation
 public sealed record FieldWindowCommand(FieldWindowOperation Operation, int Window, short X = 0, short Y = 0, short Width = 0, short Height = 0, int Style = 0, int Flags = 0, int Parameter = 0, FieldBank ParameterBank = FieldBank.Immediate, ushort ParameterAddress = 0) : FieldCommand;
 public sealed record FieldDialogueCommand(int Window, int Text, int? FirstChoice = null, int? LastChoice = null, int Selected = 0) : FieldCommand;
 public sealed record FieldTransitionCommand(ushort Map, short X, short Y, ushort Triangle, byte Direction) : FieldCommand;
+public sealed record FieldMinigameCommand(FieldTransitionCommand Return, byte Game) : FieldCommand;
 public sealed record FieldBattleCommand(ushort Formation) : FieldCommand;
 public enum FieldControlKind
 {
@@ -209,6 +213,7 @@ public sealed record FieldActorOffset(short X, short Y, short Z, byte Mode, shor
 public sealed record FieldPreloadCommand(ushort Map = 0, bool Wait = false) : FieldCommand;
 
 public sealed record FieldRandomCommand : FieldCommand;
+public sealed record FieldRandomStrideCommand(byte Stride) : FieldCommand;
 
 public sealed record FieldTriangleCommand(ushort Triangle, bool Blocked) : FieldCommand;
 

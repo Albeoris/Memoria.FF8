@@ -79,6 +79,7 @@ public sealed record Ff7BattleSnapshot(long RequestId, int FormationId, byte Lay
     public Ff7BattleActorMotionState? ActorMotion { get; init; }
     public Ff7BattleActorModelState[] ActorModels { get; init; } = [];
     public int ModelPrimaryTarget { get; init; }
+    public byte? ActorFadeDuration { get; init; }
     public Ff7BattleHit? DisplayedHit { get; init; }
     public bool GuestAttackUsed { get; init; }
     public bool GuestPresentationAttached { get; init; }

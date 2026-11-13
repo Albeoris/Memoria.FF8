@@ -203,6 +203,11 @@ public sealed partial class Ff7Session : IDisposable
             }
             return;
         }
+        if (tickContinuation is null && Host.PendingMinigame is { } minigame)
+        {
+            AdvanceMinigame(minigame);
+            return;
+        }
         if (tickContinuation is null && Host.Process.Transition is not null)
         {
             CompleteFieldTransition();
@@ -317,6 +322,7 @@ public sealed partial class Ff7Session : IDisposable
             ReadInputHeld = () => Machine.Input.Held,
             ReadFieldByte = operand => Machine.Variables.ReadByte(operand.Bank, operand.Value),
             ReadScriptParty = () => Enumerable.Range(9, 3).Select(address => (int)Machine.Variables.ReadByte(FieldBank.Persistent1Byte, (byte)address)).ToArray(),
+            ReadScriptPartyByte = slot => Machine.Variables.ReadByte(FieldBank.Persistent1Byte, checked((byte)(9 + slot))),
             ModelPartVertexCounts = model => loadedModels[model].Geometry.Select(part => part.Polygon.Vertices.Count).ToArray(),
             ModelPartPolygonCounts = model => loadedModels[model].Geometry.Select(part => part.Polygon.Polygons.Count).ToArray(),
             ExternalCommand = ExecuteExternal,
@@ -409,9 +415,14 @@ public sealed partial class Ff7Session : IDisposable
         {
             return AcquireMateria(materia);
         }
+        if (command is FieldRandomStrideCommand stride)
+        {
+            Progress = Progress with { FieldRandomStride = stride.Stride };
+            return new(true);
+        }
         if (command is FieldRandomCommand)
         {
-            byte index = unchecked((byte)(Progress.FieldRandomIndex + executable.FieldRandomStep));
+            byte index = unchecked((byte)(Progress.FieldRandomIndex + (Progress.FieldRandomStride ?? executable.FieldRandomStep)));
             byte value = executable.NativeFieldRandomTable[index];
             Progress = Progress with { FieldRandomIndex = index };
             return new(true, value);
