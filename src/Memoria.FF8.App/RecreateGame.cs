@@ -548,7 +548,7 @@ internal sealed partial class RecreateGame : Game
     {
         try
         {
-            if (movieSkipGesture.Update(gameTime.ElapsedGameTime, keyboard.CancelHeld))
+            if (movieSkipGesture.Update(gameTime.ElapsedGameTime, keyboard.CancelHeld, skipAllowed: !InteractiveFieldMovies.RequiresPlayerInput(session.State)))
             {
                 world ??= CreateWorld();
                 world.EnsureField();
@@ -1641,7 +1641,10 @@ internal sealed partial class RecreateGame : Game
         {
             DrawPartyMenu(bounds);
         }
-        MovieSkipHint.Draw(uiCanvas!, new Memoria.FF8.Ui.UiRect(bounds.X, bounds.Y, bounds.Width, bounds.Height), session.State.Scene, movieSkipGesture, keyboard.BindingPrompt(ControlAction.Cancel), uiPreferences.UiFontFamily, LocalizeUiText);
+        if (!InteractiveFieldMovies.RequiresPlayerInput(session.State))
+        {
+            MovieSkipHint.Draw(uiCanvas!, new Memoria.FF8.Ui.UiRect(bounds.X, bounds.Y, bounds.Width, bounds.Height), session.State.Scene, movieSkipGesture, keyboard.BindingPrompt(ControlAction.Cancel), uiPreferences.UiFontFamily, LocalizeUiText);
+        }
         if (error is not null)
         {
             DrawNoticeUi(bounds, error, true);

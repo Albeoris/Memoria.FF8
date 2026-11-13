@@ -44,7 +44,7 @@ internal sealed partial class AutoPlayController
     private bool TryDriveAirborneRescueMovie()
     {
         // NG-050: The airborne fight executes its field input scripts during both movies.
-        if ((session.State.FieldId, session.State.MovieSource?.MovieIndex) is not ((144, 32) or (152, 33)) || session.State.MovieSource?.DiscIndex != 1)
+        if (!InteractiveFieldMovies.IsAirborneRescue(session.State))
         {
             return false;
         }

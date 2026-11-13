@@ -1,7 +1,41 @@
+using Memoria.FF8.Runtime;
+
 namespace Memoria.FF8.App.Tests;
 
 public sealed class MovieSkipGestureTests
 {
+    [Theory]
+    [InlineData(144, 1, 32)]
+    [InlineData(152, 1, 33)]
+    [InlineData(809, 1, 3)]
+    public void Interactive_movies_ignore_a_long_cancel_hold_and_clear_the_hint(int field, byte disc, int movie)
+    {
+        GameState state = new() { Scene = SceneKind.Movie, FieldId = field, MovieSource = new(disc, movie) };
+        MovieSkipGesture gesture = new();
+        Assert.False(gesture.Update(TimeSpan.FromSeconds(0.75), cancelHeld: true));
+        Assert.True(gesture.Visible);
+
+        for (int second = 0; second < 3; second++)
+        {
+            Assert.False(gesture.Update(TimeSpan.FromSeconds(1), cancelHeld: true, skipAllowed: !InteractiveFieldMovies.RequiresPlayerInput(state)));
+            Assert.False(gesture.Visible);
+            Assert.Equal(0f, gesture.Progress);
+        }
+    }
+
+    [Theory]
+    [InlineData(74, 0, 30)]
+    [InlineData(809, 1, 2)]
+    [InlineData(144, 0, 32)]
+    [InlineData(152, 1, 32)]
+    [InlineData(675, 1, 33)]
+    public void Other_movies_allow_cancel_to_skip(int field, byte disc, int movie)
+    {
+        GameState state = new() { Scene = SceneKind.Movie, FieldId = field, MovieSource = new(disc, movie) };
+        MovieSkipGesture gesture = new();
+        Assert.True(gesture.Update(TimeSpan.FromSeconds(1), cancelHeld: true, skipAllowed: !InteractiveFieldMovies.RequiresPlayerInput(state)));
+    }
+
     [Fact]
     public void Idle_movie_starts_without_a_hint_or_progress()
     {

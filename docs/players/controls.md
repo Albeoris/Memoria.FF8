@@ -109,7 +109,7 @@ The preference is stored as `ShowAchievementProgress` in `ui-settings.json`; exi
 
 ## Movies and naming
 
-Hold the currently bound **Cancel** input for one second to request a movie skip. A progress hint appears while holding. A brief press does not complete the gesture. The gesture follows the Cancel binding; there is no separate movie-skip binding.
+Hold the currently bound **Cancel** input for one second to request a movie skip. A progress hint appears while holding. A brief press does not complete the gesture. The gesture follows the Cancel binding; there is no separate movie-skip binding. The interactive movies in the airborne soldier fight and the D-District Prison bridge collapse disable the gesture so their gameplay controls stay available.
 
 When a name-entry interface accepts keyboard text, type the name and use its on-screen editing controls. Ordinary keyboard action bindings are suppressed during text entry. Enter always confirms, Escape always cancels, and the arrow keys always move in their respective directions, alongside your custom bindings. These keys cannot be assigned to other actions, including as part of a combination. Tab and Page Up / Page Down also provide navigation in settings and text-entry contexts.
 

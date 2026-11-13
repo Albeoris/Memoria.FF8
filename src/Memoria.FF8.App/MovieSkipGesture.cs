@@ -12,8 +12,13 @@ internal sealed class MovieSkipGesture
     public bool Visible => remaining > TimeSpan.Zero;
     public float Progress => (float)(held.TotalSeconds / Duration.TotalSeconds);
 
-    public bool Update(TimeSpan elapsed, bool cancelHeld)
+    public bool Update(TimeSpan elapsed, bool cancelHeld, bool skipAllowed = true)
     {
+        if (!skipAllowed)
+        {
+            Reset();
+            return false;
+        }
         if (completed)
         {
             return false;

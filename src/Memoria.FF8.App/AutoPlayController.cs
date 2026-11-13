@@ -648,7 +648,7 @@ internal sealed partial class AutoPlayController
                 return;
             }
             // NG-020: the bridge collapse checks Squall's position after the controllable movie.
-            if (world.Events.FieldId == 809 && session.State.MovieSource is { DiscIndex: 1, MovieIndex: 3 })
+            if (InteractiveFieldMovies.IsPrisonBridgeCollapse(session.State))
             {
                 var axes = world.Events.AutoPlayMovementAxes(new(-1, 0));
                 Apply(world.Events.CanAcceptMovementInput ? new(PlayerActionKind.Move, Horizontal: axes.X, Vertical: axes.Y, Frames: 120) : new(PlayerActionKind.Wait));
