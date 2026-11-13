@@ -852,7 +852,24 @@ internal sealed partial class AutoPlayController
         }
         var (resumedWalk, skippedWalkVariant) = ResumeInterruptedGatewayWalk(world, navigation, targets);
         Func<AutoPlayPlanStep, bool>? canTravel = TravelAdmission(navigation);
-        AutoPlayPlanStep? next = resumedWalk?.Plan ?? PlanWithExhaustedSurvey(run, planner, navigation, candidate => NeedsVisitRefresh(world, candidate), vertex => IsNavigationResourceCurrent(world, vertex), guard => world.ReadAutoPlayFieldProgramHash(guard.FieldId) == guard.ProgramHash ? world.Events.ReadPersistentPredicateFingerprint(guard.Reads) : null, canTravel, preferredGoal);
+        AutoPlayPlanStep? next = resumedWalk?.Plan;
+        if (RagnarokGoal(world) is > 0 and int ragnarokGoal)
+        {
+            if (RagnarokTravel(world, ragnarokGoal) is string nativePassage)
+            {
+                AutoPlayEventCoverage? passage = run.Coverage.Visits.Single(item => item.Visit.Key == visit).Events.FirstOrDefault(item => item.Event.Id == nativePassage && item.Available && !item.Unavailable && item.BlockedReason is null);
+                if (passage is not null && next?.Event.Id != nativePassage)
+                {
+                    next = new(visit, passage.Event, false);
+                    resumedWalk = null;
+                }
+            }
+            else if (world.Events.FieldId == ragnarokGoal && TryApproachPropagator(world, ragnarokGoal))
+            {
+                return;
+            }
+        }
+        next ??= PlanWithExhaustedSurvey(run, planner, navigation, candidate => NeedsVisitRefresh(world, candidate), vertex => IsNavigationResourceCurrent(world, vertex), guard => world.ReadAutoPlayFieldProgramHash(guard.FieldId) == guard.ProgramHash ? world.Events.ReadPersistentPredicateFingerprint(guard.Reads) : null, canTravel, preferredGoal);
         if (resumedWalk is null && session.State.WorldEntryMemory?.StoryWord == 894)
         {
             int keys = session.State.EventMemory.Read(343, 1).RequireExact() & 0x70;
