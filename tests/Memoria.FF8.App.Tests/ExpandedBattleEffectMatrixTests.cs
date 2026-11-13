@@ -22,6 +22,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         Assert.NotEmpty(catalog);
         const ushort oilboyleAction = 182;
         BattleNativeAction sonicWave = Assert.Single(assets.NativeActions, action => action.Command == 8 && action.ActionId == oilboyleAction);
+        BattleNativeAction oilboyleCounter = Assert.Single(assets.NativeActions, action => action.Command == 8 && action.ActionId == 181);
         GameState field = PrepareField(directory);
         using GameWorld admissionWorld = StartBattle(directory, field, 0);
         BattleSession admission = Assert.IsType<BattleSession>(admissionWorld.Battle);
@@ -32,6 +33,8 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         bool probeEnemies = requireFull || Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT_MATRIX_PROBE_ENEMIES") == "1";
         EnemyScenarioDiscoveryResult enemies = ScenarioEnemyDiscovery.Discover(assets);
         ILookup<int, EnemyScenarioScriptedAction> enemyMappings = enemies.ScriptedActions.Where(action => action.NativeEffectId.HasValue).ToLookup(action => action.NativeEffectId!.Value);
+        Assert.Contains(catalog, binding => binding.Effect == oilboyleCounter.MagicId);
+        Assert.Contains(enemyMappings[oilboyleCounter.MagicId], IsOilboyleCounter);
         ILookup<ushort, EnemyScenarioActionOwner> enemyOwners = enemies.Owners.Where(owner => owner.NativeAction is not null).ToLookup(owner => owner.NativeAction!.MagicId);
         Dictionary<string, int> counts = new(StringComparer.Ordinal);
         List<EffectResult> results = [];
@@ -46,14 +49,28 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
             EnemyScenarioActionOwner[] owners = enemyOwners[effect.Effect].ToArray();
             string status;
             string detail;
+            string? firstBlockerStage = null;
+            EnemyRouteResult? enemyReaction = null;
             try
             {
+                EnemyScenarioScriptedAction[] reactions = scripts.Where(script => script.Callback == 2).ToArray();
+                if (reactions.Length > 0)
+                {
+                    firstBlockerStage = "enemy-reaction-execution";
+                    enemyReaction = RunDiscoveredEnemyReaction(directory, field, assets, effect, reactions, probeEnemies);
+                    if (reactions.Any(IsOilboyleCounter))
+                    {
+                        Assert.True(enemyReaction.Status is "native" or "logical", enemyReaction.Detail);
+                    }
+                }
                 if (player is not null)
                 {
+                    firstBlockerStage = "player-execution";
                     (status, detail) = RunPlayerCast(directory, field, effect, player);
                 }
                 else if (effect.Effect == sonicWave.MagicId)
                 {
+                    firstBlockerStage = "enemy-turn-execution";
                     (status, detail) = RunSonicWave(directory, field, effect, sonicWave);
                 }
                 else if (guardianMappings[effect.Effect].FirstOrDefault() is { } guardian && ExpandedBattleGuardianForceTests.RunGuardianForce(assets, guardian) is int guardianContacts)
@@ -63,23 +80,47 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                 }
                 else if (limitMappings[effect.Effect].FirstOrDefault() is { } limit)
                 {
+                    firstBlockerStage = "limit-execution";
                     (status, detail) = RunExpandedLimit(directory, field, limit);
+                    if (status == "blocked")
+                    {
+                        firstBlockerStage = "limit-admission";
+                    }
+                }
+                else if (enemyReaction is { } reaction && (reaction.Status is "native" || scripts.All(script => script.Callback == 2)))
+                {
+                    (status, detail, firstBlockerStage) = reaction;
                 }
                 else if (scripts.Length > 0)
                 {
-                    (status, detail) = RunDiscoveredEnemyCast(directory, field, assets, effect, scripts, probeEnemies);
+                    firstBlockerStage = "enemy-turn-execution";
+                    EnemyRouteResult route = RunDiscoveredEnemyCast(directory, field, assets, effect, scripts, probeEnemies);
+                    (status, detail, firstBlockerStage) = route;
                 }
                 else
                 {
                     status = "blocked";
+                    firstBlockerStage = owners.Length > 0 ? "enemy-callback-discovery" : mappings.Length > 0 ? "command-admission" : "effect-owner-discovery";
                     detail = owners.Length > 0 ? "Installed enemy ability banks reference this binding. No scanned AI callback establishes its dispatch."
                         : mappings.Length > 0 ? "Installed kernel rows reference this binding. No mapped command has a supported expanded invocation and a prepared recipient route."
                         : "No scanned installed kernel row or enemy AI callback maps to this binding. Its original trigger remains unresolved.";
                 }
+
+                if (enemyReaction is { Status: "native" } && status != "native" || enemyReaction is { Status: "logical" } && status == "blocked")
+                {
+                    (status, detail, firstBlockerStage) = enemyReaction;
+                }
+                firstBlockerStage = status switch
+                {
+                    "native" => null,
+                    "logical" => "native-presentation",
+                    _ => firstBlockerStage
+                };
             }
             catch (Exception failure)
             {
                 status = "failed";
+                firstBlockerStage ??= "guardian-execution";
                 detail = $"{failure.GetType().Name}: {failure.Message}";
                 failures.Add($"Effect {effect.Effect}: {failure}");
             }
@@ -88,8 +129,8 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
             string actions = string.Join(",", mappings.Select(action => $"{action.Command}/{action.ActionId}@{action.KernelSection}/{action.KernelIndex}"));
             string[] scripted = scripts.Select(action => $"c0m{action.ModelId:D3}/callback{action.Callback}+{action.Offset}/band{action.LevelBand}/c{action.Command}-a{action.ActionId}-seq{action.Sequence}").ToArray();
             string[] banks = owners.Select(owner => $"c0m{owner.ModelId:D3}/band{owner.LevelBand}/ability{owner.AbilitySlot}/c{owner.Command}-a{owner.ActionId}-seq{owner.Sequence}").ToArray();
-            results.Add(new(effect.Effect, effect.Entry, effect.Initializer, status, actions, scripted, banks, detail));
-            output.WriteLine($"{effect.Effect:D3} {status} [{actions}] {detail}");
+            results.Add(new(effect.Effect, effect.Entry, effect.Initializer, status, firstBlockerStage, actions, scripted, banks, detail, enemyReaction));
+            output.WriteLine($"{effect.Effect:D3} {status} [{actions}] {detail} (first blocker: {firstBlockerStage ?? "none"})");
         }
 
         if (Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT_MATRIX_REPORT") is { Length: > 0 } reportPath)
@@ -106,7 +147,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         }
     }
 
-    private sealed record EffectResult(ushort Effect, uint Entry, uint Initializer, string Status, string Actions, string[] EnemyCallbacks, string[] EnemyAbilityRows, string Detail);
+    private sealed record EffectResult(ushort Effect, uint Entry, uint Initializer, string Status, string? FirstBlockerStage, string Actions, string[] EnemyCallbacks, string[] EnemyAbilityRows, string Detail, EnemyRouteResult? EnemyReaction);
 
     private static (string Status, string Detail) RunPlayerCast(string directory, GameState field, NativeBattleEffectBinding effect, BattleActionDefinition action)
     {
@@ -201,7 +242,21 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         Assert.Single(castEvents, entry => entry.Kind == "Windup" && entry.Ability == action.Ability);
         Assert.Single(castEvents, entry => entry.Kind == "ActionComplete");
         BattleEvent[] contacts = castEvents.Where(entry => entry.Kind == "EffectContact").ToArray();
-        Assert.Equal(expected, contacts.Select(entry => entry.TargetId).Order());
+        if (action.NativeAction is { HitCount: > 1 } repeated)
+        {
+            Assert.NotEmpty(contacts);
+            string[] targetOrder = battle.Combatants.Where(actor => expected.Contains(actor.Id)).Select(actor => actor.Id).ToArray();
+            string[] passes = Enumerable.Range(0, repeated.HitCount).SelectMany(_ => targetOrder).ToArray();
+            Assert.Equal(passes.Take(contacts.Length), contacts.Select(entry => entry.TargetId));
+            if (contacts.Length < passes.Length)
+            {
+                Assert.Contains(battle.Combatants, actor => actor.Id == passes[contacts.Length] && (!actor.IsAlive || !actor.IsActive));
+            }
+        }
+        else
+        {
+            Assert.Equal(expected, contacts.Select(entry => entry.TargetId).Order());
+        }
         if (revival)
         {
             Assert.True(target.IsAlive);
@@ -226,7 +281,6 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         }
         if (presentation is null)
         {
-            Assert.Equal(BattleAbility.Item, action.Ability);
             return ("logical", detail);
         }
         Assert.True(observedBinding);

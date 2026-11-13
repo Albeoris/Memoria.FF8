@@ -176,8 +176,8 @@ public static class NativeBattleExpandedAi
 
     internal static bool SupportsAction(BattleNativeAction action)
     {
-        return action.CrisisLevel is null && action.Command is 2 or 8 && action.HitCount == 1 && action.AttackType is 1 or 2 or 3 or 4 or 7 or 8 or 9 or 11 or 15 or 18 or 20 or 21 or 22 or 25 or 26 or 27 or 30 or 32 or 33 or 34 or 35 or 36
-            && (action.Statuses1 & 0x8010) == 0 && (action.TargetFlags.GetValueOrDefault() & 3) == 0 && (action.Command != 8 || (action.AttackFlags & 0x80) == 0);
+        return action.Command is 2 or 8 && ExpandedBattleActionRules.SupportsContacts(action) && action.AttackType is not (5 or 6) &&
+            (action.Statuses1 & 0x8000) == 0 && (action.TargetFlags.GetValueOrDefault() & 3) == 0 && (action.Command != 8 || (action.AttackFlags & 0x80) == 0);
     }
 
     private static int ReadWord(byte[] script, int offset) => script[offset] | script[offset + 1] << 8;

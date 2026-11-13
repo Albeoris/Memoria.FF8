@@ -6,7 +6,9 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed partial class ExpandedBattleEffectMatrixTests
 {
-    private static (string Status, string Detail) RunDiscoveredEnemyCast(string directory, GameState field, BattleAssets assets, NativeBattleEffectBinding effect, EnemyScenarioScriptedAction[] scripts, bool probeEnemies)
+    private sealed record EnemyRouteResult(string Status, string Detail, string? FirstBlockerStage);
+
+    private static EnemyRouteResult RunDiscoveredEnemyCast(string directory, GameState field, BattleAssets assets, NativeBattleEffectBinding effect, EnemyScenarioScriptedAction[] scripts, bool probeEnemies)
     {
         var candidates = scripts.Where(script => script.Callback is 0 or 1 && script.NativeAction is not null)
             .SelectMany(script => script.Formations.Where(scene => scene.Enabled && !scene.Hidden && !scene.Suspended && !scene.Untargetable).Select(scene => (Script: script, Scene: scene)))
@@ -16,9 +18,10 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             .Take(3).ToArray();
         if (!probeEnemies && candidates.Length > 0)
         {
-            return ("blocked", $"Original enemy candidate formations {string.Join(", ", candidates.Select(routes => routes.Key))}. Set MEMORIA_FF8_EFFECT_MATRIX_PROBE_ENEMIES=1 to attempt their original callbacks.");
+            return new("blocked", $"Original enemy candidate formations {string.Join(", ", candidates.Select(routes => routes.Key))}. Set MEMORIA_FF8_EFFECT_MATRIX_PROBE_ENEMIES=1 to attempt their original callbacks.", "enemy-turn-probe-disabled");
         }
         List<string> attempted = [];
+        string firstBlocker = "enemy-formation-entry";
         foreach (var routes in candidates)
         {
             ushort formation = checked((ushort)routes.Key);
@@ -46,26 +49,28 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                 continue;
             }
 
-            if (ObserveEnemyCast(world, battle, effect, actors) is { } witnessed)
+            EnemyRouteResult witnessed = ObserveEnemyCast(world, battle, effect, actors);
+            if (witnessed.Status is "native" or "logical")
             {
-                return (witnessed.Status, $"Formation {formation}, {witnessed.Detail}");
+                return witnessed with { Detail = $"Formation {formation}, {witnessed.Detail}" };
             }
-            attempted.Add($"formation {formation} did not complete the exact dispatch within the bounded original turns");
+            firstBlocker = witnessed.FirstBlockerStage!;
+            attempted.Add($"formation {formation}: {witnessed.Detail}");
         }
 
         if (attempted.Count > 0)
         {
-            return ("blocked", string.Join("; ", attempted));
+            return new("blocked", string.Join("; ", attempted), firstBlocker);
         }
         if (scripts.All(script => script.NativeAction is null))
         {
-            return ("blocked", "Installed enemy AI references this effect through direct graphics. The expanded host requires its original graphics callback and trigger.");
+            return new("blocked", "Installed enemy AI references this effect through direct graphics. The expanded host requires its original graphics callback and trigger.", "enemy-direct-graphics");
         }
         if (scripts.All(script => script.Callback > 1 || script.NativeAction is null))
         {
-            return ("blocked", "Installed enemy AI maps this effect to a reaction, death or other callback. Its original trigger and expanded execution route remain unproved.");
+            return new("blocked", "Installed enemy AI maps this effect to a reaction, death or other callback. Its original trigger and expanded execution route remain unproved.", "enemy-callback-trigger");
         }
-        return ("blocked", "Installed enemy AI maps this effect to initialization or turn dispatch. No matching scene owner and level band pass expanded AI admission.");
+        return new("blocked", "Installed enemy AI maps this effect to initialization or turn dispatch. No matching scene owner and level band pass expanded AI admission.", "enemy-ai-admission");
     }
 
     private static bool AdmitsEnemyScript(BattleAssets assets, EnemyScenarioScriptedAction script, EnemyScenarioFormation scene)
@@ -80,9 +85,10 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         return enabled.Length > 0 && enabled.All(slot => slot.IsEnemyModel && !slot.Hidden && !slot.Untargetable && !slot.InitiallySuspended);
     }
 
-    private static (string Status, string Detail)? ObserveEnemyCast(GameWorld world, BattleSession battle, NativeBattleEffectBinding effect, Dictionary<string, EnemyScenarioScriptedAction[]> actors)
+    private static EnemyRouteResult ObserveEnemyCast(GameWorld world, BattleSession battle, NativeBattleEffectBinding effect, Dictionary<string, EnemyScenarioScriptedAction[]> actors)
     {
         int before = battle.Events.Count;
+        bool dispatched = false;
         BattleActionPresentation? cast = null;
         NativeBattleEffectPresentation? presentation = null;
         HashSet<string>? recipientsAtFirstContact = null;
@@ -94,12 +100,12 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                 HashSet<string> eligibleBeforeContact = battle.Combatants.Where(actor => actor.IsActive && actor.IsAlive && !actor.Untargetable && (actor.PersistentStatus & 5) == 0).Select(actor => actor.Id).ToHashSet(StringComparer.Ordinal);
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
                 BattleActionPresentation? active = battle.ActiveAction;
-                if (cast is null && active is { Ability: BattleAbility.EnemyAbility, NativeAction: { } native, AiRecipients: not null }
+                if (cast is null && active is { Ability: BattleAbility.EnemyAbility, AiRecipients: not null }
                     && actors.TryGetValue(active.ActorId, out EnemyScenarioScriptedAction[]? scripts)
-                    && scripts.Any(script => script.Callback == active.NativeAiCallbackStage && script.Command == active.NativeQueuedCommand && script.ActionId == native.ActionId && script.Sequence == active.NativeSequence
-                        && script.NativeAction is { } mapped && mapped.KernelSection == native.KernelSection && mapped.KernelIndex == native.KernelIndex && native.MagicId == effect.Effect))
+                    && scripts.Any(script => MatchesEnemyDispatch(active, script, effect)))
                 {
                     cast = active;
+                    dispatched = true;
                 }
                 if (cast is null)
                 {
@@ -137,12 +143,45 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                     continue;
                 }
                 Assert.NotNull(recipientsAtFirstContact);
-                Assert.Equal(cast.AiRecipients!.ActorIds.Where(recipientsAtFirstContact.Contains).Order(), contacts.Select(entry => entry.TargetId).Order());
+                AssertEnemyContacts(battle, cast, contacts, recipientsAtFirstContact);
                 Assert.True(presentation is null || presentation.Complete);
                 BattleCombatant actor = Assert.Single(battle.Combatants, candidate => candidate.Id == cast.ActorId);
-                return (presentation is null ? "logical" : "native", $"c0m{actor.ModelId:D3} {actor.Id}, callback {cast.NativeAiCallbackStage}, command {cast.NativeQueuedCommand}/{cast.ActionId}, sequence {cast.NativeSequence}, {contacts.Length} recipient(s)");
+                return new(presentation is null ? "logical" : "native", $"c0m{actor.ModelId:D3} {actor.Id}, callback {cast.NativeAiCallbackStage}, command {cast.NativeQueuedCommand}/{cast.ActionId}, sequence {cast.NativeSequence}, {contacts.Length} contact(s)", presentation is null ? "native-presentation" : null);
             }
         }
-        return null;
+        if (recipientsAtFirstContact is not null)
+        {
+            return new("blocked", "The exact dispatch reached contact but did not complete within the bounded original turns.", "enemy-turn-completion");
+        }
+        return dispatched
+            ? new("blocked", "The exact dispatch did not reach contact within the bounded original turns.", "enemy-turn-contact")
+            : new("blocked", "The exact dispatch was not observed within the bounded original turns.", "enemy-turn-dispatch");
+    }
+
+    private static bool MatchesEnemyDispatch(BattleActionPresentation active, EnemyScenarioScriptedAction script, NativeBattleEffectBinding effect)
+    {
+        return active.NativeAction is { } native && script.NativeAction is { } mapped && script.Callback == active.NativeAiCallbackStage &&
+            script.Command == active.NativeQueuedCommand && script.ActionId == active.ActionId && script.ActionId == native.ActionId && script.Sequence == active.NativeSequence &&
+            mapped.KernelSection == native.KernelSection && mapped.KernelIndex == native.KernelIndex && native.MagicId == effect.Effect;
+    }
+
+    private static void AssertEnemyContacts(BattleSession battle, BattleActionPresentation cast, BattleEvent[] contacts, HashSet<string> eligible)
+    {
+        string[] recipients = cast.AiRecipients!.ActorIds.Where(eligible.Contains).ToArray();
+        int hitCount = cast.NativeAction!.HitCount;
+        if (hitCount == 1)
+        {
+            Assert.Equal(recipients.Order(), contacts.Select(entry => entry.TargetId).Order());
+            return;
+        }
+
+        string[] expected = Enumerable.Range(0, hitCount).SelectMany(_ => recipients).ToArray();
+        Assert.InRange(contacts.Length, 1, expected.Length);
+        Assert.Equal(expected.Take(contacts.Length), contacts.Select(entry => entry.TargetId));
+        if (contacts.Length < expected.Length)
+        {
+            string interrupted = expected[contacts.Length];
+            Assert.Contains(battle.Combatants, actor => actor.Id == interrupted && (!actor.IsActive || !actor.IsAlive));
+        }
     }
 }

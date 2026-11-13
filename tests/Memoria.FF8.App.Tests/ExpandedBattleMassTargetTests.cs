@@ -141,7 +141,7 @@ public sealed partial class ExpandedBattleMassTargetTests
         Assert.Equal("Mega-Potion", item.Name);
         Assert.True(item.Allies && item.AllTargets && battle.SupportsExpandedAction(item));
         BattleActionDefinition megalixir = Assert.Single(battle.ActionDefinitions, action => action.Ability == BattleAbility.Item && action.Name == "Megalixir");
-        Assert.False(battle.SupportsExpandedAction(megalixir));
+        Assert.True(battle.SupportsExpandedAction(megalixir));
         Assert.Equal(2, Stock());
         for (int turn = 0; turn < 24 && (!caster.IsReady || battle.ActiveAction is not null); turn++)
         {

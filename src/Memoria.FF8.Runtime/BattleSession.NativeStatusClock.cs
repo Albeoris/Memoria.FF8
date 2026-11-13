@@ -40,7 +40,16 @@ public sealed partial class BattleSession
                     if (bit == 4 && decrement != 0 && timer / decrement % (60 / decrement) == 0)
                     {
                         //483470 requests callback6; its later0/4 command owns HP and presentation contacts.
-                        QueueNativeCallback(actor, 6);
+                        if (UsesExpandedRoster)
+                        {
+                            BattleNativeAction regen = NativePostActionEffect(4);
+                            BattleActionDefinition action = new(BattleAbility.EnemyAbility, 4, regen.Name!, BattleActionEffect.Native, 0, true) { NativeAction = regen };
+                            ResolveInstalledNativeHitWithContact(actor, actor, new(actor.Id, actor.Id, BattleActionPhase.Recovery, 1, action.Ability, action.Id) { NativeAction = regen }, action, regen, 255, presentationRow: 0);
+                        }
+                        else
+                        {
+                            QueueNativeCallback(actor, 6);
+                        }
                     }
                     actor.NativeStatusTimers[bit] = unchecked((short)(timer - decrement));
                     continue;
