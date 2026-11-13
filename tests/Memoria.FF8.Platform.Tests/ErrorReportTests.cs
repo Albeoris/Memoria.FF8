@@ -7,7 +7,19 @@ namespace Memoria.FF8.Platform.Tests;
 
 public sealed class ErrorReportTests : IDisposable
 {
-    private readonly string root = Path.Combine(Path.GetTempPath(), "memoria-report-tests-" + Guid.NewGuid().ToString("N"));
+    private readonly string root = Path.Combine(GetPhysicalTempDirectory(), "memoria-report-tests-" + Guid.NewGuid().ToString("N"));
+
+    private static string GetPhysicalTempDirectory()
+    {
+        string temporaryDirectory = Path.GetFullPath(Path.GetTempPath());
+        string physicalDirectory = Path.GetPathRoot(temporaryDirectory)!;
+        foreach (string component in temporaryDirectory[physicalDirectory.Length..].Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries))
+        {
+            DirectoryInfo directory = new(Path.Combine(physicalDirectory, component));
+            physicalDirectory = directory.ResolveLinkTarget(true)?.FullName ?? directory.FullName;
+        }
+        return physicalDirectory;
+    }
 
     [Fact]
     public void CaptureDetachesContextAndAllExceptionBranches()
