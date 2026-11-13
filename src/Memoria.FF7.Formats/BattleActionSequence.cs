@@ -4,6 +4,8 @@ public sealed record BattleActionPoseState(int NextInstruction = 0, int ClipInde
 {
     public byte? TerminalOpcode { get; init; }
     public int? ContinuedClipFrame { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public int? MissingClip { get; init; }
 }
 public sealed record BattleActionPoseUpdate(BattleActionPoseState State, IReadOnlyList<BattleActionInstruction> Events);
 
@@ -52,11 +54,11 @@ public sealed class BattleActionSequence
         {
             return new(state, []);
         }
-        if (state.ContinuedClipFrame < 0 || (uint)state.NextInstruction >= instructions.Count || state.ClipIndex < -1 || state.ClipIndex >= clips.Count || state.ClipFrame < 0 || state.ClipIndex >= 0 && state.ClipFrame >= clips[state.ClipIndex].FrameCount)
+        if (state.ContinuedClipFrame < 0 || state.MissingClip is < 0 or >= 0x8E || (uint)state.NextInstruction >= instructions.Count || state.ClipIndex < -1 || state.ClipIndex >= clips.Count || state.ClipFrame < 0 || state.ClipIndex >= 0 && state.ClipFrame >= clips[state.ClipIndex].FrameCount)
         {
             throw new InvalidDataException("FFVII battle pose continuation is outside its original script or clip.");
         }
-        if (state.ClipIndex >= 0 && state.ClipFrame + 1 < clips[state.ClipIndex].FrameCount)
+        if (state.MissingClip is null && state.ClipIndex >= 0 && state.ClipFrame + 1 < clips[state.ClipIndex].FrameCount)
         {
             return new(state with { ClipFrame = state.ClipFrame + 1 }, []);
         }
@@ -71,7 +73,12 @@ public sealed class BattleActionSequence
                 int clipIndex = opcode == 0xB6 ? instruction.Operands.Span[0] : opcode;
                 if ((uint)clipIndex >= clips.Count || clips[clipIndex].PackedData.Length <= 4 || clips[clipIndex].FrameCount == 0)
                 {
-                    throw new NotSupportedException($"FFVII battle action requests clip {clipIndex} without a packed body pose.");
+                    if (opcode == 0xB6)
+                    {
+                        throw new NotSupportedException($"FFVII battle action requests continued clip {clipIndex} without a packed body pose.");
+                    }
+                    // The model callback retains the last submitted pose and makes an absent direct clip ready immediately.
+                    return new(state with { NextInstruction = index + 1, MissingClip = clipIndex }, events.AsReadOnly());
                 }
                 int startFrame = opcode == 0xB6 ? (int)((state.ContinuedClipFrame ?? idleClipFrame) % clips[clipIndex].FrameCount) : 0;
                 if (startFrame < 0 || startFrame >= clips[clipIndex].FrameCount)
@@ -82,7 +89,7 @@ public sealed class BattleActionSequence
                 {
                     events.Add(instruction);
                 }
-                return new(state with { NextInstruction = index + 1, ClipIndex = clipIndex, ClipFrame = startFrame, ContinuedClipFrame = null }, events.AsReadOnly());
+                return new(state with { NextInstruction = index + 1, ClipIndex = clipIndex, ClipFrame = startFrame, ContinuedClipFrame = null, MissingClip = null }, events.AsReadOnly());
             }
             if (opcode == 0xC6)
             {
@@ -132,7 +139,7 @@ public sealed class BattleActionSequence
             events.Add(instruction);
             if (opcode is 0x9E or 0xEE or 0xFF)
             {
-                return new(state with { NextInstruction = index + 1, Completed = true, TerminalOpcode = opcode }, events.AsReadOnly());
+                return new(state with { NextInstruction = index + 1, Completed = true, TerminalOpcode = opcode, MissingClip = null }, events.AsReadOnly());
             }
         }
         throw new InvalidDataException("FFVII battle action exhausted its instructions before transferring to idle.");

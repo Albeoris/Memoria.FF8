@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Memoria.FF7.Events;
 using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
@@ -68,27 +69,71 @@ internal static class NativeBattleStoryBossTests
 
         void CheckReno(SceneFormation formation)
         {
-            Ff7BattleSession battle = Open(formation);
+            using Ff7Session host = Ff7Session.Restore(installation, original.Capture() with { Progress = progress with { FullCombatEnabled = true } });
+            host.Host.StartEncounter(new FieldHostRequest(1L << 40, host.Host.Process.Actors[0].Entity, 7, 0, new FieldBattleCommand((ushort)formation.FormationId)), 0);
+            Ff7BattleSession battle = host.Battle!;
+            Ff7SessionSave entry = host.Capture();
+            Ff7BattleSnapshot entryBattle = battle.Capture();
+            for (int index = 0; index < entryBattle.Actors.Length && entryBattle.Actors[index].Actor.Slot < 3; index++)
+            {
+                Ff7BattleActorState actor = entryBattle.Actors[index];
+                entryBattle.Actors[index] = actor with { Actor = actor.Actor with { HitPoints = 2000, MaxHitPoints = 2000 } };
+            }
+            using Ff7Session combatHost = Ff7Session.Restore(installation, entry with { Battle = entryBattle });
+            battle = combatHost.Battle!;
             Check(battle.Capture().ActorModels.Where(model => model.Slot >= 5).All(model => !model.Modifiers!.Visible), "Original Pyramid slots must start with their models hidden.");
             Ff7BattleSession? restored = null;
             int? capturedSlot = null;
             bool released = false;
             bool restoredFade = false;
-            bool appeared = false;
+            int? appearedSlot = null;
             bool retired = false;
-            for (int step = 0; step < 2000 && !retired; step++)
+            bool restoredEscape = false;
+            bool absentClip = false;
+            Ff7BattleMotion? lastMotion = null;
+            int escapeSteps = 0;
+            long? missingClipTick = null;
+            for (int step = 0; step < 30000 && !battle.ResultReady; step++)
             {
                 battle.Advance(turnBased: true);
                 if (restored is not null)
                 {
                     restored.Advance(turnBased: true);
-                    Check(Snapshot(battle) == Snapshot(restored), "Reno's live Pyramid fade changed after JSON restore.");
+                    Check(Snapshot(battle) == Snapshot(restored), "Reno's live animation changed after JSON restore.");
                     restored = null;
                     restoredFade = true;
                 }
+                if (battle.Action is { Command.ActorSlot: 4, Motion: { Step: { X: 20, Z: -300 }, Remaining: 20 } } && !restoredEscape)
+                {
+                    using Ff7Session cold = Ff7Session.Restore(installation, JsonSerializer.Deserialize<Ff7SessionSave>(JsonSerializer.Serialize(combatHost.Capture()))!);
+                    battle.Advance(turnBased: true);
+                    cold.Battle!.Advance(turnBased: true);
+                    Check(Snapshot(battle) == Snapshot(cold.Battle), "Reno's fixed escape movement changed after a cold session restore.");
+                    restoredEscape = true;
+                }
+                Ff7BattleActorModelState renoModel = battle.Capture().ActorModels.Single(model => model.Slot == 4);
+                Ff7BattleMotion? currentMotion = battle.Action?.Motion is { WrapHorizontalPosition: true } activeMotion ? activeMotion : renoModel.Motion;
+                if (currentMotion is null && lastMotion is { Remaining: 1 } retiringMotion && renoModel.Position == retiringMotion.Position + retiringMotion.Step)
+                {
+                    currentMotion = retiringMotion.Advance();
+                }
+                if (currentMotion is { Step: { X: 20, Z: -300 } } motion && lastMotion != motion)
+                {
+                    Check(lastMotion is null ? motion.Remaining == 35 : motion.Remaining == lastMotion.Remaining - 1 && motion.Position == lastMotion.Position + motion.Step, "Reno's native motion must add its fixed signed offsets once per callback.");
+                    lastMotion = motion;
+                    escapeSteps++;
+                }
+                if (battle.Action?.Pose?.MissingClip == 0x10)
+                {
+                    missingClipTick ??= battle.Tick;
+                }
+                else if (missingClipTick is long missing && battle.Tick == missing + 4)
+                {
+                    absentClip = !renoModel.Modifiers!.Visible;
+                }
                 if (!restoredFade && battle.Capture().ActorModels.Any(model => model.Fade is { Remaining: < 14 }))
                 {
-                    restored = Open(formation, Cold(battle));
+                    restored = new(formation, combatHost.Progress, kernel, executable.NativeMateriaStatModifiers, battle.RequestId, snapshot: Cold(battle), animations: animations, cameraScripts: Ff7BattleCameraResources.LoadScripts(installation, battle.Layout));
                 }
                 if (battle.Actors.FirstOrDefault(actor => actor.Actor.Slot < 3 && (actor.Actor.Statuses & Ff7NativeBattleStatuses.Imprisoned) != 0) is { } captured)
                 {
@@ -99,16 +144,27 @@ internal static class NativeBattleStoryBossTests
                 {
                     released = true;
                 }
-                Ff7BattleActorModelState pyramidModel = battle.Capture().ActorModels.Single(model => model.Slot == 5);
-                appeared |= pyramidModel.Modifiers!.Visible && pyramidModel.Position is not null;
-                retired = released && appeared && restoredFade && !pyramidModel.Modifiers!.Visible && pyramidModel.Fade is null && battle.Action is null;
-                if (!retired && battle.ReadyPlayer is int slot)
+                Ff7BattleActorModelState[] models = battle.Capture().ActorModels;
+                appearedSlot ??= models.FirstOrDefault(model => model.Slot >= 5 && model.Modifiers!.Visible && model.Position is not null)?.Slot;
+                if (appearedSlot is int modelSlot)
+                {
+                    Ff7BattleActorModelState pyramidModel = models.Single(model => model.Slot == modelSlot);
+                    retired |= released && restoredFade && !pyramidModel.Modifiers!.Visible && pyramidModel.Fade is null && battle.Action is null;
+                }
+                if (battle.ReadyPlayer is int slot)
                 {
                     Ff7BattleActorState? pyramid = battle.Actors.FirstOrDefault(actor => actor.Actor.Slot >= 5 && actor.Actor.HitPoints > 0 && (actor.Actor.Conditions & 8) != 0);
                     SubmitTurn(battle, slot, pyramid?.Actor.Slot ?? 4);
                 }
             }
-            Check(capturedSlot is not null && retired, $"Original Reno {formation.FormationId} did not finish capture, Pyramid appearance, release and fade retirement. Capture={capturedSlot}, released={released}, appeared={appeared}, fade={restoredFade}.");
+            Check(capturedSlot is not null && retired && restoredEscape && absentClip && escapeSteps == 36 && battle.ResultReady && battle.Outcome == Ff7BattleOutcome.Victory, $"Original Reno {formation.FormationId} did not finish capture, Pyramid appearance, release and fade retirement. Capture={capturedSlot}, released={released}, appeared={appearedSlot}, fade={restoredFade}, retired={retired}, restoredEscape={restoredEscape}, absentClip={absentClip}, movement={escapeSteps}, outcome={battle.Outcome}, action={battle.Action?.Command}.");
+            string before = JsonSerializer.Serialize(combatHost.Capture());
+            Ff7VictoryProjection preview = combatHost.PreviewBattleVictory();
+            Check(JsonSerializer.Serialize(combatHost.Capture()) == before, "Previewing Reno's victory must preserve the encounter and progress.");
+            Check(combatHost.ConfirmBattleVictory() && combatHost.Battle is null, "Reno's victory must publish the field battle result.");
+            string settled = JsonSerializer.Serialize(combatHost.Progress);
+            Check(settled == JsonSerializer.Serialize(preview.Progress) && !combatHost.ConfirmBattleVictory() && JsonSerializer.Serialize(combatHost.Progress) == settled, "Reno's settlement must agree with the preview and publish only once.");
+            combatHost.Host.ResumeEncounter();
         }
     }
 

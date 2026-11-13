@@ -89,6 +89,7 @@ public sealed partial class Ff7BattleSession
         {
             return;
         }
+        AdvanceDetachedActorMotion();
         AdvanceActorReactionModels(actorModelCursor, 10);
         actorModelCursor = 10;
         AdvanceActorMotionPresentation();

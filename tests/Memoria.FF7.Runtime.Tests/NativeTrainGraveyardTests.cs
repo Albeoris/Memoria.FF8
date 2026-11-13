@@ -16,13 +16,15 @@ internal static class NativeTrainGraveyardTests
 
         Ff7Installation installation = Ff7Installation.Discover(root);
         using Ff7Session session = Ff7Session.NewGame(installation);
+        session.SetFullCombatEnabled(true);
+        session.SetRandomEncountersEnabled(false);
         session.Machine.Variables.WriteWord(FieldBank.Persistent0Word, 0, 209);
         Check(session.Host.RequestGateway(new(144, 1685, -3480, 68, 112)), "The fixture must enter at the original sewer ladder.");
         session.AdvanceTick();
         Ff7AutoplayDriver driver = new(session);
         Ff7MidgarAutoPlayPolicy policy = new(session);
         List<ushort> visited = [session.MapId];
-        for (int tick = 0; tick < 8000 && session.MapId != 160; tick++)
+        for (int tick = 0; tick < 8000 && session.Battle is null; tick++)
         {
             Ff7Dialogue? dialogue = session.Host.Process.Dialogues.FirstOrDefault(dialogue => !dialogue.Completed && dialogue.AwaitingInput && session.Host.CanConfirmDialogue(dialogue.RequestId));
             if (dialogue is not null)
@@ -43,6 +45,7 @@ internal static class NativeTrainGraveyardTests
 
         Check(visited.SequenceEqual(new ushort[] { 144, 145, 146, 156, 157, 156, 158, 159, 160 }), "The physical route must reach the top of the Sector 7 pillar.");
         Check(session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) == 221, "The original directors must publish the story updates.");
+        Check(session.Battle?.Formation.FormationId == 412, "Barret's original pillar scene must start the Reno battle.");
     }
 
     private static void Check(bool condition, string message)

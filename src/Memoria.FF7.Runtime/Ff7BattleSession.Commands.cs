@@ -421,6 +421,10 @@ public sealed partial class Ff7BattleSession
                 {
                     SetCameraEntry(instruction.Operands.Span[0]);
                 }
+                else if (instruction.Opcode == 0xC8)
+                {
+                    active = active with { Motion = BeginFixedActorMotion(command.ActorSlot, active.Motion, instruction.Operands.Span) };
+                }
                 else if (instruction.Opcode == 0xD1)
                 {
                     ReadOnlySpan<byte> operands = instruction.Operands.Span;
@@ -510,6 +514,11 @@ public sealed partial class Ff7BattleSession
         if (command.Priority != 0 && command.CommandId != 0x23 && !command.StatusCountdown)
         {
             FinishTurn(command.ActorSlot);
+        }
+        if (active.Motion is { WrapHorizontalPosition: true, Remaining: > 0 } motion)
+        {
+            Ff7BattleActorModelState model = ActorModelState(command.ActorSlot);
+            ReplaceActorModel(model with { Motion = motion });
         }
         state = state with { Action = null, DisplayedHit = active.PendingDisplayHit is { } undisplayed ? undisplayed with { Tick = Tick } : state.DisplayedHit };
         FlushFormationAi();

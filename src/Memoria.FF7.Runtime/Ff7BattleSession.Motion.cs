@@ -16,6 +16,9 @@ public readonly record struct Ff7BattlePosition(int X, int Y, int Z)
 
 public sealed record Ff7BattleMotion(Ff7BattlePosition Position, Ff7BattlePosition Step, int Remaining, short[]? VerticalSteps = null)
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool WrapHorizontalPosition { get; init; }
+
     public Ff7BattleMotion Advance()
     {
         if (Remaining == 0)
@@ -23,7 +26,12 @@ public sealed record Ff7BattleMotion(Ff7BattlePosition Position, Ff7BattlePositi
             return this;
         }
         Ff7BattlePosition delta = VerticalSteps is { } heights ? Step with { Y = heights[heights.Length - Remaining] } : Step;
-        return this with { Position = Position + delta, Remaining = Remaining - 1 };
+        Ff7BattlePosition position = Position + delta;
+        if (WrapHorizontalPosition)
+        {
+            position = position with { X = unchecked((short)position.X), Z = unchecked((short)position.Z) };
+        }
+        return this with { Position = position, Remaining = Remaining - 1 };
     }
 }
 
@@ -196,6 +204,13 @@ public sealed partial class Ff7BattleSession
         int cosine = (int)Math.Round(Math.Cos(radians) * 4096);
         Ff7BattlePosition destination = new(center.X - (sine * distance >> 12), targets.Length == 1 && source >= 4 ? center.Y : origin.Y, center.Z + (cosine * distance >> 12));
         return new(origin, (destination - origin) / steps, steps, verticalSteps);
+    }
+
+    private Ff7BattleMotion BeginFixedActorMotion(int slot, Ff7BattleMotion? previous, ReadOnlySpan<byte> operands)
+    {
+        Ff7BattlePosition position = previous?.Position ?? Ff7BattlePosition.FromVector(VisualPlacement(slot).Position);
+        Ff7BattlePosition step = new(BinaryPrimitives.ReadInt16LittleEndian(operands), 0, BinaryPrimitives.ReadInt16LittleEndian(operands[2..]));
+        return new Ff7BattleMotion(position, step, operands[4]) { WrapHorizontalPosition = true }.Advance();
     }
 
     private Ff7BattlePosition PositionBesidePrimaryTarget(ReadOnlySpan<byte> operands)

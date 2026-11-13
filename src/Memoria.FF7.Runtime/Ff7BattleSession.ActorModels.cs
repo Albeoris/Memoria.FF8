@@ -194,6 +194,18 @@ public sealed partial class Ff7BattleSession
         });
     }
 
+    private void AdvanceDetachedActorMotion()
+    {
+        foreach (Ff7BattleActorModelState model in state.ActorModels)
+        {
+            if (model.Motion is { WrapHorizontalPosition: true } motion)
+            {
+                Ff7BattleMotion advanced = motion.Advance();
+                ReplaceActorModel(model with { Position = advanced.Position, Motion = advanced.Remaining == 0 ? null : advanced });
+            }
+        }
+    }
+
     private void AdvanceActorReactionModels(int minimum, int maximum)
     {
         if (animations is null)
@@ -478,7 +490,7 @@ public sealed partial class Ff7BattleSession
             {
                 throw new InvalidDataException("FFVII saved actor fade is invalid.");
             }
-            if (model.Motion is { } motion && (!model.LinkedAction || motion.Remaining is < 0 or > 255 || motion.VerticalSteps is not null))
+            if (model.Motion is { } motion && (!model.LinkedAction && !motion.WrapHorizontalPosition || motion.Remaining is < 0 or > 255 || motion.VerticalSteps is not null))
             {
                 throw new InvalidDataException("FFVII saved linked actor motion is invalid.");
             }
