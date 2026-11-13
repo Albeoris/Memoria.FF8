@@ -74,7 +74,7 @@ public sealed partial class BattleSession
         _ = RenzokukenResource(target.NativeRenzokukenMagicIds[crisis + 2]);
         if (UsesExpandedRoster)
         {
-            if (!IsExpandedRenzokukenTarget(target) || actions.Any(command => command.NativeRenzokuken is not null))
+            if (!IsExpandedRenzokukenTarget(target) || HasQueuedExpandedTimedLimit)
             {
                 throw new InvalidOperationException("Renzokuken requires one available enemy and no queued timed Limit.");
             }

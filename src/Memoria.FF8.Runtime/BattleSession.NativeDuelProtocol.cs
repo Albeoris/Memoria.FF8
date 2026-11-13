@@ -68,6 +68,10 @@ public sealed partial class BattleSession
 
     private void ValidateNativeDuelControlOwners()
     {
+        if (UsesExpandedRoster)
+        {
+            ValidateExpandedDuelOwners();
+        }
         foreach (BattleActionPresentation action in QueuedActions.Select(NativeCommandPresentation).Concat(ActiveAction is { } active ? [active] : []))
         {
             if (action.NativeAction is { Command: 241, ActionId: 65530 or 65532 } && (!nativeDuelProcesses.TryGetValue(action.ActorId, out BattleNativeDuelState? duel) || duel.Selection1D28DEF is null || duel.Phase != BattleNativeDuelPhase.Finisher))

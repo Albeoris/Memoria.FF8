@@ -81,7 +81,7 @@ public sealed class NativeBattleDuelProtocolTests
         BattleNativeAction native = new(241, actionId, -1, -1) { MagicId = 0, AttackType = 0, Power = 0, HitCount = 1, TargetFlags = null, AttackFlags = 3, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = [], SupplementalRecord = [] };
         BattleActionPresentation presentation = new(actor.Id, target.Id, BattleActionPhase.Windup, 0, BattleAbility.EnemyAbility, actionId) { NativeAction = native, NativeQueuedCommand = 241 };
         BattleActionDefinition action = new(BattleAbility.EnemyAbility, actionId, "Duel", BattleActionEffect.Native, 0, false) { NativeAction = native };
-        NativeBattleContactPacket packet = (NativeBattleContactPacket)Invoke(session, "ResolveInstalledNativeHitWithContact", actor, target, presentation, action, native, (byte)255, false)!;
+        NativeBattleContactPacket packet = (NativeBattleContactPacket)Invoke(session, "ResolveInstalledNativeHitWithContact", actor, target, presentation, action, native, (byte)255, false, null!)!;
         Assert.Equal((byte)1, packet.Primary.Flags2);
         Assert.Equal((ushort)0, packet.Primary.Amount6);
         Assert.Equal(0u, target.NativeCombatantFlags & 0x4000u);
@@ -116,7 +116,7 @@ public sealed class NativeBattleDuelProtocolTests
 
         void Validate(BattleNativeAction candidate, int? header)
         {
-            Invoke(session, "ValidateSavedAction", "party", "enemy", new HashSet<string>(), BattleAbility.EnemyAbility, (int)actionId, false, candidate, (ushort)8, null!, null!, null!, header!, false, null!, null!);
+            Invoke(session, "ValidateSavedAction", "party", "enemy", new HashSet<string>(), BattleAbility.EnemyAbility, (int)actionId, false, candidate, (ushort)8, null!, null!, null!, header!, false, null!, null!, null!, null!, null!, null!);
         }
     }
 

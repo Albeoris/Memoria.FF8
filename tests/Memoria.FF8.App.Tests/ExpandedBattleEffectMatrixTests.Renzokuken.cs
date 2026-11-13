@@ -13,6 +13,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
     [InlineData(259, 6)]
     [InlineData(332, 7)]
     [InlineData(333, 8)]
+    [InlineData(161, 6)]
     public void Installed_expanded_Renzokuken_selects_and_completes_its_original_timeline(ushort effect, int contacts)
     {
         string directory = TestResources.GameDirectory;
@@ -23,17 +24,19 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         Assert.Contains($"{contacts} contacts", detail);
     }
 
-    private static (string Status, string Detail) RunExpandedRenzokuken(string directory, GameState field, GameAssets game, BattleAssets assets, ushort effect)
+    private static (string Status, string Detail) RunExpandedRenzokuken(string directory, GameState field, GameAssets game, BattleAssets assets, ushort? effect, BattleNativeAction? finisher = null)
     {
-        const ushort formation = 71;
-        const int targetModel = 36;
+        ushort formation = effect == 161 ? (ushort)738 : (ushort)71;
+        int targetModel = effect == 161 ? 131 : 36;
         const int invocation = 5 << 16;
         const string casterId = "party-0";
         BattleNativeAction squall = Assert.Single(assets.NativeActions, action => action is { Command: 249, ActionId: 0, CharacterId: 0 });
         Assert.Contains(assets.LoadEncounter(formation).Enemies, placement => placement.ModelId == targetModel);
-        BattleNativeRenzokukenResource resource = Assert.Single(game.ReadNativeRenzokukenResources(), candidate => candidate.MagicId == effect);
         ushort[] selectors = assets.ReadNativeRenzokukenMagicIds(targetModel).ToArray();
-        Assert.Contains(effect, selectors.Skip(2));
+        if (effect is ushort requestedEffect)
+        {
+            Assert.Contains(requestedEffect, selectors.Skip(2));
+        }
 
         // The selected result must come from a fresh encounter seed and a real HUD crisis roll.
         for (int seed = 0; seed < 96; seed++)
@@ -54,7 +57,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: input => world.ApplyBattleInput(input));
             hud.SelectParty(caster.Id);
             byte crisis = battle.GetNativeLimitLevel(caster.Id);
-            if (!hud.NativeLimitAvailable || selectors[crisis + 1] != effect && selectors[crisis + 2] != effect)
+            if (!hud.NativeLimitAvailable || effect is ushort requested && selectors[crisis + 1] != requested && selectors[crisis + 2] != requested)
             {
                 continue;
             }
@@ -68,6 +71,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             hud.SelectTarget(target.Id, false);
             Assert.Equal(target.Id, hud.SelectedTarget?.Id);
             int initialHp = target.CurrentHp;
+            string[] availableEnemies = battle.Combatants.Where(candidate => !candidate.IsPlayer && candidate.IsAlive && candidate.IsActive && !candidate.Untargetable).Select(candidate => candidate.Id).ToArray();
             int before = battle.Events.Count;
             hud.Attack();
 
@@ -81,12 +85,17 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
             }
             BattleNativeRenzokukenState process = Assert.IsType<BattleNativeRenzokukenState>(battle.GetNativeRenzokuken(casterId));
-            if (process.MagicId != effect)
+            if (effect is ushort selectedEffect && process.MagicId != selectedEffect || finisher is not null && process.FinisherActionId != finisher.ActionId)
             {
                 continue;
             }
 
             Assert.Equal(target.Id, battle.Capture().NativeTimedAction!.Command.TargetId);
+            if (finisher is not null)
+            {
+                AssertExpandedRenzokukenFinisher(battle, finisher, caster, target, availableEnemies, before);
+            }
+            BattleNativeRenzokukenResource resource = Assert.Single(game.ReadNativeRenzokukenResources(), candidate => candidate.MagicId == process.MagicId);
             CompleteExpandedRenzokuken(world, battle, casterId);
             BattleEvent[] contacts = battle.Events.Skip(before).Where(entry => entry.ActorId == casterId && entry.Kind == "EffectContact" && entry.Ability == BattleAbility.LimitBreak && entry.Message == "Renzokuken").ToArray();
             Assert.Equal(resource.Timeline.InputThresholds.Length, contacts.Length);
@@ -96,10 +105,14 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             Assert.Null(battle.GetNativeRenzokuken(casterId));
             Assert.Null(battle.Capture().NativeTimedAction);
             Assert.Single(battle.Events.Skip(before), entry => entry.ActorId == casterId && entry.Kind == "ActionComplete");
+            if (finisher is not null)
+            {
+                return ("logical", $"Formation {formation}, seed {seed}, original weapon {caster.WeaponId}, {finisher.Name} effect {finisher.MagicId}, {contacts.Length} Renzokuken contacts and JSON continuation.");
+            }
             return ("logical", $"Formation {formation}, seed {seed}, {target.Id}, original Renzokuken effect {effect}, {contacts.Length} contacts and JSON continuation.");
         }
 
-        return ("blocked", $"No bounded genuine HUD invocation selected the installed effect {effect}.");
+        return ("blocked", $"No bounded genuine HUD invocation selected the installed effect {finisher?.MagicId ?? effect}.");
     }
 
     private static void CompleteExpandedRenzokuken(GameWorld world, BattleSession battle, string casterId)

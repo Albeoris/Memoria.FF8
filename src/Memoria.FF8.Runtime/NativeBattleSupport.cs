@@ -43,7 +43,7 @@ public sealed partial class BattleSession
 
     private BattleCombatant NativeSupportActor()
     {
-        return combatants.Where(actor => actor.IsPlayer && actor.IsActive).OrderBy(actor => actor.EncodeNativeSlot()).FirstOrDefault() ?? throw new NotSupportedException("Native486080 requires an allocated physical party actor for support invocation.");
+        return allies.Where(actor => actor.IsActive).OrderBy(actor => UsesExpandedRoster ? actor.Slot!.Value.Position : actor.EncodeNativeSlot()).FirstOrDefault() ?? throw new NotSupportedException("Native486080 requires an allocated party actor for support invocation.");
     }
 
     private byte NativeSupportFlags(byte mask)
@@ -78,11 +78,13 @@ public sealed partial class BattleSession
 
     private bool NativeOdinTargetsEligible()
     {
-        for (int slot = 3; slot < 7; slot++)
+        IEnumerable<BattleCombatant> candidates = UsesExpandedRoster
+            ? enemies.Where(actor => actor.IsActive)
+            : combatants.Where(actor => actor.EncodeNativeSlot() is >= 3 and < 7).OrderBy(actor => actor.EncodeNativeSlot());
+        foreach (BattleCombatant actor in candidates)
         {
-            BattleCombatant? actor = combatants.SingleOrDefault(actor => actor.EncodeNativeSlot() == slot);
             //48C5C0 marks an unallocated physical monster slot KO;482E00 never reads its resistance.
-            if (actor is null || (NativeSavedStatusBits(actor) & 1) != 0)
+            if ((NativeSavedStatusBits(actor) & 1) != 0)
             {
                 continue;
             }
@@ -103,6 +105,11 @@ public sealed partial class BattleSession
     {
         NativeBattleSupportState state = nativeSupport ?? throw new InvalidOperationException("Native automatic support lacks its battle-local selector owner.");
         nativeSupport = state with { SelectedAction = id };
+        if (UsesExpandedRoster)
+        {
+            QueueExpandedAutomaticGuardian(id);
+            return;
+        }
         QueueNativeCallback(NativeSupportActor(), 7);
     }
 
@@ -121,7 +128,7 @@ public sealed partial class BattleSession
 
     private bool TryQueueNativePhoenixRecovery()
     {
-        if (nativeSupport is null)
+        if (nativeSupport is null || UsesExpandedRoster)
         {
             return false;
         }

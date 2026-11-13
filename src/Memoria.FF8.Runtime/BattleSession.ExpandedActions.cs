@@ -67,13 +67,19 @@ public sealed partial class BattleSession
 
     private void StartExpandedAction(BattleCombatant actor, BattleAttackCommand command)
     {
-        if (!CanExecuteExpandedAction(actor, command.NativeAiCallbackStage, command.AiRecipients) || !CanExecuteMagicReservation(actor, command) || !IsShotCallback(command.NativeLimitCallback) && ExpandedActionTargets(actor, command.TargetId, command.Ability, command.ActionId, command.AiRecipients, command.NativeAction).Length == 0)
+        if (IsDuelCallback(command.NativeLimitCallback))
+        {
+            StartExpandedDuelMove(command);
+            return;
+        }
+        if (!CanExecuteExpandedAction(actor, command.NativeAiCallbackStage, command.AiRecipients) && !CanNativeSupportCommandAct(actor, command.NativePlayerReaction) ||
+            !CanExecuteMagicReservation(actor, command) || !IsShotCallback(command.NativeLimitCallback) && ExpandedActionTargets(actor, command.TargetId, command.Ability, command.ActionId, command.AiRecipients, command.NativeAction).Length == 0)
         {
             RefundCancelledNativeItem(command);
             actor.IsBusy = false;
             return;
         }
-        if (command.Ability == BattleAbility.Item)
+        if (command.Ability == BattleAbility.Item || IsExpandedAutomaticGuardian(command.NativeAction, command.NativePlayerReaction))
         {
             command = PrepareIndependentGuardianItem(actor, command);
         }
@@ -144,6 +150,11 @@ public sealed partial class BattleSession
             return;
         }
         BattleCombatant target = GetActor(command.TargetId);
+        if (IsDuelCallback(command.NativeLimitCallback))
+        {
+            CompleteExpandedDuelMove(command);
+            return;
+        }
         if (command.NativeLimitCallback is NativeLimitCallback.ShotOpening or NativeLimitCallback.ShotEnding)
         {
             Log("NativeLimitControl", actor.Id, target.Id, 0, command.NativeLimitCallback == NativeLimitCallback.ShotOpening ? "Shot started." : "Shot ended.");
@@ -151,7 +162,8 @@ public sealed partial class BattleSession
             return;
         }
         BattleCombatant[] recipients = ExpandedActionTargets(actor, command.TargetId, command.Ability, command.ActionId, command.AiRecipients, command.NativeAction);
-        if (!CanExecuteExpandedAction(actor, command.NativeAiCallbackStage, command.AiRecipients) || !CanExecuteMagicReservation(actor, new(command.ActorId, command.TargetId, command.Ability, command.ActionId) { MagicReservationId = command.MagicReservationId }) || recipients.Length == 0 ||
+        if (!CanExecuteExpandedAction(actor, command.NativeAiCallbackStage, command.AiRecipients) && !CanNativeSupportCommandAct(actor, command.NativePlayerReaction) ||
+            !CanExecuteMagicReservation(actor, new(command.ActorId, command.TargetId, command.Ability, command.ActionId) { MagicReservationId = command.MagicReservationId }) || recipients.Length == 0 ||
             (command.Ability == BattleAbility.Magic || command.NativeAction?.Command == 2) && (NativeSavedStatusBits(actor) & 0x10) != 0)
         {
             RefundCancelledNativeItem(command);
@@ -247,7 +259,8 @@ public sealed partial class BattleSession
             CanPresentExpandedEnemyEffect(actor, command, native, firstHitRecipientCount));
         bool exceedsPresentationBank = presentsNativeEffect && firstHitRecipientCount > nativeContactLimit;
 
-        nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = false, EventLane = actor.IsPlayer ? (byte)2 : (byte)0, Command = command.NativeQueuedCommand ?? native.Command, Action = native.ActionId };
+        bool automaticGuardian = IsExpandedAutomaticGuardian(native, command.NativePlayerReaction);
+        nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = false, EventLane = actor.IsPlayer && !automaticGuardian ? (byte)2 : (byte)0, Command = command.NativeQueuedCommand ?? native.Command, Action = native.ActionId };
         if (command.Ability == BattleAbility.GuardianForce)
         {
             // TODO(TD-009): Expanded GF impact uses the unboosted formula without the native summon presentation.
@@ -314,7 +327,10 @@ public sealed partial class BattleSession
             {
                 phoenixRevival = ResolveExpandedPhoenixRevival(actor, resolved);
             }
-            CompleteNativeActionStatuses(actor);
+            if (!automaticGuardian)
+            {
+                CompleteNativeActionStatuses(actor);
+            }
         }
         finally
         {
@@ -439,6 +455,7 @@ public sealed partial class BattleSession
         {
             BattleAbility.Attack => new(BattleAbility.Attack, 0, actor.NativeAttack!.Name ?? "Attack", BattleActionEffect.Native, actor.NativeAttack.Power, false) { NativeAction = actor.NativeAttack },
             BattleAbility.EnemyAbility when command.AiRecipients is not null => new(BattleAbility.EnemyAbility, command.ActionId, command.NativeAction!.Name ?? $"Enemy ability {command.ActionId}", BattleActionEffect.Native, command.NativeAction.Power, false) { NativeAction = command.NativeAction },
+            BattleAbility.EnemyAbility when IsExpandedAutomaticGuardian(command.NativeAction, command.NativePlayerReaction) => new(BattleAbility.EnemyAbility, command.ActionId, command.NativeAction!.Name ?? "Automatic Guardian", BattleActionEffect.Native, command.NativeAction.Power, false) { NativeAction = command.NativeAction },
             BattleAbility.NativeCommand when command.NativeAction is { } ordinary => ExpandedOrdinaryCommandDefinition(ordinary),
             BattleAbility.LimitBreak when command.NativeAction is { } limit => ExpandedLimitDefinition(actor, limit),
             _ => FindAction(command.Ability, command.ActionId)
@@ -447,6 +464,10 @@ public sealed partial class BattleSession
 
     private BattleCombatant[] ExpandedActionTargets(BattleCombatant actor, string targetId, BattleAbility ability, int actionId, BattleAiRecipients? aiRecipients, BattleNativeAction? native = null)
     {
+        if (ability == BattleAbility.EnemyAbility && IsExpandedAutomaticGuardianAction(native))
+        {
+            return ExpandedAutomaticGuardianTargets();
+        }
         if (aiRecipients is not null)
         {
             if (aiRecipients.RandomSide is null && (native?.TargetFlags.GetValueOrDefault() & 2) == 2)

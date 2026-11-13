@@ -81,15 +81,35 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                     firstBlockerStage = "independent-guardian-item-execution";
                     (status, detail) = RunIndependentGuardianItem(directory, field, assets, effect, independentGuardian);
                 }
+                else if (mappings.FirstOrDefault(action => action is { KernelSection: 9, Command: 245, ActionId: 0 or 7 or 8 or 9 or 10 }) is { } automaticGuardian)
+                {
+                    firstBlockerStage = "automatic-guardian-execution";
+                    (status, detail) = RunExpandedAutomaticGuardian(directory, field, automaticGuardian);
+                }
                 else if (effect.Effect == sonicWave.MagicId)
                 {
                     firstBlockerStage = "enemy-turn-execution";
                     (status, detail) = RunSonicWave(directory, field, effect, sonicWave);
                 }
-                else if (effect.Effect is 141 or 160 or 259 or 332 or 333)
+                else if (effect.Effect is 141 or 160 or 161 or 259 or 332 or 333)
                 {
                     firstBlockerStage = "renzokuken-execution";
                     (status, detail) = RunExpandedRenzokuken(directory, field, game, assets, checked((ushort)effect.Effect));
+                }
+                else if (mappings.FirstOrDefault(action => action is { Command: 249, KernelSection: 5, ActionId: <= 3 }) is { } finisher)
+                {
+                    firstBlockerStage = "renzokuken-finisher-execution";
+                    (status, detail) = RunExpandedRenzokukenFinisher(directory, field, game, assets, finisher);
+                }
+                else if (mappings.FirstOrDefault(action => action is { Command: 19, KernelSection: 25, ActionId: <= 3 }) is { } combine)
+                {
+                    firstBlockerStage = "combine-execution";
+                    (status, detail) = RunExpandedCombine(directory, field, combine);
+                }
+                else if (effect.Effect is 112 or 212 or 215 or 216 or 274)
+                {
+                    firstBlockerStage = "duel-execution";
+                    (status, detail) = RunExpandedDuel(directory, field, assets, checked((ushort)effect.Effect));
                 }
                 else if (guardianMappings[effect.Effect].FirstOrDefault() is { } guardian && ExpandedBattleGuardianForceTests.RunGuardianForce(assets, guardian) is int guardianContacts)
                 {

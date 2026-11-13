@@ -5,12 +5,16 @@ public sealed partial class BattleSession
     public bool SupportsPlayerLimitSelection(string actorId)
     {
         BattleCombatant actor = GetActor(actorId);
-        return actor.NativeLimit is { } limit && (!UsesExpandedRoster || limit.Command is 5 or 14 or 15 or 16 ||
-            actor.ModelId is >= 6 and <= 10 && SupportsExpandedLimit(FindInstalledNativeAction(limit.Command, NativeBattleLimitRules.GuestActionId(actor.ModelId))));
+        return actor.NativeLimit is { } limit && (!UsesExpandedRoster || limit.Command is 5 or 11 or 14 or 15 or 16 ||
+            HasExpandedCombine(actor) || actor.ModelId is >= 6 and <= 10 && SupportsExpandedLimit(FindInstalledNativeAction(limit.Command, NativeBattleLimitRules.GuestActionId(actor.ModelId))));
     }
 
     private static bool SupportsExpandedLimit(BattleNativeAction action)
     {
+        if (action.KernelSection == 25)
+        {
+            return SupportsExpandedCombine(action);
+        }
         // Commands that require another invocation process never enter this route.
         return action.KernelSection is 18 or 19 && action.HitCount > 0 && action.TargetFlags is byte flags && (flags & 0xB3) is 0 or 0x10 &&
             (action.AttackType == 1 || action.HitCount == 1 && action.AttackType is 2 or 8 or 25 or 26) &&
@@ -40,6 +44,10 @@ public sealed partial class BattleSession
     {
         BattleNativeAction native = action.NativeAction!;
         ValidateNativeActionContract(native);
+        if (SupportsExpandedCombine(native))
+        {
+            target = SelectExpandedCombineTarget(action) ?? throw new InvalidOperationException("Combine requires an available recipient on its original side.");
+        }
         if (!IsValidSelectedActionTarget(actor, action, target) || IsNativeLevelCommand(native) && !CanRebindExpandedEnemyLevel(target, ProjectNativeLevel(native, target.Level)) ||
             IsExpandedTargetedSpecial(native) && !CanTargetExpandedSpecial(native, target))
         {

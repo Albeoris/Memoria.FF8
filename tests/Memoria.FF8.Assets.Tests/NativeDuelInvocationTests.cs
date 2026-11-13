@@ -173,10 +173,60 @@ public sealed class NativeDuelInvocationTests
         Assert.Equal(before.Combatants[1].CurrentHp, battle.Combatants[1].CurrentHp);
     }
 
-    private static BattleSession CreateBattle(GameAssets game, BattleAssets assets, ushort options = 0, byte crisis = 1)
+    [Fact]
+    public void Expanded_Duel_restores_its_deferred_defeat_and_finalizes_it_only_on_timeout()
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleSession battle = CreateBattle(game, assets, expanded: true, enemyHp: 1);
+        const string target = "enemy-5";
+        battle.QueueNativePlayerCommand("zell", target, 11, 0);
+        BattleSession restored = Restore(battle);
+        Until(battle, () => battle.GetNativeDuel("zell")?.Phase == BattleNativeDuelPhase.Ready);
+        Until(restored, () => restored.GetNativeDuel("zell")?.Phase == BattleNativeDuelPhase.Ready);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        BattleEvent opening = Assert.Single(battle.Events, entry => entry.Kind == "EffectContact");
+        Assert.Equal(target, opening.TargetId);
+        Assert.Equal("Punch Rush", opening.Message);
+        Assert.True(battle.Combatants[0].IsBusy);
+        BattleCombatant enemy = Assert.Single(battle.Combatants, actor => actor.Id == target);
+        Assert.True(enemy.IsAlive);
+        Assert.Equal(0, enemy.CurrentHp);
+        Assert.DoesNotContain(battle.Events, entry => entry.Kind == "Defeated" && entry.TargetId == target);
+
+        BattleNativeDuelChoice choice = battle.GetNativeDuelChoices("zell")[0];
+        battle.AdvanceNativeDuelUi(rawPulse: choice.Buttons[0]);
+        restored = Restore(battle);
+        Assert.Empty(restored.QueuedActions);
+        short remaining = battle.GetNativeDuel("zell")!.RemainingTimer;
+        long frame = battle.Frame;
+        battle.AdvanceNativeDuelUi(remaining);
+        restored.AdvanceNativeDuelUi(remaining);
+        Assert.Equal(frame, battle.Frame);
+        Assert.Null(battle.GetNativeDuel("zell"));
+        Assert.False(battle.Combatants[0].IsBusy);
+        Assert.False(enemy.IsAlive);
+        Assert.Single(battle.Events, entry => entry.Kind == "Defeated" && entry.TargetId == target);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+
+        static BattleSession Restore(BattleSession source)
+        {
+            string saved = JsonSerializer.Serialize(source.Capture());
+            BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(saved)!);
+            Assert.Equal(saved, JsonSerializer.Serialize(restored.Capture()));
+            return restored;
+        }
+    }
+
+    private static BattleSession CreateBattle(GameAssets game, BattleAssets assets, ushort options = 0, byte crisis = 1, bool expanded = false, int enemyHp = 50000)
     {
         NativeLimitProgress progress = game.ReadNewGameLimitProgress() with { DuelFlags = 0x3FF, Options978 = options };
-        BattleSession battle = new(new BattleDefinition { NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeActions = assets.NativeActions.ToArray(), NativeCrtRandom = NativeCrtRandomState.FromColdProcess(), NativeBattleUiRandom = new(0), LimitProgress = progress, NativeLimitsDisabled = false, Combatants = [new() { Id = "zell", Name = "Zell", IsPlayer = true, ModelId = 1, Attack = 80, Hit = 255, InitialAtb = BattleSession.AtbMaximum, NativeLimit = assets.ReadNativeLimitDefinition(1) }, new() { Id = "enemy", Name = "Enemy", MaximumHp = 50000, CurrentHp = 50000, Speed = 1, Defense = 1 }] }, BattleAtbMode.TurnBased);
+        BattleCombatantDefinition zell = new() { Id = "zell", Name = "Zell", IsPlayer = true, ModelId = 1, Attack = 80, Hit = 255, InitialAtb = BattleSession.AtbMaximum, NativeLimit = assets.ReadNativeLimitDefinition(1) };
+        BattleCombatantDefinition enemy = new() { Id = "enemy", Name = "Enemy", MaximumHp = 50000, CurrentHp = 50000, Speed = 1, Defense = 1 };
+        BattleCombatantDefinition[] combatants = expanded
+            ? [zell, .. Enumerable.Range(1, 3).Select(index => new BattleCombatantDefinition { Id = $"ally-{index}", Name = "Ally", IsPlayer = true }), .. Enumerable.Range(0, 6).Select(index => enemy with { Id = $"enemy-{index}", CurrentHp = index == 5 ? enemyHp : enemy.CurrentHp })]
+            : [zell, enemy];
+        BattleSession battle = new(new BattleDefinition { UsesExpandedRoster = expanded, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeActions = assets.NativeActions.ToArray(), NativeCrtRandom = NativeCrtRandomState.FromColdProcess(), NativeBattleUiRandom = new(0), LimitProgress = progress, NativeLimitsDisabled = false, Combatants = combatants }, BattleAtbMode.TurnBased);
         return BattleSession.Restore(battle.Capture() with { NativeLimits = [new("zell", crisis)] });
     }
 

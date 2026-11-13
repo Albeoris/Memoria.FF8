@@ -209,7 +209,9 @@ internal sealed partial class GameWorld
             NativeScanNames = new Dictionary<byte, int> { [0x30] = 0, [0x34] = 1, [0x50] = GameNames.GrieverSubject }.ToDictionary(pair => pair.Key, pair => Albeoris.Games.FF8.TextEncoding.FF8Encoding.CreateEuropean(Albeoris.Games.FF8.TextEncoding.FF8TextLanguage.EN).GetBytes(Events.Scene.Names.GetValueOrDefault(pair.Value) ?? GameNames.DefaultName(pair.Value)).Append((byte)0).ToArray()),
             NativeScanActorNames = combatants.Where(actor => actor.IsPlayer).ToDictionary(actor => actor.Id, actor => EncodeScanName24(actor.Name)),
             NativeInputButtonMap = (session.State.InputConfiguration ?? assets.ReadNewGameInputConfiguration()).ButtonMap,
-            NativeSupportRules = expanded ? null : BattleResources.ReadNativeSupportRules(),
+            NativeSupportRules = !expanded || (restoredDefinition is not null ? restoredDefinition.NativeSupportRules is not null :
+                (definition.NativeSavedBattleFlagsKnownMask & 0x0A) == 0x0A && (definition.NativeSavedBattleFlags.GetValueOrDefault() & 0x0A) != 0)
+                ? BattleResources.ReadNativeSupportRules() : null,
             NativeGraphics = expanded ? null : BattleResources.ReadNativeGraphicsDefinition(definition.Combatants, assets.ReadNativeBattleGraphicsRules(), encounter),
             NativeClockRules = expanded ? null : BattleResources.ReadNativeClockRules(),
             NativeRetainedMemory = session.CaptureNativeFieldMemory(),

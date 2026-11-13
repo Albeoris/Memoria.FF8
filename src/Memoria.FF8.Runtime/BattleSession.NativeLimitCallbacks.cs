@@ -32,7 +32,8 @@ public sealed partial class BattleSession
         {
             NativeLimitCallback.ShotOpening or NativeLimitCallback.ShotEffect or NativeLimitCallback.ShotEnding => nativeShotProcesses.TryGetValue(actorId, out BattleNativeShotState? shot) &&
                 (!UsesExpandedRoster || shot.ExpandedTargetId == targetId && action?.ActionId == shot.ActionId && action.Command == (value == NativeLimitCallback.ShotOpening ? 14 : value == NativeLimitCallback.ShotEffect ? 237 : 238)),
-            NativeLimitCallback.DuelOpening or NativeLimitCallback.DuelEffect or NativeLimitCallback.DuelFinisher => nativeDuelProcesses.ContainsKey(actorId),
+            NativeLimitCallback.DuelOpening or NativeLimitCallback.DuelEffect or NativeLimitCallback.DuelFinisher => nativeDuelProcesses.TryGetValue(actorId, out BattleNativeDuelState? duel) &&
+                (!UsesExpandedRoster || ValidateExpandedDuelCallback(actorId, duel, value, targetId, action)),
             _ => false
         };
         if (!owned)

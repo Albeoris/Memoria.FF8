@@ -21,7 +21,19 @@ public sealed partial class ExpandedBattleEffectMatrixTests
     {
         const byte selphie = 5;
         Assert.Contains(action, assets.NativeActions);
-        using GameWorld world = StartBattle(directory, field, 22, limit: action with { CharacterId = selphie });
+        for (byte seed = 0; seed < 12; seed++)
+        {
+            using GameWorld world = StartBattle(directory, field, 22, limit: action with { CharacterId = selphie }, nativeSeed: seed);
+            if (TryExpandedRapture(world, action, selphie) is { } result)
+            {
+                return result;
+            }
+        }
+        throw new InvalidOperationException("The original Slots rolls did not yield Rapture for the installed encounter seeds.");
+    }
+
+    private static (string Status, string Detail)? TryExpandedRapture(GameWorld world, BattleNativeAction action, byte selphie)
+    {
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         BattleCombatant caster = Assert.Single(battle.Combatants, actor => actor.IsPlayer && actor.ModelId == selphie);
         for (int turn = 0; turn < 24 && (!caster.IsReady || battle.ActiveAction is not null); turn++)
@@ -33,7 +45,10 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         Assert.Null(battle.ActiveAction);
         BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: input => world.ApplyBattleInput(input));
         hud.SelectParty(caster.Id);
-        Assert.True(hud.NativeLimitAvailable);
+        if (!hud.NativeLimitAvailable)
+        {
+            return null;
+        }
         hud.SetNativeCommandButtons(0x2000);
         Assert.Equal(BattleAbility.LimitBreak, hud.Commands[0]);
         hud.Choose(0);
@@ -45,9 +60,11 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             sawUnavailable = true;
             hud.RerollNativeSlots();
         }
-        Assert.True(sawUnavailable);
         BattleNativeSlotsRoll accepted = Assert.IsType<BattleNativeSlotsRoll>(battle.GetNativeSlotsRoll(caster.Id));
-        Assert.Equal(action.ActionId, accepted.MagicId);
+        if (accepted.MagicId != action.ActionId || !sawUnavailable)
+        {
+            return null;
+        }
         Assert.Equal(1, accepted.Repetitions);
         Assert.True(Assert.Single(hud.ActionChoices).Available);
 

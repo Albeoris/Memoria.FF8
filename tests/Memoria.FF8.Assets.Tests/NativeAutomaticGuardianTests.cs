@@ -7,6 +7,98 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class NativeAutomaticGuardianTests
 {
     [Theory]
+    [InlineData(2, 1, 0, 187, 1)]
+    [InlineData(8, 41, 7, 329, 2)]
+    [InlineData(8, 129, 8, 330, 2)]
+    [InlineData(8, 227, 9, 328, 2)]
+    [InlineData(8, 1, 10, 327, 2)]
+    public void ExpandedEntryDispatchesOriginalGuardianRecordToEveryLogicalEnemy(byte flags, byte phase, ushort actionId, ushort effect, int draws)
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleDefinition definition = ExpandedDefinition(game, assets, flags, phase);
+        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
+        Assert.Equal("party-0", queued.ActorId);
+        Assert.Equal("enemy-0", queued.TargetId);
+        Assert.Equal((byte)245, queued.NativeQueuedCommand);
+        Assert.Equal(actionId, queued.NativeAction!.ActionId);
+        Assert.Equal(effect, queued.NativeAction.MagicId);
+        Assert.Equal(0, queued.NativeTargetMask);
+        NativeBattleRandomState expected = definition.InitialRandom!;
+        for (int draw = 0; draw < draws; draw++)
+        {
+            expected = expected.Draw(out _);
+        }
+        Assert.Equal(expected.Indexes, battle.Capture().Random!.Indexes);
+        BattleSession restored = RestoreGuardianBattle(battle);
+        for (int tick = 0; tick <= BattleSession.AttackWindupFrames; tick++)
+        {
+            battle.Tick();
+            restored.Tick();
+        }
+        Assert.Equal(Enumerable.Range(0, 6).Select(index => $"enemy-{index}"), battle.Events.Where(entry => entry.Kind == "EffectContact").Select(entry => entry.TargetId));
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+    }
+
+    [Fact]
+    public void ExpandedPeriodicGilgameshUsesRestoredCooldownAndDoesNotRollAgainAfterUse()
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleDefinition definition = ExpandedDefinition(game, assets, 8, 0);
+        BattleSession battle = new(definition, BattleAtbMode.Normal);
+        BattleSnapshot initial = battle.Capture();
+        Assert.Empty(battle.QueuedActions);
+        Assert.Equal(0, initial.NativeSupport!.GilgameshUsed);
+        NativeBattleRandomState expected = definition.InitialRandom!.Draw(out _);
+        Assert.Equal(expected.Indexes, initial.Random!.Indexes);
+        battle = BattleSession.Restore(initial with { NativeSupport = initial.NativeSupport with { Cooldown = 0 } });
+        BattleSession restored = RestoreGuardianBattle(battle);
+        battle.Tick();
+        restored.Tick();
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        Assert.Equal(10, Assert.Single(battle.QueuedActions).ActionId);
+        Assert.Equal(1, battle.Capture().NativeSupport!.GilgameshUsed);
+        expected = expected.Draw(out _).Draw(out _);
+        Assert.Equal(expected.Indexes, battle.Capture().Random!.Indexes);
+
+        BattleSession alreadyUsed = BattleSession.Restore(initial with { NativeSupport = initial.NativeSupport with { Cooldown = 0, GilgameshUsed = 1 } });
+        alreadyUsed.Tick();
+        Assert.Empty(alreadyUsed.QueuedActions);
+        Assert.Equal(initial.Random.Indexes, alreadyUsed.Capture().Random!.Indexes);
+    }
+
+    [Fact]
+    public void ExpandedOdinSkipsItsRollForAnyLiveEnemyWithEjectResistanceAtLeast200()
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleDefinition definition = ExpandedDefinition(game, assets, 2, 1);
+        byte[] resistances = definition.Combatants[^1].NativeStatusResistances!.ToArray();
+        resistances[24] = 200;
+        definition.Combatants[^1] = definition.Combatants[^1] with { NativeStatusResistances = resistances };
+        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        Assert.Empty(battle.QueuedActions);
+        Assert.Equal(definition.InitialRandom!.Indexes, battle.Capture().Random!.Indexes);
+    }
+
+    [Fact]
+    public void OlderExpandedSaveWithoutSupportOwnershipKeepsItsCurrentRandomState()
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleDefinition definition = ExpandedDefinition(game, assets, 2, 1) with { NativeSupportRules = null };
+        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        battle.Tick();
+        BattleSession restored = RestoreGuardianBattle(battle);
+        Assert.Null(restored.Capture().NativeSupport);
+        Assert.DoesNotContain(restored.QueuedActions, command => command.NativePlayerReaction == BattleNativePlayerReaction.AutomaticGuardian);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        Assert.Equal(battle.Capture().Random!.Indexes, restored.Capture().Random!.Indexes);
+    }
+
+    [Theory]
     [InlineData(2, 100, 255, 0, 0)]
     [InlineData(2, 200, 0, -1, 0)]
     [InlineData(8, 100, 0, 10, 1)]
@@ -140,6 +232,19 @@ public sealed class NativeAutomaticGuardianTests
         BattleSession initial = new(definition, BattleAtbMode.TurnBased);
         BattleAttackCommand hit = new("enemy", "party-0", BattleAbility.EnemyAbility, attack.ActionId) { NativeQueuedCommand = 8, NativeAction = attack, NativeTargetMask = 1 };
         return BattleSession.Restore(initial.Capture() with { NativeSupport = new(true, assets.ReadNativeSupportRules().Cooldown, 0), QueuedActions = [hit] });
+    }
+
+    private static BattleDefinition ExpandedDefinition(GameAssets game, BattleAssets assets, byte flags, byte phase)
+    {
+        BattleCombatantDefinition[] party = Enumerable.Range(0, 4).Select(index => new BattleCombatantDefinition { Id = $"party-{index}", Name = $"Party {index}", IsPlayer = true, ModelId = index, MaximumHp = 1000, CurrentHp = 1000, Speed = 1 }).ToArray();
+        byte[] resistances = assets.ReadEnemyNativeStatusData(4).Resistances.ToArray();
+        BattleCombatantDefinition[] enemies = Enumerable.Range(0, 6).Select(index => new BattleCombatantDefinition { Id = $"enemy-{index}", Name = $"Enemy {index}", ModelId = 4, MaximumHp = 10000, CurrentHp = 10000, Speed = 1, NativeStatusResistances = resistances }).ToArray();
+        return Definition(game, assets, flags, [.. party, .. enemies]) with { UsesExpandedRoster = true, NativeStatusRules = assets.ReadNativeStatusRules(0), InitialRandom = NativeBattleRandomState.ForecastPhase(phase) };
+    }
+
+    private static BattleSession RestoreGuardianBattle(BattleSession battle)
+    {
+        return BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
     }
 
     private static BattleDefinition Definition(GameAssets game, BattleAssets assets, byte flags, BattleCombatantDefinition[] actors)
