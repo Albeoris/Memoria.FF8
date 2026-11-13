@@ -58,6 +58,9 @@ public sealed class AdditionalEnemyRosterTests
         BattleSnapshot before = battle.Capture();
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(before))!);
         Assert.Equal(JsonSerializer.Serialize(before), JsonSerializer.Serialize(restored.Capture()));
+        BattleDefinition rebuilt = world.CreateEncounterBattle(formation, 4, restoredDefinition: before.Definition);
+        Assert.Equal(definition.AddedEnemySources, rebuilt.AddedEnemySources);
+        Assert.Equal(enemies.Select(enemy => enemy.ModelId), rebuilt.Combatants.Where(actor => !actor.IsPlayer).Select(enemy => enemy.ModelId));
         world.ApplyBattleInput(new(BattleInputKind.InstantVictory));
         Assert.Empty(world.PreviewBattleRewards().Items);
     }

@@ -19,7 +19,7 @@ public sealed class StoryBattleRosterTests
         byte[] party = [5, 0, 1];
         GameSession session = GameSession.CreateColdProcess(assets.ReadColdProcessNativeBattleMemory());
         session.StartNewGame();
-        using GameWorld world = new(session, directory, sharedAssets: assets, expandedBattleAllyCount: 3, expandedBattleEnemyCount: 11);
+        using GameWorld world = new(session, directory, sharedAssets: assets, expandedBattleAllyCount: 3);
         world.EnsureField();
         session.SetFullBattlePlaythrough(true);
         NativeCharacterVitals vitals = (session.State.CharacterVitals! with { CombatParty = party }).WithGuestBattleRecords();
@@ -57,8 +57,8 @@ public sealed class StoryBattleRosterTests
         AssertFullExpandedRosterAvailable(Assert.IsType<NativeCharacterVitals>(session.State.CharacterVitals));
 
         GameState pending = session.PrepareSnapshot() with { EventState = world.Events.Capture() };
-        GameSession expandedSession = new(pending);
-        using GameWorld expandedWorld = new(expandedSession, directory, sharedAssets: assets, expandedBattleAllyCount: 11, expandedBattleEnemyCount: 11);
+        GameSession expandedSession = new(pending with { GameplayPreferences = pending.GameplayPreferences with { BattleAllyCount = 11, AdditionalEnemies = 10 } });
+        using GameWorld expandedWorld = new(expandedSession, directory, sharedAssets: assets);
         expandedWorld.EnsureField();
         Assert.Equal(3, world.ConfiguredBattleAllyCount);
         Assert.Equal(11, expandedWorld.ConfiguredBattleAllyCount);

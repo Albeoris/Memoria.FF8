@@ -432,7 +432,8 @@ public sealed partial class BattleSession
                 {
                     // Native48E830 stops the remaining pass when a previously selected target is KO.
                     bool deathSelfContact = recipient == actor && recipient.Id == command.AiRecipients?.DeathSelfTargetId && command.NativeAiCallbackStage == 3;
-                    if (!recipient.IsActive || (NativeSavedStatusBits(recipient) & 1) != 0 && !deathSelfContact && (!recipient.IsPlayer || !IsNativeRevive(action)))
+                    bool targetsKnockedOutAlly = recipient.IsPlayer && (IsNativeRevive(action) || ExpandedBattleActionRules.IsEnemyEjection(native));
+                    if (!recipient.IsActive || (NativeSavedStatusBits(recipient) & 1) != 0 && !deathSelfContact && !targetsKnockedOutAlly)
                     {
                         return (contacts.ToImmutable(), firstReflector);
                     }

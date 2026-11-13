@@ -111,6 +111,27 @@ public sealed class ExpandedBattleAiTests
     }
 
     [Fact]
+    public void StatusOnlyEnemyEjectionContactsTheSelectedKnockedOutAlly()
+    {
+        BattleNativeAction ejection = Physical with { Power = 0, AttackFlags = 0x83, StatusAttack = 255, Statuses1 = 0x10000 };
+        byte[] turn = [4, 3, 7, 1, 6, 0];
+        Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(Ai(turn), [ejection], 0));
+        BattleSession battle = Start(turn, 4, 6, native: ejection);
+        Assert.Equal("ally-3", battle.ActiveAction!.TargetId);
+        BattleCombatant target = Assert.Single(battle.Combatants, actor => actor.Id == "ally-3");
+        target.NativeDeathCount = 0;
+        target.CurrentHp = 0;
+        target.NativeStatus0 |= 1;
+        for (int tick = 0; tick <= BattleSession.AttackWindupFrames; tick++)
+        {
+            battle.Tick();
+        }
+        Assert.True(target.IsEjected);
+        Assert.Single(battle.Events, entry => entry.Kind == "EffectContact" && entry.ActorId == "enemy-4" && entry.TargetId == target.Id);
+        Assert.Equal(BattleOutcome.Active, battle.Outcome);
+    }
+
+    [Fact]
     public void EnemyStatisticOpcodeUsesOriginalSignedOperandAfterRestore()
     {
         BattleSession battle = Start([40, 0, 20, 0], 11, 11);
