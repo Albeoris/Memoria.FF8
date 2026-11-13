@@ -31,7 +31,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         // Formation 137 resolves the original HP curve at the party's level instead of fixing the enemy at level 4.
         152 => new(137, 18, 0, 5, HigherEnemyBand),
         239 => new(221, 45, 5, 0),
-        _ => null
+        _ => HpTurnSetup(effect)
     };
 
     private sealed record EnemyAttackSetup(int Formation, int Model, int RequiredHits, int HpTenths, int Band = 0);
@@ -43,6 +43,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         private int scannedEvents = firstEvent;
         private int hits;
 
+        public bool HasHit => hits > 0;
         public bool Ready => hits > 0 && hits >= setup.RequiredHits && (setup.HpTenths == 0 || target.CurrentHp < setup.HpTenths * (target.MaximumHp / 10));
         public string Describe() => $"{target.Id}, {hits} damaging hit(s), {target.CurrentHp}/{target.MaximumHp} HP after genuine Attack setup";
 

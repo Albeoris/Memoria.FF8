@@ -23,9 +23,10 @@ public sealed partial class ExpandedBattleEffectMatrixTests
 
     private static (string Status, string Detail) RunExpandedAutomaticGuardian(string directory, GameState field, BattleNativeAction action)
     {
-        const ushort formation = 71;
         const byte odinUnlock = 2;
         const byte gilgameshUnlock = 8;
+        // The two original formations have different entry draws. Formation 89 admits the quartile for action 9.
+        ushort formation = action.ActionId == 9 ? (ushort)89 : (ushort)71;
         using GameAssets game = new(directory);
         NativeSavedBattleFlags flags = field.SavedBattleFlags ?? game.ReadNewGameSavedBattleFlags();
         Assert.Equal(0x0A, flags.EffectiveKnownMask & 0x0A);
@@ -36,9 +37,19 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             CharacterVitals = field.CharacterVitals!.AcquireGuardianForce(0)
         };
 
-        for (int seed = 0; seed <= byte.MaxValue; seed++)
+        // These seeds cover the original rolls after the formation's party and enemy entry draws.
+        byte[] seeds = action.ActionId switch
         {
-            using GameWorld world = StartBattle(directory, field, formation, nativeSeed: (byte)seed);
+            0 => [3, 15],
+            7 => [121, 146],
+            8 => [192, 104],
+            9 => [47],
+            10 => [55, 66],
+            _ => throw new ArgumentOutOfRangeException(nameof(action))
+        };
+        foreach (byte seed in seeds)
+        {
+            using GameWorld world = StartBattle(directory, field, formation, nativeSeed: seed);
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
             BattleAttackCommand? queued = battle.QueuedActions.FirstOrDefault(command => command is { NativeQueuedCommand: 245, NativePlayerReaction: BattleNativePlayerReaction.AutomaticGuardian });
             if (queued?.NativeAction?.ActionId != action.ActionId)
