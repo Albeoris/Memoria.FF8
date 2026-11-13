@@ -1,4 +1,5 @@
 using System.Numerics;
+using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Events;
@@ -76,11 +77,7 @@ public sealed partial class EventEngine
             }
             if ((uint)trigger.AreaIndex >= areas.Length)
             {
-                // 47B610 evaluates geometry before 47B500 reads the physical gate.
-                // 52BC00 places modules directly after the 396-byte area records:
-                // index == area count aliases the first module's WORD392 position.
-                EventObject? firstModule = program.Objects.FirstOrDefault(obj => obj.BackgroundModuleIndex == 0);
-                if (trigger.AreaIndex == areas.Length && firstModule is not null && backgroundAnimations.TryGetValue(0, out BackgroundAnimation? animation) && unchecked((byte)animation.Position) != 1)
+                if (IsDisabledInfModuleAlias(trigger.AreaIndex - areas.Length))
                 {
                     continue;
                 }
@@ -114,6 +111,26 @@ public sealed partial class EventEngine
             gatewayCommit?.Invoke();
             observeInfGatewayAdmission?.Invoke(selectedGatewayIndex);
         }
+    }
+
+    private bool IsDisabledInfModuleAlias(int overflowIndex)
+    {
+        // 52BC00 lays out 396-byte areas immediately before 436-byte modules.
+        int offset = overflowIndex * 396 + 392;
+        int moduleIndex = offset / 436;
+        EventObject? module = program!.Objects.FirstOrDefault(obj => obj.BackgroundModuleIndex == moduleIndex);
+        if (module is null)
+        {
+            return false;
+        }
+        return (offset % 436) switch
+        {
+            392 => unchecked((byte)(backgroundAnimations.GetValueOrDefault(moduleIndex)?.Position ?? -1)) != 1,
+            // Allocation initializes this flag byte to zero. These reached
+            // module instructions and the animation tick leave that byte intact.
+            352 => NativeRuntimeProfile is { IsVerified: true } && module.Scripts.SelectMany(script => script.ReachableOperations).All(index => program.Operations[index].Opcode is Jsm.Opcode.LBL or Jsm.Opcode.RET or Jsm.Opcode.HALT or Jsm.Opcode.PSHN_L or Jsm.Opcode.BGDRAW or Jsm.Opcode.BGOFF or Jsm.Opcode.BGANIME or Jsm.Opcode.BGANIMESPEED),
+            _ => false
+        };
     }
 
     private void CommitInfAreaContact(ActorState area, bool contact, bool entry, int infIndex)
