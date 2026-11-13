@@ -62,13 +62,14 @@ public sealed partial class BattleSession
             return;
         }
         byte flags = NativeSupportFlags(0x0A);
+        bool hasGuardianLevel = !UsesExpandedRoster || HasAcquiredGuardianForce;
         //47CCB0 case3 calls482E00,4831F0,482F70 in this order.
-        if ((flags & 2) != 0 && NativeOdinTargetsEligible() && NextRandomByte() <= 32)
+        if (hasGuardianLevel && (flags & 2) != 0 && NativeOdinTargetsEligible() && NextRandomByte() <= 32)
         {
             QueueNativeAutomaticGuardian(0);
         }
         byte gilgameshUsed = 0;
-        if ((flags & 8) != 0 && NextRandomByte() <= 8)
+        if (hasGuardianLevel && (flags & 8) != 0 && NextRandomByte() <= 8)
         {
             QueueNativeAutomaticGuardian(checked((byte)(NextRandomByte() / 64 + 7)));
             gilgameshUsed = 1;

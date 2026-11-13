@@ -1631,6 +1631,13 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Saved expanded automatic guardian lacks its installed actor, action, or logical target side.");
         }
+        if (UsesExpandedRoster && reaction is BattleNativePlayerReaction.AngeloRush or BattleNativePlayerReaction.AngeloRecover or BattleNativePlayerReaction.AngeloReverse or BattleNativePlayerReaction.AngeloPeriodic &&
+            (!IsExpandedAngeloAction(nativeAction) || nativeQueuedCommand != 240 || actionId != nativeAction!.ActionId || nativeTargetMask != 0 || factualHeader ||
+                (reaction == BattleNativePlayerReaction.AngeloPeriodic ? actor != NativeSupportActor() : reaction != BattleNativePlayerReaction.AngeloRush && actor != target) ||
+                !allowDefeatedTarget && !IsExpandedAngeloTarget(target, nativeAction)))
+        {
+            throw new InvalidDataException("Saved expanded Angelo lacks its installed actor, action, or logical target.");
+        }
         ValidateNativeMenuInvocation(actor, ability, actionId, nativeAction, duel, slots);
         if (renzokuken is not null && (nativeAction is not null || graphic is not null || ability != BattleAbility.LimitBreak || actionId != 5 << 16 || actor.NativeLimit?.Command != 5 || renzokuken.CrisisLevel is < 1 or > 4))
         {

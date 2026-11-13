@@ -52,9 +52,13 @@ public sealed partial class BattleSession
     private bool ShouldRunNativePlayerDeathSupport(BattleCombatant actor, BattleCombatant? attacker)
     {
         // NG-005: Original482F10 excludes encounter317.
-        if (UsesExpandedRoster || actor.ModelId != 4 || attacker?.EncodeNativeSlot() is not >= 3 || definition.EncounterId == 317 || (NativeBattleStatusBits(actor) & 0x10000) != 0)
+        if (actor.ModelId != 4 || (UsesExpandedRoster ? attacker is not { IsPlayer: false } : attacker?.EncodeNativeSlot() is not >= 3) || definition.EncounterId == 317 || (NativeBattleStatusBits(actor) & 0x10000) != 0)
         {
             return false;
+        }
+        if (UsesExpandedRoster)
+        {
+            return (ExpandedAngeloLearned(actor) & 4) != 0 && NextRandomByte() <= 32;
         }
         if (NativeAngeloDisabled())
         {

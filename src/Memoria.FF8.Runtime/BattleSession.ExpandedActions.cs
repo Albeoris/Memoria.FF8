@@ -79,7 +79,7 @@ public sealed partial class BattleSession
             actor.IsBusy = false;
             return;
         }
-        if (command.Ability == BattleAbility.Item || IsExpandedAutomaticGuardian(command.NativeAction, command.NativePlayerReaction))
+        if (command.Ability == BattleAbility.Item || IsExpandedIndependentSupport(command.NativeAction, command.NativePlayerReaction))
         {
             command = PrepareIndependentGuardianItem(actor, command);
         }
@@ -259,8 +259,8 @@ public sealed partial class BattleSession
             CanPresentExpandedEnemyEffect(actor, command, native, firstHitRecipientCount));
         bool exceedsPresentationBank = presentsNativeEffect && firstHitRecipientCount > nativeContactLimit;
 
-        bool automaticGuardian = IsExpandedAutomaticGuardian(native, command.NativePlayerReaction);
-        nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = false, EventLane = actor.IsPlayer && !automaticGuardian ? (byte)2 : (byte)0, Command = command.NativeQueuedCommand ?? native.Command, Action = native.ActionId };
+        bool independentSupport = IsExpandedIndependentSupport(native, command.NativePlayerReaction);
+        nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = false, EventLane = actor.IsPlayer && !independentSupport ? (byte)2 : (byte)0, Command = command.NativeQueuedCommand ?? native.Command, Action = native.ActionId };
         if (command.Ability == BattleAbility.GuardianForce)
         {
             // TODO(TD-009): Expanded GF impact uses the unboosted formula without the native summon presentation.
@@ -327,7 +327,7 @@ public sealed partial class BattleSession
             {
                 phoenixRevival = ResolveExpandedPhoenixRevival(actor, resolved);
             }
-            if (!automaticGuardian)
+            if (!independentSupport)
             {
                 CompleteNativeActionStatuses(actor);
             }
@@ -455,7 +455,7 @@ public sealed partial class BattleSession
         {
             BattleAbility.Attack => new(BattleAbility.Attack, 0, actor.NativeAttack!.Name ?? "Attack", BattleActionEffect.Native, actor.NativeAttack.Power, false) { NativeAction = actor.NativeAttack },
             BattleAbility.EnemyAbility when command.AiRecipients is not null => new(BattleAbility.EnemyAbility, command.ActionId, command.NativeAction!.Name ?? $"Enemy ability {command.ActionId}", BattleActionEffect.Native, command.NativeAction.Power, false) { NativeAction = command.NativeAction },
-            BattleAbility.EnemyAbility when IsExpandedAutomaticGuardian(command.NativeAction, command.NativePlayerReaction) => new(BattleAbility.EnemyAbility, command.ActionId, command.NativeAction!.Name ?? "Automatic Guardian", BattleActionEffect.Native, command.NativeAction.Power, false) { NativeAction = command.NativeAction },
+            BattleAbility.EnemyAbility when IsExpandedIndependentSupport(command.NativeAction, command.NativePlayerReaction) => new(BattleAbility.EnemyAbility, command.ActionId, command.NativeAction!.Name ?? "Automatic Support", BattleActionEffect.Native, command.NativeAction.Power, false) { NativeAction = command.NativeAction },
             BattleAbility.NativeCommand when command.NativeAction is { } ordinary => ExpandedOrdinaryCommandDefinition(ordinary),
             BattleAbility.LimitBreak when command.NativeAction is { } limit => ExpandedLimitDefinition(actor, limit),
             _ => FindAction(command.Ability, command.ActionId)
@@ -477,6 +477,10 @@ public sealed partial class BattleSession
             return CurrentExpandedAiTargets(aiRecipients);
         }
         BattleCombatant target = GetActor(targetId);
+        if (ability == BattleAbility.EnemyAbility && IsExpandedAngeloAction(native))
+        {
+            return IsExpandedAngeloTarget(target, native!) ? [target] : [];
+        }
         if (ability == BattleAbility.LimitBreak && IsExpandedShotAction(native))
         {
             return native!.Command is 14 or 238 ? [target] : ExpandedShotTargets(target, native);

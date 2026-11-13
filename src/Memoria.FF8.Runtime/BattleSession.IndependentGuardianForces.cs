@@ -30,6 +30,8 @@ public sealed partial class BattleSession
         }
     }
 
+    private bool HasAcquiredGuardianForce => guardianForces.Values.Any(gf => gf.Acquired);
+
     private byte IndependentGuardianLevel()
     {
         BattleGuardianForceVital[] acquired = guardianForces.Values.Where(gf => gf.Acquired).ToArray();

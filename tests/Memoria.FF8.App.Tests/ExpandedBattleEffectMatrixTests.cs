@@ -86,6 +86,11 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                     firstBlockerStage = "automatic-guardian-execution";
                     (status, detail) = RunExpandedAutomaticGuardian(directory, field, automaticGuardian);
                 }
+                else if (mappings.FirstOrDefault(action => action is { KernelSection: 9, Command: 240, ActionId: >= 11 and <= 14 }) is { } angelo)
+                {
+                    firstBlockerStage = "angelo-support-execution";
+                    (status, detail) = RunExpandedAngeloSupport(directory, field, angelo);
+                }
                 else if (effect.Effect == sonicWave.MagicId)
                 {
                     firstBlockerStage = "enemy-turn-execution";
@@ -433,7 +438,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         };
     }
 
-    internal static GameWorld StartBattle(string directory, GameState field, ushort formation, BattleActionDefinition? action = null, bool requireExpanded = true, BattleNativeAction? limit = null, BattleNativeAction? equipped = null, byte nativeSeed = 0, Action<GameSession>? captureSession = null, bool prepareHigherBand = false)
+    internal static GameWorld StartBattle(string directory, GameState field, ushort formation, BattleActionDefinition? action = null, bool requireExpanded = true, BattleNativeAction? limit = null, BattleNativeAction? equipped = null, byte nativeSeed = 0, Action<GameSession>? captureSession = null, bool prepareHigherBand = false, Action<NativeCharacterVital[]>? prepareParty = null)
     {
         GameSession session = new(field);
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
@@ -498,6 +503,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                     session.SetEconomy(economy with { Items = items });
                 }
             }
+            prepareParty?.Invoke(records);
             session.SetCharacterVitals(vitals with { Records = records });
             string source = world.Events.Capture().GetProperty("ProgramHash").GetString()!;
             session.SetRandomEncounters(new(true, NativeRandomEncounterState.FromColdProcess(), new(SceneKind.Field, 133, world.Events.Frame, formation, source)));

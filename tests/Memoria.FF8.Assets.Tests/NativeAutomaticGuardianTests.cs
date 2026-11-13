@@ -98,6 +98,24 @@ public sealed class NativeAutomaticGuardianTests
         Assert.Equal(battle.Capture().Random!.Indexes, restored.Capture().Random!.Indexes);
     }
 
+    [Fact]
+    public void ExpandedAutomaticGuardianWithNoAcquiredGuardianForceSkipsEntryAndPeriodicRolls()
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleDefinition definition = ExpandedDefinition(game, assets, 0x0A, 1) with { GuardianForces = [new(0, 0, 100, false)] };
+        BattleSession battle = new(definition, BattleAtbMode.Normal);
+        BattleSnapshot initial = battle.Capture();
+        Assert.True(initial.NativeSupport!.EntryInitialized);
+        Assert.Empty(battle.QueuedActions);
+        Assert.Equal(definition.InitialRandom!.Indexes, initial.Random!.Indexes);
+        battle = BattleSession.Restore(initial with { NativeSupport = initial.NativeSupport with { Cooldown = 0 } });
+        battle.Tick();
+        Assert.DoesNotContain(battle.QueuedActions, command => command.NativePlayerReaction is not null);
+        Assert.Equal(0, battle.Capture().NativeSupport!.GilgameshUsed);
+        Assert.Equal(initial.Random.Indexes, battle.Capture().Random!.Indexes);
+    }
+
     [Theory]
     [InlineData(2, 100, 255, 0, 0)]
     [InlineData(2, 200, 0, -1, 0)]

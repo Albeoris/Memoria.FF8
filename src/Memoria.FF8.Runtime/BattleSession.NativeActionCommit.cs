@@ -69,7 +69,8 @@ public sealed partial class BattleSession
 
     private void QueueNativeReaction(BattleCombatant actor, int stage)
     {
-        if (actor.NativeAi is null && !actor.IsPlayer || UsesExpandedRoster && (actor.IsPlayer || actor.NativeAi?.Scripts[stage].Length is not > 0 || nativeReactionOrder is null))
+        if (actor.NativeAi is null && !actor.IsPlayer || UsesExpandedRoster && (nativeReactionOrder is null ||
+            (actor.IsPlayer ? stage == 2 && (ExpandedAngeloLearned(actor) & 3) == 0 : actor.NativeAi?.Scripts[stage].Length is not > 0)))
         {
             return;
         }
@@ -85,7 +86,7 @@ public sealed partial class BattleSession
         actor.NativePendingReaction = new(checked((byte)stage), order);
         nativeReactionOrder = unchecked((byte)(order + 1));
         ObserveDiagnosticCounterReaction(actor, stage);
-        if (actor.IsPlayer && stage == 3)
+        if (!UsesExpandedRoster && actor.IsPlayer && stage == 3)
         {
             SetNativeReactionActionGate(true);
         }
@@ -95,13 +96,20 @@ public sealed partial class BattleSession
     {
         byte count = nativeReactionOrder ?? 0;
         nativeReactionOrder = null;
-        foreach (BattleCombatant actor in enemies.Where(actor => actor.NativePendingReaction is { Stage: 2 or 3, Order: byte order } && order < count).OrderBy(actor => actor.NativePendingReaction.Order))
+        foreach (BattleCombatant actor in combatants.Where(actor => actor.NativePendingReaction is { Stage: 2 or 3, Order: byte order } && order < count).OrderBy(actor => actor.NativePendingReaction.Order))
         {
             byte stage = actor.NativePendingReaction.Stage!.Value;
             actor.NativePendingReaction = new(0, 0);
             if (actor.IsActive && (stage == 3 || (NativeSavedStatusBits(actor) & 1) == 0))
             {
-                if (stage == 3)
+                if (actor.IsPlayer)
+                {
+                    if (stage == 3 || allies.Any(IsNativeBattleCapable) && enemies.Any(IsNativeBattleCapable))
+                    {
+                        RunExpandedAngeloReaction(actor, stage);
+                    }
+                }
+                else if (stage == 3)
                 {
                     RunExpandedEnemyDeathAi(actor);
                 }

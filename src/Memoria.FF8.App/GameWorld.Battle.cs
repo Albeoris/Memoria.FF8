@@ -210,7 +210,9 @@ internal sealed partial class GameWorld
             NativeScanActorNames = combatants.Where(actor => actor.IsPlayer).ToDictionary(actor => actor.Id, actor => EncodeScanName24(actor.Name)),
             NativeInputButtonMap = (session.State.InputConfiguration ?? assets.ReadNewGameInputConfiguration()).ButtonMap,
             NativeSupportRules = !expanded || (restoredDefinition is not null ? restoredDefinition.NativeSupportRules is not null :
-                (definition.NativeSavedBattleFlagsKnownMask & 0x0A) == 0x0A && (definition.NativeSavedBattleFlags.GetValueOrDefault() & 0x0A) != 0)
+                (definition.NativeSavedBattleFlagsKnownMask & 0x0A) == 0x0A && ((definition.NativeSavedBattleFlags.GetValueOrDefault() & 0x0A) != 0 ||
+                    (definition.NativeSavedBattleFlagsKnownMask & 0x10) != 0 && (definition.NativeSavedBattleFlags.GetValueOrDefault() & 0x10) == 0 &&
+                    ((definition.LimitProgress?.AngeloFlags ?? 0) & 0x0E) != 0 && combatants.Any(actor => actor is { IsPlayer: true, ModelId: 4, InitialActive: true })))
                 ? BattleResources.ReadNativeSupportRules() : null,
             NativeGraphics = expanded ? null : BattleResources.ReadNativeGraphicsDefinition(definition.Combatants, assets.ReadNativeBattleGraphicsRules(), encounter),
             NativeClockRules = expanded ? null : BattleResources.ReadNativeClockRules(),
