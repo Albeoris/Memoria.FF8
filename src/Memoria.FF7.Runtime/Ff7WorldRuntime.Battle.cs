@@ -3,8 +3,29 @@ using Memoria.FF7.Events;
 
 namespace Memoria.FF7.Runtime;
 
-public sealed record Ff7WorldBattleRequest(long Id, int Formation, bool Preemptive, bool Scripted, int ScriptPc = -1);
-public sealed record Ff7WorldBattleState(int MovementCounter, int Danger, int PreviousFormation, byte[] Random, int RandomIndex, Ff7WorldBattleRequest? Pending);
+public sealed record Ff7WorldBattleRequest(long Id, int Formation, bool Preemptive, bool Scripted, int ScriptPc = -1)
+{
+    internal const int TimedFlag = 1 << 29;
+    internal const int FieldReturnFlag = 1 << 30;
+    internal const int PreemptiveFlag = unchecked((int)0x80000000);
+
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ReturnsToField { get; init; }
+
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Timed { get; init; }
+
+    internal ushort? FieldReturnSelector => ReturnsToField ? (ushort)0x2100 : null;
+    internal ushort Flags => (ushort)((Preemptive ? 4 : 0) | (Timed ? 2 : 0));
+}
+public sealed record Ff7WorldBattleState(int MovementCounter, int Danger, int PreviousFormation, byte[] Random, int RandomIndex, Ff7WorldBattleRequest? Pending)
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool CountdownActive { get; init; }
+
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Escaped { get; init; }
+}
 
 public sealed partial class Ff7WorldRuntime
 {
@@ -14,6 +35,12 @@ public sealed partial class Ff7WorldRuntime
     private int encounterDanger;
     private int previousWorldFormation = -1;
     private Ff7WorldBattleRequest? pendingWorldBattle;
+    private bool countdownActive;
+    private bool escapedWorldBattle;
+
+    internal bool HasEncounterCountdown => countdownActive || pendingWorldBattle?.Timed == true;
+    internal Action<uint>? SetEncounterCountdown { get; set; }
+    internal int EncounterCloudLevel { get; set; }
 
     internal Ff7WorldBattleRequest? PendingBattle => pendingWorldBattle;
     internal bool RandomBattlesEnabled { get; set; }
@@ -23,9 +50,9 @@ public sealed partial class Ff7WorldRuntime
 
     private Ff7WorldBattleState? CaptureWorldBattleState()
     {
-        return encounterRandom is null && pendingWorldBattle is null
+        return encounterRandom is null && pendingWorldBattle is null && !countdownActive && !escapedWorldBattle
             ? null
-            : new(encounterMovementCounter, encounterDanger, previousWorldFormation, EncounterRandom.Capture(), EncounterRandom.Index, pendingWorldBattle);
+            : new(encounterMovementCounter, encounterDanger, previousWorldFormation, EncounterRandom.Capture(), EncounterRandom.Index, pendingWorldBattle) { CountdownActive = countdownActive, Escaped = escapedWorldBattle };
     }
 
     private Ff7WorldEncounterRandom EncounterRandom => encounterRandom ??= new(EncounterSeed);
@@ -45,6 +72,8 @@ public sealed partial class Ff7WorldRuntime
         encounterDanger = state?.Danger ?? 0;
         previousWorldFormation = state?.PreviousFormation ?? -1;
         pendingWorldBattle = state?.Pending;
+        countdownActive = state?.CountdownActive == true;
+        escapedWorldBattle = state?.Escaped == true;
         if (state is null && initialized)
         {
             previousWorldFormation = BinaryPrimitives.ReadUInt16LittleEndian(persistent.AsSpan(0x3B4)) & 1023;
@@ -74,20 +103,21 @@ public sealed partial class Ff7WorldRuntime
         encounterMovementCounter = 0;
         ValidateRandomBattleEquipment?.Invoke();
         encounterTable ??= new(Resources.ReadRequired("enc_w.bin"));
-        int formation = encounterTable.Select(player.Terrain, EncounterPartyCount, (persistent[0x185] & 1) != 0, previousWorldFormation, ref encounterDanger, EncounterRandom.Next, out bool preemptive);
+        int formation = encounterTable.Select(player.Terrain, EncounterPartyCount, (persistent[0x185] & 1) != 0, previousWorldFormation, ref encounterDanger, EncounterRandom.Next, out bool preemptive, EncounterCloudLevel);
         if (formation < 0)
         {
             return;
         }
-        previousWorldFormation = formation;
-        BinaryPrimitives.WriteUInt16LittleEndian(persistent.AsSpan(0x3B4), checked((ushort)formation));
+        previousWorldFormation = formation & 1023;
+        BinaryPrimitives.WriteUInt16LittleEndian(persistent.AsSpan(0x3B4), (ushort)previousWorldFormation);
         UpdateEntity(player with { X = input.PreviousX, Y = input.PreviousY, Z = input.PreviousZ, PresentationEpoch = player.PresentationEpoch + 1 });
         RequestWorldBattle(formation, preemptive, false, tick, -1);
     }
 
     private void RequestWorldBattle(int formation, bool preemptive, bool scripted, long identity, int pc)
     {
-        if ((uint)formation > 1023)
+        const int admitted = 1023 | Ff7WorldBattleRequest.TimedFlag | Ff7WorldBattleRequest.FieldReturnFlag | Ff7WorldBattleRequest.PreemptiveFlag;
+        if ((formation & ~admitted) != 0)
         {
             throw new NotSupportedException($"FFVII world encounter at word {pc:X4} requires an unsupported dispatcher flag.");
         }
@@ -96,7 +126,16 @@ public sealed partial class Ff7WorldRuntime
             return;
         }
         long id = checked((1L << 61) + identity * 2 + (scripted ? 1 : 0));
-        pendingWorldBattle = new(id, formation, preemptive, scripted, pc);
+        pendingWorldBattle = new(id, formation & 1023, preemptive || (formation & Ff7WorldBattleRequest.PreemptiveFlag) != 0, scripted, pc)
+        {
+            ReturnsToField = (formation & Ff7WorldBattleRequest.FieldReturnFlag) != 0,
+            Timed = countdownActive || (formation & Ff7WorldBattleRequest.TimedFlag) != 0
+        };
+        if (pendingWorldBattle.FieldReturnSelector is not null || pendingWorldBattle.Timed)
+        {
+            movementEnabled = false;
+            controlLock = 0;
+        }
         audio = audio with { PlaybackEnabled = true };
         PlayWorldSong(4);
     }
@@ -115,11 +154,27 @@ public sealed partial class Ff7WorldRuntime
         }
     }
 
-    internal void ResumeWorldBattle(Ff7WorldBattleRequest request, FieldVariables variables)
+    internal void SetBattleReturnEscape()
+    {
+        escapedWorldBattle = true;
+    }
+
+    internal void CompleteSpecialBattleDeparture(Ff7WorldBattleRequest request)
+    {
+        ValidateBattleOwner(request.Id);
+        if ((request.ReturnsToField || request.Timed) && !Machine.IsUnloading)
+        {
+            Machine.CompleteUnload();
+        }
+    }
+
+    internal void ResumeWorldBattle(Ff7WorldBattleRequest request, FieldVariables variables, bool escaped = false)
     {
         ValidateBattleOwner(request.Id);
         variables.CopyPersistent().CopyTo(persistent, 0);
         pendingWorldBattle = null;
+        countdownActive = false;
+        escapedWorldBattle = escaped;
         encounterDanger = 0;
         encounterMovementCounter = -140;
         input = input with { Held = 0, Pressed = 0, Horizontal = 0, Vertical = 0, PreviousControlHeld = 0 };

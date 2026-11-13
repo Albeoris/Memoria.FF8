@@ -44,6 +44,8 @@ public sealed partial class Ff7Session
             World.RandomBattlesEnabled = Progress.RandomEncountersEnabled;
             World.EncounterSeed = Clock.ElapsedSeconds;
             World.EncounterPartyCount = Progress.Party.Count(character => character != 255);
+            World.EncounterCloudLevel = Progress.Characters.FirstOrDefault(character => character.Id == 0)?.Level ?? 0;
+            World.SetEncounterCountdown = seconds => Progress = Progress with { Clock = Clock with { CountdownSeconds = seconds } };
             World.ValidateRandomBattleEquipment = ValidateEncounterMateria;
             World.NativeMessageSpeed = DialogueMessageSpeed?.Invoke(Progress.NativeMessageSpeed) ?? Progress.NativeMessageSpeed;
             World.ExpandDialogueToken = ExpandDialogueToken;

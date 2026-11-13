@@ -92,9 +92,21 @@ if (args.Contains("--palette-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--world-chocobo-only", StringComparer.Ordinal))
+{
+    WorldChocoboTests.Run();
+    return 0;
+}
+
 if (args.Contains("--world-only", StringComparer.Ordinal))
 {
     WorldRuntimeTests.Run();
+    return 0;
+}
+
+if (args.Contains("--world-departure-only", StringComparer.Ordinal))
+{
+    WorldDepartureTests.Run();
     return 0;
 }
 
@@ -148,6 +160,7 @@ var tests = new (string Name, Action Run)[]
     ("native autoplay occupied waypoint and pure previews", NativeAutoPlayCrowdTests.RunOccupiedWaypoint),
     ("native run button projection and pending input ownership", NativeRunInputTests.Run),
     ("native world encounters and battle return", WorldBattleTests.Run),
+    ("FFVII native ordinary yellow Chocobo transport", WorldChocoboTests.Run),
     ("native world input displacement and terrain arithmetic", WorldInputTests.Run),
     ("native autoplay event observations and coverage ledger", NativeEventCoverageTests.Run),
     ("native optional-area frontier and initialized field ownership", NativeTourFrontierTests.Run),

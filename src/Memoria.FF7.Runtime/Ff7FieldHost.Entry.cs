@@ -4,6 +4,11 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7FieldHost
 {
+    internal void SetEntryBattleResult(int result)
+    {
+        Process = Process with { BattleResult = result };
+    }
+
     public void PlacePlayerAtEntry(FieldTransitionCommand transition)
     {
         ArgumentNullException.ThrowIfNull(transition);

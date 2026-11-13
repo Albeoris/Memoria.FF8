@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 
 namespace Memoria.FF7.Runtime;
 
@@ -23,7 +23,7 @@ internal sealed class Ff7WorldEncounterTable
         this.data = data;
     }
 
-    public int Select(int terrainInfo, int partyCount, bool yuffieEligible, int previous, ref int danger, Func<byte> random, out bool preemptive)
+    public int Select(int terrainInfo, int partyCount, bool yuffieEligible, int previous, ref int danger, Func<byte> random, out bool preemptive, int cloudLevel = 0)
     {
         int region = Math.Min(15, (terrainInfo >> 9) & 31);
         int terrain = terrainInfo & 31;
@@ -41,7 +41,13 @@ internal sealed class Ff7WorldEncounterTable
         }
         if (random() < YuffieRates[region] && terrain is 1 or 25 && yuffieEligible)
         {
-            throw new NotSupportedException("FFVII world Yuffie encounters require their field-return contract.");
+            int band = 0;
+            while (band < 7 && cloudLevel > BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(band * 4)))
+            {
+                band++;
+            }
+            int yuffieFormation = (BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(band * 4 + 2)) & 1023) + (terrain == 25 ? 1 : 0);
+            return yuffieFormation | Ff7WorldBattleRequest.FieldReturnFlag;
         }
         danger = 0;
         preemptive = random() < initiativeModifier;

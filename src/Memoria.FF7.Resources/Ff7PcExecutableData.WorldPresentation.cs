@@ -9,6 +9,8 @@ public sealed record Ff7WorldCameraProfile(int Pitch, int Distance);
 public sealed record Ff7WorldPresentationData(IReadOnlyList<Ff7WorldCameraProfile> CameraProfiles, IReadOnlyList<short> ArcAngles, float DegreesPerAngleUnit, double RadiansPerDegree);
 public sealed record Ff7WorldCharacterDescriptor(string HrcName, int ScaleWord, IReadOnlyList<string> Animations)
 {
+    public (sbyte Red, sbyte Green, sbyte Blue)? ColorOffset { get; init; }
+
     public float Scale => Math.Max(1, ScaleWord / 512f) * 15.2f;
 
     public Ff7FieldModelResources Load(Ff7WorldResources resources)
@@ -62,7 +64,8 @@ public sealed partial class Ff7PcExecutableData
             0 => 0x96B3D0,
             1 => 0x96B3E8,
             2 => 0x96B400,
-            _ => throw new NotSupportedException("FFVII world character resources require an original supported leader.")
+            4 => 0x96A910,
+            _ => throw new NotSupportedException($"FFVII world model {character} has no supported original descriptor.")
         };
         using FileStream stream = OpenSupportedImage(installation);
         using PEReader pe = new(stream, PEStreamOptions.LeaveOpen);
@@ -75,7 +78,13 @@ public sealed partial class Ff7PcExecutableData
         {
             animations[index] = ReadWorldPresentationName(stream, pe, BinaryPrimitives.ReadUInt32LittleEndian(pointers.AsSpan(index * 4)));
         }
-        return new(hrc, BinaryPrimitives.ReadInt32LittleEndian(row.AsSpan(12)), Array.AsReadOnly(animations));
+        Ff7WorldCharacterDescriptor descriptor = new(hrc, BinaryPrimitives.ReadInt32LittleEndian(row.AsSpan(12)), Array.AsReadOnly(animations));
+        if (character == 4)
+        {
+            byte[] color = ReadVirtual(stream, pe, 0x96DD78, 6);
+            descriptor = descriptor with { ColorOffset = (checked((sbyte)BinaryPrimitives.ReadInt16LittleEndian(color)), checked((sbyte)BinaryPrimitives.ReadInt16LittleEndian(color.AsSpan(2))), checked((sbyte)BinaryPrimitives.ReadInt16LittleEndian(color.AsSpan(4)))) };
+        }
+        return descriptor;
     }
 
     private static string ReadWorldPresentationName(Stream stream, PEReader pe, uint address)

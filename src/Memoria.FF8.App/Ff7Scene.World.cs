@@ -35,7 +35,7 @@ internal sealed partial class Ff7Scene
         Ff7WorldCameraState camera = state.Camera ?? new();
         return new(state.ControlledModel, state.Initialized, state.MainState, state.ViewMode, state.RadarMode, state.WorldMapState, state.PresentationCounter, state.Sky?.CloudPhase ?? 0,
             new(camera.Heading, camera.Pitch, camera.Distance, camera.GroundHeight, camera.Roll, camera.Focal),
-            state.Entities.Select(entity => new Ff7WorldVisual(entity.Model, new(entity.X, entity.Y, entity.Z), (entity.Direction + entity.TurnOffset) & 4095, entity.PoseAnimation, entity.PoseFrame, entity.Flags)
+            state.Entities.Where(entity => entity.Model != state.Chocobo?.RiderModel).Select(entity => new Ff7WorldVisual(entity.Model, new(entity.X, entity.Y, entity.Z), (entity.Direction + entity.TurnOffset) & 4095, entity.PoseAnimation, entity.PoseFrame, entity.Flags)
             {
                 GroundHeight = entity.GroundHeight,
                 Terrain = entity.Terrain,

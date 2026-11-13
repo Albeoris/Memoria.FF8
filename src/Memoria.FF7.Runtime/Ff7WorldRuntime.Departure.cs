@@ -24,9 +24,9 @@ public sealed partial class Ff7WorldRuntime
             throw new InvalidDataException("FFVII world field transition has an invalid selector operand count.");
         }
         int selector = fade ? values[0] << 8 | values[1] : values[0];
-        if (selector is < short.MinValue or > ushort.MaxValue)
+        if (selector < (fade ? short.MinValue : 0) || selector > ushort.MaxValue)
         {
-            throw new InvalidDataException("FFVII world field transition selector exceeds its native word.");
+            throw new InvalidDataException("FFVII world transition selector is outside its supported range.");
         }
         fieldDeparture = new(request.Id, request.ExecutingModel, request.ProgramCounter, unchecked((ushort)selector), request.Command.Operation);
         mainState = fade ? 2 : 8;
@@ -61,11 +61,21 @@ public sealed partial class Ff7WorldRuntime
 
     internal (FieldTransitionCommand Entry, byte[] Persistent) PrepareFieldDeparture(Ff7WorldFieldDeparture request)
     {
-        if (ReadyFieldDeparture != request)
+        if (ReadyFieldDeparture != request || request.Operation != WorldOperation.FieldTransition)
         {
             throw new InvalidOperationException("FFVII world departure must still own the field handoff.");
         }
-        PcWorldFieldEntry entry = (fieldTable ??= Resources.ReadFieldTable()).Select(request.Selector);
+        return (ResolveFieldEntry(request.Selector), CaptureNativeWorldExit());
+    }
+
+    internal FieldTransitionCommand ResolveFieldEntry(ushort selector)
+    {
+        PcWorldFieldEntry entry = (fieldTable ??= Resources.ReadFieldTable()).Select(selector);
+        return new(entry.Field, entry.X, entry.Y, entry.Triangle, entry.Direction);
+    }
+
+    internal byte[] CaptureNativeWorldExit()
+    {
         byte[] saved = Machine.CopyPersistent();
         saved[31] |= 3;
         int heading = viewMode == 0 && Resources.World != 3 ? 0 : camera.Heading & 4095;
@@ -96,17 +106,18 @@ public sealed partial class Ff7WorldRuntime
             sum += saved[address];
         }
         saved[0x3FF] = unchecked((byte)-sum);
-        return (new(entry.Field, entry.X, entry.Y, entry.Triangle, entry.Direction), saved);
+        return saved;
     }
 
     private static bool IsValidFieldDeparture(Ff7WorldProcess state)
     {
         if (state.FieldDeparture is not { } departure)
         {
-            return state.MainState is >= -15 and <= 1 && !state.Vm.Unloading;
+            bool leavingForSpecialBattle = state.BattleState?.Pending is { } pending && (pending.ReturnsToField || pending.Timed);
+            return state.MainState is >= -15 and <= 1 && (!state.Vm.Unloading || leavingForSpecialBattle);
         }
         return departure.RequestId >= 1 && departure.RequestId < state.Vm.NextRequestId && departure.ExecutingModel is >= -1 and <= 255 && departure.ProgramCounter > 0 &&
             (departure.Operation == WorldOperation.FieldTransition && state.MainState is 2 or 3 or 9 || departure.Operation == WorldOperation.FieldTransitionSelector && state.MainState == 8) &&
-            state.Vm.Unloading == (state.MainState is 8 or 9) && (!state.Vm.Unloading || state.Vm.System is { ProgramCounter: 0 } && state.Vm.Models.All(model => model.ProgramCounter == 0));
+            state.Vm.Unloading == (state.MainState is 8 or 9) && (!state.Vm.Unloading || state.Vm.System is { ProgramCounter: 0 } && state.Vm.Models.All(model => model.Detached || model.ProgramCounter == 0));
     }
 }

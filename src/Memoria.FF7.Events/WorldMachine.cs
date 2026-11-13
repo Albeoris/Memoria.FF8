@@ -11,6 +11,7 @@ public sealed partial class WorldMachine
         public byte MoveCounter;
         public byte Priority;
         public bool Disabled;
+        public bool Detached;
         public int CalledModel;
         public List<WorldCallSnapshot> Calls = [];
     }
@@ -54,7 +55,7 @@ public sealed partial class WorldMachine
     {
         EnsureHealthy();
         StartSystem(1);
-        for (int pass = 0; system.Pc != 0 || models.Any(entity => entity.Pc != 0); pass++)
+        for (int pass = 0; system.Pc != 0 || models.Any(entity => !entity.Detached && entity.Pc != 0); pass++)
         {
             if (pass == 4096)
             {
@@ -82,13 +83,44 @@ public sealed partial class WorldMachine
             throw new ArgumentOutOfRangeException(nameof(model));
         }
         Entity? entity = models.Find(value => value.Model == model);
-        if (entity is not null)
+        if (entity is { Detached: false })
         {
             active = entity;
             if (!entity.Disabled)
             {
                 Start(entity, 0x4000 | (model << 8 & 0x3F00) | eventId, Math.Clamp(eventId - 2, 0, 3));
             }
+        }
+    }
+
+    public bool IsModelScriptEnabled(int model) => models.Any(entity => entity.Model == model && !entity.Detached && !entity.Disabled);
+
+    public void SetModelScriptEnabled(int model, bool enabled)
+    {
+        models.Single(entity => entity.Model == model).Disabled = !enabled;
+    }
+
+    public void DetachModel(int model)
+    {
+        Entity entity = models.Single(entity => entity.Model == model);
+        entity.Detached = true;
+    }
+
+    public void ReattachModel(int model)
+    {
+        Entity entity = models.Single(entity => entity.Model == model);
+        models.Remove(entity);
+        models.Insert(0, entity);
+        entity.Detached = false;
+    }
+
+    public void RemoveModel(int model)
+    {
+        Entity entity = models.Single(entity => entity.Model == model);
+        models.Remove(entity);
+        if (active == entity)
+        {
+            active = system;
         }
     }
 
@@ -147,7 +179,10 @@ public sealed partial class WorldMachine
         Entity? entity = models.FirstOrDefault();
         while (entity is not null)
         {
-            Run(entity);
+            if (!entity.Detached)
+            {
+                Run(entity);
+            }
             int index = models.IndexOf(entity);
             entity = index + 1 < models.Count ? models[index + 1] : null;
         }

@@ -71,7 +71,11 @@ public enum FieldSyncState : byte
     Done
 }
 
-public sealed record FieldEntitySnapshot(int ProgramCounter, int Priority, ushort WaitCounter, int[] SavedProgramCounters, FieldSyncState[] SyncStates, int[] SyncOwners, bool ModelBound = false);
+public sealed record FieldEntitySnapshot(int ProgramCounter, int Priority, ushort WaitCounter, int[] SavedProgramCounters, FieldSyncState[] SyncStates, int[] SyncOwners, bool ModelBound = false)
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public int? PartyCharacter { get; init; }
+}
 public sealed record FieldScriptReturn(int Entity, int Priority, int ProgramCounter, long Tick);
 public sealed record FieldInputState(ushort Held = 0, ushort Pressed = 0, ushort Released = 0, ushort RawHeld = 0, ushort RawPressed = 0, ushort RawReleased = 0, int Horizontal = 0, int Vertical = 0, bool Run = false, ushort? PreviousHeld = null, ushort? PreviousRawHeld = null);
 public sealed record FieldCycleCursor(int Entity, int HandlersCompleted, int ProgramCounter);

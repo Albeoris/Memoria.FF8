@@ -71,7 +71,16 @@ public sealed class Ff7WorldModelAdapter(Ff7WorldCharacterDescriptor descriptor,
                 {
                     int index = group.VertexStart + local;
                     uint color = index < model.VertexColors.Count ? model.VertexColors[index] : uint.MaxValue;
-                    Vector4 rgba = new((color >> 16 & 255) / 255f, (color >> 8 & 255) / 255f, (color & 255) / 255f, (color >> 24) / 255f * state.VertexAlpha / 255f);
+                    int red = (int)(color >> 16 & 255);
+                    int green = (int)(color >> 8 & 255);
+                    int blue = (int)(color & 255);
+                    if (descriptor.ColorOffset is { } offset)
+                    {
+                        red = Math.Clamp(red + offset.Red, 0, 255);
+                        green = Math.Clamp(green + offset.Green, 0, 255);
+                        blue = Math.Clamp(blue + offset.Blue, 0, 255);
+                    }
+                    Vector4 rgba = new(red / 255f, green / 255f, blue / 255f, (color >> 24) / 255f * state.VertexAlpha / 255f);
                     Vector3? normal = normals[local] < 0 ? null : Vector3.TransformNormal(model.Normals[normals[local]], normalTransform);
                     return new(Vector3.Transform(model.Vertices[index], transform), image is null ? Vector2.Zero : model.TextureCoordinates[group.TextureCoordinateStart + local], rgba) { Normal = normal };
                 }

@@ -159,7 +159,7 @@ public sealed partial class FieldMachine
         {
             throw new InvalidOperationException("The active FFVII cycle cursor lost its entity program counter owner.");
         }
-        return new FieldVmSnapshot(1, SemanticProfile, program.Identity, Tick, Initialized, Variables.CopyPersistent(), Variables.CopyMap(), entities.Select(entity => new FieldEntitySnapshot(entity.Pc, entity.Priority, entity.Wait, (int[])entity.Saved.Clone(), (FieldSyncState[])entity.Sync.Clone(), (int[])entity.Owners.Clone(), entity.ModelBound)).ToArray(), nextRequestId, pendingRequests.Values.OrderBy(request => request.Id).ToArray(), Input, CycleCursor);
+        return new FieldVmSnapshot(1, SemanticProfile, program.Identity, Tick, Initialized, Variables.CopyPersistent(), Variables.CopyMap(), entities.Select(entity => new FieldEntitySnapshot(entity.Pc, entity.Priority, entity.Wait, (int[])entity.Saved.Clone(), (FieldSyncState[])entity.Sync.Clone(), (int[])entity.Owners.Clone(), entity.ModelBound) { PartyCharacter = entity.PartyCharacter < 0 ? null : entity.PartyCharacter }).ToArray(), nextRequestId, pendingRequests.Values.OrderBy(request => request.Id).ToArray(), Input, CycleCursor);
     }
 
     public static FieldMachine Restore(FieldProgram program, FieldVmSnapshot snapshot, IFieldHost? host = null)
@@ -175,12 +175,17 @@ public sealed partial class FieldMachine
             throw new InvalidDataException("Invalid FFVII snapshot state.");
         }
         var machine = new FieldMachine(program, new FieldVariables(snapshot.PersistentVariables, snapshot.MapVariables), host: host);
+        HashSet<int> registeredPartyCharacters = [];
         for (int id = 0; id < machine.entities.Length; id++)
         {
             var source = snapshot.Entities[id];
             if (source is null || source.ProgramCounter < 0 || source.ProgramCounter >= program.Length || source.Priority is < 0 or > 7 || source.SavedProgramCounters is not { Length: 8 } || source.SyncStates is not { Length: 8 } || source.SyncOwners is not { Length: 8 })
             {
                 throw new InvalidDataException($"Invalid FFVII entity snapshot {id}.");
+            }
+            if (source.PartyCharacter is int character && (character is < 0 or > 255 || !source.ModelBound || !registeredPartyCharacters.Add(character)))
+            {
+                throw new InvalidDataException($"Invalid FFVII party entity binding {id}.");
             }
             for (int priority = 0; priority < 8; priority++)
             {
@@ -194,6 +199,7 @@ public sealed partial class FieldMachine
             }
             var target = machine.entities[id];
             target.ModelBound = source.ModelBound;
+            target.PartyCharacter = source.PartyCharacter ?? -1;
             target.Pc = source.ProgramCounter;
             target.Priority = source.Priority;
             target.Wait = source.WaitCounter;
@@ -242,6 +248,17 @@ public sealed partial class FieldMachine
                 case 0x02:
                 case 0x03:
                     return Request(id, opcode, Byte(1), Byte(2));
+                case 0x04:
+                case 0x05:
+                case 0x06:
+                    byte slot = Byte(1);
+                    if (slot >= 3)
+                    {
+                        throw new InvalidDataException("FFVII party request targets an invalid slot.");
+                    }
+                    int character = ReadParty()[slot];
+                    int target = character == 255 ? -1 : Array.FindIndex(entities, actor => actor.PartyCharacter == character);
+                    return Request(id, (byte)(opcode - 3), target < 0 ? byte.MaxValue : checked((byte)target), Byte(2));
                 case 0x10:
                     entity.Pc = unchecked((ushort)(pc + 1 + Byte(1)));
                     return false;
@@ -404,6 +421,7 @@ public sealed partial class FieldMachine
     private sealed class Entity
     {
         public bool ModelBound;
+        public int PartyCharacter = -1;
         public int Pc;
         public int Priority = 7;
         public ushort Wait;

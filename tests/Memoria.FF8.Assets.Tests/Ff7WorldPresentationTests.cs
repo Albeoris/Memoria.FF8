@@ -40,6 +40,29 @@ public sealed class Ff7WorldPresentationTests
     }
 
     [Fact]
+    public void InstalledYellowChocoboUsesOriginalPosesAndTint()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(root), "Select original FFVII resources for the yellow Chocobo pose check.");
+        Ff7Installation installation = Ff7Installation.Discover(root!);
+        using Ff7WorldResources resources = Ff7WorldResources.Load(installation);
+        Ff7WorldCharacterDescriptor descriptor = Ff7PcExecutableData.LoadWorldCharacterDescriptor(installation, 4);
+        Assert.Equal(((sbyte)50, (sbyte)50, (sbyte)-30), descriptor.ColorOffset);
+        Ff7FieldModelResources original = descriptor.Load(resources);
+        Ff7WorldModelAdapter tinted = new(descriptor, original);
+        Ff7WorldModelAdapter untinted = new(descriptor with { ColorOffset = null }, original);
+        for (int clip = 0; clip < descriptor.Animations.Count; clip++)
+        {
+            IReadOnlyList<Ff7WorldModelTriangle> pose = tinted.Create(new(100, -200, 300), 256, clip, 0);
+            IReadOnlyList<Ff7WorldModelTriangle> basePose = untinted.Create(new(100, -200, 300), 256, clip, 0);
+            Assert.NotEmpty(pose);
+            Assert.Equal(basePose.Count, pose.Count);
+            Assert.Contains(pose.Zip(basePose), pair => pair.First.A.Color != pair.Second.A.Color);
+            Assert.All(pose, triangle => Assert.True(float.IsFinite(triangle.A.Position.X) && float.IsFinite(triangle.A.Position.Y) && float.IsFinite(triangle.A.Position.Z)));
+        }
+    }
+
+    [Fact]
     public void SharedNearClipPreservesPerspectiveInputsAndOptionalColors()
     {
         CameraSpaceVertex a = new(new(-3, 0, 0), new(0, 1), Vector4.One);

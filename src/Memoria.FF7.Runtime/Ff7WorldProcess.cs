@@ -7,6 +7,8 @@ public sealed record Ff7WorldEntity(int Model, int X = 0, int Y = 0, int Z = 0, 
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? PreviousY { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? ScriptDirection { get; init; }
     [JsonIgnore]
     public long PresentationEpoch { get; init; }
 }
@@ -19,6 +21,10 @@ public sealed record Ff7WorldProcess(int WorldId, long Tick, int EntrySelector, 
     public Ff7WorldFieldDeparture? FieldDeparture { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Ff7WorldBattleState? BattleState { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7WorldChocoboState? Chocobo { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int EntryModule { get; init; }
     public IReadOnlyList<Ff7Window> Windows => Window is null ? [] : [Window];
     public IReadOnlyList<Ff7Dialogue> Dialogues => Dialogue is null ? [] : [Dialogue];
 }

@@ -61,7 +61,7 @@ public sealed partial class Ff7WorldRuntime
 
     private void AdvancePlayerInputCore()
     {
-        foreach (Ff7WorldEntity entity in entities.Values.ToArray())
+        foreach (Ff7WorldEntity entity in ActiveWorldEntities().ToArray())
         {
             UpdateEntity(entity with { Flags = entity.Flags & ~7, PreviousX = entity.X, PreviousY = entity.Y, PreviousZ = entity.Z });
         }
@@ -85,11 +85,11 @@ public sealed partial class Ff7WorldRuntime
             }
             return;
         }
-        if (player.Model is not (0 or 1 or 2))
+        if (player.Model is not (0 or 1 or 2 or YellowChocoboModel))
         {
-            throw new NotSupportedException("FFVII world physical movement requires the original foot model and fixed camera control contract.");
+            throw new NotSupportedException($"FFVII world model {player.Model} has no supported physical movement contract.");
         }
-        int delta = 60 * movementSpeedPercent / 100;
+        int delta = (player.Model == YellowChocoboModel ? 120 : 60) * movementSpeedPercent / 100;
         int dx = input.Horizontal * delta;
         int dz = input.Vertical * delta;
         int heading = input.Horizontal < 0 ? -1024 : input.Horizontal > 0 ? 1024 : -1;
@@ -120,12 +120,16 @@ public sealed partial class Ff7WorldRuntime
             }
         }
         ApplyWorldControlOptions(ref player, ref dx, ref dz, heading);
+        if (player.Model == YellowChocoboModel && heading != -1)
+        {
+            player = player with { ScriptDirection = null };
+        }
         if ((player.Terrain & 31) == 14)
         {
             ApplyBridgeDrift(ref dx, ref dz);
         }
         Ff7WorldEntity moved = player with { X = Wrap(player.X + dx, 0x48000), Z = Wrap(player.Z + dz, 0x38000), Flags = dx != 0 || dz != 0 ? player.Flags | 1 : player.Flags & ~1 };
-        if (entities.Values.Any(other => WorldModelsCollide(moved, other)))
+        if (ActiveWorldEntities().Any(other => WorldModelsCollide(moved, other)))
         {
             moved = moved with { X = player.X, Y = player.Y, Z = player.Z, Flags = moved.Flags & ~1 };
         }
@@ -156,9 +160,14 @@ public sealed partial class Ff7WorldRuntime
             return;
         }
         Ff7WorldEntity player = RequireEntity(controlledModel);
-        if (player.Model is not (0 or 1 or 2))
+        if (player.Model is not (0 or 1 or 2 or YellowChocoboModel))
         {
-            throw new NotSupportedException("FFVII world terrain resolution requires the original foot model contract.");
+            throw new NotSupportedException($"FFVII world model {player.Model} has no supported terrain contract.");
+        }
+        if (chocobo is { DismountPhase: 2 })
+        {
+            Vector3 step = inputMath.TransformRotation(new(0, 0, 300), 0, player.Direction + player.TurnOffset + 1024, 0);
+            player = OffsetWorldEntity(player with { X = input.PreviousX, Y = input.PreviousY, Z = input.PreviousZ }, (int)step.X, (int)step.Z);
         }
         FootCollisionResult? selected = ResolveFootCollision(player);
         input = input with { BridgeCooldown = Math.Max(0, input.BridgeCooldown - 1) };
@@ -207,7 +216,7 @@ public sealed partial class Ff7WorldRuntime
 
     private int ResolveFootHeight(Ff7WorldEntity player, FootCollisionResult result, bool moved, int terrain)
     {
-        int offset = terrain is 1 or 25 ? -192 : terrain is 4 or 7 ? -64 : 0;
+        int offset = WorldGroundOffset(terrain);
         int y = (player.Flags & 128) != 0 ? player.Y : result.Height + offset;
         int velocity = input.HeightSmoothVelocity;
         int remaining = input.HeightSmoothRemaining;
@@ -262,26 +271,31 @@ public sealed partial class Ff7WorldRuntime
     {
         Ff7WorldEntity player = RequireEntity(controlledModel);
         HashSet<(int X, int Z)> visibleChunks = visibility.RequiredChunks(player.X, player.Z, camera.Heading).Select(chunk => (chunk.ChunkX, chunk.ChunkZ)).ToHashSet();
-        foreach (Ff7WorldEntity original in entities.Values.ToArray())
+        foreach (Ff7WorldEntity original in ActiveWorldEntities().ToArray())
         {
             Ff7WorldEntity entity = original;
+            if (entity.Model == YellowChocoboModel && entity.Model != controlledModel)
+            {
+                entity = TurnWorldPlayer(entity, entity.TargetDirection);
+            }
             if (entity.Model != controlledModel && visibleChunks.Contains((entity.X >> 13, entity.Z >> 13)))
             {
-                if (entity.Model is not (0 or 1 or 2))
+                if (entity.Model is not (0 or 1 or 2 or YellowChocoboModel))
                 {
                     throw new NotSupportedException($"FFVII visible world model {entity.Model} requires its native model terrain and animation contract.");
                 }
-                (int Height, int Terrain)? terrain = QueryTerrain(entity.X, entity.Z, entity.Y, entity.Terrain);
+                (int Height, int Terrain)? terrain = QueryTerrain(entity.X, entity.Z, entity.Y, entity.Terrain, entity.Model);
                 if (terrain is { } found)
                 {
-                    entity = entity with { GroundHeight = found.Height, Terrain = found.Terrain, TerrainResolved = true, Flags = entity.Flags | 2 };
+                    int height = entity.Model == YellowChocoboModel && (entity.Flags & 128) == 0 ? found.Height + WorldGroundOffset(found.Terrain & 31) : entity.Y;
+                    entity = entity with { Y = height, GroundHeight = found.Height, Terrain = found.Terrain, TerrainResolved = true, Flags = entity.Flags | 2 };
                 }
             }
             if ((entity.Flags & 8) != 0)
             {
                 entity = entity with { Flags = entity.Flags & ~2 };
             }
-            if ((entity.Flags & 2) == 0 || entity.Model is not (0 or 1 or 2))
+            if ((entity.Flags & 2) == 0 || entity.Model is not (0 or 1 or 2 or YellowChocoboModel))
             {
                 UpdateEntity(entity);
                 continue;
@@ -315,10 +329,8 @@ public sealed partial class Ff7WorldRuntime
         }
     }
 
-    private (int Height, int Terrain)? QueryTerrain(int x, int z, int previousHeight, int previousTerrain)
+    private PcWorldMesh GetWorldCollisionMesh(int chunkX, int chunkZ)
     {
-        int chunkX = x >> 13;
-        int chunkZ = z >> 13;
         int block = Ff7WorldVisibility.ResolveBlockIndex((chunkZ >> 2) * 9 + (chunkX >> 2), WorldMapState);
         int index = (chunkZ & 3) * 4 + (chunkX & 3);
         if (!collisionMeshes.TryGetValue((block, index), out PcWorldMesh? mesh))
@@ -326,19 +338,33 @@ public sealed partial class Ff7WorldRuntime
             mesh = Resources.Map.ReadMesh(block, index);
             collisionMeshes.Add((block, index), mesh);
         }
-        mesh = BridgeCollisionMesh(chunkX, chunkZ, mesh);
+        return BridgeCollisionMesh(chunkX, chunkZ, mesh);
+    }
+
+    private (int Height, int Terrain)? QueryTerrain(int x, int z, int previousHeight, int previousTerrain, int model, bool dismount = false)
+    {
+        return QueryTerrain(x, z, previousHeight, previousTerrain, model, dismount, out _);
+    }
+
+    private (int Height, int Terrain)? QueryTerrain(int x, int z, int previousHeight, int previousTerrain, int model, bool dismount, out Ff7WorldTerrainReference? reference)
+    {
+        reference = null;
+        int chunkX = x >> 13;
+        int chunkZ = z >> 13;
+        PcWorldMesh mesh = GetWorldCollisionMesh(chunkX, chunkZ);
         int localX = x & 8191;
         int localZ = z & 8191;
         int selected = -1;
         int height = 0;
         bool cachedContains = false;
-        uint mask = (previousTerrain & 31) is 13 or 14 ? 0x20006000u : 0x721B6F83u;
+        uint mask = (model != YellowChocoboModel || model == controlledModel) && (previousTerrain & 31) is 13 or 14 ? 0x20006000u : model == YellowChocoboModel ? YellowChocoboTerrainMask : 0x721B6F83u;
+        bool Allowed(PcWorldTriangle face) => (mask & (1u << face.Terrain)) != 0 && (!dismount || (face.TerrainAndScript & 0xE0) != 0xE0);
         foreach (Ff7WorldTerrainReference cached in input.TerrainCache ?? [])
         {
             if (cached.ChunkX == chunkX && cached.ChunkZ == chunkZ && TryTriangleHeight(mesh, cached.Triangle, localX, localZ, out height))
             {
                 cachedContains = true;
-                if ((mask & (1u << mesh.Triangles[cached.Triangle].Terrain)) != 0)
+                if (Allowed(mesh.Triangles[cached.Triangle]))
                 {
                     selected = cached.Triangle;
                     break;
@@ -375,7 +401,12 @@ public sealed partial class Ff7WorldRuntime
             return null;
         }
         PcWorldTriangle face = mesh.Triangles[selected];
-        return (mask & (1u << face.Terrain)) != 0 ? (height, face.TerrainAndScript | (face.PackedIds & 0xFF00)) : null;
+        if (!Allowed(face))
+        {
+            return null;
+        }
+        reference = new(chunkX, chunkZ, selected);
+        return (height, face.TerrainAndScript | (face.PackedIds & 0xFF00));
     }
 
     internal static bool TryTriangleHeight(PcWorldMesh mesh, int triangle, int x, int z, out int height)

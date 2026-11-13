@@ -93,6 +93,9 @@ public sealed partial class Ff7WorldRuntime
                     audio = audio with { PlaybackEnabled = false };
                 }
                 return true;
+            case WorldOperation.Sound when values[0] == 0x114:
+                PublishAudio(new(0x20, 64, values[0]));
+                return true;
             case WorldOperation.MusicVolume:
                 PublishAudio(new(0xC0, values[0]));
                 return true;

@@ -27,6 +27,7 @@ public sealed partial class Ff7WorldRuntime
         int dx = unchecked((short)WrappedDifference(player.X - input.PreviousX, 0x48000));
         int dz = unchecked((short)WrappedDifference(player.Z - input.PreviousZ, 0x38000));
         int angleStep = input.BridgeCooldown == 0 && input.CollisionRecovery != 1 ? 160 : 320;
+        bool dismount = player.Model == YellowChocoboModel && chocobo is { DismountPhase: 2 };
         FootCandidate[][] candidates = new FootCandidate[2][];
         for (int side = 0; side < 2; side++)
         {
@@ -64,8 +65,8 @@ public sealed partial class Ff7WorldRuntime
                             pendingChunk ??= (point.ChunkX, point.ChunkZ);
                             continue;
                         }
-                        (int Height, int Terrain)? terrain = QueryTerrain(point.X, point.Z, unchecked((short)player.Y), player.Terrain);
-                        if (terrain is { } found)
+                        (int Height, int Terrain)? terrain = QueryTerrain(point.X, point.Z, unchecked((short)player.Y), player.Terrain, player.Model, dismount);
+                        if (terrain is { } found && (!dismount || Math.Abs(found.Height - player.Y) < 200))
                         {
                             point.Status = 2;
                             point.Height = found.Height;

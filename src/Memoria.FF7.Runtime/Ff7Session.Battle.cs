@@ -85,18 +85,26 @@ public sealed partial class Ff7Session
         {
             return false;
         }
+        world.CompleteSpecialBattleDeparture(request);
         SceneFormation formation = GetBattleFormation(request.Formation);
         FieldVariables variables = world.PrepareBattleVariables(request);
         if (!Progress.FullCombatEnabled)
         {
             Ff7Progress result = Ff7DebugVictory.Apply(Progress, formation, battleKernel!, FieldGeneration, request.Id, guestStoryCharacters: GuestFieldVitals?.StoryCharacters);
-            world.ResumeWorldBattle(request, variables);
-            Progress = result;
+            if (request.FieldReturnSelector is ushort selector)
+            {
+                AdoptWorldField(world, world.ResolveFieldEntry(selector), new FieldVariables(world.CaptureNativeWorldExit(), new byte[256]), result, battleResult: 0);
+            }
+            else
+            {
+                world.ResumeWorldBattle(request, variables);
+                Progress = result;
+            }
             return true;
         }
         LoadBattlePresentationResources();
         int track = world.Process.Audio?.LastPublishedTrack ?? 0;
-        Battle = CreateBattle(formation, request.Id, request.Preemptive ? (ushort)4 : (ushort)0, 0, track, variables);
+        Battle = CreateBattle(formation, request.Id, request.Flags, 0, track, variables);
         return true;
     }
 
@@ -223,9 +231,32 @@ public sealed partial class Ff7Session
             return false;
         }
         world.ValidateBattleOwner(battle.RequestId);
+        if (occurrence.FieldReturnSelector is ushort selector && battle.Outcome == Ff7BattleOutcome.Victory)
+        {
+            FieldVariables exitVariables = new(world.CaptureNativeWorldExit(), new byte[256]);
+            battle.ApplyNativeSaveWrites(exitVariables);
+            AdoptWorldField(world, world.ResolveFieldEntry(selector), exitVariables, result, battle.ResolveNativeFieldResult(0), battle);
+            return true;
+        }
+        if (occurrence.Timed || occurrence.ReturnsToField && battle.Outcome == Ff7BattleOutcome.Escaped)
+        {
+            FieldVariables exitVariables = new(world.CaptureNativeWorldExit(), new byte[256]);
+            battle.ApplyNativeSaveWrites(exitVariables);
+            byte[] persistent = exitVariables.CopyPersistent();
+            byte[] party = persistent.AsSpan(0x109, 3).ToArray();
+            Ff7WorldRuntime destination = new(installation, persistent, occurrence.FieldReturnSelector ?? world.Process.EntrySelector, party, world.Resources.World, entryModule: 1);
+            if (battle.Outcome == Ff7BattleOutcome.Escaped)
+            {
+                destination.SetBattleReturnEscape();
+            }
+            FinishBattle(result, battle);
+            World = destination;
+            world.Dispose();
+            return true;
+        }
         FieldVariables variables = world.PrepareBattleVariables(occurrence);
         battle.PublishNativeSaveWrites(variables);
-        world.ResumeWorldBattle(occurrence, variables);
+        world.ResumeWorldBattle(occurrence, variables, battle.Outcome == Ff7BattleOutcome.Escaped);
         FinishBattle(result, battle);
         return true;
     }

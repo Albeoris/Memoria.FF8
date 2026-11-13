@@ -178,7 +178,18 @@ public sealed partial class FieldMachine
                 {
                     throw new InvalidDataException("PC requires an allocated CHAR model.");
                 }
-                return Host(id, new FieldPartyCharacter(B(id, 1), Array.IndexOf(ReadParty(), (int)B(id, 1))), 2);
+                byte character = B(id, 1);
+                return Host(id, new FieldPartyCharacter(character, Array.IndexOf(ReadParty(), (int)character)), 2, result: _ =>
+                {
+                    foreach (Entity actor in entities)
+                    {
+                        if (actor.PartyCharacter == character)
+                        {
+                            actor.PartyCharacter = -1;
+                        }
+                    }
+                    entities[id].PartyCharacter = character;
+                });
             case 0xA1:
                 return Host(id, new FieldActorBind(B(id, 1)), 2, result: _ => entities[id].ModelBound = true);
             case 0xA2:

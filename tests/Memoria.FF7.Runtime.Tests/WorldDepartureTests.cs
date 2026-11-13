@@ -36,6 +36,7 @@ internal static class WorldDepartureTests
         Ff7WorldProcess ready = world.Process;
         Check(ready is { MainState: 1, FadeRate: 0, FadeDisplayedAlpha: 0, MovementEnabled: true }, "The original world must finish its field-entry tutorial and fade.");
         PcWorldEvents events = world.Resources.ReadEvents();
+        Ff7SessionSave overworld = Cold(session.Capture());
         PcWorldFunction gateway = events.Functions.Single(function => function.Header == 0xA0E4);
         PcWorldFieldEntry entry = world.Resources.ReadFieldTable().Select(0x100);
         Check(entry.Field > 64, "The first original field-table row must describe a field destination.");
@@ -90,13 +91,37 @@ internal static class WorldDepartureTests
         }
         Check(audio.Count(command => command.Operation == 0xF1) == 1, "The departure must retire world sound exactly once.");
 
-        using Ff7Session direct = Ff7Session.Restore(installation, departing);
-        Ff7WorldRuntime directWorld = direct.World!;
-        int directPc = Enumerable.Range(1, events.Code.Count - 1).First(index => events.Code[index] == (ushort)WorldOperation.FieldTransitionSelector);
-        directWorld.Execute(new(ready.Vm.NextRequestId - 1, -1, -1, directPc, new(WorldOperation.FieldTransitionSelector, [0x2D])));
-        Check(directWorld.Process is { MainState: 8, FieldDeparture: { Selector: 0x2D, Operation: WorldOperation.FieldTransitionSelector } }, "World opcode 33D must retain the unmodified operand and select the immediate path.");
-        CheckThrows<InvalidDataException>(() => direct.AdvanceTick(), "The shipped 33D low-only selector resolves outside the original table.");
-        Check(direct.World == directWorld && direct.MapId == oldField, "Invalid 33D destinations must preserve the original world owner.");
+        CheckReload(installation, overworld, events, 0x179D, 0x2D);
+        CheckReload(installation, overworld, events, 0x2297, 0x33);
+        Check(events.Functions.Any(function => function.Header == 0x531D && function.Offset == 0x22A4) && events.Code.Skip(0x231B).Take(4).SequenceEqual(new ushort[] { 0x100, 0x110, 0x33, 0x33D }), "The model script must dispatch the same original reload selector.");
+        Console.WriteLine("PASS installed FFVII field departure and immediate world reloads");
+    }
+
+    private static void CheckReload(Ff7Installation installation, Ff7SessionSave overworld, PcWorldEvents events, int pc, ushort selector)
+    {
+        Ff7WorldProcess world = overworld.World!;
+        Check(events.Code.Skip(pc).Take(4).SequenceEqual(new ushort[] { 0x100, 0x110, selector, 0x33D }), "The bounded continuation must execute the shipped immediate reload opcode and operand.");
+        Ff7SessionSave pending = overworld with { World = world with { Vm = world.Vm with { System = world.Vm.System with { ProgramCounter = pc, Priority = 3 } } } };
+        using Ff7Session direct = Ff7Session.Restore(installation, pending);
+        Ff7WorldRuntime outgoing = direct.World!;
+        outgoing.Advance();
+        Ff7WorldProcess boundary = outgoing.Process;
+        Check(boundary is { MainState: 8, Vm.Unloading: true, FieldDeparture: { Operation: WorldOperation.FieldTransitionSelector } } && boundary.FieldDeparture.Selector == selector && boundary.FieldDeparture.ProgramCounter == pc + 3, "The shipped opcode must own the original selector and drain the immediate reload boundary.");
+        using Ff7Session restored = Ff7Session.Restore(installation, Cold(direct.Capture()));
+        List<FieldAudioCommand> audio = [];
+        direct.Host.AudioRequested = audio.Add;
+        direct.AdvanceTick();
+        restored.AdvanceTick();
+        Ff7WorldRuntime replacement = direct.World!;
+        Check(replacement != outgoing && replacement.Process is { WorldId: 0, Initialized: false, Tick: 0, Vm.Unloading: false } && replacement.Process.EntrySelector == selector, "The immediate reload must replace the world and start its VM with the original selector.");
+        CheckThrows<ObjectDisposedException>(() => outgoing.Resources.ReadEvents(), "The reloaded world must retire the source archive.");
+        Check(direct.FieldGeneration == overworld.FieldGeneration && direct.Capture().FieldName == overworld.FieldName && direct.Progress.Party.SequenceEqual(overworld.Progress.Party) && replacement.ReadPersistentByte(4 * 256 + 250) == 83, "The reload must retain the suspended field, party and persistent variables.");
+        Check((replacement.ReadPersistentByte(31) & 3) == 3 && audio.Count(command => command.Operation == 0xF1) == 1, "The completed reload must publish the exit flags and retire source sound once before World initialization.");
+        direct.AdvanceTick();
+        restored.AdvanceTick();
+        Check(direct.World == replacement && replacement.Process.Initialized && replacement.ReadSpecial(6, -1) == selector, "The reloaded VM must initialize and expose the original selector.");
+        Check((replacement.ReadPersistentByte(31) & 3) == 0, "Overworld initialization must release the native world-exit menu bits.");
+        Check(JsonSerializer.Serialize(direct.Capture()) == JsonSerializer.Serialize(restored.Capture()), "Cold restore at the unload boundary must publish the same world continuation.");
     }
 
     private static Ff7SessionSave Cold(Ff7SessionSave save) => JsonSerializer.Deserialize<Ff7SessionSave>(JsonSerializer.Serialize(save))!;

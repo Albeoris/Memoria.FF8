@@ -45,6 +45,12 @@ public sealed partial class Ff7BattleSession
 
     public void PublishNativeSaveWrites(FieldVariables variables)
     {
+        ApplyNativeSaveWrites(variables);
+        state = state with { AiSaveBankDirty = [] };
+    }
+
+    internal void ApplyNativeSaveWrites(FieldVariables variables)
+    {
         ArgumentNullException.ThrowIfNull(variables);
         if (state.AiSaveBankDirty is not { Length: > 0 } dirty)
         {
@@ -58,6 +64,5 @@ public sealed partial class Ff7BattleSession
         {
             variables.WriteByte(FieldBank.Persistent0Byte, address, bank[address]);
         }
-        state = state with { AiSaveBankDirty = [] };
     }
 }

@@ -12,7 +12,7 @@ public sealed class Ff7WorldFootShadowAdapter(PcTexture texture, Ff7WorldMath ma
 
     public static bool Eligible(Ff7WorldVisual entity, bool controlled, int heightSmoothVelocity)
     {
-        return entity.Model is >= 0 and <= 2 && (entity.Flags & 2) != 0 && (entity.Flags & 8) == 0 && entity.GroundHeight is not null && entity.NativeAnimation is not (>= 2 and <= 5) && (!controlled || heightSmoothVelocity == 0) && (0x311B6F05u & (1u << (entity.Terrain & 31))) != 0;
+        return (entity.Model is >= 0 and <= 2 or 4) && (entity.Flags & 2) != 0 && (entity.Flags & 8) == 0 && entity.GroundHeight is not null && (entity.Model == 4 || entity.NativeAnimation is not (>= 2 and <= 5)) && (!controlled || heightSmoothVelocity == 0) && (0x311B6F05u & (1u << (entity.Terrain & 31))) != 0;
     }
 
     public static int Curvature(Vector3 position, Ff7WorldView view, int cameraGroundHeight, int threshold)

@@ -12,6 +12,7 @@ public enum WorldOperation
     LocalPosition = 0x309,
     VerticalSpeed = 0x30A,
     Elevation = 0x30B,
+    BoardTransport = 0x30C,
     Animation = 0x30E,
     SelectLight = 0x310,
     LightChunkPosition = 0x311,
@@ -39,6 +40,8 @@ public enum WorldOperation
     CloseWindow = 0x32D,
     WaitWindow = 0x32E,
     CameraTilt = 0x32F,
+    ReleaseChocobo = 0x332,
+    FaceModel = 0x333,
     FastSpeed = 0x336,
     Unhide = 0x338,
     Hide = 0x339,
@@ -57,6 +60,7 @@ public enum WorldOperation
     Meteor = 0x350,
     MusicVolume = 0x351,
     Earthquake = 0x352,
+    PlaceDismountedRider = 0x353,
     Countdown = 0x355
 }
 
@@ -72,5 +76,9 @@ public interface IWorldHost
 
 public sealed record WorldStackValue(ushort Opcode, int Value);
 public sealed record WorldCallSnapshot(int ProgramCounter, byte MoveCounter, byte Priority);
-public sealed record WorldEntitySnapshot(int Model, int ProgramCounter, byte MoveCounter, byte Priority, bool ScriptDisabled, int CalledModel, WorldCallSnapshot[] Calls);
+public sealed record WorldEntitySnapshot(int Model, int ProgramCounter, byte MoveCounter, byte Priority, bool ScriptDisabled, int CalledModel, WorldCallSnapshot[] Calls)
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Detached { get; init; }
+}
 public sealed record WorldSnapshot(int Version, string ProgramIdentity, long Tick, long NextRequestId, bool Unloading, byte[] Local, WorldStackValue[] Stack, WorldEntitySnapshot System, WorldEntitySnapshot[] Models);

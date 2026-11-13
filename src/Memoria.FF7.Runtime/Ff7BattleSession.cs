@@ -270,6 +270,14 @@ public sealed partial class Ff7BattleSession
         return kernel[5].Data.Span[weaponId * 44 + 9];
     }
 
+    internal void ApplyWorldCountdownExpiry()
+    {
+        if (Outcome == Ff7BattleOutcome.Fighting && (state.RequestFlags & 2) != 0)
+        {
+            state = state with { Outcome = Ff7BattleOutcome.Defeat, Action = null };
+        }
+    }
+
     public void Advance(bool waitForCommand = false, bool confirmLimit = false, bool escapeHeld = false, bool turnBased = false)
     {
         if (Outcome != Ff7BattleOutcome.Fighting)

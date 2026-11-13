@@ -114,7 +114,15 @@ public sealed partial class Ff7Session : IDisposable
             session.LoadField(checked((ushort)map), null, save.Process);
             session.Host.RestorePlayerSelection();
             session.Host.RestoreDialoguePresentation();
-            session.Machine = FieldMachine.Restore(FieldProgram.FromPcScripts(session.Field.Scripts), save.Vm, session.Host);
+            FieldEntitySnapshot[] fieldEntities = save.Vm.Entities.ToArray();
+            foreach (Ff7Actor actor in save.Process.Actors.Where(actor => actor.EntityBound && actor.PartyCharacter >= 0).Reverse())
+            {
+                if ((uint)actor.Entity < fieldEntities.Length && fieldEntities[actor.Entity] is { ModelBound: true, PartyCharacter: null } && !fieldEntities.Any(entity => entity?.PartyCharacter == actor.PartyCharacter))
+                {
+                    fieldEntities[actor.Entity] = fieldEntities[actor.Entity] with { PartyCharacter = actor.PartyCharacter };
+                }
+            }
+            session.Machine = FieldMachine.Restore(FieldProgram.FromPcScripts(session.Field.Scripts), save.Vm with { Entities = fieldEntities }, session.Host);
             session.Machine.ScriptReturned = session.ObserveNativeScriptReturn;
             session.tickContinuation = save.TickContinuation is null ? null : save.TickContinuation with { ScriptReturns = save.TickContinuation.ScriptReturns?.ToArray() };
             session.EventCoverage = save.EventCoverage is null ? null : new Memoria.AutoPlay.AutoPlayEventCoverageLedger(save.EventCoverage).Capture();
@@ -159,6 +167,10 @@ public sealed partial class Ff7Session : IDisposable
             }
             if (Battle is { } worldBattle)
             {
+                if (world.PendingBattle is { Timed: true } && Clock.CountdownSeconds == 0)
+                {
+                    worldBattle.ApplyWorldCountdownExpiry();
+                }
                 worldBattle.Advance(waitForBattleCommand, confirmBattleLimit, escapeBattleHeld, turnBasedBattle);
                 return;
             }
