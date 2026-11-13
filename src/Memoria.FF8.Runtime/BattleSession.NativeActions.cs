@@ -206,7 +206,7 @@ public sealed partial class BattleSession
             return 72;
         }
         // 48B2E0 averages the levels in the occupied physical party slots, including KO members.
-        BattleCombatant[] party = combatants.Where(member => member.IsPlayer && member.EncodeNativeSlot() is >= 0 and < 3).ToArray();
+        BattleCombatant[] party = UsesExpandedRoster ? allies.Where(member => member.IsActive).ToArray() : allies.Where(member => member.EncodeNativeSlot() is >= 0 and < 3).ToArray();
         uint cost = checked((uint)(100 * (party.Sum(member => member.Level) / party.Length)));
         return TrySpendNativeMoogleGil(cost) ? null : 53;
     }

@@ -1671,6 +1671,7 @@ public sealed partial class BattleSession
         if (UsesExpandedRoster && ability == BattleAbility.NativeCommand && (nativeAction is null || !actor.IsPlayer || !SupportsExpandedOrdinaryCommand(nativeAction) ||
             !actor.NativeCommands.Any(binding => binding.Command == nativeAction.Command && NativeBindingActionId(binding) == nativeAction.ActionId) ||
             nativeQueuedCommand != nativeAction.Command || actionId != (nativeAction.Command << 16 | nativeAction.ActionId) || nativeTargetMask != 0 || factualHeader ||
+            IsExpandedMiniMogAction(nativeAction) && !target.IsPlayer ||
             !allowDefeatedTarget && ExpandedActionTargets(actor, targetId, ability, actionId, null, nativeAction).Length == 0))
         {
             throw new InvalidDataException("Saved expanded equipped command lacks its installed binding or logical recipients.");

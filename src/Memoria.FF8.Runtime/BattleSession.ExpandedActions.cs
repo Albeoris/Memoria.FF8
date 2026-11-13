@@ -212,6 +212,14 @@ public sealed partial class BattleSession
             action = action with { Name = child.Name ?? action.Name, Level = independent.Level, NativeAction = child };
         }
         BattleNativeAction native = action.NativeAction!;
+        bool miniMog = IsExpandedMiniMogAction(native);
+        if (miniMog && PrepareNativeMiniMog() is int miniMogFailure)
+        {
+            QueueNativeSpecialText(actor, target, NativeBattleGlobalText(miniMogFailure), BattleTextIdentity.Global(miniMogFailure));
+            CompleteNativeActionStatuses(actor);
+            CompleteActionPresentation(command, "MiniMog failed.");
+            return;
+        }
         if (command.Ability == BattleAbility.NativeCommand && IsExpandedTargetedSpecial(native))
         {
             // The expanded host prepares and applies the contact at the same callback, after windup revalidation.
@@ -266,7 +274,7 @@ public sealed partial class BattleSession
             // TODO(TD-009): Expanded GF impact uses the unboosted formula without the native summon presentation.
             nativeActionScratch = nativeActionScratch with { GuardianFormulaE1E = true, GuardianBoostPercent = 100 };
         }
-        BattleActionPresentation resolved = command with { NativeAction = native };
+        BattleActionPresentation resolved = command with { NativeAction = miniMog ? native with { ActionId = (ushort)native.KernelIndex } : native };
         ImmutableArray<ExpandedBattleContact> contacts;
         ImmutableArray<ExpandedBattleContact> reflectedContacts = [];
         BattleActionPresentation? reflectedCommand = null;
@@ -291,7 +299,11 @@ public sealed partial class BattleSession
                 SetNativeSavedBattleFlag(4);
             }
             BattleCombatant? reflector;
-            (contacts, reflector) = ResolveExpandedHitPlan(actor, resolved, action, native, hitPlan, presentsNativeEffect);
+            (contacts, reflector) = ResolveExpandedHitPlan(actor, resolved, action, resolved.NativeAction!, hitPlan, presentsNativeEffect);
+            if (miniMog && !contacts.IsEmpty)
+            {
+                QueueNativeSpecialText(actor, target, NativeBattleGlobalText(54), BattleTextIdentity.Global(54));
+            }
             if (reflector is not null && reflected is not null)
             {
                 BattleCombatant[] opposite = ExpandedRandomTargets(reflector.IsPlayer ? BattleSide.Enemies : BattleSide.Allies);
@@ -456,7 +468,7 @@ public sealed partial class BattleSession
             BattleAbility.Attack => new(BattleAbility.Attack, 0, actor.NativeAttack!.Name ?? "Attack", BattleActionEffect.Native, actor.NativeAttack.Power, false) { NativeAction = actor.NativeAttack },
             BattleAbility.EnemyAbility when command.AiRecipients is not null => new(BattleAbility.EnemyAbility, command.ActionId, command.NativeAction!.Name ?? $"Enemy ability {command.ActionId}", BattleActionEffect.Native, command.NativeAction.Power, false) { NativeAction = command.NativeAction },
             BattleAbility.EnemyAbility when IsExpandedIndependentSupport(command.NativeAction, command.NativePlayerReaction) => new(BattleAbility.EnemyAbility, command.ActionId, command.NativeAction!.Name ?? "Automatic Support", BattleActionEffect.Native, command.NativeAction.Power, false) { NativeAction = command.NativeAction },
-            BattleAbility.NativeCommand when command.NativeAction is { } ordinary => ExpandedOrdinaryCommandDefinition(ordinary),
+            BattleAbility.NativeCommand when command.NativeAction is { } ordinary => ExpandedOrdinaryCommandDefinition(actor, ordinary),
             BattleAbility.LimitBreak when command.NativeAction is { } limit => ExpandedLimitDefinition(actor, limit),
             _ => FindAction(command.Ability, command.ActionId)
         };
@@ -481,6 +493,11 @@ public sealed partial class BattleSession
         {
             return IsExpandedAngeloTarget(target, native!) ? [target] : [];
         }
+        if (ability == BattleAbility.NativeCommand && IsExpandedMiniMogAction(native))
+        {
+            // Menu A0 produces 80FF, which admits both sides after the living target filter.
+            return combatants.Where(candidate => candidate.IsAlive && !candidate.Untargetable).ToArray();
+        }
         if (ability == BattleAbility.LimitBreak && IsExpandedShotAction(native))
         {
             return native!.Command is 14 or 238 ? [target] : ExpandedShotTargets(target, native);
@@ -492,7 +509,7 @@ public sealed partial class BattleSession
         BattleActionDefinition action = ability switch
         {
             BattleAbility.LimitBreak when native is not null => ExpandedLimitDefinition(actor, native),
-            BattleAbility.NativeCommand when native is not null => ExpandedOrdinaryCommandDefinition(native),
+            BattleAbility.NativeCommand when native is not null => ExpandedOrdinaryCommandDefinition(actor, native),
             _ => FindAction(ability, actionId)
         };
         if (ability == BattleAbility.NativeCommand && native is not null && IsNativeLevelCommand(native) &&

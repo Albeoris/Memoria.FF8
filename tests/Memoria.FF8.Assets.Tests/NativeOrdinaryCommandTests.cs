@@ -191,7 +191,13 @@ public sealed class NativeOrdinaryCommandTests
     [InlineData(0x00, 2400, false, 72, ChocoboWorldMode.Memoria, false)]
     [InlineData(0x03, 2400, false, 72, ChocoboWorldMode.Memoria, true)]
     [InlineData(0x05, 2400, false, 72, ChocoboWorldMode.AngeloSearch, true)]
-    public void InstalledMiniMogSelectionRunsItsNativeCommandAndRestoresAcrossAdmission(byte flags, uint selectedGil, bool dream, int? failureMessage, ChocoboWorldMode? mode, bool amulet)
+    [InlineData(0x0D, 2500, false, null, null, false, true)]
+    [InlineData(0x0D, 2500, true, null, null, false, true)]
+    [InlineData(0x0D, 2499, true, 53, null, false, true)]
+    [InlineData(0x0F, 2500, false, 72, null, false, true)]
+    [InlineData(0x00, 2500, false, null, ChocoboWorldMode.Memoria, true, true)]
+    [InlineData(0x0D, 2500, false, null, null, false, true, true)]
+    public void InstalledMiniMogSelectionRunsItsNativeCommandAndRestoresAcrossAdmission(byte flags, uint selectedGil, bool dream, int? failureMessage, ChocoboWorldMode? mode, bool amulet, bool expanded = false, bool cancel = false)
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
@@ -205,6 +211,11 @@ public sealed class NativeOrdinaryCommandTests
         byte[] pocket = new byte[64];
         pocket[0] = flags;
         pocket[1] = 10;
+        BattleCombatantDefinition actor = new() { Id = "actor", Name = "Squall", ModelId = 0, IsPlayer = true, Level = 11, MaximumHp = 1000, CurrentHp = 1000, Speed = 1, InitialAtb = BattleSession.AtbMaximum, EquipmentIds = [0, 1], NativeCommands = [binding], NativeStatusResistances = new byte[40] };
+        BattleCombatantDefinition ally = new() { Id = "ally", Name = "Ally", ModelId = 1, IsPlayer = true, Level = 24, MaximumHp = 1000, CurrentHp = 1000, Speed = 1, NativeStatusResistances = new byte[40] };
+        BattleCombatantDefinition ko = new() { Id = "ko", Name = "KO", ModelId = 2, IsPlayer = true, Level = 38, MaximumHp = 1000, CurrentHp = 0, NativeStatus0 = 1, Speed = 1, EquipmentIds = [2], NativeStatusResistances = new byte[40] };
+        BattleCombatantDefinition enemy = new() { Id = "enemy", Name = "Enemy", ModelId = 0, MaximumHp = 1000, CurrentHp = 1000, Speed = 1, NativeStatusResistances = new byte[40], InitialSuspended = expanded };
+        BattleCombatantDefinition[] roster = expanded ? [actor, ally, ko, ally with { Id = "ally-3", ModelId = 3, Level = 28 }, enemy, .. Enumerable.Range(1, 5).Select(index => enemy with { Id = $"enemy-{index}" })] : [actor, ally, ko, enemy];
         BattleSession battle = new(new BattleDefinition
         {
             NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
@@ -221,13 +232,9 @@ public sealed class NativeOrdinaryCommandTests
             ChocoboRewards = amulet ? new() { AcquiredUniqueRewardIds = ImmutableHashSet.Create("mogs_amulet") } : new(),
             NativeGil = gil,
             GuardianForces = [new(0, 500, 1000), new(1, 960, 1000), new(2, 500, 1000)],
-            Combatants =
-            [
-                new() { Id = "actor", Name = "Squall", ModelId = 0, IsPlayer = true, Level = 11, MaximumHp = 1000, CurrentHp = 1000, Speed = 1, InitialAtb = BattleSession.AtbMaximum, EquipmentIds = [0, 1], NativeCommands = [binding], NativeStatusResistances = new byte[40] },
-                new() { Id = "ally", Name = "Ally", ModelId = 1, IsPlayer = true, Level = 24, MaximumHp = 1000, CurrentHp = 1000, Speed = 1, NativeStatusResistances = new byte[40] },
-                new() { Id = "ko", Name = "KO", ModelId = 2, IsPlayer = true, Level = 38, MaximumHp = 1000, CurrentHp = 0, NativeStatus0 = 1, Speed = 1, EquipmentIds = [2], NativeStatusResistances = new byte[40] },
-                new() { Id = "enemy", Name = "Enemy", ModelId = 0, MaximumHp = 1000, CurrentHp = 1000, Speed = 1, NativeStatusResistances = new byte[40] }
-            ]
+            UsesExpandedRoster = expanded,
+            NativeStatusRules = expanded ? assets.ReadNativeStatusRules(0) : null,
+            Combatants = roster
         }, BattleAtbMode.Normal);
 
         Assert.Empty(battle.GetNativePlayerActionChoices("ally", false));
@@ -241,23 +248,42 @@ public sealed class NativeOrdinaryCommandTests
         battle.QueueAction("actor", "actor", choice.Ability, choice.Id);
         BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
         Assert.Equal((byte)38, queued.NativeQueuedCommand);
-        Assert.Equal(255, queued.ActionId);
+        Assert.Equal(expanded ? choice.Id : 255, queued.ActionId);
         Assert.Equal(gil, battle.Capture().NativeGil);
+        if (expanded)
+        {
+            Assert.Equal(0, queued.NativeTargetMask);
+        }
 
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
         battle.Tick();
         restored.Tick();
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
-        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.Headers[battle.ActiveAction!.NativeHeaderIndex!.Value];
-        Assert.Equal(failureMessage is null ? (byte)38 : (byte)0, header.ReadByte(1));
-        Assert.Equal(failureMessage is null ? (byte)14 : (byte)10, header.ReadByte(2));
-        Assert.Equal(failureMessage is null ? (ushort)6 : (ushort)9, NativeBattleActionGraphics.Word(header, 4));
-        Assert.Equal(failureMessage is null ? (ushort)96 : (ushort)0, NativeBattleActionGraphics.Word(header, 6));
-        Assert.Equal(failureMessage is null ? 0x495050u : 0x47EBD0u, header.Data!.ProducerAddress);
-        Assert.Equal(failureMessage is null ? dance.Name : binding.Name, header.Data.FormattedText);
-        if (failureMessage is not null)
+        if (expanded)
         {
-            Assert.Equal((byte)0, header.ReadByte(16));
+            Assert.NotNull(battle.ActiveAction);
+            Assert.Equal(gil, battle.Capture().NativeGil);
+            if (cancel)
+            {
+                battle.InstantDefeat();
+                Assert.Equal(gil, battle.Capture().NativeGil);
+                Assert.DoesNotContain(battle.Events, entry => entry.Kind == "GuardianForceHealing");
+                return;
+            }
+        }
+        else
+        {
+            NativeBattleActionHeaderSlot header = battle.NativeActionPackets.Headers[battle.ActiveAction!.NativeHeaderIndex!.Value];
+            Assert.Equal(failureMessage is null ? (byte)38 : (byte)0, header.ReadByte(1));
+            Assert.Equal(failureMessage is null ? (byte)14 : (byte)10, header.ReadByte(2));
+            Assert.Equal(failureMessage is null ? (ushort)6 : (ushort)9, NativeBattleActionGraphics.Word(header, 4));
+            Assert.Equal(failureMessage is null ? (ushort)96 : (ushort)0, NativeBattleActionGraphics.Word(header, 6));
+            Assert.Equal(failureMessage is null ? 0x495050u : 0x47EBD0u, header.Data!.ProducerAddress);
+            Assert.Equal(failureMessage is null ? dance.Name : binding.Name, header.Data.FormattedText);
+            if (failureMessage is not null)
+            {
+                Assert.Equal((byte)0, header.ReadByte(16));
+            }
         }
 
         restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
@@ -282,6 +308,10 @@ public sealed class NativeOrdinaryCommandTests
             Assert.Equal(assets.ReadNativeGlobalBattleMessages()[54], Assert.Single(battle.Events, entry => entry.Kind == "NativeText").Message);
             Assert.Equal(new[] { 100, 40 }, battle.Events.Where(entry => entry.Kind == "GuardianForceHealing").Select(entry => entry.Amount));
             Assert.Equal(new ushort[] { 600, 1000, 500 }, battle.GuardianForces.Select(gf => gf.HitPoints));
+            if (expanded)
+            {
+                Assert.Equal(roster.Where(member => member.Id != "ko").Select(member => member.Id), battle.Events.Where(entry => entry.Kind == "EffectContact").Select(entry => entry.TargetId));
+            }
         }
     }
 

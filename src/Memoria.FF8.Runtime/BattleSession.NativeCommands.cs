@@ -105,7 +105,7 @@ public sealed partial class BattleSession
         }
         if (UsesExpandedRoster)
         {
-            return choices.Where(SupportsExpandedOrdinaryCommand).Select(ExpandedOrdinaryCommandDefinition).ToArray();
+            return choices.Where(SupportsExpandedOrdinaryCommand).Select(action => ExpandedOrdinaryCommandDefinition(actor, action)).ToArray();
         }
         return choices.Select(action =>
         {
@@ -131,6 +131,10 @@ public sealed partial class BattleSession
 
     private bool SupportsExpandedOrdinaryCommand(BattleNativeAction action)
     {
+        if (IsExpandedMiniMogAction(action))
+        {
+            return definition.NativePocketStation is not null && nativeGil is not null && (definition.NativeSavedBattleFlagsKnownMask & 1) != 0;
+        }
         // Section 10 also contains special invocations with separate admission state.
         return action.KernelSection == 10 && action.TargetFlags is byte flags && (flags & 0x30) != 0x30 &&
             ((flags & 1) == 0 || action.AttackType is 5 or 6) &&
@@ -141,8 +145,18 @@ public sealed partial class BattleSession
                     : action.AttackType is 2 or 3 or 4 or 5 or 6 or 18 or 25 or 32 && ExpandedBattleActionRules.SupportsContacts(action));
     }
 
-    private static BattleActionDefinition ExpandedOrdinaryCommandDefinition(BattleNativeAction native)
+    private static bool IsExpandedMiniMogAction(BattleNativeAction? action)
     {
+        return action is { Command: 38, ActionId: 255, KernelSection: 9, KernelIndex: 6, MagicId: 96, AttackType: 24, HitCount: 1, TargetFlags: null };
+    }
+
+    private static BattleActionDefinition ExpandedOrdinaryCommandDefinition(BattleCombatant actor, BattleNativeAction native)
+    {
+        if (IsExpandedMiniMogAction(native))
+        {
+            BattleNativeCommandBinding binding = actor.NativeCommands.Single(binding => binding.Command == 38);
+            return CreateNativePlayerActionChoice(BattleAbility.NativeCommand, native, binding.TargetFlags, binding.Name);
+        }
         return CreateNativePlayerActionChoice(BattleAbility.NativeCommand, native, native.TargetFlags!.Value, native.Name);
     }
 
@@ -241,7 +255,7 @@ public sealed partial class BattleSession
             {
                 throw new NotSupportedException("The equipped command requires a battle process outside the expanded host.");
             }
-            BattleActionDefinition expandedAction = limit ? ExpandedLimitDefinition(actor, native) : ExpandedOrdinaryCommandDefinition(native);
+            BattleActionDefinition expandedAction = limit ? ExpandedLimitDefinition(actor, native) : ExpandedOrdinaryCommandDefinition(actor, native);
             QueueExpandedPlayerAction(actor, target, expandedAction, sequence);
             return;
         }
