@@ -217,6 +217,7 @@ public sealed partial class Ff7BattleSession
 
     internal static void ValidateGuestVitalsSnapshot(Ff7BattleSnapshot snapshot)
     {
+        ValidateGuestOriginStatuses(snapshot);
         if (snapshot.GuestSlots is { } slots && (slots.Length is < 2 or > 3 || snapshot.GuestVitals is not null) || snapshot.GuestVitals is null && (snapshot.GuestProjection is not null || snapshot.GuestBaseDexterity is not null || snapshot.GuestLimitReadyAt is not null))
         {
             throw new InvalidDataException("The saved guest projections have inconsistent source identity bindings.");

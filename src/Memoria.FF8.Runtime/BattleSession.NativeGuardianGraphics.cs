@@ -28,7 +28,7 @@ public sealed partial class BattleSession
             NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native50B2A0 requires its actual camera owner.")) with { ForceCamera = true };
             graphics = PrepareNativeHeaderGeometry(graphics with { Flags = graphics.Flags | 0x10 }, context);
             NativeBattleGraphicsModel actor = graphics.Models[caster];
-            actor = actor with { Flags8 = (actor.Flags8 ?? throw new InvalidDataException("Native50B2A0 requires the caster DWORD8.")) & ~0x800000u };
+            actor = NativeBattleGuardianInvocation.EnterSource(actor);
             graphics = SelectNativeHeaderSequence(graphics with { Models = graphics.Models.SetItem(caster, actor) }, caster, header.ReadByte(2));
             byte selector = (byte)(NextNativeGlobalRandom() % 3 | 0x10);
             StartNativeGuardianCamera(graphics, caster, selector);
@@ -65,7 +65,7 @@ public sealed partial class BattleSession
                 return (graphics, phase, false);
             }
             events.Add(new(Frame, "NativeSoundStopAll", null, null, 0, "Native46B440 stops all32 sound-effect voices.") { NativeStopAllSounds = true });
-            actor = actor with { Flags0 = (ushort)((actor.Flags0 & 0xFFF5) | 8), EffectCounter97 = 0, ResourceFlags44 = (ushort)(NativeCastingResourceFlags(graphics, caster) & ~0x20) };
+            actor = NativeBattleGuardianInvocation.HideSource(actor);
             graphics = graphics with { Models = graphics.Models.SetItem(caster, actor) };
             if (caster != 2 && (guardian.HiddenPartyMask47 & 4) != 0)
             {
@@ -151,7 +151,7 @@ public sealed partial class BattleSession
                 }
             }
             NativeBattleGraphicsModel actor = graphics.Models[caster];
-            actor = actor with { Flags0 = (ushort)((actor.Flags0 & 0xFFF1) | 2), Flags2 = (ushort)((actor.Flags2 ?? throw new InvalidDataException("Native50B2A0 requires the caster WORD2.")) | 4) };
+            actor = NativeBattleGuardianInvocation.RestoreSource(actor);
             if (parameter81 == 2)
             {
                 actor = actor with { SequenceState = (actor.SequenceState ?? throw new InvalidDataException("Native50B2A0 requires the caster resource WORD40.")) with { Header40 = 0 } };

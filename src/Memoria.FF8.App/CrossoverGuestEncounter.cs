@@ -62,6 +62,8 @@ internal sealed class CrossoverGuestEncounter
 
     public void Register(CrossoverGuestHostActions guest) => guests.Add(guest);
 
+    public CrossoverGuestHostActions? GuestAt(int slot) => guests.SingleOrDefault(guest => guest.ActorSlot == slot);
+
     public void ReprojectKits(int caster)
     {
         foreach (CrossoverGuestHostActions guest in guests)

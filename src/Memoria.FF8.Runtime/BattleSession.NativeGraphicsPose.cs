@@ -4,19 +4,22 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsResource NativeGraphicsPoseResource(NativeBattleGraphicsState graphics, int index)
     {
-        if (presentationForeignActors?.ContainsKey(index) == true)
+        NativeBattleGraphicsResource? presentedResource = index == 0 ? presentationSourceResource : null;
+        if (presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true)
         {
-            throw new NotSupportedException($"Host actor slot {index} cannot supply a native FFVIII skeleton, animation bank or textured body resource required by the selected effect.");
+            presentedResource = foreign.NativeResource ?? throw new NotSupportedException($"Host actor slot {index} cannot supply a native FFVIII skeleton, animation bank or textured body resource required by the selected effect.");
         }
-        if (presentationSourceResource is not null && index == 0 && graphics.Models[index].ResourceMagicId is null && graphics.Models[index].ActiveStagedResourceRow100 is null)
+        if (presentedResource is not null && graphics.Models[index].ResourceMagicId is null && graphics.Models[index].ActiveStagedResourceRow100 is null)
         {
-            return presentationSourceResource;
+            return presentedResource;
         }
         if ((uint)index >= 7 || graphics.ActorIds[index] is not string actorId)
         {
             throw new InvalidDataException($"Native graphics pose index {index} has no allocated resource owner.");
         }
-        NativeBattleGraphicsBinding binding = FindNativeGraphicsBinding(actorId) ?? throw new InvalidDataException("Native graphics pose lost its original model resource.");
+        NativeBattleGraphicsBinding binding = presentedResource is not null
+            ? new(actorId, graphics.Models[index].ModelId4 ?? throw new InvalidDataException("Native presentation participant lost its model identity."), presentedResource)
+            : FindNativeGraphicsBinding(actorId) ?? throw new InvalidDataException("Native graphics pose lost its original model resource.");
         if (graphics.Models[index].ActiveStagedResourceRow100 is not null)
         {
             NativeBattleFileStaging staging = NativeFileStaging ?? throw new NotSupportedException("Native staged graphics requires its actual shared file bytes.");

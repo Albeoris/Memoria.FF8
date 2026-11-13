@@ -189,7 +189,10 @@ internal sealed partial class Ff7Scene
         {
             if (semanticInput.Cancel)
             {
-                selectedBattleCommand = null;
+                if (!CancelGuestMagicSelection())
+                {
+                    selectedBattleCommand = null;
+                }
                 return;
             }
             Ff7BattleCommandOption? current = battle.Commands(owner).SingleOrDefault(option => option.Command == selected.Command && option.Argument == selected.Argument);
@@ -205,7 +208,8 @@ internal sealed partial class Ff7Scene
                 return;
             }
             Ff7BattleActorState[] targets = BattleTargets(battle, current);
-            if (current.GroupUses > 0 && semanticInput.MenuPage != 0)
+            bool multicast = ChangeGuestMagicCastCount(battle, owner, current);
+            if (!multicast && current.GroupUses > 0 && semanticInput.MenuPage != 0)
             {
                 battleTargetGroup = !battleTargetGroup;
             }
@@ -238,7 +242,7 @@ internal sealed partial class Ff7Scene
                     displayedGuestSmartPreview = preview;
                     submitted = displayed && mixedCombat!.GuestAt(owner)!.SubmitSmartAttack(preview);
                 }
-                else
+                else if (!CollectGuestMagicTarget(battle, owner, current, mask, useAll, out submitted))
                 {
                     submitted = battle.Submit(owner, current.Command, current.Argument, mask, useAll);
                 }
@@ -321,6 +325,7 @@ internal sealed partial class Ff7Scene
             return;
         }
         selectedBattleCommand = option;
+        BeginGuestMagicSelection(option);
         displayedGuestSmartPreview = null;
         battleTargetIndex = 0;
         battleTargetGroup = false;

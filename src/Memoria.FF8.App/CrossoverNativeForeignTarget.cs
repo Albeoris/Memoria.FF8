@@ -10,6 +10,8 @@ namespace Memoria.FF8;
 internal sealed record CrossoverNativeForeignTarget(int HostSlot, NativeBattleModelTransform Transform, NativeBattleActionMatrix World, NativeBattleEffectActorGeometry Anchors, Ff7BattleActorGeometry Geometry, Matrix4x4 HostToOrigin)
 {
     public short Facing { get; init; }
+    public NativeBattleGraphicsModel? NativeModel { get; init; }
+    public NativeBattleGraphicsResource? NativeResource { get; init; }
 
     public NativeBattleForeignActor ToActor(int index)
     {
@@ -36,6 +38,8 @@ internal sealed record CrossoverNativeForeignTarget(int HostSlot, NativeBattleMo
         return new(index, Transform, new(anchor.X, anchor.Y, anchor.Z, checked((short)(Anchors.LocalBounds.Maximum.Y - Anchors.LocalBounds.Minimum.Y))), ReadBone)
         {
             Facing = Facing,
+            NativeModel = NativeModel,
+            NativeResource = NativeResource,
             BoneCount = Geometry.Bones.Length,
             Geometry = new(World, Anchors, faces),
             Pose = new(poseWorld, Geometry.Bones.SelectMany(bone => new[] { bone.Start, bone.End }).Select(point => NativeBattleGfMatrices.Transform460840(inversePose, Word(Vector3.Transform(point, HostToOrigin)))).ToImmutableArray(), (selector, fraction) => NativeBattleGfMatrices.Transform460840(inversePose, ReadBone(selector, fraction)))

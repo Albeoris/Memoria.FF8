@@ -27,7 +27,16 @@ internal sealed partial class CrossoverGuestHostActions
 
     private IReadOnlyList<CrossoverGuestAbility> ReadNativeAbilities() => abilityCatalog.Read(encounter.Working, kit, originLimitProgress, limitSelection?.Crisis ?? 0);
 
-    private IReadOnlyList<CrossoverGuestAbility> ReadOriginAbilities() => ReadIntegratedAbilities(ReadNativeAbilities());
+    private IReadOnlyList<CrossoverGuestAbility> ReadOriginAbilities()
+    {
+        IReadOnlyList<CrossoverGuestAbility> choices = ReadIntegratedAbilities(ReadNativeAbilities());
+        if (host.GuestMagicPrepaidAbility(ActorSlot) is ushort prepaid && !choices.Any(choice => choice.Key == prepaid))
+        {
+            BattleNativeAction action = kit.Spells.Single(action => action.ActionId == prepaid);
+            return choices.Append(new(prepaid, 2, "Magic", action.Name!, action, 1, null)).ToArray();
+        }
+        return choices;
+    }
 
     public object CommandMenuState
     {
@@ -249,7 +258,7 @@ internal sealed partial class CrossoverGuestHostActions
         {
             return unsupported;
         }
-        return PresentationUnsupportedReason(original, choice.Key, target);
+        return SourceStatusTargetUnsupportedReason(original, target) ?? PresentationUnsupportedReason(original, choice.Key, target);
     }
 
     private string? PresentationUnsupportedReason(BattleNativeAction original, ushort ability, int target)
@@ -288,8 +297,8 @@ internal sealed partial class CrossoverGuestHostActions
                 () => ReadAbilityAnchor(placement, target),
                 () => ReadAbilityTransform(placement, target),
                 CrossoverNativeSpriteRenderer.Camera(host.RenderCameraOutput, placement.Matrix),
-                readForeignGeometry is null ? null : () => CrossoverNativeForeignTarget.Read(host, target, readForeignGeometry(target), placement.Matrix), out string? reason,
-                readGroupForeign: readForeignGeometry is null ? null : slot => CrossoverNativeForeignTarget.Read(host, slot, readForeignGeometry(slot), placement.Matrix)) ? null : reason;
+                readForeignGeometry is null && encounter.GuestAt(target) is null ? null : () => ReadAbilityForeign(placement, target), out string? reason,
+                readGroupForeign: readForeignGeometry is null && slots.Any(slot => encounter.GuestAt(slot) is null) ? null : slot => ReadAbilityForeign(placement, slot)) ? null : reason;
         }
         catch (Exception exception) when (exception is NotSupportedException or InvalidDataException or InvalidOperationException or ArgumentException or OverflowException)
         {

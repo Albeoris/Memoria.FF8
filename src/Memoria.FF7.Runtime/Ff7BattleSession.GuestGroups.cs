@@ -113,7 +113,7 @@ public sealed partial class Ff7BattleSession
             Ff7BattleActionVitals sourceVitals = GuestItemVitals(source);
             Ff7BattleActionVitals targetVitals = GuestItemVitals(target) with { StatusImmunities = (slot >= 4 ? ~Enemy(slot).NativeStatusMask : 0) | target.StatusProtection };
             Ff7BattleDamageAction attack = ProjectGuestOutgoingAttack(slot, description) with { Split = false };
-            Ff7BattleActionReceipt receipt = Ff7NativeBattleActionResolver.ResolveGuestContact(description.Source, sourceVitals, Stats(target), targetVitals, attack, description.StatusRecord, candidateRandom, sameActor: slot == command.ActorSlot, originStatusResistances: GetGuestProjection(slot)?.OriginStatusResistances);
+            Ff7BattleActionReceipt receipt = Ff7NativeBattleActionResolver.ResolveGuestContact(description.Source, sourceVitals, Stats(target), targetVitals, attack, description.StatusRecord, candidateRandom, sameActor: slot == command.ActorSlot, originStatusResistances: GetGuestProjection(slot)?.OriginStatusResistances, originBattleStatuses: GetGuestBinding(slot) is null ? 0 : GetGuestOriginBattleStatuses(slot), originSourceStatuses: GetGuestBinding(command.ActorSlot) is null ? (ushort)0 : GetGuestOriginSavedStatuses(command.ActorSlot), originTargetStatuses: GetGuestBinding(slot) is null ? (ushort)0 : GetGuestOriginSavedStatuses(slot));
             prepared.Add(description with { Attack = attack, PreparedContact = new(invocation with { TargetSlot = slot }, sourceVitals, targetVitals, receipt) });
         }
         if (group.PrepareGroupUnsupportedReason(prepared) is { } unsupported)
@@ -159,7 +159,7 @@ public sealed partial class Ff7BattleSession
                 throw new InvalidDataException("The native group completed without settling every selected target exactly once.");
             }
             PublishGuestSourceInteraction(active.Command, invocation.TargetSlot);
-            FinishTurn(active.Command.ActorSlot);
+            CompleteGuestMagic(active.Command);
             state = state with { Action = null };
             FlushFormationAi();
         }

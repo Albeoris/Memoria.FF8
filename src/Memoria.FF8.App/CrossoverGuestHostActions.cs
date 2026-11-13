@@ -13,6 +13,7 @@ internal sealed record CrossoverGuestFireHostState(Ff7BattleGuestInvocation Invo
     public ImmutableArray<Ff7BattleGuestPhysicalHit> GroupPrepared { get; init; } = [];
     public CrossoverGuestItemDebit? ItemCost { get; init; }
     public CrossoverDrawCastReceipt? DrawCast { get; init; }
+    public bool PrepaidMagic { get; init; }
 }
 internal sealed record CrossoverGuestCommittedSpell(long Ordinal, ushort Spell, int OriginRow, int DrawQuantity = 0);
 internal sealed record CrossoverGuestHostActionsSnapshot(CrossoverBattleStockSnapshot Stock, NativeCrtRandomState? OriginCrtRandom, NativeCrtRandomState CrtRandom, long NextOrdinal, CrossoverGuestFireHostState? Fire)
@@ -68,7 +69,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         ValidateItemQueue();
         fire = saved?.Fire;
         NativeBattleGraphicsResource sourceResource = assets.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = kit.CharacterId, WeaponId = kit.Weapon });
-        fireProgram = new(game, sourceResource, assets);
+        fireProgram = new(game, sourceResource, assets, host.Formation.FormationId);
         limitResource = sourceResource;
         limitProgram = new(game, sourceResource, graphicsRules);
         roughDivideProgram = new(game, sourceResource, graphicsRules.SummonColors!);
@@ -124,6 +125,10 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
 
     private bool OwnsActiveCost(CrossoverGuestFireHostState active)
     {
+        if (active.PrepaidMagic)
+        {
+            return active.StockAction is null && active.ItemCost is null && host.GuestMagicPrepaidAbility(ActorSlot) == active.Invocation.GuestAbility;
+        }
         if (active.DrawCast is { } draw)
         {
             return active.StockAction is null && active.ItemCost is null && IsDrawCast(draw.Ability) && draw.SourceSlot == DrawSource(draw.Ability) && draw.SourceSlot is >= 4 and <= 9 && draw.Magic == DrawMagic(draw.Ability) && draw.Magic is >= 1 and <= 56 && draw.Quantity is >= 1 and <= 9 && active.Presentation.Action is { Command: 2 } action && action.ActionId == draw.Magic;
@@ -284,7 +289,8 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         BattleNativeAction original = NativeAbility(invocation.GuestAbility);
         CrossoverBattleAction? stockAction = null;
         NativeCharacterVitals reserved = encounter.Working;
-        if (original.Command == 2 && !IsDrawCast(invocation.GuestAbility))
+        bool prepaidMagic = host.GuestMagicPrepaidAbility(ActorSlot) == invocation.GuestAbility;
+        if (original.Command == 2 && !IsDrawCast(invocation.GuestAbility) && !prepaidMagic)
         {
             CrossoverBattleAbilityId ability = new(SessionGame.Ff8, CrossoverBattleAbilityKind.Spell, original.ActionId);
             CrossoverBattleActorId targetId = roster.Participants.Single(participant => participant.HostSlot == target.Slot).Combat;
@@ -320,7 +326,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         {
             throw new InvalidDataException("Draw Cast requires its committed source result before presentation.");
         }
-        fire = new(invocation, invocation.StartedAt, clock.Subticks, clock.HalfSubtick, placement, target.CollisionRadius, hit, stockAction, program, false) { DrawCast = preparedDrawCast, GroupPrepared = preparedGroup };
+        fire = new(invocation, invocation.StartedAt, clock.Subticks, clock.HalfSubtick, placement, target.CollisionRadius, hit, stockAction, program, false) { DrawCast = preparedDrawCast, GroupPrepared = preparedGroup, PrepaidMagic = prepaidMagic };
         preparedDrawCast = null;
         prepared = null;
         preparedGroup = [];
@@ -387,8 +393,8 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
                 NativeBattleVector point = current.Placement.ResolvePosition(host.RenderActorPlacement(current.Invocation.TargetSlot).Position);
                 short scale = checked((short)NativePrecision53.RoundInteger(current.TargetRadius / CrossoverGunbladeHostPlacement.OriginToHostScale * 4096 / 2000));
                 return new(point, point, 0, 0, scale);
-            }, CrossoverNativeSpriteRenderer.Camera(host.RenderCameraOutput, current.Placement.Matrix), readForeignGeometry is null ? null : () => CrossoverNativeForeignTarget.Read(host, current.Invocation.TargetSlot, readForeignGeometry(current.Invocation.TargetSlot), current.Placement.Matrix),
-                readGroupForeign: readForeignGeometry is null ? null : slot => CrossoverNativeForeignTarget.Read(host, slot, readForeignGeometry(slot), current.Placement.Matrix));
+            }, CrossoverNativeSpriteRenderer.Camera(host.RenderCameraOutput, current.Placement.Matrix), readForeignGeometry is null && encounter.GuestAt(current.Invocation.TargetSlot) is null ? null : () => ReadAbilityForeign(current.Placement, current.Invocation.TargetSlot),
+                readGroupForeign: readForeignGeometry is null && current.Presentation.BoundTargets.Any(target => encounter.GuestAt(target.HostSlot) is null) ? null : slot => ReadAbilityForeign(current.Placement, slot));
             current = current with { Presentation = next.State, ContactPublished = current.ContactPublished || next.Contact };
             encounter.CrtRandom = next.State.Random;
             encounter.GlobalRandom = next.State.GlobalRandom ?? encounter.GlobalRandom;

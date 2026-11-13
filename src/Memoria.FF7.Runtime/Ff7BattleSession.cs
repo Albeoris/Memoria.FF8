@@ -54,6 +54,7 @@ public sealed record Ff7BattleReaction(int Slot, long Tick);
 public sealed record Ff7BattleLimitSelection(int Slot, ushort Targets, Ff7BeatRushReel Reel);
 public sealed record Ff7BattleSnapshot(long RequestId, int FormationId, byte Layout, long Tick, Ff7BattleActorState[] Actors, Ff7BattleRngState Random, Ff7BattleCommandQueueState Queue, Ff7InventorySlot[] Inventory, Ff7BattleActionState? Action = null, Ff7BattleHit? LastHit = null, Ff7BattleOutcome Outcome = Ff7BattleOutcome.Fighting, Ff7BattleReaction? Reaction = null, Ff7BattleLimitSelection? BeatRush = null, short BeatRushPosition = 0, Ff7BattleEscapeState Escape = default, bool EscapeBlocked = false, ushort RequestFlags = 0, byte RequestMode = 0, int? EntryMusicTrack = null, Ff7BattleMessageState? Messages = null, int TerminalFrames = 0, long? EscapePoseStarted = null, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] Ff7BattleGuestVitalsBinding? GuestVitals = null)
 {
+    public System.Collections.Immutable.ImmutableArray<Ff7BattleGuestMagicSequence> GuestMagicSequences { get; init; } = [];
     public Ff7ResolvedEnemyExtension[]? EnemyExtensions { get; init; }
     public byte[]? AiGlobalMemory { get; init; }
     public byte[]? AiSaveBank1 { get; init; }
@@ -77,6 +78,8 @@ public sealed record Ff7BattleSnapshot(long RequestId, int FormationId, byte Lay
     public long? GuestLimitReadyAt { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public Ff7BattleGuestSlotState[]? GuestSlots { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7BattleGuestOriginStatus[]? GuestOriginStatuses { get; init; }
 
     public IReadOnlyList<Ff7BattleGuestSlotState> GetGuestSlotStates()
     {
@@ -583,6 +586,7 @@ public sealed partial class Ff7BattleSession
 
     private void FinishTurn(int slot)
     {
+        CancelGuestMagicSequence(slot);
         if (!state.Queue.Slots.Any(entry => entry?.Command.ActorSlot == slot && entry.Command.Priority >= 2 && entry.Command.CommandId != 0x23))
         {
             ResetGauge(slot);
@@ -613,6 +617,7 @@ public sealed partial class Ff7BattleSession
             throw new InvalidDataException("FFVII battle snapshot has invalid physical actor ownership.");
         }
         ValidateGuestLimitSnapshot(snapshot);
+        ValidateGuestMagicSequences(snapshot);
         if (snapshot.TerminalFrames is < 0 or > 49 || snapshot.Messages is { } messages && (messages.Pending is null || messages.Pending.Length > 64 || messages.Pending.Any(entry => entry?.Text is null || entry.Delay > 1 || entry.Remaining > 67)) || snapshot.Action is { } action && (action.Command is null || action.StartedAt < 0 || action.StartedAt > snapshot.Tick || snapshot.Actors.All(actor => actor.Actor.Slot != action.Command.ActorSlot)))
         {
             throw new InvalidDataException("FFVII battle snapshot has an invalid presentation or action cursor.");
@@ -647,6 +652,7 @@ public sealed partial class Ff7BattleSession
             FormationAiMemory = source.FormationAiMemory?.ToArray(),
             EnemyExtensions = source.EnemyExtensions?.Select(e => e with { DrawSlots = e.DrawSlots.ToArray(), Items = e.Items.ToArray() }).ToArray(),
             GuestSlots = source.GuestSlots is null ? null : (Ff7BattleGuestSlotState[])source.GuestSlots.Clone(),
+            GuestOriginStatuses = source.GuestOriginStatuses is null ? null : (Ff7BattleGuestOriginStatus[])source.GuestOriginStatuses.Clone(),
             Action = CopyActionPrimaryEffects(CopyActionReactions(source.Action is { Motion: { VerticalSteps: { } steps } motion } action ? action with { Motion = motion with { VerticalSteps = (short[])steps.Clone() } } : source.Action)),
             Queue = queue with
             {

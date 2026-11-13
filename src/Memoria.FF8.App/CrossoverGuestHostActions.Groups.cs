@@ -27,7 +27,7 @@ internal sealed partial class CrossoverGuestHostActions
             CrossoverGunbladeHostPlacement placement = new(Ff7BattlePosition.FromVector(host.VisualPlacement(ActorSlot).Position), host.VisualPlacement(ActorSlot).Yaw);
             CrossoverNativeMagicPresentationState state = fireProgram.Begin(visual.Model with { Index = 0 }, invocation.TargetSlot, encounter.CrtRandom, targets[0].Contact, original, encounter.GlobalRandom, CreateArena(placement)) with { Targets = targets };
             return fireProgram.TryPreflight(state, () => ReadAbilityAnchor(placement, invocation.TargetSlot), () => ReadAbilityTransform(placement, invocation.TargetSlot), CrossoverNativeSpriteRenderer.Camera(host.RenderCameraOutput, placement.Matrix), null, out string? reason,
-                readGroupForeign: slot => CrossoverNativeForeignTarget.Read(host, slot, (readForeignGeometry ?? throw new NotSupportedException("The host group requires posed actor geometry."))(slot), placement.Matrix)) ? null : reason;
+                readGroupForeign: slot => ReadAbilityForeign(placement, slot)) ? null : reason;
         }
         catch (Exception error) when (error is NotSupportedException or InvalidDataException or InvalidOperationException or ArgumentException or OverflowException)
         {

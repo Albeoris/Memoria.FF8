@@ -3,7 +3,10 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleSiren95NodeServices(NativeBattleActionPacketsState Packets, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, NativeBattleEffectHeapAllocation? StaticSource);
+public sealed record NativeBattleSiren95NodeServices(NativeBattleActionPacketsState Packets, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, NativeBattleEffectHeapAllocation? StaticSource)
+{
+    public Func<int, byte, NativeBattleVector?>? ReadForeignBone { get; init; }
+}
 public sealed record NativeBattleSiren95NodeStep(NativeBattleSiren95Frame Frame, bool Complete, NativeBattleLogicalOrdering Ordering);
 
 public static class NativeBattleSiren95Nodes
@@ -51,7 +54,7 @@ public static class NativeBattleSiren95Nodes
             NativeBattleRecover93NodeFrame current = new(frame.Memory with { Siren95 = state }, frame.Effect, work, frame.Random);
             if (phase == 0)
             {
-                current = NativeBattleEffectNodeCaller.InitializeCurrent(policy, current, address, services.Packets, services.ReadModel, services.ReadPoseSource);
+                current = NativeBattleEffectNodeCaller.InitializeCurrent(policy, current, address, services.Packets, services.ReadModel, services.ReadPoseSource, services.ReadForeignBone);
             }
             state = (current.Memory.Siren95 ?? throw new NotSupportedException("Native Siren node state is missing.")).WriteDword(0x258FB78, unchecked(address + 0x34));
             current = current with { Memory = current.Memory with { Siren95 = state } };

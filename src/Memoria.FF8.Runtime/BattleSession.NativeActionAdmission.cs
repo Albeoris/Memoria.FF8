@@ -154,18 +154,7 @@ public sealed partial class BattleSession
         }
         if (actor.NativeIndex < 3 && actor.GuardianFormVitals is null)
         {
-            if (command < 39)
-            {
-                if (definition.NativeCommandSequences.Length != 39)
-                {
-                    throw new NotSupportedException("Native player header requires the authenticated39-byte B8150C command sequence table.");
-                }
-                sequence = definition.NativeCommandSequences[command];
-            }
-            else
-            {
-                sequence = command switch { 236 or 240 or 245 => 0, 239 => 28, 244 or 254 => 14, 247 => 11, _ => supplied };
-            }
+            sequence = NativeBattleActionGraphics.ResolvePlayerSequence(command, supplied, action, definition.NativeCommandSequences);
         }
         return command is 244 or 254 && action is 15 or 70 ? (byte)11 : sequence;
     }

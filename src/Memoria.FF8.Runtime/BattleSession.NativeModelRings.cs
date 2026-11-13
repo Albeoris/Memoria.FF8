@@ -18,6 +18,15 @@ public sealed partial class BattleSession
         {
             return graphics;
         }
+        if (presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true && foreign.NativeResource is null)
+        {
+            if ((requested & ~0x1000) == 5 && foreign.CanReact)
+            {
+                presentationSequences.Add(new(index, NativeBattleForeignSequenceKind.Hit));
+                return graphics;
+            }
+            throw new NotSupportedException($"Host actor slot {index} requires a host presentation service for native sequence {requested & ~0x1000}.");
+        }
         NativeBattleGraphicsModel source = graphics.Models[index];
         if ((requested & 0x1000) == 0 && ((source.Flags8 ?? throw new InvalidDataException("Native505C00 requires its model DWORD8.")) & 0x18) != 0)
         {

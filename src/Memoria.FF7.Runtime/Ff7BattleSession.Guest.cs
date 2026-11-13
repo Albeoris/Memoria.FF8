@@ -57,6 +57,9 @@ public interface IFf7BattleGuestCamera
 /// <summary>Explicit FFVIII-origin spell IDs and their origin-owned stock, independent of host spell records.</summary>
 public interface IFf7BattleGuestMagic
 {
+    IReadOnlyList<int> MagicCastCounts(ushort ability) => [1];
+    int MagicCastCost(ushort ability, int casts) => casts;
+    bool CanRepeatMagic(ushort ability, int ordinal) => ordinal == 1;
     bool PrepareSource(ushort ability, Func<byte> nextRandomByte, out string? failure)
     {
         failure = null;
@@ -143,6 +146,11 @@ public sealed partial class Ff7BattleSession
             return false;
         }
         IFf7BattleGuestAttack guest = RequireGuestAttack(command);
+        if (!AdmitsGuestMagicSequence(command, guest))
+        {
+            FinishTurn(command.ActorSlot);
+            return true;
+        }
         command = command with { TargetMask = RedirectNativeSuccessorTargets(command.TargetMask, Mask(state.Actors.Where(actor => (actor.Actor.Conditions & 8) != 0))) };
         Ff7BattleGuestInvocation invocation = GuestInvocation(command, Tick);
         if (command.CommandId == (byte)Ff7BattleCommand.Magic && command.GroupTarget)
@@ -210,7 +218,7 @@ public sealed partial class Ff7BattleSession
             ValidateGuestMagic(command.GuestAbility, hit);
             Ff7BattleDamageAction attack = ProjectGuestOutgoingAttack(invocation.TargetSlot, hit);
             Ff7BattleRng candidateRandom = new(kernel[2].Data.Span, random.Capture());
-            Ff7BattleActionReceipt receipt = Ff7NativeBattleActionResolver.ResolveGuestContact(hit.Source, sourceVitals, Stats(target), targetVitals, attack, hit.StatusRecord, candidateRandom, sameActor: command.ActorSlot == invocation.TargetSlot, originStatusResistances: GetGuestProjection(invocation.TargetSlot)?.OriginStatusResistances);
+            Ff7BattleActionReceipt receipt = Ff7NativeBattleActionResolver.ResolveGuestContact(hit.Source, sourceVitals, Stats(target), targetVitals, attack, hit.StatusRecord, candidateRandom, sameActor: command.ActorSlot == invocation.TargetSlot, originStatusResistances: GetGuestProjection(invocation.TargetSlot)?.OriginStatusResistances, originBattleStatuses: GetGuestBinding(invocation.TargetSlot) is null ? 0 : GetGuestOriginBattleStatuses(invocation.TargetSlot), originSourceStatuses: GetGuestBinding(command.ActorSlot) is null ? (ushort)0 : GetGuestOriginSavedStatuses(command.ActorSlot), originTargetStatuses: GetGuestBinding(invocation.TargetSlot) is null ? (ushort)0 : GetGuestOriginSavedStatuses(invocation.TargetSlot));
             Ff7BattleGuestPhysicalHit preparedHit = hit with { Attack = attack, PreparedContact = new(invocation, sourceVitals, targetVitals, receipt) };
             if (magic.PrepareMagicUnsupportedReason(preparedHit) is { } reason)
             {
@@ -227,6 +235,7 @@ public sealed partial class Ff7BattleSession
 
     private void RejectGuestAbility(Ff7BattleQueuedCommand command, string reason)
     {
+        CancelGuestMagicSequence(command.ActorSlot);
         Ff7BattleActorState source = Actor(command.ActorSlot);
         Replace(source with { AwaitingTurn = true });
         GuestAbilityFailure = new(Tick, command.ActorSlot, command.GuestAbility, reason);
@@ -313,7 +322,7 @@ public sealed partial class Ff7BattleSession
                 AdmitGuestKnockout(invocation);
             }
             PublishGuestSourceInteraction(active.Command, invocation.TargetSlot);
-            FinishTurn(active.Command.ActorSlot);
+            CompleteGuestMagic(active.Command);
             state = state with { Action = null };
             FlushFormationAi();
         }
@@ -356,7 +365,12 @@ public sealed partial class Ff7BattleSession
                 throw new InvalidDataException("Guest magic numeric receipt no longer matches its host action and vitals.");
             }
             Ff7BattleActionReceipt receipt = Ff7NativeBattleActionResolver.ApplyPreparedGuestContact(currentSource, currentTarget, prepared.Receipt, attack, targetSlot == command.ActorSlot);
+            if (targetSlot != command.ActorSlot)
+            {
+                Replace(source with { Actor = source.Actor with { HitPoints = receipt.Source.Hp, MagicPoints = receipt.Source.Mp, Statuses = receipt.Source.Statuses } });
+            }
             PublishHit(command, target, attack, receipt);
+            ApplyGuestOriginContact(targetSlot, receipt);
             if ((receipt.RemovedStatuses & Ff7NativeBattleActionResolver.Death) != 0 && state.ActorModels.Length != 0)
             {
                 ReplaceActorModel(ActorModelState(targetSlot) with { PresentedKnockedOut = false });

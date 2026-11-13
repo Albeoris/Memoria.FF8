@@ -158,6 +158,42 @@ public sealed class CrossoverBattleAbilityRulesTests
     }
 
     [Theory]
+    [InlineData(0x20000u)]
+    [InlineData(0x40000u)]
+    [InlineData(0x60000u)]
+    public void NativeMulticastStatusesUseTheSourceBankWithoutHostStatusCollisions(uint mask)
+    {
+        BattleNativeAction action = Action(2) with { Power = 0, Element = 0, Statuses1 = mask, StatusAttack = 255 };
+        Assert.Null(CrossoverBattleAbilityRules.UnsupportedReason(action));
+        Ff7BattleGuestPhysicalHit hit = CrossoverBattleAbilityRules.Describe(Kit(), action);
+        Assert.Equal(mask, hit.Attack.GuestOriginBattleStatuses);
+        Assert.Equal(0u, hit.StatusRecord!.StatusMask);
+        Ff7BattleActionReceipt receipt = Resolve(hit, new(100, 100, 0, 0, 0), new(100, 100, 0, 0, 0));
+        Assert.False(receipt.Damage.Missed);
+        Assert.Equal(mask, receipt.AddedOriginBattleStatuses);
+        Assert.Equal(0u, receipt.Target.Statuses);
+        Assert.Equal(0, receipt.Damage.Damage);
+    }
+
+    [Fact]
+    public void DrainUsesTheNativeStatusOperationAndCommonSourceReceipt()
+    {
+        BattleNativeAction action = Action(2) with { Statuses1 = 0x8000, StatusAttack = 200 };
+        Assert.Null(CrossoverBattleAbilityRules.UnsupportedReason(action));
+        Ff7BattleGuestPhysicalHit hit = CrossoverBattleAbilityRules.Describe(Kit(), action);
+        Assert.Null(hit.StatusRecord);
+        Assert.Equal((byte)200, hit.Attack.GuestDrainStatusAttack);
+        Ff7BattleActionVitals source = new(1, 9999, 0, 0, 0);
+        Ff7BattleActionReceipt receipt = Resolve(hit, source, new(9999, 9999, 0, 0, 0));
+        Assert.False(receipt.Damage.Missed);
+        Assert.True(receipt.Damage.Damage > 0);
+        Assert.Equal(-receipt.Damage.Damage, receipt.SourceHitPointDamage);
+        Assert.Equal(1u + (uint)receipt.Damage.Damage, receipt.Source.Hp);
+        Assert.Equal(0u, receipt.AddedOriginBattleStatuses);
+        Assert.Equal(hit.Attack, CrossoverBattleAbilityRules.Describe(Kit(), action with { MagicId = 511, ActionId = 200, Name = "Other source record" }).Attack);
+    }
+
+    [Theory]
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(25)]

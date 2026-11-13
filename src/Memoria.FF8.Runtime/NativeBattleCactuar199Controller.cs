@@ -434,7 +434,7 @@ public static class NativeBattleCactuar199Controller
             for (int contact = 0; contact < header.ReadByte(16); contact++)
             {
                 int actor = inputs.Packets.ReadContact(first + contact).Primary.ActorIndex;
-                int bones = inputs.ReadPoseSource(actor).BoneCount;
+                int bones = inputs.ReadBoneCount?.Invoke(actor) ?? inputs.ReadPoseSource(actor).BoneCount;
                 for (int bone = 0; bone < bones; bone++)
                 {
                     if (total >= points.Length / 8)

@@ -16,18 +16,7 @@ public sealed partial class BattleSession
         byte nativeCommand = command.NativeQueuedCommand ?? command.NativeAction?.Command ?? throw new NotSupportedException("Native graphics dispatch requires the original queued command BYTE.");
         if (actor.NativeIndex < 3)
         {
-            if (nativeCommand < 39)
-            {
-                if (definition.NativeCommandSequences.Length != 39)
-                {
-                    throw new InvalidDataException("Native party graphics dispatch requires the original39-byte command sequence table.");
-                }
-                sequence = definition.NativeCommandSequences[nativeCommand];
-            }
-            else
-            {
-                sequence = nativeCommand switch { 236 or 240 or 245 => 0, 239 => 28, 244 or 254 => 14, 247 => 11, _ => sequence };
-            }
+            sequence = NativeBattleActionGraphics.ResolvePlayerSequence(nativeCommand, sequence, command.ActionId, definition.NativeCommandSequences);
         }
         if (nativeCommand is 244 or 254 && command.ActionId is 15 or 70)
         {

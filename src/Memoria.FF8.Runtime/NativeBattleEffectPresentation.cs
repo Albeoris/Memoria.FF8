@@ -10,14 +10,28 @@ public sealed record NativeBattleForeignActor(int Index, NativeBattleModelTransf
     public NativeBattleForeignModelGeometry? Geometry { get; init; }
     public Func<NativeBattleEffectActorGeometry>? ReadGeometry { get; init; }
     public NativeBattlePosedActor? Pose { get; init; }
+    public NativeBattleGraphicsModel? NativeModel { get; init; }
+    public NativeBattleGraphicsResource? NativeResource { get; init; }
+    public bool CanReact { get; init; }
 }
 
 public sealed record NativeBattleEffectPresentationInputs(BattleDefinition Resources, NativeBattleGraphicsModel Source, NativeBattleGraphicsResource SourceResource, NativeBattleActionPacketsState Packets, NativeBattleEffectParameters Parameters, ushort Effect, NativeBattleEffectTextureState Textures, NativeCrtRandomState Random, NativeBattleCameraProjection Projection, ImmutableArray<NativeBattleForeignActor> ForeignActors)
 {
     public NativeBattleArenaHost? Arena { get; init; }
+    public bool DeferInvocation { get; init; }
 }
 
-public sealed record NativeBattleEffectPresentationStep(ImmutableArray<NativeBattleContactPacket> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
+public enum NativeBattleForeignSequenceKind
+{
+    Hit
+}
+
+public sealed record NativeBattleForeignSequenceRequest(int ActorIndex, NativeBattleForeignSequenceKind Kind);
+
+public sealed record NativeBattleEffectPresentationStep(ImmutableArray<NativeBattleContactPacket> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds)
+{
+    public ImmutableArray<NativeBattleForeignSequenceRequest> Sequences { get; init; } = [];
+}
 
 /// <summary>Runs the current native effect dispatcher without owning combat, inventory, rewards or host time.</summary>
 public sealed class NativeBattleEffectPresentation
@@ -34,12 +48,21 @@ public sealed class NativeBattleEffectPresentation
     public NativeCrtRandomState Random => owner.ReadEffectPresentationRandom();
     public NativeGlobalRandomState? GlobalRandom => owner.ReadEffectPresentationGlobalRandom();
     public NativeBattleGraphicsModel Source => Graphics.Models[0];
-    public bool Complete => Memory.ReadReturnedTask5044B0() == 0 && Graphics.ModuleEffects.Head is null && Graphics.Auxiliary.Head is null && !owner.HasPendingEffectPresentationEvents;
+    public NativeBattleGraphicsResource SourceResource => owner.ReadEffectPresentationSourceResource();
+    public bool Invoked => owner.EffectPresentationInvoked;
+    public bool Complete => owner.EffectPresentationInvoked && Memory.ReadReturnedTask5044B0() == 0 && Graphics.ModuleEffects.Head is null && Graphics.Auxiliary.Head is null && !owner.HasPendingEffectPresentationEvents;
     public NativeBattleStageColor StageColor => owner.ReadEffectPresentationStageColor();
     public short StageColorDepth => StageColor.Depth;
     public short ViewTranslationY => owner.NativeCamera?.ViewTranslationScratch?.Y ?? 0;
     public NativeBattleActionMatrix ForeignPlacement(int index) => owner.ReadEffectPresentationForeignPlacement(index);
     public ImmutableArray<NativeBattleArenaReplacement> ArenaReplacements => owner.presentationArena?.Replacements ?? [];
+
+    public void Invoke(NativeBattleGraphicsModel source, NativeCrtRandomState random, NativeBattleEffectTextureState textures) => owner.InvokeEffectPresentation(source, random, textures);
+    public void ReloadSourceResources() => owner.ReloadEffectPresentationSourceResources();
+    public int ReadSourceVariable(NativeBattleGraphicsModel source, byte variable) => owner.ReadEffectPresentationSourceVariable(source, variable);
+    public void WriteSourceVariable(byte variable, int value) => owner.WriteEffectPresentationSourceVariable(variable, value);
+    public NativeBattleGraphicsModel WriteSourceTargetVariable(NativeBattleGraphicsModel source, byte variable, int value) => owner.WriteEffectPresentationSourceTargetVariable(source, variable, value);
+    public byte NextGlobalRandom() => owner.NextEffectPresentationGlobalRandom();
 
     public NativeBattleEffectPresentationStep Advance(NativeBattleGraphicsModel source, NativeCrtRandomState random, NativeBattleCameraProjection projection, ImmutableArray<NativeBattleForeignActor> foreignActors, NativeBattleEffectTextureState textures)
     {

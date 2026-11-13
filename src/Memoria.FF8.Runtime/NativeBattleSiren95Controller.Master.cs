@@ -143,11 +143,18 @@ public static partial class NativeBattleSiren95Controller
         void Target(uint address)
         {
             NativeBattleModulePoolTask task = hierarchy.Read(address);
-            task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, new ActorView(inputs.ReadModel), inputs.ReadPoseSource);
-            NativeBattlePoseSource source = inputs.ReadPoseSource(task.ReadByte(0x2D));
-            NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadByte(0x2D));
-            NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native Siren target bounds require its actual current pose state.");
-            task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, NativeBattlePoseMatrices.ReadDecodedPose(sequence, source));
+            if (inputs.ReadForeignTarget?.Invoke(task.ReadByte(0x2D)) is { } foreign)
+            {
+                task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, foreign);
+            }
+            else
+            {
+                task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, new ActorView(inputs.ReadModel), inputs.ReadPoseSource);
+                NativeBattlePoseSource source = inputs.ReadPoseSource(task.ReadByte(0x2D));
+                NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadByte(0x2D));
+                NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native Siren target bounds require its actual current pose state.");
+                task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, NativeBattlePoseMatrices.ReadDecodedPose(sequence, source));
+            }
             Store(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {

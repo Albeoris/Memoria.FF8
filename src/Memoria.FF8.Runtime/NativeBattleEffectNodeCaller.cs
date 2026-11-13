@@ -78,7 +78,7 @@ internal static class NativeBattleEffectNodeCaller
         return initialized;
     }
 
-    public static NativeBattleRecover93NodeFrame InitializeCurrent(NativeBattleEffectNodeCallerPolicy profile, NativeBattleRecover93NodeFrame frame, uint taskAddress, NativeBattleActionPacketsState packets, Func<int, NativeBattleGraphicsModel> readModel, Func<int, NativeBattlePoseSource> readPoseSource)
+    public static NativeBattleRecover93NodeFrame InitializeCurrent(NativeBattleEffectNodeCallerPolicy profile, NativeBattleRecover93NodeFrame frame, uint taskAddress, NativeBattleActionPacketsState packets, Func<int, NativeBattleGraphicsModel> readModel, Func<int, NativeBattlePoseSource> readPoseSource, Func<int, byte, NativeBattleVector?>? readForeignBone = null)
     {
         using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
         frame.State.Validate(profile.SourceLength, profile.EmitterBytes, profile.GeometryBytes);
@@ -106,7 +106,7 @@ internal static class NativeBattleEffectNodeCaller
             NativeBattleEffectNodeBankFixups.Relocate(bank, profile.SourceAddress);
             bank.WriteUInt32(0, 1);
         }
-        task = NativeBattleEffectNodeContext.Initialize(task, hierarchy.Read(task.ReadDword(0x10)), frame.Effect.Parameters ?? throw new NotSupportedException("Native nodes require their actual action parameters."), packets, readModel, readPoseSource, profile.SourceAddress);
+        task = NativeBattleEffectNodeContext.Initialize(task, hierarchy.Read(task.ReadDword(0x10)), frame.Effect.Parameters ?? throw new NotSupportedException("Native nodes require their actual action parameters."), packets, readModel, readPoseSource, profile.SourceAddress, readForeignBone: readForeignBone);
         hierarchy = hierarchy.Write(taskAddress, task);
         bank.Publish(false);
         NativeBattleRecover93NodeFrame initialized = frame with { State = frame.State with { InitializationFlag = bank.ReadUInt32(0) }, Effect = frame.Effect with { Pools = hierarchy.Pools } };

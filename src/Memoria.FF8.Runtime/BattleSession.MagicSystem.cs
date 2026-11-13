@@ -67,7 +67,7 @@ public sealed partial class BattleSession
     private int MagicCost(BattleCombatant actor, int casts)
     {
         uint flags = actor.NativePlayerStatRules?.NativeStatusPassiveFlags ?? 0;
-        return (magicVitals?.MagicSystem.InfiniteMagic != true || magicVitals?.MagicSystem.UnlimitedMagic == true) && (casts == 2 && (flags & 0x20) != 0 || casts == 3 && (flags & 0x40) != 0) ? 1 : casts;
+        return NativeBattleMagicRepetition.Cost(casts, flags, magicVitals?.MagicSystem.InfiniteMagic == true, magicVitals?.MagicSystem.UnlimitedMagic == true);
     }
 
     private int MagicCost(BattleCombatant actor, BattleAttackCommand command)

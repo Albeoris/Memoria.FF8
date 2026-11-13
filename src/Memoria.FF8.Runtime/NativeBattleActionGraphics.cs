@@ -22,6 +22,24 @@ public sealed record NativeBattleActionServiceSelection(uint Callback, uint SetG
 
 public static class NativeBattleActionGraphics
 {
+    public static byte ResolvePlayerSequence(byte command, byte supplied, int action, ImmutableArray<byte> commandSequences)
+    {
+        if (command < 39 && commandSequences.Length != 39)
+        {
+            throw new InvalidDataException("Native player dispatch requires the original39-byte command sequence table.");
+        }
+        byte sequence = supplied;
+        if (command < 39)
+        {
+            sequence = commandSequences[command];
+        }
+        else
+        {
+            sequence = command switch { 236 or 240 or 245 => 0, 239 => 28, 244 or 254 => 14, 247 => 11, _ => supplied };
+        }
+        return command is 244 or 254 && action is 15 or 70 ? (byte)11 : sequence;
+    }
+
     public static short ReadCameraFlag50A6E0(NativeBattleActionPacketsState packets)
     {
         return (short)(packets.ReadActiveContact().Primary.HitFlags3 & 2);

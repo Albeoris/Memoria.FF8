@@ -40,33 +40,14 @@ public sealed partial class BattleSession
     {
         BattleCombatant actor = GetActor(actorId);
         int stock = GetAvailableMagicCasts(actorId, spellId);
-        if (stock == 0)
-        {
-            return [];
-        }
-        List<int> counts = [1];
-        uint statuses = NativeBattleStatusBits(actor);
-        if ((statuses & 0x60000) == 0)
-        {
-            return counts;
-        }
-        //4FDD90 collects the status-selected targets;485610 stops casting when486A10 exhausts stock.
-        if ((statuses & 0x20000) != 0)
-        {
-            counts.Add(2);
-        }
-        if ((statuses & 0x40000) != 0)
-        {
-            counts.Add(3);
-        }
-        return counts;
+        return NativeBattleMagicRepetition.NativeCounts(NativeBattleStatusBits(actor), stock);
     }
 
     public IReadOnlyList<int> GetPlayerMagicCastCounts(string actorId, int spellId)
     {
         BattleCombatant actor = GetActor(actorId);
         int available = GetAvailableMagicCasts(actorId, spellId);
-        return GetNativeMagicCastCounts(actorId, spellId).Select(mode => MagicCost(actor, mode) == 1 ? mode : Math.Min(mode, available)).Distinct().Order().ToArray();
+        return NativeBattleMagicRepetition.PlayerCounts(NativeBattleStatusBits(actor), available, actor.NativePlayerStatRules?.NativeStatusPassiveFlags ?? 0, magicVitals?.MagicSystem.InfiniteMagic == true, UnlimitedMagic);
     }
 
     private ImmutableArray<ushort> PrepareNativeMagicTargets(BattleCombatant actor, BattleActionDefinition action, string firstTarget, IReadOnlyList<string>? targets)

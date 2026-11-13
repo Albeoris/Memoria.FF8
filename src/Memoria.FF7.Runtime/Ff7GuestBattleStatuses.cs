@@ -15,6 +15,7 @@ public static class Ff7GuestBattleStatuses
 
     public const uint SupportedHost = Ff7NativeBattleActionResolver.Death | Ff7NativeBattleActionResolver.Sleep | Ff7NativeBattleActionResolver.Poison | Ff7NativeBattleActionResolver.Slow | Ff7NativeBattleActionResolver.Darkness | Silence | Haste | Stop | Petrify | Barrier | MagicBarrier | Berserk;
     public const ushort SupportedOrigin = 0x3F;
+    public const uint OriginMulticast = 0x60000;
 
     // FFVIII keeps the saved and battle banks separate. Its defense row indexes battle bits after the saved byte.
     private static readonly (int OriginIndex, uint HostMask)[] Common =
