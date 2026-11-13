@@ -315,6 +315,16 @@ internal static class AutoPlayTraversalPolicy
             ("875:2536" or "875:2538", "875:gateway:2") => -8,
             ("866:2536", "866:push:6") => -9,
             ("866:2538", "866:talk:11") => -10,
+            // NG-073: Follow the original airlock pursuit and evacuation.
+            ("866:2542", "866:line:13" or "866:line-action:13") => -1,
+            ("864:2544", "864:gateway:1" or "864:gateway:2" or "864:gateway:3" or "864:gateway:4" or "864:gateway:5" or "864:gateway:6") => -2,
+            ("866:2544" or "866:2546", "866:gateway:0") => -3,
+            ("875:2544" or "875:2546", "875:gateway:0") => -4,
+            ("874:2546" or "874:2550", "874:gateway:0") => -5,
+            ("862:2546" or "862:2550", "862:talk:11") => -6,
+            ("862:2552", "862:gateway:0") => -7,
+            ("863:2552", "863:line:9" or "863:line-action:9") => -8,
+            ("870:2552", "870:gateway:0") => -9,
             _ => 0
         };
     }
