@@ -158,7 +158,8 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
                     PlayBattleMusicCommand(battleMusic);
                     break;
                 case NativeWorldMusicLoad world:
-                    ExecuteMusicPlayback(world.Playback, world.SourceFieldId, world.StartPoint, world.DurationMilliseconds, world.Operation == NativeWorldMusicOperation.Play ? world.InitialVolume : null);
+                    bool worldPlay = world.Operation == NativeWorldMusicOperation.Play && (!world.ChocoboDismount || world.Playback?.PlayRequested == true);
+                    ExecuteMusicPlayback(world.Playback, world.SourceFieldId, world.StartPoint, world.ChocoboDismount && !worldPlay ? 0 : world.DurationMilliseconds, worldPlay ? world.InitialVolume : null);
                     break;
                 case GlobalSoundRequest request when request.Resource.BackendStatus != GlobalSoundBackendStatus.Failed:
                     PlaySound(request);

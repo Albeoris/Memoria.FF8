@@ -52,6 +52,11 @@ public sealed partial record NativeWorldSalaryState
     public int? PreviousContactC76784 { get; private init; }
     public int FuelMessageMovementCallbacks { get; private init; }
 
+    public NativeWorldSalaryState WithSoundProcess(NativeGlobalSoundProcess sound)
+    {
+        return this with { SoundProcess = sound };
+    }
+
     public NativeWorldSalaryState WithPreviousContact(int? contact)
     {
         if (contact < -1)

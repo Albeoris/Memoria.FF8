@@ -57,6 +57,8 @@ public sealed record NativeWorldMusicLoad(int Version, int SourceFieldId, long S
     public byte LoaderMode { get; init; }
     public byte? BattleReturnBank { get; init; }
     public byte? BattleEntityType { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ChocoboDismount { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeMusicPlaybackDecision? Playback { get; init; }
     //543340 selects46B890(buffer,13) for file5; other files use46B510.
@@ -239,7 +241,7 @@ public sealed partial class EventEngine
         {
             return prior == 59 ? -1 : 4;
         }
-        if (unchecked((uint)entity) >= 10 && entity != 48 && (entity < 32 || entity > 40) && (entity < 16 || entity > 22))
+        if (unchecked((uint)entity) >= 10 && entity is not (48 or 128 or 132) && (entity < 32 || entity > 40) && (entity < 16 || entity > 22))
         {
             return entity == 50 && prior != 89 ? 5 : -1;
         }
@@ -279,6 +281,23 @@ public sealed partial class EventEngine
         if (load.Playback is { Channel: not 0 })
         {
             throw new InvalidDataException("World music decision must use physical channel0.");
+        }
+        if (load.ChocoboDismount)
+        {
+            int index = PendingWorldMusicSelection(128, load.RequestedMusic, load.PriorMusic);
+            bool validPlayback = load.Playback switch
+            {
+                { PlayRequested: true, StopRequested: true, ConcertRequested: false, PlayGain: 0, FinalGain: 127 } played => played.MusicId == load.Music,
+                { PlayRequested: false, StopRequested: true, ConcertRequested: false, PlayGain: null, FinalGain: null, MusicId: 0 } => true,
+                { PlayRequested: false, StopRequested: false, ConcertRequested: false, PlayGain: null, FinalGain: 0 } => true,
+                _ => false
+            };
+            byte expectedDismountBank = load.Playback?.StopRequested == true ? load.Bank : load.PriorBank;
+            if (load.Version != 1 || load.LoaderMode != 0 || load.BattleReturnBank is not null || load.BattleEntityType is not null || load.SourceFieldId < 72 || load.SourceFrame < 24 || load.PriorBank > 1 || load.Bank != (load.PriorBank ^ 1) || scene.MusicProcess?.SelectionAuthority == NativeMusicSelectionAuthority.World && expectedDismountBank != scene.MusicProcess.Bank201 || load.Operation != NativeWorldMusicOperation.Play || index < 0 || load.Resource?.File?.Index != index || load.Music != load.Resource?.MusicId || load.InitialVolume != 0 || load.TargetVolume != 127 || load.DurationMilliseconds != 60 || !validPlayback)
+            {
+                throw new InvalidDataException("Saved Chocobo dismount music lost its original selector, bank or playback phase.");
+            }
+            return;
         }
         bool play = load.Operation == NativeWorldMusicOperation.Play;
         bool mode2 = load.LoaderMode == 2;

@@ -25,6 +25,8 @@ internal sealed partial class WorldMapScene : IDisposable
     public Func<NativeSalaryResult, NativeSalaryPresentation?, NativeGlobalSoundProcess?, NativeSalaryEffects>? PrepareSalaryEffects { get; set; }
     public Func<uint, uint, uint, uint, NativeGlobalSoundProcess, PreparedGlobalSoundEmission>? PrepareGlobalSound { get; set; }
     public Action<NativeSalaryEffects>? PublishSalaryEffects { get; set; }
+    public Func<WorldState, WorldState, NativeGlobalSoundProcess?, NativeWorldMusicLoad?, Func<int, NativeWorldMusicResource>, PreparedChocoboDismountMusic?>? PrepareChocoboDismountMusic { get; set; }
+    public Action<PreparedChocoboDismountMusic>? PublishChocoboDismountMusic { get; set; }
     public Action<WorldVehicleSoundFrame>? PublishVehicleSound { get; set; }
     public Func<WorldState, int, RandomEncounterSessionState?, (WorldState World, RandomEncounterSessionState? Encounters)>? ProcessRandomEncounters { get; set; }
     private int encounterMovementMagnitude;
@@ -419,6 +421,7 @@ internal sealed partial class WorldMapScene : IDisposable
         NativeWorldSalaryState salary = NativeWorldSalaryState.Begin(session.State);
         List<GlobalSoundRequest> salaryRequests = [];
         List<WorldVehicleSoundFrame> vehicleSounds = [];
+        List<PreparedChocoboDismountMusic> dismountMusic = [];
         WorldFieldSelection? fieldEntry = null;
         if (accepted)
         {
@@ -645,6 +648,11 @@ internal sealed partial class WorldMapScene : IDisposable
                     candidate = CompleteChocoboDismountCallback(candidate, ref salary);
                 }
                 candidate = candidate with { EventUi = salary.EventUi };
+                if (fieldEntry is null && PrepareChocoboDismountMusic?.Invoke(callbackStart, candidate, salary.SoundProcess, dismountMusic.Count == 0 ? null : dismountMusic[^1].Load, assets.ReadMusicFileResource) is { } music)
+                {
+                    salary = salary.WithSoundProcess(music.Sound);
+                    dismountMusic.Add(music);
+                }
                 if (fieldEntry is null)
                 {
                     vehicleSounds.Add(WorldVehicleSoundFrame.FromWorld(candidate, graphicsSpeed));
@@ -667,6 +675,10 @@ internal sealed partial class WorldMapScene : IDisposable
             }
             Action commit = PrepareFieldEntry(fieldEntry, candidate, assets.GetNativeMapLocationId(candidate.X, candidate.Z), salary);
             commit();
+            foreach (PreparedChocoboDismountMusic music in dismountMusic)
+            {
+                PublishChocoboDismountMusic?.Invoke(music);
+            }
             PublishSalaryEffects?.Invoke(new NativeSalaryEffects(salary.Presentation, salary.SoundProcess, salaryRequests));
             LastDeparture = candidate;
             PlayerActionResult departed = new(true, new PlayerTrigger(PlayerTriggerKind.FieldTransition, fieldEntry.Entry.FieldId, candidate.Frame, null, null), advanced);
@@ -675,6 +687,10 @@ internal sealed partial class WorldMapScene : IDisposable
         if (accepted)
         {
             session.CommitWorldAction(candidate, salary);
+            foreach (PreparedChocoboDismountMusic music in dismountMusic)
+            {
+                PublishChocoboDismountMusic?.Invoke(music);
+            }
             foreach (WorldVehicleSoundFrame sound in vehicleSounds)
             {
                 PublishVehicleSound?.Invoke(sound);

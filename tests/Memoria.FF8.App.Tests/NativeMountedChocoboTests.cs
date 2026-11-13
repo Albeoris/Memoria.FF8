@@ -8,6 +8,62 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeMountedChocoboTests
 {
     [Fact]
+    public void DismountMusicStopsTheMountTrackAndResumesAfterTheHandoff()
+    {
+        string directory = TestResources.GameDirectory;
+        string source = TestResources.FixturePath("App.Tests.NativeMountedChocoboTests.Music");
+        GameSession session = new(PlayerStateLoader.Load(source, directory));
+        using GameWorld world = new(session, directory);
+        world.EnsureField();
+        Assert.Equal(81, session.GlobalSoundProcess!.MusicPlayback!.CurrentMusicId0);
+        byte bank = world.Events.Scene.MusicProcess!.Bank201!.Value;
+        List<NativeWorldMusicLoad> commands = [];
+        world.Events.AudioCommandExecuted += command =>
+        {
+            if (command is NativeWorldMusicLoad music)
+            {
+                commands.Add(music);
+            }
+        };
+
+        Assert.Equal(24, world.Apply(new(PlayerActionKind.Wait, Frames: 24)).FramesAdvanced);
+        Assert.Empty(commands);
+        Assert.True(world.Apply(new(PlayerActionKind.Confirm)).Accepted);
+        Assert.Equal(0, session.GlobalSoundProcess!.MusicPlayback!.Gain0);
+        Assert.Equal(81, session.GlobalSoundProcess.MusicPlayback.CurrentMusicId0);
+        Assert.Equal(bank, world.Events.Scene.MusicProcess.Bank201);
+        Assert.Single(commands);
+
+        Assert.Equal(2, world.Apply(new(PlayerActionKind.Wait, Frames: 2)).FramesAdvanced);
+        Assert.Equal(NativeMusicPlaybackMode.Stopped, session.GlobalSoundProcess!.MusicPlayback!.Mode0);
+        Assert.Equal((byte)(bank ^ 1), world.Events.Scene.MusicProcess.Bank201);
+        Assert.Equal(2, commands.Count);
+
+        GameSession restored = new(session.PrepareSnapshot());
+        using GameWorld resumed = new(restored, directory);
+        resumed.EnsureField();
+        PlayerAction finish = new(PlayerActionKind.Wait, Frames: 61);
+        Assert.Equal(61, world.Apply(finish).FramesAdvanced);
+        Assert.Equal(61, resumed.Apply(finish).FramesAdvanced);
+        Assert.NotNull(session.State.World!.NativeFootRuntime);
+        Assert.Equal(2, commands.Count);
+
+        Assert.True(world.Apply(new(PlayerActionKind.Wait)).Accepted);
+        Assert.True(resumed.Apply(new(PlayerActionKind.Wait)).Accepted);
+        NativeWorldMusicLoad completed = commands[2];
+        Assert.Equal(3, commands.Count);
+        Assert.Equal(0, completed.Resource!.File!.Index);
+        Assert.Equal((byte)41, world.Events.Scene.MusicChannel108!.MusicId);
+        Assert.Equal((byte)(bank ^ 1), world.Events.Scene.MusicProcess.Bank201);
+        Assert.Equal(41, session.GlobalSoundProcess!.MusicPlayback!.CurrentMusicId0);
+        Assert.Equal(127, session.GlobalSoundProcess.MusicPlayback.Gain0);
+        Assert.Equal(session.GlobalSoundProcess.MusicPlayback, restored.GlobalSoundProcess!.MusicPlayback);
+        Assert.Equal(completed, resumed.Events.Scene.WorldMusicLoad);
+        Assert.True(world.Apply(new(PlayerActionKind.Wait)).Accepted);
+        Assert.Equal(3, commands.Count);
+    }
+
+    [Fact]
     public void OriginalForestPacketLoadsRiderShowsTutorialAndRestoresMovement()
     {
         string directory = TestResources.GameDirectory;
