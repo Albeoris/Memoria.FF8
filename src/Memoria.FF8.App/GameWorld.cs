@@ -51,10 +51,15 @@ internal sealed partial class GameWorld : IDisposable
         return GameSession.CreateColdProcess(NativeExecutionStackSelection.Apply(memory, NativeExecutionStackSelection.Read(selectedExecutionStackPath)));
     }
 
-    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, bool audioEnabled = false, bool validateWorldPresentation = true, Func<string, string>? resolveGameFile = null, GameAssets? sharedAssets = null, Func<FieldSceneMods>? readSceneMods = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null, Func<BattleDefinition, EncounterBindingContext, BattleDefinition>? applyEncounterMods = null, GameplaySaveSceneFacts? gameplaySaveFacts = null, bool legacyGameplayProjection = false, bool? expandedRandomBattles = null)
+    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, bool audioEnabled = false, bool validateWorldPresentation = true, Func<string, string>? resolveGameFile = null, GameAssets? sharedAssets = null, Func<FieldSceneMods>? readSceneMods = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null, Func<BattleDefinition, EncounterBindingContext, BattleDefinition>? applyEncounterMods = null, GameplaySaveSceneFacts? gameplaySaveFacts = null, bool legacyGameplayProjection = false, int? expandedBattleAllyCount = null)
     {
         this.session = session;
-        this.expandedRandomBattles = expandedRandomBattles ?? Environment.GetEnvironmentVariable("MEMORIA_FF8_BATTLE_ROSTER") == "4x6";
+        expandedRandomAllyCount = expandedBattleAllyCount ?? (Environment.GetEnvironmentVariable("MEMORIA_FF8_BATTLE_ROSTER") switch
+        {
+            "4x6" => 4,
+            "8x8" => 8,
+            _ => 0
+        });
         this.legacyGameplayProjection = legacyGameplayProjection;
         this.readGameplayPolicy = readGameplayPolicy;
         this.readSceneMods = readSceneMods;

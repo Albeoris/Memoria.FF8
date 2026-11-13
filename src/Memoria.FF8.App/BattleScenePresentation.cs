@@ -60,7 +60,7 @@ internal sealed partial class BattleScenePresentation
         BattleEncounter? encounter = useEncounter && definition.EncounterId is int id ? assets.LoadEncounter(id) : null;
         if (definition.UsesExpandedRoster)
         {
-            BattleStageCamera expandedCamera = GameWorld.ExpandedBattleCamera();
+            BattleStageCamera expandedCamera = GameWorld.ExpandedBattleCamera(definition.Combatants.Length);
             camera = BattleCamera.FromNative(expandedCamera) with { FieldOfView = 2 * MathF.Atan(108f / expandedCamera.FocalLength), VerticalCenter = 0.5f };
         }
         else if (definition.NativeGraphics is null)

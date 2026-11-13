@@ -19,7 +19,7 @@ public static partial class BattleResultProjection
         result.Validate();
         sourceVitals.Validate();
         sourceEconomy.Validate();
-        byte[] party = result.UsesExpandedRoster ? ExpandedBattlePartyRows.Select(sourceVitals) ?? throw new InvalidDataException("Expanded battle result lost its eligible party rows.") : sourceVitals.CombatParty.Where(row => row != 255).ToArray();
+        byte[] party = result.UsesExpandedRoster ? ExpandedBattlePartyRows.Select(sourceVitals, result.Party.Length) ?? throw new InvalidDataException("Expanded battle result lost its eligible party rows.") : sourceVitals.CombatParty.Where(row => row != 255).ToArray();
         if (!party.SequenceEqual(result.Party.Select(member => member.Row)))
         {
             throw new InvalidDataException($"Battle result party does not match the current canonical combat party: recorded [{string.Join(",", result.Party.Select(member => $"{member.Row}:{member.CharacterId}"))}], current [{string.Join(",", party.Select(row => $"{row}:{sourceVitals.Records[row].CharacterId}"))}].");
@@ -204,7 +204,7 @@ public static partial class BattleResultProjection
         {
             vitals = MagicCastingService.RecoverVictory(vitals, result.Encounter.OccurrenceId);
         }
-        return new BattleResultOwners(vitals.RebuildParty(), loot.Economy, loot.Cards, new BattleRewardSummary(experience.Characters, experience.GuardianForces, abilityPoints, loot.ItemsGranted, loot.CardsGranted) { AbilityPointsNotice = abilityPointsNotice, LootOffers = NativeBattleResultPresentation.GroupLootOffers(loot.Offers), CharacterGrowth = NativeBattleResultPresentation.BuildCharacters(rewardSourceVitals, vitals), GuardianForceGrowth = NativeBattleResultPresentation.BuildGuardianForces(rewardSourceVitals, vitals) });
+        return new BattleResultOwners(vitals.RebuildParty(), loot.Economy, loot.Cards, new BattleRewardSummary(experience.Characters, experience.GuardianForces, abilityPoints, loot.ItemsGranted, loot.CardsGranted) { AbilityPointsNotice = abilityPointsNotice, LootOffers = NativeBattleResultPresentation.GroupLootOffers(loot.Offers), CharacterGrowth = NativeBattleResultPresentation.BuildCharacters(rewardSourceVitals, vitals, party), GuardianForceGrowth = NativeBattleResultPresentation.BuildGuardianForces(rewardSourceVitals, vitals) });
     }
 
     public static int[] EligibleGuardianForces(NativeCharacterVitals vitals, IReadOnlyList<byte>? battleRows = null)

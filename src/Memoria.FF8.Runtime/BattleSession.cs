@@ -1145,9 +1145,9 @@ public sealed partial class BattleSession
 
     private void ValidateDefinition(BattleDefinition source)
     {
-        if (source.UsesExpandedRoster && (source.NativeGraphics is not null || source.Combatants.Count(actor => actor.IsPlayer) != 4 || source.Combatants.Count(actor => !actor.IsPlayer) != 6 || source.Combatants.Any(actor => !actor.InitialActive) || source.GuardianFormsEnabled))
+        if (source.UsesExpandedRoster && (source.NativeGraphics is not null || (source.Combatants.Count(actor => actor.IsPlayer), source.Combatants.Count(actor => !actor.IsPlayer)) is not ((4, 6) or (8, 8)) || source.Combatants.Any(actor => !actor.InitialActive) || source.GuardianFormsEnabled))
         {
-            throw new NotSupportedException("The expanded battle host requires four allies, six enemies and host-owned actions.");
+            throw new NotSupportedException("The expanded battle host requires a supported 4x6 or 8x8 roster and host-owned actions.");
         }
         source.Tuning.Validate();
         source.MagicVitals?.Validate();

@@ -2,16 +2,20 @@ using Memoria.FF8.Events;
 using Memoria.FF8.Assets;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.App.Tests;
 
 public sealed class ExpandedBattleHostTests
 {
     [Theory]
-    [InlineData(87, false, false)]
-    [InlineData(0, true, false)]
-    [InlineData(89, false, true)]
-    public void ExpandedRandomBattleUsesInstalledContactsAndChargesEachCommandOnce(ushort formation, bool mass, bool exerciseAi)
+    [InlineData(87, false, false, 4)]
+    [InlineData(0, true, false, 4)]
+    [InlineData(89, false, true, 4)]
+    [InlineData(87, false, false, 8)]
+    [InlineData(0, true, false, 8)]
+    [InlineData(89, false, true, 8)]
+    public void ExpandedRandomBattleUsesInstalledContactsAndChargesEachCommandOnce(ushort formation, bool mass, bool exerciseAi, int allyCount)
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original resources are required.");
@@ -34,16 +38,18 @@ public sealed class ExpandedBattleHostTests
             quake = Assert.Single(battleAssets.NativeActions, action => action.Command == 2 && action.Name == "Quake");
             potion = Assert.Single(battleAssets.NativeActions, action => action.Command == 4 && action.Name == "Potion");
         }
-        for (int row = 0; row < 4; row++)
+        for (int row = 0; row < allyCount; row++)
         {
-            records[row] = records[row] with { MemberFlags = (ushort)(records[row].MemberFlags | 1) };
+            ushort hp = (ushort)Math.Max(100, (int)records[row].HitPoints.Minimum);
+            records[row] = records[row] with { MemberFlags = (ushort)(records[row].MemberFlags | 1), HitPoints = new(hp, hp) };
         }
-        NativeMagicStock[] stock = records[3].MagicInventory.ToArray();
+        int casterRow = allyCount - 1;
+        NativeMagicStock[] stock = records[casterRow].MagicInventory.ToArray();
         stock[0] = new((byte)fire.ActionId, 5);
         stock[1] = new((byte)quake.ActionId, 5);
         byte magicCommand = (byte)(20 + initial.MenuDefinitions.CommandAbilityCommands.IndexOf((byte)2));
         byte itemCommand = (byte)(20 + initial.MenuDefinitions.CommandAbilityCommands.IndexOf((byte)4));
-        records[3] = records[3] with { MagicInventory = stock, HitPoints = new NativeHpWord(100, 100), Junction = records[3].Junction with { Commands = (uint)(magicCommand | itemCommand << 8) } };
+        records[casterRow] = records[casterRow] with { MagicInventory = stock, HitPoints = new NativeHpWord(100, 100), Junction = records[casterRow].Junction with { Commands = (uint)(magicCommand | itemCommand << 8) } };
         NativeEconomy economy = assets.ReadNewGameEconomy();
         NativeItemStock[] items = economy.Items.ToArray();
         int potionSlot = Array.FindIndex(items, item => item.ItemId == potion.ActionId);
@@ -58,7 +64,7 @@ public sealed class ExpandedBattleHostTests
             FieldRequestPacket = null
         });
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
-        using GameWorld world = new(session, directory, expandedRandomBattles: true);
+        using GameWorld world = new(session, directory, expandedBattleAllyCount: allyCount);
         world.EnsureField();
         world.Apply(new(PlayerActionKind.Wait, Frames: 4));
         session.SetCharacterVitals(initial with { Records = records, CombatParty = [0, 1, 2] });
@@ -77,49 +83,76 @@ public sealed class ExpandedBattleHostTests
         Assert.False(original.UsesExpandedRoster);
         Assert.NotNull(original.NativeGraphics);
         Assert.Contains(original.Combatants, actor => actor.NativeAi is not null);
-        Assert.Equal(10, battle.Combatants.Count);
+        int enemyCount = allyCount == 8 ? 8 : 6;
+        string lastEnemy = $"enemy-{enemyCount - 1}";
+        Assert.Equal(allyCount + enemyCount, battle.Combatants.Count);
         Assert.Equal(new byte[] { 0, 1, 2 }, session.State.CharacterVitals!.CombatParty);
         BattleScenePresentation presentation = new(world.BattleResources, battle.ReadDefinition(), true);
-        string casterId = "party-3";
+        string casterId = $"party-{casterRow}";
         BattleCombatant caster = battle.Combatants.Single(actor => actor.Id == casterId);
         BattleCombatant[] enemies = battle.Combatants.Where(actor => !actor.IsPlayer).ToArray();
         BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { });
-        Assert.Equal(4, hud.Party.Count);
-        Assert.Equal(10, BattleSession.Restore(battle.Capture()).Combatants.Count);
+        Assert.Equal(allyCount, hud.Party.Count);
+        Assert.Equal(allyCount + enemyCount, BattleSession.Restore(battle.Capture()).Combatants.Count);
         Assert.Equal(5, MagicCount(fire.ActionId));
         Assert.Equal(5, MagicCount(quake.ActionId));
+        if (allyCount == 8)
+        {
+            _ = presentation.Render(battle, 640, 448);
+            Assert.All(battle.Combatants, actor =>
+            {
+                UiRect bounds = Assert.IsType<UiRect>(presentation.GetActorBounds(actor.Id, new(0, 0, 640, 448)));
+                Assert.InRange(bounds.X + bounds.Width / 2, 0, 640);
+                Assert.InRange(bounds.Y + bounds.Height / 2, 0, 448);
+            });
+        }
         if (exerciseAi)
         {
             Assert.All(battle.ReadDefinition().Combatants.Where(actor => !actor.IsPlayer), actor => Assert.NotNull(actor.NativeAi));
-            for (int turn = 0; turn < 20 && !battle.Events.Any(entry => entry.Kind == "EffectContact" && entry.ActorId is "enemy-4" or "enemy-5"); turn++)
+            for (int turn = 0; turn < 20 && !battle.Events.Any(entry => entry.Kind == "EffectContact" && entry.ActorId == lastEnemy); turn++)
             {
                 world.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
                 world.ApplyBattleInput(new(BattleInputKind.Tick, Frames: 60));
             }
-            Assert.Contains(battle.Events, entry => entry.Kind == "EffectContact" && entry.ActorId is "enemy-4" or "enemy-5");
-            Assert.Contains(battle.Events, entry => entry.Kind == "Damage" && entry.ActorId is "enemy-4" or "enemy-5" && entry.Ability == BattleAbility.EnemyAbility);
+            Assert.Contains(battle.Events, entry => entry.Kind == "EffectContact" && entry.ActorId == lastEnemy);
+            Assert.Contains(battle.Events, entry => entry.Kind == "Damage" && entry.ActorId == lastEnemy && entry.Ability == BattleAbility.EnemyAbility);
             return;
         }
         if (mass)
         {
             int[] before = enemies.Select(enemy => enemy.CurrentHp).ToArray();
-            Run("enemy-5", BattleAbility.Magic, quake.ActionId, enemies.Select(enemy => enemy.Id).ToArray());
+            Run(lastEnemy, BattleAbility.Magic, quake.ActionId, enemies.Select(enemy => enemy.Id).ToArray());
             Assert.All(enemies.Select((enemy, index) => (enemy, index)), pair => Assert.InRange(pair.enemy.CurrentHp, 0, before[pair.index] - 1));
             Assert.Equal(4, MagicCount(quake.ActionId));
             Assert.Equal(5, MagicCount(fire.ActionId));
             Assert.Equal(BattleOutcome.Victory, battle.Outcome);
-            Assert.Equal(6, battle.EnemyDefeats.Count);
+            Assert.Equal(enemyCount, battle.EnemyDefeats.Count);
+            BattleRewardSummary rewards = world.PreviewBattleRewards();
+            Assert.Equal(allyCount, rewards.CharacterGrowth.Length);
+            Assert.True(rewards.CharacterExperience.ContainsKey((byte)casterRow));
+            BattleHudController results = new(battle, (_, _) => { }, () => { }, () => { }, previewRewards: () => rewards);
+            results.AdvancePresentation(TimeSpan.FromSeconds(1));
+            UiView view = results.BuildView();
+            view.Resize(640, 448);
+            BattleUiTests.TestCanvas canvas = new();
+            view.Draw(canvas, new UiTheme());
+            Assert.All(hud.Party, actor =>
+            {
+                var draw = Assert.Single(canvas.TextDraws, draw => draw.Text == actor.Name);
+                Assert.InRange(draw.Bounds.X + draw.Bounds.Width, 0, 640);
+                Assert.InRange(draw.Bounds.Y + draw.Bounds.Height, 0, 448);
+            });
             world.ApplyBattleInput(new(BattleInputKind.Return));
             Assert.Null(world.Battle);
             Assert.Equal(new byte[] { 0, 1, 2 }, session.State.CharacterVitals!.CombatParty);
-            Assert.Equal(4, session.State.CharacterVitals.Records[3].MagicInventory.Single(spell => spell.SpellId == quake.ActionId).Count);
+            Assert.Equal(4, session.State.CharacterVitals.Records[casterRow].MagicInventory.Single(spell => spell.SpellId == quake.ActionId).Count);
         }
         else
         {
             int[] before = enemies.Select(enemy => enemy.CurrentHp).ToArray();
-            Run("enemy-5", BattleAbility.Magic, fire.ActionId, ["enemy-5"]);
-            Assert.InRange(enemies[5].CurrentHp, 0, before[5] - 1);
-            Assert.Equal(before.Take(5), enemies.Take(5).Select(enemy => enemy.CurrentHp));
+            Run(lastEnemy, BattleAbility.Magic, fire.ActionId, [lastEnemy]);
+            Assert.InRange(enemies[^1].CurrentHp, 0, before[^1] - 1);
+            Assert.Equal(before.Take(enemyCount - 1), enemies.Take(enemyCount - 1).Select(enemy => enemy.CurrentHp));
             Assert.Equal(4, MagicCount(fire.ActionId));
             Assert.Equal(5, MagicCount(quake.ActionId));
             int beforePotion = caster.CurrentHp;
@@ -158,7 +191,9 @@ public sealed class ExpandedBattleHostTests
             {
                 Assert.True(rendered);
             }
-            Assert.Equal(recipients.Order(), battle.Events.Where(entry => entry.Frame >= first && entry.Kind == "EffectContact").Select(entry => entry.TargetId).Order());
+            BattleEvent[] contacts = battle.Events.Where(entry => entry.Frame >= first && entry.Kind == "EffectContact" && entry.ActorId == casterId).ToArray();
+            Assert.Equal(recipients.Order(), contacts.Select(entry => entry.TargetId).Order());
+            Assert.Single(contacts.Select(entry => entry.Frame).Distinct());
         }
     }
 }

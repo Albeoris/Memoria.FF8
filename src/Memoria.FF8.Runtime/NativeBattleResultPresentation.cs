@@ -21,9 +21,9 @@ public static class NativeBattleResultPresentation
         return rows.ToArray();
     }
 
-    public static BattleCharacterRewardPresentation[] BuildCharacters(NativeCharacterVitals before, NativeCharacterVitals after)
+    public static BattleCharacterRewardPresentation[] BuildCharacters(NativeCharacterVitals before, NativeCharacterVitals after, IReadOnlyList<byte>? battleRows = null)
     {
-        return before.CombatParty.Where(row => row != 255).Select(row =>
+        return (battleRows ?? before.CombatParty).Where(row => row != 255).Select(row =>
         {
             NativeCharacterVital previous = before.Records[row];
             NativeCharacterVital final = after.Records[row];

@@ -12,7 +12,7 @@ public static class NativeBattleEnemyLevelRules
 
     public static int ResolveExpanded(byte sceneLevel, ReadOnlySpan<byte> presentPartyLevels, byte originalBattleRoll, byte? secondBattleRoll = null)
     {
-        return ResolveForParty(sceneLevel, presentPartyLevels, originalBattleRoll, secondBattleRoll, 4);
+        return ResolveForParty(sceneLevel, presentPartyLevels, originalBattleRoll, secondBattleRoll, 8);
     }
 
     private static int ResolveForParty(byte sceneLevel, ReadOnlySpan<byte> presentPartyLevels, byte originalBattleRoll, byte? secondBattleRoll, int capacity)

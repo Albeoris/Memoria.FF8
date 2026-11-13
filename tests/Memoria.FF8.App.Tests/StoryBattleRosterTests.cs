@@ -6,12 +6,13 @@ namespace Memoria.FF8.App.Tests;
 public sealed class StoryBattleRosterTests
 {
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void TowerStoryEntryPreservesOriginalSlotsWithAnEligibleFourthPartyMember(bool expandedRandomBattles)
+    [InlineData(0)]
+    [InlineData(4)]
+    [InlineData(8)]
+    public void TowerStoryEntryPreservesOriginalSlotsWithAnEligibleFourthPartyMember(int expandedBattleAllyCount)
     {
         GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.TowerEntry.1")));
-        using GameWorld world = new(session, TestResources.GameDirectory, expandedRandomBattles: expandedRandomBattles);
+        using GameWorld world = new(session, TestResources.GameDirectory, expandedBattleAllyCount: expandedBattleAllyCount);
         world.EnsureField();
         for (int frame = 0; frame < 3000 && !world.HasPendingBattle; frame++)
         {

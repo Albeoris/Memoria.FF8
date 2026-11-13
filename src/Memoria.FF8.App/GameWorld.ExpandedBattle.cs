@@ -7,23 +7,23 @@ namespace Memoria.FF8;
 
 internal sealed partial class GameWorld
 {
-    private readonly bool expandedRandomBattles;
+    private readonly int expandedRandomAllyCount;
 
-    private static BattleEnemyPlacement[]? ExpandRandomEnemyRoster(BattleEncounter encounter)
+    private static BattleEnemyPlacement[]? ExpandRandomEnemyRoster(BattleEncounter encounter, int enemyCount)
     {
         BattleEnemyPlacement[] source = encounter.Slots.Where(slot => slot.Enabled).ToArray();
-        if (source.Length is < 1 or > 6 || source.Any(slot => !slot.IsEnemyModel || slot.NativeModelId == 255 || slot.Hidden || slot.Untargetable || slot.InitiallySuspended))
+        if (source.Length < 1 || source.Length > enemyCount || source.Any(slot => !slot.IsEnemyModel || slot.NativeModelId == 255 || slot.Hidden || slot.Untargetable || slot.InitiallySuspended))
         {
             return null;
         }
-        return Enumerable.Range(0, 6).Select(index => source[index % source.Length] with { Slot = index }).ToArray();
+        return Enumerable.Range(0, enemyCount).Select(index => source[index % source.Length] with { Slot = index }).ToArray();
     }
 
     internal static void AttachExpandedEffects(BattleSession active, GameAssets game, BattleAssets assets)
     {
         BattleDefinition definition = active.ReadDefinition();
         Dictionary<string, BattleCombatantDefinition> definitions = definition.Combatants.ToDictionary(actor => actor.Id);
-        BattleStageCamera camera = ExpandedBattleCamera();
+        BattleStageCamera camera = ExpandedBattleCamera(active.Combatants.Count);
         NativeBattleCameraPose pose = new(Point(camera.NativeEye), Point(camera.NativeTarget), checked((short)camera.FocalLength), 0);
         NativeBattleCameraProjection projection = new(NativeBattlePoseMatrices.CameraView(pose), checked((ushort)camera.FocalLength), 160, 108);
         NativeBattlePrimitiveTables tables = assets.ReadNativePrimitiveTables();
@@ -93,8 +93,8 @@ internal sealed partial class GameWorld
         }
     }
 
-    internal static BattleStageCamera ExpandedBattleCamera()
+    internal static BattleStageCamera ExpandedBattleCamera(int actorCount)
     {
-        return new(new(5400, -4800, 6600), new(0, -350, 0), 340);
+        return new(new(5400, -4800, 6600), new(0, -350, 0), actorCount > 10 ? 285 : 340);
     }
 }

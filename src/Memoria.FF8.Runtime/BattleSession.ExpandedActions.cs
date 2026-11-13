@@ -9,6 +9,8 @@ public sealed partial class BattleSession
     private Func<BattleCombatant, BattleNativeAction, ImmutableArray<ExpandedBattleContact>, NativeBattleEffectPresentation>? expandedEffectFactory;
     private NativeBattleEffectPresentation? expandedEffect;
     private NativeBattleEffectContactBridge<string>? expandedContactBridge;
+    private int expandedExpectedContacts;
+    private ImmutableArray<ExpandedBattleContact> expandedSharedContacts = [];
     private readonly HashSet<string> expandedPresentedRecipients = new(StringComparer.Ordinal);
     public NativeBattleEffectPresentation? ExpandedEffect => expandedEffect;
 
@@ -69,26 +71,26 @@ public sealed partial class BattleSession
             foreach (NativeBattleContactPacket packet in step.Contacts)
             {
                 string recipient = expandedContactBridge!.Resolve(packet);
-                if (!expandedPresentedRecipients.Add(recipient))
+                PublishExpandedEffectContact(command, recipient, packet.Primary);
+            }
+            if (!expandedSharedContacts.IsEmpty && expandedPresentedRecipients.Count == expandedContactBridge!.Count)
+            {
+                // Quake publishes its entire contact list on one emitter callback.
+                foreach (ExpandedBattleContact shared in expandedSharedContacts)
                 {
-                    throw new InvalidDataException("The expanded effect repeated a published recipient.");
+                    PublishExpandedEffectContact(command, shared.RecipientId, shared.Contact);
                 }
-                string actionName = ActionName(command.Ability, command.ActionId);
-                Log("EffectContact", command.ActorId, recipient, packet.Primary.PresentedAmount, actionName);
-                if (packet.Primary.PresentedAmount > 0)
-                {
-                    bool healing = (packet.Primary.HitFlags3 & 1) != 0;
-                    Log(healing ? "EffectHealing" : "EffectDamage", command.ActorId, recipient, packet.Primary.PresentedAmount, actionName);
-                }
+                expandedSharedContacts = [];
             }
             if (effect.Complete)
             {
-                if (expandedPresentedRecipients.Count != expandedContactBridge!.Count)
+                if (expandedSharedContacts.Length != 0 || expandedPresentedRecipients.Count != expandedExpectedContacts)
                 {
                     throw new InvalidDataException("The expanded effect completed before publishing all prepared contacts.");
                 }
                 expandedEffect = null;
                 expandedContactBridge = null;
+                expandedExpectedContacts = 0;
                 expandedPresentedRecipients.Clear();
                 CompleteActionPresentation(command, "Expanded effect completed.");
             }
@@ -140,6 +142,15 @@ public sealed partial class BattleSession
             return;
         }
 
+        int nativeContactLimit = NativeBattleSlots.Count - 1;
+        bool exceedsPresentationBank = command.Ability == BattleAbility.Magic && recipients.Length > nativeContactLimit;
+        if (exceedsPresentationBank && native.MagicId != 38)
+        {
+            RefundCancelledNativeItem(command);
+            CompleteActionPresentation(command, "The expanded host cannot present this effect on the selected group.");
+            return;
+        }
+
         // The effect bank is action-local. It does not own any battle roster slot or action memory.
         // AI contacts are consumed immediately by the host and do not enter the presentation bank.
         int nextRow = recipients.Length == 1 ? NativeBattleSlots.AllyCount : 1;
@@ -152,7 +163,8 @@ public sealed partial class BattleSession
         {
             foreach (BattleCombatant recipient in recipients)
             {
-                byte row = command.AiRecipients is not null || recipient == actor ? (byte)0 : checked((byte)nextRow++);
+                bool hasPresentationRow = command.Ability == BattleAbility.Magic && (!exceedsPresentationBank || contacts.Count < nativeContactLimit);
+                byte row = hasPresentationRow && recipient != actor ? checked((byte)nextRow++) : (byte)0;
                 recipient.NativeRemainingHits = 1;
                 NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, recipient, resolved, action, native, 255, presentationRow: row);
                 contacts.Add(new(recipient.Id, packet.Primary));
@@ -181,8 +193,26 @@ public sealed partial class BattleSession
             return;
         }
         ImmutableArray<ExpandedBattleContact> prepared = contacts.MoveToImmutable();
-        expandedContactBridge = new(prepared.Select(contact => (contact.RecipientId, contact.Contact)));
-        expandedEffect = expandedEffectFactory!(actor, native, prepared);
+        ImmutableArray<ExpandedBattleContact> presented = exceedsPresentationBank ? prepared[..nativeContactLimit] : prepared;
+        expandedExpectedContacts = prepared.Length;
+        expandedSharedContacts = exceedsPresentationBank ? prepared[nativeContactLimit..] : [];
+        expandedContactBridge = new(presented.Select(contact => (contact.RecipientId, contact.Contact)));
+        expandedEffect = expandedEffectFactory!(actor, native, presented);
         ActiveAction = command with { Phase = BattleActionPhase.Recovery, RemainingFrames = 1, MagicReservationId = null };
+    }
+
+    private void PublishExpandedEffectContact(BattleActionPresentation command, string recipient, NativeBattleContactHalf contact)
+    {
+        if (!expandedPresentedRecipients.Add(recipient))
+        {
+            throw new InvalidDataException("The expanded effect repeated a published recipient.");
+        }
+        string actionName = ActionName(command.Ability, command.ActionId);
+        Log("EffectContact", command.ActorId, recipient, contact.PresentedAmount, actionName);
+        if (contact.PresentedAmount > 0)
+        {
+            bool healing = (contact.HitFlags3 & 1) != 0;
+            Log(healing ? "EffectHealing" : "EffectDamage", command.ActorId, recipient, contact.PresentedAmount, actionName);
+        }
     }
 }
