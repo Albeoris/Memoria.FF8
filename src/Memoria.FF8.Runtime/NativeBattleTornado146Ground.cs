@@ -136,6 +136,24 @@ public static class NativeBattleTornado146Ground
         return new(matrix with { X = 7 - center.X / 17, Y = center.Z / 16 - 1, Z = unchecked((short)focal) }, focal, 128, 128);
     }
 
+    public static ImmutableArray<(System.Numerics.Vector3 A, System.Numerics.Vector3 B, System.Numerics.Vector3 C)> ControlTriangles(NativeBattleStaticMeshResource mesh, NativeBattleVector center, float baseHeight)
+    {
+        int faces = ReadInt(mesh, 0);
+        int count = ReadInt(mesh, faces);
+        ImmutableArray<(System.Numerics.Vector3 A, System.Numerics.Vector3 B, System.Numerics.Vector3 C)>.Builder triangles = ImmutableArray.CreateBuilder<(System.Numerics.Vector3 A, System.Numerics.Vector3 B, System.Numerics.Vector3 C)>(count);
+        for (int index = 0; index < count; index++)
+        {
+            int face = checked(faces + 4 + index * 12);
+            System.Numerics.Vector3 Point(int corner)
+            {
+                NativeBattleVector point = TriangleVertex(mesh, face, corner);
+                return new(point.X + center.X, baseHeight, point.Z + center.Z);
+            }
+            triangles.Add((Point(0), Point(1), Point(2)));
+        }
+        return triangles.ToImmutable();
+    }
+
     private static NativeBattleVector TriangleVertex(NativeBattleStaticMeshResource mesh, int face, int corner)
     {
         int vertex = checked(8 + BinaryPrimitives.ReadUInt16LittleEndian(mesh.Bytes.AsSpan().Slice(checked(face + 4 + corner * 2), 2)) * 4);

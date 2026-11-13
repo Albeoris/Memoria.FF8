@@ -151,6 +151,14 @@ internal sealed class CrossoverMixedBattle : IDisposable
         }
     }
 
+    public void BindArena(Func<Ff7BattleArenaGeometry> geometry, Func<INativeBattleForeignMaterial, NativeBattleForeignRenderMaterial>? materialResolver = null)
+    {
+        foreach (CrossoverGuestHostActions guest in Guests)
+        {
+            guest.BindArena(geometry, materialResolver);
+        }
+    }
+
     public IReadOnlyList<CrossoverGuestAudioReceipt> PeekSoundRequests() => encounter.Audio.Pending;
     public void AcknowledgeSoundRequests(long throughOrdinal) => encounter.Audio = encounter.Audio.Acknowledge(throughOrdinal);
 

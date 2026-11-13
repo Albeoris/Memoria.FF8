@@ -17,6 +17,14 @@ public sealed partial class BattleSession
 
         private void CaptureGround(NativeBattleVector center)
         {
+            if (owner.presentationArena is { } arena)
+            {
+                NativeBattleArenaGeometry surface = NativeBattleArenaSurfaceQueries.Select(arena.Geometry, center);
+                NativeBattleCameraProjection camera = NativeBattleTornado146Ground.CaptureProjection(center, Projection.FocalLength ?? throw new NotSupportedException("Native Tornado capture requires its actual focal WORD."));
+                arena.Capture(GroundCaptureOwner, surface, camera, 256, 256, 640, 256);
+                arena.RefineSurface(GroundCaptureOwner, NativeBattleTornado146Ground.ControlTriangles(resources.Crater, center, surface.Faces[0].A.Y));
+                return;
+            }
             NativeBattlePrimitiveProcess process = Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Tornado capture requires its current primitive owner.");
             byte buffer = process.Buffer80 ?? throw new NotSupportedException("Native Tornado capture requires its actual environment selector.");
             NativeSoftwareDrawingEnvironmentBuffers environments = process.Software?.EnvironmentBuffers ?? throw new NotSupportedException("Native Tornado capture requires its retained drawing environments.");
@@ -90,6 +98,10 @@ public sealed partial class BattleSession
 
         private int Ground(ref NativeBattleModulePoolTask task)
         {
+            if (owner.presentationArena is { } arena)
+            {
+                return GroundArena(ref task, arena);
+            }
             NativeBattleStageState stage = owner.NativeStage ?? throw new NotSupportedException("Native Tornado ground requires its current stage rows.");
             NativeBattleStageGroup group = stage.Groups[1] with { Flags = unchecked((byte)(stage.Groups[1].Flags & 0xFD)) };
             owner.NativeStage = stage with { Groups = stage.Groups.SetItem(1, group) };
@@ -111,6 +123,53 @@ public sealed partial class BattleSession
             stage = owner.NativeStage!;
             owner.NativeStage = stage with { Groups = stage.Groups.SetItem(1, stage.Groups[1] with { Flags = unchecked((byte)(stage.Groups[1].Flags | 2)) }) };
             return 2;
+        }
+
+        private NativeBattlePilotVisualIdentity GroundCaptureOwner => NativeBattlePilotVisualLifetimes.Identity(146, pools[0].Slots[0], -1);
+
+        private int GroundArena(ref NativeBattleModulePoolTask task, NativeBattleArenaHost arena)
+        {
+            short age = Word(task, 12);
+            NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(146, task);
+            NativeBattleArenaGeometry surface = arena.ReadSurface(GroundCaptureOwner);
+            if (age < 68)
+            {
+                arena.Replace(identity, arena.ReadCapture(GroundCaptureOwner).Geometry);
+                DrawArenaGround(task, surface, identity, age >= 64 ? (68 - age) << 10 : 4096);
+            }
+            if (DrawOnly)
+            {
+                return 0;
+            }
+            age = unchecked((short)(age + 1));
+            task = task.WriteWord(12, unchecked((ushort)age));
+            if (age <= 68)
+            {
+                return 0;
+            }
+            arena.Release(identity);
+            return 2;
+        }
+
+        private void DrawArenaGround(NativeBattleModulePoolTask task, NativeBattleArenaGeometry surface, NativeBattlePilotVisualIdentity identity, int fade)
+        {
+            NativeBattleVector center = Position(task);
+            Memory = Memory with { PrimitiveProcess = (Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Tornado ground requires its current far-color owner.")).PublishFarColor45DDA0(0, 0, 0) };
+            NativeBattleScriptedGraphicsMemory controls = Memory.ScriptedGraphics ?? throw new NotSupportedException("Native Tornado ground requires its retained GTE controls.");
+            using NativeBattleTornado146Work work = new(state);
+            NativeBattleTornado146GroundVertex Deform(NativeBattleVector point)
+            {
+                if (point.X < center.X - 0x8D8 || point.X > center.X + 0x7E8 || point.Z < center.Z - 0x80E || point.Z > center.Z + 0x7DF)
+                {
+                    return new(point, 0);
+                }
+                NativeBattleTornado146GroundVertex changed = NativeBattleTornado146Ground.Deform6167E0(work, resources.Crater, point with { Y = 0 }, center, fade);
+                return changed with { Position = changed.Position with { Y = checked((short)(point.Y + changed.Position.Y)) } };
+            }
+            NativeBattleGfGeometryBatch batch = NativeBattleArenaDrawing.Deform(surface, Deform, identity, (polygons, vertices, selected) => NativeBattleTornado146GroundPackets.Emit616AC0(polygons, vertices, View, Projection, controls.Zsf3 ?? throw new NotSupportedException("Native Tornado ground requires its current ZSF3."), controls.Zsf4 ?? throw new NotSupportedException("Native Tornado ground requires its current ZSF4."), controls.Dqa, controls.Dqb, Colors, pilotIdentity: selected));
+            NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Tornado ground requires its actual COMMON packet cursor."), graphics.PrimitiveFrame!.Pending, batch);
+            Memory = Memory with { PrimitiveProcess = written.Process };
+            graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = written.Ordering } };
         }
 
         private void DrawGround(NativeBattleModulePoolTask task, NativeBattleStageGroup group, int fade)

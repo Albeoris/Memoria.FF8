@@ -222,7 +222,8 @@ public sealed partial class BattleRenderer
             bool gouraud = (command.Opcode & 16) != 0;
             bool quad = (command.Opcode & 8) != 0;
             bool semi = (command.Opcode & 2) != 0;
-            if (command.PilotGeometry?.ForeignSurface is null && (resolved.Pass == 2 && !semi || resolved.Pass == 1 && semi))
+            NativeBattleForeignSurface? capturedSurface = command.PilotGeometry?.ForeignSurface?.Material is NativeBattleArenaCaptureMaterial ? command.PilotGeometry.ForeignSurface : null;
+            if ((command.PilotGeometry?.ForeignSurface is null || capturedSurface is not null) && (resolved.Pass == 2 && !semi || resolved.Pass == 1 && semi))
             {
                 continue;
             }
@@ -252,6 +253,14 @@ public sealed partial class BattleRenderer
             ImmutableArray<NativeBattlePrimitiveDepthVertex> projected = state.Project461220(command.OrderingBucket ?? throw new InvalidDataException("Native polygon lacks its original OT bucket."), perspective, command.Flags20, command.VertexPayload4);
             PixelImage? texture = null;
             Vector2 prefixUvScale = Vector2.One;
+            if (capturedSurface is not null)
+            {
+                if (capturedSurface.Uv.Length != corners || capturedSurface.Colors.Length != corners)
+                {
+                    throw new InvalidDataException("Arena image sampling requires complete native primitive corner attributes.");
+                }
+                texture = ForeignMaterialResolver?.Invoke(capturedSurface.Material).Material.Texture ?? throw new NotSupportedException("Arena image sampling requires its resolved captured framebuffer.");
+            }
             if (textured && command.PilotGeometry?.ForeignSurface is null)
             {
                 bool affine = pilotProjection is null || !perspective;
@@ -268,12 +277,16 @@ public sealed partial class BattleRenderer
                 int coordinateWord = 1 + corner * stride;
                 uint coordinate = command.Words[coordinateWord];
                 uint color = command.Words[gouraud ? corner * stride : 0];
-                bool foreignMaterial = command.PilotGeometry?.ForeignSurface is not null;
+                bool foreignMaterial = command.PilotGeometry?.ForeignSurface is not null && capturedSurface is null;
                 int mode = foreignMaterial ? 0 : resolved.DrawMode.BlendMode ?? throw new NotSupportedException("Native polygon diffuse color requires its executed ABR.");
                 NativeBattlePrimitiveColor diffuse = foreignMaterial ? colorState.Textured(color, false, 0, false) : textured ? colorState.Textured(color, semi, mode, (command.Opcode & 1) != 0) : colorState.Untextured(color, semi, mode);
                 uint uv = textured ? command.Words[coordinateWord + 1] : 0;
                 Vector2 coordinates = new((byte)uv, (byte)(uv >> 8));
-                if (textured && resolved.DrawMode.SceneCaptureSample is { } sceneSample)
+                if (capturedSurface is not null)
+                {
+                    coordinates = capturedSurface.Uv[corner];
+                }
+                else if (textured && resolved.DrawMode.SceneCaptureSample is { } sceneSample)
                 {
                     coordinates = SceneCaptureUv(sceneSample, resolved.DrawMode.TexturePage!.Value, uv, command.SceneCapture?.SampleCoordinates is { } samples ? samples[corner] : null);
                 }
@@ -304,15 +317,16 @@ public sealed partial class BattleRenderer
                 }
                 return new(position.X, position.Y, selectedDepth.Depth, selectedDepth.ReciprocalW, coordinates, diffuse.Rgb, diffuse.Alpha);
             }
-            int blend = command.PilotGeometry?.ForeignSurface is null && semi && resolved.Pass == 2 ? resolved.DrawMode.BlendMode ?? throw new NotSupportedException("Native semi-transparent polygon requires its inherited ABR.") : -1;
+            int blend = (command.PilotGeometry?.ForeignSurface is null || capturedSurface is not null) && semi && resolved.Pass == 2 ? resolved.DrawMode.BlendMode ?? throw new NotSupportedException("Native semi-transparent polygon requires its inherited ABR.") : -1;
             PrimitiveVertex a = At(0);
             PrimitiveVertex b = At(1);
             PrimitiveVertex c = At(2);
-            if (command.PilotGeometry?.ForeignSurface is { } foreign)
+            if (capturedSurface is null && command.PilotGeometry?.ForeignSurface is { } foreign)
             {
-                if (quad || foreign.Material is not NativeBattleForeignRenderMaterial hostMaterial || foreign.Uv.Length != 3 || foreign.Colors.Length != 3)
+                NativeBattleForeignRenderMaterial? hostMaterial = foreign.Material as NativeBattleForeignRenderMaterial ?? ForeignMaterialResolver?.Invoke(foreign.Material);
+                if (hostMaterial is null || foreign.Uv.Length != corners || foreign.Colors.Length != corners)
                 {
-                    throw new NotSupportedException("A foreign body primitive requires its original host triangle material and corner attributes.");
+                    throw new NotSupportedException("A foreign primitive requires its original host material or captured surface and complete corner attributes.");
                 }
                 ITriangleRenderer target = TriangleRenderer ?? throw new NotSupportedException("Foreign actor materials require the host triangle renderer.");
                 TriangleMaterial original = hostMaterial.Material with { ActorOpacity = actorOpacity };
@@ -322,6 +336,16 @@ public sealed partial class BattleRenderer
                 {
                     target.Draw(Vertex(a, 0), Vertex(b, 1), Vertex(c, 2), original);
                     DrawnTriangles++;
+                }
+                if (quad)
+                {
+                    PrimitiveVertex d = At(3);
+                    float secondArea = (d.X - b.X) * (c.Y - b.Y) - (d.Y - b.Y) * (c.X - b.X);
+                    if (!hostMaterial.Cull || secondArea >= 0)
+                    {
+                        target.Draw(Vertex(b, 1), Vertex(d, 3), Vertex(c, 2), original);
+                        DrawnTriangles++;
+                    }
                 }
                 continue;
             }

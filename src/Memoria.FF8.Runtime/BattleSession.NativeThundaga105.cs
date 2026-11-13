@@ -47,14 +47,21 @@ public sealed partial class BattleSession
                     RegisterNativeOriginalEffectAnimation(current.Effect, resources.Animation, 0x2543D38);
                     return current with { Memory = NativeEffectMemory! };
                 case NativeBattleThundaga105DebrisDraw:
-                    return Append(current, NativeBattleThundaga105Debris.Draw6D41E0(current.Memory, View(), Projection()));
+                    return Append(current, BindGroundCapture(current, NativeBattleThundaga105Debris.Draw6D41E0(current.Memory, View(), Projection())));
                 case NativeBattleThundaga105FragmentDraw fragment:
-                    return Append(current, NativeBattleThundaga105Fragments.Draw6D5AD0(fragment.Task, fragment.Mesh, View(), Projection(), colors));
+                    return Append(current, BindGroundCapture(current, NativeBattleThundaga105Fragments.Draw6D5AD0(fragment.Task, fragment.Mesh, View(), Projection(), colors)));
                 case NativeBattleThundaga105Sprite sprite:
                     return DrawSprite(current, sprite.Task);
                 case NativeBattleThundaga105Capture capture:
                     StageFlash(0);
                     NativeBattleThundaga105CaptureTransform transform = NativeBattleThundaga105CaptureGeometry.Transform6D5620(capture.Anchor, capture.Bounds, Projection());
+                    if (presentationArena is { } arena)
+                    {
+                        NativeBattleVector anchor = new(BinaryPrimitives.ReadInt16LittleEndian(capture.Anchor.AsSpan()), 0, BinaryPrimitives.ReadInt16LittleEndian(capture.Anchor.AsSpan().Slice(4)));
+                        NativeBattleArenaGeometry surface = NativeBattleArenaSurfaceQueries.Select(arena.Geometry, anchor);
+                        arena.Capture(CaptureOwner(current), surface, transform.Projection, 128, 128, 704, 256);
+                        return current;
+                    }
                     NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Thundaga capture requires its initialized ordering table.");
                     NativeBattleThundaga105CaptureWrite written = NativeBattleThundaga105CapturePackets.Append6D5620(current.Memory, NativeStage ?? throw new NotSupportedException("Native Thundaga capture requires its current stage."), primitive.Pending, current.Effect.DrawArenaOffset ?? throw new NotSupportedException("Native Thundaga capture requires its private draw cursor."), RequireNativeStageGeometry(), transform, colors);
                     NativeStage = written.Stage;
@@ -84,6 +91,13 @@ public sealed partial class BattleSession
                 default:
                     throw new NotSupportedException("Native Thundaga operation requires its original callback contract.");
             }
+        }
+
+        NativeBattlePilotVisualIdentity CaptureOwner(NativeBattleThundaga105Frame current) => NativeBattlePilotVisualLifetimes.Identity(105, current.Effect.Pools[0].Slots[0], -1);
+
+        NativeBattleGfGeometryBatch BindGroundCapture(NativeBattleThundaga105Frame current, NativeBattleGfGeometryBatch batch)
+        {
+            return presentationArena is { } arena && batch.Attempts.Any(attempt => attempt.Primitive is not null) ? NativeBattleArenaDrawing.BindCapture(batch, arena.ReadCapture(CaptureOwner(current))) : batch;
         }
 
         void StageFlash(int amount)

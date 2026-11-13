@@ -38,7 +38,14 @@ public sealed partial class BattleSession
                 Stamp(0x40, BitConverter.GetBytes(6));
                 owner.NativeFileStaging = owner.NativeFileStaging!.MarkUnknown(temporary.Address + 0x38, 4);
             }
-            Append(NativeBattleTornado146Pieces.Draw(resources.Pieces[index], task, resources.LiftHeights[index], unchecked((short)resources.PieceX[index]), unchecked((short)resources.PieceZ[index]), View, Projection, Stamp));
+            NativeBattleActionMatrix view = View;
+            NativeBattleArenaCaptureMaterial? capture = owner.presentationArena?.ReadCapture(GroundCaptureOwner);
+            if (capture is not null)
+            {
+                view = NativeBattleGfMatrices.Compose56C2F0(view, NativeBattleForeignModelGeometry.Identity with { Y = checked((int)capture.Geometry.Faces[0].A.Y) });
+            }
+            NativeBattleGfGeometryBatch batch = NativeBattleTornado146Pieces.Draw(resources.Pieces[index], task, resources.LiftHeights[index], unchecked((short)resources.PieceX[index]), unchecked((short)resources.PieceZ[index]), view, Projection, Stamp);
+            Append(capture is not null ? NativeBattleArenaDrawing.BindCapture(batch, capture) : batch);
             owner.NativeFileStaging = NativeBattleTemporaryMemory.Release5082D0(owner.NativeFileStaging!, 312);
             if (DrawOnly)
             {

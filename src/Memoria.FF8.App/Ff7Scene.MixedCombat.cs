@@ -118,6 +118,11 @@ internal sealed partial class Ff7Scene
             Ff7BattleActorState actor = battle.Actors.Single(actor => actor.Actor.Slot == slot);
             return BattleRenderer(battle).CaptureActorGeometry(BattleActorVisual(battle, actor));
         });
+        mixed.BindArena(() => BattleRenderer(battle).CaptureArenaGeometry(), material =>
+        {
+            _ = BattleRenderer(battle);
+            return arenaSurfaceCapture!.Resolve(material);
+        });
         mixedCombat = mixed;
     }
 

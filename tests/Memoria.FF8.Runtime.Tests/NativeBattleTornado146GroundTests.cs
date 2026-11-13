@@ -7,6 +7,16 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleTornado146GroundTests
 {
     [Fact]
+    public void Host_refinement_control_triangles_use_original_native_face_indices_and_host_plane()
+    {
+        var triangles = NativeBattleTornado146Ground.ControlTriangles(Crater(400), new(20, 0, 30), 75);
+        var triangle = Assert.Single(triangles);
+        Assert.Equal(new System.Numerics.Vector3(-80, 75, -70), triangle.A);
+        Assert.Equal(new System.Numerics.Vector3(120, 75, -70), triangle.B);
+        Assert.Equal(new System.Numerics.Vector3(20, 75, 130), triangle.C);
+    }
+
+    [Fact]
     public void Grid_retains_all_sentinels_record_payloads_and_prepend_order()
     {
         NativeBattleTornado146Work seed = new(NativeBattleTornado146State.FromColdProcess());

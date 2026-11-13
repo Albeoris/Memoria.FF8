@@ -15,6 +15,7 @@ internal sealed partial class Ff7Scene
     private PcTexture? battleCureTexture;
     private PcTexture? battleGrenadeTexture;
     private Ff7BattleRenderer? battleRenderer;
+    private CrossoverArenaSurfaceCapture? arenaSurfaceCapture;
     private Ff7BattleSession? presentedBattle;
     private IReadOnlyList<string>? battleSpellNames;
     private Ff7BattleCommandOption? selectedBattleCommand;
@@ -400,6 +401,8 @@ internal sealed partial class Ff7Scene
             battleCureTexture ??= Ff7BattleCureResources.Load(installation);
             battleGrenadeTexture ??= Ff7BattleGrenadeResources.Load(installation);
             battleRenderer = new(battleArchive, battle.Formation.LocationId, battleMagicArchive, cureTexture: battleCureTexture, grenadeTexture: battleGrenadeTexture, shadow: Ff7BattleShadowResources.Load(installation, battle.Formation.LocationId));
+            arenaSurfaceCapture?.Dispose();
+            arenaSurfaceCapture = new(() => new GpuTriangleRenderer(device));
             presentedBattle = battle;
         }
         return battleRenderer!;
@@ -437,12 +440,21 @@ internal sealed partial class Ff7Scene
             }
             visuals.Add(BattleActorVisual(battle, actor) with { PresentationTransform = mixedCombat?.ActiveGuest?.ReadForeignPlacement(slot), ShadowSuppressed = mixedCombat?.ActiveGuest?.SuppressForeignShadow(slot) == true });
         }
-        renderer.Render(triangles, bounds.Width, bounds.Height, new(battle.GuestRenderCameraOutput, visuals, battle.Action?.Fire, battle.Action?.Ice, battle.Action?.Bolt, Cure: battle.Action?.Cure, Braver: battle.Action?.Braver) { BeatRush = battle.Action?.BeatRushEffect, BigShot = battle.Action?.BigShot, Hitmarks = battle.Hitmarks, SecondaryEffects = battle.SecondaryEffects, PrimaryEffects = battle.PrimaryEffects, SmokeShot = battle.Action?.SmokeShot, Smog = battle.Action?.Smog, Destroyed = battle.Action?.Destroyed, SearchScope = battle.Action?.SearchScope, Rockets = battle.Action?.Rockets, StageFade = battle.RenderStageFade, Guests = MixedBattleVisuals(battle), GuestEffectLayers = mixedCombat?.Guests.Select(guest => guest.EffectVisual).OfType<CrossoverNativeEffectVisual>().ToArray() ?? [] });
+        CrossoverNativeEffectVisual[] guestEffects = mixedCombat?.Guests.Select(guest => guest.EffectVisual).OfType<CrossoverNativeEffectVisual>().ToArray() ?? [];
+        if (mixedCombat?.ActiveGuest is null)
+        {
+            arenaSurfaceCapture!.Reset();
+        }
+        arenaSurfaceCapture!.Prepare(guestEffects.SelectMany(effect => effect.Ordering?.Packets.Select(packet => packet.PilotGeometry?.ForeignSurface?.Material).OfType<INativeBattleForeignMaterial>() ?? []));
+        HashSet<NativeBattleArenaPrimitiveId> replacedArena = mixedCombat?.Guests.SelectMany(guest => guest.ArenaReplacements).SelectMany(replacement => replacement.Geometry.Faces).Select(face => face.Id).ToHashSet() ?? [];
+        renderer.Render(triangles, bounds.Width, bounds.Height, new(battle.GuestRenderCameraOutput, visuals, battle.Action?.Fire, battle.Action?.Ice, battle.Action?.Bolt, Cure: battle.Action?.Cure, Braver: battle.Action?.Braver) { BeatRush = battle.Action?.BeatRushEffect, BigShot = battle.Action?.BigShot, Hitmarks = battle.Hitmarks, SecondaryEffects = battle.SecondaryEffects, PrimaryEffects = battle.PrimaryEffects, SmokeShot = battle.Action?.SmokeShot, Smog = battle.Action?.Smog, Destroyed = battle.Action?.Destroyed, SearchScope = battle.Action?.SearchScope, Rockets = battle.Action?.Rockets, StageFade = battle.RenderStageFade, Guests = MixedBattleVisuals(battle), GuestEffectLayers = guestEffects, SuppressArenaPrimitives = replacedArena });
     }
 
     private void ResetBattlePresentation()
     {
         battleRenderer = null;
+        arenaSurfaceCapture?.Dispose();
+        arenaSurfaceCapture = null;
         presentedBattle = null;
         battleInputOwner = null;
         pendingLimitConfirm = false;

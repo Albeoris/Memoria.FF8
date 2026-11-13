@@ -241,7 +241,7 @@ internal sealed partial class CrossoverGuestHostActions
             ushort mask = AbilityTargetMask(original, target);
             int[] slots = host.Actors.Where(actor => (mask & (1 << actor.Actor.Slot)) != 0).Select(actor => actor.Actor.Slot).Order().ToArray();
             ImmutableArray<CrossoverNativeMagicTarget> targets = CrossoverNativeMagicTarget.Bind(ActorSlot, slots, (_, index) => contact with { ActorIndex = index });
-            CrossoverNativeMagicPresentationState state = fireProgram.Begin(visual.Model with { Index = 0 }, target, encounter.CrtRandom, targets[0].Contact, original, encounter.GlobalRandom) with { Targets = targets };
+            CrossoverNativeMagicPresentationState state = fireProgram.Begin(visual.Model with { Index = 0 }, target, encounter.CrtRandom, targets[0].Contact, original, encounter.GlobalRandom, CreateArena(placement)) with { Targets = targets };
             return fireProgram.TryPreflight(state,
                 () => ReadAbilityAnchor(placement, target),
                 () => ReadAbilityTransform(placement, target),

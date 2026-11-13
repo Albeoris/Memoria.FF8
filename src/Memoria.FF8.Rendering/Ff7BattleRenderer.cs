@@ -3,6 +3,7 @@ using System.Numerics;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Rendering;
 
@@ -29,6 +30,7 @@ public sealed record Ff7BattleRenderFrame(SceneCameraPlacement Camera, IReadOnly
     public Ff7BattleStageFadeState? StageFade { get; init; }
     public Ff7BattleRocketState? Rockets { get; init; }
     public Ff7BattlePrimaryState? PrimaryEffects { get; init; }
+    public IReadOnlySet<NativeBattleArenaPrimitiveId> SuppressArenaPrimitives { get; init; } = new HashSet<NativeBattleArenaPrimitiveId>();
 }
 
 /// <summary>Submits original FFVII stage and rigid actor geometry without advancing the battle.</summary>
@@ -111,9 +113,9 @@ public sealed partial class Ff7BattleRenderer
         try
         {
             Ff7ModelMaterialState material = new() { Cull = true };
-            foreach (Ff7BattleArenaPart part in arena.Geometry)
+            for (int partIndex = 0; partIndex < arena.Geometry.Count; partIndex++)
             {
-                DrawModel(renderer, part.Polygon, arenaTextures, Matrix4x4.Identity, view, material, colorBlend: stageTint, guestStageColor: guestStageColor);
+                DrawModel(renderer, arena.Geometry[partIndex].Polygon, arenaTextures, Matrix4x4.Identity, view, material, colorBlend: stageTint, guestStageColor: guestStageColor, arenaPart: partIndex, suppressedArenaPrimitives: frame.SuppressArenaPrimitives);
             }
             foreach (Ff7BattleActorVisual actor in frame.Actors)
             {
@@ -237,7 +239,7 @@ public sealed partial class Ff7BattleRenderer
         VisitActorGeometry(actor, (model, textures, transform) => DrawModel(renderer, model, textures, transform, view, material, alpha / 255f, tint));
     }
 
-    private void DrawModel(ITriangleRenderer renderer, PcPolygonModel model, IReadOnlyList<PcTexture> textures, Matrix4x4 transform, CameraView view, Ff7ModelMaterialState material, float opacity = 1, ModelColorBlend? colorBlend = null, CrossoverNativeStageColor? guestStageColor = null)
+    private void DrawModel(ITriangleRenderer renderer, PcPolygonModel model, IReadOnlyList<PcTexture> textures, Matrix4x4 transform, CameraView view, Ff7ModelMaterialState material, float opacity = 1, ModelColorBlend? colorBlend = null, CrossoverNativeStageColor? guestStageColor = null, int? arenaPart = null, IReadOnlySet<NativeBattleArenaPrimitiveId>? suppressedArenaPrimitives = null)
     {
         if (model.Groups.Count != model.RenderStates.Count)
         {
@@ -285,6 +287,10 @@ public sealed partial class Ff7BattleRenderer
             }
             for (int polygonIndex = group.PolygonStart; polygonIndex < group.PolygonStart + group.PolygonCount; polygonIndex++)
             {
+                if (arenaPart is { } part && suppressedArenaPrimitives?.Contains(new(part, index, polygonIndex)) == true)
+                {
+                    continue;
+                }
                 PcModelPolygon polygon = model.Polygons[polygonIndex];
                 CameraSpaceVertex a = Vertex(polygon.A);
                 CameraSpaceVertex b = Vertex(polygon.B);

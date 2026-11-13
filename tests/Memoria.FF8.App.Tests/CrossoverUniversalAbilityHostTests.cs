@@ -22,7 +22,7 @@ public sealed class CrossoverUniversalAbilityHostTests(ITestOutputHelper output)
         Run(name);
     }
 
-    internal void Run(string name, ushort? selectedTargets = null)
+    internal void Run(string name, ushort? selectedTargets = null, bool arenaBridge = false, CrossoverArenaSurfaceCapture? arenaCapture = null, Action<Ff7BattleRenderer, Ff7BattleSession, CrossoverGuestHostActions>? observe = null)
     {
         string? ff8 = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         string? ff7 = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
@@ -72,6 +72,10 @@ public sealed class CrossoverUniversalAbilityHostTests(ITestOutputHelper output)
         Ff7BattleRenderer renderer = new(archive, formation.LocationId);
         MethodInfo actorVisual = typeof(Ff7Scene).GetMethod("BattleActorVisual", BindingFlags.Static | BindingFlags.NonPublic)!;
         provider.BindForeignGeometry(slot => renderer.CaptureActorGeometry((Ff7BattleActorVisual)actorVisual.Invoke(null, [host, host.Actors.Single(actor => actor.Actor.Slot == slot)])!));
+        if (arenaBridge)
+        {
+            provider.BindArena(renderer.CaptureArenaGeometry, arenaCapture is null ? null : arenaCapture.Resolve);
+        }
         host.BindGuestAttack(provider);
         for (int tick = 0; tick < 1000 && host.ReadyPlayer != 0; tick++)
         {
@@ -117,6 +121,7 @@ public sealed class CrossoverUniversalAbilityHostTests(ITestOutputHelper output)
         {
             host.Advance(waitForCommand: true);
             Assert.Null(host.GuestAbilityFailure);
+            observe?.Invoke(renderer, host, provider);
             began |= provider.Invocation is not null;
             if (provider.ActiveAbility is { } active)
             {

@@ -41,6 +41,7 @@ public sealed class CrossoverNativeSpriteRenderer(NativeBattlePrimitiveTables ta
     private const int CameraHeight = 240;
     private const int NativeDrawHeight = 216;
     private BattleRenderer? native;
+    public Func<INativeBattleForeignMaterial, NativeBattleForeignRenderMaterial>? ForeignMaterialResolver { get; set; }
 
     public static NativeBattleCameraProjection Camera(SceneCameraPlacement host, Matrix4x4 originToHost)
     {
@@ -106,6 +107,7 @@ public sealed class CrossoverNativeSpriteRenderer(NativeBattlePrimitiveTables ta
             LastColorState = NativeBattlePrimitiveColorState.FromColdProcess()
         };
         native ??= new(CameraWidth, CameraHeight, new(0, 0, CameraWidth, NativeDrawHeight));
+        native.ForeignMaterialResolver = ForeignMaterialResolver;
         native.TriangleRenderer = new HostPass(renderer, width, height, originToHostScale);
         native.RenderNativePrimitiveFrame(frame, source, capabilities: NativeBattlePrimitiveCapabilities.PrimaryRgba8(), textureWindowCache: executed.Cache);
         return native.DrawnTriangles;

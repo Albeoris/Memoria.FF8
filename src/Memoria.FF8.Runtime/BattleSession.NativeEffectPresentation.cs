@@ -5,6 +5,7 @@ namespace Memoria.FF8.Runtime;
 public sealed partial class BattleSession
 {
     private Dictionary<int, NativeBattleForeignActor>? presentationForeignActors;
+    internal NativeBattleArenaHost? presentationArena;
     private NativeBattleGraphicsResource? presentationSourceResource;
     private bool presentationFirstAdvance = true;
     private NativeBattleCameraState? presentationHostCamera;
@@ -15,6 +16,7 @@ public sealed partial class BattleSession
     private BattleSession(NativeBattleEffectPresentationInputs inputs)
     {
         definition = inputs.Resources;
+        presentationArena = inputs.Arena;
         combatants = [];
         byId = new(StringComparer.Ordinal);
         handlers = [];

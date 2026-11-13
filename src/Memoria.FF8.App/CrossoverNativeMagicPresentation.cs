@@ -36,6 +36,8 @@ internal sealed record CrossoverNativeMagicPresentationState(CrossoverNativeCast
     public NativeGlobalRandomState? GlobalRandom { get; init; }
     [JsonIgnore]
     public NativeBattleEffectPresentation? Effect { get; init; }
+    [JsonIgnore]
+    public NativeBattleArenaHost? Arena { get; init; }
     public ImmutableArray<NativeBattleModuleDraw> Draws { get; init; } = [];
     public bool Complete => Cast.Complete && Auxiliary.Head is null && Modules.Head is null && EffectComplete;
     public bool EffectComplete => Cast.Phase >= 7 || Effect?.Complete == true;
@@ -61,7 +63,7 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
     private const int MaximumProbeCallbacks = 4096;
     private readonly ImmutableArray<NativeBattleModuleResource> sprites = game.ReadNativeBattleModuleResources();
 
-    public CrossoverNativeMagicPresentationState Begin(NativeBattleGraphicsModel source, int hostTarget, NativeCrtRandomState random, NativeBattleContactHalf contact, BattleNativeAction action, NativeGlobalRandomState? globalRandom = null)
+    public CrossoverNativeMagicPresentationState Begin(NativeBattleGraphicsModel source, int hostTarget, NativeCrtRandomState random, NativeBattleContactHalf contact, BattleNativeAction action, NativeGlobalRandomState? globalRandom = null, NativeBattleArenaHost? arena = null)
     {
         if (hostTarget is < 0 or > 9 || contact.ActorIndex >= 7)
         {
@@ -80,7 +82,7 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
         (textures, _) = textures.EnqueueTim505E30(new(common.Name, common.Data));
         textures = textures.Drain505D20(NativeBattleEffectMemory.FromColdProcess().Arena).State;
         CrossoverNativeCastState cast = CrossoverNativeCastPresentation.Begin(source, resource, game.ReadNativeBattleCommandSequences(), command);
-        return new(cast, NativeBattleAuxiliaryState.Clear(), NativeBattleModuleState.Clear(), textures, source.BodyTextureSlots!, resource.TextureAnimations ?? throw new InvalidDataException("Native casting requires the source texture animation table."), random, hostTarget, contact) { Ability = action.ActionId, Command = command, Action = action, GlobalRandom = globalRandom };
+        return new(cast, NativeBattleAuxiliaryState.Clear(), NativeBattleModuleState.Clear(), textures, source.BodyTextureSlots!, resource.TextureAnimations ?? throw new InvalidDataException("Native casting requires the source texture animation table."), random, hostTarget, contact) { Ability = action.ActionId, Command = command, Action = action, GlobalRandom = globalRandom, Arena = arena };
     }
 
     public bool TryPreflight(CrossoverNativeMagicPresentationState source, Func<NativeBattleModuleAnchor> readTargetAnchor, Func<NativeBattleModelTransform> readTargetTransform, NativeBattleCameraProjection projection, Func<CrossoverNativeForeignTarget>? readForeign, out string? reason, Func<int, CrossoverNativeForeignTarget>? readGroupForeign = null)
@@ -140,7 +142,7 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
             (packets, _) = packets.Publish(checked((byte)source.BoundTargets.Length));
             NativeBattleGraphicsDefinition graphics = new(game.ReadNativeBattleGraphicsRules(), [new("source", checked((byte)cast.Model.ModelId4!.Value), resource)], []) { PrimitiveTables = battle.ReadNativePrimitiveTables(), SoftwarePrimitiveTable = battle.ReadNativeSoftwarePrimitiveTable(), PrimitiveCapabilities = NativeBattlePrimitiveCapabilities.PrimaryRgba8() };
             BattleDefinition resources = new() { NativeGraphics = graphics, NativeModuleResources = sprites, NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([action.MagicId]), NativeCommonEffectTexture = game.ReadNativeCommonEffectTexture(), NativeCommandSequences = game.ReadNativeBattleCommandSequences(), NativeGlobalRandom = source.GlobalRandom, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory() };
-            effect = new(new(resources, cast.Model, resource, packets, new(0, 0, targetMask, 0, 0, 0), action.MagicId, textures, random, projection ?? throw new NotSupportedException("Native effects require the current host camera."), ForeignActors()));
+            effect = new(new(resources, cast.Model, resource, packets, new(0, 0, targetMask, 0, 0, 0), action.MagicId, textures, random, projection ?? throw new NotSupportedException("Native effects require the current host camera."), ForeignActors()) { Arena = source.Arena });
             textures = effect.Memory.Textures!;
             random = effect.Random;
         }

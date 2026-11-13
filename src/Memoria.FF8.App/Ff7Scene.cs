@@ -715,6 +715,7 @@ internal sealed partial class Ff7Scene : IDisposable
         reportClipboard.Dispose();
         battleArchive?.Dispose();
         battleMagicArchive?.Dispose();
+        arenaSurfaceCapture?.Dispose();
         triangles.Dispose();
         titleArtwork.Dispose();
         pixel.Dispose();

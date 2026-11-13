@@ -296,7 +296,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         try
         {
             ImmutableArray<CrossoverNativeMagicTarget> targets = PresentationTargets(preparedGroup.IsEmpty ? [hit] : preparedGroup, original);
-            program = fireProgram.Begin(model with { Index = 0 }, target.Slot, encounter.CrtRandom, targets[0].Contact, original, encounter.GlobalRandom) with { Targets = targets };
+            program = fireProgram.Begin(model with { Index = 0 }, target.Slot, encounter.CrtRandom, targets[0].Contact, original, encounter.GlobalRandom, CreateArena(placement)) with { Targets = targets };
         }
         catch
         {

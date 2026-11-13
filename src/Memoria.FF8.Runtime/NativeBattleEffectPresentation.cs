@@ -12,7 +12,10 @@ public sealed record NativeBattleForeignActor(int Index, NativeBattleModelTransf
     public NativeBattlePosedActor? Pose { get; init; }
 }
 
-public sealed record NativeBattleEffectPresentationInputs(BattleDefinition Resources, NativeBattleGraphicsModel Source, NativeBattleGraphicsResource SourceResource, NativeBattleActionPacketsState Packets, NativeBattleEffectParameters Parameters, ushort Effect, NativeBattleEffectTextureState Textures, NativeCrtRandomState Random, NativeBattleCameraProjection Projection, ImmutableArray<NativeBattleForeignActor> ForeignActors);
+public sealed record NativeBattleEffectPresentationInputs(BattleDefinition Resources, NativeBattleGraphicsModel Source, NativeBattleGraphicsResource SourceResource, NativeBattleActionPacketsState Packets, NativeBattleEffectParameters Parameters, ushort Effect, NativeBattleEffectTextureState Textures, NativeCrtRandomState Random, NativeBattleCameraProjection Projection, ImmutableArray<NativeBattleForeignActor> ForeignActors)
+{
+    public NativeBattleArenaHost? Arena { get; init; }
+}
 
 public sealed record NativeBattleEffectPresentationStep(ImmutableArray<NativeBattleContactPacket> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
 
@@ -36,6 +39,7 @@ public sealed class NativeBattleEffectPresentation
     public short StageColorDepth => StageColor.Depth;
     public short ViewTranslationY => owner.NativeCamera?.ViewTranslationScratch?.Y ?? 0;
     public NativeBattleActionMatrix ForeignPlacement(int index) => owner.ReadEffectPresentationForeignPlacement(index);
+    public ImmutableArray<NativeBattleArenaReplacement> ArenaReplacements => owner.presentationArena?.Replacements ?? [];
 
     public NativeBattleEffectPresentationStep Advance(NativeBattleGraphicsModel source, NativeCrtRandomState random, NativeBattleCameraProjection projection, ImmutableArray<NativeBattleForeignActor> foreignActors, NativeBattleEffectTextureState textures)
     {

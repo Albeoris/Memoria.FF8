@@ -1338,7 +1338,9 @@ public static class NativeBattleLogicalPasses
             SetCache(BeginTexturePass(GetCache(), pass));
             foreach (NativeBattleLogicalCommand command in commands)
             {
-                if (command.PilotGeometry?.ForeignSurface is not null)
+                // Captured pixels keep native consumer state while their image remains owned by the host renderer.
+                bool capturedSurface = command.PilotGeometry?.ForeignSurface?.Material is NativeBattleArenaCaptureMaterial;
+                if (command.PilotGeometry?.ForeignSurface is not null && !capturedSurface)
                 {
                     // A host material participates in ordering and depth, but owns no native page, palette or software command.
                     bool enabled = tables.FlaggedCommands[command.Opcode] == 0 || ((context?.LiveMode ?? drawFlags) & 1) != 0;
@@ -1348,7 +1350,7 @@ public static class NativeBattleLogicalPasses
                     }
                     continue;
                 }
-                if (pass == 0 && context is not null && (context.LiveMode & 2) != 0 && context.SoftwareTable.Handler(command.Opcode) != 0)
+                if (!capturedSurface && pass == 0 && context is not null && (context.LiveMode & 2) != 0 && context.SoftwareTable.Handler(command.Opcode) != 0)
                 {
                     context.ExecuteSoftware(command);
                     mode = context.SynchronizeDrawMode(mode);
@@ -1374,7 +1376,7 @@ public static class NativeBattleLogicalPasses
                     }
                     executed.Add(context?.RetainTexturePixels(resolved) ?? resolved);
                 }
-                if (pass == 0 && category && (liveMode & 1) != 0 && context is not null)
+                if (!capturedSurface && pass == 0 && category && (liveMode & 1) != 0 && context is not null)
                 {
                     for (int delivery = 0; delivery < 2; delivery++)
                     {
