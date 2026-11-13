@@ -152,17 +152,39 @@ public sealed partial class Ff7BattleSession
         {
             throw new InvalidDataException("A composite action published an unowned action cue.");
         }
-        IReadOnlyList<int> ordinals = current.GroupPublication ? Enumerable.Range(current.NextContact, update.GroupHits.Count).ToArray() : update.CompositeContacts;
-        for (int index = 0; index < ordinals.Count; index++)
+        ImmutableArray<int> settled = GuestCompositeSettledContacts(current);
+        HashSet<int> pending = settled.ToHashSet();
+        List<int> ordinals = [];
+        if (current.GroupPublication)
         {
-            int ordinal = ordinals[index];
-            if (ordinal != current.NextContact + index || ordinal >= current.Contacts.Length)
+            foreach (Ff7BattleGuestPhysicalHit hit in update.GroupHits)
             {
-                throw new InvalidDataException("The composite action repeated or reordered a contact occurrence.");
+                int ordinal = -1;
+                for (int index = 0; index < current.Contacts.Length; index++)
+                {
+                    if (!pending.Contains(index) && hit == current.Contacts[index].HitDescription)
+                    {
+                        ordinal = index;
+                        break;
+                    }
+                }
+                if (ordinal < 0)
+                {
+                    throw new InvalidDataException("The group action published an unknown or already settled contact occurrence.");
+                }
+                pending.Add(ordinal);
+                ordinals.Add(ordinal);
             }
-            if (current.GroupPublication && update.GroupHits[index] != current.Contacts[ordinal].HitDescription)
+        }
+        else
+        {
+            foreach (int ordinal in update.CompositeContacts)
             {
-                throw new InvalidDataException("The group action published a different contact occurrence.");
+                if (ordinal < 0 || ordinal >= current.Contacts.Length || !pending.Add(ordinal))
+                {
+                    throw new InvalidDataException("The composite action published an unknown or already settled contact occurrence.");
+                }
+                ordinals.Add(ordinal);
             }
         }
         foreach (int ordinal in ordinals)
@@ -172,7 +194,8 @@ public sealed partial class Ff7BattleSession
             int target = contact.HitDescription.PreparedContact!.Invocation.TargetSlot;
             ApplyGuestHit(active.Command, target, contact.HitDescription);
             state = state with { DisplayedHit = state.LastHit };
-            current = current with { NextContact = current.NextContact + 1 };
+            settled = settled.Add(ordinal);
+            current = current with { NextContact = current.NextContact + 1, SettledContacts = settled };
         }
         active = active with { GuestComposite = current, Applied = current.NextContact == current.Contacts.Length };
         if (update.Completed)
@@ -202,15 +225,25 @@ public sealed partial class Ff7BattleSession
         }
     }
 
+    private static ImmutableArray<int> GuestCompositeSettledContacts(Ff7BattleGuestCompositeState composite)
+    {
+        return composite.SettledContacts.IsEmpty && composite.NextContact != 0 ? [.. Enumerable.Range(0, composite.NextContact)] : composite.SettledContacts;
+    }
+
     private static void ValidateGuestCompositeSnapshot(Ff7BattleSnapshot snapshot)
     {
         if (snapshot.Action is not { GuestComposite: { } composite } active)
         {
             return;
         }
-        if (!active.Command.GuestAttack || active.Command.CommandId != (byte)Ff7BattleCommand.Magic || active.GuestLimit is not null || composite.Contacts.IsDefaultOrEmpty || composite.Contacts.Length > 255 || composite.NextContact < 0 || composite.NextContact > composite.Contacts.Length || active.Applied != (composite.NextContact == composite.Contacts.Length))
+        if (!active.Command.GuestAttack || active.Command.CommandId != (byte)Ff7BattleCommand.Magic || active.GuestLimit is not null || composite.Contacts.IsDefaultOrEmpty || composite.Contacts.Length > 255 || composite.NextContact < 0 || composite.NextContact > composite.Contacts.Length || active.Applied != (composite.NextContact == composite.Contacts.Length) || composite.SettledContacts.IsDefault)
         {
             throw new InvalidDataException("The saved composite action has an invalid contact cursor.");
+        }
+        ImmutableArray<int> settled = GuestCompositeSettledContacts(composite);
+        if (settled.Length != composite.NextContact || settled.Distinct().Count() != settled.Length || settled.Any(ordinal => ordinal < 0 || ordinal >= composite.Contacts.Length))
+        {
+            throw new InvalidDataException("The saved composite action has an invalid settled contact set.");
         }
         for (int index = 0; index < composite.Contacts.Length; index++)
         {

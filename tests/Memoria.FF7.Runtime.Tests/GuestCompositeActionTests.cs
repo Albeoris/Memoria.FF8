@@ -9,7 +9,7 @@ internal static class GuestCompositeActionTests
     public static void Run()
     {
         Ff7BattleGuestCompositeState empty = JsonSerializer.Deserialize<Ff7BattleGuestCompositeState>(JsonSerializer.Serialize(new Ff7BattleGuestCompositeState([])))!;
-        Check(!empty.Contacts.IsDefault && empty.NextContact == 0, "A fresh composite contact owner must serialize as an explicit empty collection.");
+        Check(!empty.Contacts.IsDefault && !empty.SettledContacts.IsDefault && empty.NextContact == 0, "A fresh composite contact owner must serialize as explicit empty collections.");
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
         if (string.IsNullOrWhiteSpace(directory))
         {
@@ -35,6 +35,8 @@ internal static class GuestCompositeActionTests
         CheckRejectedPreparation();
         CheckRandomSchedule();
         CheckOutOfOrderContact();
+        CheckPresentedPermutation();
+        CheckHistoricalSettledPrefix();
         CheckSourceDrain();
         CheckSelfDrain();
         CheckReflectedConvergence();
@@ -129,6 +131,54 @@ internal static class GuestCompositeActionTests
                 rejected = true;
             }
             Check(rejected && battle.Actors.Single(actor => actor.Actor.Slot == 4).Actor.HitPoints == 25, "An out-of-order contact published a numerical result.");
+        }
+
+        void CheckPresentedPermutation()
+        {
+            (Ff7BattleSession battle, Probe source) = Start(snapshot: DrainSeed(), configure: probe =>
+            {
+                probe.Repetitions = 3;
+                probe.PresentationOrder = [2, 0, 1];
+            });
+            battle.Advance(waitForCommand: true);
+            Check(battle.Action!.GuestComposite is { NextContact: 1 } first && first.SettledContacts.SequenceEqual([2]) && battle.Actors.Single(actor => actor.Actor.Slot == 4).Actor.HitPoints == 90, "The host did not settle the native presentation's first actual ordinal against current recipient vitals.");
+            Ff7BattleSnapshot retained = JsonSerializer.Deserialize<Ff7BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!;
+            Ff7BattleSession duplicate = Create(retained);
+            Probe duplicateSource = source.Restore();
+            duplicateSource.PresentationOrder = [2, 2, 1];
+            duplicate.BindGuestAttack(duplicateSource);
+            bool rejected = false;
+            try
+            {
+                duplicate.Advance(waitForCommand: true);
+            }
+            catch (InvalidDataException)
+            {
+                rejected = true;
+            }
+            Check(rejected && duplicate.Action!.GuestComposite!.NextContact == 1 && duplicate.Action.GuestComposite.SettledContacts.SequenceEqual([2]) && duplicate.Actors.Single(actor => actor.Actor.Slot == 4).Actor.HitPoints == 90, "An already settled native ordinal applied its receipt twice after JSON restore.");
+            Ff7BattleSession cold = Create(JsonSerializer.Deserialize<Ff7BattleSnapshot>(JsonSerializer.Serialize(retained)));
+            cold.BindGuestAttack(source.Restore());
+            for (int step = 0; step < 3; step++)
+            {
+                battle.Advance(waitForCommand: true);
+                cold.Advance(waitForCommand: true);
+                Check(JsonSerializer.Serialize(battle.Capture()) == JsonSerializer.Serialize(cold.Capture()), "The native ordinal permutation diverged after JSON restore.");
+            }
+            Check(battle.Action is null && source.Published == 3 && source.SourceStock == 99 && battle.Actors.Single(actor => actor.Actor.Slot == 4).Actor.HitPoints == 70, "The presentation permutation did not settle every receipt once under its single command owner.");
+        }
+
+        void CheckHistoricalSettledPrefix()
+        {
+            (Ff7BattleSession battle, Probe source) = Start();
+            battle.Advance(waitForCommand: true);
+            System.Text.Json.Nodes.JsonNode json = System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(battle.Capture()))!;
+            json["Action"]!["GuestComposite"]!.AsObject().Remove("SettledContacts");
+            Ff7BattleSession older = Create(JsonSerializer.Deserialize<Ff7BattleSnapshot>(json.ToJsonString()));
+            older.BindGuestAttack(source.Restore());
+            battle.Advance(waitForCommand: true);
+            older.Advance(waitForCommand: true);
+            Check(JsonSerializer.Serialize(battle.Capture()) == JsonSerializer.Serialize(older.Capture()) && older.Action!.GuestComposite!.SettledContacts.SequenceEqual([0, 1]), "An absent settled ordinal collection did not recover the previously recorded prefix without replay.");
         }
 
         Ff7BattleSnapshot DrainSeed()
@@ -298,6 +348,7 @@ internal static class GuestCompositeActionTests
         public int SourcePreparations { get; private set; }
         public int Commits { get; private set; }
         public bool Reorder { get; set; }
+        public ImmutableArray<int> PresentationOrder { get; set; } = [];
         public bool Group { get; set; }
         public int Repetitions { get; set; } = 6;
         public int SourceStock { get; private set; } = 100;
@@ -347,13 +398,15 @@ internal static class GuestCompositeActionTests
                 {
                     return new(null, false) { CompositeContacts = [Published, Published] };
                 }
-                return new(null, false) { CompositeContacts = [Published++] };
+                int ordinal = PresentationOrder.IsEmpty ? Published : PresentationOrder[Published];
+                Published++;
+                return new(null, false) { CompositeContacts = [ordinal] };
             }
             Invocation = null;
             return new(null, true);
         }
         public void AdvanceIdle(long hostTick, uint statuses, long? reactionTick) => HostTick = hostTick;
-        public Probe Restore() => new(encounter, policy, failure) { Invocation = Invocation, HostTick = HostTick, Published = Published, SourcePreparations = SourcePreparations, Commits = Commits, SourceStock = SourceStock, Group = Group, Repetitions = Repetitions, Attack = Attack, contacts = contacts };
+        public Probe Restore() => new(encounter, policy, failure) { Invocation = Invocation, HostTick = HostTick, Published = Published, SourcePreparations = SourcePreparations, Commits = Commits, SourceStock = SourceStock, Group = Group, Repetitions = Repetitions, Attack = Attack, PresentationOrder = PresentationOrder, contacts = contacts };
 
         private sealed class Preparation(Probe owner) : IFf7BattleGuestPreparationTransaction
         {

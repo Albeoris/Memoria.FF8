@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
@@ -20,6 +21,19 @@ public sealed record NativeBattleContactHalf(byte ActorIndex, byte Sequence, byt
 /// <summary>Canonical24-byte contact packet consumed by506690; secondary ActorIndexFF means absent.</summary>
 public sealed record NativeBattleContactPacket(NativeBattleContactHalf Primary, NativeBattleContactHalf Secondary)
 {
+    [JsonIgnore]
+    public int? PhysicalContactIndex { get; init; }
+
+    public bool Equals(NativeBattleContactPacket? other)
+    {
+        return other is not null && Primary == other.Primary && Secondary == other.Secondary;
+    }
+
+    public override int GetHashCode()
+    {
+        return HashCode.Combine(Primary, Secondary);
+    }
+
     public void Validate()
     {
         if (Primary is null || Secondary is null || Primary.ActorIndex >= 7 || Secondary.ActorIndex >= 7 && Secondary.ActorIndex != 255)

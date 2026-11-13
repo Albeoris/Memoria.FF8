@@ -23,9 +23,11 @@ public sealed record Ff7BattleGuestCompositeContact(int Ordinal, int Phase, int 
 
 public sealed record Ff7BattleGuestCompositeReflection(int Slot, byte Remaining, bool Exhausted);
 
+/// <summary>Retains packet order separately from presentation order. NextContact counts settled occurrences.</summary>
 public sealed record Ff7BattleGuestCompositeState(ImmutableArray<Ff7BattleGuestCompositeContact> Contacts, int NextContact = 0)
 {
     public bool GroupPublication { get; init; }
+    public ImmutableArray<int> SettledContacts { get; init; } = [];
 }
 
 public interface IFf7BattleGuestPreparationTransaction : IDisposable

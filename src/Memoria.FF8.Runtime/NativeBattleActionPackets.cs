@@ -233,7 +233,8 @@ public sealed record NativeBattleActionPacketsState([property: JsonRequired] byt
         {
             throw new ArgumentOutOfRangeException(nameof(index));
         }
-        return Contacts[index] ?? throw new NotSupportedException("Native contact packet has no observed physical writer.");
+        NativeBattleContactPacket packet = Contacts[index] ?? throw new NotSupportedException("Native contact packet has no observed physical writer.");
+        return packet with { PhysicalContactIndex = index };
     }
 
     private void RequirePrepared(int index)

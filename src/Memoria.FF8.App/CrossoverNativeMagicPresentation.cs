@@ -35,6 +35,7 @@ internal sealed record CrossoverNativeMagicPresentationState(CrossoverNativeCast
     public ImmutableArray<CrossoverNativeMagicTarget> BoundTargets => Targets.IsEmpty ? [new(HostTarget, Contact)] : Targets;
     public ImmutableArray<CrossoverNativeMagicTarget> BoundContacts => Contacts.IsEmpty ? BoundTargets : Contacts;
     public int PublishedContacts { get; init; }
+    public ImmutableArray<int> PublishedContactOrdinals { get; init; } = [];
     public ushort Ability { get; init; }
     public byte Command { get; init; }
     public BattleNativeAction? Action { get; init; }
@@ -103,6 +104,34 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
         textures = textures.Drain505D20(NativeBattleEffectMemory.FromColdProcess().Arena).State;
         CrossoverNativeCastState cast = CrossoverNativeCastPresentation.Begin(source, resource, game.ReadNativeBattleCommandSequences(), command, action.ActionId);
         return new(cast, NativeBattleAuxiliaryState.Clear(), NativeBattleModuleState.Clear(), textures, source.BodyTextureSlots!, resource.TextureAnimations ?? throw new InvalidDataException("Native casting requires the source texture animation table."), random, hostTarget, contact) { Ability = action.ActionId, Command = command, Action = action, GlobalRandom = globalRandom, Arena = arena, Participants = readParticipants?.Invoke() ?? [] };
+    }
+
+    internal static ImmutableArray<int> ReadContactOrdinals(IReadOnlyList<CrossoverNativeMagicTarget> contacts, IReadOnlyList<int> published, ImmutableArray<NativeBattleContactPacket> packets)
+    {
+        HashSet<int> settled = published.ToHashSet();
+        if (settled.Count != published.Count || published.Any(ordinal => ordinal < 0 || ordinal >= contacts.Count))
+        {
+            throw new InvalidDataException("The native presentation lost its published occurrence ownership.");
+        }
+        ImmutableArray<int>.Builder ordinals = ImmutableArray.CreateBuilder<int>();
+        foreach (NativeBattleContactPacket packet in packets)
+        {
+            if (packet.Secondary.ActorIndex != 255)
+            {
+                throw new NotSupportedException("The native presentation requires a secondary contact operation that this host action cannot represent.");
+            }
+            int ordinal = packet.PhysicalContactIndex ?? throw new InvalidDataException("The native process lost its physical contact identity.");
+            if (ordinal < 0 || ordinal >= contacts.Count || contacts[ordinal].Contact.ActorIndex != packet.Primary.ActorIndex)
+            {
+                throw new InvalidDataException("The native process published an unowned physical contact occurrence.");
+            }
+            if (!settled.Add(ordinal))
+            {
+                throw new InvalidDataException("The native process repeated a physical contact occurrence.");
+            }
+            ordinals.Add(ordinal);
+        }
+        return ordinals.ToImmutable();
     }
 
     public bool TryPreflight(CrossoverNativeMagicPresentationState source, Func<NativeBattleModuleAnchor> readTargetAnchor, Func<NativeBattleModelTransform> readTargetTransform, NativeBattleCameraProjection projection, Func<CrossoverNativeForeignTarget>? readForeign, out string? reason, Func<int, CrossoverNativeForeignTarget>? readGroupForeign = null)
@@ -198,6 +227,11 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
         bool contact = false;
         ImmutableArray<int>.Builder contactTargets = ImmutableArray.CreateBuilder<int>();
         ImmutableArray<int>.Builder contactOrdinals = ImmutableArray.CreateBuilder<int>();
+        ImmutableArray<int> previousOrdinals = source.PublishedContactOrdinals.IsEmpty && source.PublishedContacts != 0 ? Enumerable.Range(0, source.PublishedContacts).ToImmutableArray() : source.PublishedContactOrdinals;
+        if (previousOrdinals.Length != source.PublishedContacts)
+        {
+            throw new InvalidDataException("The native presentation contact count conflicts with its settled occurrence identities.");
+        }
         ushort published = source.PublishedTargetMask;
         if (effect is { Invoked: true, Complete: false })
         {
@@ -206,22 +240,9 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
             textures = effect.Memory.Textures!;
             random = effect.Random;
             contact = !next.Contacts.IsEmpty;
-            foreach (NativeBattleContactPacket packet in next.Contacts)
+            foreach (int ordinal in ReadContactOrdinals(source.BoundContacts, previousOrdinals, next.Contacts))
             {
-                if (packet.Secondary.ActorIndex != 255)
-                {
-                    throw new NotSupportedException("The native presentation requires a secondary contact operation that this host action cannot represent.");
-                }
-                int ordinal = source.PublishedContacts + contactOrdinals.Count;
-                if (ordinal >= source.BoundContacts.Length)
-                {
-                    throw new InvalidDataException("The native process published a contact beyond its planned stream.");
-                }
                 CrossoverNativeMagicTarget target = source.BoundContacts[ordinal];
-                if (target.Contact.ActorIndex != packet.Primary.ActorIndex)
-                {
-                    throw new InvalidDataException("The native process published a different recipient from its current contact occurrence.");
-                }
                 ushort bit = (ushort)(1 << target.HostSlot);
                 published |= bit;
                 contactTargets.Add(target.HostSlot);
@@ -266,7 +287,7 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
             }
         }, resource);
         textures = textures.Drain505D20(NativeBattleEffectMemory.FromColdProcess().Arena).State;
-        return new(source with { Cast = cast, Auxiliary = auxiliary, Modules = modules, Textures = textures, TextureAnimations = motion, Random = random, GlobalRandom = effect?.GlobalRandom ?? source.GlobalRandom, Effect = effect, BodyTextures = cast.Model.BodyTextureSlots ?? source.BodyTextures, Draws = draws, PublishedContacts = source.PublishedContacts + contactOrdinals.Count, PublishedTargetMask = published }, contact, shared.Draws.Where(draw => draw.Kind == NativeBattleModuleDrawKind.Sound).ToImmutableArray()) { EffectSounds = effectSounds, ContactTargets = contactTargets.ToImmutable(), ContactOrdinals = contactOrdinals.ToImmutable(), Sequences = sequences };
+        return new(source with { Cast = cast, Auxiliary = auxiliary, Modules = modules, Textures = textures, TextureAnimations = motion, Random = random, GlobalRandom = effect?.GlobalRandom ?? source.GlobalRandom, Effect = effect, BodyTextures = cast.Model.BodyTextureSlots ?? source.BodyTextures, Draws = draws, PublishedContacts = source.PublishedContacts + contactOrdinals.Count, PublishedContactOrdinals = previousOrdinals.AddRange(contactOrdinals), PublishedTargetMask = published }, contact, shared.Draws.Where(draw => draw.Kind == NativeBattleModuleDrawKind.Sound).ToImmutableArray()) { EffectSounds = effectSounds, ContactTargets = contactTargets.ToImmutable(), ContactOrdinals = contactOrdinals.ToImmutable(), Sequences = sequences };
 
         void PrepareEffect(bool defer)
         {

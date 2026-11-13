@@ -9,6 +9,41 @@ public sealed class NativeBattleActionPacketsTests
     private static NativeBattleContactPacket Contact(ushort damage) => new(new(3, 4, 0, 0, 0, damage, 0), new(255, 0, 0, 0, 0, 0, 0));
 
     [Fact]
+    public void Physical_reads_distinguish_identical_occurrences_without_changing_packet_values_or_serialization()
+    {
+        NativeBattleActionPacketsState state = NativeBattleActionPacketsState.Fresh();
+        NativeBattleContactPacket packet = Contact(37);
+        (state, _) = state.AppendContact(packet);
+        (state, _) = state.AppendContact(packet);
+        Assert.Same(state.Contacts[0], state.Contacts[1]);
+        NativeBattleContactPacket first = state.ReadContact(0);
+        NativeBattleContactPacket second = state.ReadContact(1);
+        Assert.Equal(0, first.PhysicalContactIndex);
+        Assert.Equal(1, second.PhysicalContactIndex);
+        Assert.Null(packet.PhysicalContactIndex);
+        Assert.Equal(packet, first);
+        Assert.Equal(first, second);
+        Assert.True(first == second);
+        Assert.Equal(first.GetHashCode(), second.GetHashCode());
+        Assert.Equal(packet.GetHashCode(), first.GetHashCode());
+        Assert.Equal(packet.Encode(), first.Encode());
+        Assert.Equal(first.Encode(), second.Encode());
+        NativeBattleContactPacket decoded = NativeBattleContactPacket.Decode(second.Encode());
+        Assert.Null(decoded.PhysicalContactIndex);
+        Assert.Equal(packet, decoded);
+        string json = JsonSerializer.Serialize(second);
+        Assert.DoesNotContain(nameof(NativeBattleContactPacket.PhysicalContactIndex), json);
+        NativeBattleContactPacket restored = JsonSerializer.Deserialize<NativeBattleContactPacket>(json)!;
+        Assert.Null(restored.PhysicalContactIndex);
+        Assert.Equal(packet, restored);
+        NativeBattleActionPacketsState restoredState = JsonSerializer.Deserialize<NativeBattleActionPacketsState>(JsonSerializer.Serialize(state))!;
+        Assert.Equal(0, restoredState.ReadContact(0).PhysicalContactIndex);
+        Assert.Equal(1, restoredState.ReadContact(1).PhysicalContactIndex);
+        Assert.NotEqual(first, first with { Primary = first.Primary with { Amount6 = 38 } });
+        Assert.NotEqual(first, first with { Secondary = first.Secondary with { ActorIndex = 0 } });
+    }
+
+    [Fact]
     public void HeaderContactWalkUsesTheExplicitPhysicalHeaderAfterCountsResetInsteadOfTheActiveSingleton()
     {
         NativeBattleActionPacketsState state = NativeBattleActionPacketsState.Fresh();
