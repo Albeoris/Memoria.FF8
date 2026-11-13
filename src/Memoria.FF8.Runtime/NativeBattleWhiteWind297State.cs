@@ -17,6 +17,8 @@ public sealed record NativeBattleWhiteWind297Contact(int Index) : NativeBattleWh
 public sealed record NativeBattleWhiteWind297Inputs(NativeBattleActionPacketsState Packets, Func<int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleWhiteWind297Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleWhiteWind297Frame, int, NativeBattleWhiteWind297AnchorStep> ReadAnchor571400, Func<NativeBattleWhiteWind297Frame, NativeBattleWhiteWind297Operation, NativeBattleWhiteWind297Frame> Execute, Func<NativeBattleWhiteWind297Frame, NativeBattleGfAnimationSource, NativeBattleEffectArena, NativeBattleGfAnimationNode, NativeBattleWhiteWind297Frame> EmitNode)
 {
     [System.Text.Json.Serialization.JsonIgnore]
+    public Func<int, short>? ReadMinimumY { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
     public Func<NativeBattleWhiteWind297Frame, NativeBattleGfAnimationSource, NativeBattleEffectArena, NativeBattleGfAnimationNode, NativeBattlePilotVisualIdentity, NativeBattleWhiteWind297Frame>? EmitNodePresentation { get; init; }
 }
 

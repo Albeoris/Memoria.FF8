@@ -141,7 +141,7 @@ public static class NativeBattleWhiteWind297Controller
                     int actor = inputs.Packets.ReadContact(FirstContact(header) + index).Primary.ActorIndex;
                     z = unchecked((short)(z + (inputs.ReadModel(actor).Transform ?? throw new NotSupportedException("White Wind requires current target position.")).Position28.Z));
                 }
-                NativeBattleModulePoolTask task = Task(frame, pool, slot).WriteWord(0x1A0, 0).WriteWord(0x1A2, unchecked((ushort)Height(inputs.ReadModel(caster)))).WriteWord(0x1A4, unchecked((ushort)(z / count)));
+                NativeBattleModulePoolTask task = Task(frame, pool, slot).WriteWord(0x1A0, 0).WriteWord(0x1A2, unchecked((ushort)Height(inputs, caster))).WriteWord(0x1A4, unchecked((ushort)(z / count)));
                 frame = Put(frame, pool, slot, task);
                 frame = InitializeAct(frame, pool, slot, 0x1A8, 0x194, resources.Sweep);
             }
@@ -196,7 +196,7 @@ public static class NativeBattleWhiteWind297Controller
     {
         NativeBattleWhiteWind297AnchorStep result = inputs.ReadAnchor571400(frame, actor);
         NativeBattleModuleAnchor anchor = result.Anchor;
-        NativeBattleModulePoolTask task = Task(result.Frame, pool, slot).WriteWord(offset, unchecked((ushort)anchor.X)).WriteWord(offset + 2, unchecked((ushort)Height(inputs.ReadModel(actor)))).WriteWord(offset + 4, unchecked((ushort)anchor.Z)).WriteWord(offset + 6, unchecked((ushort)anchor.W));
+        NativeBattleModulePoolTask task = Task(result.Frame, pool, slot).WriteWord(offset, unchecked((ushort)anchor.X)).WriteWord(offset + 2, unchecked((ushort)Height(inputs, actor))).WriteWord(offset + 4, unchecked((ushort)anchor.Z)).WriteWord(offset + 6, unchecked((ushort)anchor.W));
         return Put(result.Frame, pool, slot, task);
     }
     private static NativeBattleWhiteWind297Frame InitializeAct(NativeBattleWhiteWind297Frame frame, int pool, int slot, int offset, int size, NativeBattleGfAnimationSource source)
@@ -231,7 +231,12 @@ public static class NativeBattleWhiteWind297Controller
         NativeBattleEffectArena context = WriteMatrix(NativeBattleEffectArena.Clear().MarkUnknown(0, 40), matrix);
         return Dword(Dword(context, 0x20, unchecked((uint)-128)), 0x24, checked(Working(frame) + MorphOffset));
     }
-    private static short Height(NativeBattleGraphicsModel model) => NativeBattleWhiteWind226.AnchorY(model.MinimumY146 ?? throw new NotSupportedException("White Wind requires the actual actor WORD92."), (model.Transform ?? throw new NotSupportedException("White Wind requires the actual actor WORD24.")).Angle36);
+    private static short Height(NativeBattleWhiteWind297Inputs inputs, int actor)
+    {
+        NativeBattleGraphicsModel model = inputs.ReadModel(actor);
+        short minimum = inputs.ReadMinimumY?.Invoke(actor) ?? model.MinimumY146 ?? throw new NotSupportedException("White Wind requires the actual actor minimum posed height.");
+        return NativeBattleWhiteWind226.AnchorY(minimum, (model.Transform ?? throw new NotSupportedException("White Wind requires the actual actor WORD24.")).Angle36);
+    }
     private static NativeBattleVector Point(NativeBattleModulePoolTask task, int offset) => new(unchecked((short)task.ReadWord(offset)), unchecked((short)task.ReadWord(offset + 2)), unchecked((short)task.ReadWord(offset + 4)));
     private static NativeBattleEffectArena WriteMatrix(NativeBattleEffectArena arena, NativeBattleActionMatrix matrix)
     {

@@ -47,6 +47,7 @@ public sealed class NativeBattleArenaHost(NativeBattleArenaGeometry geometry)
     private readonly Dictionary<NativeBattlePilotVisualIdentity, NativeBattleArenaGeometry> deformationSurfaces = [];
 
     public NativeBattleArenaGeometry Geometry { get; } = geometry;
+    public byte PresentationGroupMask => Geometry.Faces.IsEmpty ? (byte)0 : (byte)1;
     public ImmutableArray<NativeBattleArenaReplacement> Replacements => replacements.Values.ToImmutableArray();
 
     /// <summary>The foreign arena is one presentation group; its native skeleton and animation services remain unavailable.</summary>

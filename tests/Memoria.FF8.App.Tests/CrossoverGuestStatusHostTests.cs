@@ -108,7 +108,7 @@ public sealed class CrossoverGuestStatusHostTests
         public Ff7BattleSession Host { get; private set; }
         public CrossoverGuestHostActions[] Providers { get; private set; }
 
-        public Fixture(uint economical = 0, int cureStock = 8, int guestCount = 2, string[]? additionalSpells = null, string[]? additionalItems = null)
+        public Fixture(uint economical = 0, int cureStock = 8, int guestCount = 2, string[]? additionalSpells = null, string[]? additionalItems = null, string? guardianName = null)
         {
             string? ff8 = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
             string? ff7 = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
@@ -134,6 +134,15 @@ public sealed class CrossoverGuestStatusHostTests
             foreach (string name in new[] { "Drain", "Double", "Triple", "Cure" }.Concat(additionalSpells ?? []).Distinct())
             {
                 origin = origin.ChangeMagicStock(0, Spell(name), name == "Cure" ? cureStock : 8, MagicOperationReason.ScriptReward, out _);
+            }
+            if (guardianName is not null)
+            {
+                BattleActionDefinition guardian = Assert.Single(assets.ActionDefinitions, action => action.Ability == BattleAbility.GuardianForce && (action.DisplayName ?? action.Name) == guardianName);
+                int guardianCommand = origin.MenuDefinitions.CommandAbilityCommands.IndexOf((byte)3) + 20;
+                int row = origin.FindPhysicalRow(0);
+                origin.Records[row] = origin.Records[row] with { Junction = origin.Records[row].Junction with { Commands = origin.Records[row].Junction.Commands | checked((uint)guardianCommand << 16), GuardianForces = checked((ushort)(1 << guardian.Id)) } };
+                NativeGuardianForceVital acquired = origin.GuardianForces[guardian.Id] with { Flags = (byte)(origin.GuardianForces[guardian.Id].Flags | 1) };
+                origin.GuardianForces[guardian.Id] = acquired with { HitPoints = origin.Definitions.GuardianForceMaximum(guardian.Id, acquired) };
             }
             source = origin;
             if (additionalItems is not null)
@@ -178,6 +187,7 @@ public sealed class CrossoverGuestStatusHostTests
                 attack.PrepareStanding(Host.VisualPlacement(slot));
                 CrossoverGuestHostActions provider = new(roster, kits[slot], attack, Host, game, assets, encounter, null, null, null);
                 provider.BindForeignGeometry(target => renderer.CaptureActorGeometry((Ff7BattleActorVisual)actorVisual.Invoke(null, [Host, Host.Actors.Single(actor => actor.Actor.Slot == target)])!));
+                provider.BindArena(renderer.CaptureArenaGeometry);
                 Host.BindGuestAttack(provider);
                 Providers[slot] = provider;
             }
@@ -187,6 +197,26 @@ public sealed class CrossoverGuestStatusHostTests
         public ushort Item(string name) => assets.NativeActions.Single(action => action.Command == 4 && action.Name == name).ActionId;
         public uint Hp(int slot) => Host.Actors.Single(actor => actor.Actor.Slot == slot).Actor.HitPoints;
         public int Stock(ushort spell) => encounter.Working.GetMagicCount(0, spell);
+        public ushort Guardian(string name)
+        {
+            CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.Read(encounter.Working, assets, 0);
+            return Assert.Single(CrossoverGuestAbilityCatalog.Read(assets, encounter.Working, kit, null, 0), choice => choice.Category == "GF" && choice.Name == name).Key;
+        }
+
+        public void CastGuardian(string name)
+        {
+            Ready(0);
+            ushort guardian = Guardian(name);
+            Ff7BattleCommandOption option = Assert.Single(Host.Commands(0), choice => choice.Command == Ff7BattleCommand.Magic && choice.Argument == guardian);
+            Assert.True(option.UnsupportedReason is null, option.UnsupportedReason);
+            Assert.False(option.DefaultsToEnemies);
+            ushort targets = (ushort)(option.ValidTargets & 3);
+            Assert.Equal((ushort)3, targets);
+            Assert.Null(Host.GuestAbilityTargetUnsupportedReason(0, Ff7BattleCommand.Magic, guardian, 0));
+            Assert.Null(Host.GuestAbilityTargetUnsupportedReason(0, Ff7BattleCommand.Magic, guardian, 1));
+            Assert.True(Host.Submit(0, Ff7BattleCommand.Magic, guardian, targets));
+            Assert.Equal(2, Complete(0, 1));
+        }
 
         public void IsolateReadyPlayer(int slot, bool preserveProviders = false)
         {
@@ -263,7 +293,12 @@ public sealed class CrossoverGuestStatusHostTests
                 {
                     invocations.Add(invocation.StartedAt);
                 }
-                if (Host.LastHit is { } hit && hit.Tick == Host.Tick && hit.Source == caster)
+                int presented = Host.PresentedGuestContacts.Count(contact => contact.HitDescription.PreparedContact!.Invocation.ActorSlot == caster);
+                if (presented > 0)
+                {
+                    contacts += presented;
+                }
+                else if (Host.LastHit is { } hit && hit.Tick == Host.Tick && hit.Source == caster)
                 {
                     contacts++;
                 }
@@ -299,6 +334,7 @@ public sealed class CrossoverGuestStatusHostTests
                 CrossoverGunbladeHostAttack attack = new(roster, kit, assets, game, encounter.GlobalRandom, () => Host.RenderCameraOutput, _ => 128, attacks[slot], Host.GuestEffectTargetAnchor, Host.GuestEffectTargetBone);
                 CrossoverGuestHostActions provider = new(roster, kit, attack, Host, game, assets, encounter, actors[slot], null, null);
                 provider.BindForeignGeometry(target => renderer.CaptureActorGeometry((Ff7BattleActorVisual)actorVisual.Invoke(null, [Host, Host.Actors.Single(actor => actor.Actor.Slot == target)])!));
+                provider.BindArena(renderer.CaptureArenaGeometry);
                 Host.BindGuestAttack(provider);
                 Providers[slot] = provider;
             }

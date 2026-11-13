@@ -7,6 +7,10 @@ public sealed partial class BattleSession
 {
     private (NativeBattleShockwavePulsar260Frame Frame, NativeBattleGraphicsState Graphics) DrawNativeShockwavePulsar260Body(NativeBattleShockwavePulsar260Frame frame, NativeBattleGraphicsState graphics, NativeBattleShockwavePulsar260DrawBody draw, NativeBattleSummonColors colors)
     {
+        if (ReadNativeGraphicsForeignModel(graphics, draw.Actor) is { } foreign)
+        {
+            return DrawNativeShockwavePulsar260ForeignBody(frame, graphics, draw, colors, foreign);
+        }
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, draw.Actor);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Shockwave Pulsar requires its current body skeleton.");
         NativeBattleGraphicsModel model = graphics.Models[draw.Actor];
@@ -84,6 +88,16 @@ public sealed partial class BattleSession
 
     private (NativeBattleShockwavePulsar260Frame Frame, NativeBattleGraphicsState Graphics) CaptureNativeShockwavePulsar260Bounds(NativeBattleShockwavePulsar260Frame frame, NativeBattleGraphicsState graphics, byte actor, uint destination)
     {
+        if (ReadNativeGraphicsForeignModel(graphics, actor) is { } foreign)
+        {
+            NativeBattleTemporaryAllocation temporary = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging ?? throw new NotSupportedException("Host bounds require their physical temporary memory."), 24);
+            NativeBattleShockwavePulsar260BoundsStep capturedForeign = NativeBattleShockwavePulsar260BoundsCapture.CaptureForeign(frame.Memory, NativeShockwavePulsar260TemporaryView(temporary.Staging, temporary.Address, 24), foreign);
+            NativeBattleFileStaging next = NativeBattleTemporaryMemory.PublishView(temporary.Staging, temporary.Address, capturedForeign.Temporary24, 24);
+            next = NativeBattleTemporaryMemory.Release5082D0(next, 24);
+            NativeBattleEffectArena foreignLimits = NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(capturedForeign.Maximum)).Write(2, BitConverter.GetBytes(capturedForeign.Minimum));
+            frame = NativeBattleShockwavePulsar260Controller.WriteView(frame with { Memory = capturedForeign.Memory, Staging = next }, destination, foreignLimits, 4);
+            return (frame, graphics);
+        }
         NativeBattleGraphicsModel model = graphics.Models[actor];
         NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Shockwave Pulsar bounds require their current skeleton.");
         NativeBattleActionMatrix world = model.GeometryWorldMatrix ?? throw new NotSupportedException("Shockwave Pulsar bounds require their current model world matrix.");

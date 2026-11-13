@@ -295,15 +295,19 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
                         }
                     }
                     Assert.InRange(composite.NextContact, settled, contacts.Length);
-                    foreach (IGrouping<int, Ff7BattleGuestCompositeContact> sameTarget in contacts.Skip(settled).Take(composite.NextContact - settled).GroupBy(contact => contact.HitDescription.PreparedContact!.Invocation.TargetSlot))
-                    {
-                        Ff7BattleGuestPreparedContact receipt = sameTarget.Last().HitDescription.PreparedContact!;
-                        Ff7BattleAiActor actual = host.Actors.Single(actor => actor.Actor.Slot == sameTarget.Key).Actor;
-                        Assert.Equal(receipt.Receipt.Target.Hp, actual.HitPoints);
-                        Assert.Equal(receipt.Receipt.Target.Statuses, actual.Statuses);
-                    }
-                    settled = composite.NextContact;
                 }
+                foreach (IGrouping<int, Ff7BattleGuestCompositeContact> sameTarget in host.PresentedGuestContacts.GroupBy(contact => contact.HitDescription.PreparedContact!.Invocation.TargetSlot))
+                {
+                    Ff7BattleGuestPreparedContact receipt = sameTarget.Last().HitDescription.PreparedContact!;
+                    Ff7BattleAiActor actual = host.Actors.Single(actor => actor.Actor.Slot == sameTarget.Key).Actor;
+                    Assert.Equal(receipt.Receipt.Target.Hp, actual.HitPoints);
+                    Assert.Equal(receipt.Receipt.Target.Statuses, actual.Statuses);
+                    if (receipt.Receipt.AddedOriginBattleStatuses != 0)
+                    {
+                        Assert.Equal(receipt.Receipt.AddedOriginBattleStatuses, host.GetGuestOriginBattleStatuses(sameTarget.Key) & receipt.Receipt.AddedOriginBattleStatuses);
+                    }
+                }
+                settled += host.PresentedGuestContacts.Length;
                 if (provider.ActiveAbility is { } active)
                 {
                     effect = active.Presentation.Effect ?? effect;

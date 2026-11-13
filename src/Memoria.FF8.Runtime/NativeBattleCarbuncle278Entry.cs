@@ -14,7 +14,7 @@ public static class NativeBattleCarbuncle278Entry
         return Initialize680C50(frame, packets, models, NativeBattleEffectSceneContext.FromNativeEncounter(encounterId));
     }
 
-    public static NativeBattleCarbuncle278Frame Initialize680C50(NativeBattleCarbuncle278Frame frame, NativeBattleActionPacketsState packets, ImmutableArray<NativeBattleGraphicsModel> models, NativeBattleEffectSceneContext sceneContext)
+    public static NativeBattleCarbuncle278Frame Initialize680C50(NativeBattleCarbuncle278Frame frame, NativeBattleActionPacketsState packets, ImmutableArray<NativeBattleGraphicsModel> models, NativeBattleEffectSceneContext sceneContext, ImmutableArray<int>? enemyModelIndices = null, ImmutableArray<NativeBattleModelTransform>? opposingTransforms = null)
     {
         sceneContext.Validate();
         RequireBinding(frame.Effect);
@@ -25,6 +25,15 @@ public static class NativeBattleCarbuncle278Entry
         if (models.IsDefault || models.Length != 7 || models.Where((model, index) => model is null || model.Index != index).Any())
         {
             throw new InvalidDataException("Native Carbuncle entry requires its seven ordered physical graphics rows.");
+        }
+        ImmutableArray<int> enemies = enemyModelIndices ?? [3, 4, 5, 6];
+        if (enemies.IsDefault || enemies.Any(index => (uint)index >= models.Length) || enemies.Distinct().Count() != enemies.Length)
+        {
+            throw new InvalidDataException("Native Carbuncle clearance requires distinct physical enemy model rows within the current model bank.");
+        }
+        if (opposingTransforms is { } opposing && (opposing.IsDefault || opposing.Any(transform => transform is null)))
+        {
+            throw new InvalidDataException("Native Carbuncle clearance requires initialized opposing scene transforms.");
         }
         NativeCrtRandomState random = frame.Random.Draw(out ushort value);
         int resource = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x2508110)?.ArenaOffset ?? throw new NotSupportedException("Native Carbuncle entry requires its executed initializer publication.");
@@ -53,13 +62,23 @@ public static class NativeBattleCarbuncle278Entry
         int centroid = sum / count;
         int floor = unchecked(centroid - 0x7D0);
         int maximum = -32767;
-        for (int index = 3; index < 7; index++)
+        if (opposingTransforms is { } sceneOpponents)
         {
-            NativeBattleGraphicsModel model = models[index];
-            if ((model.Flags0 & 2) != 0)
+            foreach (NativeBattleModelTransform transform in sceneOpponents)
             {
-                NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Carbuncle lift requires the active enemy's current signed position WORD20 and scale WORD26.");
                 maximum = Math.Max(maximum, transform.Position28.Z + transform.Scale38 / 2);
+            }
+        }
+        else
+        {
+            foreach (int index in enemies)
+            {
+                NativeBattleGraphicsModel model = models[index];
+                if ((model.Flags0 & 2) != 0)
+                {
+                    NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Carbuncle lift requires the active enemy's current signed position WORD20 and scale WORD26.");
+                    maximum = Math.Max(maximum, transform.Position28.Z + transform.Scale38 / 2);
+                }
             }
         }
         int lift = maximum > unchecked(floor - 0x5DC) ? unchecked(floor - maximum - 0x5DC) : 0;

@@ -5,14 +5,23 @@ namespace Memoria.FF8.Runtime;
 /// <summary>A uniform arena color transition; target RGB uses native low-byte-red channel order.</summary>
 public readonly record struct NativeBattleStageColor(short Depth, uint TargetRgb)
 {
-    public static NativeBattleStageColor ReadUniform(ImmutableArray<NativeBattleStageGroup> groups)
+    public static NativeBattleStageColor ReadUniform(ImmutableArray<NativeBattleStageGroup> groups, byte participatingGroups = 15)
     {
         if (groups.IsDefault || groups.Length != 4)
         {
             throw new NotSupportedException("The host requires the original four arena color groups.");
         }
-        NativeBattleStageGroup first = groups[0];
-        if (groups.Any(group => group.ColorDepth != first.ColorDepth || group.ColorFlags != first.ColorFlags))
+        if ((participatingGroups & ~15) != 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(participatingGroups));
+        }
+        NativeBattleStageGroup[] participating = groups.Where((group, index) => (participatingGroups & (1 << index)) != 0).ToArray();
+        if (participating.Length == 0)
+        {
+            return default;
+        }
+        NativeBattleStageGroup first = participating[0];
+        if (participating.Any(group => group.ColorDepth != first.ColorDepth || group.ColorFlags != first.ColorFlags))
         {
             throw new NotSupportedException("The host cannot apply different color transitions to individual arena groups.");
         }

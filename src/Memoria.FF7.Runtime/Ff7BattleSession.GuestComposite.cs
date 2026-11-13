@@ -4,6 +4,8 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7BattleSession
 {
+    public ImmutableArray<Ff7BattleGuestCompositeContact> PresentedGuestContacts { get; private set; } = [];
+
     private void DispatchGuestCompositeAction(Ff7BattleQueuedCommand command, IFf7BattleGuestAttack guest, IFf7BattleGuestCompositeActions composite, Ff7BattleGuestCompositeAction program, Ff7BattleGuestInvocation invocation, bool groupPublication = false)
     {
         if (guest is not IFf7BattleGuestMagic magic)
@@ -199,6 +201,7 @@ public sealed partial class Ff7BattleSession
             settled = settled.Add(ordinal);
             current = current with { NextContact = current.NextContact + 1, SettledContacts = settled };
         }
+        PresentedGuestContacts = ordinals.Select(ordinal => current.Contacts[ordinal]).ToImmutableArray();
         active = active with { GuestComposite = current, Applied = current.NextContact == current.Contacts.Length };
         if (update.Completed)
         {

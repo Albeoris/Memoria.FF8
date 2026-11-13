@@ -6,6 +6,28 @@ public sealed record NativeBattleShockwavePulsar260BoundsStep(NativeBattleEffect
 
 public static class NativeBattleShockwavePulsar260BoundsCapture
 {
+    public static NativeBattleShockwavePulsar260BoundsStep CaptureForeign(NativeBattleEffectMemory memory, NativeBattleEffectArena retained24, NativeBattleForeignModelGeometry geometry)
+    {
+        NativeBattleForeignModelDrawing.RequireIndexedTopology(geometry);
+        retained24.Validate();
+        retained24.ValidateExtent(24);
+        NativeBattleEffectArena temporary = Dword(Dword(Dword(retained24, 0, 0x10000), 4, 0xFFFF0000), 8, 0).Write(0xC, BitConverter.GetBytes((short)4096));
+        NativeBattleGeometryRegisterStep registers = new(memory.GeometryRegisters ?? throw new NotSupportedException("Host bounds require their current geometry registers."), memory.ScriptedColorRegisters ?? throw new NotSupportedException("Host bounds require their current arithmetic registers."));
+        registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, geometry.World with { Y = 0 }, true, true, null) };
+        int minimum = 0x10000;
+        int maximum = -0x10000;
+        foreach (NativeBattleVector vertex in geometry.Vertices)
+        {
+            registers = NativeBattleGeometry.Transform(NativeBattleGeometry.LoadVector(registers, 0, vertex, 0));
+            short y = unchecked((short)registers.Colors.Ir[1]!.Value);
+            temporary = temporary.Write(0x10, BitConverter.GetBytes(y));
+            minimum = Math.Min(minimum, y);
+            maximum = Math.Max(maximum, y);
+            temporary = Dword(Dword(temporary, 0, unchecked((uint)minimum)), 4, unchecked((uint)maximum));
+        }
+        return new(memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors }, temporary, unchecked((short)maximum), unchecked((short)minimum));
+    }
+
     public static NativeBattleShockwavePulsar260BoundsStep Capture693000(NativeBattleEffectMemory memory, NativeBattleEffectArena retained24, IReadOnlyList<NativeBattlePackedMatrix32> bones, Func<int, int, byte[]> readGeometry, uint objectMask)
     {
         retained24.Validate();

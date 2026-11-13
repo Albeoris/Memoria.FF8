@@ -7,10 +7,18 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsState RunNativeCarbuncle278(NativeBattleGraphicsState graphics, bool initialize)
     {
+        ImmutableArray<int> partyModels = ReadRequiredPresentationPartyActors();
         NativeBattleCarbuncle278Frame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Carbuncle requires its retained effect memory."), graphics.OriginalEffect ?? throw new InvalidDataException("Native Carbuncle lost its selected effect."), nativeCrtRandom ?? throw new NotSupportedException("Native Carbuncle requires its actual CRT random owner."));
         if (initialize)
         {
-            frame = NativeBattleCarbuncle278Entry.Initialize680C50(frame, nativeActionPackets, graphics.Models, ReadRequiredEffectSceneContext());
+            ImmutableArray<int>? enemyModels = presentationForeignActors?.Values.Where(actor => !actor.IsParty).Select(actor => actor.Index).Order().ToImmutableArray();
+            NativeBattleEffectSceneContext sceneContext = ReadRequiredEffectSceneContext();
+            ImmutableArray<NativeBattleModelTransform>? opposingTransforms = sceneContext.ReadOpposingTransforms?.Invoke();
+            if (opposingTransforms is { } sceneOpponents && enemyModels is { } boundEnemies)
+            {
+                NativeBattleEffectSceneContext.RequireOpposingActorCapacity(boundEnemies.Length, sceneOpponents);
+            }
+            frame = NativeBattleCarbuncle278Entry.Initialize680C50(frame, nativeActionPackets, graphics.Models, sceneContext, enemyModels, opposingTransforms);
         }
         else
         {
@@ -169,7 +177,7 @@ public sealed partial class BattleSession
                     NativeBattleCarbuncle278ProgrammeDraw drawn = NativeBattleCarbuncle278Programme.AdvanceRecipient6822F0(current.Memory, task, source, CurrentProjection(), CurrentColors());
                     current = AppendProgramme(current, drawn);
                     task = drawn.Task;
-                    current = NativeBattleCarbuncle278Recipients.SpawnSparkle6822F0(current, task.ReadDword(0x10), address => (NativeGraphicsPoseResource(graphics, ActorIndex(address)).PoseSource ?? throw new NotSupportedException("Native Carbuncle recipient sparkles require the current actor skeleton.")).BoneCount, (address, bone) => ReadNativeGraphicsBone(graphics, ActorIndex(address), checked((byte)bone), 0));
+                    current = NativeBattleCarbuncle278Recipients.SpawnSparkle6822F0(current, task.ReadDword(0x10), address => ReadNativeGraphicsBoneCount(graphics, ActorIndex(address)), (address, bone) => ReadNativeGraphicsBone(graphics, ActorIndex(address), checked((byte)bone), 0));
                 }
                 int actor = ActorIndex(task.ReadDword(0x10));
                 NativeBattleGraphicsModel model = graphics.Models[actor];
@@ -261,7 +269,7 @@ public sealed partial class BattleSession
                     current = NativeBattleCarbuncle278Recipients.Spawn681B8C(current, task, actor => ReadNativeModelAnchor(graphics, ActorIndex(actor)));
                     if (counter == 145)
                     {
-                        graphics = graphics with { Models = graphics.Models.Select(model => model.Index < 3 ? model with { Flags0 = unchecked((ushort)(model.Flags0 & 0xFFFB)) } : model).ToImmutableArray() };
+                        graphics = graphics with { Models = graphics.Models.Select(model => partyModels.Contains(model.Index) ? model with { Flags0 = unchecked((ushort)(model.Flags0 & 0xFFFB)) } : model).ToImmutableArray() };
                     }
                     NativeCamera = NativeBattleCarbuncle278Camera.AdvanceSecondProgrammeWindow(camera, NativeBattleCarbuncle278Entry.RequireState(current.Memory).Centroid81C4, counter);
                 }
@@ -330,7 +338,7 @@ public sealed partial class BattleSession
                 }
                 if (counter == 215)
                 {
-                    graphics = graphics with { Models = graphics.Models.Select(model => model.Index < 3 ? model with { Flags0 = (ushort)(model.Flags0 | 4) } : model).ToImmutableArray() };
+                    graphics = graphics with { Models = graphics.Models.Select(model => partyModels.Contains(model.Index) ? model with { Flags0 = (ushort)(model.Flags0 | 4) } : model).ToImmutableArray() };
                     task = task.WriteDword(0x78, 0);
                 }
                 NativeCamera = NativeBattleCarbuncle278Camera.AdvanceReturnWindow(NativeCamera ?? throw new NotSupportedException("Native Carbuncle return requires its current camera owner."), NativeBattleCarbuncle278Entry.RequireState(current.Memory).Base81CC, counter, anchor);
@@ -357,7 +365,7 @@ public sealed partial class BattleSession
 
             NativeBattleCarbuncle278Frame RestoreActors(NativeBattleCarbuncle278Frame current)
             {
-                graphics = graphics with { Models = NativeBattleCarbuncle278Finish.Restore681199(graphics.Models, NativeBattleCarbuncle278Entry.RequireState(current.Memory).Lift81D0) };
+                graphics = graphics with { Models = NativeBattleCarbuncle278Finish.Restore681199(graphics.Models, NativeBattleCarbuncle278Entry.RequireState(current.Memory).Lift81D0, partyModels) };
                 return current;
             }
 
@@ -377,7 +385,7 @@ public sealed partial class BattleSession
 
                 NativeBattleGraphicsModel UpdateModel(NativeBattleGraphicsModel model)
                 {
-                    if (model.Index < 3)
+                    if (partyModels.Contains(model.Index))
                     {
                         return model with { Flags0 = (ushort)(model.Flags0 | 4) };
                     }

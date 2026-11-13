@@ -1,11 +1,13 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Numerics;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleShockwavePulsar260BodyTests
 {
+    private sealed record Material : INativeBattleForeignMaterial;
     private static NativeBattleActionMatrix Identity => NativeBattleCuragaMatrices.Identity8DD770();
     private static NativeBattleCameraProjection Projection => new(null, 256, 160, 108);
     private static NativeBattleSummonColors Constants => NativeBattleGteColorInterpolation.CodeConstants45F270;
@@ -37,6 +39,40 @@ public sealed class NativeBattleShockwavePulsar260BodyTests
         Assert.Equal(32767u, Dword(actual.Temporary24, 4));
         Assert.Throws<NotSupportedException>(() => actual.Temporary24.Read(0x12, 2));
         Assert.Throws<NotSupportedException>(() => actual.Temporary24.Read(0xE, 2));
+    }
+
+    [Fact]
+    public void Foreign_bounds_walk_actual_indexed_vertices_with_native_ground_basis_and_register_effects()
+    {
+        NativeBattleForeignModelGeometry foreign = ForeignGeometry() with { World = Identity with { Y = 12345 } };
+        NativeBattleEffectArena temporary = NativeBattleEffectArena.CreateUnknown(24);
+        NativeBattleShockwavePulsar260BoundsStep actual = NativeBattleShockwavePulsar260BoundsCapture.CaptureForeign(Memory(), temporary, foreign);
+        byte[] bytes = Geometry(false);
+        NativeBattleShockwavePulsar260BoundsStep native = NativeBattleShockwavePulsar260BoundsCapture.Capture693000(Memory(), temporary, [NativeBattlePackedMatrix32.FromMatrix(Identity, null)], (offset, count) => bytes.AsSpan(offset, count).ToArray(), 1);
+        Assert.Equal(native.Maximum, actual.Maximum);
+        Assert.Equal(native.Minimum, actual.Minimum);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Memory), NativeBattleTestSnapshots.Json(actual.Memory));
+        Assert.Equal((short)400, actual.Maximum);
+        Assert.Equal((short)-400, actual.Minimum);
+        NativeBattleShockwavePulsar260BoundsStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleShockwavePulsar260BoundsStep>(NativeBattleTestSnapshots.Json(actual))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleShockwavePulsar260BoundsCapture.CaptureForeign(actual.Memory, actual.Temporary24, foreign)), NativeBattleTestSnapshots.Json(NativeBattleShockwavePulsar260BoundsCapture.CaptureForeign(restored.Memory, restored.Temporary24, foreign)));
+    }
+
+    [Fact]
+    public void Foreign_body_uses_native_pivot_scale_and_retains_original_host_surface_without_native_resources()
+    {
+        NativeBattleForeignModelGeometry foreign = ForeignGeometry();
+        NativeBattleActionMatrix view = Identity with { Z = 2000 };
+        NativeBattleCameraProjection projection = Projection with { View = view };
+        NativeBattleShockwavePulsar260BodyPreparationStep prepared = NativeBattleShockwavePulsar260BodyPreparation.Prepare693170(NativeBattleEffectArena.CreateUnknown(92), foreign.World, NativeBattlePackedMatrix32.FromMatrix(view, null), Vector(default), Vector(default), 2048, 0x1000, NativeBattleEffectArena.Clear(), 0x808080, uint.MaxValue);
+        NativeBattleEffectArena context = NativeBattleModelContext44.CopyContext(prepared.Temporary92, 0x30, NativeBattleEffectArena.CreateUnknown(44), 0);
+        NativeBattleEffectMemory before = Memory();
+        NativeBattleModelContext44Step actual = NativeBattleForeignModelDrawing.DrawContext44(before, context, foreign, prepared.Matrix, NativeBattleEffectArena.CreateUnknown(24), projection, Constants, false, new(260, 0x693170, 3, 1, 0));
+        Assert.NotEmpty(actual.Batch.Attempts);
+        Assert.All(actual.Batch.Attempts, attempt => Assert.Same(foreign.Faces[0].Surface, attempt.Primitive!.PilotGeometry!.ForeignSurface));
+        Assert.Equal(new Vector3(-200, -200, 0), actual.Batch.Attempts[0].Primitive!.PilotGeometry!.A);
+        Assert.Equal(NativeBattleTestSnapshots.Json(before.ScriptedColorRegisters), NativeBattleTestSnapshots.Json(actual.Memory.ScriptedColorRegisters));
+        Assert.Throws<NotSupportedException>(() => actual.Context44.Read(0x24, 2));
     }
 
     [Fact]
@@ -86,6 +122,12 @@ public sealed class NativeBattleShockwavePulsar260BodyTests
     private static NativeBattleEffectArena Context(uint mask) => NativeBattleEffectArena.Clear().MarkUnknown(0, 44).Write(0x14, BitConverter.GetBytes((short)0)).Write(0x16, BitConverter.GetBytes((short)0)).Write(0x18, BitConverter.GetBytes((short)320)).Write(0x1A, BitConverter.GetBytes((short)216)).Write(0x1C, BitConverter.GetBytes(0x808080u)).Write(0x20, BitConverter.GetBytes(mask));
     private static NativeBattleEffectArena Vector(NativeBattleVector point) => NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(0, BitConverter.GetBytes(point.X)).Write(2, BitConverter.GetBytes(point.Y)).Write(4, BitConverter.GetBytes(point.Z));
     private static uint Dword(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(offset, 4));
+    private static NativeBattleForeignModelGeometry ForeignGeometry()
+    {
+        ImmutableArray<NativeBattleVector> vertices = [new(-400, -400, 0), new(400, -400, 0), new(-400, 400, 0), new(400, 400, 0)];
+        NativeBattleForeignSurface surface = new(new Material(), [Vector2.Zero, Vector2.UnitX, Vector2.UnitY], [Vector4.One, Vector4.One, Vector4.One]);
+        return new(Identity, new(default, default, 0, new(new(-400, -400, 0), new(400, 400, 0))), [new(vertices[0], vertices[1], vertices[2], surface) { VertexIndices = [0, 1, 2] }, new(vertices[1], vertices[3], vertices[2], surface) { VertexIndices = [1, 3, 2] }]) { Vertices = vertices };
+    }
     private static byte[] Geometry(bool colored)
     {
         byte[] bytes = new byte[colored ? 76 : 72];

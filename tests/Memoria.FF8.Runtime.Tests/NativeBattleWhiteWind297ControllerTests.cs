@@ -43,9 +43,10 @@ public sealed class NativeBattleWhiteWind297ControllerTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void Real_ACT_workspaces_finish_same_scan_children_and_apply_each_matching_contact(bool capturePresentation)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void Real_ACT_workspaces_finish_same_scan_children_and_apply_each_matching_contact(bool capturePresentation, bool foreignBounds)
     {
         NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
         (packets, _) = packets.Prepare(new(0, 2, 4, 0, 0, 297, null));
@@ -57,12 +58,13 @@ public sealed class NativeBattleWhiteWind297ControllerTests
         (packets, _) = packets.Publish(3);
         List<int> contacts = [];
         List<int> anchors = [];
+        List<int> minimumReads = [];
         List<NativeBattleWhiteWind297Operation> operations = [];
         int emits = 0;
         NativeBattleActionMatrix camera = NativeBattleCuragaMatrices.Identity8DD770();
         NativeBattleWhiteWind297Inputs inputs = new(packets, actor => new(actor, 0)
         {
-            MinimumY146 = -7,
+            MinimumY146 = foreignBounds ? null : (short)-7,
             Transform = new(new(0, 0, 0), new(0, 0, (short)(actor * 100)), 0, 100, 8192)
         }, _ => NativeBattlePackedMatrix32.FromMatrix(camera, 0x2222), (frame, actor) =>
         {
@@ -81,6 +83,17 @@ public sealed class NativeBattleWhiteWind297ControllerTests
             emits++;
             return frame with { State = frame.State.WriteDword(0x2507914, (uint)emits) };
         });
+        if (foreignBounds)
+        {
+            inputs = inputs with
+            {
+                ReadMinimumY = actor =>
+                {
+                    minimumReads.Add(actor);
+                    return -7;
+                }
+            };
+        }
         List<NativeBattlePilotVisualIdentity> identities = [];
         if (capturePresentation)
         {
@@ -106,6 +119,7 @@ public sealed class NativeBattleWhiteWind297ControllerTests
         Assert.Equal(0u, current.Effect.ReturnedDescriptor);
         Assert.Equal(new[] { 0, 1, 2 }, contacts);
         Assert.Equal(new[] { 0, 3, 4, 5 }, anchors);
+        Assert.Equal(foreignBounds ? new[] { 0, 0, 3, 4, 5 } : [], minimumReads);
         Assert.Single(operations.OfType<NativeBattleWhiteWind297Sound>());
         Assert.True(emits > 0);
         if (capturePresentation)

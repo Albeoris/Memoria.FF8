@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEffectSceneContextTests
@@ -38,6 +40,17 @@ public sealed class NativeBattleEffectSceneContextTests
         Assert.Equal(expected, NativeBattleEffectSceneContext.FromNativeEncounter(42, stage).RequireMirroredSurfaceMode(null));
         Assert.Equal(expected, NativeBattleEffectSceneContext.FromNativeEncounter(42).RequireMirroredSurfaceMode(stage));
         Assert.Throws<NotSupportedException>(() => NativeBattleEffectSceneContext.FromNativeEncounter(42).RequireMirroredSurfaceMode(null));
+    }
+
+    [Fact]
+    public void Scene_wide_displacement_requires_every_actual_opponent_to_have_a_physical_binding()
+    {
+        ImmutableArray<NativeBattleModelTransform> opponents = [new(default, new(0, 0, 800), 0, 0, 200), new(default, new(0, 0, -100), 0, 0, 400)];
+        NativeBattleEffectSceneContext.RequireOpposingActorCapacity(2, opponents);
+        NativeBattleEffectSceneContext.RequireOpposingActorCapacity(0, []);
+        NotSupportedException missing = Assert.Throws<NotSupportedException>(() => NativeBattleEffectSceneContext.RequireOpposingActorCapacity(1, opponents));
+        Assert.Contains("physical model bank", missing.Message);
+        Assert.Throws<InvalidDataException>(() => NativeBattleEffectSceneContext.RequireOpposingActorCapacity(0, default));
     }
 
     [Fact]

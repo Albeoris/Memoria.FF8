@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Numerics;
+using Memoria.FF7.Runtime;
 using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
 
@@ -24,6 +25,16 @@ internal sealed partial class CrossoverGuestHostActions
     private NativeBattleArenaHost? CreateArena(CrossoverGunbladeHostPlacement placement)
     {
         return readArenaGeometry is null ? null : new(CrossoverNativeArena.Read(readArenaGeometry(), placement.Matrix));
+    }
+
+    private NativeBattleEffectSceneContext ReadPresentationSceneContext()
+    {
+        CrossoverGunbladeHostPlacement placement = new(Ff7BattlePosition.FromVector(host.VisualPlacement(ActorSlot).Position), host.VisualPlacement(ActorSlot).Yaw);
+        return new(NativeBattleSummonFloorMode.BelowTargetPlane, NativeBattleTargetBoundsMode.AllContacts)
+        {
+            MirroredSurfaceMode = NativeBattleMirroredSurfaceMode.InitialCapture,
+            ReadOpposingTransforms = () => host.Actors.Where(actor => actor.Actor.Slot >= 4 && (actor.Actor.Conditions & 8) != 0).Select(actor => ReadAbilityForeign(placement, actor.Actor.Slot).Transform).ToImmutableArray()
+        };
     }
 
     public ImmutableArray<NativeBattleArenaReplacement> ArenaReplacements => fire?.Presentation.Effect?.ArenaReplacements ?? [];

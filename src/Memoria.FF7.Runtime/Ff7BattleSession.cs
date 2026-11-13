@@ -289,6 +289,7 @@ public sealed partial class Ff7BattleSession
 
     public void Advance(bool waitForCommand = false, bool confirmLimit = false, bool escapeHeld = false, bool turnBased = false)
     {
+        PresentedGuestContacts = [];
         if (Outcome != Ff7BattleOutcome.Fighting)
         {
             if (!ResultReady)

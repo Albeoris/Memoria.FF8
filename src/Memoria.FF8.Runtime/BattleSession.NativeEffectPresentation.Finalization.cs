@@ -25,12 +25,25 @@ public sealed partial class BattleSession
         }
         NativeBattleEffectParameters parameters = graphics.OriginalEffect?.Parameters ?? throw new InvalidDataException("Guardian presentation finalization lost its module parameters.");
         NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[parameters.HeaderIndex7C];
-        if (NativeBattleActionGraphics.SelectService(header).Callback != 0x50B2A0)
+        if (header.ReadByte(1) is not (0x26 or 0xF4 or 0xFE))
         {
             throw new InvalidOperationException("Guardian presentation finalization requires the source header's guardian outer service.");
         }
-        graphics = FinishNativeGuardianInvocationContacts(graphics);
-        NativeGraphics = graphics with { Flags = graphics.Flags & ~0x10u };
+        switch (NativeBattleActionGraphics.SelectService(header).Callback)
+        {
+            case 0x50B2A0:
+                graphics = FinishNativeGuardianInvocationContacts(graphics);
+                graphics = graphics with { Flags = graphics.Flags & ~0x10u };
+                break;
+            case 0x50A9A0:
+                //The ordinary casting service has no late contact consumer; BYTE81 does not select one.
+                uint flags = graphics.Flags & ~0x20u;
+                graphics = graphics with { Flags = (parameters.Flags79 & 2) == 0 ? flags & ~0x10u : flags };
+                break;
+            default:
+                throw new NotSupportedException("Guardian presentation finalization requires the source header's supported outer completion contract.");
+        }
+        NativeGraphics = graphics;
         NativeEffectMemory = NativeEffectMemory! with { Active = 0 };
         presentationInvocationCompleted = true;
         NativeBattleEffectPresentationStep result = new(presentationContacts.ToImmutableArray(), presentationSounds.ToImmutableArray()) { Sequences = presentationSequences.ToImmutableArray() };

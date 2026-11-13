@@ -45,6 +45,49 @@ public sealed class NativeBattleCarbuncle278Tests
     }
 
     [Fact]
+    public void Host_clearance_queries_actual_enemy_rows_and_ignores_relocated_foreign_party_rows()
+    {
+        var fixture = Fixture();
+        ImmutableArray<NativeBattleGraphicsModel> models = fixture.Models.SetItem(1, fixture.Models[1] with { Flags0 = 2, Transform = new(default, new(0, 0, 800), 0, 0, 200) }).SetItem(3, fixture.Models[3] with { Flags0 = 2, Transform = new(default, new(0, 0, 30000), 0, 0, 200) });
+        NativeBattleEffectSceneContext context = new(NativeBattleSummonFloorMode.BelowTargetPlane, NativeBattleTargetBoundsMode.AllContacts);
+        NativeBattleCarbuncle278Frame result = NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame, fixture.Packets, models, context, [1]);
+        Assert.Equal(349, result.Memory.Carbuncle278!.Centroid81C4);
+        Assert.Equal(-1651, result.Memory.Carbuncle278.Base81CC);
+        Assert.Equal(-4051, result.Memory.Carbuncle278.Lift81D0);
+        NativeBattleCarbuncle278Frame absentPartyGeometry = NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame, fixture.Packets, models.SetItem(3, models[3] with { Transform = null }), context, [1]);
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(absentPartyGeometry));
+        Assert.Throws<NotSupportedException>(() => NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame, fixture.Packets, models.SetItem(1, models[1] with { Transform = null }), context, [1]));
+    }
+
+    [Fact]
+    public void Host_scene_opponents_supply_clearance_without_allocating_physical_target_rows()
+    {
+        var fixture = Fixture();
+        ImmutableArray<NativeBattleGraphicsModel> models = fixture.Models.SetItem(3, fixture.Models[3] with { Flags0 = 0, Transform = null });
+        NativeBattleEffectSceneContext context = new(NativeBattleSummonFloorMode.BelowTargetPlane, NativeBattleTargetBoundsMode.AllContacts)
+        {
+            ReadOpposingTransforms = () => [new(default, new(0, 0, 800), 0, 0, 200), new(default, new(0, 0, -100), 0, 0, 400)]
+        };
+        NativeBattleCarbuncle278Frame result = NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame, fixture.Packets, models, context, [], context.ReadOpposingTransforms!());
+        Assert.Equal(0, result.Memory.Carbuncle278!.Centroid81C4);
+        Assert.Equal(-2000, result.Memory.Carbuncle278.Base81CC);
+        Assert.Equal(-4400, result.Memory.Carbuncle278.Lift81D0);
+        NativeBattleCarbuncle278Frame withoutOpponents = NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame, fixture.Packets, models, context, [], []);
+        Assert.Equal(0, withoutOpponents.Memory.Carbuncle278!.Lift81D0);
+        Assert.Throws<InvalidDataException>(() => NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame, fixture.Packets, models, context, [], default(ImmutableArray<NativeBattleModelTransform>)));
+    }
+
+    [Fact]
+    public void Host_clearance_rejects_duplicate_or_out_of_bank_enemy_rows()
+    {
+        var fixture = Fixture();
+        NativeBattleEffectSceneContext context = new(NativeBattleSummonFloorMode.BelowTargetPlane, NativeBattleTargetBoundsMode.AllContacts);
+        Assert.Throws<InvalidDataException>(() => NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame, fixture.Packets, fixture.Models, context, [1, 1]));
+        Assert.Throws<InvalidDataException>(() => NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame, fixture.Packets, fixture.Models, context, [-1]));
+        Assert.Throws<InvalidDataException>(() => NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame, fixture.Packets, fixture.Models, context, [7]));
+    }
+
+    [Fact]
     public void Encounter_override_occurs_after_physical_reads_and_preserves_retained_module_fields()
     {
         var fixture = Fixture();

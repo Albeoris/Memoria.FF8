@@ -160,7 +160,7 @@ public sealed partial class BattleSession
     internal NativeBattleStageColor ReadEffectPresentationStageColor()
     {
         NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("The host has no native arena color owner.");
-        return NativeBattleStageColor.ReadUniform(stage.Groups);
+        return NativeBattleStageColor.ReadUniform(stage.Groups, presentationArena?.PresentationGroupMask ?? 15);
     }
 
     internal bool HasPendingEffectPresentationEvents => presentationContacts.Count != 0 || presentationSounds.Count != 0 || presentationSequences.Count != 0;

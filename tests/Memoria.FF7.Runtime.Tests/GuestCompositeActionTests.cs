@@ -142,6 +142,7 @@ internal static class GuestCompositeActionTests
             });
             battle.Advance(waitForCommand: true);
             Check(battle.Action!.GuestComposite is { NextContact: 1 } first && first.SettledContacts.SequenceEqual([2]) && battle.Actors.Single(actor => actor.Actor.Slot == 4).Actor.HitPoints == 90, "The host did not settle the native presentation's first actual ordinal against current recipient vitals.");
+            Check(battle.PresentedGuestContacts.Select(contact => contact.Ordinal).SequenceEqual([2]), "The host did not expose the actual presented occurrence for this callback.");
             Ff7BattleSnapshot retained = JsonSerializer.Deserialize<Ff7BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!;
             Ff7BattleSession duplicate = Create(retained);
             Probe duplicateSource = source.Restore();

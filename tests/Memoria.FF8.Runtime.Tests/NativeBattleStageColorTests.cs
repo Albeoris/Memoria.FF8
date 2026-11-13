@@ -32,4 +32,15 @@ public sealed class NativeBattleStageColorTests
         var groups = NativeBattleStageState.FromColdProcess().Groups.Select(group => group with { ColorFlags = 0x02010203u }).ToImmutableArray();
         Assert.Throws<NotSupportedException>(() => NativeBattleStageColor.ReadUniform(groups));
     }
+
+    [Fact]
+    public void ExplicitGeometryGroupMappingIgnoresUnrepresentedGroupsAndPreservesRealDifferences()
+    {
+        var groups = NativeBattleStageState.FromColdProcess().Groups;
+        groups = groups.SetItem(0, groups[0] with { ColorDepth = 2048, ColorFlags = 0x123456 });
+        Assert.Equal(new NativeBattleStageColor(2048, 0x123456), NativeBattleStageColor.ReadUniform(groups, 1));
+        Assert.Throws<NotSupportedException>(() => NativeBattleStageColor.ReadUniform(groups, 3));
+        Assert.Equal(default, NativeBattleStageColor.ReadUniform(groups, 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => NativeBattleStageColor.ReadUniform(groups, 16));
+    }
 }

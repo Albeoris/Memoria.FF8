@@ -36,6 +36,18 @@ public sealed class NativeBattleCarbuncle278FinishTests
     }
 
     [Fact]
+    public void Host_restoration_clears_relocated_party_hide_bits_and_restores_enemy_rows_below_three()
+    {
+        ImmutableArray<NativeBattleGraphicsModel> source = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index, index is 0 or 3 ? (ushort)7 : index == 1 ? (ushort)3 : (ushort)0) { Transform = index == 1 ? new(default, new(4, 5, -700), 0, 0, 4096) : null }).ToImmutableArray();
+        ImmutableArray<NativeBattleGraphicsModel> restored = NativeBattleCarbuncle278Finish.Restore681199(source, -500, [0, 3]);
+        Assert.Equal((ushort)3, restored[0].Flags0);
+        Assert.Equal((ushort)3, restored[3].Flags0);
+        Assert.Equal((short)-200, restored[1].Transform!.Position28.Z);
+        Assert.Equal((short)-700, source[1].Transform!.Position28.Z);
+        Assert.Same(source[2], restored[2]);
+    }
+
+    [Fact]
     public void Return_camera_uses_current_anchor_then_fixed_pose_and_later_eye_target_deltas()
     {
         NativeBattleCameraState source = NativeBattleCameraState.Initialize() with { CurrentPose = new(new(20, -30, 40), new(0, 0, 0), 288, 0), FocalLength = -123, Roll = 17, EyePaddingF6 = 7, TargetPaddingFE = 9 };

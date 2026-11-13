@@ -54,11 +54,10 @@ public sealed partial class BattleSession
             NativeBattleGraphicsModel model = graphics.Models[actor];
             if ((model.Flags0 & 2) != 0)
             {
-                NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Shockwave Pulsar requires its current skeleton.");
                 foreach (byte selector in new byte[] { 0xF0, 0xF1 })
                 {
                     NativeFileStaging = current.Staging;
-                    current = current with { Memory = ObserveNativeBoneAnchor(current.Memory, NativeBattlePoseMatrices.ResolveBoneAnchor502170(model, source, selector, 0)), Staging = NativeFileStaging };
+                    current = current with { Memory = ObserveNativeGraphicsBoneAnchor(current.Memory, graphics, actor, selector, 0).Memory, Staging = NativeFileStaging };
                 }
             }
             NativeBattleModuleAnchor anchor = ReadNativeModelAnchor(graphics, actor);

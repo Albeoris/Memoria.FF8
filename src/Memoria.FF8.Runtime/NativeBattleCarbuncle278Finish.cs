@@ -24,11 +24,16 @@ public static class NativeBattleCarbuncle278Finish
         return memory with { Carbuncle278 = state with { Done81D8 = value } };
     }
 
-    public static ImmutableArray<NativeBattleGraphicsModel> Restore681199(ImmutableArray<NativeBattleGraphicsModel> models, int lift)
+    public static ImmutableArray<NativeBattleGraphicsModel> Restore681199(ImmutableArray<NativeBattleGraphicsModel> models, int lift, ImmutableArray<int>? partyModelIndices = null)
     {
+        ImmutableArray<int> party = partyModelIndices ?? [0, 1, 2];
+        if (party.IsDefault || party.Any(index => (uint)index >= models.Length) || party.Distinct().Count() != party.Length)
+        {
+            throw new InvalidDataException("Native Carbuncle restoration requires distinct physical party rows within the current model bank.");
+        }
         return models.Select(model =>
         {
-            if (model.Index < 3)
+            if (party.Contains(model.Index))
             {
                 return model with { Flags0 = unchecked((ushort)(model.Flags0 & 0xFFFB)) };
             }

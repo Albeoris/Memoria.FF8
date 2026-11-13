@@ -83,7 +83,7 @@ internal sealed record CrossoverNativeMagicPresentationStep(CrossoverNativeMagic
 }
 
 /// <summary>Original command casting and the shared FFVIII effect dispatcher on the host presentation clock.</summary>
-internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBattleGraphicsResource resource, BattleAssets battle, Func<ImmutableArray<int>>? readParticipants = null, Func<int, int, NativeBattleForeignActor>? readParticipantGeometry = null)
+internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBattleGraphicsResource resource, BattleAssets battle, Func<ImmutableArray<int>>? readParticipants = null, Func<int, int, NativeBattleForeignActor>? readParticipantGeometry = null, Func<NativeBattleEffectSceneContext>? readSceneContext = null, Func<int>? readPartyActorCount = null)
 {
     private const int MaximumProbeCallbacks = 4096;
     private readonly ImmutableArray<NativeBattleModuleResource> sprites = game.ReadNativeBattleModuleResources();
@@ -284,10 +284,10 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
             if (advanceSource)
             {
                 cast = cast with { Model = current.Source };
+                textures = current.Memory.Textures!;
+                random = current.Random;
                 draws = draws.AddRange(current.Graphics.ModuleDraws.Where(draw => draw.Kind != NativeBattleModuleDrawKind.Sound));
             }
-            textures = current.Memory.Textures!;
-            random = current.Random;
             contact |= !next.Contacts.IsEmpty;
             foreach (int ordinal in ReadContactOrdinals(source.BoundContacts, previousOrdinals.AddRange(contactOrdinals), next.Contacts))
             {
@@ -313,7 +313,15 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
             (packets, _) = packets.Publish(checked((byte)source.BoundContacts.Length));
             NativeBattleGraphicsDefinition graphics = new(game.ReadNativeBattleGraphicsRules(), [new("source", checked((byte)cast.Model.ModelId4!.Value), resource)], []) { PrimitiveTables = battle.ReadNativePrimitiveTables(), SoftwarePrimitiveTable = battle.ReadNativeSoftwarePrimitiveTable(), PrimitiveCapabilities = NativeBattlePrimitiveCapabilities.PrimaryRgba8() };
             BattleDefinition resources = new() { NativeGraphics = graphics, NativeModuleResources = sprites, NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([action.MagicId]), NativeCommonEffectTexture = game.ReadNativeCommonEffectTexture(), NativeCommandSequences = game.ReadNativeBattleCommandSequences(), NativeGlobalRandom = source.GlobalRandom, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory() };
-            effect = new(new(resources, cast.Model, resource, packets, new(0, 0, targetMask, 0, 0, 0), action.MagicId, textures, random, projection ?? throw new NotSupportedException("Native effects require the current host camera."), ForeignActors()) { Arena = source.Arena, SceneContext = new(NativeBattleSummonFloorMode.BelowTargetPlane, NativeBattleTargetBoundsMode.AllContacts) { MirroredSurfaceMode = NativeBattleMirroredSurfaceMode.InitialCapture }, RibbonProjectionPolicy = NativeBattleRibbonProjectionPolicy.IndependentGeometricRuns, DeferInvocation = defer, PartyActorCount = readParticipants is null ? null : source.Participants.Length + 1, InitialMusicGain = 127 });
+            effect = new(new(resources, cast.Model, resource, packets, new(0, 0, targetMask, 0, 0, 0), action.MagicId, textures, random, projection ?? throw new NotSupportedException("Native effects require the current host camera."), ForeignActors())
+            {
+                Arena = source.Arena,
+                SceneContext = readSceneContext?.Invoke() ?? new(NativeBattleSummonFloorMode.BelowTargetPlane, NativeBattleTargetBoundsMode.AllContacts) { MirroredSurfaceMode = NativeBattleMirroredSurfaceMode.InitialCapture },
+                RibbonProjectionPolicy = NativeBattleRibbonProjectionPolicy.IndependentGeometricRuns,
+                DeferInvocation = defer,
+                PartyActorCount = readPartyActorCount?.Invoke() ?? (readParticipants is null ? null : source.Participants.Length + 1),
+                InitialMusicGain = 127
+            });
             cast = cast with { Model = effect.Source };
             textures = effect.Memory.Textures!;
             random = effect.Random;
