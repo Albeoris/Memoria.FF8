@@ -7,6 +7,50 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class ExpandedBattleGuestProgressTests
 {
+    [Fact]
+    public void PendingElevenAllySettingCreatesGuestRecordsWhenNativeBattleReturns()
+    {
+        const ushort formation = 0;
+        string directory = TestResources.GameDirectory;
+        using GameAssets assets = new(directory);
+        GameSession initial = GameSession.CreateColdProcess();
+        initial.StartNewGame();
+        using (GameWorld bootstrap = new(initial, directory, sharedAssets: assets, expandedBattleAllyCount: 3))
+        {
+            bootstrap.EnsureField();
+            initial.SetEventState(bootstrap.Events.Capture());
+        }
+        GameSession session = new(initial.State with
+        {
+            FieldId = 133,
+            FieldName = "cavern-component",
+            EventState = null,
+            DepartingFieldState = initial.State.EventState,
+            FieldLoadContext = null,
+            FieldRequestPacket = null
+        });
+        session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
+
+        using GameWorld world = new(session, directory, sharedAssets: assets, expandedBattleAllyCount: 3);
+        world.EnsureField();
+        world.Apply(new(PlayerActionKind.Wait, Frames: 4));
+        session.SetCharacterVitals(session.State.CharacterVitals!.Rest() with { CombatParty = [0, 1, 2] });
+        BattleSession original = Start(world, session, formation);
+        Assert.False(original.UsesExpandedRoster);
+        world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = 11 });
+        Assert.Equal(11, session.State.PendingGameplayPreferences!.BattleAllyCount);
+        Assert.Equal(8, session.State.CharacterVitals!.Records.Length);
+
+        world.ApplyBattleInput(new(BattleInputKind.InstantVictory));
+        world.ApplyBattleInput(new(BattleInputKind.Return));
+        Assert.Null(session.State.PendingGameplayPreferences);
+        Assert.Equal(11, session.State.GameplayPreferences.BattleAllyCount);
+        Assert.Equal(11, session.State.CharacterVitals!.Records.Length);
+        BattleSession next = Start(world, session, formation);
+        Assert.True(next.UsesExpandedRoster);
+        Assert.Equal(11, next.Combatants.Count(actor => actor.IsPlayer));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

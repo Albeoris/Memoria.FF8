@@ -21,7 +21,8 @@ public sealed class ExpandedBattleHostTests
     [InlineData(0, true, false, 11)]
     [InlineData(89, false, true, 11)]
     [InlineData(0, true, false, 11, true)]
-    public void ExpandedRandomBattleUsesInstalledContactsAndChargesEachCommandOnce(ushort formation, bool mass, bool exerciseAi, int allyCount, bool coldRestore = false)
+    [InlineData(0, true, false, 11, true, 11)]
+    public void ExpandedRandomBattleUsesInstalledContactsAndChargesEachCommandOnce(ushort formation, bool mass, bool exerciseAi, int allyCount, bool coldRestore = false, int largeEnemyCount = 8)
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original resources are required.");
@@ -74,7 +75,7 @@ public sealed class ExpandedBattleHostTests
             FieldRequestPacket = null
         });
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
-        using GameWorld world = new(session, directory);
+        using GameWorld world = new(session, directory, expandedBattleEnemyCount: largeEnemyCount);
         world.EnsureField();
         world.Apply(new(PlayerActionKind.Wait, Frames: 4));
         session.SetCharacterVitals(initial with { Records = records, CombatParty = [0, 1, 2] });
@@ -86,7 +87,8 @@ public sealed class ExpandedBattleHostTests
             Assert.Equal(11, session.State.CharacterVitals!.Records.Length);
             session.SetCharacterVitals(initial with { Records = records, CombatParty = [0, 1, 2] });
         }
-        world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = allyCount });
+        bool guardianFormsEnabled = largeEnemyCount == 11;
+        world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = allyCount, GuardianFormsEnabled = guardianFormsEnabled });
         if (!mass)
         {
             Assert.Contains(formation, world.Field!.RandomEncounters!.Formations);
@@ -97,13 +99,15 @@ public sealed class ExpandedBattleHostTests
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 0));
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         Assert.True(battle.UsesExpandedRoster);
+        Assert.False(battle.ReadDefinition().GuardianFormsEnabled);
         BattleDefinition original = world.CreateEncounterBattle(88);
         Assert.False(original.UsesExpandedRoster);
         Assert.NotNull(original.NativeGraphics);
         Assert.Contains(original.Combatants, actor => actor.NativeAi is not null);
-        int enemyCount = allyCount == 4 ? 6 : 8;
+        int enemyCount = allyCount == 11 ? largeEnemyCount : ExpandedBattleFormation.DefaultEnemyCount(allyCount);
         string lastEnemy = $"enemy-{enemyCount - 1}";
         Assert.Equal(allyCount + enemyCount, battle.Combatants.Count);
+        Assert.True(battle.EscapeDisabled);
         Assert.Equal(new byte[] { 0, 1, 2 }, session.State.CharacterVitals!.CombatParty);
         BattleScenePresentation presentation = new(world.BattleResources, battle.ReadDefinition(), true);
         string casterId = $"party-{casterRow}";
@@ -161,6 +165,7 @@ public sealed class ExpandedBattleHostTests
             Assert.Equal(5, MagicCount(fire.ActionId));
             Assert.Equal(BattleOutcome.Victory, battle.Outcome);
             Assert.Equal(enemyCount, battle.EnemyDefeats.Count);
+            Assert.Equal(Enumerable.Range(0, enemyCount), battle.EnemyDefeats.Select(defeat => defeat.Slot).Order());
             BattleRewardSummary rewards = world.PreviewBattleRewards();
             Assert.Equal(allyCount, rewards.CharacterGrowth.Length);
             Assert.True(rewards.CharacterExperience.ContainsKey((byte)casterRow));
@@ -178,6 +183,7 @@ public sealed class ExpandedBattleHostTests
             });
             world.ApplyBattleInput(new(BattleInputKind.Return));
             Assert.Null(world.Battle);
+            Assert.Equal(guardianFormsEnabled, session.State.GameplayPreferences.GuardianFormsEnabled);
             Assert.Equal(new byte[] { 0, 1, 2 }, session.State.CharacterVitals!.CombatParty);
             Assert.Equal(4, session.State.CharacterVitals.Records[casterRow].MagicInventory.Single(spell => spell.SpellId == quake.ActionId).Count);
             if (allyCount == 11)
@@ -215,7 +221,8 @@ public sealed class ExpandedBattleHostTests
         {
             GameState initialBattle = session.PrepareSnapshot();
             GameSession uninterrupted = new(initialBattle);
-            using GameWorld uninterruptedWorld = new(uninterrupted, directory);
+            int differentEnemyCount = largeEnemyCount == 11 ? 8 : 11;
+            using GameWorld uninterruptedWorld = new(uninterrupted, directory, expandedBattleEnemyCount: differentEnemyCount);
             uninterruptedWorld.EnsureField();
             AssertEquivalentBattle(battle, uninterruptedWorld.Battle!);
             BattleSession active = uninterruptedWorld.Battle!;
@@ -235,7 +242,7 @@ public sealed class ExpandedBattleHostTests
             using var checkpoint = new TemporaryBattleCheckpoint();
             uninterrupted.Save(checkpoint.Path, compact: true);
             GameSession resumed = new(GameSession.Load(checkpoint.Path));
-            using GameWorld resumedWorld = new(resumed, directory);
+            using GameWorld resumedWorld = new(resumed, directory, expandedBattleEnemyCount: differentEnemyCount);
             resumedWorld.EnsureField();
             BattleSession restored = Assert.IsType<BattleSession>(resumedWorld.Battle);
             AssertEquivalentBattle(active, restored);
@@ -259,7 +266,7 @@ public sealed class ExpandedBattleHostTests
 
             resumed.Save(checkpoint.Path, compact: true);
             GameSession terminal = new(GameSession.Load(checkpoint.Path));
-            using GameWorld terminalWorld = new(terminal, directory);
+            using GameWorld terminalWorld = new(terminal, directory, expandedBattleEnemyCount: differentEnemyCount);
             terminalWorld.EnsureField();
             AssertEquivalentBattle(active, terminalWorld.Battle!);
             uninterruptedWorld.ApplyBattleInput(new(BattleInputKind.Return));

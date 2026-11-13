@@ -17,6 +17,7 @@ public sealed partial class BattleSession
     private ImmutableArray<NativeBattleGraphicsModel> presentationInitialModels = [];
     private int? presentationPartyActorCount;
     private int? presentationInitialMusicGain;
+    private NativeBattleEffectCameraMode presentationCameraMode;
     private readonly List<NativeBattleContactPacket> presentationContacts = [];
     private readonly List<NativeBattleModuleSound> presentationSounds = [];
     private readonly List<NativeBattleForeignSequenceRequest> presentationSequences = [];
@@ -43,6 +44,7 @@ public sealed partial class BattleSession
         }
         presentationModelTransformPolicy = inputs.ModelTransformPolicy;
         presentationPartyActorCount = inputs.PartyActorCount;
+        presentationCameraMode = inputs.CameraMode;
         combatants = [];
         byId = new(StringComparer.Ordinal);
         handlers = [];
@@ -173,9 +175,10 @@ public sealed partial class BattleSession
     }
 
     /// <summary>The mixed host acknowledges camera requests without moving its view or running native camera tracks.</summary>
-    internal static NativeBattleCameraState HoldEffectPresentationCamera(NativeBattleCameraState camera, NativeBattleCameraState host)
+    internal static NativeBattleCameraState HoldEffectPresentationCamera(NativeBattleCameraState camera, NativeBattleCameraState host, NativeBattleEffectCameraMode mode = NativeBattleEffectCameraMode.Hold)
     {
-        return host with { ControlResource = camera.ControlResource, ControlStagingSource = camera.ControlStagingSource, ControlCursor = null, ViewTranslationScratch = new(0, 0, 0) };
+        NativeBattleCameraViewTranslationScratch translation = mode == NativeBattleEffectCameraMode.HostPoseWithEffectTranslation && camera.ViewTranslationScratch is { } effectTranslation ? effectTranslation : new(0, 0, 0);
+        return host with { ControlResource = camera.ControlResource, ControlStagingSource = camera.ControlStagingSource, ControlCursor = null, ViewTranslationScratch = translation };
     }
 
     internal static NativeBattleCameraState BindEffectPresentationHostProjection(NativeBattleCameraState camera, NativeBattleCameraProjection projection)

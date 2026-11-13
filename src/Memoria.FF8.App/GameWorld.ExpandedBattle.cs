@@ -8,6 +8,7 @@ namespace Memoria.FF8;
 internal sealed partial class GameWorld
 {
     private readonly int defaultExpandedRandomAllyCount;
+    private readonly int defaultLargeRandomEnemyCount;
     internal int ConfiguredBattleAllyCount => session.State.GameplayPreferences.BattleAllyCount == 0 ? defaultExpandedRandomAllyCount : session.State.GameplayPreferences.BattleAllyCount;
 
     private void EnsureGuestBattleRecords()
@@ -43,7 +44,10 @@ internal sealed partial class GameWorld
         active.AttachExpandedEffectFactory((caster, action, contacts) =>
         {
             NativeBattleGraphicsResource sourceResource = actorResources[caster.Id];
-            NativeBattleGraphicsModel source = posedActors[caster.Id];
+            (NativeBattleGraphicsModel source, NativeBattleEffectTextureState textures) = NativeEffectActorTextures.Allocate(posedActors[caster.Id], sourceResource);
+            NativeBattleEffectInitializerAsset common = definition.NativeCommonEffectTexture ?? throw new InvalidDataException("Expanded battle effects require the installed common texture.");
+            (textures, _) = textures.EnqueueTim505E30(new(common.Name, common.Data));
+            textures = textures.Drain505D20(NativeBattleEffectMemory.FromColdProcess().Arena).State;
             NativeBattleEffectContactBridge<string> bridge = new(contacts.Select(contact => (contact.RecipientId, contact.Contact)));
             (NativeBattleActionPacketsState packets, ushort mask) = bridge.Prepare(action.Command, 1, action.ActionId, action.MagicId);
             ImmutableArray<NativeBattleForeignActor> targets = contacts.Where(contact => contact.RecipientId != caster.Id).Select(contact =>
@@ -69,7 +73,7 @@ internal sealed partial class GameWorld
                 },
                 NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([action.MagicId])
             };
-            return new(new(resources, source, sourceResource, packets, new(0, 0, mask, 0, 0, 0), action.MagicId, NativeBattleEffectTextureState.FromColdProcess(), NativeCrtRandomState.FromColdProcess(), projection, targets));
+            return new(new(resources, source, sourceResource, packets, new(0, 0, mask, 0, 0, 0), action.MagicId, textures, NativeCrtRandomState.FromColdProcess(), projection, targets) { CameraMode = NativeBattleEffectCameraMode.HostPoseWithEffectTranslation });
         });
 
         NativeBattleGraphicsModel CreateModel(BattleCombatant actor)
@@ -84,6 +88,7 @@ internal sealed partial class GameWorld
             {
                 Transform = new(position, position, 0, actor.IsPlayer ? (short)0 : (short)2048, 4096),
                 LinkedTransform = new(default, default),
+                Color40 = rules.SummonColors!.Transition,
                 Color44 = (rules.SummonColors!.Normal & 0xFFFFFFu) | 0x32000000u,
                 SequenceState = new() { Locals = NativeBattleSequenceState.ColdProcessLocals() }
             }, checked((byte)(actor.IsPlayer ? actorDefinition.ModelId : actorDefinition.ModelId + 16)), 0, ref random, actor.IsPlayer ? null : assets.ReadEnemyNativeInformation246(actorDefinition.ModelId));

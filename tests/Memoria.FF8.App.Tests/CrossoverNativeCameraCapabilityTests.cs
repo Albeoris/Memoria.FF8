@@ -41,4 +41,16 @@ public sealed class CrossoverNativeCameraCapabilityTests
         Assert.Equal(host.FocalLength, BattleSession.HoldEffectPresentationCamera(host with { FocalLength = 512 }, host).FocalLength);
         Assert.Equal(host.Projection, BattleSession.HoldEffectPresentationCamera(host with { Projection = host.Projection! with { FocalLength = 512 } }, host).Projection);
     }
+
+    [Fact]
+    public void ExpandedHostAcceptsEffectTranslationWithoutAcquiringTheCameraTrack()
+    {
+        NativeBattleCameraState host = NativeBattleCameraState.FromColdProcess();
+        NativeBattleCameraState requested = host.AddViewTranslationY61B8D5(24);
+
+        Assert.Equal<short?>(0, BattleSession.HoldEffectPresentationCamera(requested, host).ViewTranslationScratch!.Y);
+        NativeBattleCameraState held = BattleSession.HoldEffectPresentationCamera(requested, host, NativeBattleEffectCameraMode.HostPoseWithEffectTranslation);
+        Assert.Equal<short?>(24, held.ViewTranslationScratch!.Y);
+        Assert.Equal(host.Projection, held.Projection);
+    }
 }

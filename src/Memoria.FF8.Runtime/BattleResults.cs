@@ -80,6 +80,12 @@ public sealed partial record BattleResult([property: JsonRequired] BattleEncount
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool UsesExpandedRoster { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? ExpandedEnemyCount { get; init; }
+
+    [JsonIgnore]
+    public int EffectiveEnemySlotCount => UsesExpandedRoster ? ExpandedEnemyCount ?? ExpandedBattleFormation.DefaultEnemyCount(Party.Length) : NativeBattleSlots.FormationSlotCount;
+
     public void Validate()
     {
         if (Encounter is null)
@@ -87,6 +93,10 @@ public sealed partial record BattleResult([property: JsonRequired] BattleEncount
             throw new InvalidDataException("Battle outcome requires its observed encounter occurrence.");
         }
         Encounter.Validate();
+        if (UsesExpandedRoster ? Party is null || Encounter.ScriptedOwner is not null || !ExpandedBattleFormation.SupportsRoster(Party.Length, EffectiveEnemySlotCount) : ExpandedEnemyCount.HasValue)
+        {
+            throw new InvalidDataException("Battle outcome has invalid expanded roster dimensions.");
+        }
         (Tuning ?? throw new InvalidDataException("Battle reward tuning is missing.")).Validate();
         MagicSystemReceipt?.Validate();
         NativeKnownMagic.ValidateReceipt(NativeKnownMagicBefore, NativeKnownMagicAfter);
@@ -147,7 +157,7 @@ public sealed partial record BattleResult([property: JsonRequired] BattleEncount
         {
             throw new InvalidDataException("Battle script item rewards require their observed native combat owner.");
         }
-        if (Outcome is not (BattleOutcome.Victory or BattleOutcome.Defeat or BattleOutcome.ScriptedExit or BattleOutcome.Escaped) || Party is null || Party.Length < 1 || Party.Length > (UsesExpandedRoster ? NativeCharacterVitals.ExtendedRecordCount : 3) || UsesExpandedRoster && (Party.Length is not (4 or 8 or 11) || Encounter.ScriptedOwner is not null) || Party.Any(member => member is null || member.Row >= NativeCharacterVitals.ExtendedRecordCount || member.CharacterId > 10 || member.MagicChanges is null || member.MagicChanges.Length > 64 || member.MagicChanges.Any(change => change is null || change.SpellId is 0 or >= 64 || change.CountBefore > 100 || change.Change == 0 || change.CountBefore + change.Change is < 0 or > 100) || member.MagicChanges.Select(change => change.SpellId).Distinct().Count() != member.MagicChanges.Length) || Party.Select(member => member.Row).Distinct().Count() != Party.Length || ItemConsumptions is null || ItemConsumptions.Any(item => item is null || item.ItemId == 0 || item.CountBefore is 0 or > 100 || item.Consumed == 0 || item.Consumed > item.CountBefore) || ItemConsumptions.Select(item => item.ItemId).Distinct().Count() != ItemConsumptions.Length || DefeatedEnemySlots is null || DefeatedEnemySlots.Any(slot => slot is < 0 or >= 8) || DefeatedEnemySlots.Distinct().Count() != DefeatedEnemySlots.Length || RewardEligibleGuardianForceIds is null || RewardEligibleGuardianForceIds.Any(id => id is < 0 or >= 16) || RewardEligibleGuardianForceIds.Distinct().Count() != RewardEligibleGuardianForceIds.Length || Outcome is not (BattleOutcome.Victory or BattleOutcome.Escaped) && RewardEligibleGuardianForceIds.Length != 0 || DebugVictory && (Outcome != BattleOutcome.Victory || RewardEligibleGuardianForceIds.Length != 0))
+        if (Outcome is not (BattleOutcome.Victory or BattleOutcome.Defeat or BattleOutcome.ScriptedExit or BattleOutcome.Escaped) || Party is null || Party.Length < 1 || Party.Length > (UsesExpandedRoster ? NativeCharacterVitals.ExtendedRecordCount : 3) || Party.Any(member => member is null || member.Row >= NativeCharacterVitals.ExtendedRecordCount || member.CharacterId > 10 || member.MagicChanges is null || member.MagicChanges.Length > 64 || member.MagicChanges.Any(change => change is null || change.SpellId is 0 or >= 64 || change.CountBefore > 100 || change.Change == 0 || change.CountBefore + change.Change is < 0 or > 100) || member.MagicChanges.Select(change => change.SpellId).Distinct().Count() != member.MagicChanges.Length) || Party.Select(member => member.Row).Distinct().Count() != Party.Length || ItemConsumptions is null || ItemConsumptions.Any(item => item is null || item.ItemId == 0 || item.CountBefore is 0 or > 100 || item.Consumed == 0 || item.Consumed > item.CountBefore) || ItemConsumptions.Select(item => item.ItemId).Distinct().Count() != ItemConsumptions.Length || DefeatedEnemySlots is null || DefeatedEnemySlots.Any(slot => (uint)slot >= EffectiveEnemySlotCount) || DefeatedEnemySlots.Distinct().Count() != DefeatedEnemySlots.Length || RewardEligibleGuardianForceIds is null || RewardEligibleGuardianForceIds.Any(id => id is < 0 or >= 16) || RewardEligibleGuardianForceIds.Distinct().Count() != RewardEligibleGuardianForceIds.Length || Outcome is not (BattleOutcome.Victory or BattleOutcome.Escaped) && RewardEligibleGuardianForceIds.Length != 0 || DebugVictory && (Outcome != BattleOutcome.Victory || RewardEligibleGuardianForceIds.Length != 0))
         {
             throw new InvalidDataException("Invalid factual battle outcome or persistent effect operands.");
         }

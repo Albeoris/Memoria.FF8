@@ -2,7 +2,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
-internal static class CrossoverNativeActorTextures
+internal static class NativeEffectActorTextures
 {
     public static (NativeBattleGraphicsModel Model, NativeBattleEffectTextureState Textures) Allocate(NativeBattleGraphicsModel model, NativeBattleGraphicsResource resource)
     {

@@ -628,7 +628,7 @@ public sealed partial class BattleSession
 
     private static NativeBattleAiDefinition? CloneNativeAi(NativeBattleAiDefinition? source) => source is null ? null : source with { Scripts = source.Scripts.Select(script => script.ToArray()).ToArray(), Abilities = source.Abilities.ToArray(), Texts = source.Texts.ToArray(), NameBuffers = source.NameBuffers.Select(buffer => buffer.ToArray()).ToArray(), DisplayNames = source.DisplayNames.ToArray() };
     private static NativeBattleEnemyTemplate? CloneNativeTemplate(NativeBattleEnemyTemplate? source) => source is null ? null : source with { NativeDrawTables = source.NativeDrawTables?.Select(table => table.ToArray()).ToArray(), Levels = source.Levels.Select(level => level with { BaseStatistics = level.BaseStatistics.ToArray(), ElementDefenses = level.ElementDefenses.ToArray(), DrawSpells = level.DrawSpells.ToArray(), DrawGuardianForces = level.DrawGuardianForces.ToArray() }).ToArray() };
-    private static void ValidateNativeAi(BattleCombatantDefinition actor)
+    private static void ValidateNativeAi(BattleCombatantDefinition actor, int enemySlotCount)
     {
         if ((actor.NativeRetainedStatusBits & ~0x80) != 0)
         {
@@ -653,7 +653,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native enemy resource template lacks its complete level projections.");
         }
-        if (actor.SceneSlot is < 0 or > 7 || actor.IsPlayer && actor.SceneSlot is not null || !actor.InitialActive && actor.SceneSlot is null)
+        if (actor.SceneSlot is int slot && ((uint)slot >= enemySlotCount || actor.IsPlayer) || !actor.InitialActive && actor.SceneSlot is null)
         {
             throw new InvalidDataException("Native battle formation slot/participant allocation is invalid.");
         }

@@ -26,7 +26,7 @@ internal sealed partial class CrossoverNativeRenzokukenProgram(GameAssets game, 
 {
     public CrossoverNativeRenzokukenProgramState Begin(NativeBattleGraphicsModel model, int hostTarget, ushort variant, bool finisherPending, int approachDistance, short yaw, NativeCrtRandomState random, ushort options, NativeBattleUiRandomState? uiRandom)
     {
-        (model, NativeBattleEffectTextureState textures) = CrossoverNativeActorTextures.Allocate(model, original);
+        (model, NativeBattleEffectTextureState textures) = NativeEffectActorTextures.Allocate(model, original);
         NativeBattleEffectInitializerAsset common = game.ReadNativeCommonEffectTexture();
         (textures, _) = textures.EnqueueTim505E30(new(common.Name, common.Data));
         textures = textures.Drain505D20(NativeBattleEffectMemory.FromColdProcess().Arena).State;

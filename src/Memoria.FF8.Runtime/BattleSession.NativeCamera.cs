@@ -8,7 +8,7 @@ public sealed partial class BattleSession
     public NativeBattleCameraState? NativeCamera
     {
         get => nativeCamera;
-        private set => nativeCamera = value is not null && presentationHostCamera is not null ? HoldEffectPresentationCamera(value, presentationHostCamera) : value;
+        private set => nativeCamera = value is not null && presentationHostCamera is not null ? HoldEffectPresentationCamera(value, presentationHostCamera, presentationCameraMode) : value;
     }
     public byte NativeCameraTaskMask => unchecked((byte)(NativeCamera ?? throw new NotSupportedException("Native camera completion requires the original two-slot camera task owner.")).Mask);
 

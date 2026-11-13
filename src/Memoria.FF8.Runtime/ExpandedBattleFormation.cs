@@ -5,6 +5,10 @@ public static class ExpandedBattleFormation
 {
     public const int MaximumSideSize = NativeCharacterVitals.ExtendedRecordCount;
 
+    public static int DefaultEnemyCount(int allyCount) => allyCount == 4 ? 6 : 8;
+
+    public static bool SupportsRoster(int allyCount, int enemyCount) => (allyCount, enemyCount) is (4, 6) or (8, 8) or (11, 8) or (11, 11);
+
     public static NativeBattleVector Position(int slot, int count, bool isAlly)
     {
         if (count is < 1 or > MaximumSideSize)

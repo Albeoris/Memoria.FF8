@@ -39,6 +39,7 @@ internal static class SaveTransferCommand
         {
             CrossoverSaveAdapter.EnsureOriginalExportAllowed(options.SourcePath);
             GameState state = PlayerStateLoader.Load(options.SourcePath, options.GameDirectory);
+            PlayerSaveStore.ValidateOriginalBattleRoster(state);
             byte[] original;
             if (options.GameDirectory is { } gameDirectory)
             {

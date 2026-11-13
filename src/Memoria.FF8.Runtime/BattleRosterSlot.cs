@@ -26,6 +26,7 @@ internal static class NativeBattleSlots
 {
     public const int AllyCount = 3;
     public const int EnemyCount = 4;
+    public const int FormationSlotCount = 8;
     public const int Count = AllyCount + EnemyCount;
     public const int Unassigned = -1;
 

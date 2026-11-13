@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using System.Numerics;
 using System.Text.Json.Serialization;
 using Memoria.FF7.Formats;
@@ -242,7 +242,7 @@ internal sealed partial class CrossoverGunbladeHostAttack : IFf7BattleGuestAttac
         NativeBattleEffectTextureState? textures = state.IdleTextures;
         if (textures is null && model.Sequence is 3 or 4)
         {
-            (model, textures) = CrossoverNativeActorTextures.Allocate(model, resource);
+            (model, textures) = NativeEffectActorTextures.Allocate(model, resource);
         }
         for (long callback = 0; callback < clock.Callbacks; callback++)
         {

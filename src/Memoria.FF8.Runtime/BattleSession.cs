@@ -929,11 +929,17 @@ public sealed partial class BattleSession
 
     private void CancelDeadActions()
     {
-        if (ActiveAction is { NativeHeaderIndex: null } active && (!CanRetainNativeSupportActor(byId[active.ActorId], active.NativePlayerReaction) || active.Phase == BattleActionPhase.Windup && !ActionHasValidTarget(active.TargetId, active.Ability, active.ActionId, active.NativeAction, active.NativeTargetMask, active.NativeGraphic, active.AiRecipients)))
+        if (expandedEffect is null && ActiveAction is { NativeHeaderIndex: null } active && (!CanRetainNativeSupportActor(byId[active.ActorId], active.NativePlayerReaction) || active.Phase == BattleActionPhase.Windup && !CanRetainTargets(active.ActorId, active.TargetId, active.Ability, active.ActionId, active.NativeAction, active.NativeTargetMask, active.NativeGraphic, active.AiRecipients)))
         {
-            ObserveNativeUnknownStackCallback(0x485460, "active action cancellation");
+            if (!UsesExpandedRoster)
+            {
+                ObserveNativeUnknownStackCallback(0x485460, "active action cancellation");
+            }
             RefundCancelledNativeItem(active);
-            QueueNativeActionClockCompletion(0x47DDA0);
+            if (!UsesExpandedRoster)
+            {
+                QueueNativeActionClockCompletion(0x47DDA0);
+            }
             byId[active.ActorId].IsBusy = false;
             ActiveAction = null;
             Log("Cancelled", active.ActorId, active.TargetId, 0, "Defeated actor cannot complete an action.");
@@ -947,7 +953,7 @@ public sealed partial class BattleSession
                 actions.Enqueue(command);
                 continue;
             }
-            if (CanRetainNativeSupportActor(byId[command.ActorId], command.NativePlayerReaction) && (command.NativeRenzokuken is not null || ActionHasValidTarget(command.TargetId, command.Ability, command.ActionId, command.NativeAction, command.NativeTargetMask, command.NativeGraphic, command.AiRecipients)))
+            if (CanRetainNativeSupportActor(byId[command.ActorId], command.NativePlayerReaction) && (command.NativeRenzokuken is not null || CanRetainTargets(command.ActorId, command.TargetId, command.Ability, command.ActionId, command.NativeAction, command.NativeTargetMask, command.NativeGraphic, command.AiRecipients)))
             {
                 actions.Enqueue(command);
             }
@@ -962,6 +968,11 @@ public sealed partial class BattleSession
         {
             bool nativeQueued = !UsesExpandedRoster && actor.EncodeNativeSlot() is >= 0 and < 7 && nativeCommandBanks.CountActor(checked((byte)actor.EncodeNativeSlot())) != 0;
             actor.IsBusy = (NativeGraphics is not null || actor.IsAlive || ActiveAction is { } support && IsNativeSupportInvocation(support.NativePlayerReaction) && support.ActorId == actor.Id || actions.Any(command => command.ActorId == actor.Id && IsNativeSupportInvocation(command.NativePlayerReaction))) && (nativeQueued || nativeTimedAction?.Command.ActorId == actor.Id || guardianForceCasts.ContainsKey(actor.Id) || ActiveAction?.ActorId == actor.Id || actions.Any(command => command.NativeCallback is null && command.ActorId == actor.Id));
+        }
+
+        bool CanRetainTargets(string actorId, string targetId, BattleAbility ability, int actionId, BattleNativeAction? native, ushort mask, BattleNativeGraphicCommand? graphic, BattleAiRecipients? aiRecipients)
+        {
+            return UsesExpandedRoster ? ExpandedActionTargets(GetActor(actorId), targetId, ability, actionId, aiRecipients).Length != 0 : ActionHasValidTarget(targetId, ability, actionId, native, mask, graphic, aiRecipients);
         }
     }
 
@@ -1145,9 +1156,11 @@ public sealed partial class BattleSession
 
     private void ValidateDefinition(BattleDefinition source)
     {
-        if (source.UsesExpandedRoster && (source.NativeGraphics is not null || (source.Combatants.Count(actor => actor.IsPlayer), source.Combatants.Count(actor => !actor.IsPlayer)) is not ((4, 6) or (8, 8) or (11, 8)) || source.Combatants.Any(actor => !actor.InitialActive) || source.GuardianFormsEnabled))
+        int enemyCount = source.Combatants.Count(actor => !actor.IsPlayer);
+        int enemySlotCount = source.UsesExpandedRoster ? enemyCount : NativeBattleSlots.FormationSlotCount;
+        if (source.UsesExpandedRoster && (source.NativeGraphics is not null || !ExpandedBattleFormation.SupportsRoster(source.Combatants.Length - enemyCount, enemyCount) || source.Combatants.Any(actor => !actor.InitialActive) || source.GuardianFormsEnabled))
         {
-            throw new NotSupportedException("The expanded battle host requires a supported 4x6, 8x8 or 11x8 roster and host-owned actions.");
+            throw new NotSupportedException("The expanded battle host requires a supported 4x6, 8x8, 11x8 or 11x11 roster and host-owned actions.");
         }
         source.Tuning.Validate();
         source.MagicVitals?.Validate();
@@ -1170,16 +1183,16 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native persistent battle AI bank requires all eight executed DWORDs.");
         }
-        int maximumCombatants = source.UsesExpandedRoster ? NativeCharacterVitals.ExtendedRecordCount + 8 : 16;
+        int maximumCombatants = source.UsesExpandedRoster ? 2 * ExpandedBattleFormation.MaximumSideSize : 16;
         if (string.IsNullOrWhiteSpace(source.Name) || source.StageId < 0 || source.EncounterId < 0 || source.Combatants.Length < 2 || source.Combatants.Length > maximumCombatants || !source.Combatants.Any(actor => actor.IsPlayer) || !source.Combatants.Any(actor => !actor.IsPlayer))
         {
-            throw new ArgumentException("Battle requires a name and both player and enemy combatants (2–16 total).");
+            throw new ArgumentException($"Battle requires a name and both player and enemy combatants (2–{maximumCombatants} total).");
         }
         HashSet<string> ids = new(StringComparer.Ordinal);
         HashSet<int> rewardSlots = [];
         foreach (BattleCombatantDefinition actor in source.Combatants)
         {
-            ValidateNativeAi(actor);
+            ValidateNativeAi(actor, enemySlotCount);
             if (actor.Luck is < 0 or > 255 || actor.Hit is < 0 or > 255 || actor.Evasion is < 0 or > 255)
             {
                 throw new ArgumentException("Native hit, luck and evasion statistics require their BYTE widths.");
@@ -1202,7 +1215,7 @@ public sealed partial class BattleSession
             if (actor.Rewards is { } rewards)
             {
                 rewards.Validate();
-                if (actor.IsPlayer || actor.RewardSlot is not int slot || slot is < 0 or >= 8 || !rewardSlots.Add(slot) || actor.Level == 0 && actor.InitialActive)
+                if (actor.IsPlayer || actor.RewardSlot is not int slot || (uint)slot >= enemySlotCount || !rewardSlots.Add(slot) || actor.Level == 0 && actor.InitialActive)
                 {
                     throw new InvalidDataException("Enemy reward definitions require their unique original formation slots and actual levels.");
                 }

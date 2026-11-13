@@ -102,6 +102,39 @@ public sealed class ExpandedBattleMassTargetTests
         int Stock() => battle.Items.Single(stock => stock.Id == item.Id).Count;
     }
 
+    [Fact]
+    public void MegaPotionKeepsItsGroupWhenTheSelectedAnchorFallsDuringWindup()
+    {
+        const byte itemId = 6;
+        using GameWorld world = StartBattle(0, itemId, false);
+        BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
+        BattleCombatant caster = Assert.Single(battle.Combatants, actor => actor.Id == "party-10");
+        BattleCombatant anchor = Assert.Single(battle.Combatants, actor => actor.Id == "party-9");
+        for (int turn = 0; turn < 24 && (!caster.IsReady || battle.ActiveAction is not null); turn++)
+        {
+            world.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
+            world.ApplyBattleInput(new(BattleInputKind.Tick, Frames: 30));
+        }
+        Assert.True(caster.IsReady);
+        world.ApplyBattleInput(new(BattleInputKind.Action) { ActorId = caster.Id, TargetId = anchor.Id, Ability = BattleAbility.Item, ActionId = itemId });
+        Assert.True(caster.IsBusy);
+        world.ApplyBattleInput(new(BattleInputKind.Tick));
+        Assert.Equal(BattleActionPhase.Windup, battle.ActiveAction?.Phase);
+        anchor.CurrentHp = 0;
+        anchor.NativeStatus0 |= 1;
+        for (int frame = 0; frame < 600 && caster.IsBusy; frame++)
+        {
+            world.ApplyBattleInput(new(BattleInputKind.Tick));
+        }
+
+        Assert.False(caster.IsBusy);
+        Assert.False(anchor.IsAlive);
+        BattleEvent[] contacts = battle.Events.Where(entry => entry.Kind == "EffectContact" && entry.ActorId == caster.Id).ToArray();
+        Assert.Equal(10, contacts.Length);
+        Assert.DoesNotContain(contacts, contact => contact.TargetId == anchor.Id);
+        Assert.Equal(1, battle.Items.Single(stock => stock.Id == itemId).Count);
+    }
+
     private static GameWorld StartBattle(ushort formation, byte? itemId, bool includeKnockedOutAlly)
     {
         const ushort fieldId = 133;

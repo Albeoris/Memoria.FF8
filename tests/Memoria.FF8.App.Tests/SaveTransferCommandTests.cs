@@ -8,6 +8,24 @@ public sealed class SaveTransferCommandTests : IDisposable
     private readonly string directory = Path.Combine(Path.GetTempPath(), "Memoria.FF8-save-transfer-" + Guid.NewGuid().ToString("N"));
 
     [Fact]
+    public void Original_export_preserves_the_source_when_battle_roster_requires_Memoria()
+    {
+        string source = Path.Combine(directory, "expanded.json");
+        string output = Path.Combine(directory, "original.ff8");
+        GameSession session = GameSession.CreateColdProcess();
+        session.StartNewGame();
+        session.SetGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = 11 });
+        session.Save(source);
+        byte[] original = File.ReadAllBytes(source);
+
+        NotSupportedException error = Assert.Throws<NotSupportedException>(() => SaveTransferCommand.Run([source, "--output", output], import: false));
+
+        Assert.Contains("expanded battle settings", error.Message);
+        Assert.False(File.Exists(output));
+        Assert.Equal(original, File.ReadAllBytes(source));
+    }
+
+    [Fact]
     public void Combined_world_save_export_is_refused_before_extracting_FF8_or_creating_output()
     {
         Directory.CreateDirectory(directory);

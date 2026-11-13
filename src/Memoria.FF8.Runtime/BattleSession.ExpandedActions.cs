@@ -29,8 +29,8 @@ public sealed partial class BattleSession
         {
             return false;
         }
-        return (action.Ability, native.Command, native.ActionId, native.MagicId) is
-            (BattleAbility.Magic, 2, 1, _) or (BattleAbility.Magic, 2, _, 38) ||
+        return action.Ability == BattleAbility.Magic && native.Command == 2 &&
+            (native.ActionId is >= 1 and <= 9 or >= 21 and <= 27 || native.MagicId == 38) ||
             action.Ability == BattleAbility.Item && native is { Command: 4, AttackType: 4, Power: > 0, Statuses0: 0, Statuses1: 0 } && action.Allies;
     }
 
@@ -48,7 +48,7 @@ public sealed partial class BattleSession
 
     private void StartExpandedAction(BattleCombatant actor, BattleAttackCommand command)
     {
-        if (!CanNativeBattleActorAct(actor) || !CanExecuteMagicReservation(actor, command) || !ActionHasValidTarget(command.TargetId, command.Ability, command.ActionId, command.NativeAction, 0, aiRecipients: command.AiRecipients))
+        if (!CanNativeBattleActorAct(actor) || !CanExecuteMagicReservation(actor, command) || ExpandedActionTargets(actor, command.TargetId, command.Ability, command.ActionId, command.AiRecipients).Length == 0)
         {
             RefundCancelledNativeItem(command);
             actor.IsBusy = false;
@@ -116,7 +116,8 @@ public sealed partial class BattleSession
             return;
         }
         BattleCombatant target = GetActor(command.TargetId);
-        if (!CanNativeBattleActorAct(actor) || !CanExecuteMagicReservation(actor, new(command.ActorId, command.TargetId, command.Ability, command.ActionId) { MagicReservationId = command.MagicReservationId }) || (command.AiRecipients is { } aiTargets ? CurrentExpandedAiTargets(aiTargets).Length == 0 : !target.IsAlive || target.Untargetable) ||
+        BattleCombatant[] recipients = ExpandedActionTargets(actor, command.TargetId, command.Ability, command.ActionId, command.AiRecipients);
+        if (!CanNativeBattleActorAct(actor) || !CanExecuteMagicReservation(actor, new(command.ActorId, command.TargetId, command.Ability, command.ActionId) { MagicReservationId = command.MagicReservationId }) || recipients.Length == 0 ||
             (command.Ability == BattleAbility.Magic || command.NativeAction?.Command == 2) && (NativeSavedStatusBits(actor) & 0x10) != 0)
         {
             RefundCancelledNativeItem(command);
@@ -136,9 +137,6 @@ public sealed partial class BattleSession
                 ? new(BattleAbility.EnemyAbility, command.ActionId, command.NativeAction!.Name ?? $"Enemy ability {command.ActionId}", BattleActionEffect.Native, command.NativeAction.Power, false) { NativeAction = command.NativeAction }
                 : FindAction(command.Ability, command.ActionId);
         BattleNativeAction native = action.NativeAction!;
-        BattleCombatant[] recipients = command.AiRecipients is { } selected ? CurrentExpandedAiTargets(selected) : action.AllTargets
-            ? Roster(target.Side).Where(candidate => candidate.IsActive && candidate.IsAlive && !candidate.Untargetable).ToArray()
-            : [target];
         if (recipients.Any(recipient => NativeActionReflects(recipient, native)))
         {
             RefundCancelledNativeItem(command);
@@ -203,6 +201,23 @@ public sealed partial class BattleSession
         expandedContactBridge = new(presented.Select(contact => (contact.RecipientId, contact.Contact)));
         expandedEffect = expandedEffectFactory!(actor, native, presented);
         ActiveAction = command with { Phase = BattleActionPhase.Recovery, RemainingFrames = 1, MagicReservationId = null };
+    }
+
+    private BattleCombatant[] ExpandedActionTargets(BattleCombatant actor, string targetId, BattleAbility ability, int actionId, BattleAiRecipients? aiRecipients)
+    {
+        if (aiRecipients is not null)
+        {
+            return CurrentExpandedAiTargets(aiRecipients);
+        }
+        BattleCombatant target = GetActor(targetId);
+        if (ability == BattleAbility.Attack)
+        {
+            return target.IsActive && target.IsAlive && !target.Untargetable ? [target] : [];
+        }
+        BattleActionDefinition action = FindAction(ability, actionId);
+        return action.AllTargets
+            ? Roster(target.Side).Where(candidate => IsValidSelectedActionTarget(actor, action, candidate)).ToArray()
+            : IsValidSelectedActionTarget(actor, action, target) ? [target] : [];
     }
 
     private void PublishExpandedEffectContact(BattleActionPresentation command, string recipient, NativeBattleContactHalf contact)

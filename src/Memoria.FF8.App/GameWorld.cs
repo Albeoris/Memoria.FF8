@@ -51,16 +51,22 @@ internal sealed partial class GameWorld : IDisposable
         return GameSession.CreateColdProcess(NativeExecutionStackSelection.Apply(memory, NativeExecutionStackSelection.Read(selectedExecutionStackPath)));
     }
 
-    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, bool audioEnabled = false, bool validateWorldPresentation = true, Func<string, string>? resolveGameFile = null, GameAssets? sharedAssets = null, Func<FieldSceneMods>? readSceneMods = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null, Func<BattleDefinition, EncounterBindingContext, BattleDefinition>? applyEncounterMods = null, GameplaySaveSceneFacts? gameplaySaveFacts = null, bool legacyGameplayProjection = false, int? expandedBattleAllyCount = null)
+    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, bool audioEnabled = false, bool validateWorldPresentation = true, Func<string, string>? resolveGameFile = null, GameAssets? sharedAssets = null, Func<FieldSceneMods>? readSceneMods = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null, Func<BattleDefinition, EncounterBindingContext, BattleDefinition>? applyEncounterMods = null, GameplaySaveSceneFacts? gameplaySaveFacts = null, bool legacyGameplayProjection = false, int? expandedBattleAllyCount = null, int? expandedBattleEnemyCount = null)
     {
         this.session = session;
-        defaultExpandedRandomAllyCount = expandedBattleAllyCount ?? (Environment.GetEnvironmentVariable("MEMORIA_FF8_BATTLE_ROSTER") switch
+        string? expandedRoster = Environment.GetEnvironmentVariable("MEMORIA_FF8_BATTLE_ROSTER");
+        defaultExpandedRandomAllyCount = expandedBattleAllyCount ?? (expandedRoster switch
         {
             "4x6" => 4,
             "8x8" => 8,
-            "11x8" => 11,
+            "11x8" or "11x11" => 11,
             _ => 0
         });
+        defaultLargeRandomEnemyCount = expandedBattleEnemyCount ?? (expandedRoster == "11x11" ? 11 : 8);
+        if (!ExpandedBattleFormation.SupportsRoster(11, defaultLargeRandomEnemyCount))
+        {
+            throw new ArgumentOutOfRangeException(nameof(expandedBattleEnemyCount));
+        }
         this.legacyGameplayProjection = legacyGameplayProjection;
         this.readGameplayPolicy = readGameplayPolicy;
         this.readSceneMods = readSceneMods;
@@ -620,7 +626,7 @@ internal sealed partial class GameWorld : IDisposable
                 EndDiagnosticBattle();
                 snapshotPreparation.Dispose();
             }
-            else if (diagnosticAllocationFaulted)
+            else if (diagnosticAllocationFaulted || battle?.ExpandedEffect is not null)
             {
                 session.AbandonSnapshotPreparation(snapshotPreparation);
             }

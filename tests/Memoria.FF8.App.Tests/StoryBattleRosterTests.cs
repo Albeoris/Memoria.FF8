@@ -7,6 +7,58 @@ namespace Memoria.FF8.App.Tests;
 public sealed class StoryBattleRosterTests
 {
     [Theory]
+    [InlineData("story-battle-94", 130, 94)]
+    [InlineData("story-battle-136", 768, 136)]
+    [InlineData("story-battle-164", 776, 164)]
+    public void StoryBattlePreservesPhysicalActorsAndCallbacksAtElevenAllies(string fixture, int field, int formation)
+    {
+        string path = TestResources.FixturePath(fixture);
+        string directory = TestResources.GameDirectory;
+        GameSession original = new(GameSession.Load(path));
+        GameSession expanded = new(GameSession.Load(path));
+        using GameWorld originalWorld = new(original, directory, expandedBattleAllyCount: 3);
+        using GameWorld expandedWorld = new(expanded, directory, expandedBattleAllyCount: 11);
+        originalWorld.EnsureField();
+        expandedWorld.EnsureField();
+        Assert.Equal(3, originalWorld.ConfiguredBattleAllyCount);
+        Assert.Equal(11, expandedWorld.ConfiguredBattleAllyCount);
+        NativeBattleCompletion request = Assert.IsType<NativeBattleCompletion>(originalWorld.Events.PendingInteractiveBattle);
+        Assert.Equal(field, request.FieldId);
+        Assert.Equal(formation, request.Encounter);
+        Assert.Equal(request, expandedWorld.Events.PendingInteractiveBattle);
+        Assert.Null(originalWorld.Battle);
+        Assert.Null(expandedWorld.Battle);
+
+        BattleInput start = new(BattleInputKind.StartEncounter, Mode: original.State.GameplayPreferences.AtbMode, NativeSeed: 0);
+        originalWorld.ApplyBattleInput(start);
+        expandedWorld.ApplyBattleInput(start);
+        BattleSession originalBattle = Assert.IsType<BattleSession>(originalWorld.Battle);
+        BattleSession expandedBattle = Assert.IsType<BattleSession>(expandedWorld.Battle);
+        AssertOriginalStoryState(originalBattle, expandedBattle, original.State.CharacterVitals!.CombatParty);
+
+        const int callbacks = 8;
+        BattleInput tick = new(BattleInputKind.Tick, Frames: callbacks);
+        Exception? originalCallback = Record.Exception(() => originalWorld.ApplyBattleInput(tick));
+        Exception? expandedCallback = Record.Exception(() => expandedWorld.ApplyBattleInput(tick));
+        Assert.Equal(originalCallback?.GetType(), expandedCallback?.GetType());
+        Assert.Equal(originalCallback?.Message, expandedCallback?.Message);
+        if (originalCallback is not null)
+        {
+            Assert.Equal(94, formation);
+            Assert.IsType<NotSupportedException>(originalCallback);
+            Assert.Contains("Native504060 completed blend requires its503300 captured pose", originalCallback.Message);
+        }
+        else
+        {
+            Assert.Equal(callbacks, originalBattle.NativeHostCallbacks);
+        }
+        Assert.Equal(request.Frame, originalWorld.Events.Frame);
+        Assert.Equal(originalWorld.Events.Frame, expandedWorld.Events.Frame);
+        AssertJsonEqual(original.ExamTimer, expanded.ExamTimer);
+        AssertOriginalStoryState(originalBattle, expandedBattle, original.State.CharacterVitals.CombatParty);
+    }
+
+    [Theory]
     [InlineData(0)]
     [InlineData(4)]
     [InlineData(8)]
@@ -94,6 +146,32 @@ public sealed class StoryBattleRosterTests
         Assert.False(vitals.ExtendedRosterEnabled);
         byte[] available = Assert.IsType<byte[]>(ExpandedBattlePartyRows.Select(vitals, 11));
         Assert.Equal(Enumerable.Range(0, 11).Select(row => (byte)row), available.Order());
+    }
+
+    private static void AssertOriginalStoryState(BattleSession original, BattleSession candidate, IEnumerable<byte> combatParty)
+    {
+        Assert.False(original.UsesExpandedRoster);
+        Assert.False(candidate.UsesExpandedRoster);
+        Assert.NotNull(original.NativeGraphics);
+        Assert.NotNull(candidate.NativeGraphics);
+        Assert.Equal(original.EncounterId, candidate.EncounterId);
+        BattleCombatant[] allies = candidate.Combatants.Where(actor => actor.IsPlayer).ToArray();
+        Assert.Equal(combatParty.Where(row => row != byte.MaxValue).Select(row => $"party-{row}"), allies.Select(actor => actor.Id));
+        Assert.All(allies, actor => Assert.InRange(actor.EncodeNativeSlot(), 0, 2));
+        Assert.All(candidate.Combatants.Where(actor => !actor.IsPlayer && actor.IsActive), actor => Assert.InRange(actor.EncodeNativeSlot(), 3, 6));
+        BattleSnapshot expected = original.Capture();
+        BattleSnapshot actual = candidate.Capture();
+        Assert.Equal(expected.NativeHostCallbacks, actual.NativeHostCallbacks);
+        Assert.Equal(expected.Frame, actual.Frame);
+        AssertJsonEqual(expected.Random, actual.Random);
+        AssertJsonEqual(expected.NativeExamTimer, actual.NativeExamTimer);
+        AssertJsonEqual(expected.Combatants, actual.Combatants);
+        AssertJsonEqual(expected.NativeAllocations, actual.NativeAllocations);
+    }
+
+    private static void AssertJsonEqual<T>(T expected, T actual)
+    {
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(expected), JsonSerializer.SerializeToElement(actual)));
     }
 
     private static BattleSession RestoreAndAdvance(GameWorld world, BattleSession battle)

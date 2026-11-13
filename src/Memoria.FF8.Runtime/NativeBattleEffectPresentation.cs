@@ -28,6 +28,13 @@ public sealed record NativeBattleEffectPresentationInputs(BattleDefinition Resou
     public int? PartyActorCount { get; init; }
     public int? InitialMusicGain { get; init; }
     public NativeBattleSequenceProcessGlobals? SequenceGlobals { get; init; }
+    public NativeBattleEffectCameraMode CameraMode { get; init; }
+}
+
+public enum NativeBattleEffectCameraMode
+{
+    Hold,
+    HostPoseWithEffectTranslation
 }
 
 public enum NativeBattleForeignSequenceKind
