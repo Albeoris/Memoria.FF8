@@ -1593,17 +1593,18 @@ internal sealed partial class AutoPlayController
             return;
         }
         bool releaseConfirm = NeedsWorldConfirmRelease(session.State.WorldProcess?.InputHistory);
-        if ((world.WorldScene!.PlanAutoPlayGardenReboarding(releaseConfirm) ?? world.WorldScene.PlanAutoPlayGardenLanding(releaseConfirm)) is { } gardenAction)
+        if ((world.WorldScene!.PlanAutoPlayRagnarokFlight(releaseConfirm) ?? world.WorldScene.PlanAutoPlayGardenReboarding(releaseConfirm) ?? world.WorldScene.PlanAutoPlayGardenLanding(releaseConfirm)) is { } vehicleAction)
         {
-            PlayerActionResult movement = Apply(gardenAction);
+            SaveLocationEntry();
+            PlayerActionResult movement = Apply(vehicleAction);
             if (!movement.Accepted || movement.FramesAdvanced == 0)
             {
-                throw new NotSupportedException($"The ordinary Garden control was rejected: {movement.Detail}");
+                throw new NotSupportedException($"The ordinary world vehicle control was rejected: {movement.Detail}");
             }
             run.SceneFrames += movement.FramesAdvanced;
             if (run.SceneFrames > 12000)
             {
-                throw new TimeoutException("The Garden did not reach its native route boundary within 12000 callbacks.");
+                throw new TimeoutException("The world vehicle did not reach its native route boundary within 12000 callbacks.");
             }
             if (session.State.World is { } advanced && (advanced.X != current.X || advanced.Z != current.Z || advanced.BodyYaw != current.BodyYaw || advanced.NativeHeight != current.NativeHeight || advanced.NativeFootRuntime is not null))
             {
