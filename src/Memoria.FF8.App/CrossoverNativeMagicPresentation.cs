@@ -5,6 +5,8 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
+internal sealed record CrossoverNativeMagicParticipant(int HostSlot, int ActorIndex);
+
 internal sealed record CrossoverNativeMagicTarget(int HostSlot, NativeBattleContactHalf Contact)
 {
     public static ImmutableArray<CrossoverNativeMagicTarget> Bind(int caster, IReadOnlyList<int> slots, Func<int, byte, NativeBattleContactHalf> createContact)
@@ -27,6 +29,7 @@ internal sealed record CrossoverNativeMagicTarget(int HostSlot, NativeBattleCont
 internal sealed record CrossoverNativeMagicPresentationState(CrossoverNativeCastState Cast, NativeBattleAuxiliaryState Auxiliary, NativeBattleModuleState Modules, NativeBattleEffectTextureState Textures, NativeBattleModelTextureBinding BodyTextures, ImmutableArray<byte> TextureAnimations, NativeCrtRandomState Random, int HostTarget, NativeBattleContactHalf Contact)
 {
     public ImmutableArray<CrossoverNativeMagicTarget> Targets { get; init; } = [];
+    public ImmutableArray<int> Participants { get; init; } = [];
     public ushort PublishedTargetMask { get; init; }
     public ImmutableArray<CrossoverNativeMagicTarget> BoundTargets => Targets.IsEmpty ? [new(HostTarget, Contact)] : Targets;
     public int PublishedContacts { get; init; }
@@ -48,7 +51,24 @@ internal sealed record CrossoverNativeMagicPresentationState(CrossoverNativeCast
     public NativeBattleStageColor StageColor => Effect?.StageColor ?? default;
     public short StageDepth => StageColor.Depth;
     public short ViewTranslationY => Effect?.ViewTranslationY ?? 0;
-    public ImmutableArray<int> SuppressedForeignSlots => Effect is { } effect ? BoundTargets.Where(target => target.Contact.ActorIndex != 0 && (effect.Graphics.Models[target.Contact.ActorIndex].Flags0 & 4) != 0).Select(target => target.HostSlot).ToImmutableArray() : [];
+    public ImmutableArray<CrossoverNativeMagicParticipant> BoundParticipants
+    {
+        get
+        {
+            List<CrossoverNativeMagicParticipant> bound = BoundTargets.Where(target => target.Contact.ActorIndex != 0).Select(target => new CrossoverNativeMagicParticipant(target.HostSlot, target.Contact.ActorIndex)).ToList();
+            foreach (int participant in Participants.Where(participant => bound.All(target => target.HostSlot != participant)))
+            {
+                int index = Enumerable.Range(1, 6).FirstOrDefault(index => bound.All(target => target.ActorIndex != index));
+                if (index == 0)
+                {
+                    break;
+                }
+                bound.Add(new(participant, index));
+            }
+            return bound.ToImmutableArray();
+        }
+    }
+    public ImmutableArray<int> SuppressedForeignSlots => Effect is { } effect ? BoundParticipants.Where(participant => (effect.Graphics.Models[participant.ActorIndex].Flags0 & 4) != 0).Select(participant => participant.HostSlot).ToImmutableArray() : [];
 }
 
 internal sealed record CrossoverNativeMagicPresentationStep(CrossoverNativeMagicPresentationState State, bool Contact, ImmutableArray<NativeBattleModuleDraw> Sounds)
@@ -59,7 +79,7 @@ internal sealed record CrossoverNativeMagicPresentationStep(CrossoverNativeMagic
 }
 
 /// <summary>Original command casting and the shared FFVIII effect dispatcher on the host presentation clock.</summary>
-internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBattleGraphicsResource resource, BattleAssets battle)
+internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBattleGraphicsResource resource, BattleAssets battle, Func<ImmutableArray<int>>? readParticipants = null, Func<int, int, NativeBattleForeignActor>? readParticipantGeometry = null)
 {
     private const int MaximumProbeCallbacks = 4096;
     private readonly ImmutableArray<NativeBattleModuleResource> sprites = game.ReadNativeBattleModuleResources();
@@ -79,14 +99,14 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
         (textures, _) = textures.EnqueueTim505E30(new(common.Name, common.Data));
         textures = textures.Drain505D20(NativeBattleEffectMemory.FromColdProcess().Arena).State;
         CrossoverNativeCastState cast = CrossoverNativeCastPresentation.Begin(source, resource, game.ReadNativeBattleCommandSequences(), command, action.ActionId);
-        return new(cast, NativeBattleAuxiliaryState.Clear(), NativeBattleModuleState.Clear(), textures, source.BodyTextureSlots!, resource.TextureAnimations ?? throw new InvalidDataException("Native casting requires the source texture animation table."), random, hostTarget, contact) { Ability = action.ActionId, Command = command, Action = action, GlobalRandom = globalRandom, Arena = arena };
+        return new(cast, NativeBattleAuxiliaryState.Clear(), NativeBattleModuleState.Clear(), textures, source.BodyTextureSlots!, resource.TextureAnimations ?? throw new InvalidDataException("Native casting requires the source texture animation table."), random, hostTarget, contact) { Ability = action.ActionId, Command = command, Action = action, GlobalRandom = globalRandom, Arena = arena, Participants = readParticipants?.Invoke() ?? [] };
     }
 
     public bool TryPreflight(CrossoverNativeMagicPresentationState source, Func<NativeBattleModuleAnchor> readTargetAnchor, Func<NativeBattleModelTransform> readTargetTransform, NativeBattleCameraProjection projection, Func<CrossoverNativeForeignTarget>? readForeign, out string? reason, Func<int, CrossoverNativeForeignTarget>? readGroupForeign = null)
     {
+        CrossoverNativeMagicPresentationState probe = source with { Effect = null, Arena = source.Arena?.Fork(), Textures = NativeBattleEffectComponentStorage.Restore(NativeBattleEffectComponentStorage.Capture(source.Textures)) };
         try
         {
-            CrossoverNativeMagicPresentationState probe = source with { Effect = null, Textures = NativeBattleEffectComponentStorage.Restore(NativeBattleEffectComponentStorage.Capture(source.Textures)) };
             for (int callback = 0; callback < MaximumProbeCallbacks; callback++)
             {
                 probe = Advance(probe, readTargetAnchor, readTargetTransform, projection, readForeign, readGroupForeign).State;
@@ -103,6 +123,11 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
         {
             reason = error.Message;
             return false;
+        }
+        finally
+        {
+            probe.Effect?.Dispose();
+            probe.Arena?.ClearPresentation();
         }
     }
 
@@ -246,7 +271,7 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
             (packets, _) = packets.Publish(checked((byte)source.BoundTargets.Length));
             NativeBattleGraphicsDefinition graphics = new(game.ReadNativeBattleGraphicsRules(), [new("source", checked((byte)cast.Model.ModelId4!.Value), resource)], []) { PrimitiveTables = battle.ReadNativePrimitiveTables(), SoftwarePrimitiveTable = battle.ReadNativeSoftwarePrimitiveTable(), PrimitiveCapabilities = NativeBattlePrimitiveCapabilities.PrimaryRgba8() };
             BattleDefinition resources = new() { NativeGraphics = graphics, NativeModuleResources = sprites, NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([action.MagicId]), NativeCommonEffectTexture = game.ReadNativeCommonEffectTexture(), NativeCommandSequences = game.ReadNativeBattleCommandSequences(), NativeGlobalRandom = source.GlobalRandom, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory() };
-            effect = new(new(resources, cast.Model, resource, packets, new(0, 0, targetMask, 0, 0, 0), action.MagicId, textures, random, projection ?? throw new NotSupportedException("Native effects require the current host camera."), ForeignActors()) { Arena = source.Arena, DeferInvocation = defer });
+            effect = new(new(resources, cast.Model, resource, packets, new(0, 0, targetMask, 0, 0, 0), action.MagicId, textures, random, projection ?? throw new NotSupportedException("Native effects require the current host camera."), ForeignActors()) { Arena = source.Arena, DeferInvocation = defer, PartyActorCount = source.Participants.Length + 1 });
             cast = cast with { Model = effect.Source };
             textures = effect.Memory.Textures!;
             random = effect.Random;
@@ -271,6 +296,11 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
                 NativeBattleModuleAnchor anchor = readTargetAnchor();
                 NativeBattleModelTransform transform = readTargetTransform();
                 actors.Add(new(target.Contact.ActorIndex, transform, anchor, (selector, fraction) => CrossoverNativeForeignTarget.ReadSemanticBone(selector, fraction, new(anchor.X, anchor.Y, anchor.Z), () => throw new NotSupportedException("The host target has no posed root geometry provider."))));
+            }
+            foreach (CrossoverNativeMagicParticipant participant in source.BoundParticipants.Where(participant => source.BoundTargets.All(target => target.HostSlot != participant.HostSlot)))
+            {
+                NativeBattleForeignActor foreign = (readParticipantGeometry ?? throw new NotSupportedException("The host has no geometry owner for its other presentation participants."))(participant.HostSlot, participant.ActorIndex);
+                actors.Add(foreign);
             }
             return actors.ToImmutable();
         }

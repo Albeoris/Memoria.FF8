@@ -30,4 +30,7 @@ public sealed record NativeBattleMeltdownActor(int Actor, NativeBattleModuleAnch
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
 }
 public sealed record NativeBattleMeltdownFlags(int Actor, ushort Flags) : NativeBattleMeltdownOperation;
-public sealed record NativeBattleMeltdownInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, NativeBattleSummonColors Colors, bool DrawOnly, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleMeltdownFrame, NativeBattleMeltdownOperation, NativeBattleMeltdownFrame> Execute);
+public sealed record NativeBattleMeltdownInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, NativeBattleSummonColors Colors, bool DrawOnly, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleMeltdownFrame, NativeBattleMeltdownOperation, NativeBattleMeltdownFrame> Execute)
+{
+    public Func<int, NativeBattleModuleAnchor>? ReadAnchor { get; init; }
+}

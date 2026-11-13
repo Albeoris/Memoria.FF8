@@ -1,7 +1,32 @@
+using System.Collections.Immutable;
+
 namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
+    private ImmutableArray<int> ReadRequiredPresentationPartyActors()
+    {
+        if (presentationForeignActors is null)
+        {
+            return [0, 1, 2];
+        }
+        ImmutableArray<int> actors = presentationForeignActors.Values.Where(actor => actor.IsParty).Select(actor => actor.Index).Order().Prepend(0).ToImmutableArray();
+        if (presentationPartyActorCount is { } expected && actors.Length != expected)
+        {
+            throw new NotSupportedException("The native party presentation operation exceeds the host's available physical model bank.");
+        }
+        return actors;
+    }
+
+    private NativeBattleStageState ReadNativeStageVisibilityOwner()
+    {
+        if (presentationForeignActors is not null && presentationArena is null)
+        {
+            throw new NotSupportedException("The host has no arena visibility owner for this native stage operation.");
+        }
+        return NativeStage ?? throw new NotSupportedException("The native stage visibility operation requires its current stage owner.");
+    }
+
     internal int ReadEffectPresentationSourceVariable(NativeBattleGraphicsModel source, byte variable)
     {
         return ReadNativeGraphicsSequenceVariable(NativeGraphics! with { Models = NativeGraphics!.Models.SetItem(0, source) }, 0, variable);

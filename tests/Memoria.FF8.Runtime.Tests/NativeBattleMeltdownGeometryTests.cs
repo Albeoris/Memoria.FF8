@@ -1,10 +1,43 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Numerics;
 
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleMeltdownGeometryTests
 {
+    private sealed record Material : INativeBattleForeignMaterial;
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2000)]
+    public void Posed_host_world_vertices_use_native_deformation_packets_and_keep_their_material(int strength)
+    {
+        NativeBattleActionMatrix identity = NativeBattleForeignModelGeometry.Identity;
+        NativeBattleForeignSurface surface = new(new Material(), [Vector2.Zero, Vector2.UnitX, Vector2.UnitY], [Vector4.One, Vector4.One, Vector4.One]);
+        NativeBattleForeignModelFace face = new(new(-100, -100, 0), new(100, -100, 0), new(0, 100, 0), surface);
+        NativeBattleForeignModelGeometry geometry = new(identity with { X = 70, Y = -300, Z = 200 }, new(default, default, 0, new(default, default)), [face]);
+        NativeBattleCameraProjection projection = new(identity with { Z = 4096 }, 216, 160, 108);
+        NativeBattleModuleAnchor target = new(70, -300, 200, 0);
+        NativeBattleModuleAnchor caster = new(0, -2000, 1000, 0);
+        NativeBattlePilotVisualIdentity tag = new(148, 0x612540, 3, 0, 0);
+        NativeBattleRawMesh mesh = face.Triangle();
+        ImmutableArray<byte> vertices = NativeBattleMeltdownGeometry.MeltVertices(mesh, [geometry.World], target, caster, strength);
+        NativeBattleGfGeometryBatch expected = NativeBattleMeltdownGeometry.Emit612B40(mesh, vertices, projection.View!, projection, 0x808080, tag);
+        NativeBattleGfGeometryBatch actual = NativeBattleForeignModelDrawing.DrawWorld(geometry, (selected, world, occurrence) => NativeBattleMeltdownGeometry.Emit612B40(selected, NativeBattleMeltdownGeometry.MeltVertices(selected, [world], target, caster, strength), projection.View!, projection, 0x808080, occurrence), tag);
+        Assert.Equal(expected.AllocationBytes, actual.AllocationBytes);
+        NativeBattleGfGeometryAttempt expectedAttempt = Assert.Single(expected.Attempts);
+        NativeBattleGfGeometryAttempt actualAttempt = Assert.Single(actual.Attempts);
+        Assert.Equal(expectedAttempt.Data, actualAttempt.Data);
+        Assert.Equal(expectedAttempt.WriteMask, actualAttempt.WriteMask);
+        Assert.Equal(expectedAttempt.Primitive!.Words, actualAttempt.Primitive!.Words);
+        Assert.Equal(expectedAttempt.Primitive.VertexPayload4, actualAttempt.Primitive.VertexPayload4);
+        Assert.Equal(expectedAttempt.Primitive.PilotGeometry!.A, actualAttempt.Primitive.PilotGeometry!.A);
+        Assert.Equal(expectedAttempt.Primitive.PilotGeometry.B, actualAttempt.Primitive.PilotGeometry.B);
+        Assert.Equal(expectedAttempt.Primitive.PilotGeometry.C, actualAttempt.Primitive.PilotGeometry.C);
+        Assert.Same(surface, actualAttempt.Primitive.PilotGeometry.ForeignSurface);
+    }
+
     [Fact]
     public void Melt_uses_wrapping_distance_weight_word_stores_and_conditional_ground_clamp()
     {

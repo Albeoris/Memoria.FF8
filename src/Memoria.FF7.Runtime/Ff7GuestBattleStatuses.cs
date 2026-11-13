@@ -17,6 +17,7 @@ public static class Ff7GuestBattleStatuses
     public const ushort SupportedOrigin = 0x3F;
     public const uint SupportedOriginBattle = 0x5CFF;
     public const uint OriginMulticast = 0x60000;
+    public const uint OriginDefenseReduction = 0x1000000;
 
     // FFVIII keeps the saved and battle banks separate. Its defense row indexes battle bits after the saved byte.
     private static readonly (int OriginIndex, uint HostMask)[] Common =

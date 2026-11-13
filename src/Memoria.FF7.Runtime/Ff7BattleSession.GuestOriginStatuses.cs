@@ -14,7 +14,12 @@ public sealed partial class Ff7BattleSession
             uint origin = state.GuestOriginStatuses?.SingleOrDefault(value => value.HostSlot == slot)?.BattleStatuses ?? guest.Binding.OriginBattleStatuses;
             Ff7BattleActorState actor = Actor(slot);
             uint statuses = actor.Actor.Statuses | Ff7GuestBattleStatuses.ToHostStatuses(0, origin & added);
-            Replace(actor with { Actor = actor.Actor with { Statuses = statuses }, Timers = Ff7NativeBattleStatusClock.Apply(actor.Timers, actor.Actor.Statuses, statuses) });
+            Ff7BattleParameterOperation? parameter = actor.ParameterStatus;
+            if (!actor.ParameterStatusInitialized && parameter is null && (origin & Ff7GuestBattleStatuses.OriginDefenseReduction) != 0)
+            {
+                parameter = new(Ff7GuestBattleStatuses.OriginDefenseReduction, 32, 100, 100);
+            }
+            Replace(actor with { Actor = actor.Actor with { Statuses = statuses }, Timers = Ff7NativeBattleStatusClock.Apply(actor.Timers, actor.Actor.Statuses, statuses), ParameterStatus = parameter, ParameterStatusInitialized = true });
         }
         state = state with { GuestProjectedBattleMask = Ff7GuestBattleStatuses.SupportedOriginBattle };
     }
@@ -22,7 +27,15 @@ public sealed partial class Ff7BattleSession
     public ushort GetGuestOriginSavedStatuses(int slot)
     {
         Ff7BattleGuestVitalsBinding binding = GetGuestBinding(slot) ?? throw new InvalidOperationException("Origin saved statuses require an FFVIII guest binding.");
-        return Ff7GuestBattleStatuses.ToOrigin(Actor(slot).Actor.Statuses, binding.OriginStatuses);
+        return GetOriginSavedStatuses(slot);
+    }
+
+    public ushort GetOriginSavedStatuses(int slot)
+    {
+        Ff7BattleActorState actor = Actor(slot);
+        ushort original = GetGuestBinding(slot)?.OriginStatuses ?? 0;
+        ushort owned = actor.OriginSavedStatuses ?? (ushort)(original & Ff7OriginSavedStatusRules.Supported);
+        return Ff7GuestBattleStatuses.ToOrigin(actor.Actor.Statuses, (ushort)((original & ~Ff7OriginSavedStatusRules.Supported) | owned));
     }
 
     public uint GetGuestOriginBattleStatuses(int slot)
@@ -30,7 +43,8 @@ public sealed partial class Ff7BattleSession
         Ff7BattleGuestVitalsBinding binding = GetGuestBinding(slot) ?? throw new InvalidOperationException("Origin battle statuses require an FFVIII guest binding.");
         uint original = state.GuestOriginStatuses?.SingleOrDefault(value => value.HostSlot == slot)?.BattleStatuses ?? binding.OriginBattleStatuses;
         uint common = Ff7GuestBattleStatuses.ToOriginBattle(Ff7GuestBattleStatuses.SupportedHost);
-        return original & ~common | Ff7GuestBattleStatuses.ToOriginBattle(Actor(slot).Actor.Statuses);
+        Ff7BattleActorState actor = Actor(slot);
+        return original & ~(common | Ff7GuestBattleStatuses.OriginDefenseReduction) | Ff7GuestBattleStatuses.ToOriginBattle(actor.Actor.Statuses) | (actor.ParameterStatus?.SourceStatusMask ?? 0);
     }
 
     private void ApplyGuestOriginContact(int slot, Ff7BattleActionReceipt receipt)

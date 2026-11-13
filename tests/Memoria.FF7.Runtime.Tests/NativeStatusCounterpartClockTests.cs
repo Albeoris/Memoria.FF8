@@ -7,6 +7,7 @@ internal static class NativeStatusCounterpartClockTests
 {
     public static void Run()
     {
+        NativeStopClockTests.Run();
         const uint regen = Ff7NativeBattleStatuses.Regen;
         const uint doom = Ff7NativeBattleStatuses.DeathSentence;
         const uint gradual = Ff7NativeBattleStatuses.SlowNumb;
@@ -27,7 +28,7 @@ internal static class NativeStatusCounterpartClockTests
         Ff7BattleStatusTick haste = Ff7NativeBattleStatusClock.Advance(restored, statuses | 0x100, 128);
         Check(slow.Timers.FixedRemainder == 34 && haste.Timers.FixedRemainder == 136, "Slow and Haste must modify the fixed countdown clock at their native rates.");
         Ff7BattleStatusTick stopped = Ff7NativeBattleStatusClock.Advance(phased, statuses | 0x400, 128, maximumHitPoints: 320);
-        Check(stopped.Timers == phased && !stopped.DeathSentenceDue && stopped.HitPointDelta == 0, "Stop must preserve both countdown phases and the HP accumulator.");
+        Check(stopped.Timers == (phased with { Stop = 30 }) && !stopped.DeathSentenceDue && stopped.HitPointDelta == 0, "Stop must preserve both countdown phases and the HP accumulator.");
         Ff7BattleStatusTick cancellation = Ff7NativeBattleStatusClock.Advance(default, regen | Ff7NativeBattleStatuses.Imprisoned, 128, 1, 320);
         Check(cancellation.HitPointDelta == 0, "Regen and draining capture must cancel in their shared native HP coefficient.");
         Ff7BattleStatusTimers healed = Ff7NativeBattleStatusClock.Apply(default, 0, regen);

@@ -25,7 +25,7 @@ internal static class NativeBattleActionTests
         Ff7BattleStatusTick slow = Ff7NativeBattleStatusClock.Advance(almostDue, poisonAndSleep | Ff7NativeBattleActionResolver.Slow, 0);
         Check(slow.Timers.Remainder == 81 && slow.PoisonDue, "Slow must halve the original status clock rate.");
         Ff7BattleStatusTick stopped = Ff7NativeBattleStatusClock.Advance(almostDue, poisonAndSleep | 0x400, 0);
-        Check(stopped == new Ff7BattleStatusTick(almostDue, poisonAndSleep | 0x400, false), "Stop must freeze the native status clock.");
+        Check(stopped == new Ff7BattleStatusTick(almostDue with { Stop = 30 }, poisonAndSleep | 0x400, false), "Stop must freeze the actor's native status clocks while retaining its separate global countdown.");
         Check(Ff7NativeBattleStatusClock.ReadPersistentStatuses(0xFF) == 0x30, "Only Sadness and Fury are copied into the native character status byte.");
         Check(Ff7NativeBattleLimits.GainFromEnemyDamage(0, 23, 302, 0, 140) == 40, "The original Limit gauge truncates the HP ratio before its divisor.");
         Check(Ff7NativeBattleLimits.GainFromEnemyDamage(0, 23, 302, 0x10, 140) == 20, "Sadness must halve original Limit gain.");

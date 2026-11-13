@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Shared native actor consumers operating on posed host triangles and their actual material owner.</summary>
-public static class NativeBattleForeignModelDrawing
+public static partial class NativeBattleForeignModelDrawing
 {
     internal static void RequireIndexedTopology(NativeBattleForeignModelGeometry geometry)
     {

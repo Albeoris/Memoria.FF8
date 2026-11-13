@@ -86,7 +86,7 @@ internal sealed partial class CrossoverGuestHostActions
         {
             return "The native item mixes revival with a different recovery formula.";
         }
-        if (original.AttackType != 5 && original.Power == 0 && ItemRecoveryStatuses(original) == 0)
+        if (original.AttackType != 5 && original.Power == 0 && ItemRecoveryStatuses(original) == 0 && ItemRecoveryParameterStatuses(original) == 0 && ItemRecoveryOriginSavedStatuses(original) == 0)
         {
             return "The native item has no recovery operation in the host status profile.";
         }
@@ -96,28 +96,36 @@ internal sealed partial class CrossoverGuestHostActions
     private string? ItemOriginStatusUnsupportedReason(BattleNativeAction original, int target)
     {
         Ff7BattleGuestVitalsBinding? binding = host.GuestVitalsBindings.SingleOrDefault(binding => binding.HostSlot == target);
-        return binding is null ? null : OriginItemStatusUnsupportedReason(original, binding.OriginStatuses, binding.OriginBattleStatuses);
+        Ff7BattleActorState actor = host.Actors.Single(actor => actor.Actor.Slot == target);
+        uint battle = binding is null ? Ff7GuestBattleStatuses.ToOriginBattle(actor.Actor.Statuses) | (actor.ParameterStatus?.SourceStatusMask ?? 0) : host.GetGuestOriginBattleStatuses(target);
+        return OriginItemStatusUnsupportedReason(original, host.GetOriginSavedStatuses(target), battle);
     }
 
     internal static string? OriginItemStatusUnsupportedReason(BattleNativeAction original, ushort savedStatuses, uint battleStatuses)
     {
-        if ((savedStatuses & 0x40) != 0)
-        {
-            return "The recipient's original Zombie status requires recovery behavior outside the host profile.";
-        }
         if (original.AttackType == 5 || original.StatusAttack <= 100)
         {
             return null;
         }
         uint common = ItemRecoveryStatuses(original);
-        ushort unprojectedSaved = (ushort)(original.Statuses0 & ~Ff7GuestBattleStatuses.ToOrigin(common));
-        uint unprojectedBattle = original.Statuses1 & ~Ff7GuestBattleStatuses.ToOriginBattle(common);
+        ushort unprojectedSaved = (ushort)(original.Statuses0 & ~(Ff7GuestBattleStatuses.ToOrigin(common) | ItemRecoveryOriginSavedStatuses(original)));
+        uint unprojectedBattle = original.Statuses1 & ~(Ff7GuestBattleStatuses.ToOriginBattle(common) | ItemRecoveryParameterStatuses(original));
         return (unprojectedSaved & savedStatuses) != 0 || (unprojectedBattle & battleStatuses) != 0 ? "The recipient has an original status that this item cannot remove through the host status profile." : null;
     }
 
     private static uint ItemRecoveryStatuses(BattleNativeAction original)
     {
         return original.StatusAttack > 100 ? Ff7GuestBattleStatuses.ToHostStatuses((ushort)(original.Statuses0 & Ff7GuestBattleStatuses.SupportedOrigin), original.Statuses1) : 0;
+    }
+
+    private static uint ItemRecoveryParameterStatuses(BattleNativeAction original)
+    {
+        return original.StatusAttack > 100 ? original.Statuses1 & NativeBattleParameterRules.DefenseReductionStatus : 0;
+    }
+
+    private static ushort ItemRecoveryOriginSavedStatuses(BattleNativeAction original)
+    {
+        return original.StatusAttack > 100 ? (ushort)(original.Statuses0 & Ff7OriginSavedStatusRules.Zombie) : (ushort)0;
     }
 
     internal static Ff7BattleGuestItemEffect DescribeOriginItem(BattleNativeAction original, uint statusPassives)
@@ -134,10 +142,10 @@ internal sealed partial class CrossoverGuestHostActions
         bool medData = (original.AttackFlags & 3) == 2 && (statusPassives & 2) != 0;
         if (original.AttackType == 32)
         {
-            return new(0, removed, MaximumHitPointFraction: original.Power, FractionRecoveryLimit: (original.AttackFlags & 8) != 0 ? (ushort)60000 : (ushort)9999, RecoveryMultiplier: medData ? (byte)2 : (byte)1);
+            return new(0, removed, MaximumHitPointFraction: original.Power, FractionRecoveryLimit: (original.AttackFlags & 8) != 0 ? (ushort)60000 : (ushort)9999, RecoveryMultiplier: medData ? (byte)2 : (byte)1) { RemoveParameterStatuses = ItemRecoveryParameterStatuses(original), RemoveOriginSavedStatuses = ItemRecoveryOriginSavedStatuses(original) };
         }
         int maximum = (original.AttackFlags & 8) != 0 ? 60_000 : 9_999;
-        return new(checked((ushort)Math.Min(maximum, 50 * original.Power * (medData ? 2 : 1))), removed);
+        return new(checked((ushort)Math.Min(maximum, 50 * original.Power * (medData ? 2 : 1))), removed) { RemoveParameterStatuses = ItemRecoveryParameterStatuses(original), RemoveOriginSavedStatuses = ItemRecoveryOriginSavedStatuses(original) };
     }
 
     public void ReserveItem(Ff7BattleGuestItemSelection selection)
@@ -177,7 +185,7 @@ internal sealed partial class CrossoverGuestHostActions
         CrossoverGunbladeHostPlacement placement = new(Ff7BattlePosition.FromVector(source.Position), source.Yaw);
         NativeBattleGraphicsModel model = attack.Visual?.Model ?? throw new InvalidDataException("The guest item has no loaded original caster.");
         BattleNativeAction original = OriginalItem(invocation.GuestAbility);
-        byte flags = receipt.Receipt.Damage.Missed ? (byte)1 : original.AttackType == 5 ? (byte)4 : (byte)0;
+        byte flags = PreparedContactFlags(original, receipt);
         byte healing = receipt.Receipt.Damage.Damage < 0 ? (byte)1 : (byte)0;
         NativeBattleContactPresentation contactPresentation = NativeBattleContactPresentations.Complete(original.DamagePresentation, flags, healing, original.AttackType, 255);
         NativeBattleContactHalf contact = NativeBattleContactHalf.FromScratch(target.Slot == ActorSlot ? (byte)0 : (byte)3, contactPresentation.Sequence, contactPresentation.Flags2, contactPresentation.HitFlags3, (ushort)(receipt.Receipt.Target.Statuses & 1), Math.Abs(receipt.Receipt.Damage.Damage), 0);

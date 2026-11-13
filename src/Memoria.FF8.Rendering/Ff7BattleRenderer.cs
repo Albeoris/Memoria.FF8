@@ -13,6 +13,7 @@ public sealed record Ff7BattleActorVisual(string ModelPrefix, Vector3 Position, 
     public Ff7BattleActorModelModifiers? ModelModifiers { get; init; }
     public bool ShadowSuppressed { get; init; }
     public Matrix4x4? PresentationTransform { get; init; }
+    public CrossoverNativeActorColor? NativeColor { get; init; }
 }
 public sealed record Ff7BattleRenderFrame(SceneCameraPlacement Camera, IReadOnlyList<Ff7BattleActorVisual> Actors, Ff7BattleFireState? Fire = null, Ff7BattleIceState? Ice = null, Ff7BattleBoltState? Bolt = null, Ff7BattleCureState? Cure = null, Ff7BattleBraverState? Braver = null)
 {
@@ -250,7 +251,7 @@ public sealed partial class Ff7BattleRenderer
         Ff7BattleScreenBounds bounds = default;
         VisitActorGeometry(actor, (model, textures, transform) =>
         {
-            DrawModel(renderer, model, textures, transform, view, material, alpha / 255f, tint);
+            DrawModel(renderer, model, textures, transform, view, material, alpha / 255f, tint, nativeActorColor: actor.NativeColor);
             if (captureBounds && actor.Slot.HasValue && alpha != 0)
             {
                 foreach (Vector3 vertex in model.Vertices)
@@ -265,7 +266,7 @@ public sealed partial class Ff7BattleRenderer
         }
     }
 
-    private void DrawModel(ITriangleRenderer renderer, PcPolygonModel model, IReadOnlyList<PcTexture> textures, Matrix4x4 transform, CameraView view, Ff7ModelMaterialState material, float opacity = 1, ModelColorBlend? colorBlend = null, CrossoverNativeStageColor? guestStageColor = null, int? arenaPart = null, IReadOnlySet<NativeBattleArenaPrimitiveId>? suppressedArenaPrimitives = null)
+    private void DrawModel(ITriangleRenderer renderer, PcPolygonModel model, IReadOnlyList<PcTexture> textures, Matrix4x4 transform, CameraView view, Ff7ModelMaterialState material, float opacity = 1, ModelColorBlend? colorBlend = null, CrossoverNativeStageColor? guestStageColor = null, int? arenaPart = null, IReadOnlySet<NativeBattleArenaPrimitiveId>? suppressedArenaPrimitives = null, CrossoverNativeActorColor? nativeActorColor = null)
     {
         if (model.Groups.Count != model.RenderStates.Count)
         {
@@ -308,6 +309,7 @@ public sealed partial class Ff7BattleRenderer
                     blue = MathF.Round(blue * originalWeight + blend.Blue * tintWeight);
                 }
                 Vector4 color = new(red / 255f, green / 255f, blue / 255f, (argb >> 24) / 255f * state.VertexAlpha / 255f * opacity);
+                color = nativeActorColor?.Apply(color) ?? color;
                 Vector2 uv = image is null ? Vector2.Zero : model.TextureCoordinates[group.TextureCoordinateStart + local];
                 return new(view.Transform(Vector3.Transform(model.Vertices[vertex], transform)), uv, color);
             }

@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Numerics;
+using Memoria.FF7.Runtime;
 using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
 
@@ -7,6 +8,28 @@ namespace Memoria.FF8;
 
 internal sealed partial class CrossoverGuestHostActions
 {
+    public CrossoverNativeActorColor? ReadForeignColor(int slot)
+    {
+        if (fire is not { Presentation.Effect: { } effect } active)
+        {
+            return null;
+        }
+        CrossoverNativeMagicParticipant? participant = active.Presentation.BoundParticipants.SingleOrDefault(participant => participant.HostSlot == slot);
+        NativeBattleGraphicsModel? model = participant is null ? null : effect.Graphics.Models[participant.ActorIndex];
+        return model is { Color40: { } color } && (model.Flags0 & 0x800) != 0 ? new(color) : null;
+    }
+
+    private NativeBattleForeignActor ReadPresentationParticipant(int slot, int index)
+    {
+        CrossoverGunbladeHostPlacement placement = new(Ff7BattlePosition.FromVector(host.VisualPlacement(ActorSlot).Position), host.VisualPlacement(ActorSlot).Yaw);
+        if (readForeignGeometry is not null || encounter.GuestAt(slot)?.Visual is not null)
+        {
+            CrossoverNativeForeignTarget foreign = ReadAbilityForeign(placement, slot);
+            return foreign.ToActor(index) with { ReadGeometry = () => foreign.Anchors };
+        }
+        return new(index, ReadAbilityTransform(placement, slot), ReadAbilityAnchor(placement, slot), (_, _) => throw new NotSupportedException("The host participant has no posed skeleton provider.")) { IsParty = true };
+    }
+
     private CrossoverNativeForeignTarget ReadAbilityForeign(CrossoverGunbladeHostPlacement placement, int slot)
     {
         CrossoverGuestHostActions? guest = encounter.GuestAt(slot);

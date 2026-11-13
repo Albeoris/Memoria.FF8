@@ -14,6 +14,24 @@ public sealed partial class BattleSession
         {
             return (frame, graphics);
         }
+        if (ReadNativeForeignModel(graphics, index) is { } foreign)
+        {
+            NativeEffectMemory = frame.Memory;
+            NativeBattleCameraProjection hostProjection = NativeCamera?.Projection ?? throw new NotSupportedException("World-space actor drawing requires its current projection.");
+            NativeBattlePilotVisualIdentity identity = request.PilotIdentity ?? throw new NotSupportedException("World-space actor drawing requires its visual occurrence.");
+            graphics = SubmitNativeShadowPackets5088A0(graphics, actor, hostProjection, 0x1010, false, callerPilotIdentity: identity with { Primitive = -1 });
+            NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("World-space actor drawing requires its packet memory.");
+            NativeBattlePrimitiveFrame hostPrimitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("World-space actor drawing requires its current ordering table.");
+            NativeBattleGfGeometryBatch hostBatch = NativeBattleForeignModelDrawing.DrawWorld(foreign, Draw, identity with { Primitive = 0x10000 });
+            NativeBattleCommonPacketWrite hostWritten = NativeBattleCommonPacketArena.Append(memory.PrimitiveProcess ?? throw new NotSupportedException("World-space actor drawing requires its current COMMON owner."), hostPrimitive.Pending, hostBatch);
+            return (frame with { Memory = memory with { PrimitiveProcess = hostWritten.Process } }, graphics with { PrimitiveFrame = hostPrimitive with { Pending = hostWritten.Ordering } });
+
+            NativeBattleGfGeometryBatch Draw(NativeBattleRawMesh mesh, NativeBattleActionMatrix world, NativeBattlePilotVisualIdentity selected)
+            {
+                ImmutableArray<byte> vertices = NativeBattleMeltdownGeometry.MeltVertices(mesh, [world], request.Target, request.Caster, request.Strength);
+                return NativeBattleMeltdownGeometry.Emit612B40(mesh, vertices, hostProjection.View ?? throw new NotSupportedException("World-space actor drawing requires its current view."), hostProjection, actor.Color40 ?? throw new NotSupportedException("World-space actor drawing requires its current body color."), selected);
+            }
+        }
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native Meltdown requires its actor's current rig.");
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Meltdown requires its current projection.");

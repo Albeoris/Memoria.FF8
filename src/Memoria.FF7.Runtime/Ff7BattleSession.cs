@@ -17,6 +17,11 @@ public sealed record Ff7BattleActorState(int Identity, Ff7BattleAiActor Actor, u
     public int? SuccessorSlot { get; init; }
     public uint StatusProtection { get; init; }
     public byte? ReflectionCount { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7BattleParameterOperation? ParameterStatus { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public ushort? OriginSavedStatuses { get; init; }
+    public bool ParameterStatusInitialized { get; init; }
 }
 public sealed record Ff7BattleActionState(Ff7BattleQueuedCommand Command, long StartedAt, int Animation, bool Applied = false, BattleActionPoseState? Pose = null, Ff7BattleTargetCallbacks? Reactions = null, Ff7BattleMotion? Motion = null, Ff7BattleFireState? Fire = null, Ff7BattleIceState? Ice = null, Ff7BattleBoltState? Bolt = null, Ff7BattleCureState? Cure = null, Ff7BattleBraverState? Braver = null)
 {
@@ -57,6 +62,7 @@ public sealed record Ff7BattleSnapshot(long RequestId, int FormationId, byte Lay
 {
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public byte? NativeBattleSpeed { get; init; }
+    public Ff7BattleGlobalStatusClock? GlobalStatusClock { get; init; }
     public System.Collections.Immutable.ImmutableArray<Ff7BattleGuestMagicSequence> GuestMagicSequences { get; init; } = [];
     public Ff7ResolvedEnemyExtension[]? EnemyExtensions { get; init; }
     public byte[]? AiGlobalMemory { get; init; }
@@ -397,6 +403,9 @@ public sealed partial class Ff7BattleSession
 
     private bool AdvanceGauges(List<Action>? guestReadinessPublications = null)
     {
+        Ff7BattleGlobalStatusClock globalClock = state.GlobalStatusClock ?? default;
+        bool globalTick = Ff7NativeBattleStatusClock.AdvanceGlobalClock(ref globalClock, NativeBattleSpeed);
+        state = state with { GlobalStatusClock = globalClock };
         bool changed = false;
         for (int index = 0; index < state.Actors.Length; index++)
         {
@@ -406,8 +415,8 @@ public sealed partial class Ff7BattleSession
             {
                 continue;
             }
-            Ff7BattleStatusTick status = Ff7NativeBattleStatusClock.Advance(actor.Timers, actor.Actor.Statuses, NativeBattleSpeed, NativeImprisonedType, actor.Actor.MaxHitPoints);
-            changed |= status.Timers != actor.Timers || status.Statuses != actor.Actor.Statuses || status.HitPointDelta != 0;
+            Ff7BattleStatusTick status = Ff7NativeBattleStatusClock.Advance(actor.Timers, actor.Actor.Statuses, NativeBattleSpeed, NativeImprisonedType, actor.Actor.MaxHitPoints, globalTick, GetOriginSavedStatuses(slot));
+            changed |= status.Timers != actor.Timers || status.Statuses != actor.Actor.Statuses || status.HitPointDelta != 0 || status.Timers.Stop > 0;
             uint hp = (uint)Math.Clamp((long)actor.Actor.HitPoints + status.HitPointDelta, 0, actor.Actor.MaxHitPoints);
             uint statuses = hp == 0 ? status.Statuses | Ff7NativeBattleActionResolver.Death : status.Statuses;
             actor = actor with { Timers = status.Timers, Actor = actor.Actor with { Statuses = statuses, HitPoints = hp } };
@@ -577,7 +586,9 @@ public sealed partial class Ff7BattleSession
         Ff7BattleAiActor native = actor.Actor;
         Ff7BattleDamageActor stats = native.Slot < 3 ? party[native.Slot]!.Value.Actor : Ff7NativeBattleDamage.FromEnemy(Enemy(native.Slot));
         stats = stats with { Level = native.Level ?? stats.Level, Attack = native.Strength ?? stats.Attack, Magic = native.Magic ?? stats.Magic, Dexterity = native.Speed ?? stats.Dexterity, Evade = native.PhysicalEvasion ?? stats.Evade };
-        return ProjectGuestDefense(actor, stats with { NativeConditions = native.Conditions, Statuses = native.Statuses, Defense = native.Defense, MagicDefense = native.MagicDefense, BackRow = (native.Conditions & 0x40) != 0, Defending = actor.Defending, CurrentHitPoints = native.HitPoints });
+        stats = ProjectGuestDefense(actor, stats with { NativeConditions = native.Conditions, Statuses = native.Statuses, Defense = native.Defense, MagicDefense = native.MagicDefense, BackRow = (native.Conditions & 0x40) != 0, Defending = actor.Defending, CurrentHitPoints = native.HitPoints });
+        stats = stats with { OriginSavedStatuses = GetOriginSavedStatuses(native.Slot) };
+        return actor.ParameterStatus?.Project(stats) ?? stats;
     }
 
     private void ResetGauge(int slot)
@@ -602,6 +613,10 @@ public sealed partial class Ff7BattleSession
     private void Replace(Ff7BattleActorState actor)
     {
         int index = Array.FindIndex(state.Actors, candidate => candidate.Actor.Slot == actor.Actor.Slot);
+        if ((actor.Actor.Statuses & Ff7NativeBattleActionResolver.Death) != 0)
+        {
+            actor = actor with { OriginSavedStatuses = (ushort)((actor.OriginSavedStatuses ?? GetOriginSavedStatuses(actor.Actor.Slot)) & ~Ff7OriginSavedStatusRules.Zombie) };
+        }
         if ((actor.Actor.Statuses & Ff7NativeBattleStatuses.Reflect) == 0)
         {
             actor = actor with { ReflectionCount = null };
@@ -622,6 +637,11 @@ public sealed partial class Ff7BattleSession
 
     private void ValidateSnapshot(Ff7BattleSnapshot snapshot, long requestId, List<Ff7BattleActorState> expected)
     {
+        snapshot.GlobalStatusClock?.Validate();
+        if (snapshot.Actors?.Any(actor => actor is not null && actor.Timers.Stop > 30) == true)
+        {
+            throw new InvalidDataException("FFVII battle snapshot has an invalid global status clock or Stop counter.");
+        }
         if (snapshot.RequestId != requestId || snapshot.FormationId != Formation.FormationId || snapshot.Layout != Ff7NativeAtb.ResolveLayout(Formation.Layout, Formation.BattleFlags, (snapshot.RequestFlags & 4) != 0) || snapshot.Tick < 0 || !Enum.IsDefined(snapshot.Outcome) || snapshot.Actors is null || snapshot.Actors.Any(actor => actor.ReflectionCount > 3) || snapshot.Inventory is null || snapshot.Queue is null || snapshot.EntryMusicTrack is < 1 or > 98 || snapshot.ImprisonedType is > 3)
         {
             throw new InvalidDataException("FFVII battle snapshot conflicts with its native encounter or physical actors.");
@@ -631,6 +651,10 @@ public sealed partial class Ff7BattleSession
             throw new InvalidDataException("FFVII battle snapshot has invalid physical actor ownership.");
         }
         ValidateGuestLimitSnapshot(snapshot);
+        foreach (Ff7BattleActorState actor in snapshot.Actors)
+        {
+            actor.ParameterStatus?.Validate();
+        }
         ValidateGuestMagicSequences(snapshot);
         if (snapshot.TerminalFrames is < 0 or > 49 || snapshot.Messages is { } messages && (messages.Pending is null || messages.Pending.Length > 64 || messages.Pending.Any(entry => entry?.Text is null || entry.Delay > 1 || entry.Remaining > 67)) || snapshot.Action is { } action && (action.Command is null || action.StartedAt < 0 || action.StartedAt > snapshot.Tick || snapshot.Actors.All(actor => actor.Actor.Slot != action.Command.ActorSlot)))
         {

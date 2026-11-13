@@ -150,7 +150,7 @@ internal sealed partial class Ff7Scene
                 CrossoverFf8BattleActorVisual? visual = guest.Visual;
                 if (visual is not null && mixed.ActiveGuest?.ReadForeignPlacement(guest.ActorSlot) is { } placement)
                 {
-                    visual = visual with { OriginToHost = visual.OriginToHost * placement, ShadowSuppressed = mixed.ActiveGuest.SuppressForeignShadow(guest.ActorSlot) };
+                    visual = visual with { OriginToHost = visual.OriginToHost * placement, ShadowSuppressed = mixed.ActiveGuest.SuppressForeignShadow(guest.ActorSlot), NativeColor = mixed.ActiveGuest.ReadForeignColor(guest.ActorSlot) };
                 }
                 return visual is null ? null : visual with { HostSlot = guest.ActorSlot };
             }).OfType<CrossoverFf8BattleActorVisual>().ToArray()

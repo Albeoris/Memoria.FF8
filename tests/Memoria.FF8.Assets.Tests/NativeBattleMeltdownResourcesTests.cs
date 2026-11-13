@@ -6,8 +6,10 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeBattleMeltdownResourcesTests
 {
-    [Fact]
-    public void Original_Meltdown_runs_both_acid_pools_uv_scrolling_glows_melt_and_action_result()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Original_Meltdown_runs_both_acid_pools_uv_scrolling_glows_melt_and_action_result(bool semanticAnchors)
     {
         using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleMeltdownResources resources = game.ReadNativeMeltdownResources();
@@ -32,7 +34,7 @@ public sealed class NativeBattleMeltdownResourcesTests
         int allocations = 0;
         int now = 0;
         NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear();
-        NativeBattleMeltdownInputs inputs = new(packets, projection, NativeBattleGteColorInterpolation.CodeConstants45F270, false, Model, _ => pose, (current, operation) =>
+        NativeBattleMeltdownInputs inputs = new(packets, projection, NativeBattleGteColorInterpolation.CodeConstants45F270, false, Model, _ => semanticAnchors ? throw new InvalidOperationException("A semantic anchor consumer must not request a source skeleton.") : pose, (current, operation) =>
         {
             switch (operation)
             {
@@ -62,7 +64,14 @@ public sealed class NativeBattleMeltdownResourcesTests
             allocations += batch.AllocationBytes;
             ordering = written.Ordering;
             return current with { Memory = current.Memory with { Meltdown148 = state with { Packets = written.Arena, Cursor = written.Cursor } } };
-        });
+        })
+        {
+            ReadAnchor = semanticAnchors ? index =>
+            {
+                NativeBattleModelTransform transform = Model(index).Transform!;
+                return new(transform.Position28.X, transform.Position28.Y, transform.Position28.Z, unchecked((short)(transform.Scale38 * 2000 >> 12)));
+            } : null
+        };
         for (now = 1; now <= 200 && frame.Effect.ReturnedDescriptor != 0; now++)
         {
             ordering = NativeBattleLogicalOrdering.Clear();

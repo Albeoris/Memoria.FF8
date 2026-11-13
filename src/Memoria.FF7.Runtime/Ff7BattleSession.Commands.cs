@@ -710,7 +710,14 @@ public sealed partial class Ff7BattleSession
         Ff7BattleStatusTimers timers = Ff7NativeBattleStatusClock.Apply(target.Timers, native.Statuses, result.Target.Statuses);
         uint conditions = action.BackAttack && !result.Damage.Missed ? native.Conditions ^ 0x80u : native.Conditions;
         native = native with { HitPoints = result.Target.Hp, MagicPoints = result.Target.Mp, Statuses = result.Target.Statuses, Conditions = conditions };
-        Replace(target with { Actor = native, Timers = timers, LimitGauge = gauge });
+        Ff7BattleParameterOperation? parameter = target.ParameterStatus;
+        if (parameter is not null && (result.RemovedParameterStatus & parameter.SourceStatusMask) != 0)
+        {
+            parameter = null;
+        }
+        parameter ??= result.AddedParameterStatus;
+        ushort originSaved = (ushort)((GetOriginSavedStatuses(targetSlot) | result.AddedOriginSavedStatuses) & ~result.RemovedOriginSavedStatuses & Ff7OriginSavedStatusRules.Supported);
+        Replace(target with { Actor = native, Timers = timers, LimitGauge = gauge, ParameterStatus = parameter, ParameterStatusInitialized = true, OriginSavedStatuses = originSaved });
         state = state with { LastHit = new(command.ActorSlot, targetSlot, command.AttackId ?? command.Argument, result.Damage, Tick) { NativeResultMarker = result.NativeResultMarker } };
         if (runCounters && targetSlot >= 4 && !result.Damage.Missed)
         {

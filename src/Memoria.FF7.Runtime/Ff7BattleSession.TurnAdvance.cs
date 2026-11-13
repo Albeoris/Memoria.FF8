@@ -19,7 +19,8 @@ public readonly record struct Ff7BattleTurnAdvanceResult(Ff7BattleTurnAdvanceBou
 
 public sealed partial class Ff7BattleSession
 {
-    public const int MaximumTurnAdvanceSteps = 4096;
+    // Allow the slowest full Stop countdown (4552 samples) before the ordinary 4096-step readiness bound.
+    public const int MaximumTurnAdvanceSteps = 12288;
 
     /// <summary>Advance the native clocks to a new decision or queued action without dispatching presentation.</summary>
     public Ff7BattleTurnAdvanceResult AdvanceTurn(int maxSteps = MaximumTurnAdvanceSteps)

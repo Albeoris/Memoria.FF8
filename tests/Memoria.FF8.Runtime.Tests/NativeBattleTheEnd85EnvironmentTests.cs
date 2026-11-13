@@ -6,6 +6,30 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleTheEnd85EnvironmentTests
 {
     [Fact]
+    public void ForeignPartyIdentityUsesItsOwnBackupRowsAndDoesNotFadeAnEnemyInPhysicalSlotOne()
+    {
+        NativeBattleTheEnd85EnvironmentInput input = Input(0x787FD0, 1) with { PartyActors = [0, 3] };
+        input = input with { Models = input.Models.SetItem(0, new(0, 2)).SetItem(1, new(1, 2) { Color40 = 0x12345678 }).SetItem(3, new(3, 2)) };
+        for (int tick = 0; tick < 8; tick++)
+        {
+            input = NativeBattleTheEnd85Environment.Advance(input, 0x806040).Input;
+        }
+        Assert.Equal(0x02000000u, input.Models[3].Color40);
+        Assert.NotEqual(0, input.Models[3].Flags0 & 4);
+        Assert.Equal(0x12345678u, input.Models[1].Color40);
+        Assert.Equal((ushort)2, input.Models[1].Flags0);
+        Assert.Equal(0x802u, BinaryPrimitives.ReadUInt32LittleEndian(input.Context.AsSpan().Slice(36)));
+        input = NativeBattleTheEnd85Environment.Advance(AtStage6(input), 0x806040).Input;
+        Assert.Equal(0, input.Models[3].Flags0 & 4);
+        for (int tick = 0; tick < 16; tick++)
+        {
+            input = NativeBattleTheEnd85Environment.Advance(input, 0x806040).Input;
+        }
+        Assert.Equal(0x806040u, input.Models[3].Color40);
+        Assert.Equal(0x12345678u, input.Models[1].Color40);
+    }
+
+    [Fact]
     public void Stage_fades_clear_only_RGB_and_restore_original_flag_bit4()
     {
         NativeBattleTheEnd85EnvironmentInput input = Input(0x787E20, 0);

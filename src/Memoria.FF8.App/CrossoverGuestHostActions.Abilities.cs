@@ -91,7 +91,7 @@ internal sealed partial class CrossoverGuestHostActions
         {
             return unsupported;
         }
-        byte flags = receipt.Receipt.Damage.Missed ? (byte)1 : original.AttackType is 5 or 6 ? (byte)4 : (byte)0;
+        byte flags = PreparedContactFlags(original, receipt);
         byte healing = receipt.Receipt.Damage.Damage < 0 ? (byte)1 : (byte)0;
         NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(original.DamagePresentation, flags, healing, original.AttackType, 255);
         NativeBattleContactHalf contact = NativeBattleContactHalf.FromScratch(receipt.Invocation.TargetSlot == ActorSlot ? (byte)0 : (byte)3, presentation.Sequence, presentation.Flags2, presentation.HitFlags3, (ushort)(receipt.Receipt.Target.Statuses & 1), Math.Abs(receipt.Receipt.Damage.Damage), 0);
@@ -129,7 +129,7 @@ internal sealed partial class CrossoverGuestHostActions
                 {
                     string? lastReason = null;
                     bool supported = false;
-                    foreach (var target in host.Actors.Where(actor => AbilityTargetIsLegal(flags, actor.Actor)))
+                    foreach (var target in host.Actors.Where(actor => AbilityTargetIsLegal(flags, actor.Actor, host.GetOriginSavedStatuses(actor.Actor.Slot))))
                     {
                         int slot = target.Actor.Slot;
                         if (!CanSelectTarget(flags, slot))
@@ -199,11 +199,12 @@ internal sealed partial class CrossoverGuestHostActions
         }
         bool revive = (flags & 1) != 0;
         bool knockedOut = selected.Actor.HitPoints == 0 || (selected.Actor.Statuses & 1) != 0;
-        if (revive && !knockedOut)
+        bool zombie = Ff7OriginSavedStatusRules.IsZombie(host.GetOriginSavedStatuses(target));
+        if (revive && !knockedOut && !zombie)
         {
-            return "The original ability requires a knocked-out target.";
+            return "The original ability requires a knocked-out or Zombie target.";
         }
-        if (revive && target >= 4)
+        if (revive && knockedOut && target >= 4)
         {
             return "The host cannot restore a knocked-out enemy after its removal lifecycle.";
         }
@@ -223,12 +224,13 @@ internal sealed partial class CrossoverGuestHostActions
         return selectedSide ? null : "The original ability cannot select this side.";
     }
 
-    private static bool AbilityTargetIsLegal(byte flags, Ff7BattleAiActor actor)
+    internal static bool AbilityTargetIsLegal(byte flags, Ff7BattleAiActor actor, ushort originSavedStatuses = 0)
     {
         bool revive = (flags & 1) != 0;
         bool alive = actor.HitPoints != 0 && (actor.Statuses & 0x4001) == 0;
         bool knockedOut = actor.HitPoints == 0 || (actor.Statuses & 1) != 0;
-        return actor.Slot is >= 0 and < 10 and not 3 && (!revive || actor.Slot < 3) && (revive ? knockedOut : alive) && ((actor.Conditions & 8) != 0 || revive && actor.Slot < 3);
+        bool zombie = Ff7OriginSavedStatusRules.IsZombie(originSavedStatuses);
+        return actor.Slot is >= 0 and < 10 and not 3 && (!revive || !knockedOut || actor.Slot < 3) && (revive ? knockedOut || zombie : alive) && ((actor.Conditions & 8) != 0 || revive && knockedOut && actor.Slot < 3);
     }
 
     private static string? TargetingUnsupportedReason(BattleNativeAction action)
@@ -289,7 +291,8 @@ internal sealed partial class CrossoverGuestHostActions
             return "The original caster model is not ready.";
         }
         CrossoverGunbladeHostPlacement placement = new(Ff7BattlePosition.FromVector(host.VisualPlacement(ActorSlot).Position), host.VisualPlacement(ActorSlot).Yaw);
-        NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(original.DamagePresentation, original.AttackType is 5 or 6 ? (byte)4 : (byte)0, original.AttackType is 3 or 4 or 5 or 6 or 21 or 25 or 32 ? (byte)1 : (byte)0, original.AttackType, 255);
+        bool zombie = Ff7OriginSavedStatusRules.IsZombie(host.GetOriginSavedStatuses(target));
+        NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(original.DamagePresentation, !zombie && original.AttackType is 5 or 6 ? (byte)4 : (byte)0, !zombie && original.AttackType is 3 or 4 or 5 or 6 or 21 or 25 or 32 ? (byte)1 : (byte)0, original.AttackType, 255);
         NativeBattleContactHalf contact = preparedContact ?? NativeBattleContactHalf.FromScratch(target == ActorSlot ? (byte)0 : (byte)3, presentation.Sequence, presentation.Flags2, presentation.HitFlags3, 0, 0, 0);
         try
         {
@@ -322,12 +325,21 @@ internal sealed partial class CrossoverGuestHostActions
         foreach (var actor in host.Actors)
         {
             int slot = actor.Actor.Slot;
-            if (AbilityTargetIsLegal(flags, actor.Actor) && (all || (slot < 3) == (target < 3)))
+            if (AbilityTargetIsLegal(flags, actor.Actor, host.GetOriginSavedStatuses(slot)) && (all || (slot < 3) == (target < 3)))
             {
                 mask |= (ushort)(1 << slot);
             }
         }
         return mask;
+    }
+
+    internal static byte PreparedContactFlags(BattleNativeAction action, Ff7BattleGuestPreparedContact prepared)
+    {
+        if (prepared.Receipt.Damage.Missed)
+        {
+            return 1;
+        }
+        return action.AttackType is 5 or 6 && !Ff7OriginSavedStatusRules.IsZombie(prepared.TargetBefore.OriginSavedStatuses) ? (byte)4 : (byte)0;
     }
 
     private NativeBattleModuleAnchor ReadAbilityAnchor(CrossoverGunbladeHostPlacement placement, int target)

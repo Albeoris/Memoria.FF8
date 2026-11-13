@@ -9,6 +9,10 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsResource? presentationSourceResource;
     private bool presentationFirstAdvance = true;
     private NativeBattleCameraState? presentationHostCamera;
+    private NativeBattleStageState? presentationInitialStage;
+    private NativeBattleUiServices? presentationInitialUi;
+    private ImmutableArray<NativeBattleGraphicsModel> presentationInitialModels = [];
+    private int? presentationPartyActorCount;
     private readonly List<NativeBattleContactPacket> presentationContacts = [];
     private readonly List<NativeBattleModuleSound> presentationSounds = [];
     private readonly List<NativeBattleForeignSequenceRequest> presentationSequences = [];
@@ -19,6 +23,7 @@ public sealed partial class BattleSession
     {
         definition = inputs.Resources;
         presentationArena = inputs.Arena;
+        presentationPartyActorCount = inputs.PartyActorCount;
         combatants = [];
         byId = new(StringComparer.Ordinal);
         handlers = [];
@@ -37,12 +42,15 @@ public sealed partial class BattleSession
         NativeFileIo = NativeBattleFileIoState.FromColdProcess();
         NativeGlobalSoundProcess = definition.NativeGlobalSoundProcess ?? NativeGlobalSoundProcess.FromBufferlessColdProcess();
         NativeVibrationProcess = definition.NativeVibrationProcess ?? definition.NativeRetainedMemory?.VibrationProcess ?? NativeVibrationProcessState.FromColdProcess();
-        NativeStage = NativeBattleStageState.FromColdProcess();
+        NativeStage = inputs.Arena?.CreatePresentationStage() ?? NativeBattleStageState.FromColdProcess();
+        presentationInitialStage = NativeStage;
         ImmutableArray<NativeBattleGraphicsModel> models = NativeBattleGraphicsModels.ClearBank().ToImmutableArray().SetItem(0, inputs.Source);
         models = BindPresentationForeignModels(models);
-        NativeGraphics = InitializeNativePrimitiveFrame500400(new(models, Enumerable.Range(0, models.Length).Select(index => index == 0 ? "source" : presentationForeignActors.ContainsKey(index) ? $"host-{index}" : null).ToImmutableArray(), 0, 0));
+        presentationInitialUi = NativeBattleUiServices.Initialize();
+        NativeGraphics = InitializeNativePrimitiveFrame500400(new(models, Enumerable.Range(0, models.Length).Select(index => index == 0 ? "source" : presentationForeignActors.ContainsKey(index) ? $"host-{index}" : null).ToImmutableArray(), 0, 0) { UiServices = presentationInitialUi });
         NativeGraphics = InitializeEffectPresentationSourceResources(NativeGraphics, inputs.SourceResource);
         InitializeEffectPresentationServices(inputs.Parameters);
+        presentationInitialModels = NativeGraphics!.Models;
         InitializeNativePrimitiveDepth47CE10();
         NativeGraphics = BeginNativeOriginalEffect(NativeGraphics!, inputs.Effect);
         NativeGraphics = NativeGraphics with { OriginalEffect = NativeGraphics.OriginalEffect! with { Parameters = inputs.Parameters } };
@@ -54,6 +62,21 @@ public sealed partial class BattleSession
     }
 
     internal static BattleSession CreateEffectPresentation(NativeBattleEffectPresentationInputs inputs) => new(inputs);
+
+    internal void ReleaseEffectPresentation()
+    {
+        presentationArena?.ClearPresentation();
+        NativeStage = presentationInitialStage;
+        if (NativeGraphics is { } graphics)
+        {
+            ImmutableArray<NativeBattleGraphicsModel> models = graphics.Models.Select((model, index) =>
+            {
+                NativeBattleGraphicsModel original = presentationInitialModels[index];
+                return model with { Flags0 = (ushort)((model.Flags0 & ~0x804) | (original.Flags0 & 0x804)), Color40 = original.Color40, Color44 = original.Color44, Alpha7 = original.Alpha7 };
+            }).ToImmutableArray();
+            NativeGraphics = graphics with { UiServices = presentationInitialUi, Models = models };
+        }
+    }
 
     internal void InvokeEffectPresentation()
     {

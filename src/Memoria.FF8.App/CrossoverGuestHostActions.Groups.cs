@@ -58,7 +58,7 @@ internal sealed partial class CrossoverGuestHostActions
         return CrossoverNativeMagicTarget.Bind(ActorSlot, slots, (slot, index) =>
         {
             Ff7BattleGuestPreparedContact receipt = values.Single(value => value.PreparedContact!.Invocation.TargetSlot == slot).PreparedContact!;
-            byte flags = receipt.Receipt.Damage.Missed ? (byte)1 : original.AttackType is 5 or 6 ? (byte)4 : (byte)0;
+            byte flags = PreparedContactFlags(original, receipt);
             NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(original.DamagePresentation, flags, receipt.Receipt.Damage.Damage < 0 ? (byte)1 : (byte)0, original.AttackType, 255);
             NativeBattleContactHalf contact = NativeBattleContactHalf.FromScratch(index, presentation.Sequence, presentation.Flags2, presentation.HitFlags3, (ushort)(receipt.Receipt.Target.Statuses & 1), Math.Abs(receipt.Receipt.Damage.Damage), 0);
             return contact;

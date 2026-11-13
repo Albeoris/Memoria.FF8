@@ -52,7 +52,10 @@ public sealed partial class Ff7BattleSession
             return false;
         }
         bool revive = items.DescribeItem(item).ReviveDivisor != 0;
-        return IsAlive(target) != revive && ((target.Actor.Conditions & 8) != 0 || revive);
+        bool knockedOut = target.Actor.HitPoints == 0 || (target.Actor.Statuses & Ff7NativeBattleActionResolver.Death) != 0;
+        bool zombie = Ff7OriginSavedStatusRules.IsZombie(GetOriginSavedStatuses(target.Actor.Slot));
+        bool legalLifeState = revive ? knockedOut && target.Actor.Slot < 3 || !knockedOut && zombie : IsAlive(target);
+        return legalLifeState && ((target.Actor.Conditions & 8) != 0 || revive && knockedOut && target.Actor.Slot < 3);
     }
 
     private string? PrepareGuestItem(IFf7BattleGuestItems items, Ff7BattleGuestInvocation invocation, Ff7BattleActorState target)
@@ -89,6 +92,6 @@ public sealed partial class Ff7BattleSession
         }
     }
 
-    private static Ff7BattleActionVitals GuestItemVitals(Ff7BattleActorState actor)
-        => new(actor.Actor.HitPoints, actor.Actor.MaxHitPoints, actor.Actor.MagicPoints, actor.Actor.MaxMagicPoints, actor.Actor.Statuses);
+    private Ff7BattleActionVitals GuestItemVitals(Ff7BattleActorState actor)
+        => new(actor.Actor.HitPoints, actor.Actor.MaxHitPoints, actor.Actor.MagicPoints, actor.Actor.MaxMagicPoints, actor.Actor.Statuses, (actor.Actor.Slot >= 4 ? ~Enemy(actor.Actor.Slot).NativeStatusMask : 0) | actor.StatusProtection) { OriginSavedStatuses = GetOriginSavedStatuses(actor.Actor.Slot) };
 }

@@ -14,6 +14,7 @@ public sealed record Ff7BattleGuestInvocation(long RequestId, int FormationId, l
 public sealed record Ff7BattleGuestAttackTarget(int Slot, SceneBattleEnemy? Native, Ff7BattleAiActor Actor, Ff7BattlePlacement Placement, ushort CollisionRadius)
 {
     public int JointCount { get; init; }
+    public ushort OriginSavedStatuses { get; init; }
 }
 public sealed record Ff7BattleGuestPhysicalHit(Ff7BattleDamageActor Source, Ff7BattleDamageAction Attack, ushort Elements)
 {
@@ -421,7 +422,7 @@ public sealed partial class Ff7BattleSession
             }
             return;
         }
-        bool hasStatuses = hit.StatusRecord is not null;
+        bool hasStatuses = hit.StatusRecord is not null || attack.ParameterOperation is not null || attack.GuestOriginSavedStatuses != 0;
         if (hit.PreparedContact is not null || attack is not { Formula: 0x11, UsePhysicalStats: true, TargetsMagicPoints: false, Healing: false } || attack.HasStatusOperation != hasStatuses || attack.AddsStatuses != hasStatuses)
         {
             throw new NotSupportedException("The current guest contact requires one ordinary physical HP attack.");
@@ -462,7 +463,7 @@ public sealed partial class Ff7BattleSession
 
     private static void ValidateGuestMagic(ushort ability, Ff7BattleGuestPhysicalHit hit)
     {
-        if (ability == 0 || hit.Attack.Formula is not (0x00 or 0x04 or 0x11 or 0x22 or 0x23 or 0x24 or 0x25 or 0x26 or 0x37 or 0x47 or 0x50 or 0xB1) || hit.Attack.HasStatusOperation != (hit.StatusRecord is not null) || hit.StatusRecord is { } record && ((record.StatusMask & ~Ff7GuestBattleStatuses.SupportedHost) != 0 || record.AdditionalEffect != byte.MaxValue || (record.SpecialFlags & 0x10) == 0))
+        if (ability == 0 || hit.Attack.Formula is not (0x00 or 0x04 or 0x11 or 0x22 or 0x23 or 0x24 or 0x25 or 0x26 or 0x37 or 0x47 or 0x50 or 0xB1) || hit.Attack.HasStatusOperation != (hit.StatusRecord is not null || hit.Attack.ParameterOperation is not null) || hit.StatusRecord is { } record && ((record.StatusMask & ~Ff7GuestBattleStatuses.SupportedHost) != 0 || record.AdditionalEffect != byte.MaxValue || (record.SpecialFlags & 0x10) == 0))
         {
             throw new NotSupportedException("The guest action requires a supported shared damage and status operation.");
         }
@@ -472,7 +473,7 @@ public sealed partial class Ff7BattleSession
     {
         Ff7BattleAnimationResources resources = animations ?? throw new InvalidOperationException("Guest targeting requires the original host model geometry.");
         string model = ActorModel(slot);
-        return new(slot, slot >= 4 ? Enemy(slot) : null, Actor(slot).Actor, VisualPlacement(slot), resources.CollisionRadius(model)) { JointCount = resources.BoneCount(model) };
+        return new(slot, slot >= 4 ? Enemy(slot) : null, Actor(slot).Actor, VisualPlacement(slot), resources.CollisionRadius(model)) { JointCount = resources.BoneCount(model), OriginSavedStatuses = GetOriginSavedStatuses(slot) };
     }
 
     public Ff7BattleGuestAttackTarget GuestAbilityTarget(int slot) => DescribeGuestTarget(slot);

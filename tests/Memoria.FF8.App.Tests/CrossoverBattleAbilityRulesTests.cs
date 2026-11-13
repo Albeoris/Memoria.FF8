@@ -181,7 +181,6 @@ public sealed class CrossoverBattleAbilityRulesTests
     [InlineData(0, 0x100u)]
     [InlineData(0, 0x200u)]
     [InlineData(0, 0x2000u)]
-    [InlineData(0, 0x1000000u)]
     public void OriginOnlyStatusesReportMissingCounterpartsWithoutInventingHostAliases(ushort saved, uint battle)
     {
         BattleNativeAction action = Action(2) with { Statuses0 = saved, Statuses1 = battle };
@@ -340,13 +339,15 @@ public sealed class CrossoverBattleAbilityRulesTests
     }
 
     [Fact]
-    public void LevelConditionRejectsIneligibleTargetsBeforeDamageAndStopRemainsUnsupported()
+    public void LevelConditionRejectsIneligibleTargetsBeforeDamageAndStopUsesTheSharedStatusDescriptor()
     {
         Ff7BattleGuestPhysicalHit hit = CrossoverBattleAbilityRules.Describe(Kit(), Action(26) with { Hit = 5 });
         Assert.Equal((byte)5, hit.Attack.RequiredTargetLevelMultiple);
         Assert.True(Resolve(hit, new(100, 100, 0, 0, 0), new(700, 1000, 0, 0, 0), targetLevel: 9).Damage.Missed);
         Assert.False(Resolve(hit, new(100, 100, 0, 0, 0), new(700, 1000, 0, 0, 0), targetLevel: 10).Damage.Missed);
-        Assert.Contains("Stop", CrossoverBattleAbilityRules.UnsupportedReason(Action(2) with { Statuses1 = 8 }));
+        BattleNativeAction stop = Action(2) with { Statuses1 = 8 };
+        Assert.Null(CrossoverBattleAbilityRules.UnsupportedReason(stop));
+        Assert.Equal(0x400u, CrossoverBattleAbilityRules.Describe(Kit(), stop).StatusRecord!.StatusMask);
         Assert.Null(CrossoverBattleAbilityRules.UnsupportedReason(Action(3) with { Statuses1 = 8 }));
     }
 

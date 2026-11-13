@@ -69,7 +69,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         ValidateItemQueue();
         fire = saved?.Fire;
         NativeBattleGraphicsResource sourceResource = assets.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = kit.CharacterId, WeaponId = kit.Weapon });
-        fireProgram = new(game, sourceResource, assets);
+        fireProgram = new(game, sourceResource, assets, () => host.Actors.Where(actor => actor.Actor.Slot < 3 && actor.Actor.Slot != ActorSlot).Select(actor => actor.Actor.Slot).ToImmutableArray(), ReadPresentationParticipant);
         limitResource = sourceResource;
         attack.BindNativeTargetGeometry((placement, slot) => encounter.GuestAt(slot) is null ? null : ReadAbilityForeign(placement, slot));
         limitProgram = new(game, sourceResource, graphicsRules);
@@ -94,7 +94,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         {
             fire = fire with { Presentation = CrossoverNativeMagicPresentation.Restore(fire.Presentation) };
         }
-        this.kit = CrossoverFf8BattleKit.Read(encounter.Working, assets, kit.CharacterId, kit.RecordRow);
+        this.kit = CrossoverFf8BattleKit.Read(encounter.Working, assets, kit.CharacterId, kit.RecordRow) with { ParameterTuning = encounter.ParameterTuning };
         attack.ReprojectKit(this.kit);
         Ff7BattleGuestProjection currentProjection = Projection(this.kit);
         Ff7BattleGuestProjection savedProjection = host.GetGuestProjection(ActorSlot) ?? throw new InvalidDataException("The host guest has no original stat binding.");
@@ -119,7 +119,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
 
     internal void ReprojectWorkingKit()
     {
-        kit = CrossoverFf8BattleKit.Read(encounter.Working, assets, kit.CharacterId, kit.RecordRow);
+        kit = CrossoverFf8BattleKit.Read(encounter.Working, assets, kit.CharacterId, kit.RecordRow) with { ParameterTuning = encounter.ParameterTuning };
         attack.ReprojectKit(kit);
         host.ReprojectGuestVitals(ActorSlot, Projection(kit));
     }
@@ -192,8 +192,8 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         {
             return false;
         }
-        CrossoverNativeMagicTarget? target = active.Presentation.BoundTargets.SingleOrDefault(target => target.HostSlot == slot && target.Contact.ActorIndex != 0);
-        return target is not null && (effect.Graphics.Models[target.Contact.ActorIndex].Flags0 & 0x20) != 0;
+        CrossoverNativeMagicParticipant? target = active.Presentation.BoundParticipants.SingleOrDefault(target => target.HostSlot == slot);
+        return target is not null && (effect.Graphics.Models[target.ActorIndex].Flags0 & 0x20) != 0;
     }
 
     public Matrix4x4? ReadForeignPlacement(int hostSlot)
@@ -202,8 +202,8 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         {
             return null;
         }
-        CrossoverNativeMagicTarget? target = active.Presentation.BoundTargets.SingleOrDefault(target => target.HostSlot == hostSlot && target.Contact.ActorIndex != 0);
-        return target is null ? null : active.Placement.ResolvePresentationTransform(effect.ForeignPlacement(target.Contact.ActorIndex));
+        CrossoverNativeMagicParticipant? target = active.Presentation.BoundParticipants.SingleOrDefault(target => target.HostSlot == hostSlot);
+        return target is null ? null : active.Placement.ResolvePresentationTransform(effect.ForeignPlacement(target.ActorIndex));
     }
     public int ActorSlot => attack.ActorSlot;
     public Guid EncounterId => attack.EncounterId;
@@ -399,12 +399,19 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
             current = current with { Presentation = next.State, ContactPublished = current.ContactPublished || next.Contact };
             foreach (NativeBattleForeignSequenceRequest sequence in next.Sequences)
             {
-                int slot = current.Presentation.BoundTargets.Single(target => target.Contact.ActorIndex == sequence.ActorIndex).HostSlot;
-                if (sequence.Kind != NativeBattleForeignSequenceKind.Hit)
+                int slot = current.Presentation.BoundParticipants.Single(target => target.ActorIndex == sequence.ActorIndex).HostSlot;
+                if (sequence.Kind == NativeBattleForeignSequenceKind.Standing)
+                {
+                    host.PresentGuestStanding(ActorSlot, slot);
+                }
+                else if (sequence.Kind == NativeBattleForeignSequenceKind.Hit)
+                {
+                    host.PresentGuestReaction(ActorSlot, slot);
+                }
+                else
                 {
                     throw new NotSupportedException("The host has no presentation operation for the requested target sequence.");
                 }
-                host.PresentGuestReaction(ActorSlot, slot);
             }
             encounter.CrtRandom = next.State.Random;
             encounter.GlobalRandom = next.State.GlobalRandom ?? encounter.GlobalRandom;
@@ -434,6 +441,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         if (current.Presentation.Complete)
         {
             attack.ResumeStandingFromCast(current.Presentation.Cast.Model with { Index = ActorSlot }, hostTick, clock.Subticks, clock.HalfSubtick);
+            current.Presentation.Effect?.Dispose();
             fire = null;
         }
         return new(hit, fire is null) { GroupHits = groupHits };
@@ -446,7 +454,13 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         limit = null;
         if (fire is { } current)
         {
-            attack.ResumeStandingFromCast(current.Presentation.Cast.Model with { Index = ActorSlot }, current.HostTick, current.Subticks, current.HalfSubtick, completed: false);
+            current.Presentation.Effect?.Dispose();
+            NativeBattleGraphicsModel model = current.Presentation.Cast.Model;
+            if (current.Presentation.Effect?.Source is { } released)
+            {
+                model = model with { Flags0 = released.Flags0, Color40 = released.Color40, Color44 = released.Color44, Alpha7 = released.Alpha7 };
+            }
+            attack.ResumeStandingFromCast(model with { Index = ActorSlot }, current.HostTick, current.Subticks, current.HalfSubtick, completed: false);
             fire = null;
         }
         if (encounter.Items?.PendingFor(ActorSlot) is { Selection: { } pending })

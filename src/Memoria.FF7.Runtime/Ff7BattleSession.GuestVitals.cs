@@ -151,7 +151,8 @@ public sealed partial class Ff7BattleSession
         Ff7BattleActorState actor = Actor(binding.HostSlot);
         uint statuses = Ff7GuestBattleStatuses.ToHostStatuses(binding.OriginStatuses, binding.OriginBattleStatuses) | (binding.InitialHp == 0 ? 1u : 0u);
         Ff7BattleAiActor projected = actor.Actor with { HitPoints = binding.InitialHp, MaxHitPoints = binding.MaximumHp, MagicPoints = 0, MaxMagicPoints = 0, Statuses = statuses, Defense = binding.Defense, MagicDefense = binding.MagicDefense };
-        Replace(actor with { Actor = projected, LimitGauge = 0, AllUses = null, Timers = Ff7NativeBattleStatusClock.Apply(default, 0, statuses) });
+        Ff7BattleParameterOperation? parameter = (binding.OriginBattleStatuses & Ff7GuestBattleStatuses.OriginDefenseReduction) != 0 ? new(Ff7GuestBattleStatuses.OriginDefenseReduction, 32, 100, 100) : null;
+        Replace(actor with { Actor = projected, LimitGauge = 0, AllUses = null, Timers = Ff7NativeBattleStatusClock.Apply(default, 0, statuses), ParameterStatus = parameter, ParameterStatusInitialized = true });
         SetGuestSlotState(new(binding));
     }
 

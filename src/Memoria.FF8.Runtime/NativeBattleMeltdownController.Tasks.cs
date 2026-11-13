@@ -23,8 +23,8 @@ public static partial class NativeBattleMeltdownController
             int casterActor = S(task, 34);
             if (age == 0)
             {
-                target = NativeBattlePoseMatrices.ReadAnchor(inputs.ReadModel(targetActor), inputs.ReadPoseSource(targetActor));
-                caster = NativeBattlePoseMatrices.ReadAnchor(inputs.ReadModel(casterActor), inputs.ReadPoseSource(casterActor));
+                target = inputs.ReadAnchor?.Invoke(targetActor) ?? NativeBattlePoseMatrices.ReadAnchor(inputs.ReadModel(targetActor), inputs.ReadPoseSource(targetActor));
+                caster = inputs.ReadAnchor?.Invoke(casterActor) ?? NativeBattlePoseMatrices.ReadAnchor(inputs.ReadModel(casterActor), inputs.ReadPoseSource(casterActor));
                 if (target.Y > caster.Y && casterActor < 3)
                 {
                     target = target with { Y = caster.Y };

@@ -15,17 +15,20 @@ public sealed record NativeBattleForeignActor(int Index, NativeBattleModelTransf
     public bool CanReact { get; init; }
     public bool? AtStandingPose { get; init; }
     public uint? StatusFlags { get; init; }
+    public bool IsParty { get; init; }
 }
 
 public sealed record NativeBattleEffectPresentationInputs(BattleDefinition Resources, NativeBattleGraphicsModel Source, NativeBattleGraphicsResource SourceResource, NativeBattleActionPacketsState Packets, NativeBattleEffectParameters Parameters, ushort Effect, NativeBattleEffectTextureState Textures, NativeCrtRandomState Random, NativeBattleCameraProjection Projection, ImmutableArray<NativeBattleForeignActor> ForeignActors)
 {
     public NativeBattleArenaHost? Arena { get; init; }
     public bool DeferInvocation { get; init; }
+    public int? PartyActorCount { get; init; }
 }
 
 public enum NativeBattleForeignSequenceKind
 {
-    Hit
+    Hit,
+    Standing
 }
 
 public sealed record NativeBattleForeignSequenceRequest(int ActorIndex, NativeBattleForeignSequenceKind Kind);
@@ -36,7 +39,7 @@ public sealed record NativeBattleEffectPresentationStep(ImmutableArray<NativeBat
 }
 
 /// <summary>Runs the current native effect dispatcher without owning combat, inventory, rewards or host time.</summary>
-public sealed class NativeBattleEffectPresentation
+public sealed class NativeBattleEffectPresentation : IDisposable
 {
     private readonly BattleSession owner;
 
@@ -58,6 +61,11 @@ public sealed class NativeBattleEffectPresentation
     public short ViewTranslationY => owner.NativeCamera?.ViewTranslationScratch?.Y ?? 0;
     public NativeBattleActionMatrix ForeignPlacement(int index) => owner.ReadEffectPresentationForeignPlacement(index);
     public ImmutableArray<NativeBattleArenaReplacement> ArenaReplacements => owner.presentationArena?.Replacements ?? [];
+    public NativeBattleUiServices Ui => Graphics.UiServices ?? throw new InvalidDataException("Native presentation lost its UI owner.");
+    public NativeBattleStageState Stage => owner.NativeStage ?? throw new InvalidDataException("Native presentation lost its arena owner.");
+    public ImmutableArray<NativeBattleArenaPrimitiveId> SuppressedArenaPrimitives => owner.presentationArena?.SuppressedPrimitives(Stage) ?? [];
+
+    public void Dispose() => owner.ReleaseEffectPresentation();
 
     public void Invoke(NativeBattleGraphicsModel source, NativeCrtRandomState random, NativeBattleEffectTextureState textures) => owner.InvokeEffectPresentation(source, random, textures);
     public void ReloadSourceResources() => owner.ReloadEffectPresentationSourceResources();
@@ -68,6 +76,14 @@ public sealed class NativeBattleEffectPresentation
 
     public NativeBattleEffectPresentationStep Advance(NativeBattleGraphicsModel source, NativeCrtRandomState random, NativeBattleCameraProjection projection, ImmutableArray<NativeBattleForeignActor> foreignActors, NativeBattleEffectTextureState textures)
     {
-        return owner.AdvanceEffectPresentation(source, random, projection, foreignActors, textures);
+        try
+        {
+            return owner.AdvanceEffectPresentation(source, random, projection, foreignActors, textures);
+        }
+        catch
+        {
+            Dispose();
+            throw;
+        }
     }
 }

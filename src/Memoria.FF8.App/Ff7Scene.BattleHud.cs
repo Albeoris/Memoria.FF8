@@ -28,6 +28,10 @@ internal sealed partial class Ff7Scene
             DrawBattleResult(canvas, theme, layout, textScale, battle);
             return;
         }
+        if (mixedCombat?.ActiveGuest?.PresentationUi is { } nativeUi && (nativeUi.Flags942 & 0x841) != 0x40)
+        {
+            return;
+        }
 
         DrawBattleParty(canvas, theme, layout, textScale, battle);
         if (battle.BeatRushSelecting)

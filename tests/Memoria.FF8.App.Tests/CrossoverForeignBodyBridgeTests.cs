@@ -25,16 +25,18 @@ public sealed class CrossoverForeignBodyBridgeTests(ITestOutputHelper output)
     [InlineData("LV?Death", (byte)3, (byte)1)]
     [InlineData("Acid", (byte)3, (byte)1)]
     [InlineData("Acid", (byte)3, (byte)2)]
+    [InlineData("Acid", (byte)3, (byte)3)]
+    [InlineData("Acid", (byte)3, (byte)4)]
+    [InlineData("Meltdown", (byte)0, (byte)0)]
+    [InlineData("Stop", (byte)0, (byte)0)]
+    [InlineData("The End", (byte)0, (byte)0)]
     [InlineData("Bad Breath", (byte)3, (byte)1)]
+    [InlineData("Bad Breath", (byte)3, (byte)2)]
+    [InlineData("Bad Breath", (byte)3, (byte)3)]
+    [InlineData("Bad Breath", (byte)3, (byte)4)]
     public void OriginalBodyConsumersCompleteNativeContactsReleaseAndFollowingFire(string name, byte character, byte crisis)
     {
         Run(name, character, crisis);
-    }
-
-    [Fact]
-    public void UnsupportedOriginalStatusContractKeepsForeignTargetUnavailableWithoutCost()
-    {
-        Run("Acid", 3, 3, unsupported: true);
     }
 
     [Theory]
@@ -257,9 +259,14 @@ public sealed class CrossoverForeignBodyBridgeTests(ITestOutputHelper output)
                     int slot = receipt.Invocation.TargetSlot;
                     if ((active.Presentation.PublishedTargetMask & 1 << slot) != 0 && publications.Add(slot))
                     {
-                        Ff7BattleAiActor current = host.Actors.Single(actor => actor.Actor.Slot == slot).Actor;
+                        Ff7BattleActorState currentState = host.Actors.Single(actor => actor.Actor.Slot == slot);
+                        Ff7BattleAiActor current = currentState.Actor;
                         Assert.Equal(receipt.Receipt.Target.Hp, current.HitPoints);
                         Assert.Equal(receipt.Receipt.Target.Statuses, current.Statuses);
+                        if (receipt.Receipt.AddedParameterStatus is { } parameter)
+                        {
+                            Assert.Equal(parameter, currentState.ParameterStatus);
+                        }
                     }
                 }
             }
@@ -298,6 +305,12 @@ public sealed class CrossoverForeignBodyBridgeTests(ITestOutputHelper output)
             Assert.Equal(stockBefore, JsonSerializer.Serialize(provider.WorkingStock));
         }
         Assert.Equal(4, provider.WorkingStock.GetMagicCount(row, fire.ActionId));
+        if (host.Outcome != Ff7BattleOutcome.Fighting || !host.Actors.Any(actor => actor.Actor.Slot >= 4 && actor.Actor.HitPoints > 0 && (actor.Actor.Statuses & 0x4001) == 0))
+        {
+            Assert.True(host.Actors.Where(actor => actor.Actor.Slot >= 4).All(actor => actor.Actor.HitPoints == 0 || (actor.Actor.Statuses & 0x4001) != 0));
+            output.WriteLine($"{name} Crisis{crisis}: native mask {targets:X}, {contacts} contacts, presentation released and no combat-eligible enemy remains.");
+            return;
+        }
         Ready();
         Ff7BattleCommandOption nextOption = Assert.Single(host.Commands(0), choice => choice.Command == Ff7BattleCommand.Magic && choice.Argument == fire.ActionId);
         Assert.True(nextOption.UnsupportedReason is null, nextOption.UnsupportedReason);

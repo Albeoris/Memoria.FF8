@@ -5,6 +5,8 @@ namespace Memoria.FF7.Runtime;
 public readonly record struct Ff7BattleDamageActor(byte Level, byte Attack, byte Magic, byte Dexterity, byte Luck, byte Evade, byte MagicEvade, ushort Defense, ushort MagicDefense, byte CriticalBonus = 0, uint Statuses = 0, bool IsEnemy = false, bool BackRow = false, bool Defending = false, sbyte AttackModifier = 0, sbyte MagicModifier = 0, sbyte DefenseModifier = 0, sbyte MagicDefenseModifier = 0, sbyte EvadeModifier = 0, sbyte DexterityModifier = 0, uint? CurrentHitPoints = null, uint? MaximumHitPoints = null, ushort? CurrentMagicPoints = null, ushort? MaximumMagicPoints = null)
 {
     public uint NativeConditions { get; init; }
+    public Ff7BattleParameterOperation? ParameterStatus { get; init; }
+    public ushort OriginSavedStatuses { get; init; }
 }
 
 [Flags]
@@ -47,6 +49,10 @@ public readonly record struct Ff7BattleDamageAction(byte Formula, byte Power, by
     public uint GuestOriginBattleStatuses { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public byte GuestOriginStatusAttack { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public ushort GuestOriginSavedStatuses { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7BattleParameterOperation? ParameterOperation { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     internal byte? GuestElementPercent { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
@@ -200,7 +206,13 @@ public static class Ff7NativeBattleDamage
         int limit = action.TargetsMagicPoints ? 999 : 9999;
         damage = Math.Clamp(elementalDamage, -limit, limit);
         bool nullified = immune || (action.Affinity & Ff7BattleDamageAffinity.Nullify) != 0 && action.GuestElementPercent is null or 100;
-        return new(false, critical && !nullified, action.Healing ? -damage : damage);
+        bool zombie = Ff7OriginSavedStatusRules.IsZombie(target.OriginSavedStatuses);
+        if (zombie && (action.NativeElements & 0x100) != 0 && !action.Healing && !action.IgnoreNativeAffinity)
+        {
+            damage = Math.Clamp(Math.Abs(damage) * 2, -limit, limit);
+        }
+        bool healing = action.Healing && !(zombie && !action.TargetsMagicPoints);
+        return new(false, critical && !nullified, healing ? -damage : damage);
     }
 
     private static int ApplyAffinity(int damage, Ff7BattleDamageAffinity affinity)

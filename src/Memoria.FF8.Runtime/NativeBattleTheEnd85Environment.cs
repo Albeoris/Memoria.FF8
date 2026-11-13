@@ -3,7 +3,10 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleTheEnd85EnvironmentInput(NativeBattleModulePoolTask Task, ImmutableArray<byte> Context, NativeBattleStageState Stage, ImmutableArray<NativeBattleGraphicsModel> Models);
+public sealed record NativeBattleTheEnd85EnvironmentInput(NativeBattleModulePoolTask Task, ImmutableArray<byte> Context, NativeBattleStageState Stage, ImmutableArray<NativeBattleGraphicsModel> Models)
+{
+    public ImmutableArray<int> PartyActors { get; init; } = [0, 1, 2];
+}
 public sealed record NativeBattleTheEnd85EnvironmentStep(NativeBattleTheEnd85EnvironmentInput Input, bool Complete, short? MusicGain);
 
 public static class NativeBattleTheEnd85Environment
@@ -15,6 +18,10 @@ public static class NativeBattleTheEnd85Environment
             throw new InvalidDataException("Native The End environment requires its complete task, context, stage and graphics model owners.");
         }
         input.Stage.Validate();
+        if (input.PartyActors.IsDefault || input.PartyActors.Length > 3 || input.PartyActors.Distinct().Count() != input.PartyActors.Length || input.PartyActors.Any(index => index is < 0 or >= 7))
+        {
+            throw new InvalidDataException("Native party presentation requires at most three distinct current actor owners.");
+        }
         int phase = unchecked((sbyte)input.Task.ReadByte(41));
         short? musicGain = null;
         bool stage = input.Task.Callback == 0x787E20;
@@ -54,11 +61,12 @@ public static class NativeBattleTheEnd85Environment
                     {
                         byte[] context = input.Context.ToArray();
                         ImmutableArray<NativeBattleGraphicsModel>.Builder models = input.Models.ToBuilder();
-                        for (int index = 0; index < 3; index++)
+                        for (int party = 0; party < input.PartyActors.Length; party++)
                         {
+                            int index = input.PartyActors[party];
                             if ((models[index].Flags0 & 2) != 0)
                             {
-                                BinaryPrimitives.WriteUInt32LittleEndian(context.AsSpan(32 + index * 4), models[index].Flags0);
+                                BinaryPrimitives.WriteUInt32LittleEndian(context.AsSpan(32 + party * 4), models[index].Flags0);
                                 models[index] = models[index] with { Flags0 = (ushort)(models[index].Flags0 | 4) };
                             }
                         }
@@ -78,12 +86,13 @@ public static class NativeBattleTheEnd85Environment
                     else if (actors)
                     {
                         ImmutableArray<NativeBattleGraphicsModel>.Builder models = input.Models.ToBuilder();
-                        for (int index = 0; index < 3; index++)
+                        for (int party = 0; party < input.PartyActors.Length; party++)
                         {
+                            int index = input.PartyActors[party];
                             ushort flags = models[index].Flags0;
                             if ((flags & 2) != 0)
                             {
-                                byte saved = input.Context[32 + index * 4];
+                                byte saved = input.Context[32 + party * 4];
                                 models[index] = models[index] with { Flags0 = (ushort)(flags ^ ((flags ^ saved) & 4)) };
                             }
                         }
@@ -123,7 +132,7 @@ public static class NativeBattleTheEnd85Environment
             }
             else if (actors)
             {
-                input = input with { Models = input.Models.Select((model, index) => index < 3 && (model.Flags0 & 2) != 0 ? Fade788120(model with { Flags0 = (ushort)(model.Flags0 | 0x800) }, amount, defaultColor) : model).ToImmutableArray() };
+                input = input with { Models = input.Models.Select((model, index) => input.PartyActors.Contains(index) && (model.Flags0 & 2) != 0 ? Fade788120(model with { Flags0 = (ushort)(model.Flags0 | 0x800) }, amount, defaultColor) : model).ToImmutableArray() };
             }
             else
             {

@@ -49,6 +49,29 @@ public sealed class NativeBattleArenaHost(NativeBattleArenaGeometry geometry)
     public NativeBattleArenaGeometry Geometry { get; } = geometry;
     public ImmutableArray<NativeBattleArenaReplacement> Replacements => replacements.Values.ToImmutableArray();
 
+    /// <summary>The foreign arena is one presentation group; its native skeleton and animation services remain unavailable.</summary>
+    public NativeBattleStageState CreatePresentationStage()
+    {
+        NativeBattleStageState stage = NativeBattleStageState.FromColdProcess();
+        return stage with { Groups = stage.Groups.SetItem(0, stage.Groups[0] with { Flags = Geometry.Faces.IsEmpty ? (byte)0 : (byte)7 }) };
+    }
+
+    public ImmutableArray<NativeBattleArenaPrimitiveId> SuppressedPrimitives(NativeBattleStageState stage)
+    {
+        stage.Validate();
+        return (stage.Groups[0].Flags & 2) == 0 ? primitiveIds.ToImmutableArray() : [];
+    }
+
+    public NativeBattleArenaHost Fork() => new(Geometry);
+
+    public void ClearPresentation()
+    {
+        replacements.Clear();
+        captures.Clear();
+        captureRegions.Clear();
+        deformationSurfaces.Clear();
+    }
+
     public NativeBattleArenaCaptureMaterial Capture(NativeBattlePilotVisualIdentity owner, NativeBattleArenaGeometry surface, NativeBattleCameraProjection projection, int width, int height, int nativeX = 0, int nativeY = 0)
     {
         NativeBattleArenaCaptureMaterial material = new(surface, projection, width, height) { NativeX = nativeX, NativeY = nativeY };

@@ -100,7 +100,7 @@ internal sealed class CrossoverMixedBattle : IDisposable
                 vitals = CrossoverBattleVitalsSettlement.ReadBindings(source, roster, installed, assets).OrderBy(binding => binding.HostSlot).ToArray();
             }
 
-            encounter = new(roster, origin, host, currentRandom, document.Progression?.Clocks.CrtRandom, document.Economy, shared);
+            encounter = new(roster, origin, host, currentRandom, document.Progression?.Clocks.CrtRandom, document.Economy, shared) { ParameterTuning = document.Progression?.Rules.Preferences.Tuning ?? new() };
             NativeBattleUiRandomState limitUiRandom = (document.Progression?.Clocks.Playtime ?? NativePlaytimeState.FromColdProcess()).CreateBattleUiRandom();
             List<CrossoverGuestHostActions> guests = [];
             foreach (Ff7BattleGuestVitalsBinding binding in vitals)

@@ -41,6 +41,7 @@ internal sealed record CrossoverNativeForeignTarget(int HostSlot, NativeBattleMo
         return new(index, Transform, new(anchor.X, anchor.Y, anchor.Z, checked((short)(Anchors.LocalBounds.Maximum.Y - Anchors.LocalBounds.Minimum.Y))), ReadBone)
         {
             Facing = Facing,
+            IsParty = HostSlot < 3,
             NativeModel = NativeModel,
             NativeResource = NativeResource,
             CanReact = CanReact,

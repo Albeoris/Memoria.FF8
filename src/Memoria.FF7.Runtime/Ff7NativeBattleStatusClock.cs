@@ -1,5 +1,16 @@
 namespace Memoria.FF7.Runtime;
 
+public readonly record struct Ff7BattleGlobalStatusClock(ushort FirstRemainder, ushort SecondRemainder, byte Buffer)
+{
+    public void Validate()
+    {
+        if (FirstRemainder >= 8192 || SecondRemainder >= 8192 || Buffer > 1)
+        {
+            throw new InvalidDataException("FFVII global status clock continuation is invalid.");
+        }
+    }
+}
+
 public readonly record struct Ff7BattleStatusTimers(ushort Remainder, byte Sleep, byte Poison)
 {
     public byte? Barrier { get; init; }
@@ -11,6 +22,7 @@ public readonly record struct Ff7BattleStatusTimers(ushort Remainder, byte Sleep
     public byte? DeathSentence { get; init; }
     public byte? SlowPetrify { get; init; }
     public byte? Peerless { get; init; }
+    public byte? Stop { get; init; }
 }
 
 public readonly record struct Ff7BattleStatusTick(Ff7BattleStatusTimers Timers, uint Statuses, bool PoisonDue)
@@ -37,6 +49,8 @@ public static class Ff7NativeBattleStatusClock
     private const uint DeathSentence = 0x200000;
     private const uint SlowPetrify = 0x2000;
     private const uint Peerless = 0x1000000;
+    private const uint Stop = 0x400;
+    private const byte StopDuration = 30;
 
     public static Ff7BattleStatusTimers Apply(Ff7BattleStatusTimers timers, uint previousStatuses, uint statuses)
     {
@@ -45,17 +59,35 @@ public static class Ff7NativeBattleStatusClock
         byte poison = (statuses & Poison) == 0 ? (byte)0 : (added & Poison) != 0 ? PoisonInterval : timers.Poison;
         byte? Duration(uint mask, byte? saved, byte duration) => (statuses & mask) == 0 ? saved is null ? null : (byte)0 : (added & mask) != 0 || saved is null or 0 ? duration : saved.Value;
         byte? doom = (statuses & DeathSentence) == 0 ? timers.DeathSentence is null ? null : (byte)0 : (added & DeathSentence) != 0 || timers.DeathSentence is null ? (byte)60 : timers.DeathSentence;
-        return timers with { Sleep = sleep, Poison = poison, Barrier = Duration(Ff7NativeBattleStatuses.Barrier, timers.Barrier, 127), MagicBarrier = Duration(Ff7NativeBattleStatuses.MagicBarrier, timers.MagicBarrier, 127), Shield = Duration(Ff7NativeBattleStatuses.Shield, timers.Shield, 64), Regen = Duration(Regen, timers.Regen, 127), DeathSentence = doom, SlowPetrify = Duration(SlowPetrify, timers.SlowPetrify, 30), Peerless = Duration(Peerless, timers.Peerless, 64) };
+        byte? stop = (statuses & Stop) == 0 || (statuses & Ff7NativeBattleActionResolver.Death) != 0 ? timers.Stop is null ? null : (byte)0 : (added & Stop) != 0 || timers.Stop is null ? StopDuration : timers.Stop;
+        return timers with { Sleep = sleep, Poison = poison, Barrier = Duration(Ff7NativeBattleStatuses.Barrier, timers.Barrier, 127), MagicBarrier = Duration(Ff7NativeBattleStatuses.MagicBarrier, timers.MagicBarrier, 127), Shield = Duration(Ff7NativeBattleStatuses.Shield, timers.Shield, 64), Regen = Duration(Regen, timers.Regen, 127), DeathSentence = doom, SlowPetrify = Duration(SlowPetrify, timers.SlowPetrify, 30), Peerless = Duration(Peerless, timers.Peerless, 64), Stop = stop };
     }
 
-    public static Ff7BattleStatusTick Advance(Ff7BattleStatusTimers timers, uint statuses, byte battleSpeed, byte imprisonedType = 0, uint maximumHitPoints = 0)
+    public static bool AdvanceGlobalClock(ref Ff7BattleGlobalStatusClock clock, byte battleSpeed)
     {
-        if (timers.Remainder >= TimeUnit || timers.Sleep > SleepDuration || timers.Poison > PoisonInterval || timers.Barrier > 127 || timers.MagicBarrier > 127 || timers.Shield > 64 || timers.HitPointRemainder >= 32768 || timers.FixedRemainder >= 4096 || timers.Regen > 127 || timers.DeathSentence > 60 || timers.SlowPetrify > 30 || timers.Peerless > 64 || imprisonedType > 3)
+        clock.Validate();
+        int time = (clock.Buffer == 0 ? clock.FirstRemainder : clock.SecondRemainder) + Ff7NativeAtb.BaseRate(battleSpeed);
+        ushort remainder = (ushort)(time % TimeUnit);
+        clock = clock.Buffer == 0 ? clock with { FirstRemainder = remainder, Buffer = 1 } : clock with { SecondRemainder = remainder, Buffer = 0 };
+        return time >= TimeUnit;
+    }
+
+    public static Ff7BattleStatusTick Advance(Ff7BattleStatusTimers timers, uint statuses, byte battleSpeed, byte imprisonedType = 0, uint maximumHitPoints = 0, bool globalTick = false, ushort originSavedStatuses = 0)
+    {
+        if (timers.Remainder >= TimeUnit || timers.Sleep > SleepDuration || timers.Poison > PoisonInterval || timers.Barrier > 127 || timers.MagicBarrier > 127 || timers.Shield > 64 || timers.HitPointRemainder >= 32768 || timers.FixedRemainder >= 4096 || timers.Regen > 127 || timers.DeathSentence > 60 || timers.SlowPetrify > 30 || timers.Peerless > 64 || timers.Stop > StopDuration || imprisonedType > 3)
         {
             throw new InvalidDataException("FFVII battle status timer continuation is invalid.");
         }
         timers = Apply(timers, statuses, statuses);
         uint clockStatuses = Ff7NativeBattleStatuses.ProjectClockStatuses(statuses, imprisonedType);
+        if (globalTick && timers.Stop > 0)
+        {
+            timers = timers with { Stop = (byte)(timers.Stop.Value - 1) };
+            if (timers.Stop == 0)
+            {
+                statuses &= ~Stop;
+            }
+        }
         if ((clockStatuses & StopOrDeath) != 0)
         {
             return new(timers, statuses, false);
@@ -70,6 +102,10 @@ public static class Ff7NativeBattleStatusClock
         }
         int hpDelta = 0;
         int hpRate = (statuses & Regen) != 0 ? 1 : 0;
+        if (Ff7OriginSavedStatusRules.IsZombie(originSavedStatuses))
+        {
+            hpRate = -hpRate;
+        }
         if ((statuses & 0x8000000) != 0 || (statuses & Ff7NativeBattleStatuses.Imprisoned) != 0 && imprisonedType == 1)
         {
             hpRate--;

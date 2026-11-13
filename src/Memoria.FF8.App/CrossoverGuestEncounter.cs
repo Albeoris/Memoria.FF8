@@ -21,6 +21,7 @@ internal sealed class CrossoverGuestEncounter
     public bool LegacyBattleMaskContinuation { get; }
     public CrossoverGuestAudioState Audio { get; set; }
     public CrossoverGuestItemInventory? Items { get; set; }
+    public GameplayTuning ParameterTuning { get; init; } = new();
 
     public CrossoverGuestEncounter(CrossoverBattleRoster roster, NativeCharacterVitals origin, Ff7BattleSession host, NativeGlobalRandomState globalRandom, NativeCrtRandomState? crt, GameplaySaveEconomy? economy, CrossoverGuestEncounterSnapshot? saved)
     {

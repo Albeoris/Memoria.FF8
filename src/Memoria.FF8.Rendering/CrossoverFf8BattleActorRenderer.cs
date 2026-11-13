@@ -15,6 +15,7 @@ public sealed record CrossoverFf8BattleActorVisual(BattleModel Body, BattleModel
     public NativeBattleActionMatrix? DetachedWeapon { get; init; }
     public NativeBattleShadowSource? ShadowSource { get; init; }
     public bool ShadowSuppressed { get; init; }
+    public CrossoverNativeActorColor? NativeColor { get; init; }
 }
 
 public static class CrossoverFf8BattleActorRenderer
@@ -93,6 +94,10 @@ public static class CrossoverFf8BattleActorRenderer
                 }
                 Vector2 textureSize = new(texture.Width, texture.Height);
                 Vector4 tint = new(face.Color.R / 128f, face.Color.G / 128f, face.Color.B / 128f, face.Color.A / 255f);
+                if ((visual.NativeColor is not null || (visual.Model.Flags0 & 0x800) != 0) && (visual.NativeColor?.Color ?? visual.Model.Color40) is { } color && face.NativePolygon.Length == (face.Vertices.Length == 4 ? 20 : 16))
+                {
+                    tint = new((byte)color / 128f, (byte)(color >> 8) / 128f, (byte)(color >> 16) / 128f, tint.W);
+                }
                 TriangleMaterial material = new(texture, TriangleBlend.Replace, TriangleDepthComparison.GreaterEqual, true, 1f / 255, TriangleSampler.PointClamp) { PreserveTargetAlpha = false, TextureSelectsAlpha = false };
                 CameraSpaceVertex Vertex(int index) => new(cameraPositions[face.Vertices[index]], (nativeMaterial?.Uv ?? face.Uv)[index] / textureSize, tint * (face.VertexColors?[index] ?? Vector4.One));
 

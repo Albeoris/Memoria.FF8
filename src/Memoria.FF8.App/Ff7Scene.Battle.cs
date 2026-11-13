@@ -515,7 +515,7 @@ internal sealed partial class Ff7Scene
                     continue;
                 }
             }
-            visuals.Add(BattleActorVisual(battle, actor) with { Slot = slot, PresentationTransform = mixedCombat?.ActiveGuest?.ReadForeignPlacement(slot), ShadowSuppressed = mixedCombat?.ActiveGuest?.SuppressForeignShadow(slot) == true });
+            visuals.Add(BattleActorVisual(battle, actor) with { Slot = slot, PresentationTransform = mixedCombat?.ActiveGuest?.ReadForeignPlacement(slot), ShadowSuppressed = mixedCombat?.ActiveGuest?.SuppressForeignShadow(slot) == true, NativeColor = mixedCombat?.ActiveGuest?.ReadForeignColor(slot) });
         }
         CrossoverNativeEffectVisual[] guestEffects = mixedCombat?.Guests.Select(guest => guest.EffectVisual).OfType<CrossoverNativeEffectVisual>().ToArray() ?? [];
         if (mixedCombat?.ActiveGuest is null)
@@ -524,6 +524,7 @@ internal sealed partial class Ff7Scene
         }
         arenaSurfaceCapture!.Prepare(guestEffects.SelectMany(effect => effect.Ordering?.Packets.Select(packet => packet.PilotGeometry?.ForeignSurface?.Material).OfType<INativeBattleForeignMaterial>() ?? []));
         HashSet<NativeBattleArenaPrimitiveId> replacedArena = mixedCombat?.Guests.SelectMany(guest => guest.ArenaReplacements).SelectMany(replacement => replacement.Geometry.Faces).Select(face => face.Id).ToHashSet() ?? [];
+        replacedArena.UnionWith(mixedCombat?.Guests.SelectMany(guest => guest.SuppressedArenaPrimitives) ?? []);
         renderer.Render(triangles, bounds.Width, bounds.Height, new(battle.GuestRenderCameraOutput, visuals, battle.Action?.Fire, battle.Action?.Ice, battle.Action?.Bolt, Cure: battle.Action?.Cure, Braver: battle.Action?.Braver) { CaptureActorBounds = selectedBattleCommand is not null, BeatRush = battle.Action?.BeatRushEffect, BigShot = battle.Action?.BigShot, Hitmarks = battle.Hitmarks, SecondaryEffects = battle.SecondaryEffects, PrimaryEffects = battle.PrimaryEffects, SmokeShot = battle.Action?.SmokeShot, Smog = battle.Action?.Smog, Destroyed = battle.Action?.Destroyed, SearchScope = battle.Action?.SearchScope, Rockets = battle.Action?.Rockets, StageFade = battle.RenderStageFade, Guests = MixedBattleVisuals(battle), GuestEffectLayers = guestEffects, SuppressArenaPrimitives = replacedArena });
     }
 

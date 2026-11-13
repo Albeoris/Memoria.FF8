@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--stop-clock-only", StringComparer.Ordinal))
+{
+    NativeStopClockTests.Run();
+    return 0;
+}
+
 if (args.Contains("--status-counterparts-only", StringComparer.Ordinal))
 {
     GuestBattleConversionTests.Run();
