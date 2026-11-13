@@ -1,4 +1,7 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using Albeoris.Games.FF8.Jsm;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
@@ -6,6 +9,77 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class StoryBattleRosterTests
 {
+    [Theory]
+    [InlineData(350, 3, 32, 518, 796, -335, -5704, 21, 128, new int[] { 112, 113 })]
+    [InlineData(369, 9, 57, 511, 794, 0, 952, 108, 128, new int[] { 105, 106, 107 })]
+    public void OriginalStoryBattleInstructionKeepsItsSceneParticipants(int fieldId, int objectId, int scriptId, int operation, int formation, int x, int y, int triangle, int direction, int[] models)
+    {
+        string directory = TestResources.GameDirectory;
+        using GameAssets assets = new(directory);
+        byte[] party = [5, 0, 1];
+        GameSession session = GameSession.CreateColdProcess(assets.ReadColdProcessNativeBattleMemory());
+        session.StartNewGame();
+        using GameWorld world = new(session, directory, sharedAssets: assets, expandedBattleAllyCount: 3, expandedBattleEnemyCount: 11);
+        world.EnsureField();
+        session.SetFullBattlePlaythrough(true);
+        NativeCharacterVitals vitals = (session.State.CharacterVitals! with { CombatParty = party }).WithGuestBattleRecords();
+        session.SetCharacterVitals((vitals with { Records = vitals.Records.Select(record => record with { MemberFlags = (ushort)(record.MemberFlags | 1) }).ToArray() }).Rest());
+        session.RequestField(new FieldTransition(fieldId, x, y, triangle, direction));
+        world.EnsureField();
+        world.Events.Step();
+
+        FieldAssets field = Assert.IsType<FieldAssets>(world.Field);
+        JsmProgram program = JsmProgram.Read(field.Jsm);
+        Assert.Contains(program.Objects[objectId].Scripts, script => script.Id == scriptId && script.ContainsOperation(operation));
+        Assert.Equal((Jsm.Opcode.PSHN_L, formation), (program.Operations[operation - 2].Opcode, program.Operations[operation - 2].Parameter));
+        Assert.Equal((Jsm.Opcode.PSHN_L, 0), (program.Operations[operation - 1].Opcode, program.Operations[operation - 1].Parameter));
+        Assert.Equal(Jsm.Opcode.BATTLE, program.Operations[operation].Opcode);
+        Assert.Equal(models, world.BattleResources.LoadEncounter(formation).Enemies.Select(enemy => enemy.ModelId));
+
+        // The component starts at the installed operand pushes after ordinary allocation.
+        // The setup holds other controllers during this callback and resumes no preceding scene.
+        JsonNode state = JsonNode.Parse(world.Events.Capture().GetRawText())!;
+        JsonArray fibers = state["Fibers"]!.AsArray();
+        JsonNode owner = Assert.Single(fibers, fiber => fiber!["ObjectId"]!.GetValue<int>() == objectId && fiber["ScriptId"]!.GetValue<int>() == scriptId && !fiber["Initialization"]!.GetValue<bool>())!;
+        owner["Position"] = operation - 2;
+        foreach (JsonNode? fiber in fibers.Where(fiber => fiber != owner && !fiber!["Complete"]!.GetValue<bool>()))
+        {
+            fiber!["WaitReason"] = nameof(WaitReason.Frames);
+            fiber["WaitUntil"] = world.Events.Frame + 2;
+        }
+        world.Events.Restore(JsonSerializer.SerializeToElement(state));
+        world.Events.Step();
+        NativeBattleCompletion request = Assert.IsType<NativeBattleCompletion>(world.Events.PendingInteractiveBattle);
+        Assert.Equal((fieldId, objectId, scriptId, operation, (ushort)formation, (ushort)0), (request.FieldId, request.ObjectId, request.ScriptId, request.Operation, request.Encounter, request.Flags));
+        BattleEncounterOccurrence occurrence = Assert.IsType<BattleEncounterOccurrence>(session.State.PendingBattleEncounter);
+        Assert.Equal(new ScriptedBattleOwner(fieldId, objectId, scriptId, operation, 0, request.ProgramHash), occurrence.ScriptedOwner);
+        Assert.Equal(world.BattleResources.FormationSourceHash(formation), occurrence.FormationHash);
+        AssertFullExpandedRosterAvailable(Assert.IsType<NativeCharacterVitals>(session.State.CharacterVitals));
+
+        GameState pending = session.PrepareSnapshot() with { EventState = world.Events.Capture() };
+        GameSession expandedSession = new(pending);
+        using GameWorld expandedWorld = new(expandedSession, directory, sharedAssets: assets, expandedBattleAllyCount: 11, expandedBattleEnemyCount: 11);
+        expandedWorld.EnsureField();
+        Assert.Equal(3, world.ConfiguredBattleAllyCount);
+        Assert.Equal(11, expandedWorld.ConfiguredBattleAllyCount);
+        Assert.Equal(request, expandedWorld.Events.PendingInteractiveBattle);
+        BattleInput start = new(BattleInputKind.StartEncounter, NativeSeed: 0);
+        world.ApplyBattleInput(start);
+        expandedWorld.ApplyBattleInput(start);
+        BattleSession original = Assert.IsType<BattleSession>(world.Battle);
+        BattleSession expanded = Assert.IsType<BattleSession>(expandedWorld.Battle);
+        AssertOriginalStoryState(original, expanded, party);
+        BattleCombatant[] enemies = original.Combatants.Where(actor => !actor.IsPlayer && actor.IsActive).ToArray();
+        Assert.Equal(models, enemies.Select(actor => actor.ModelId));
+        Assert.Equal(Enumerable.Range(3, models.Length), enemies.Select(actor => actor.EncodeNativeSlot()));
+        Assert.All(original.Capture().Definition.Combatants.Where(actor => !actor.IsPlayer && actor.InitialActive), actor => Assert.NotNull(actor.NativeAi));
+        BattleSession originalRestored = RestoreAndAdvance(world, original);
+        BattleSession expandedRestored = RestoreAndAdvance(expandedWorld, expanded);
+        AssertOriginalStoryState(originalRestored, expandedRestored, party);
+        Assert.Equal(request.Frame, world.Events.Frame);
+        Assert.Equal(request.Frame, expandedWorld.Events.Frame);
+    }
+
     [Theory]
     [InlineData("story-battle-94", 130, 94)]
     [InlineData("story-battle-136", 768, 136)]
