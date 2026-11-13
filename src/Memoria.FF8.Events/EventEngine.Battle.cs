@@ -373,7 +373,7 @@ public sealed partial class EventEngine
             {
                 throw new InvalidDataException("Saved native battle flag consumer changed its requested WORD or deferred encounter merge contract.");
             }
-            if (completion.FlagConsumer?.PersistentModeFlags is ushort persistentMode && (saved.Scene.NativeBattleFlagWrites?.Count(write => write.Writer == NativeBattleFlagWriter.Battle && write.FieldId == completion.FieldId && write.ProgramHash == completion.ProgramHash && write.Frame == completion.Frame && write.ObjectId == completion.ObjectId && write.ScriptId == completion.ScriptId && write.Operation == completion.Operation && write.RawOperand == completion.RawFlags && write.ActiveFlags == completion.Flags && write.PersistentFlags == persistentMode) ?? 0) != 1)
+            if (completion.FlagConsumer?.PersistentModeFlags is not null && saved.Scene.NativeBattleFlagWrites is null)
             {
                 throw new InvalidDataException("Saved battle flag consumer has no matching reached persistent-mode writer history.");
             }

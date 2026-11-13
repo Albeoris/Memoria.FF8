@@ -109,6 +109,22 @@ internal static partial class Program
         revisited.LoadField(996, loader, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         revisited.Restore(loading.Capture());
         Require(JsonElement.DeepEquals(loading.Capture(), revisited.Capture()), "Battle-mode history treated an earlier visit's frame as a current field operation.");
+        loading.Step();
+        loading.Step();
+        loading.Step();
+        JsonElement repeatedBattle = loading.Capture();
+        revisited.Restore(repeatedBattle);
+        Require(JsonElement.DeepEquals(repeatedBattle, revisited.Capture()), "A second execution of BATTLE at the same field-local frame failed to restore.");
+        JsonNode missingRepeat = JsonNode.Parse(repeatedBattle.GetRawText())!;
+        missingRepeat["Scene"]!["NativeBattleCompletions"]!.AsArray().RemoveAt(1);
+        try
+        {
+            revisited.Restore(JsonSerializer.SerializeToElement(missingRepeat));
+            throw new InvalidOperationException("A second BATTLE writer was allowed to reuse the first occurrence's receipt.");
+        }
+        catch (InvalidDataException)
+        {
+        }
 
         GameSession suppressedSession = CreateSession();
         suppressedSession.SetWorldControls(suppressedSession.WorldControls! with { EventFlags104 = 0x38 });

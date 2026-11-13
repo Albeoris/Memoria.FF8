@@ -138,6 +138,10 @@ public sealed partial class EventEngine
             throw new InvalidDataException("Native battle-mode history cannot be empty or infer its initial WORD.");
         }
         NativeBattleFlagWrite? prior = null;
+        // Field frames restart on each allocation. Match the two histories in
+        // execution order so a revisit can reach the same operation and frame.
+        NativeBattleCompletion[] consumers = scene.NativeBattleCompletions?.Where(completion => completion?.FlagConsumer?.PersistentModeFlags is not null).ToArray() ?? [];
+        int nextConsumer = 0;
         int lastLoad = history.FindLastIndex(write => write?.Writer == NativeBattleFlagWriter.FieldLoad);
         for (int index = 0; index < history.Count; index++)
         {
@@ -207,8 +211,12 @@ public sealed partial class EventEngine
             }
             if (write.Writer == NativeBattleFlagWriter.Battle)
             {
-                NativeBattleCompletion[] matches = scene.NativeBattleCompletions?.Where(completion => completion.FieldId == write.FieldId && completion.ProgramHash == write.ProgramHash && completion.Frame == write.Frame && completion.ObjectId == write.ObjectId && completion.ScriptId == write.ScriptId && completion.Operation == write.Operation).ToArray() ?? [];
-                if (matches.Length != 1 || matches[0].Suppressed || matches[0].RawFlags != write.RawOperand || matches[0].FlagConsumer?.PersistentModeFlags != persistent)
+                if (nextConsumer >= consumers.Length)
+                {
+                    throw new InvalidDataException("Native active battle flags lack their matching reached battle consumer receipt.");
+                }
+                NativeBattleCompletion consumer = consumers[nextConsumer++];
+                if (consumer.Suppressed || consumer.FieldId != write.FieldId || consumer.ProgramHash != write.ProgramHash || consumer.Frame != write.Frame || consumer.ObjectId != write.ObjectId || consumer.ScriptId != write.ScriptId || consumer.Operation != write.Operation || consumer.RawFlags != write.RawOperand || consumer.Flags != active || consumer.FlagConsumer?.PersistentModeFlags != persistent)
                 {
                     throw new InvalidDataException("Native active battle flags lack their matching reached battle consumer receipt.");
                 }
@@ -226,6 +234,10 @@ public sealed partial class EventEngine
                 throw new InvalidDataException("Native battle-mode writer disagrees with its reached original command.");
             }
             prior = write;
+        }
+        if (nextConsumer != consumers.Length)
+        {
+            throw new InvalidDataException("Saved battle flag consumer has no matching reached persistent-mode writer history.");
         }
         if (timer is not null && (timer.Event182Mask4 != ((prior!.PersistentFlags & 4) != 0) || timer.Event183Mask1 != ((prior.PersistentFlags & 0x100) != 0) || timer.SaveGlobalMask4 != ((prior.ActiveFlags & 4) != 0)))
         {
