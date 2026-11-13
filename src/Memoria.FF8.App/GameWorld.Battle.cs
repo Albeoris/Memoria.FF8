@@ -121,7 +121,7 @@ internal sealed partial class GameWorld
             ? ExpandedBattlePartyRows.Select(entryVitals, configuredAllies) : null;
         int allyCount = expandedParty?.Length ?? entryVitals.CombatParty.Count(row => row != byte.MaxValue);
         bool legacyExpandedEntry = restoredDefinition is { UsesExpandedRoster: true, AddedEnemySources: null, UsesOriginalEnemySlots: false }
-            || restoredDefinition is null && legacyExpandedEnemyCount.HasValue && localRandomEncounter && expandedParty is not null;
+            || restoredDefinition is null && allowExpanded && legacyExpandedEnemyCount.HasValue && localRandomEncounter && expandedParty is not null;
         bool useOriginalEnemySlots = restoredDefinition?.UsesOriginalEnemySlots ?? (allowExpanded && localRandomEncounter && !legacyExpandedEntry && expandedParty is not null && NeedsOriginalEnemySlots(encounter));
         ImmutableSortedDictionary<int, BattleEnemyRosterSource>? addedEnemySources = restoredDefinition?.AddedEnemySources;
         if (restoredDefinition is null && allowExpanded && localRandomEncounter && !legacyExpandedEntry && !useOriginalEnemySlots)
@@ -135,7 +135,8 @@ internal sealed partial class GameWorld
         BattleEnemyPlacement[]? expandedEnemies = null;
         if (useOriginalEnemySlots)
         {
-            expandedEnemies = encounter.Slots.Where(slot => slot.Enabled || IsReservePlacement(slot)).ToArray();
+            HashSet<int> referenced = ReferencedReserveSlots(encounter);
+            expandedEnemies = encounter.Slots.Where(slot => slot.Enabled || IsReservePlacement(slot) || slot.IsEnemyModel && slot.NativeModelId != 255 && referenced.Contains(slot.Slot)).ToArray();
         }
         else if (legacyExpandedEntry)
         {
@@ -189,7 +190,7 @@ internal sealed partial class GameWorld
             {
                 ExpandedAiAdmission admission = NativeBattleExpandedAi.Evaluate(enemyAi, BattleResources.NativeActions, encounterId, originalEnemySlots: useOriginalEnemySlots);
                 bool retainedPrimitive = restoredDefinition is not null && restoredDefinition.Combatants.Single(actor => actor.Id == $"enemy-{enemy.Slot}").NativeAi is null;
-                if (restoredDefinition is null && admission != ExpandedAiAdmission.Supported && (!legacyExpandedEntry || admission == ExpandedAiAdmission.RequiresOriginalSlots))
+                if (restoredDefinition is null && admission != ExpandedAiAdmission.Supported && !legacyExpandedEntry)
                 {
                     return CreateEncounterBattle(encounterId, nativeSeed, activeFlags, null, allowExpanded: false);
                 }

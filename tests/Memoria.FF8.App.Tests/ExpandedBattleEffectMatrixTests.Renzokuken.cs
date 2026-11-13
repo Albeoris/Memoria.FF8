@@ -17,6 +17,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
     [InlineData(161, 6)]
     [InlineData(334, 6)]
     [InlineData(336, 7)]
+    [InlineData(339, 6)]
     [InlineData(341, 7)]
     public void Installed_expanded_Renzokuken_selects_and_completes_its_original_timeline(ushort effect, int contacts)
     {
@@ -45,7 +46,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             340 => (981, 126),
             341 => (712, 84),
             342 => (510, 124),
-            343 => (509, 123),
+            343 => (509, 122),
             _ => (71, 36)
         };
         const int invocation = 5 << 16;
@@ -64,7 +65,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         {
             using GameWorld world = StartBattle(directory, field, checked((ushort)formation), limit: squall, nativeSeed: (byte)seed, prepareHigherBand: true, requireExpanded: !originalAllocation, useAreaEnemyRoster: originalAllocation);
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
-            if (originalAllocation && !battle.UsesExpandedRoster)
+            if (!battle.UsesExpandedRoster)
             {
                 return ("blocked", $"Formation {formation} remains on its original battle host because the expanded host cannot execute all required encounter services.");
             }

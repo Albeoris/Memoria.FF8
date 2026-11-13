@@ -10,7 +10,7 @@ public enum ExpandedAiAdmission
 /// <summary>Checks reachable original AI bytecode against the services available in expanded battles.</summary>
 public static class NativeBattleExpandedAi
 {
-    public static ExpandedAiAdmission Evaluate(NativeBattleAiDefinition program, IReadOnlyList<BattleNativeAction> actions, int formation, ICollection<string>? blockers = null, bool originalEnemySlots = false, ICollection<string>? explicitModelReferences = null)
+    public static ExpandedAiAdmission Evaluate(NativeBattleAiDefinition program, IReadOnlyList<BattleNativeAction> actions, int formation, ICollection<string>? blockers = null, bool originalEnemySlots = false, ICollection<string>? explicitModelReferences = null, ISet<int>? reserveSceneSlots = null)
     {
         if (program.Scripts.Length != 5 || program.LevelBand is < 0 or > 2 || program.Abilities.Length != 48)
         {
@@ -108,6 +108,10 @@ public static class NativeBattleExpandedAi
                     continue;
                 }
                 int next = pc + operands;
+                if (opcode is 31 or 52 or 59 && script[pc] < NativeBattleSlots.FormationSlotCount)
+                {
+                    reserveSceneSlots?.Add(script[pc]);
+                }
                 switch (opcode)
                 {
                     case 2:

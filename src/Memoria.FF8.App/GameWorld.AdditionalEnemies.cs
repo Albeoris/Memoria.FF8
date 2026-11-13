@@ -39,6 +39,35 @@ internal sealed partial class GameWorld
         return Enumerable.Range(0, 3).Select(band => NativeBattleExpandedAi.Evaluate(program with { LevelBand = band }, BattleResources.NativeActions, formation, explicitModelReferences: explicitModels)).ToArray();
     }
 
+    private HashSet<int> ReferencedReserveSlots(BattleEncounter encounter)
+    {
+        HashSet<int> slots = [];
+        HashSet<int> visitedModels = [];
+        Queue<BattleEnemyPlacement> pending = new(encounter.Slots.Where(slot => slot.IsEnemyModel && (slot.Enabled || IsReservePlacement(slot))));
+        while (pending.TryDequeue(out BattleEnemyPlacement? placement))
+        {
+            if (!visitedModels.Add(placement.ModelId))
+            {
+                continue;
+            }
+            NativeBattleAiDefinition program = BattleResources.ReadEnemyAi(placement.ModelId, 0);
+            HashSet<int> referenced = [];
+            for (int band = 0; band < 3; band++)
+            {
+                NativeBattleExpandedAi.Evaluate(program with { LevelBand = band }, BattleResources.NativeActions, encounter.Id, originalEnemySlots: true, reserveSceneSlots: referenced);
+            }
+            foreach (int slot in referenced.Where(slots.Add))
+            {
+                BattleEnemyPlacement prototype = encounter.Slots.Single(candidate => candidate.Slot == slot);
+                if (prototype.IsEnemyModel && prototype.NativeModelId != 255)
+                {
+                    pending.Enqueue(prototype);
+                }
+            }
+        }
+        return slots;
+    }
+
     private ImmutableArray<ushort> ReadLocalEnemyFormations()
     {
         if (session.State.Scene == SceneKind.Field && Field?.RandomEncounters is { Rate: > 0 } field)
