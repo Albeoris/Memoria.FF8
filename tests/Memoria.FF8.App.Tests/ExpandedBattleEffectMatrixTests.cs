@@ -86,10 +86,10 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                     firstBlockerStage = "enemy-turn-execution";
                     (status, detail) = RunSonicWave(directory, field, effect, sonicWave);
                 }
-                else if (effect.Effect == 160)
+                else if (effect.Effect is 141 or 160 or 259 or 332 or 333)
                 {
                     firstBlockerStage = "renzokuken-execution";
-                    (status, detail) = RunExpandedRenzokuken160(directory, field, game, assets);
+                    (status, detail) = RunExpandedRenzokuken(directory, field, game, assets, checked((ushort)effect.Effect));
                 }
                 else if (guardianMappings[effect.Effect].FirstOrDefault() is { } guardian && ExpandedBattleGuardianForceTests.RunGuardianForce(assets, guardian) is int guardianContacts)
                 {

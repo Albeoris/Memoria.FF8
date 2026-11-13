@@ -7,33 +7,38 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed partial class ExpandedBattleEffectMatrixTests
 {
-    [Fact]
-    public void Installed_expanded_Renzokuken_selects_and_completes_its_original_160_timeline()
+    [Theory]
+    [InlineData(160, 4)]
+    [InlineData(141, 5)]
+    [InlineData(259, 6)]
+    [InlineData(332, 7)]
+    [InlineData(333, 8)]
+    public void Installed_expanded_Renzokuken_selects_and_completes_its_original_timeline(ushort effect, int contacts)
     {
         string directory = TestResources.GameDirectory;
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
-        (string status, string detail) = RunExpandedRenzokuken160(directory, PrepareField(directory), game, assets);
-        Assert.Equal("logical", status);
-        Assert.Contains("4 contacts", detail);
+        (string status, string detail) = RunExpandedRenzokuken(directory, PrepareField(directory), game, assets, effect);
+        Assert.True(status == "logical", detail);
+        Assert.Contains($"{contacts} contacts", detail);
     }
 
-    private static (string Status, string Detail) RunExpandedRenzokuken160(string directory, GameState field, GameAssets game, BattleAssets assets)
+    private static (string Status, string Detail) RunExpandedRenzokuken(string directory, GameState field, GameAssets game, BattleAssets assets, ushort effect)
     {
         const ushort formation = 71;
         const int targetModel = 36;
-        const ushort effect = 160;
         const int invocation = 5 << 16;
         const string casterId = "party-0";
         BattleNativeAction squall = Assert.Single(assets.NativeActions, action => action is { Command: 249, ActionId: 0, CharacterId: 0 });
         Assert.Contains(assets.LoadEncounter(formation).Enemies, placement => placement.ModelId == targetModel);
         BattleNativeRenzokukenResource resource = Assert.Single(game.ReadNativeRenzokukenResources(), candidate => candidate.MagicId == effect);
-        Assert.Equal(4, resource.Timeline.InputThresholds.Length);
+        ushort[] selectors = assets.ReadNativeRenzokukenMagicIds(targetModel).ToArray();
+        Assert.Contains(effect, selectors.Skip(2));
 
         // The selected result must come from a fresh encounter seed and a real HUD crisis roll.
-        for (byte seed = 0; seed < 24; seed++)
+        for (int seed = 0; seed < 96; seed++)
         {
-            using GameWorld world = StartBattle(directory, field, formation, limit: squall, nativeSeed: seed, prepareHigherBand: true);
+            using GameWorld world = StartBattle(directory, field, formation, limit: squall, nativeSeed: (byte)seed, prepareHigherBand: true);
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
             BattleCombatant caster = Assert.Single(battle.Combatants, actor => actor.Id == casterId);
             for (int turn = 0; turn < 24 && (!caster.IsReady || battle.ActiveAction is not null) && battle.Outcome == BattleOutcome.Active; turn++)
@@ -48,7 +53,8 @@ public sealed partial class ExpandedBattleEffectMatrixTests
 
             BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: input => world.ApplyBattleInput(input));
             hud.SelectParty(caster.Id);
-            if (!hud.NativeLimitAvailable || battle.GetNativeLimitLevel(caster.Id) != 1)
+            byte crisis = battle.GetNativeLimitLevel(caster.Id);
+            if (!hud.NativeLimitAvailable || selectors[crisis + 1] != effect && selectors[crisis + 2] != effect)
             {
                 continue;
             }
@@ -67,7 +73,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
 
             BattleAttackCommand command = Assert.Single(battle.QueuedActions, queued => queued.ActorId == casterId);
             Assert.Equal((byte)5, command.NativeQueuedCommand);
-            Assert.Equal((byte)1, command.NativeRenzokuken!.CrisisLevel);
+            Assert.Equal(crisis, command.NativeRenzokuken!.CrisisLevel);
             Assert.Equal(target.Id, command.TargetId);
             Assert.Equal(0, command.NativeTargetMask);
             for (int frame = 0; frame < 240 && caster.IsBusy && battle.GetNativeRenzokuken(casterId) is null; frame++)
@@ -75,14 +81,14 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
             }
             BattleNativeRenzokukenState process = Assert.IsType<BattleNativeRenzokukenState>(battle.GetNativeRenzokuken(casterId));
-            if (process.MagicId != effect || process.FinisherActionId is not null)
+            if (process.MagicId != effect)
             {
                 continue;
             }
 
             Assert.Equal(target.Id, battle.Capture().NativeTimedAction!.Command.TargetId);
             CompleteExpandedRenzokuken(world, battle, casterId);
-            BattleEvent[] contacts = battle.Events.Skip(before).Where(entry => entry.ActorId == casterId && entry.Kind == "EffectContact" && entry.Ability == BattleAbility.LimitBreak).ToArray();
+            BattleEvent[] contacts = battle.Events.Skip(before).Where(entry => entry.ActorId == casterId && entry.Kind == "EffectContact" && entry.Ability == BattleAbility.LimitBreak && entry.Message == "Renzokuken").ToArray();
             Assert.Equal(resource.Timeline.InputThresholds.Length, contacts.Length);
             Assert.All(contacts, contact => Assert.Equal(target.Id, contact.TargetId));
             Assert.True(target.CurrentHp < initialHp);
@@ -93,7 +99,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             return ("logical", $"Formation {formation}, seed {seed}, {target.Id}, original Renzokuken effect {effect}, {contacts.Length} contacts and JSON continuation.");
         }
 
-        return ("blocked", "No bounded genuine HUD invocation selected the installed effect 160 without a finisher.");
+        return ("blocked", $"No bounded genuine HUD invocation selected the installed effect {effect}.");
     }
 
     private static void CompleteExpandedRenzokuken(GameWorld world, BattleSession battle, string casterId)
