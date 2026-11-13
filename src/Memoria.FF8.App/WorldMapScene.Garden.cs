@@ -110,6 +110,8 @@ internal sealed partial class WorldMapScene
         NativeGardenWorldRuntimeState garden = state.NativeGardenRuntime!;
         garden.Validate();
         NativeWorldPathProjectionCertificate projection = GardenProjection(state);
+        // Native 5472C0 animates the allocated models with the current world draw counter.
+        uint mainLoopCounter = session.State.WorldProcess!.MainLoopCounter;
         List<NativeWorldStaticModelDraw> models = [];
         if (garden.BackgroundRails is { } background)
         {
@@ -150,7 +152,7 @@ internal sealed partial class WorldMapScene
                 }
                 throw new NotSupportedException("A nearby Garden allocation actor requires its actual animated world-model presentation.");
             }
-            NativeWorldPathAngles angles = WorldStaticModelTransform.AllocationAngles(item.ShapeId, item.RotationX, item.RotationY, item.RotationZ);
+            NativeWorldPathAngles angles = WorldStaticModelTransform.AnimatedAllocationAngles(item, mainLoopCounter);
             models.Add(new NativeWorldStaticModelDraw(assets.ReadScriptedStaticModel(item.ShapeId), new NativeWorldStaticModelPose(projection.CanonicalModelAnchor(draw), angles)) { ObjectId = new(WorldRenderObjectKind.Allocation, index) });
         }
         // 558D70 updates live words after the callback has drawn the terrain.
