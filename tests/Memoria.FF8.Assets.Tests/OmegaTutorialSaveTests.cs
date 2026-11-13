@@ -59,7 +59,8 @@ public sealed class OmegaTutorialSaveTests
         original.Block.AsSpan(NativePcSaveData.MainOffset + 3283, 16).Fill(255);
         original.Block[NativePcSaveData.MainOffset + 3282] = 0xA4;
         original.Block[NativePcSaveData.MainOffset + 3299] = 0x5A;
-        return state with { OriginalSave = original };
+        NativeSeeDState seed = Assert.IsType<NativeSeeDState>(state.SeeD);
+        return state with { OriginalSave = original, SeeD = seed with { TestLevel = 0x5A } };
     }
 
     private static GameState Defaults()
