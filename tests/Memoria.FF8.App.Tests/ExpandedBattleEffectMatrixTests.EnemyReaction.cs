@@ -29,14 +29,15 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             return new("blocked", "The installed callback 2 has no enabled, targetable scene owner.", "enemy-reaction-scene-owner");
         }
 
-        var candidates = sceneOwners.Where(route => AdmitsEnemyScript(assets, route.Script, route.Scene))
+        HashSet<string> admissionBlockers = new(StringComparer.Ordinal);
+        var candidates = sceneOwners.Where(route => AdmitsEnemyScript(assets, route.Script, route.Scene, admissionBlockers))
             .GroupBy(route => route.Scene.FormationId)
             .OrderByDescending(routes => routes.Key == OilboyleFormation && routes.Any(route => IsOilboyleCounter(route.Script)))
             .ThenBy(routes => routes.Key)
             .Take(3).ToArray();
         if (candidates.Length == 0)
         {
-            return new("blocked", "No enabled scene owner and level band for the installed callback 2 passed expanded AI admission.", "enemy-reaction-admission");
+            return new("blocked", "No enabled scene owner and level band for the installed callback 2 passed expanded AI admission.", "enemy-reaction-admission") { AdmissionBlockers = [.. admissionBlockers.Order()] };
         }
 
         EnemyRouteResult? blocker = null;

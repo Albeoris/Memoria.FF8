@@ -14,14 +14,37 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
         NativeBattleEffectBinding effect = Assert.Single(game.ReadNativeEffectCatalog(), binding => binding.Effect == 171);
-        EnemyScenarioScriptedAction[] scripts = ScenarioEnemyDiscovery.Discover(assets).ScriptedActions.Where(script => script is { ModelId: 36, Callback: 3, Command: 8, NativeEffectId: 171 }).ToArray();
+        EnemyScenarioScriptedAction[] scripts = ScenarioEnemyDiscovery.Discover(assets).ScriptedActions.Where(IsTriFacePoisonGasDeath).ToArray();
         Assert.NotEmpty(scripts);
-        using GameWorld world = StartBattle(directory, PrepareField(directory), 71);
+        BattleActionDefinition aero = ReadTriFaceLethalSpell(assets);
+        using GameWorld world = StartBattle(directory, PrepareField(directory), 71, aero);
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
-        BattleCombatant enemy = Assert.Single(battle.Combatants, actor => actor.Id == "enemy-10" && actor.ModelId == 36);
-        Assert.Equal(assets.ReadEnemyAi(enemy.ModelId, enemy.Level).Scripts[3], enemy.NativeAi!.Scripts[3]);
-        EnemyRouteResult result = ObserveEnemyDeath(world, battle, effect, enemy, scripts, verifyRestore: true);
-        Assert.True(result.Status is "native" or "logical", result.Detail);
+        BattleCombatant[] enemies = battle.Combatants.Reverse().Where(actor => !actor.IsPlayer && actor.ModelId == 36).Take(3).ToArray();
+        List<string> attempts = [];
+        foreach (BattleCombatant enemy in enemies)
+        {
+            Assert.Equal(assets.ReadEnemyAi(enemy.ModelId, enemy.Level).Scripts[3], enemy.NativeAi!.Scripts[3]);
+            EnemyRouteResult result = ObserveEnemyDeath(world, battle, effect, enemy, scripts, aero, verifyRestore: true);
+            if (result.Status is "native" or "logical")
+            {
+                return;
+            }
+            attempts.Add(result.Detail);
+        }
+        Assert.Fail(string.Join(" ", attempts));
+    }
+
+    private static bool IsTriFacePoisonGasDeath(EnemyScenarioScriptedAction script)
+    {
+        return script is { ModelId: 36, Callback: 3, Command: 8, ActionId: 32 or 33, NativeEffectId: 171, TargetSelector: 204 };
+    }
+
+    private static BattleActionDefinition ReadTriFaceLethalSpell(BattleAssets assets)
+    {
+        // The first death condition tests element bit 5 on the killing contact.
+        BattleActionDefinition aero = Assert.Single(assets.ActionDefinitions, action => action.Ability == BattleAbility.Magic && action.Id == 11);
+        Assert.Equal(32, aero.NativeAction!.Element);
+        return aero;
     }
 
     private static EnemyRouteResult RunDiscoveredEnemyDeath(string directory, GameState field, BattleAssets assets, NativeBattleEffectBinding effect, EnemyScenarioScriptedAction[] scripts, bool probeEnemies)
@@ -51,7 +74,8 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         foreach (var routes in candidates)
         {
             ushort formation = checked((ushort)routes.Key);
-            using GameWorld world = StartBattle(directory, field, formation, requireExpanded: false);
+            BattleActionDefinition? trigger = routes.Any(route => IsTriFacePoisonGasDeath(route.Script)) ? ReadTriFaceLethalSpell(assets) : null;
+            using GameWorld world = StartBattle(directory, field, formation, trigger, requireExpanded: false);
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
             EnemyRouteResult result = new("blocked", "The scene retained its original roster.", "enemy-death-formation-entry");
             if (battle.UsesExpandedRoster)
@@ -60,12 +84,12 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                     .Select(actor => (Actor: actor, Scripts: routes.Select(route => route.Script).Where(script => script.ModelId == actor.ModelId && script.LevelBand == actor.NativeAi!.LevelBand).Distinct().ToArray()))
                     .Where(owner => owner.Scripts.Length > 0)
                     .GroupBy(owner => (owner.Actor.ModelId, owner.Actor.NativeAi!.LevelBand))
-                    .Select(group => group.First()).ToArray();
+                    .SelectMany(group => group.Take(3)).ToArray();
                 result = new("blocked", "The expanded roster has no matching living scene owner and level band.", "enemy-death-owner");
                 foreach (var owner in owners)
                 {
                     Assert.Equal(assets.ReadEnemyAi(owner.Actor.ModelId, owner.Actor.Level).Scripts[3], owner.Actor.NativeAi!.Scripts[3]);
-                    result = ObserveEnemyDeath(world, battle, effect, owner.Actor, owner.Scripts);
+                    result = ObserveEnemyDeath(world, battle, effect, owner.Actor, owner.Scripts, owner.Scripts.Any(IsTriFacePoisonGasDeath) ? trigger : null);
                     if (result.Status is "native" or "logical")
                     {
                         return result with { Detail = $"Formation {formation}, {result.Detail}" };
@@ -78,9 +102,11 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         return firstBlocker! with { Detail = string.Join("; ", attempts) };
     }
 
-    private static EnemyRouteResult ObserveEnemyDeath(GameWorld world, BattleSession battle, NativeBattleEffectBinding effect, BattleCombatant enemy, EnemyScenarioScriptedAction[] scripts, bool verifyRestore = false)
+    private static EnemyRouteResult ObserveEnemyDeath(GameWorld world, BattleSession battle, NativeBattleEffectBinding effect, BattleCombatant enemy, EnemyScenarioScriptedAction[] scripts, BattleActionDefinition? trigger = null, bool verifyRestore = false)
     {
         BattleCombatant attacker = Assert.Single(battle.Combatants, actor => actor.Id == CasterId);
+        BattleAbility triggerAbility = trigger?.Ability ?? BattleAbility.Attack;
+        int triggerAction = trigger?.Id ?? 0;
         int deaths = 0;
         int dispatches = 0;
         string lastBlocker = "enemy-death-trigger";
@@ -91,12 +117,12 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             enemy.CurrentHp = 1;
             attacker.Atb = BattleSession.AtbMaximum;
             int beforeAttack = battle.Events.Count;
-            world.ApplyBattleInput(new(BattleInputKind.Action) { ActorId = attacker.Id, TargetId = enemy.Id, Ability = BattleAbility.Attack });
+            world.ApplyBattleInput(new(BattleInputKind.Action) { ActorId = attacker.Id, TargetId = enemy.Id, Ability = triggerAbility, ActionId = triggerAction });
             if (!attacker.IsBusy)
             {
                 break;
             }
-            Assert.Contains(battle.QueuedActions, command => command.ActorId == attacker.Id && command.TargetId == enemy.Id && command.Ability == BattleAbility.Attack);
+            Assert.Contains(battle.QueuedActions, command => command.ActorId == attacker.Id && command.TargetId == enemy.Id && command.Ability == triggerAbility && command.ActionId == triggerAction);
 
             BattleActionPresentation? cast = null;
             NativeBattleEffectPresentation? presentation = null;
@@ -162,7 +188,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                             Assert.Null(presentation);
                             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
                         }
-                        return new(presentation is null ? "logical" : "native", $"c0m{enemy.ModelId:D3} {enemy.Id}, callback 3, command {cast.NativeQueuedCommand}/{cast.ActionId}, sequence {cast.NativeSequence}, after lethal Attack by {attacker.Id}, {contacts.Length} contact(s)", presentation is null ? "native-presentation" : null);
+                        return new(presentation is null ? "logical" : "native", $"c0m{enemy.ModelId:D3} {enemy.Id}, callback 3, command {cast.NativeQueuedCommand}/{cast.ActionId}, sequence {cast.NativeSequence}, after lethal {trigger?.Name ?? "Attack"} by {attacker.Id}, {contacts.Length} contact(s)", presentation is null ? "native-presentation" : null);
                     }
                 }
                 if (!attacker.IsBusy && !enemy.IsBusy && battle.ActiveAction is null)
@@ -175,6 +201,6 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         {
             lastBlocker = "enemy-death-dispatch";
         }
-        return new("blocked", $"c0m{enemy.ModelId:D3} {enemy.Id}, {deaths} lethal Attack contact(s), {dispatches} exact callback 3 dispatch(es) within the probe budget.", lastBlocker);
+        return new("blocked", $"c0m{enemy.ModelId:D3} {enemy.Id}, {deaths} lethal {trigger?.Name ?? "Attack"} contact(s), {dispatches} exact callback 3 dispatch(es) within the probe budget.", lastBlocker);
     }
 }
