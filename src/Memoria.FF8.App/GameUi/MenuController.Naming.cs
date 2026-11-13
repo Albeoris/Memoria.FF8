@@ -185,6 +185,7 @@ public sealed partial class MenuController
         {
             2 => Artwork(UiImageKind.AngeloPortrait, 0),
             GameNames.BokoSubject => Artwork(UiImageKind.ChocoboPortrait, 0),
+            GameNames.GrieverSubject => Artwork(UiImageKind.GrieverPortrait, 0),
             >= 16 and <= 31 => Artwork(UiImageKind.GuardianForcePortrait, _nameTarget.Subject - 16),
             _ => Artwork(UiImageKind.CharacterPortrait, portraitId)
         };

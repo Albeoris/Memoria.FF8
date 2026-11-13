@@ -13,15 +13,27 @@ public sealed class AngeloPortraitTests
     [Theory]
     [InlineData(2, UiImageKind.AngeloPortrait, "angelo-name-input.png")]
     [InlineData(GameNames.BokoSubject, UiImageKind.ChocoboPortrait, "boko-name-input.png")]
-    public void Naming_renders_original_pet_portrait_and_keeps_it_after_changing_the_draft(int subject, UiImageKind kind, string previewFileName)
+    [InlineData(GameNames.GrieverSubject, UiImageKind.GrieverPortrait, "griever-name-input.png")]
+    public void Naming_renders_original_portrait_and_keeps_it_after_changing_the_draft(int subject, UiImageKind kind, string previewFileName)
     {
         string game = TestResources.GameDirectory;
         NativeMenuArtwork artwork = NativeMenuArtwork.Load(game);
-        PixelImage portrait = subject == GameNames.BokoSubject ? artwork.ChocoboPortrait : artwork.AngeloPortrait;
-        Assert.Equal(64, portrait.Width);
-        Assert.Equal(96, portrait.Height);
-        Assert.All(portrait.Pixels, pixel => Assert.Equal(byte.MaxValue, pixel.A));
+        PixelImage portrait = subject switch
+        {
+            GameNames.BokoSubject => artwork.ChocoboPortrait,
+            GameNames.GrieverSubject => artwork.GrieverPortrait,
+            _ => artwork.AngeloPortrait
+        };
+        Assert.True(portrait.Width >= 64 && portrait.Width % 64 == 0);
+        Assert.Equal(portrait.Width / 64 * 96, portrait.Height);
+        Assert.Contains(portrait.Pixels, pixel => pixel.A == byte.MaxValue && (pixel.R != 0 || pixel.G != 0 || pixel.B != 0));
+        if (portrait.Width == 64)
+        {
+            Assert.All(portrait.Pixels, pixel => Assert.Equal(byte.MaxValue, pixel.A));
+        }
         Assert.False(artwork.ChocoboPortrait.Pixels.SequenceEqual(artwork.AngeloPortrait.Pixels));
+        Assert.False(artwork.GrieverPortrait.Pixels.SequenceEqual(artwork.AngeloPortrait.Pixels));
+        Assert.False(artwork.GrieverPortrait.Pixels.SequenceEqual(artwork.ChocoboPortrait.Pixels));
         for (int id = 0; id < NativeMenuArtwork.CharacterCount; id++)
         {
             Assert.False(portrait.Pixels.SequenceEqual(artwork.GetCharacterPortrait(id).Pixels));

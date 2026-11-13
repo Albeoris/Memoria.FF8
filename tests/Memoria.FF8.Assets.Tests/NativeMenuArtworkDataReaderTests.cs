@@ -69,6 +69,7 @@ public sealed class NativeMenuArtworkDataReaderTests
             faces = data.ToArray();
         }
         faces.AsSpan(8, 4).CopyTo(faces.AsSpan(4, 4));
+        faces.AsSpan(8, 4).CopyTo(faces.AsSpan(4 + 12 * 4, 4));
         resources.Prepare(null, encodedResources:
         [
             new EncodedResource(new ResourceKey("menu/icon.tex"), "tex", 1, "fixture", Texture(256, 256, 16)),
@@ -77,6 +78,7 @@ public sealed class NativeMenuArtworkDataReaderTests
         ]).Commit();
         NativeMenuArtwork artwork = NativeMenuArtwork.Load(directory, resources);
         Assert.Equal(artwork.GetCharacterPortrait(1).Pixels, artwork.GetCharacterPortrait(0).Pixels);
+        Assert.Equal(artwork.GetCharacterPortrait(1).Pixels, artwork.GrieverPortrait.Pixels);
         Assert.All(artwork.GetIcon(0).Pixels, pixel => Assert.Equal(new Albeoris.Games.FF8.Imaging.Rgba32(17, 34, 51, 255), pixel));
         Assert.Equal(artwork.GetIcon(0).Pixels, NativeMenuPointer.Read(directory, resources).Image.Pixels);
         Assert.All(CardArtwork.Load(directory, resources).GetFront(0).Pixels, pixel => Assert.Equal(new Albeoris.Games.FF8.Imaging.Rgba32(17, 34, 51, 255), pixel));

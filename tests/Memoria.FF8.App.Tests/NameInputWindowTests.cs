@@ -139,7 +139,7 @@ public sealed class NameInputWindowTests
     [InlineData(1280, 896, 2)]
     [InlineData(1920, 1080, 2)]
     [InlineData(1280, 896, 16)]
-    [InlineData(1920, 1080, 43)]
+    [InlineData(1920, 1080, GameNames.GrieverSubject)]
     public void Name_window_uses_nonoverlapping_retained_controls_and_subject_artwork(int width, int height, int subject)
     {
         MenuController menus = new() { NamingControllerConnected = true };
@@ -165,7 +165,14 @@ public sealed class NameInputWindowTests
             }
         }
         UiImage image = Assert.Single(elements.OfType<UiImage>());
-        Assert.Equal(subject == 43 ? null : new UiImageSource(subject == 2 ? UiImageKind.AngeloPortrait : subject == 16 ? UiImageKind.GuardianForcePortrait : UiImageKind.CharacterPortrait, 0), image.Source);
+        UiImageKind kind = subject switch
+        {
+            2 => UiImageKind.AngeloPortrait,
+            16 => UiImageKind.GuardianForcePortrait,
+            GameNames.GrieverSubject => UiImageKind.GrieverPortrait,
+            _ => UiImageKind.CharacterPortrait
+        };
+        Assert.Equal(new UiImageSource(kind, 0), image.Source);
         UiButton letter = buttons.Single(button => button.Id == "letter-0");
         string before = menus.NameDraft;
         float scale = Math.Min(width / view.DesignWidth, height / view.DesignHeight);
@@ -175,16 +182,18 @@ public sealed class NameInputWindowTests
         Assert.Equal(before + "A", menus.NameDraft);
     }
 
-    [Fact]
-    public void Boko_name_window_places_chocobo_portrait_at_widescreen_resolution()
+    [Theory]
+    [InlineData(GameNames.BokoSubject, UiImageKind.ChocoboPortrait)]
+    [InlineData(GameNames.GrieverSubject, UiImageKind.GrieverPortrait)]
+    public void Name_window_places_portrait_at_widescreen_resolution(int subject, UiImageKind kind)
     {
         MenuController menus = new();
-        menus.OpenNamePrompt(GameNames.BokoSubject, GameNames.DefaultName(GameNames.BokoSubject), _ => { });
+        menus.OpenNamePrompt(subject, GameNames.DefaultName(subject), _ => { });
         UiView view = menus.BuildView();
         view.Resize(1920, 1080);
 
         UiImage portrait = Assert.Single(Descendants(view.Root).OfType<UiImage>());
-        Assert.Equal(new UiImageSource(UiImageKind.ChocoboPortrait, 0), portrait.Source);
+        Assert.Equal(new UiImageSource(kind, 0), portrait.Source);
         Assert.False(portrait.Bounds.IsEmpty);
     }
 

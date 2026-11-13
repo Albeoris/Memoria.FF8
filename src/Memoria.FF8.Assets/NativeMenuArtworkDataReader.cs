@@ -75,7 +75,7 @@ public static class NativeMenuArtworkDataReader
         int count = ReadCount(bytes);
         if (count < 48)
         {
-            throw new InvalidDataException("Native menu portraits require the character, Chocobo, Angelo and sixteen GF selectors.");
+            throw new InvalidDataException("Native menu portraits require the character, Griever, Chocobo, Angelo and sixteen GF selectors.");
         }
         for (int id = 0; id < count; id++)
         {
@@ -90,7 +90,7 @@ public static class NativeMenuArtworkDataReader
             {
                 throw new InvalidDataException("Native face sprite parts lie outside their resource.");
             }
-            if (id < 11 || id is 14 or 15 || id is >= 32 and < 48)
+            if (id < 11 || id is 12 or 14 or 15 || id is >= 32 and < 48)
             {
                 if (parts != 1)
                 {
