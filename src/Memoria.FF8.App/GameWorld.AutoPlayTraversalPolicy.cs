@@ -270,6 +270,15 @@ internal static class AutoPlayTraversalPolicy
             ("402:2000", "402:gateway:2" or "402:gateway:3") => -8,
             ("420:2000", "420:gateway:6") => -9,
             ("422:2000", "422:line:8") => -10,
+            // NG-069: Return to Esthar and reach Odine's ground-party briefing.
+            ("422:2145", "422:line:11") => -1,
+            ("420:2145", "420:gateway:2" or "420:gateway:3") => -2,
+            ("452:2145", "452:gateway:3" or "452:gateway:4" or "452:gateway:5") => -3,
+            ("437:2145", "437:gateway:6") => -4,
+            ("434:2145", "434:talk:7" or "434:gateway:1") => -5,
+            ("528:2145", "528:talk:8") => -6,
+            ("530:2145", "530:gateway:0") => -7,
+            ("524:2145", "524:talk:9") => -8,
             _ => 0
         };
     }
@@ -346,6 +355,8 @@ internal static class AutoPlayTraversalPolicy
             "531:1750:3:62:1100:1:0:1" => 0,
             // NG-068: Accept both ordinary city exit prompts.
             "532:2000:9:160:1753:1:1:2" or "422:2000:8:190:2341:2:1:2" => 1,
+            // NG-069: Ask the assistant to admit the party to the laboratory.
+            "434:2145:7:38:233:4:2:3" => 2,
             // NG-036: Take the elevator to 2F for the approaching ship.
             "172:614:12:98:1227:4:2:4" => 3,
             // NG-039, NG-040: Take the elevator to 2F for Fishermans Horizon.
