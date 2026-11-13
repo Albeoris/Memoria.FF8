@@ -9,6 +9,16 @@ namespace Memoria.FF8.App.Tests;
 public sealed class DialogueWindowTests
 {
     [Theory]
+    [InlineData(SceneKind.Field, true)]
+    [InlineData(SceneKind.Movie, true)]
+    [InlineData(SceneKind.WorldMap, false)]
+    public void BattlePresentationHidesDialogueFromItsRetainedSourceScene(SceneKind scene, bool hasCurrentField)
+    {
+        Assert.True(DialoguePresentation.CanDraw(scene, hasCurrentField, presentBattle: false));
+        Assert.False(DialoguePresentation.CanDraw(scene, hasCurrentField, presentBattle: true));
+    }
+
+    [Theory]
     [InlineData(1.375f)]
     [InlineData(3.5f)]
     [InlineData(4.003125f)]

@@ -7,6 +7,12 @@ internal static class DialoguePresentation
 {
     internal const float Padding = 8;
 
+    public static bool CanDraw(SceneKind scene, bool hasCurrentField, bool presentBattle)
+    {
+        // A hosted battle retains its source scene and the suspended dialogue windows.
+        return !presentBattle && (scene == SceneKind.WorldMap || hasCurrentField && scene is SceneKind.Field or SceneKind.Movie);
+    }
+
     public static IEnumerable<DialogueState> DrawOrder(IEnumerable<DialogueState> dialogues)
     {
         // Native channel submission gives lower channels the nearer depth.

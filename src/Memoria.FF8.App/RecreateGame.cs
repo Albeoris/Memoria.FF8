@@ -1559,7 +1559,8 @@ internal sealed partial class RecreateGame : Game
                 Console.Error.WriteLine(exception);
             }
         }
-        if (ActiveBattle is not null && !startup.Active && !autoPlayFailureHeld && world?.ActiveTripleTriad is null)
+        bool presentBattle = ActiveBattle is not null && !startup.Active && !autoPlayFailureHeld && world?.ActiveTripleTriad is null;
+        if (presentBattle)
         {
             PrepareBattleTexture(GraphicsDevice.Viewport.Bounds);
         }
@@ -1587,7 +1588,7 @@ internal sealed partial class RecreateGame : Game
             view.Resize(bounds.Width, bounds.Height);
             view.Draw(uiCanvas!, uiTheme);
         }
-        else if (!autoPlayFailureHeld && ActiveBattle is not null)
+        else if (presentBattle)
         {
             DrawBattle(bounds);
         }
@@ -1616,7 +1617,7 @@ internal sealed partial class RecreateGame : Game
             PixelBounds fit = ViewportLayout.Fit(PresentedFieldTexture.Width, PresentedFieldTexture.Height, fieldBounds.Width, fieldBounds.Height);
             batch.Draw(PresentedFieldTexture, new Rectangle(fieldBounds.X + fit.X, fieldBounds.Y + fit.Y, fit.Width, fit.Height), Color.White);
         }
-        if (sceneInspector is null && events is not null && (session.State.Scene == SceneKind.WorldMap || field?.Id == session.State.FieldId && session.State.Scene is SceneKind.Field or SceneKind.Movie) && session.State.DebugView?.DialogueVisible != false)
+        if (sceneInspector is null && events is not null && session.State.DebugView?.DialogueVisible != false && DialoguePresentation.CanDraw(session.State.Scene, field?.Id == session.State.FieldId, presentBattle))
         {
             PixelBounds viewport = ViewportLayout.Fit(320, 240, bounds.Width, bounds.Height);
             foreach (DialogueState dialogue in DialoguePresentation.DrawOrder(VisibleDialogues))
