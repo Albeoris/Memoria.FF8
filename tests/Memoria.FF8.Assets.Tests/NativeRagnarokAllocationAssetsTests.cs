@@ -103,6 +103,29 @@ public sealed class NativeRagnarokAllocationAssetsTests
     }
 
     [Fact]
+    public void FootDepartureRelocatesParkedShipAndRestoresWithSelectorsConsumed()
+    {
+        using WorldAssets assets = new(GameDirectory);
+        using GameAssets game = new(GameDirectory);
+        NativeWorldEntryMemory entry = NativeWorldEntryMemory.CreateNewGame().WriteBytes(256, 2, 3150);
+        NativeSavedWorldState saved = NativeSavedWorldState.CreateNewGame();
+        NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals();
+        NativeEventMemory memory = NativeEventMemory.Empty.Write(269, 1, NativeScalarValue.Exact(4));
+        WorldTransition packet = new(32, 0, 0);
+        NativeRagnarokWorldAllocation allocation = assets.ReadParkedRagnarokAllocation(packet, entry, memory, saved, vitals);
+        NativeWorldAuxiliaryRelocationReceipt receipt = Assert.IsType<NativeWorldAuxiliaryRelocationReceipt>(allocation.AuxiliaryEntry);
+        Assert.Equal(new NativeWorldPathPosition(41873, -756, -48239), allocation.Objects[allocation.RagnarokIndex].Position);
+        Assert.Equal((short)1, allocation.Objects[allocation.RagnarokIndex].Yaw);
+        Assert.Equal(new NativeWorldPathPosition(allocation.LoadPose.X, allocation.LoadPose.Height, -allocation.LoadPose.RawZ), allocation.Objects[0].Position);
+        NativeEventMemory consumed = receipt.ApplyTo(memory);
+        Assert.Equal(0, consumed.Read(269, 1).RequireExact());
+        Assert.Equal(4, memory.Read(269, 1).RequireExact());
+        NativeRagnarokWorldAllocation restored = assets.ReadParkedRagnarokAllocation(packet, entry, consumed, saved, vitals, retainedAuxiliary: receipt);
+        Assert.Equal(JsonSerializer.Serialize(allocation), JsonSerializer.Serialize(restored));
+        Assert.Throws<InvalidDataException>(() => assets.ReadParkedRagnarokAllocation(packet, entry, memory, saved, vitals, retainedAuxiliary: receipt));
+    }
+
+    [Fact]
     public void ActualCarPacketKeepsDistinctSavedShipAndGardenPoses()
     {
         using WorldAssets assets = new(GameDirectory);

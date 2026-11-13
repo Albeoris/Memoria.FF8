@@ -4,7 +4,7 @@ namespace Memoria.FF8.Assets;
 
 public sealed partial class WorldAssets
 {
-    public NativeRagnarokWorldAllocation ReadParkedRagnarokAllocation(WorldTransition packet, NativeWorldEntryMemory entry, NativeEventMemory memory, NativeSavedWorldState saved, NativeCharacterVitals vitals, NativeSavedWorldFootReturn? battleReload = null)
+    public NativeRagnarokWorldAllocation ReadParkedRagnarokAllocation(WorldTransition packet, NativeWorldEntryMemory entry, NativeEventMemory memory, NativeSavedWorldState saved, NativeCharacterVitals vitals, NativeSavedWorldFootReturn? battleReload = null, NativeWorldAuxiliaryRelocationReceipt? retainedAuxiliary = null)
     {
         if (battleReload is not null && (battleReload.WorldMode != 3 || saved.FootReturn != battleReload))
         {
@@ -40,7 +40,16 @@ public sealed partial class WorldAssets
         }
         NativeSavedWorldPose parked = saved.RagnarokPose2 ?? throw new NotSupportedException("Parked Ragnarok reload has no independently saved shape1 pose2.");
         vitals.Validate();
+        NativeWorldAuxiliaryRelocationReceipt? auxiliary = retainedAuxiliary ?? ReadWorldAuxiliaryRelocations(packet, memory, foot);
+        if (retainedAuxiliary is not null)
+        {
+            ValidateWorldAuxiliaryRelocations(retainedAuxiliary);
+            if (memory.Read(269, 1).RequireExact() != 0 || memory.Read(270, 1).RequireExact() != 0)
+            {
+                throw new InvalidDataException("Retained parked Ragnarok relocation has pending selectors.");
+            }
+        }
         NativeWorldPathPosition cactuar = NativeGardenWorldAllocationReader.ReadCactuarLoadPosition(NativeWorldMemory);
-        return NativeRagnarokWorldAllocationReader.Read(wmset.AsSpan(sections[9], sections[10] - sections[9]), wmset.AsSpan(sections[10], sections[11] - sections[10]), packet, entry, memory, saved, vitals.GuardianForces[13].Flags, cactuar, foot, cameraYaw, saved.ReadMapDisplayModeForFreshFootLoader(), parked, battleReload: battleReload);
+        return NativeRagnarokWorldAllocationReader.Read(wmset.AsSpan(sections[9], sections[10] - sections[9]), wmset.AsSpan(sections[10], sections[11] - sections[10]), packet, entry, memory, saved, vitals.GuardianForces[13].Flags, cactuar, foot, cameraYaw, saved.ReadMapDisplayModeForFreshFootLoader(), parked, auxiliary, battleReload);
     }
 }

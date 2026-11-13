@@ -11,7 +11,8 @@ internal sealed partial class WorldMapScene
         NativeSavedWorldState saved = session.State.SavedWorld!;
         NativeWorldEntryMemory entry = session.State.WorldEntryMemory ?? throw new NotSupportedException("Parked Ragnarok reload requires its actual field/world entry bytes.");
         NativeCharacterVitals vitals = session.State.CharacterVitals ?? throw new NotSupportedException("Parked Ragnarok reload requires actual GF13 allocation flags.");
-        NativeRagnarokWorldAllocation allocation = assets.ReadParkedRagnarokAllocation(arrival, entry, session.State.EventMemory, saved, vitals, battleReload);
+        NativeWorldAuxiliaryRelocationReceipt? retainedAuxiliary = session.State.World?.NativeRagnarokRuntime?.Allocation.AuxiliaryEntry;
+        NativeRagnarokWorldAllocation allocation = assets.ReadParkedRagnarokAllocation(arrival, entry, session.State.EventMemory, saved, vitals, battleReload, retainedAuxiliary);
         if (session.State.World is null)
         {
             NativeWorldProcess process = session.State.WorldProcess ?? throw new NotSupportedException("Parked Ragnarok reload lost its native process owner.");
@@ -34,6 +35,10 @@ internal sealed partial class WorldMapScene
             foot.RequireNativeGroundState();
             runtime.RequireSceneState();
             session.SetWorldState(new WorldState { X = pose.X, Z = pose.RawZ, NativeHeight = pose.Height, BodyYaw = pose.Yaw, CameraYaw = allocation.CameraYaw, CameraTargetX = pose.X, CameraTargetZ = pose.RawZ, CameraTargetNativeHeight = pose.Height - 256, GroundType = ground.Ground.Triangle.GroundType, ReplacementMask = WorldTerrainSelection.ReplacementMask(inputs.ReplacementFlags, inputs.StoryByte), NativeFootRuntime = foot, NativeRagnarokRuntime = runtime, EventUi = NativeWorldEventUi.Create() });
+            if (allocation.AuxiliaryEntry is { } auxiliary)
+            {
+                session.SetEventMemory(auxiliary.ApplyTo(session.State.EventMemory));
+            }
         }
         NativeRagnarokWorldRuntimeState restored = State.NativeRagnarokRuntime ?? throw new InvalidDataException("Parked Ragnarok restore lost its actual allocation.");
         if (!JsonElement.DeepEquals(JsonSerializer.SerializeToElement(allocation), JsonSerializer.SerializeToElement(restored.Allocation)))
