@@ -175,7 +175,6 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("This session is not a presentation component.");
         }
-        PumpNativeFileIo482590();
         Dictionary<int, NativeBattleForeignActor> previousForeignActors = presentationForeignActors;
         presentationForeignActors = foreignActors.ToDictionary(actor => actor.Index);
         nativeCrtRandom = randomState;
@@ -185,6 +184,8 @@ public sealed partial class BattleSession
         NativeEffectMemory = NativeEffectMemory! with { PrimitiveProcess = presentationFirstAdvance ? NativeEffectMemory.PrimitiveProcess : NativeEffectMemory.PrimitiveProcess!.Reset500900(graphics.Flags), Textures = textures };
         presentationFirstAdvance = false;
         NativeGraphics = graphics;
+        PumpNativeFileIo482590();
+        graphics = NativeGraphics!;
         graphics = AdvanceNativeAuxiliary(graphics);
         NativeGraphics = graphics;
         graphics = AdvanceNativeModuleEffects(graphics);

@@ -14,15 +14,34 @@ public sealed class CrossoverNativeGenericPresentationTests(ITestOutputHelper ou
     [InlineData((ushort)16, true, (byte)4)]
     public void Shared_native_dispatcher_presents_original_spell_with_one_contact(ushort ability, bool self, byte command)
     {
+        string? hostRoot = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (!self)
+        {
+            Assert.SkipUnless(!string.IsNullOrWhiteSpace(hostRoot), "Select the original host game installation for the foreign target.");
+        }
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets battle = new(TestResources.GameDirectory);
         NativeBattleGraphicsResource resource = battle.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = 0, WeaponId = 0 });
         NativeBattleGraphicsModel model = ReadSource(resource);
         BattleNativeAction action = battle.NativeActions.Single(action => action.Command == command && action.ActionId == ability);
         CrossoverNativeMagicPresentation presentation = new(game, resource, battle);
-        CrossoverNativeMagicPresentationState state = presentation.Begin(model, self ? 0 : 4, NativeCrtRandomState.FromColdProcess(), new(self ? (byte)0 : (byte)3, 4, 0, 0, 0, 83, 0), action, new(0));
         NativeBattleCameraProjection projection = Camera();
-        bool admitted = presentation.TryPreflight(state, Anchor, Transform, projection, null, out string? reason);
+        Func<NativeBattleModuleAnchor> readAnchor = Anchor;
+        Func<NativeBattleModelTransform> readTransform = Transform;
+        Func<CrossoverNativeForeignTarget>? readForeign = null;
+        NativeBattleArenaHost? arena = null;
+        if (!self)
+        {
+            var host = CrossoverNativeGuardianInvocationTests.ReadHostTarget(hostRoot!, game.ReadNativeBattleGraphicsRules());
+            CrossoverNativeForeignTarget foreign = host.Foreign;
+            projection = host.Camera;
+            arena = host.Arena;
+            readAnchor = () => foreign.ToActor(3).Anchor;
+            readTransform = () => foreign.Transform;
+            readForeign = () => foreign;
+        }
+        CrossoverNativeMagicPresentationState state = presentation.Begin(model, self ? 0 : 4, NativeCrtRandomState.FromColdProcess(), new(self ? (byte)0 : (byte)3, 4, 0, 0, 0, 83, 0), action, new(0), arena);
+        bool admitted = presentation.TryPreflight(state, readAnchor, readTransform, projection, readForeign, out string? reason);
         Assert.True(admitted, $"{action.Name}: {reason}");
         Assert.Null(state.Effect);
         Assert.Equal(0, state.PublishedContacts);
@@ -32,7 +51,7 @@ public sealed class CrossoverNativeGenericPresentationTests(ITestOutputHelper ou
         int peakStageDepth = 0;
         for (int callback = 0; callback < 4096 && !state.Complete; callback++)
         {
-            CrossoverNativeMagicPresentationStep step = presentation.Advance(state, Anchor, Transform, projection);
+            CrossoverNativeMagicPresentationStep step = presentation.Advance(state, readAnchor, readTransform, projection, readForeign);
             state = step.State;
             peakStageDepth = Math.Max(peakStageDepth, state.StageDepth);
             contacts += step.Contact ? 1 : 0;

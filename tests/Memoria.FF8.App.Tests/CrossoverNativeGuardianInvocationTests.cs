@@ -103,7 +103,7 @@ public sealed class CrossoverNativeGuardianInvocationTests(ITestOutputHelper out
     }
 
     [Fact]
-    public void A_missing_native_execution_stack_rejects_preflight_without_changing_source_or_publishing_contacts()
+    public void Host_geometric_ribbon_policy_allows_preflight_without_changing_source_or_publishing_contacts()
     {
         string? hostRoot = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(hostRoot), "Select the original host game installation.");
@@ -116,14 +116,20 @@ public sealed class CrossoverNativeGuardianInvocationTests(ITestOutputHelper out
         CrossoverNativeMagicPresentationState state = presentation.Begin(ReadSource(resource), 4, NativeCrtRandomState.FromColdProcess(), new(3, 4, 0, 0, 0, 83, 0), action, new(0), arena);
         NativeBattleGraphicsModel before = state.Cast.Model;
         NativeCrtRandomState random = state.Random;
-        Assert.False(presentation.TryPreflight(state, () => foreign.ToActor(3).Anchor, () => foreign.Transform, camera, () => foreign, out string? reason));
-        Assert.Contains("prior direction scratch", reason);
+        NativeGlobalRandomState? globalRandom = state.GlobalRandom;
+        object texturePublication = state.Textures.VramPublicationIdentity;
+        Assert.True(presentation.TryPreflight(state, () => foreign.ToActor(3).Anchor, () => foreign.Transform, camera, () => foreign, out string? reason), reason);
+        Assert.Null(reason);
         Assert.Equal(before, state.Cast.Model);
         Assert.Equal(random, state.Random);
+        Assert.Equal(globalRandom, state.GlobalRandom);
+        Assert.Same(texturePublication, state.Textures.VramPublicationIdentity);
         Assert.Null(state.Effect);
         Assert.Equal(0, state.PublishedContacts);
+        Assert.Empty(state.PublishedContactOrdinals);
+        Assert.Equal((ushort)0, state.PublishedTargetMask);
         Assert.Equal((byte)3, state.Cast.Phase);
-        output.WriteLine($"{action.Name}: capability rejected without source mutation: {reason}");
+        output.WriteLine($"{action.Name}: host geometric-ribbon preflight completed without changing source, random, texture or published-contact owners.");
     }
 
     [Fact]
