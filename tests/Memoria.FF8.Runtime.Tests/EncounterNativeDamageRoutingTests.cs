@@ -239,48 +239,51 @@ public sealed class EncounterNativeDamageRoutingTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void FourthActorImmediateCounterPreservesNativeAdmissionContactAndSnapshotAcrossSources(bool enemySource)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void FourthActorImmediateCounterPreservesNativeAdmissionContactAndSnapshotAcrossSources(bool enemySource, bool enemyInit)
     {
         BattleSession battle = Create(100, allTargets: true, fourthCounter: true);
         if (enemySource)
         {
             BattleSnapshot initial = battle.Capture();
-            initial = initial with { Definition = initial.Definition with { Combatants = initial.Definition.Combatants.Select(actor => actor.Id == "original" ? actor with { NativeAi = actor.NativeAi! with { Scripts = [[0], [4, 205, 12, 0, 0], [0], [0], [0]] } } : actor).ToArray() } };
+            byte[][] scripts = enemyInit ? [[4, 205, 12, 0, 0], [0], [0], [0], [0]] : [[0], [4, 205, 12, 0, 0], [0], [0], [0]];
+            initial = initial with { Definition = initial.Definition with { Combatants = initial.Definition.Combatants.Select(actor => actor.Id == "original" ? actor with { NativeAi = actor.NativeAi! with { Scripts = scripts } } : actor).ToArray() } };
             initial.Combatants[0] = initial.Combatants[0] with { Atb = 0 };
             int original = Array.FindIndex(initial.Combatants, actor => actor.Id == "original");
-            initial.Combatants[original] = initial.Combatants[original] with { Atb = BattleSession.AtbMaximum };
+            initial.Combatants[original] = initial.Combatants[original] with { Atb = enemyInit ? 0 : BattleSession.AtbMaximum };
             battle = BattleSession.Restore(initial);
         }
         else
         {
             battle.QueueNativePlayerCommand("party", "original", 8, 1);
         }
-        int expectedHeaders = enemySource ? 1 : 2;
+        byte expectedHeaders = enemyInit ? (byte)1 : (byte)2;
         for (int frame = 0; frame < 10 && battle.NativeActionPackets.ActionCount < expectedHeaders; frame++)
         {
             battle.Tick();
         }
-        Assert.Equal((byte)expectedHeaders, battle.NativeActionPackets.ActionCount);
-        Assert.Equal(enemySource ? 1000 : 990, battle.Combatants.Single(actor => actor.Id == "party").CurrentHp);
+        Assert.Equal(expectedHeaders, battle.NativeActionPackets.ActionCount);
+        Assert.Equal(enemyInit ? 1000 : 990, battle.Combatants.Single(actor => actor.Id == "party").CurrentHp);
         Assert.Equal(900, battle.Combatants.Single(actor => actor.Id == "fourth").CurrentHp);
         Assert.All(battle.EncounterAllocation!.ActorIds, id => Assert.Equal(850, battle.Combatants.Single(actor => actor.Id == id).CurrentHp));
         NativeBattleContactPacket countered = Assert.Single(battle.NativeActionPackets.ReadHeaderContacts506BA0(0), packet => packet.Primary.ActorIndex == 4);
-        Assert.Equal(enemySource ? (byte)5 : (byte)18, countered.Primary.Sequence);
+        Assert.Equal(enemyInit ? (byte)5 : (byte)18, countered.Primary.Sequence);
         BattleSnapshot snapshot = battle.Capture();
-        if (!enemySource)
+        if (enemyInit)
+        {
+            Assert.DoesNotContain(snapshot.QueuedActions, command => command.NativeAiCallbackStage == 4);
+        }
+        else
         {
             BattleAttackCommand counter = Assert.Single(snapshot.QueuedActions, command => command.ActorId == "fourth" && command.NativeAiCallbackStage == 4);
-            Assert.Equal(new BattleNativeEventOwner("party", 0), counter.NativeEventOwner);
+            Assert.Equal(new BattleNativeEventOwner(enemySource ? "original" : "party", 0), counter.NativeEventOwner);
             BattleSnapshot invalid = snapshot with { QueuedActions = snapshot.QueuedActions.Select(command => ReferenceEquals(command, counter) ? command with { NativeEventOwner = new("fourth", 0) } : command).ToArray() };
             Assert.Throws<InvalidDataException>(() => BattleSession.Restore(invalid));
-        }
-        Assert.Equal(enemySource ? 0u : 1u, snapshot.Combatants.Single(actor => actor.Id == "fourth").NativeParticipant!.Variables[0]);
-        if (!enemySource)
-        {
             Assert.Equal((ushort)0, snapshot.Combatants.Single(actor => actor.Id == "fourth").NativeParticipant!.ReturnDamage);
         }
+        Assert.Equal(enemyInit ? 0u : 1u, snapshot.Combatants.Single(actor => actor.Id == "fourth").NativeParticipant!.Variables[0]);
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
         for (int frame = 0; frame < 80 && (battle.NativeActionPackets.ActionCount != 0 || battle.ActiveAction is not null || battle.QueuedActions.Count != 0 || battle.NativeCommandBanks.BoundCommands.Any()); frame++)
         {
@@ -292,7 +295,7 @@ public sealed class EncounterNativeDamageRoutingTests
         Assert.Empty(battle.QueuedActions);
         Assert.False(battle.Combatants.Single(actor => actor.Id == "fourth").IsBusy);
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
-        Assert.Equal(enemySource ? 0u : 1u, battle.Capture().Combatants.Single(actor => actor.Id == "fourth").NativeParticipant!.Variables[0]);
+        Assert.Equal(enemyInit ? 0u : 1u, battle.Capture().Combatants.Single(actor => actor.Id == "fourth").NativeParticipant!.Variables[0]);
         BattleSnapshot next = battle.Capture();
         next = next with { Definition = next.Definition with { Combatants = next.Definition.Combatants.Select(actor => actor.Id == "fourth" ? actor with { NativeAi = actor.NativeAi! with { Scripts = [[0], [4, 201, 12, 0, 0], [0], [0], actor.NativeAi!.Scripts[4]] } } : actor).ToArray() }, Combatants = next.Combatants.Select(actor => actor with { Atb = actor.Id == "fourth" ? BattleSession.AtbMaximum : 0 }).ToArray() };
         battle = BattleSession.Restore(next);
@@ -302,7 +305,7 @@ public sealed class EncounterNativeDamageRoutingTests
         }
         Assert.Equal((byte)1, battle.NativeActionPackets.ActionCount);
         Assert.Equal((byte)4, battle.NativeActionPackets.Headers[0].ReadByte(0));
-        Assert.Equal(enemySource ? 990 : 980, battle.Combatants.Single(actor => actor.Id == "party").CurrentHp);
+        Assert.Equal(enemyInit ? 990 : 980, battle.Combatants.Single(actor => actor.Id == "party").CurrentHp);
     }
 
     [Fact]
