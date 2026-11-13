@@ -175,16 +175,22 @@ public sealed partial class BattleSession
         }
         if (phase == 9)
         {
-            if (graphics.OriginalEffect?.Parameters?.Parameter81 == 3)
-            {
-                PublishNativeModuleSound(new(0x87, 0, null) { Pan = 0x80 });
-                PublishNativeModuleSound(new(0x88, 0, null) { Pan = 0x80 });
-                graphics = ApplyNativeActiveHeaderContacts(graphics);
-            }
+            graphics = FinishNativeGuardianInvocationContacts(graphics);
             NativeEffectMemory = (NativeEffectMemory ?? throw new InvalidDataException("Native50B2A0 lost its effect memory owner.")) with { Active = 0 };
             return (graphics with { Flags = graphics.Flags & ~0x10u }, phase, true);
         }
         return (graphics, phase, false);
+    }
+
+    private NativeBattleGraphicsState FinishNativeGuardianInvocationContacts(NativeBattleGraphicsState graphics)
+    {
+        if (graphics.OriginalEffect?.Parameters?.Parameter81 == 3)
+        {
+            PublishNativeModuleSound(new(0x87, 0, null) { Pan = 0x80 });
+            PublishNativeModuleSound(new(0x88, 0, null) { Pan = 0x80 });
+            graphics = ApplyNativeActiveHeaderContacts(graphics);
+        }
+        return graphics;
     }
 
     private void StartNativeGuardianCamera(NativeBattleGraphicsState graphics, byte caster, byte selector)

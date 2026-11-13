@@ -36,6 +36,7 @@ public sealed class CrossoverBattleAbilityRulesTests
     [InlineData(20, 0x24, false, false, false, 72)]
     [InlineData(21, 0x24, false, true, false, 72)]
     [InlineData(22, 0x22, false, false, true, 16)]
+    [InlineData(25, 0x26, false, true, false, 10)]
     [InlineData(26, 0x22, false, false, false, 16)]
     [InlineData(27, 0x26, false, false, false, 16)]
     [InlineData(29, 0x26, false, false, false, 16)]
@@ -74,6 +75,7 @@ public sealed class CrossoverBattleAbilityRulesTests
     [InlineData(20)]
     [InlineData(21)]
     [InlineData(22)]
+    [InlineData(25)]
     [InlineData(26)]
     [InlineData(27)]
     [InlineData(29)]
@@ -135,6 +137,7 @@ public sealed class CrossoverBattleAbilityRulesTests
     [Theory]
     [InlineData(3)]
     [InlineData(21)]
+    [InlineData(25)]
     public void HealingUsesTheSharedRestorativeElementAndRemovesStatuses(byte type)
     {
         Ff7BattleGuestPhysicalHit hit = CrossoverBattleAbilityRules.Describe(Kit(), Action(type) with { Element = 128, Statuses0 = 2, StatusAttack = 100 });
@@ -245,7 +248,7 @@ public sealed class CrossoverBattleAbilityRulesTests
         Assert.Null(CrossoverBattleAbilityRules.UnsupportedReason(Action(2) with { HitCount = 2 }));
         for (byte type = 0; type <= 36; type++)
         {
-            if (type is not (1 or 2 or 3 or 4 or 5 or 6 or 8 or 9 or 11 or 15 or 20 or 21 or 22 or 26 or 27 or 29 or 32 or 35 or 36))
+            if (type is not (1 or 2 or 3 or 4 or 5 or 6 or 8 or 9 or 11 or 15 or 20 or 21 or 22 or 25 or 26 or 27 or 29 or 32 or 35 or 36))
             {
                 unsupported.Add(Action(type));
             }
@@ -300,6 +303,66 @@ public sealed class CrossoverBattleAbilityRulesTests
         Assert.Equal(800u, receipt.Target.Hp);
         Assert.Equal(0u, receipt.Target.Statuses);
         Assert.False(hit.Attack.AddsStatuses);
+    }
+
+    [Theory]
+    [InlineData(0u, -1000)]
+    [InlineData(250u, -750)]
+    [InlineData(1000u, 0)]
+    public void MissingSourceHpRecoveryUsesExactSourceVitalsWithoutMagicDefenseShellOrVariance(uint sourceHp, int damage)
+    {
+        Ff7BattleGuestPhysicalHit hit = CrossoverBattleAbilityRules.Describe(Kit(), Action(25) with { Power = 0 });
+        Assert.True(hit.Attack.SourceMissingHitPoints);
+        Assert.Null(hit.Attack.FixedDamage);
+        Ff7BattleActionVitals source = new(sourceHp, 1000, 0, 0, 0);
+        Ff7BattleActionReceipt receipt = Resolve(hit, source, new(100, 2000, 0, 0, 0x20000), magicDefense: 500);
+        Assert.False(receipt.Damage.Missed);
+        Assert.Equal(damage, receipt.Damage.Damage);
+        Assert.Equal((uint)(100 - damage), receipt.Target.Hp);
+        Assert.Equal(source with { Statuses = sourceHp == 0 ? Ff7NativeBattleActionResolver.Death : 0u }, receipt.Source);
+    }
+
+    [Fact]
+    public void SourceOperandsAreCapturedOnceBeforeSelfRecoveryAndRemainStableAfterJsonContinuation()
+    {
+        Ff7BattleGuestPhysicalHit hit = CrossoverBattleAbilityRules.Describe(Kit(), Action(25));
+        Ff7BattleDamageAction captured = Ff7NativeBattleDamage.BindSourceVitals(hit.Attack, 250, 1000);
+        Assert.False(captured.SourceMissingHitPoints);
+        Assert.Equal(750, captured.FixedDamage);
+        captured = System.Text.Json.JsonSerializer.Deserialize<Ff7BattleDamageAction>(System.Text.Json.JsonSerializer.Serialize(captured));
+        Ff7BattleGuestPhysicalHit prepared = hit with { Attack = captured };
+        Ff7BattleActionVitals source = new(250, 1000, 0, 0, 0);
+        Ff7BattleActionReceipt self = Ff7NativeBattleActionResolver.ResolveGuestContact(prepared.Source, source, prepared.Source, source, captured, null, new(new byte[3988], new(new byte[8])), sameActor: true);
+        Assert.Equal(1000u, self.Source.Hp);
+        Ff7BattleActionReceipt next = Resolve(prepared, self.Source, new(100, 2000, 0, 0, 0));
+        Assert.Equal(-750, next.Damage.Damage);
+        Assert.Equal(850u, next.Target.Hp);
+    }
+
+    [Theory]
+    [InlineData(0u, false, -750)]
+    [InlineData(0u, true, 750)]
+    [InlineData(0x4000u, false, 0)]
+    [InlineData(0x1000000u, false, 0)]
+    public void MissingSourceHpRecoveryUsesTheCommonZombieAndHostProtectionNormalization(uint statuses, bool zombie, int damage)
+    {
+        Ff7BattleGuestPhysicalHit hit = CrossoverBattleAbilityRules.Describe(Kit(), Action(25));
+        Ff7BattleActionVitals target = new(1000, 2000, 0, 0, statuses) { OriginSavedStatuses = zombie ? Ff7OriginSavedStatusRules.Zombie : (ushort)0 };
+        Ff7BattleActionReceipt receipt = Resolve(hit, new(250, 1000, 0, 0, 0), target);
+        Assert.False(receipt.Damage.Missed);
+        Assert.Equal(damage, receipt.Damage.Damage);
+        Assert.Equal((uint)(1000 - damage), receipt.Target.Hp);
+    }
+
+    [Fact]
+    public void MissingSourceHpRecoveryRejectsUnknownCorruptOrConflictingOperands()
+    {
+        Ff7BattleDamageAction action = CrossoverBattleAbilityRules.Describe(Kit(), Action(25)).Attack;
+        Assert.Throws<InvalidDataException>(() => Ff7NativeBattleDamage.BindSourceVitals(action, null, 1000));
+        Assert.Throws<InvalidDataException>(() => Ff7NativeBattleDamage.BindSourceVitals(action, 100, null));
+        Assert.Throws<InvalidDataException>(() => Ff7NativeBattleDamage.BindSourceVitals(action, 1001, 1000));
+        Assert.Throws<InvalidDataException>(() => Ff7NativeBattleDamage.BindSourceVitals(action with { FixedDamage = 10 }, 250, 1000));
+        Assert.Throws<InvalidDataException>(() => Ff7NativeBattleDamage.BindSourceVitals(action with { Formula = 0x22 }, 250, 1000));
     }
 
     [Theory]

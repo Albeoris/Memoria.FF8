@@ -9,7 +9,7 @@ public sealed record NativeBattleQuezacotlTrailBatch(ImmutableArray<NativeBattle
 /// <summary>6C84C0/6C8620's current linked rows, exact outline stores and effect-heap GT4 packets.</summary>
 public static class NativeBattleQuezacotlTrailPackets
 {
-    public static NativeBattleQuezacotlTrailBatch Emit6C84C0(uint head, int count, Func<uint, int, int, ImmutableArray<byte>> readRow, ImmutableArray<byte> distanceBytes16384, ImmutableArray<int> depthFifo4, NativeBattlePilotVisualIdentity? pilotIdentity = null, Func<uint, System.Numerics.Vector3>? readWorldCenter = null, Func<uint, uint, NativeBattlePilotVisualIdentity>? identifySegment = null)
+    public static NativeBattleQuezacotlTrailBatch Emit6C84C0(uint head, int count, Func<uint, int, int, ImmutableArray<byte>> readRow, ImmutableArray<byte> distanceBytes16384, ImmutableArray<int> depthFifo4, NativeBattlePilotVisualIdentity? pilotIdentity = null, Func<uint, System.Numerics.Vector3>? readWorldCenter = null, Func<uint, uint, NativeBattlePilotVisualIdentity>? identifySegment = null, NativeBattleRibbonProjectionPolicy projectionPolicy = NativeBattleRibbonProjectionPolicy.NativeCallerScratch)
     {
         if (count is < 2 or > short.MaxValue)
         {
@@ -35,7 +35,7 @@ public static class NativeBattleQuezacotlTrailPackets
                 address = Read32(selectedAddress, 0x24);
             }
         }
-        NativeBattleTrailOutline.Expand(outline, distanceBytes16384, 512);
+        NativeBattleTrailOutline.Expand(outline, distanceBytes16384, 512, projectionPolicy: projectionPolicy);
         ImmutableArray<NativeBattleQuezacotlTrailRowWrite>.Builder rowWrites = ImmutableArray.CreateBuilder<NativeBattleQuezacotlTrailRowWrite>();
         for (int index = 0; index < count; index++)
         {
@@ -62,7 +62,7 @@ public static class NativeBattleQuezacotlTrailPackets
         {
             NativeBattleTrailOutline.Point first = outline[index];
             NativeBattleTrailOutline.Point second = outline[index + 1];
-            if (first.QuarterDepth <= 0 || second.QuarterDepth <= 0)
+            if (!first.CanConnectToNext || first.QuarterDepth <= 0 || second.QuarterDepth <= 0)
             {
                 continue;
             }

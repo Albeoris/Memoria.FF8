@@ -11,7 +11,7 @@ public sealed record NativeBattleQuezacotlPathBatch(ImmutableArray<NativeBattleQ
 /// <summary>6C79A0/6C7B30's actual linked path projection, sparse row stores and effect-heap GT4s.</summary>
 public static class NativeBattleQuezacotlPathPackets
 {
-    public static NativeBattleQuezacotlPathBatch Emit6C79A0(uint head, int count, Func<uint, int, int, ImmutableArray<byte>> readRow, Func<short, NativeBattleVector> readCurrentVertex, NativeBattleActionMatrix capturedMatrix, NativeBattleCameraProjection projection, ImmutableArray<byte> distanceBytes16384, ImmutableArray<int?> incomingDepthFifo4 = default, uint? incomingOutlineDirectionDword = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, Func<uint, uint, NativeBattlePilotVisualIdentity>? identifySegment = null)
+    public static NativeBattleQuezacotlPathBatch Emit6C79A0(uint head, int count, Func<uint, int, int, ImmutableArray<byte>> readRow, Func<short, NativeBattleVector> readCurrentVertex, NativeBattleActionMatrix capturedMatrix, NativeBattleCameraProjection projection, ImmutableArray<byte> distanceBytes16384, ImmutableArray<int?> incomingDepthFifo4 = default, uint? incomingOutlineDirectionDword = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, Func<uint, uint, NativeBattlePilotVisualIdentity>? identifySegment = null, NativeBattleRibbonProjectionPolicy projectionPolicy = NativeBattleRibbonProjectionPolicy.NativeCallerScratch)
     {
         if (count is < 2 or > short.MaxValue)
         {
@@ -60,7 +60,7 @@ public static class NativeBattleQuezacotlPathPackets
             NativeBattleModuleProjectedVertex vertex = projected[index];
             outline[index] = new(vertex.Screen, (short)(vertex.Depth >> 2), () => Read16(selectedAddress, 2));
         }
-        uint? direction = NativeBattleTrailOutline.Expand(outline, distanceBytes16384, 1024, incomingOutlineDirectionDword);
+        uint? direction = NativeBattleTrailOutline.Expand(outline, distanceBytes16384, 1024, incomingOutlineDirectionDword, projectionPolicy);
         for (int index = 0; index < count; index++)
         {
             NativeBattleTrailOutline.Point point = outline[index];
@@ -87,7 +87,7 @@ public static class NativeBattleQuezacotlPathPackets
         {
             NativeBattleTrailOutline.Point first = outline[index];
             NativeBattleTrailOutline.Point second = outline[index + 1];
-            if (first.QuarterDepth <= 0 || second.QuarterDepth <= 0)
+            if (!first.CanConnectToNext || first.QuarterDepth <= 0 || second.QuarterDepth <= 0)
             {
                 continue;
             }

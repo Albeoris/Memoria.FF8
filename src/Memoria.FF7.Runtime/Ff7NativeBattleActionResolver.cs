@@ -255,7 +255,7 @@ public static class Ff7NativeBattleActionResolver
         }
         bool admittedStatus = mask != 0 && RollStatus(record!, action, random);
         bool originOperation = action.GuestOriginBattleStatuses != 0 || action.ParameterOperation is not null || action.GuestOriginSavedStatuses != 0;
-        if (!admittedStatus && !originOperation && action.Power == 0 && action.BaseDamage is null && action.FixedDamage is null && action.FractionDenominator == 0 && action.Formula is not (0x00 or 0x50))
+        if (!admittedStatus && !originOperation && action.Power == 0 && action.BaseDamage is null && action.FixedDamage is null && !action.SourceMissingHitPoints && action.FractionDenominator == 0 && action.Formula is not (0x00 or 0x50))
         {
             return new(source, target, new(true, false, 0), 0, 0);
         }
@@ -284,7 +284,7 @@ public static class Ff7NativeBattleActionResolver
 
         Ff7BattleDamageActor projectedTarget = targetStats with { Statuses = target.Statuses, CurrentHitPoints = target.Hp, MaximumHitPoints = target.MaxHp, CurrentMagicPoints = target.Mp, MaximumMagicPoints = target.MaxMp };
         Ff7BattleDamageAction projectedAction = action with { HasStatusOperation = admittedStatus || originOperation, AddsStatuses = mode == 0 && (mask != 0 || originOperation) };
-        Ff7BattleDamageResult damage = Ff7NativeBattleDamage.Resolve(sourceStats with { Statuses = source.Statuses }, projectedTarget, projectedAction, random);
+        Ff7BattleDamageResult damage = Ff7NativeBattleDamage.Resolve(sourceStats with { Statuses = source.Statuses, CurrentHitPoints = source.Hp, MaximumHitPoints = source.MaxHp, CurrentMagicPoints = source.Mp, MaximumMagicPoints = source.MaxMp }, projectedTarget, projectedAction, random);
         if (damage.Missed || !CanTarget(target, record))
         {
             return new(source, target, new(true, false, 0), 0, 0);

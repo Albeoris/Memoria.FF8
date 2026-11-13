@@ -21,6 +21,8 @@ public sealed record NativeBattleForeignActor(int Index, NativeBattleModelTransf
 public sealed record NativeBattleEffectPresentationInputs(BattleDefinition Resources, NativeBattleGraphicsModel Source, NativeBattleGraphicsResource SourceResource, NativeBattleActionPacketsState Packets, NativeBattleEffectParameters Parameters, ushort Effect, NativeBattleEffectTextureState Textures, NativeCrtRandomState Random, NativeBattleCameraProjection Projection, ImmutableArray<NativeBattleForeignActor> ForeignActors)
 {
     public NativeBattleArenaHost? Arena { get; init; }
+    public NativeBattleEffectSceneContext? SceneContext { get; init; }
+    public NativeBattleRibbonProjectionPolicy RibbonProjectionPolicy { get; init; } = NativeBattleRibbonProjectionPolicy.NativeCallerScratch;
     public bool DeferInvocation { get; init; }
     public int? PartyActorCount { get; init; }
     public int? InitialMusicGain { get; init; }
@@ -71,6 +73,7 @@ public sealed class NativeBattleEffectPresentation : IDisposable
 
     public void Invoke(NativeBattleGraphicsModel source, NativeCrtRandomState random, NativeBattleEffectTextureState textures) => owner.InvokeEffectPresentation(source, random, textures);
     public void ReloadSourceResources() => owner.ReloadEffectPresentationSourceResources();
+    public NativeBattleEffectPresentationStep CompleteInvocation() => owner.CompleteEffectPresentationInvocation();
     public int ReadSourceVariable(NativeBattleGraphicsModel source, byte variable) => owner.ReadEffectPresentationSourceVariable(source, variable);
     public void WriteSourceVariable(byte variable, int value) => owner.WriteEffectPresentationSourceVariable(variable, value);
     public NativeBattleGraphicsModel WriteSourceTargetVariable(NativeBattleGraphicsModel source, byte variable, int value) => owner.WriteEffectPresentationSourceTargetVariable(source, variable, value);

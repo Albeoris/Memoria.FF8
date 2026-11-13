@@ -107,7 +107,10 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
         private CrossoverGunbladeHostAttack attack = null!;
         private CrossoverGuestHostActions provider = null!;
 
-        public Fixture(string name, byte character, byte crisis, int? deadTarget = null, CrossoverArenaSurfaceCapture? arenaCapture = null)
+        public int SourceMaximumHp => kit.MaximumHitPoints;
+        public int NativeHitCount => action.HitCount;
+
+        public Fixture(string name, byte character, byte crisis, int? deadTarget = null, CrossoverArenaSurfaceCapture? arenaCapture = null, bool soloGuestParty = false, bool damagedAllies = false, int? sourceHP = null)
         {
             string? ff8 = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
             string? ff7 = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
@@ -129,7 +132,8 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
             }
             row = CrossoverGuestRecord.FindOriginalRow(origin, character);
             int magicCommand = origin.MenuDefinitions.CommandAbilityCommands.IndexOf((byte)2) + 20;
-            origin.Records[row] = origin.Records[row] with { HitPointBonus = 9999, HitPoints = new(9000, 9000), Status = 0, Junction = origin.Records[row].Junction with { Commands = (uint)magicCommand } };
+            ushort sourceHitPoints = checked((ushort)(sourceHP ?? 9000));
+            origin.Records[row] = origin.Records[row] with { HitPointBonus = 9999, HitPoints = new(sourceHitPoints, sourceHitPoints), Status = 0, Junction = origin.Records[row].Junction with { Commands = (uint)magicCommand } };
             origin = origin with { MagicSystem = origin.MagicSystem with { SharedMagicStock = true } };
             fire = Assert.Single(assets.NativeActions, item => item.Command == 2 && item.Name == "Fire");
             origin = origin.ChangeMagicStock(row, fire.ActionId, 4, MagicOperationReason.ScriptReward, out _);
@@ -159,7 +163,7 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
             executable = Ff7PcExecutableData.Load(installation);
             kernel = KernelArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.Kernel).Path));
             animations = new(archive, Ff7PcExecutableData.LoadBattlePlacement(installation), magic, Ff7PcExecutableData.LoadBattleJumpDeltas(installation), Ff7PcExecutableData.LoadBattleHitmarks(installation), Ff7PcExecutableData.LoadBattleActorModelResources(installation));
-            progress = original.Progress with { Party = [0, 1, 255] };
+            progress = original.Progress with { Party = soloGuestParty ? [0, 255, 255] : [0, 1, 255] };
             host = Create();
             roster = CrossoverBattleRoster.Create(Guid.Parse("4024f7ec-2c66-4ecf-8d4c-38ed9513e82b"), host.Capture(), [new(0, 0, character)], []);
             Ff7BattleGuestProjection projection = CrossoverGuestHostActions.Projection(kit);
@@ -171,7 +175,7 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
                 {
                     Gauge = 0,
                     AwaitingTurn = false,
-                    Actor = actor.Actor with { HitPoints = actor.Actor.Slot == deadTarget ? 0u : 60000u, MaxHitPoints = 60000u, Statuses = actor.Actor.Slot == deadTarget ? 1u : 0x400u },
+                    Actor = actor.Actor with { HitPoints = actor.Actor.Slot == deadTarget ? 0u : damagedAllies && actor.Actor.Slot < 3 ? 30000u : 60000u, MaxHitPoints = 60000u, Statuses = actor.Actor.Slot == deadTarget ? 1u : 0x400u },
                     Timers = Ff7NativeBattleStatusClock.Apply(actor.Timers, actor.Actor.Statuses, actor.Actor.Slot == deadTarget ? 1u : 0x400u)
                 }).ToArray()
             };
@@ -239,12 +243,14 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
         {
             Ff7BattleCommandOption option = Option();
             Assert.True(option.UnsupportedReason is null, option.UnsupportedReason);
-            ushort targets = (ushort)((option.CandidateTargets ?? option.ValidTargets) & 0x3F0);
+            ushort targets = (ushort)((option.CandidateTargets ?? option.ValidTargets) & (option.DefaultsToEnemies ? 0x3F0 : 7));
             if (option.SelectSingle && option.GroupUses == 0)
             {
                 targets = (ushort)(targets & -targets);
             }
             Assert.NotEqual((ushort)0, targets);
+            int targetsPerHit = (action.TargetFlags.GetValueOrDefault() & 2) == 0 ? System.Numerics.BitOperations.PopCount((uint)targets) : 1;
+            int expectedContacts = checked(action.HitCount * targetsPerHit);
             string stock = JsonSerializer.Serialize(provider.WorkingStock);
             Assert.True(host.Submit(0, Ff7BattleCommand.Magic, ability.Key, targets));
             Assert.Equal(targets, Assert.Single(host.Capture().Queue.Ready.OfType<Ff7BattleQueuedCommand>()).TargetMask);
@@ -276,7 +282,7 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
                         contacts = composite.Contacts;
                         Assert.Equal(Enumerable.Range(0, contacts.Length), contacts.Select(contact => contact.Ordinal));
                         Assert.All(contacts, contact => Assert.Equal(0, contact.Phase));
-                        Assert.Equal(Enumerable.Range(0, action.HitCount), contacts.Select(contact => contact.Hit));
+                        Assert.Equal(Enumerable.Range(0, action.HitCount).SelectMany(hit => Enumerable.Repeat(hit, targetsPerHit)), contacts.Select(contact => contact.Hit));
                         foreach (Ff7BattleGuestCompositeContact contact in contacts)
                         {
                             Ff7BattleGuestPreparedContact receipt = Assert.IsType<Ff7BattleGuestPreparedContact>(contact.HitDescription.PreparedContact);
@@ -310,7 +316,7 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
             }
             Assert.True(began);
             Assert.False(contacts.IsEmpty);
-            Assert.Equal(action.HitCount, contacts.Length);
+            Assert.Equal(expectedContacts, contacts.Length);
             Assert.Equal(contacts.Length, settled);
             Assert.True(visualCallbacks > 0);
             Assert.Null(provider.Invocation);

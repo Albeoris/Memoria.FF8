@@ -235,22 +235,7 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
         ushort published = source.PublishedTargetMask;
         if (effect is { Invoked: true, Complete: false })
         {
-            NativeBattleEffectPresentationStep next = effect.Advance(cast.Model, random, projection ?? throw new NotSupportedException("Native effects require the current host camera."), ForeignActors(), textures);
-            cast = cast with { Model = effect.Source };
-            textures = effect.Memory.Textures!;
-            random = effect.Random;
-            contact = !next.Contacts.IsEmpty;
-            foreach (int ordinal in ReadContactOrdinals(source.BoundContacts, previousOrdinals, next.Contacts))
-            {
-                CrossoverNativeMagicTarget target = source.BoundContacts[ordinal];
-                ushort bit = (ushort)(1 << target.HostSlot);
-                published |= bit;
-                contactTargets.Add(target.HostSlot);
-                contactOrdinals.Add(ordinal);
-            }
-            effectSounds = next.Sounds;
-            sequences = next.Sequences;
-            draws = draws.AddRange(effect.Graphics.ModuleDraws.Where(draw => draw.Kind != NativeBattleModuleDrawKind.Sound));
+            CollectNativeStep(effect.Advance(cast.Model, random, projection ?? throw new NotSupportedException("Native effects require the current host camera."), ForeignActors(), textures));
         }
         if (cast.GuardianInvocation)
         {
@@ -286,8 +271,34 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
                 }
             }
         }, resource);
+        if (cast.GuardianInvocation && cast.Complete && effect is { Invoked: true, Complete: true })
+        {
+            CollectNativeStep(effect.CompleteInvocation(), false);
+        }
         textures = textures.Drain505D20(NativeBattleEffectMemory.FromColdProcess().Arena).State;
         return new(source with { Cast = cast, Auxiliary = auxiliary, Modules = modules, Textures = textures, TextureAnimations = motion, Random = random, GlobalRandom = effect?.GlobalRandom ?? source.GlobalRandom, Effect = effect, BodyTextures = cast.Model.BodyTextureSlots ?? source.BodyTextures, Draws = draws, PublishedContacts = source.PublishedContacts + contactOrdinals.Count, PublishedContactOrdinals = previousOrdinals.AddRange(contactOrdinals), PublishedTargetMask = published }, contact, shared.Draws.Where(draw => draw.Kind == NativeBattleModuleDrawKind.Sound).ToImmutableArray()) { EffectSounds = effectSounds, ContactTargets = contactTargets.ToImmutable(), ContactOrdinals = contactOrdinals.ToImmutable(), Sequences = sequences };
+
+        void CollectNativeStep(NativeBattleEffectPresentationStep next, bool advanceSource = true)
+        {
+            NativeBattleEffectPresentation current = effect ?? throw new InvalidDataException("The native presentation lost its process owner.");
+            if (advanceSource)
+            {
+                cast = cast with { Model = current.Source };
+                draws = draws.AddRange(current.Graphics.ModuleDraws.Where(draw => draw.Kind != NativeBattleModuleDrawKind.Sound));
+            }
+            textures = current.Memory.Textures!;
+            random = current.Random;
+            contact |= !next.Contacts.IsEmpty;
+            foreach (int ordinal in ReadContactOrdinals(source.BoundContacts, previousOrdinals.AddRange(contactOrdinals), next.Contacts))
+            {
+                CrossoverNativeMagicTarget target = source.BoundContacts[ordinal];
+                published |= (ushort)(1 << target.HostSlot);
+                contactTargets.Add(target.HostSlot);
+                contactOrdinals.Add(ordinal);
+            }
+            effectSounds = effectSounds.AddRange(next.Sounds);
+            sequences = sequences.AddRange(next.Sequences);
+        }
 
         void PrepareEffect(bool defer)
         {
@@ -302,7 +313,7 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
             (packets, _) = packets.Publish(checked((byte)source.BoundContacts.Length));
             NativeBattleGraphicsDefinition graphics = new(game.ReadNativeBattleGraphicsRules(), [new("source", checked((byte)cast.Model.ModelId4!.Value), resource)], []) { PrimitiveTables = battle.ReadNativePrimitiveTables(), SoftwarePrimitiveTable = battle.ReadNativeSoftwarePrimitiveTable(), PrimitiveCapabilities = NativeBattlePrimitiveCapabilities.PrimaryRgba8() };
             BattleDefinition resources = new() { NativeGraphics = graphics, NativeModuleResources = sprites, NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([action.MagicId]), NativeCommonEffectTexture = game.ReadNativeCommonEffectTexture(), NativeCommandSequences = game.ReadNativeBattleCommandSequences(), NativeGlobalRandom = source.GlobalRandom, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory() };
-            effect = new(new(resources, cast.Model, resource, packets, new(0, 0, targetMask, 0, 0, 0), action.MagicId, textures, random, projection ?? throw new NotSupportedException("Native effects require the current host camera."), ForeignActors()) { Arena = source.Arena, DeferInvocation = defer, PartyActorCount = readParticipants is null ? null : source.Participants.Length + 1, InitialMusicGain = 127 });
+            effect = new(new(resources, cast.Model, resource, packets, new(0, 0, targetMask, 0, 0, 0), action.MagicId, textures, random, projection ?? throw new NotSupportedException("Native effects require the current host camera."), ForeignActors()) { Arena = source.Arena, SceneContext = new(NativeBattleSummonFloorMode.BelowTargetPlane, NativeBattleTargetBoundsMode.AllContacts) { MirroredSurfaceMode = NativeBattleMirroredSurfaceMode.InitialCapture }, RibbonProjectionPolicy = NativeBattleRibbonProjectionPolicy.IndependentGeometricRuns, DeferInvocation = defer, PartyActorCount = readParticipants is null ? null : source.Participants.Length + 1, InitialMusicGain = 127 });
             cast = cast with { Model = effect.Source };
             textures = effect.Memory.Textures!;
             random = effect.Random;

@@ -6,6 +6,8 @@ public sealed partial class BattleSession
 {
     private Dictionary<int, NativeBattleForeignActor>? presentationForeignActors;
     internal NativeBattleArenaHost? presentationArena;
+    private NativeBattleEffectSceneContext? presentationSceneContext;
+    private NativeBattleRibbonProjectionPolicy presentationRibbonProjectionPolicy;
     private NativeBattleGraphicsResource? presentationSourceResource;
     private bool presentationFirstAdvance = true;
     private NativeBattleCameraState? presentationHostCamera;
@@ -24,6 +26,13 @@ public sealed partial class BattleSession
     {
         definition = inputs.Resources;
         presentationArena = inputs.Arena;
+        presentationSceneContext = inputs.SceneContext;
+        presentationSceneContext?.Validate();
+        if (!Enum.IsDefined(inputs.RibbonProjectionPolicy))
+        {
+            throw new InvalidDataException("The presentation ribbon projection policy is unsupported.");
+        }
+        presentationRibbonProjectionPolicy = inputs.RibbonProjectionPolicy;
         presentationPartyActorCount = inputs.PartyActorCount;
         combatants = [];
         byId = new(StringComparer.Ordinal);
@@ -73,6 +82,11 @@ public sealed partial class BattleSession
     }
 
     internal static BattleSession CreateEffectPresentation(NativeBattleEffectPresentationInputs inputs) => new(inputs);
+
+    private NativeBattleEffectSceneContext ReadRequiredEffectSceneContext()
+    {
+        return presentationSceneContext ?? NativeBattleEffectSceneContext.FromNativeEncounter(checked((ushort)(definition.EncounterId ?? throw new NotSupportedException("The native effect requires its scene placement context."))));
+    }
 
     internal void ReleaseEffectPresentation()
     {

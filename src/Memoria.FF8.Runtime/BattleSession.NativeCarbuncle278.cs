@@ -10,8 +10,7 @@ public sealed partial class BattleSession
         NativeBattleCarbuncle278Frame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Carbuncle requires its retained effect memory."), graphics.OriginalEffect ?? throw new InvalidDataException("Native Carbuncle lost its selected effect."), nativeCrtRandom ?? throw new NotSupportedException("Native Carbuncle requires its actual CRT random owner."));
         if (initialize)
         {
-            int encounter = definition.EncounterId ?? throw new NotSupportedException("Native Carbuncle requires its installed encounter WORD1CFF6E0.");
-            frame = NativeBattleCarbuncle278Entry.Initialize680C50(frame, nativeActionPackets, graphics.Models, checked((ushort)encounter));
+            frame = NativeBattleCarbuncle278Entry.Initialize680C50(frame, nativeActionPackets, graphics.Models, ReadRequiredEffectSceneContext());
         }
         else
         {
@@ -46,8 +45,8 @@ public sealed partial class BattleSession
             NativeBattleCarbuncle278Frame DrawCreature(NativeBattleCarbuncle278Frame current, ushort counter)
             {
                 NativeBattleCarbuncle278State state = NativeBattleCarbuncle278Entry.RequireState(current.Memory);
-                byte stage = graphics.StageResourceIndex98990 ?? throw new NotSupportedException("Native Carbuncle mirror requires its current stage resource index.");
-                if (stage is 0x2C or 0x2D or 0x2E)
+                NativeBattleMirroredSurfaceMode mirrorMode = ReadRequiredEffectSceneContext().RequireMirroredSurfaceMode(graphics.StageResourceIndex98990);
+                if (mirrorMode == NativeBattleMirroredSurfaceMode.ContinuousCapture)
                 {
                     current = DrawMirror(current, state.MirrorPlane81F0 ?? throw new NotSupportedException("Native Carbuncle mirror requires its retained plane WORDs."), state.Bounds81E0 ?? throw new NotSupportedException("Native Carbuncle mirror requires its current bounds WORDs."));
                     state = NativeBattleCarbuncle278Entry.RequireState(current.Memory);

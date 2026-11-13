@@ -18,7 +18,7 @@ public static class NativeBattleQuezacotlPathCallbacks
         return NativeBattleQuezacotlRibbon.ResolveEntryStack6C8850(stack, entryLifecycle).AddressAtOffset(12);
     }
 
-    public static NativeBattleQuezacotlPathStep Advance6C7800(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleEffectTaskPool pool, int index, NativeBattleLogicalOrdering ordering, NativeBattleCameraProjection projection, ImmutableArray<int?> incomingDepthFifo4 = default, uint? incomingOutlineDirectionDword = null)
+    public static NativeBattleQuezacotlPathStep Advance6C7800(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleEffectTaskPool pool, int index, NativeBattleLogicalOrdering ordering, NativeBattleCameraProjection projection, ImmutableArray<int?> incomingDepthFifo4 = default, uint? incomingOutlineDirectionDword = null, NativeBattleRibbonProjectionPolicy projectionPolicy = NativeBattleRibbonProjectionPolicy.NativeCallerScratch)
     {
         NativeBattleQuezacotlPathResources? resources = effect.Binding.NativeQuezacotlResources?.Paths;
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native6C7800 requires its retained row and task memory.");
@@ -111,7 +111,7 @@ public static class NativeBattleQuezacotlPathCallbacks
             NativeBattleQuezacotlPathBatch drawn;
             try
             {
-                drawn = NativeBattleQuezacotlPathPackets.Emit6C79A0(T32(0x18), count, (pointer, offset, length) => arena.Read(checked(NativeBattleQuezacotlPathProducer.RowOffset(pointer) + offset), length).ToImmutableArray(), ReadVertex, captured, projection, distance, incomingDepthFifo4, outlineDirection, NativeBattlePilotVisualLifetimes.Identity(116, pool.Slots[index]), (first, second) => NativeBattleQuezacotlVisualGeometry.RowIdentity(arena, NativeBattleQuezacotlPathProducer.ArenaAddress + NativeBattleQuezacotlPathProducer.Rows, (NativeBattleQuezacotlPathProducer.RowOffset(first) - NativeBattleQuezacotlPathProducer.Rows) / NativeBattleQuezacotlPathProducer.RowSize, (NativeBattleQuezacotlPathProducer.RowOffset(second) - NativeBattleQuezacotlPathProducer.Rows) / NativeBattleQuezacotlPathProducer.RowSize));
+                drawn = NativeBattleQuezacotlPathPackets.Emit6C79A0(T32(0x18), count, (pointer, offset, length) => arena.Read(checked(NativeBattleQuezacotlPathProducer.RowOffset(pointer) + offset), length).ToImmutableArray(), ReadVertex, captured, projection, distance, incomingDepthFifo4, outlineDirection, NativeBattlePilotVisualLifetimes.Identity(116, pool.Slots[index]), (first, second) => NativeBattleQuezacotlVisualGeometry.RowIdentity(arena, NativeBattleQuezacotlPathProducer.ArenaAddress + NativeBattleQuezacotlPathProducer.Rows, (NativeBattleQuezacotlPathProducer.RowOffset(first) - NativeBattleQuezacotlPathProducer.Rows) / NativeBattleQuezacotlPathProducer.RowSize, (NativeBattleQuezacotlPathProducer.RowOffset(second) - NativeBattleQuezacotlPathProducer.Rows) / NativeBattleQuezacotlPathProducer.RowSize), projectionPolicy);
             }
             catch (NotSupportedException error)
             {

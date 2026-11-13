@@ -7,7 +7,7 @@ public sealed record NativeBattleQuezacotlRibbonPoint(NativeBattleVector Positio
 /// <summary>6C8C50/6C8DE0's sixteen projected ribbon points and fifteen common-heap GT4 candidates.</summary>
 public static class NativeBattleQuezacotlRibbonPackets
 {
-    public static NativeBattleGfGeometryBatch Emit6C8C50(ImmutableArray<NativeBattleQuezacotlRibbonPoint> points, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, ImmutableArray<byte> distanceBytes16384, Action<ushort>? observeDepth = null, uint? incomingDirectionDword = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    public static NativeBattleGfGeometryBatch Emit6C8C50(ImmutableArray<NativeBattleQuezacotlRibbonPoint> points, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, ImmutableArray<byte> distanceBytes16384, Action<ushort>? observeDepth = null, uint? incomingDirectionDword = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleRibbonProjectionPolicy projectionPolicy = NativeBattleRibbonProjectionPolicy.NativeCallerScratch)
     {
         if (points.IsDefault || points.Length != 16 || distanceBytes16384.IsDefault || distanceBytes16384.Length != 16384)
         {
@@ -20,7 +20,7 @@ public static class NativeBattleQuezacotlRibbonPackets
             observeDepth?.Invoke(projected[index].Depth);
         }
         NativeBattleTrailOutline.Point[] outline = projected.Select((point, index) => new NativeBattleTrailOutline.Point(point.Screen, (short)(point.Depth >> 2), () => points[index].Width)).ToArray();
-        NativeBattleTrailOutline.Expand(outline, distanceBytes16384, 1024, incomingDirectionDword);
+        NativeBattleTrailOutline.Expand(outline, distanceBytes16384, 1024, incomingDirectionDword, projectionPolicy);
         ImmutableArray<int> depthFifo = projected.Skip(12).Select(point => (int)point.Depth).ToImmutableArray();
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;
@@ -28,7 +28,7 @@ public static class NativeBattleQuezacotlRibbonPackets
         {
             NativeBattleTrailOutline.Point first = outline[index];
             NativeBattleTrailOutline.Point second = outline[index + 1];
-            if (first.QuarterDepth <= 0 || second.QuarterDepth <= 0)
+            if (!first.CanConnectToNext || first.QuarterDepth <= 0 || second.QuarterDepth <= 0)
             {
                 continue;
             }

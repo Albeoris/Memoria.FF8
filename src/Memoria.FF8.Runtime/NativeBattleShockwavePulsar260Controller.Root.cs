@@ -139,7 +139,8 @@ public static partial class NativeBattleShockwavePulsar260Controller
             throw new InvalidDataException("Shockwave Pulsar requires its selected physical action header.");
         }
         NativeBattleActionHeaderSlot header = inputs.Packets.Headers[parameters.HeaderIndex7C];
-        int count = inputs.FormationId == 796 ? 1 : header.ReadByte(16);
+        inputs.SceneContext.Validate();
+        int count = inputs.SceneContext.TargetBoundsMode == NativeBattleTargetBoundsMode.FirstContact ? 1 : header.ReadByte(16);
         frame = Write(frame, mainAddress, Read(frame, mainAddress).WriteWord(0xE, (ushort)count));
         List<int> actors = [];
         short[] minimum = [32767, 32767, 32767];

@@ -28,7 +28,7 @@ internal static class CrossoverBattleAbilityRules
         {
             return "This command requires its native invocation process.";
         }
-        if (action.AttackType is not (1 or 2 or 3 or 4 or 5 or 6 or 8 or 9 or 11 or 15 or 20 or 21 or 22 or 26 or 27 or 29 or 32 or 35 or 36))
+        if (action.AttackType is not (1 or 2 or 3 or 4 or 5 or 6 or 8 or 9 or 11 or 15 or 20 or 21 or 22 or 25 or 26 or 27 or 29 or 32 or 35 or 36))
         {
             return $"Native attack type {action.AttackType} requires a combat operation that the bridge cannot represent.";
         }
@@ -52,7 +52,7 @@ internal static class CrossoverBattleAbilityRules
         bool healing = IsHealing(action.AttackType);
         bool revive = action.AttackType is 5 or 6;
         bool fraction = action.AttackType is 5 or 6 or 8 or 20 or 21 or 32;
-        bool fixedDamage = action.AttackType is 4 or 27 or 29 or 35;
+        bool fixedDamage = action.AttackType is 4 or 25 or 27 or 29 or 35;
         bool guardian = action.AttackType is 11 or 15;
         int level = abilityLevel ?? kit.Level;
         ArgumentOutOfRangeException.ThrowIfLessThan(level, 1);
@@ -89,6 +89,7 @@ internal static class CrossoverBattleAbilityRules
             MinimumDamage = action.AttackType == 5 ? 1 : 0,
             RequiredTargetLevelMultiple = action.AttackType == 26 ? action.Hit ?? byte.MaxValue : (byte)0,
             BaseDamage = guardian && action.Power != 0 ? ProjectGuardianForceBase(action, level, damagePercent) : null,
+            SourceMissingHitPoints = action.AttackType == 25,
             FixedDamage = action.AttackType switch
             {
                 4 => action.Power * 50,
@@ -109,7 +110,7 @@ internal static class CrossoverBattleAbilityRules
         return new(source, mechanics, healing ? (ushort)0x200 : Ff7GuestBattleElements.ToHost(element)) { StatusRecord = record, ElementPercent = physical ? action.ElementPercent : null };
     }
 
-    private static bool IsHealing(byte type) => type is 3 or 4 or 5 or 6 or 21 or 32;
+    private static bool IsHealing(byte type) => type is 3 or 4 or 5 or 6 or 21 or 25 or 32;
 
     private static bool IgnoresStatuses(byte type) => type is 27 or 29 or 35;
 

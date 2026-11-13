@@ -5,11 +5,20 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Shared6C8DE0/6C8620 projected ribbon outline, retaining each call's actual width/depth bias.</summary>
 internal static class NativeBattleTrailOutline
 {
-    public static uint? Expand(IReadOnlyList<Point> outline, ImmutableArray<byte> distanceBytes16384, int depthBias, uint? incomingDirectionDword = null)
+    public static uint? Expand(IReadOnlyList<Point> outline, ImmutableArray<byte> distanceBytes16384, int depthBias, uint? incomingDirectionDword = null, NativeBattleRibbonProjectionPolicy projectionPolicy = NativeBattleRibbonProjectionPolicy.NativeCallerScratch)
     {
         if (outline.Count < 2 || distanceBytes16384.IsDefault || distanceBytes16384.Length != 16384 || depthBias is not (512 or 1024))
         {
             throw new InvalidDataException("Native trail outline requires its reached chain, original distance bytes and actual depth bias.");
+        }
+        if (projectionPolicy == NativeBattleRibbonProjectionPolicy.IndependentGeometricRuns)
+        {
+            ExpandGeometricRuns(outline, distanceBytes16384, depthBias);
+            return null;
+        }
+        if (projectionPolicy != NativeBattleRibbonProjectionPolicy.NativeCallerScratch)
+        {
+            throw new ArgumentOutOfRangeException(nameof(projectionPolicy));
         }
         (short X, short Y)? direction = incomingDirectionDword is uint prior ? (unchecked((short)prior), unchecked((short)(prior >> 16))) : null;
         ExpandPoint(0, 1, false);
@@ -90,6 +99,50 @@ internal static class NativeBattleTrailOutline
         }
     }
 
+    private static void ExpandGeometricRuns(IReadOnlyList<Point> outline, ImmutableArray<byte> distanceBytes16384, int depthBias)
+    {
+        (short X, short Y)? direction = null;
+        for (int index = 0; index < outline.Count; index++)
+        {
+            Point current = outline[index];
+            current.CanConnectToNext = false;
+            if (current.QuarterDepth <= 0)
+            {
+                direction = null;
+                continue;
+            }
+            int perpendicularX = 0;
+            int perpendicularY = 0;
+            bool hasNext = index + 1 < outline.Count && outline[index + 1].QuarterDepth > 0;
+            if (hasNext)
+            {
+                Point following = outline[index + 1];
+                int dx = unchecked((short)following.Left) - unchecked((short)current.Left);
+                int dy = unchecked((short)(current.Left >> 16)) - unchecked((short)(following.Left >> 16));
+                int lookup = Math.Min(Math.Abs(dx), 127) + 128 * Math.Min(Math.Abs(dy), 127);
+                int length = distanceBytes16384[lookup];
+                if (length > 0)
+                {
+                    NativeBattleRibbonDirectionStep step = NativeBattleRibbonDirection.Resolve(dx, dy, length, direction.HasValue, direction?.X, direction?.Y);
+                    direction = (step.PreviousX!.Value, step.PreviousY!.Value);
+                    int width = unchecked(following.Width << 5) / (current.QuarterDepth + depthBias);
+                    perpendicularX = unchecked(width * step.X) >> 12;
+                    perpendicularY = unchecked(width * step.Y) >> 12;
+                    current.CanConnectToNext = true;
+                }
+            }
+            if (!current.CanConnectToNext)
+            {
+                direction = null;
+            }
+            short x = unchecked((short)current.Left);
+            short y = unchecked((short)(current.Left >> 16));
+            current.ScreenWritten = true;
+            current.Left = Screen(unchecked((short)(x - perpendicularX)), unchecked((short)(y - perpendicularY)));
+            current.Right = Screen(unchecked((short)(x + perpendicularX)), unchecked((short)(y + perpendicularY)));
+        }
+    }
+
     public static NativeBattleGfGeometryAttempt Packet(int offset, uint leftA, uint rightA, uint leftB, uint rightB, short colorA, short colorB, int bucket, ImmutableArray<int> depthFifo)
     {
         SkinWrites packet = new(52, offset);
@@ -122,6 +175,7 @@ internal static class NativeBattleTrailOutline
 
     internal sealed class Point(uint screen, short quarterDepth, Func<short> readWidth)
     {
+        public bool CanConnectToNext { get; set; } = true;
         public uint Left { get; set; } = screen;
         public uint? Right { get; set; }
         public short QuarterDepth { get; set; } = quarterDepth;

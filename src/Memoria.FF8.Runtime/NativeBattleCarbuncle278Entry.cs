@@ -11,6 +11,12 @@ public static class NativeBattleCarbuncle278Entry
 
     public static NativeBattleCarbuncle278Frame Initialize680C50(NativeBattleCarbuncle278Frame frame, NativeBattleActionPacketsState packets, ImmutableArray<NativeBattleGraphicsModel> models, ushort encounterId)
     {
+        return Initialize680C50(frame, packets, models, NativeBattleEffectSceneContext.FromNativeEncounter(encounterId));
+    }
+
+    public static NativeBattleCarbuncle278Frame Initialize680C50(NativeBattleCarbuncle278Frame frame, NativeBattleActionPacketsState packets, ImmutableArray<NativeBattleGraphicsModel> models, NativeBattleEffectSceneContext sceneContext)
+    {
+        sceneContext.Validate();
         RequireBinding(frame.Effect);
         frame.Effect.Validate();
         packets.Validate();
@@ -57,7 +63,7 @@ public static class NativeBattleCarbuncle278Entry
             }
         }
         int lift = maximum > unchecked(floor - 0x5DC) ? unchecked(floor - maximum - 0x5DC) : 0;
-        if (encounterId == 0x3F)
+        if (sceneContext.FloorMode == NativeBattleSummonFloorMode.TargetPlane)
         {
             lift = 0;
             floor = centroid;

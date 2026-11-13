@@ -90,6 +90,24 @@ public sealed class NativeBattleShockwavePulsar260RootTests
     }
 
     [Fact]
+    public void Host_scene_contacts_initialize_without_native_formation_and_match_original_target_records()
+    {
+        NativeBattleEffectSceneContext host = new(NativeBattleSummonFloorMode.BelowTargetPlane, NativeBattleTargetBoundsMode.AllContacts);
+        Fixture foreign = new(sceneContext: host) { CaptureBeforeMain = true };
+        Fixture native = new() { CaptureBeforeMain = true };
+        Assert.Throws<ProbeException>(() => foreign.Step(foreign.SetRoot(foreign.Frame, 1, 0, 0)));
+        Assert.Throws<ProbeException>(() => native.Step(native.SetRoot(native.Frame, 1, 0, 0)));
+        Assert.Equal(new[] { 3, 4 }, foreign.Anchors);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Captured), NativeBattleTestSnapshots.Json(foreign.Captured));
+        Fixture firstContact = new(sceneContext: host with { TargetBoundsMode = NativeBattleTargetBoundsMode.FirstContact }) { CaptureBeforeMain = true };
+        Fixture specialNative = new(796) { CaptureBeforeMain = true };
+        Assert.Throws<ProbeException>(() => firstContact.Step(firstContact.SetRoot(firstContact.Frame, 1, 0, 0)));
+        Assert.Throws<ProbeException>(() => specialNative.Step(specialNative.SetRoot(specialNative.Frame, 1, 0, 0)));
+        Assert.Equal(new[] { 3 }, firstContact.Anchors);
+        Assert.Equal(NativeBattleTestSnapshots.Json(specialNative.Captured), NativeBattleTestSnapshots.Json(firstContact.Captured));
+    }
+
+    [Fact]
     public void Formation796_uses_only_first_original_contact_and_no_other_target_anchor()
     {
         Fixture fixture = new(796) { CaptureBeforeMain = true };
@@ -268,7 +286,7 @@ public sealed class NativeBattleShockwavePulsar260RootTests
         public bool CaptureBeforeMain { get; set; }
         public NativeBattleShockwavePulsar260Frame? Captured { get; private set; }
 
-        public Fixture(ushort formation = 368)
+        public Fixture(ushort formation = 368, NativeBattleEffectSceneContext? sceneContext = null)
         {
             Resources = MakeResources();
             byte[] tim = new byte[32];
@@ -289,7 +307,7 @@ public sealed class NativeBattleShockwavePulsar260RootTests
             BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(8), 0x1D28344);
             header[16] = 2;
             packets = packets with { Headers = packets.Headers.SetItem(0, new(header.ToImmutableArray(), 0, 0, null)), ContactCount = 2, Contacts = packets.Contacts.SetItem(0, new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0))).SetItem(1, new(new(4, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0))) };
-            Inputs = new(packets, formation, actor => new(actor, (ushort)(actor + 2)) { Transform = new(default, default, 0, 0, 4096) }, actor => NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(0, BitConverter.GetBytes((short)(100 + actor))).Write(2, BitConverter.GetBytes((short)(200 + actor))).Write(4, BitConverter.GetBytes((short)(300 + actor))), _ => null, current =>
+            Inputs = new(packets, sceneContext ?? NativeBattleEffectSceneContext.FromNativeEncounter(formation), actor => new(actor, (ushort)(actor + 2)) { Transform = new(default, default, 0, 0, 4096) }, actor => NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(0, BitConverter.GetBytes((short)(100 + actor))).Write(2, BitConverter.GetBytes((short)(200 + actor))).Write(4, BitConverter.GetBytes((short)(300 + actor))), _ => null, current =>
             {
                 if (CaptureBeforeMain)
                 {

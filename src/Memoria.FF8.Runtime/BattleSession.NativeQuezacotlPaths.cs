@@ -15,7 +15,7 @@ public sealed partial class BattleSession
             return graphics;
         }
         NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, effect.Pools);
-        if (incomingOutlineDirectionDword is null && memory.ExecutionStack is { } stack)
+        if (presentationRibbonProjectionPolicy == NativeBattleRibbonProjectionPolicy.NativeCallerScratch && incomingOutlineDirectionDword is null && memory.ExecutionStack is { } stack)
         {
             incomingOutlineDirectionDword = NativeBattleQuezacotlPathCallbacks.ResolveInitialOutlineDirection(stack, graphics.EntryLifecycle);
         }
@@ -43,7 +43,7 @@ public sealed partial class BattleSession
                     throw new NotSupportedException($"Native Quezacotl path callback{current.Slots[index].Callback:X} is not implemented.");
                 }
                 NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native6C7800 requires its current ordering table.");
-                NativeBattleQuezacotlPathStep path = NativeBattleQuezacotlPathCallbacks.Advance6C7800(memory, effect, current, index, frame.Pending, NativeCamera?.Projection ?? throw new NotSupportedException("Native6C7800 requires its prior projection registers."), depthTrace.DepthFifo4, outlineDirection);
+                NativeBattleQuezacotlPathStep path = NativeBattleQuezacotlPathCallbacks.Advance6C7800(memory, effect, current, index, frame.Pending, NativeCamera?.Projection ?? throw new NotSupportedException("Native6C7800 requires its prior projection registers."), depthTrace.DepthFifo4, outlineDirection, presentationRibbonProjectionPolicy);
                 memory = path.Memory;
                 effect = path.Effect;
                 depthTrace.ObserveFinal(path.DepthFifo4);

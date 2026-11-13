@@ -16,7 +16,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Shockwave Pulsar requires its current process memory.");
         NativeBattleShockwavePulsar260Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Shockwave Pulsar requires its CRT stream."), memory.ShockwavePulsar260 ?? throw new NotSupportedException("Shockwave Pulsar requires its retained native state.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Shockwave Pulsar requires its addressed memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Shockwave Pulsar requires its original color constants.");
-        NativeBattleShockwavePulsar260Inputs inputs = new(nativeActionPackets, checked((ushort)(definition.EncounterId ?? throw new NotSupportedException("Shockwave Pulsar requires its current encounter identity."))), actor => graphics.Models[actor], Position, actor => graphics.Models[actor].ReadLinkedModelIndex140(), _ => Camera().CapturePackedView1D97778(), _ => Camera(), Anchor, PollIo, Execute);
+        NativeBattleShockwavePulsar260Inputs inputs = new(nativeActionPackets, ReadRequiredEffectSceneContext(), actor => graphics.Models[actor], Position, actor => graphics.Models[actor].ReadLinkedModelIndex140(), _ => Camera().CapturePackedView1D97778(), _ => Camera(), Anchor, PollIo, Execute);
         frame = initialize ? NativeBattleShockwavePulsar260Controller.Initialize(frame, resources, inputs) : NativeBattleShockwavePulsar260Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)

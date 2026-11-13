@@ -32,6 +32,19 @@ public sealed class NativeBattleCarbuncle278Tests
     }
 
     [Fact]
+    public void Host_scene_traits_initialize_without_native_encounter_identity_and_preserve_native_geometry()
+    {
+        var fixture = Fixture();
+        NativeBattleEffectSceneContext host = new(NativeBattleSummonFloorMode.BelowTargetPlane, NativeBattleTargetBoundsMode.AllContacts);
+        NativeBattleCarbuncle278Frame foreign = NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame, fixture.Packets, fixture.Models, host);
+        NativeBattleCarbuncle278Frame native = NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame, fixture.Packets, fixture.Models, 42);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(foreign));
+        NativeBattleCarbuncle278Frame targetPlane = NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame, fixture.Packets, fixture.Models, host with { FloorMode = NativeBattleSummonFloorMode.TargetPlane });
+        NativeBattleCarbuncle278Frame specialNative = NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame, fixture.Packets, fixture.Models, 0x3F);
+        Assert.Equal(NativeBattleTestSnapshots.Json(specialNative), NativeBattleTestSnapshots.Json(targetPlane));
+    }
+
+    [Fact]
     public void Encounter_override_occurs_after_physical_reads_and_preserves_retained_module_fields()
     {
         var fixture = Fixture();

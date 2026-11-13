@@ -95,13 +95,15 @@ public sealed partial class Ff7BattleSession
     private ImmutableArray<Ff7BattleGuestCompositeContact> PrepareGuestCompositeContacts(Ff7BattleQueuedCommand command, Ff7BattleGuestInvocation invocation, Ff7BattleGuestCompositeAction program, IReadOnlyList<(int Phase, int Hit, ushort Targets)> schedule, Ff7BattleRng candidateRandom)
     {
         Ff7BattleSnapshot original = state;
+        Ff7BattleActorState dispatchSource = Actor(command.ActorSlot);
+        Ff7BattleDamageAction[] phaseActions = program.Phases.Select(phase => Ff7NativeBattleDamage.BindSourceVitals(phase.Description.Attack, dispatchSource.Actor.HitPoints, dispatchSource.Actor.MaxHitPoints)).ToArray();
         state = state with { Actors = (Ff7BattleActorState[])state.Actors.Clone() };
         ImmutableArray<Ff7BattleGuestCompositeContact>.Builder contacts = ImmutableArray.CreateBuilder<Ff7BattleGuestCompositeContact>();
         try
         {
             foreach ((int phaseIndex, int hit, ushort targets) in schedule)
             {
-                Ff7BattleGuestPhysicalHit phaseDescription = program.Phases[phaseIndex].Description;
+                Ff7BattleGuestPhysicalHit phaseDescription = program.Phases[phaseIndex].Description with { Attack = phaseActions[phaseIndex] };
                 Ff7BattleActorState currentSource = Actor(command.ActorSlot);
                 Ff7BattleGuestPhysicalHit description = phaseDescription with { Source = phaseDescription.Source with { Statuses = currentSource.Actor.Statuses, CurrentHitPoints = currentSource.Actor.HitPoints, OriginSavedStatuses = GetOriginSavedStatuses(command.ActorSlot) } };
                 ReflectionPlan? reflection = PrepareReflections(command with { TargetMask = targets }, description, candidateRandom, true);

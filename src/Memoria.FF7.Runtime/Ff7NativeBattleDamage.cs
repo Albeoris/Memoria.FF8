@@ -35,6 +35,8 @@ public readonly record struct Ff7BattleDamageAction(byte Formula, byte Power, by
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public int? FixedDamage { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool SourceMissingHitPoints { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public int MinimumDamage { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public int FractionNumerator { get; init; }
@@ -88,6 +90,20 @@ public static class Ff7NativeBattleDamage
     private const uint GuaranteedPhysicalHit = 0x02404445;
     private const uint GuaranteedStatusMagicHit = 0x02004445;
 
+    /// <summary>Captures source-dependent operands before a command prepares its target contacts.</summary>
+    public static Ff7BattleDamageAction BindSourceVitals(Ff7BattleDamageAction action, uint? sourceHitPoints, uint? sourceMaximumHitPoints)
+    {
+        if (!action.SourceMissingHitPoints)
+        {
+            return action;
+        }
+        if (action.Formula != 0x26 || action.FixedDamage is not null || sourceHitPoints is not uint current || sourceMaximumHitPoints is not uint maximum || current > maximum || maximum > int.MaxValue)
+        {
+            throw new InvalidDataException("Source missing-HP recovery requires fixed-formula damage and valid source vitals.");
+        }
+        return action with { SourceMissingHitPoints = false, FixedDamage = checked((int)(maximum - current)) };
+    }
+
     public static Ff7BattleDamageActor FromEnemy(SceneBattleEnemy enemy)
     {
         ArgumentNullException.ThrowIfNull(enemy);
@@ -136,6 +152,7 @@ public static class Ff7NativeBattleDamage
         {
             throw new InvalidDataException("Battle damage operands must describe nonnegative damage and a valid fraction.");
         }
+        action = BindSourceVitals(action, attacker.CurrentHitPoints, attacker.MaximumHitPoints);
         if (action.RequiredTargetLevelMultiple != 0 && target.Level % action.RequiredTargetLevelMultiple != 0)
         {
             return new(true, false, 0);
