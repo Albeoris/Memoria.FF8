@@ -16,6 +16,20 @@ internal static class ExpandedBattleActionRules
             action is { Command: 8, KernelSection: 3, AttackType: 0, Power: 0, Element: 0, StatusAttack: 0, Statuses0: 0, Statuses1: 0, AttackFlags: 0 or 1, HitCount: 1, PresentationOnly: false, CrisisLevel: null };
     }
 
+    public static bool SupportsDrawnEnemyMagic(BattleNativeAction action)
+    {
+        return action is { Command: 2, KernelSection: 1, ActionId: > 0, TargetFlags: byte flags } && (flags & 0x30) != 0x30 &&
+            (SupportsContacts(action) || SupportsEnemyMagicCure(action) ||
+             action is { AttackType: 2, Power: 0, HitCount: 1, AttackFlags: 0x23, Statuses0: 0, Statuses1: 0x10000, StatusAttack: 254 });
+    }
+
+    public static bool SupportsEnemyMagicCure(BattleNativeAction action)
+    {
+        // Esuna and Full-cure erase Eject along with other statuses. They never apply Eject.
+        return action is { KernelSection: 1, ActionId: 27, AttackType: 3, HitCount: 1, Statuses1: 0x100520D } or
+            { KernelSection: 1, ActionId: 51, AttackType: 32, HitCount: 1, Statuses1: 0x100560D };
+    }
+
     public static bool SupportsPlayerAction(BattleAbility ability, BattleNativeAction action)
     {
         return (ability, action.Command) is (BattleAbility.Magic, 2) or (BattleAbility.Item, 4) &&

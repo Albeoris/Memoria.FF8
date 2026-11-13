@@ -87,6 +87,11 @@ public sealed partial class BattleSession
 
     private void CastNativeAiDrawnSpell(BattleCombatant actor)
     {
+        if (UsesExpandedRoster)
+        {
+            CastExpandedEnemyDrawnSpell(actor);
+            return;
+        }
         byte spell = actor.NativeDrawnSpell ?? throw new NotSupportedException("Native AI Draw-cast requires an executed drawn-spell byte.");
         if (spell == 0)
         {
@@ -110,6 +115,56 @@ public sealed partial class BattleSession
             mask |= 0x2000;
         }
         QueueNativeCommand(actor, 2, spell, 11, mask);
+    }
+
+    private void CastExpandedEnemyDrawnSpell(BattleCombatant actor)
+    {
+        if (actor.NativeDrawnSpell is not byte spell || spell is 0 or 255)
+        {
+            return;
+        }
+        BattleNativeAction action = FindInstalledNativeAction(2, spell);
+        byte flags = action.TargetFlags ?? throw new InvalidDataException("Native drawn spell lacks its kernel target flags.");
+        if ((flags & 0x30) == 0x30)
+        {
+            // The original selector uses the spell ID as a physical mask for this encoding.
+            throw new NotSupportedException("Expanded enemy Draw Cast cannot use a physical spell target encoding.");
+        }
+        bool random = (flags & 2) != 0;
+        BattleSide side = (flags & 0x40) != 0 ? BattleSide.Allies : BattleSide.Enemies;
+        bool targetsBothSides = (flags & 0x30) == 0x20;
+        if (targetsBothSides && random)
+        {
+            // Original 0xA0FF requests random selection from the enemy side.
+            side = BattleSide.Enemies;
+        }
+        IEnumerable<BattleCombatant> roster = targetsBothSides && !random ? combatants : Roster(side);
+        BattleCombatant[] targets = roster.Where(candidate => IsExpandedDrawCastTarget(candidate, (flags & 1) != 0)).ToArray();
+        BattleAiRecipients recipients;
+        if ((flags & 0x30) == 0x10)
+        {
+            BattleCombatant[] living = targets.Where(target => target.IsAlive).ToArray();
+            recipients = living.Any(target => (NativeSavedStatusBits(target) & 5) == 0) ? PickExpandedAiTarget(living) : new([]);
+            if (random && !recipients.ActorIds.IsEmpty)
+            {
+                recipients = new([.. targets.Select(target => target.Id)]) { RandomSide = side };
+            }
+        }
+        else
+        {
+            recipients = new([.. targets.Select(target => target.Id)]) { RandomSide = random ? side : null };
+        }
+        recipients = recipients with { TargetPolicy = BattleAiTargetPolicy.DrawnMagic };
+        if (!ExpandedBattleActionRules.SupportsDrawnEnemyMagic(action))
+        {
+            throw new NotSupportedException($"Expanded enemy Draw Cast cannot resolve installed spell {spell}.");
+        }
+        EnqueueExpandedAiAction(actor, action, 11, recipients);
+    }
+
+    private static bool IsExpandedDrawCastTarget(BattleCombatant actor, bool canTargetKnockedOutAllies)
+    {
+        return actor.IsActive && !actor.Untargetable && (actor.IsAlive || canTargetKnockedOutAllies && actor.IsPlayer);
     }
 
     private string NativeBattleGlobalText(int index)

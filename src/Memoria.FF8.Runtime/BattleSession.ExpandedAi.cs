@@ -8,6 +8,14 @@ public sealed record BattleAiRecipients(ImmutableArray<string> ActorIds)
     public string? DeathSelfTargetId { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public BattleSide? RandomSide { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public BattleAiTargetPolicy TargetPolicy { get; init; }
+}
+
+public enum BattleAiTargetPolicy
+{
+    Standard,
+    DrawnMagic
 }
 
 public sealed partial class BattleSession
@@ -147,9 +155,14 @@ public sealed partial class BattleSession
         return candidate.IsActive && candidate.IsAlive && !candidate.Untargetable && (NativeSavedStatusBits(candidate) & 5) == 0;
     }
 
-    private BattleCombatant[] CurrentExpandedAiTargets(BattleAiRecipients recipients)
+    private BattleCombatant[] CurrentExpandedAiTargets(BattleAiRecipients recipients, BattleNativeAction? action = null)
     {
         IEnumerable<BattleCombatant> targets = recipients.RandomSide is BattleSide side ? Roster(side) : recipients.ActorIds.Select(GetActor);
+        if (recipients.TargetPolicy == BattleAiTargetPolicy.DrawnMagic)
+        {
+            bool includesKnockedOutAllies = (action?.TargetFlags.GetValueOrDefault() & 1) != 0;
+            return targets.Where(candidate => IsExpandedDrawCastTarget(candidate, includesKnockedOutAllies)).ToArray();
+        }
         return targets.Where(target => IsExpandedAiTarget(target) || target.IsActive && target.Id == recipients.DeathSelfTargetId).ToArray();
     }
 
@@ -160,6 +173,11 @@ public sealed partial class BattleSession
         {
             throw new NotSupportedException($"Expanded AI command {command}/{id} requires an unsupported combat service.");
         }
+        EnqueueExpandedAiAction(actor, native, sequence, recipients);
+    }
+
+    private void EnqueueExpandedAiAction(BattleCombatant actor, BattleNativeAction native, byte sequence, BattleAiRecipients? recipients)
+    {
         if (recipients is null || recipients.ActorIds.IsEmpty)
         {
             return;
@@ -171,9 +189,9 @@ public sealed partial class BattleSession
         actor.Atb = 0;
         actor.IsBusy = true;
         actor.ExpandedPreviousAiTargetId = recipients.ActorIds[0];
-        actions.Enqueue(new(actor.Id, recipients.ActorIds[0], BattleAbility.EnemyAbility, id)
+        actions.Enqueue(new(actor.Id, recipients.ActorIds[0], BattleAbility.EnemyAbility, native.ActionId)
         {
-            NativeQueuedCommand = command,
+            NativeQueuedCommand = native.Command,
             NativeAction = native,
             NativeAiCallbackStage = nativeAiCallbackStage,
             NativeSequence = sequence,

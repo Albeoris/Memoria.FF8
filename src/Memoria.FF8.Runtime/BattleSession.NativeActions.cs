@@ -75,7 +75,7 @@ public sealed partial class BattleSession
     {
         if (aiRecipients is not null)
         {
-            return CurrentExpandedAiTargets(aiRecipients).Length != 0;
+            return CurrentExpandedAiTargets(aiRecipients, native).Length != 0;
         }
         if (graphic is not null)
         {

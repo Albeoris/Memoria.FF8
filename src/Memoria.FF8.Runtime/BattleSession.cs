@@ -1631,6 +1631,11 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Saved expanded AI command has invalid logical recipients.");
         }
+        if (aiRecipients is { } selected && (!Enum.IsDefined(selected.TargetPolicy) ||
+            selected.TargetPolicy == BattleAiTargetPolicy.DrawnMagic && (nativeQueuedCommand != 2 || nativeAction is null || !ExpandedBattleActionRules.SupportsDrawnEnemyMagic(nativeAction))))
+        {
+            throw new InvalidDataException("Saved expanded AI command has an invalid drawn-magic target policy.");
+        }
         if (aiRecipients?.RandomSide is BattleSide side && (!Enum.IsDefined(side) || aiRecipients.ActorIds.Any(id => byId[id].Side != side)))
         {
             throw new InvalidDataException("Saved random AI recipients disagree with the selected side.");

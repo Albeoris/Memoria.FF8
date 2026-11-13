@@ -23,6 +23,74 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         Assert.True(status == "logical", detail);
     }
 
+    [Fact]
+    public void Installed_Vysage_queues_Draw_Cast_from_original_medium_band_script()
+    {
+        string directory = TestResources.GameDirectory;
+        using BattleAssets assets = new(directory);
+        const int formation = 590;
+        const byte fire = 1;
+        const string casterId = "enemy-10";
+        string ally = CasterId;
+        BattleEnemyPlacement prototype = Assert.Single(assets.LoadEncounter(formation).Enemies);
+        Assert.Equal(39, prototype.ModelId);
+        GameState field = PrepareField(directory);
+        for (byte seed = 0; seed < 24; seed++)
+        {
+            using GameWorld world = StartBattle(directory, field, formation, nativeSeed: seed, prepareParty: records =>
+            {
+                for (int row = 0; row < records.Length; row++)
+                {
+                    NativeMagicStock[] slots = Enumerable.Repeat(new NativeMagicStock(0, 0), 32).ToArray();
+                    if (row == 10)
+                    {
+                        slots[17] = new(fire, 100);
+                    }
+                    records[row] = records[row] with { MagicInventory = slots };
+                }
+            }, prepareVitals: vitals => PrepareHigherBandParty(directory, vitals, 33));
+
+            BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
+            BattleCombatant caster = Assert.Single(battle.Combatants, actor => actor.Id == casterId);
+            Assert.NotNull(caster.NativeAi);
+            if (caster.NativeAi.LevelBand != 1)
+            {
+                continue;
+            }
+            Assert.Equal(assets.ReadEnemyAi(39, caster.Level).Scripts[1], caster.NativeAi.Scripts[1]);
+            caster.Atb = BattleSession.AtbMaximum;
+            for (int frame = 0; frame < 240 && battle.Outcome == BattleOutcome.Active; frame++)
+            {
+                world.ApplyBattleInput(new(BattleInputKind.Tick));
+                BattleAttackCommand? cast = battle.QueuedActions.FirstOrDefault(action => action.ActorId == casterId && action is { NativeQueuedCommand: 2, NativeSequence: 11, ActionId: fire });
+                if (cast is null)
+                {
+                    continue;
+                }
+                BattleSnapshot pending = battle.Capture();
+                Assert.Equal(new BattlePendingEnemyDraw(casterId, fire, 1), pending.PendingEnemyDraw);
+                Assert.True(pending.QueuedActions.Any(action => action.ActorId == casterId && action is { NativeQueuedCommand: 8, ActionId: 48 } && action.TargetId == ally) ||
+                    pending.ActiveAction is { ActorId: casterId, NativeQueuedCommand: 8, ActionId: 48 } active && active.TargetId == ally);
+                BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(pending))!);
+                int start = battle.Events.Count;
+                for (int tick = 0; tick < 240 && !battle.Events.Skip(start).Any(IsCastContact); tick++)
+                {
+                    world.ApplyBattleInput(new(BattleInputKind.Tick));
+                    restored.Tick();
+                }
+                Assert.Equal(cast.TargetId, Assert.Single(battle.Events.Skip(start), IsCastContact).TargetId);
+                BattleEvent debit = Assert.Single(battle.Events.Skip(start), entry => entry.Kind == "EnemyDrawStock");
+                Assert.Equal(1, debit.Amount);
+                Assert.Equal(99, battle.Combatants.Single(actor => actor.Id == debit.TargetId).NativeMagicSlots[17].Count);
+                Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+                return;
+            }
+        }
+        Assert.Fail("The original Vysage turn did not queue Draw Cast with a stocked ally.");
+
+        static bool IsCastContact(BattleEvent entry) => entry is { Kind: "EffectContact", ActorId: casterId, NativeSequence: 11, Message: "Fire" };
+    }
+
     private static (string Status, string Detail) RunExpandedEnemyDraw(string directory, GameState field, BattleAssets assets, ushort formation)
     {
         BattleEncounter scene = assets.LoadEncounter(formation);

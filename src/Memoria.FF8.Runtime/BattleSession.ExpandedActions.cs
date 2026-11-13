@@ -251,7 +251,7 @@ public sealed partial class BattleSession
         {
             // 487DF0 reads a magic record for the first reflected contact.
             reflected = definition.NativeActions.SingleOrDefault(action => action.Command == 247 && action.ActionId == unchecked((byte)native.ActionId) && action.CrisisLevel is null);
-            if (reflected is null || !ExpandedBattleActionRules.SupportsContacts(reflected))
+            if (reflected is null || !ExpandedBattleActionRules.SupportsContacts(reflected) && !(command is { NativeQueuedCommand: 2, AiRecipients: not null } && ExpandedBattleActionRules.SupportsEnemyMagicCure(reflected)))
             {
                 RefundCancelledNativeItem(command);
                 CompleteActionPresentation(command, "The expanded host has no supported reflected spell record.");
@@ -501,7 +501,7 @@ public sealed partial class BattleSession
             {
                 return Roster(GetActor(targetId).Side).Where(IsExpandedAiTarget).ToArray();
             }
-            return CurrentExpandedAiTargets(aiRecipients);
+            return CurrentExpandedAiTargets(aiRecipients, native);
         }
         BattleCombatant target = GetActor(targetId);
         if (ability == BattleAbility.EnemyAbility && IsExpandedAngeloAction(native))
