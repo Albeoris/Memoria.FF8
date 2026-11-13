@@ -42,5 +42,6 @@ public static class NativeBattleSonic139Profile
     public const int FirstPacketOffset = 0x1EF0;
     public const int SecondPacketOffset = 0x11EF0;
     public const int PacketBankBytes = 0x10000;
+    public const int TargetCapacity = 3;
     public const int VertexCount = 201;
 }

@@ -60,7 +60,8 @@ public sealed class ExpandedBattleHostTests
         stock[1] = new((byte)quake.ActionId, 5);
         byte magicCommand = (byte)(20 + initial.MenuDefinitions.CommandAbilityCommands.IndexOf((byte)2));
         byte itemCommand = (byte)(20 + initial.MenuDefinitions.CommandAbilityCommands.IndexOf((byte)4));
-        records[casterRow] = records[casterRow] with { MagicInventory = stock, HitPoints = new NativeHpWord(100, 100), Junction = records[casterRow].Junction with { Commands = (uint)(magicCommand | itemCommand << 8) } };
+        byte drawCommand = (byte)(20 + initial.MenuDefinitions.CommandAbilityCommands.IndexOf((byte)6));
+        records[casterRow] = records[casterRow] with { MagicInventory = stock, HitPoints = new NativeHpWord(100, 100), Junction = records[casterRow].Junction with { Commands = (uint)(magicCommand | itemCommand << 8 | drawCommand << 16) } };
         NativeEconomy economy = assets.ReadNewGameEconomy();
         NativeItemStock[] items = economy.Items.ToArray();
         int potionSlot = Array.FindIndex(items, item => item.ItemId == potion.ActionId);
@@ -212,6 +213,27 @@ public sealed class ExpandedBattleHostTests
             Run(casterId, BattleAbility.Item, potion.ActionId, [casterId]);
             Assert.True(caster.CurrentHp > beforePotion);
             Assert.Equal(2, battle.Items.Single(item => item.Id == potion.ActionId).Count);
+            if (allyCount == 11)
+            {
+                BattleCombatant drawSource = enemies[^1];
+                NativeBattleDrawSlot draw = drawSource.NativeDrawSlots.First(slot => slot.Id is > 0 and < 64);
+                for (int turn = 0; turn < 32 && !caster.IsReady; turn++)
+                {
+                    world.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
+                    world.ApplyBattleInput(new(BattleInputKind.Tick, Frames: 30));
+                }
+                Assert.True(caster.IsReady);
+                hud.SelectParty(caster.Id);
+                Assert.Contains(BattleAbility.Draw, hud.Commands);
+                Assert.False(hud.DrawCastAvailable);
+                world.ApplyBattleInput(new(BattleInputKind.Action) { ActorId = caster.Id, TargetId = drawSource.Id, Ability = BattleAbility.Draw, ActionId = draw.Id });
+                for (int frame = 0; frame < 512 && caster.IsBusy; frame++)
+                {
+                    world.ApplyBattleInput(new(BattleInputKind.Tick));
+                }
+                Assert.False(caster.IsBusy);
+                Assert.Contains(battle.Events, entry => entry.Kind == "Draw" && entry.ActorId == caster.Id && entry.TargetId == drawSource.Id);
+            }
 
         }
 

@@ -5,15 +5,20 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Maps the ordered recipients of one action to temporary rows in its effect presentation.</summary>
 public sealed class NativeBattleEffectContactBridge<TRecipient> where TRecipient : notnull
 {
-    private readonly ImmutableArray<(TRecipient Recipient, NativeBattleContactHalf Contact)> targets;
+    private readonly ImmutableArray<(TRecipient Recipient, NativeBattleContactPacket Packet)> targets;
 
     public NativeBattleEffectContactBridge(IEnumerable<(TRecipient Recipient, NativeBattleContactHalf Contact)> targets)
+        : this((targets ?? throw new ArgumentNullException(nameof(targets))).Select(target => (target.Recipient, new NativeBattleContactPacket(target.Contact, new(255, 0, 0, 0, 0, 0, 0)))))
+    {
+    }
+
+    public NativeBattleEffectContactBridge(IEnumerable<(TRecipient Recipient, NativeBattleContactPacket Packet)> targets)
     {
         ArgumentNullException.ThrowIfNull(targets);
         this.targets = targets.ToImmutableArray();
-        if (this.targets.IsEmpty || this.targets.Any(target => target.Recipient is null || target.Contact is null || !NativeBattleSlots.Contains(target.Contact.ActorIndex)) ||
+        if (this.targets.IsEmpty || this.targets.Any(target => target.Recipient is null || target.Packet?.Primary is null || !NativeBattleSlots.Contains(target.Packet.Primary.ActorIndex) || target.Packet.Secondary?.ActorIndex is not (0 or 255)) ||
             this.targets.Select(target => target.Recipient).Distinct().Count() != this.targets.Length ||
-            this.targets.Select(target => target.Contact.ActorIndex).Distinct().Count() != this.targets.Length)
+            this.targets.Select(target => target.Packet.Primary.ActorIndex).Distinct().Count() != this.targets.Length)
         {
             throw new InvalidDataException("An effect action requires a distinct recipient for each of its bound native contact rows.");
         }
@@ -28,8 +33,8 @@ public sealed class NativeBattleEffectContactBridge<TRecipient> where TRecipient
         NativeBattlePhysicalTargets mask = default;
         foreach (var target in targets)
         {
-            (packets, _) = packets.AppendContact(new(target.Contact, new(255, 0, 0, 0, 0, 0, 0)));
-            mask = mask.Add(NativeBattleSlots.Decode(target.Contact.ActorIndex));
+            (packets, _) = packets.AppendContact(target.Packet);
+            mask = mask.Add(NativeBattleSlots.Decode(target.Packet.Primary.ActorIndex));
         }
         (packets, _) = packets.Publish(checked((byte)targets.Length));
         return (packets, mask.Bits);
@@ -38,13 +43,9 @@ public sealed class NativeBattleEffectContactBridge<TRecipient> where TRecipient
     public TRecipient Resolve(NativeBattleContactPacket packet)
     {
         packet.Validate();
-        if (packet.Secondary.ActorIndex != 255)
-        {
-            throw new NotSupportedException("This effect bridge requires a separately represented secondary contact.");
-        }
         foreach (var target in targets)
         {
-            if (target.Contact == packet.Primary)
+            if (target.Packet == packet)
             {
                 return target.Recipient;
             }

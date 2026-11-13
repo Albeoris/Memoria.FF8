@@ -29,7 +29,10 @@ public sealed record NativeBattleEffectPresentationInputs(BattleDefinition Resou
     public int? InitialMusicGain { get; init; }
     public NativeBattleSequenceProcessGlobals? SequenceGlobals { get; init; }
     public NativeBattleEffectCameraMode CameraMode { get; init; }
+    public ImmutableArray<NativeBattleEffectModelBinding> NativeTargets { get; init; } = [];
 }
+
+public sealed record NativeBattleEffectModelBinding(string ActorId, NativeBattleGraphicsModel Model, NativeBattleGraphicsResource Resource);
 
 public enum NativeBattleEffectCameraMode
 {
@@ -86,6 +89,7 @@ public sealed class NativeBattleEffectPresentation : IDisposable
     public short StageColorDepth => StageColor.Depth;
     public short ViewTranslationY => owner.NativeCamera?.ViewTranslationScratch?.Y ?? 0;
     public NativeBattleActionMatrix ForeignPlacement(int index) => owner.ReadEffectPresentationForeignPlacement(index);
+    public bool ReplacesHostModel(int index) => (Graphics.Models[index].Flags0 & 4) != 0;
     public ImmutableArray<NativeBattleArenaReplacement> ArenaReplacements => owner.presentationArena?.Replacements ?? [];
     public NativeBattleUiServices Ui => Graphics.UiServices ?? throw new InvalidDataException("Native presentation lost its UI owner.");
     public NativeBattleStageState Stage => owner.NativeStage ?? throw new InvalidDataException("Native presentation lost its arena owner.");

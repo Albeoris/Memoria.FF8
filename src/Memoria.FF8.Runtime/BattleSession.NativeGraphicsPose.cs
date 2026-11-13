@@ -13,6 +13,10 @@ public sealed partial class BattleSession
         {
             return presentedResource;
         }
+        if (presentationNativeTargets?.TryGetValue(index, out NativeBattleEffectModelBinding? effectTarget) == true && graphics.Models[index].ResourceMagicId is null && graphics.Models[index].ActiveStagedResourceRow100 is null)
+        {
+            return effectTarget.Resource;
+        }
         if ((uint)index >= 7 || graphics.ActorIds[index] is not string actorId)
         {
             throw new InvalidDataException($"Native graphics pose index {index} has no allocated resource owner.");

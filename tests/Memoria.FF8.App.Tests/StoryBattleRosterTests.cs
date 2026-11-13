@@ -100,25 +100,41 @@ public sealed class StoryBattleRosterTests
     [Fact]
     public void MagicalLampEntryKeepsNativeSlots()
     {
-        string path = TestResources.FixturePath("menu-battle-field-entry");
+        string path = TestResources.FixturePath("story-menu-battle-field-entry");
         string directory = TestResources.GameDirectory;
-        Exception? originalCallback = EnterMagicalLampBattle(path, directory, 3);
-        Exception? expandedCallback = EnterMagicalLampBattle(path, directory, 11);
-        Assert.Equal(originalCallback?.GetType(), expandedCallback?.GetType());
-        Assert.Equal(originalCallback?.Message, expandedCallback?.Message);
-        if (originalCallback is not null)
-        {
-            Assert.IsType<NotSupportedException>(originalCallback);
-            Assert.Contains("Native504060 completed blend requires its503300 captured pose", originalCallback.Message);
-        }
+        GameSession original = new(GameSession.Load(path));
+        GameSession expanded = new(GameSession.Load(path));
+        using GameWorld originalWorld = new(original, directory);
+        using GameWorld expandedWorld = new(expanded, directory);
+        BattleSession originalBattle = EnterMagicalLampBattle(originalWorld, original, 3);
+        BattleSession expandedBattle = EnterMagicalLampBattle(expandedWorld, expanded, 11);
+        Assert.Equal(originalWorld.Events.PendingMenuBattle, expandedWorld.Events.PendingMenuBattle);
+        AssertOriginalStoryState(originalBattle, expandedBattle, original.State.CharacterVitals!.CombatParty);
+        AssertJsonEqual(originalBattle.NativeCamera, expandedBattle.NativeCamera);
+
+        const int callbacks = 120;
+        BattleInput tick = new(BattleInputKind.Tick, Frames: callbacks);
+        originalWorld.ApplyBattleInput(tick);
+        expandedWorld.ApplyBattleInput(tick);
+        Assert.Equal(callbacks, originalBattle.NativeHostCallbacks);
+        Assert.Equal(1, originalWorld.Events.Frame);
+        Assert.Equal(originalWorld.Events.Frame, expandedWorld.Events.Frame);
+        Assert.Equal(originalWorld.Events.PendingMenuBattle, expandedWorld.Events.PendingMenuBattle);
+        AssertOriginalStoryState(originalBattle, expandedBattle, original.State.CharacterVitals.CombatParty);
+        AssertJsonEqual(originalBattle.NativeCamera, expandedBattle.NativeCamera);
+
+        BattleSession originalRestored = RestoreAndAdvance(originalWorld, originalBattle);
+        BattleSession expandedRestored = RestoreAndAdvance(expandedWorld, expandedBattle);
+        Assert.Equal(callbacks + 1, originalRestored.NativeHostCallbacks);
+        AssertOriginalStoryState(originalRestored, expandedRestored, original.State.CharacterVitals.CombatParty);
+        AssertJsonEqual(originalRestored.NativeCamera, expandedRestored.NativeCamera);
     }
 
-    private static Exception? EnterMagicalLampBattle(string path, string directory, int battleAllyCount)
+    private static BattleSession EnterMagicalLampBattle(GameWorld world, GameSession session, int battleAllyCount)
     {
-        GameSession session = new(GameSession.Load(path));
-        using GameWorld world = new(session, directory);
         world.EnsureField();
         world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = battleAllyCount });
+        Assert.Equal(battleAllyCount, world.ConfiguredBattleAllyCount);
         if (battleAllyCount == 11)
         {
             AssertFullExpandedRosterAvailable(Assert.IsType<NativeCharacterVitals>(session.State.CharacterVitals));
@@ -133,12 +149,11 @@ public sealed class StoryBattleRosterTests
         Assert.False(battle.UsesExpandedRoster);
         Assert.NotNull(battle.NativeGraphics);
         Assert.Equal(combatParty, session.State.CharacterVitals!.CombatParty);
-        BattleSession restored = Restore(battle);
-        BattleCombatant[] allies = restored.Combatants.Where(actor => actor.IsPlayer).ToArray();
+        BattleCombatant[] allies = battle.Combatants.Where(actor => actor.IsPlayer).ToArray();
         Assert.Equal(combatParty.Select(row => $"party-{row}"), allies.Select(actor => actor.Id));
         Assert.Equal(new[] { 0, 1, 2 }, allies.Select(actor => actor.EncodeNativeSlot()));
-        Assert.Equal(3, Assert.Single(restored.Combatants, actor => !actor.IsPlayer && actor.IsActive).EncodeNativeSlot());
-        return Record.Exception(() => world.ApplyBattleInput(new(BattleInputKind.Tick)));
+        Assert.Equal(3, Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.IsActive).EncodeNativeSlot());
+        return battle;
     }
 
     private static void AssertFullExpandedRosterAvailable(NativeCharacterVitals vitals)

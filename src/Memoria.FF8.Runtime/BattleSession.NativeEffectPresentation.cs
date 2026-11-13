@@ -10,6 +10,7 @@ public sealed partial class BattleSession
     private NativeBattleRibbonProjectionPolicy presentationRibbonProjectionPolicy;
     private NativeBattleEffectModelTransformPolicy presentationModelTransformPolicy;
     private NativeBattleGraphicsResource? presentationSourceResource;
+    private Dictionary<int, NativeBattleEffectModelBinding>? presentationNativeTargets;
     private bool presentationFirstAdvance = true;
     private NativeBattleCameraState? presentationHostCamera;
     private NativeBattleStageState? presentationInitialStage;
@@ -54,6 +55,11 @@ public sealed partial class BattleSession
         nativeGlobalRandom = definition.NativeGlobalRandom;
         presentationSourceResource = inputs.SourceResource;
         presentationForeignActors = inputs.ForeignActors.ToDictionary(actor => actor.Index);
+        presentationNativeTargets = inputs.NativeTargets.ToDictionary(target => target.Model.Index);
+        if (presentationNativeTargets.Keys.Any(index => index < 1 || !NativeBattleSlots.Contains(index) || presentationForeignActors.ContainsKey(index)))
+        {
+            throw new InvalidDataException("An effect model row requires one original actor binding outside its source row.");
+        }
         nativeActionPackets = inputs.Packets.ActivateHeader(inputs.Parameters.HeaderIndex7C);
         NativeEffectMemory = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(definition.NativeRetainedMemory?.EffectMemory ?? NativeBattleEffectMemory.FromColdProcess())) with { Textures = inputs.Textures };
         NativeEffectMemory = NativeBattleGraphicsInitialization.Initialize500520(NativeEffectMemory);
@@ -76,9 +82,13 @@ public sealed partial class BattleSession
         NativeStage = inputs.Arena?.CreatePresentationStage() ?? NativeBattleStageState.FromColdProcess();
         presentationInitialStage = NativeStage;
         ImmutableArray<NativeBattleGraphicsModel> models = NativeBattleGraphicsModels.ClearBank().ToImmutableArray().SetItem(0, inputs.Source);
+        foreach (NativeBattleEffectModelBinding target in presentationNativeTargets.Values)
+        {
+            models = models.SetItem(target.Model.Index, target.Model);
+        }
         models = BindPresentationForeignModels(models);
         presentationInitialUi = NativeBattleUiServices.Initialize();
-        NativeGraphics = InitializeNativePrimitiveFrame500400(new(models, Enumerable.Range(0, models.Length).Select(index => index == 0 ? "source" : presentationForeignActors.ContainsKey(index) ? $"host-{index}" : null).ToImmutableArray(), 0, 0) { UiServices = presentationInitialUi });
+        NativeGraphics = InitializeNativePrimitiveFrame500400(new(models, Enumerable.Range(0, models.Length).Select(index => index == 0 ? "source" : presentationNativeTargets.TryGetValue(index, out NativeBattleEffectModelBinding? target) ? target.ActorId : presentationForeignActors.ContainsKey(index) ? $"host-{index}" : null).ToImmutableArray(), 0, 0) { UiServices = presentationInitialUi });
         NativeGraphics = InitializeEffectPresentationSourceResources(NativeGraphics, inputs.SourceResource, preserveSelectedProgram: true);
         if (inputs.SequenceGlobals is { } sequenceGlobals)
         {
@@ -87,6 +97,19 @@ public sealed partial class BattleSession
         InitializeEffectPresentationServices(inputs.Parameters);
         presentationInitialModels = NativeGraphics!.Models;
         InitializeNativePrimitiveDepth47CE10();
+        if (presentationCameraMode == NativeBattleEffectCameraMode.HostPoseWithEffectTranslation && inputs.Effect == NativeBattleSonic139Profile.Effect)
+        {
+            NativeBattlePrimitiveProcess process = NativeEffectMemory.PrimitiveProcess ?? throw new NotSupportedException("Hosted Sonic Wave requires its original primitive process.");
+            byte buffer = process.Buffer80 ?? throw new NotSupportedException("Hosted Sonic Wave requires its selected draw buffer.");
+            NativeBattleSoftwarePrimitiveState software = process.Software ?? throw new NotSupportedException("Hosted Sonic Wave requires its original software drawing owner.");
+            NativeBattlePcTextureWindowCache cache = process.TextureWindowCache ?? throw new NotSupportedException("Hosted Sonic Wave requires its retained PC texture cache.");
+            NativeBattleGraphicsDefinition graphics = definition.NativeGraphics ?? throw new NotSupportedException("Hosted Sonic Wave requires its original primitive resources.");
+            NativeSoftwarePrimitiveTable softwareTable = graphics.SoftwarePrimitiveTable ?? throw new NotSupportedException("Hosted Sonic Wave requires its original software dispatch table.");
+            bool hardware = graphics.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Hosted Sonic Wave requires its selected hardware execution capability.");
+            NativeBattleSoftwarePrimitiveExecution execution = new(software, inputs.Textures, softwareTable, hardware, cache);
+            execution.ApplyEnvironment45B660(buffer ^ 1);
+            NativeEffectMemory = NativeEffectMemory with { PrimitiveProcess = process with { Software = execution.State, TextureWindowCache = execution.Cache }, Textures = execution.Textures };
+        }
         if (NativeGraphics.ActionGraphics!.Callback == 0x50BC20)
         {
             NativeBattleActionGraphicsState context = NativeGraphics.ActionGraphics;

@@ -210,7 +210,7 @@ public sealed partial class BattleHudController
         }
         if (session.UsesExpandedRoster)
         {
-            return BattleCommandPresentation.Read(actor).Where(choice => choice.Ability is BattleAbility.Attack or BattleAbility.Magic or BattleAbility.Item).ToArray();
+            return BattleCommandPresentation.Read(actor).Where(choice => choice.Ability is BattleAbility.Attack or BattleAbility.Magic or BattleAbility.Item or BattleAbility.Draw).ToArray();
         }
         if (nativeLimitCommandSelected && NativeLimitAvailable && actor.Abilities.Count > 0)
         {

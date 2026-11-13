@@ -269,7 +269,7 @@ internal sealed partial class BattleScenePresentation
         }
         foreach (BattleCombatant actor in session.Combatants)
         {
-            if (!actor.IsActive || actor.Hidden)
+            if (!actor.IsActive || actor.Hidden || session.IsExpandedEffectReplacingModel(actor.Id))
             {
                 continue;
             }

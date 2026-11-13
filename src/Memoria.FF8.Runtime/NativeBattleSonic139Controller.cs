@@ -83,7 +83,7 @@ public static partial class NativeBattleSonic139Controller
             task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, 0x30, workspace);
             int header = Parameters(frame).HeaderIndex7C;
             int count = inputs.Packets.Headers[header].ReadByte(16);
-            if (count is < 1 or > 3)
+            if (count is < 1 or > TargetCapacity)
             {
                 throw new NotSupportedException("Sonic Wave target list must fit its three actual actor fields and nonzero native divisor.");
             }

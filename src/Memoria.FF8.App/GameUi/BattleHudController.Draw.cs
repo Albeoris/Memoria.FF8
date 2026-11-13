@@ -75,6 +75,10 @@ public sealed partial class BattleHudController
 
     private IReadOnlyList<BattleActionDefinition> DrawChoices(bool cast)
     {
+        if (cast && session.UsesExpandedRoster)
+        {
+            return [];
+        }
         int[] selections = session.Combatants.Where(IsDrawSource).SelectMany(actor => actor.NativeDrawSlots).Select(slot => (int)slot.Id).Where(id => id != 0 && (!cast || id < 64)).Distinct().Order().ToArray();
         return selections.Where(id => BestDrawSource(id, cast) is not null).Select(id => id >= 64 ? new BattleActionDefinition(BattleAbility.Draw, id, "????", BattleActionEffect.Native, 0, false) : DrawMagicChoice(id)).ToArray();
     }

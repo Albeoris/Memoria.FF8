@@ -15,12 +15,12 @@
     <Content Include="../../Mods/Memoria/Reorientation/fields/*.json" Link="BundledMods/Memoria/Reorientation/fields/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="../Shared/NativeBattleCommandSequenceFixture.cs" Link="NativeBattleCommandSequenceFixture.cs" />
     <Compile Include="../Shared/Ff7WorldTerrainReference.cs" Link="Ff7WorldTerrainReference.cs" />
-    <Compile Include="../../tools/Memoria.FF8.BattleEffects/FreshEntryRecipeCanonicalization.cs" Link="FreshEntryRecipeCanonicalization.cs" />
     <Using Include="Memoria.FF8.Tests" />
     <Using Include="Xunit" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.runner.visualstudio" />
     <ProjectReference Include="../../src/Memoria.FF8.App/Memoria.FF8.App.csproj" />
+    <ProjectReference Include="../../tools/Memoria.FF8.BattleEffects/Memoria.FF8.BattleEffects.csproj" />
   </ItemGroup>
   <Import Project="../../vendor/MonoGame.Native.Vulkan/NativeVulkan.targets" Condition="'$(MemoriaGraphicsBackend)' == 'Vulkan'" />
   <Target Name="CopyMusicHost" AfterTargets="Build" Condition="'$(SkipMusicHost)' != 'true'">

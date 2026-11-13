@@ -1,12 +1,13 @@
 using System.Text.Json;
 using Memoria.FF8.Assets;
+using Memoria.FF8.BattleEffects;
 using Memoria.FF8.Events;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
-public sealed class ExpandedBattleEffectMatrixTests(ITestOutputHelper output)
+public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper output)
 {
     private const string CasterId = "party-10";
     private const byte InitialStock = 2;
@@ -25,15 +26,22 @@ public sealed class ExpandedBattleEffectMatrixTests(ITestOutputHelper output)
         using GameWorld admissionWorld = StartBattle(directory, field, 0);
         BattleSession admission = Assert.IsType<BattleSession>(admissionWorld.Battle);
         BattleActionDefinition[] admitted = admission.ActionDefinitions.Where(action => action.Ability is BattleAbility.Magic or BattleAbility.Item && admission.SupportsExpandedAction(action)).ToArray();
+        bool requireFull = Environment.GetEnvironmentVariable("MEMORIA_FF8_REQUIRE_FULL_EFFECT_MATRIX") == "1";
+        bool probeEnemies = requireFull || Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT_MATRIX_PROBE_ENEMIES") == "1";
+        EnemyScenarioDiscoveryResult enemies = ScenarioEnemyDiscovery.Discover(assets);
+        ILookup<int, EnemyScenarioScriptedAction> enemyMappings = enemies.ScriptedActions.Where(action => action.NativeEffectId.HasValue).ToLookup(action => action.NativeEffectId!.Value);
+        ILookup<ushort, EnemyScenarioActionOwner> enemyOwners = enemies.Owners.Where(owner => owner.NativeAction is not null).ToLookup(owner => owner.NativeAction!.MagicId);
         Dictionary<string, int> counts = new(StringComparer.Ordinal);
         List<EffectResult> results = [];
         List<string> failures = [];
 
         foreach (NativeBattleEffectBinding effect in catalog)
         {
-            BattleNativeAction[] mappings = assets.NativeActions.Where(action => MappedEffect(action, assets.NativeActions) == effect.Effect).ToArray();
-            BattleActionDefinition? player = admitted.Where(action => action.NativeAction is { } native && MappedEffect(native, assets.NativeActions) == effect.Effect)
+            BattleNativeAction[] mappings = assets.NativeActions.Where(action => ScenarioDiscovery.ResolveCatalogEffect(action, assets.NativeActions) == effect.Effect).ToArray();
+            BattleActionDefinition? player = admitted.Where(action => action.NativeAction is { } native && ScenarioDiscovery.ResolveCatalogEffect(native, assets.NativeActions) == effect.Effect)
                 .OrderBy(action => action.Ability == BattleAbility.Magic ? 0 : 1).ThenBy(action => action.Id).FirstOrDefault();
+            EnemyScenarioScriptedAction[] scripts = enemyMappings[effect.Effect].ToArray();
+            EnemyScenarioActionOwner[] owners = enemyOwners[effect.Effect].ToArray();
             string status;
             string detail;
             try
@@ -46,10 +54,16 @@ public sealed class ExpandedBattleEffectMatrixTests(ITestOutputHelper output)
                 {
                     (status, detail) = RunSonicWave(directory, field, effect, sonicWave);
                 }
+                else if (scripts.Length > 0)
+                {
+                    (status, detail) = RunDiscoveredEnemyCast(directory, field, assets, effect, scripts, probeEnemies);
+                }
                 else
                 {
                     status = "blocked";
-                    detail = mappings.Length == 0 ? "No installed kernel action maps to this binding" : "No mapped action has a supported ordinary expanded command and a prepared recipient route";
+                    detail = owners.Length > 0 ? "Installed enemy ability banks reference this binding. No scanned AI callback establishes its dispatch."
+                        : mappings.Length > 0 ? "Installed kernel rows reference this binding. No mapped command has a supported expanded invocation and a prepared recipient route."
+                        : "No scanned installed kernel row or enemy AI callback maps to this binding. Its original trigger remains unresolved.";
                 }
             }
             catch (Exception failure)
@@ -61,40 +75,27 @@ public sealed class ExpandedBattleEffectMatrixTests(ITestOutputHelper output)
 
             counts[status] = counts.GetValueOrDefault(status) + 1;
             string actions = string.Join(",", mappings.Select(action => $"{action.Command}/{action.ActionId}@{action.KernelSection}/{action.KernelIndex}"));
-            results.Add(new(effect.Effect, status, actions, detail));
+            string[] scripted = scripts.Select(action => $"c0m{action.ModelId:D3}/callback{action.Callback}+{action.Offset}/band{action.LevelBand}/c{action.Command}-a{action.ActionId}-seq{action.Sequence}").ToArray();
+            string[] banks = owners.Select(owner => $"c0m{owner.ModelId:D3}/band{owner.LevelBand}/ability{owner.AbilitySlot}/c{owner.Command}-a{owner.ActionId}-seq{owner.Sequence}").ToArray();
+            results.Add(new(effect.Effect, effect.Entry, effect.Initializer, status, actions, scripted, banks, detail));
             output.WriteLine($"{effect.Effect:D3} {status} [{actions}] {detail}");
         }
 
         if (Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT_MATRIX_REPORT") is { Length: > 0 } reportPath)
         {
             using FileStream report = new(reportPath, FileMode.CreateNew, FileAccess.Write);
-            JsonSerializer.Serialize(report, new { Allies = 11, Enemies = 11, CatalogCount = catalog.Length, Counts = counts, Results = results }, new JsonSerializerOptions { WriteIndented = true });
+            JsonSerializer.Serialize(report, new { Allies = 11, Enemies = 11, CatalogCount = catalog.Length, ProbedEnemyRoutes = probeEnemies, Counts = counts, Results = results, EnemyDiscoveryIssues = enemies.Issues }, new JsonSerializerOptions { WriteIndented = true });
         }
         output.WriteLine($"11x11 installed effects: {catalog.Length} catalog, {counts.GetValueOrDefault("native")} native, {counts.GetValueOrDefault("logical")} logical, {counts.GetValueOrDefault("blocked")} blocked, {counts.GetValueOrDefault("failed")} failed.");
         Assert.True(counts.GetValueOrDefault("native") > 0, "The installed expanded host did not present any catalog effect.");
         Assert.Empty(failures);
-        if (Environment.GetEnvironmentVariable("MEMORIA_FF8_REQUIRE_FULL_EFFECT_MATRIX") == "1")
+        if (requireFull)
         {
             Assert.True(counts.GetValueOrDefault("blocked") == 0 && counts.GetValueOrDefault("logical") == 0, $"The installed catalog still has {counts.GetValueOrDefault("blocked")} unexecuted and {counts.GetValueOrDefault("logical")} logic-only effects in 11x11.");
         }
     }
 
-    private sealed record EffectResult(ushort Effect, string Status, string Actions, string Detail);
-
-    private static ushort? MappedEffect(BattleNativeAction action, IReadOnlyList<BattleNativeAction> actions)
-    {
-        if (action.KernelSection != 7 || action.AttackType != 14)
-        {
-            return action.MagicId;
-        }
-        if (action.ActionId == 30)
-        {
-            // The PocketStation item selects its summon dynamically.
-            return null;
-        }
-        BattleNativeAction[] children = actions.Where(child => child.Command == 244 && child.ActionId == action.MagicId).ToArray();
-        return children.Length == 1 ? children[0].MagicId : null;
-    }
+    private sealed record EffectResult(ushort Effect, uint Entry, uint Initializer, string Status, string Actions, string[] EnemyCallbacks, string[] EnemyAbilityRows, string Detail);
 
     private static (string Status, string Detail) RunPlayerCast(string directory, GameState field, NativeBattleEffectBinding effect, BattleActionDefinition action)
     {
@@ -142,7 +143,7 @@ public sealed class ExpandedBattleEffectMatrixTests(ITestOutputHelper output)
         Assert.InRange(actionIndex, 0, hud.ActionChoices.Count - 1);
         hud.Choose(actionIndex);
         Assert.True(hud.SelectingTarget);
-        BattleCombatant target = Assert.IsType<BattleCombatant>(hud.Targets.LastOrDefault());
+        BattleCombatant target = Assert.IsType<BattleCombatant>(effect.Effect is 1 or 25 ? hud.Targets.Single(candidate => candidate.Id == "party-9") : hud.Targets.LastOrDefault());
         bool revival = action.NativeAction?.AttackType is 5 or 6;
         if (revival)
         {
@@ -152,6 +153,8 @@ public sealed class ExpandedBattleEffectMatrixTests(ITestOutputHelper output)
         }
         hud.SelectTarget(target.Id, false);
         string[] expected = hud.SelectingTargetGroup ? hud.Targets.Select(actor => actor.Id).Order().ToArray() : [target.Id];
+        int casterHpBefore = caster.CurrentHp;
+        int targetHpBefore = target.CurrentHp;
         int before = battle.Events.Count;
         hud.Attack();
         Assert.True(caster.IsBusy);
@@ -196,6 +199,20 @@ public sealed class ExpandedBattleEffectMatrixTests(ITestOutputHelper output)
         }
         uint[] nativeSounds = castEvents.Where(entry => entry.NativeModuleSound is not null).Select(entry => entry.NativeModuleSound!.Sound).ToArray();
         string detail = $"{action.Ability}/{action.Id} {action.Name}, {caster.Id}, {contacts.Length} recipient(s), stock {InitialStock}->{Stock()}, overlay={hasOverlay}, camera_shake={hasCameraShake}, native_sounds={nativeSounds.Length}";
+        if (effect.Effect == 39)
+        {
+            BattleEvent primary = Assert.Single(contacts);
+            BattleEvent secondary = Assert.Single(castEvents, entry => entry.Kind == "SecondaryEffectContact");
+            Assert.Equal(caster.Id, secondary.TargetId);
+            Assert.Equal(BattleAbility.Magic, secondary.Ability);
+            Assert.Single(castEvents, entry => entry.Kind == "EffectDamage" && entry.TargetId == target.Id && entry.Amount == primary.Amount);
+            Assert.Single(castEvents, entry => entry.Kind == "EffectHealing" && entry.TargetId == caster.Id && entry.Amount == secondary.Amount);
+            Assert.True(primary.Amount > 0 && secondary.Amount > 0);
+            Assert.True(casterHpBefore < caster.MaximumHp);
+            Assert.Equal(Math.Max(0, targetHpBefore - primary.Amount), target.CurrentHp);
+            Assert.Equal(Math.Min(caster.MaximumHp, casterHpBefore + secondary.Amount), caster.CurrentHp);
+            detail += $", target_hp={targetHpBefore}->{target.CurrentHp}, caster_hp={casterHpBefore}->{caster.CurrentHp}, secondary_contact={secondary.Amount}";
+        }
         if (presentation is null)
         {
             Assert.Equal(BattleAbility.Item, action.Ability);
@@ -268,7 +285,7 @@ public sealed class ExpandedBattleEffectMatrixTests(ITestOutputHelper output)
         };
     }
 
-    private static GameWorld StartBattle(string directory, GameState field, ushort formation, BattleActionDefinition? action = null)
+    private static GameWorld StartBattle(string directory, GameState field, ushort formation, BattleActionDefinition? action = null, bool requireExpanded = true)
     {
         GameSession session = new(field);
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
@@ -316,9 +333,12 @@ public sealed class ExpandedBattleEffectMatrixTests(ITestOutputHelper output)
             session.SetRandomEncounters(new(true, NativeRandomEncounterState.FromColdProcess(), new(SceneKind.Field, 133, world.Events.Frame, formation, source)));
             world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 0));
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
-            Assert.True(battle.UsesExpandedRoster);
-            Assert.Equal(11, battle.Combatants.Count(actor => actor.IsPlayer));
-            Assert.Equal(11, battle.Combatants.Count(actor => !actor.IsPlayer && actor.IsActive));
+            if (requireExpanded || battle.UsesExpandedRoster)
+            {
+                Assert.True(battle.UsesExpandedRoster);
+                Assert.Equal(11, battle.Combatants.Count(actor => actor.IsPlayer));
+                Assert.Equal(11, battle.Combatants.Count(actor => !actor.IsPlayer && actor.IsActive));
+            }
             return world;
         }
         catch
