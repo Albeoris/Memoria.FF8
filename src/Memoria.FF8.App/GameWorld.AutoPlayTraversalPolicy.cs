@@ -325,6 +325,14 @@ internal static class AutoPlayTraversalPolicy
             ("862:2552", "862:gateway:0") => -7,
             ("863:2552", "863:line:9" or "863:line-action:9") => -8,
             ("870:2552", "870:gateway:0") => -9,
+            // NG-077: Cross the original Memorial admission and capsule triggers.
+            ("497:3167", "497:gateway:0") => -1,
+            ("489:3167", "489:line:19" or "489:line-action:19") => -2,
+            ("489:3200", "489:gateway:0") => -3,
+            ("869:3210", "869:line:15" or "869:line-action:15") => -4,
+            ("869:3220", "869:gateway:0") => -5,
+            ("491:3220", "491:line:9" or "491:line-action:9") => -6,
+            ("489:3300", "489:line:16" or "489:line:17" or "489:line:18") => -7,
             _ => 0
         };
     }
