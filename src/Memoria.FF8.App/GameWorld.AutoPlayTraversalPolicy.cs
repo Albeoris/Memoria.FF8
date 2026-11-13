@@ -7,7 +7,12 @@ internal static class AutoPlayTraversalPolicy
 {
     internal const string MissileLauncherProgram = "89A2114D0D0CE9310CFE1ECE116B57C9DA2C8E608194D3D11CD73C179D5031AC";
 
-    public static int ProgressionEntryOrder(AutoPlayVisit visit, AutoPlayEvent item, int galbadiaKeys = 0, bool hasIntroductionLetter = false, int laboratoryProgress = 0)
+    public static int ProgressionEntryOrder(AutoPlayVisit visit, AutoPlayEvent item)
+    {
+        return ProgressionEntryOrder(visit, item, 0, false, 0);
+    }
+
+    public static int ProgressionEntryOrder(AutoPlayVisit visit, AutoPlayEvent item, int galbadiaKeys, bool hasIntroductionLetter, int laboratoryProgress)
     {
         if (visit.Key.EndsWith(":894", StringComparison.Ordinal) && GalbadiaKeyRouteOrder(galbadiaKeys, item.Id) is int keyOrder)
         {
