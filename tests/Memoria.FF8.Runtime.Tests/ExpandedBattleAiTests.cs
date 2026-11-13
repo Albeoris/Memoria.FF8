@@ -86,6 +86,23 @@ public sealed class ExpandedBattleAiTests
         Assert.Equal(216, Assert.Single(restored.Combatants, actor => actor.Id == "enemy-4").Attack);
     }
 
+    [Theory]
+    [InlineData(1, 11)]
+    [InlineData(2, 22)]
+    public void InstalledActionShapeRepeatsTheWholeAllySideInOrder(byte hitCount, int contactCount)
+    {
+        BattleNativeAction native = Physical with { AttackType = 27, Power = 1, Hit = 99, HitCount = hitCount };
+        Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(Ai([4, 204, 7, 1, 6, 0]), [native], 0));
+        BattleSession battle = Start([4, 204, 7, 1, 6, 0], 11, 11, native: native);
+        for (int tick = 0; tick <= BattleSession.AttackWindupFrames; tick++)
+        {
+            battle.Tick();
+        }
+        string?[] contacts = battle.Events.Where(entry => entry.Kind == "EffectContact" && entry.ActorId == "enemy-4").Select(entry => entry.TargetId).ToArray();
+        Assert.Equal(contactCount, contacts.Length);
+        Assert.Equal(Enumerable.Range(0, hitCount).SelectMany(_ => Enumerable.Range(0, 11).Select(slot => $"ally-{slot}")), contacts);
+    }
+
     [Fact]
     public void HitCallbackQueuesOneCounterAgainstTheEleventhAllyAndSurvivesRestore()
     {
@@ -120,7 +137,7 @@ public sealed class ExpandedBattleAiTests
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
     }
 
-    private static BattleSession Start(byte[] turn, int allyCount, int enemyCount, byte seed = 0)
+    private static BattleSession Start(byte[] turn, int allyCount, int enemyCount, byte seed = 0, BattleNativeAction? native = null)
     {
         BattleCombatantDefinition[] allies = Enumerable.Range(0, allyCount).Select(i => new BattleCombatantDefinition { Id = $"ally-{i}", Name = $"Ally {i}", IsPlayer = true, ModelId = i, CurrentHp = 100 + i, MaximumHp = 100 + i, Speed = 1 }).ToArray();
         BattleCombatantDefinition[] enemies = Enumerable.Range(0, enemyCount).Select(i => new BattleCombatantDefinition
@@ -129,7 +146,7 @@ public sealed class ExpandedBattleAiTests
             InitialAtb = i == 4 ? BattleSession.AtbMaximum : 0, NativeAi = i == 4 ? Ai(turn) : null,
             ExpandedEnemyBaseStatistics = turn[0] == 40 ? [-20, 0, 0, 0, 1, 0] : null
         }).ToArray();
-        BattleSession battle = new(new() { UsesExpandedRoster = true, Combatants = [.. allies, .. enemies], NativeActions = [Physical], NativeSeed = seed }, BattleAtbMode.Normal);
+        BattleSession battle = new(new() { UsesExpandedRoster = true, Combatants = [.. allies, .. enemies], NativeActions = [native ?? Physical], NativeSeed = seed }, BattleAtbMode.Normal);
         battle.Tick();
         return battle;
     }
