@@ -308,9 +308,15 @@ public sealed partial class WorldMachine
             return;
         }
         int right = Pop();
-        if (opcode == 0x19)
+        if (opcode is 0x18 or 0x19 or 0x1B)
         {
-            Push(new(0x110, host.ReadModelDistance(active.Model, right)));
+            int value = opcode switch
+            {
+                0x18 => host.ReadZoneDistance(active.Model, right),
+                0x19 => host.ReadModelDistance(active.Model, right),
+                _ => host.ReadZoneDirection(active.Model, right) >> 4
+            };
+            Push(new(0x110, value));
             return;
         }
         if (opcode is 0x15 or 0x17)

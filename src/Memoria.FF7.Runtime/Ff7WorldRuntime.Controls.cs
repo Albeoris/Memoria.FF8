@@ -18,11 +18,17 @@ public sealed partial class Ff7WorldRuntime
         input = input with { FreeDirectionOffset = entity.TargetDirection + (input.CameraHeadingTarget ?? camera.Heading) - 2048 };
     }
 
-    private void ApplyWorldControlOptions(ref Ff7WorldEntity player, ref int dx, ref int dz, int heading)
+    private ushort WorldControlHeld()
     {
         ushort held = input.Held;
         held |= input.Horizontal < 0 ? (ushort)0x8000 : input.Horizontal > 0 ? (ushort)0x2000 : (ushort)0;
         held |= input.Vertical < 0 ? (ushort)0x1000 : input.Vertical > 0 ? (ushort)0x4000 : (ushort)0;
+        return held;
+    }
+
+    private void ApplyWorldControlOptions(ref Ff7WorldEntity player, ref int dx, ref int dz, int heading)
+    {
+        ushort held = WorldControlHeld();
         ushort pressed = (ushort)(held & ~input.PreviousControlHeld);
         if ((held & 12) != 0 && viewMode is not (2 or 3))
         {

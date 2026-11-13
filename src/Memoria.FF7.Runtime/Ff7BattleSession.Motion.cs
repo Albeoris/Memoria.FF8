@@ -162,15 +162,20 @@ public sealed partial class Ff7BattleSession
         return animations!.Placement.Party(Layout, members.Length, slot, index, backRow);
     }
 
-    private Ff7BattleMotion? BeginApproach(Ff7BattleActionState action, int standoff, int steps, short[]? verticalSteps = null)
+    private Ff7BattleMotion? BeginApproach(Ff7BattleActionState action, int standoff, int steps, short[]? verticalSteps = null, int? actor = null)
     {
         Ff7BattleQueuedCommand command = action.Command;
         Ff7BattleActorState[] targets = state.Actors.Where(target => (command.TargetMask & 1 << target.Actor.Slot) != 0).ToArray();
         if (targets.Length == 0 || steps == 0)
         {
-            return action.Motion;
+            return actor is null ? action.Motion : ActorModelState(actor.Value).Motion;
         }
-        Ff7BattlePosition origin = action.Motion?.Position ?? Ff7BattlePosition.FromVector(VisualPlacement(command.ActorSlot).Position);
+        int source = actor ?? command.ActorSlot;
+        Ff7BattlePosition origin = Ff7BattlePosition.FromVector(VisualPlacement(source).Position);
+        if (actor is null && action.Motion is { } motion)
+        {
+            origin = motion.Position;
+        }
         Ff7BattlePosition center = default;
         int angle = 0;
         int radii = 0;
@@ -188,19 +193,19 @@ public sealed partial class Ff7BattleSession
         double radians = yaw * Math.Tau / 4096;
         int sine = (int)Math.Round(Math.Sin(radians) * 4096);
         int cosine = (int)Math.Round(Math.Cos(radians) * 4096);
-        Ff7BattlePosition destination = new(center.X - (sine * distance >> 12), targets.Length == 1 && command.ActorSlot >= 4 ? center.Y : origin.Y, center.Z + (cosine * distance >> 12));
+        Ff7BattlePosition destination = new(center.X - (sine * distance >> 12), targets.Length == 1 && source >= 4 ? center.Y : origin.Y, center.Z + (cosine * distance >> 12));
         return new(origin, (destination - origin) / steps, steps, verticalSteps);
     }
 
-    private int? TurnTowardTarget(Ff7BattleActionState action)
+    private int? TurnTowardTarget(Ff7BattleActionState action, int? actor = null)
     {
-        int source = action.Command.ActorSlot;
+        int source = actor ?? action.Command.ActorSlot;
         int target = BitOperations.TrailingZeroCount((uint)action.Command.TargetMask);
         if (target >= Ff7NativeAtb.SlotCount || target == source)
         {
-            return action.FacingYaw;
+            return actor is null ? action.FacingYaw : ActorModelState(source).FacingYaw;
         }
-        Vector3 start = action.Motion?.Position.ToVector() ?? HomePlacement(source).Position;
+        Vector3 start = actor is null ? action.Motion?.Position.ToVector() ?? HomePlacement(source).Position : VisualPlacement(source).Position;
         Vector3 end = HomePlacement(target).Position;
         double direction = Math.Atan2(end.X - start.X, end.Z - start.Z);
         return ((int)Math.Round(direction * 4096 / Math.Tau) + 2048) & 4095;

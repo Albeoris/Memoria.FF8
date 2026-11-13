@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using Memoria.FF7.Events;
 
 namespace Memoria.FF7.Runtime;
@@ -53,22 +53,6 @@ public sealed partial class Ff7WorldRuntime
             return entity;
         }
         return entity with { X = Wrap(entity.X + dx, 0x48000), Z = Wrap(entity.Z + dz, 0x38000), Flags = entity.Flags | 1 };
-    }
-
-    private Ff7WorldEntity MoveChocoboScript(Ff7WorldEntity entity, int scriptWord)
-    {
-        if (entity.Speed == 0 && entity.VerticalSpeed == 0 && entity.VerticalVelocity == 0)
-        {
-            return entity;
-        }
-        if (entity.Model != YellowChocoboModel)
-        {
-            throw new NotSupportedException($"FFVII world model {entity.Model} has no supported scripted movement contract at word {scriptWord:X4}.");
-        }
-        int speed = entity.Speed << ((entity.Flags & 64) != 0 ? 4 : 0);
-        Vector3 step = inputMath.TransformRotation(new(0, 0, speed), 0, entity.ScriptDirection ?? entity.TargetDirection, 0);
-        entity = OffsetWorldEntity(entity, (int)step.X, (int)step.Z);
-        return entity with { Elevation = unchecked((short)(entity.Elevation - entity.VerticalSpeed)), Y = entity.Y + entity.VerticalVelocity };
     }
 
     private void AdvanceChocoboTransport()
@@ -163,7 +147,7 @@ public sealed partial class Ff7WorldRuntime
     {
         ValidateChocoboRelease(state.Chocobo?.Release, state.WorldMapState);
         WorldEntitySnapshot[] detached = state.Vm.Models.Where(model => model.Detached).ToArray();
-        if (state.Entities.Any(entity => entity.ScriptDirection is < 0 or > 4095 || entity.ScriptDirection.HasValue && entity.Model != YellowChocoboModel) || state.Chocobo is { } bird && (bird.CancelHeldTicks is < 0 or > 15 || bird.DismountPhase is < 0 or > 2 || !state.Entities.Any(entity => entity.Model == YellowChocoboModel) || bird.RiderModel is not null && (bird.ReleaseRequested || bird.Landing is not null || bird.Release is not null) || bird.RiderModel is null && bird.Landing is null) ||
+        if (state.Entities.Any(entity => entity.ScriptDirection is < 0 or > 4095 || entity.ScriptDirection.HasValue && state.WorldId != 2 && entity.Model != YellowChocoboModel) || state.Chocobo is { } bird && (bird.CancelHeldTicks is < 0 or > 15 || bird.DismountPhase is < 0 or > 2 || !state.Entities.Any(entity => entity.Model == YellowChocoboModel) || bird.RiderModel is not null && (bird.ReleaseRequested || bird.Landing is not null || bird.Release is not null) || bird.RiderModel is null && bird.Landing is null) ||
             state.Chocobo?.RiderModel is int rider && (state.ControlledModel != YellowChocoboModel || rider is not (0 or 1 or 2) || detached.Length != 1 || detached[0].Model != rider) ||
             state.Chocobo?.RiderModel is null && (detached.Length != 0 || state.ControlledModel == YellowChocoboModel))
         {

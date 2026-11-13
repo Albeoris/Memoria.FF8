@@ -27,6 +27,10 @@ public sealed partial class Ff7WorldRuntime
         inputInstallation = installation;
         collisionMasks = Ff7PcExecutableData.LoadWorldCollisionMasks(installation);
         int savedHeading = persistent[0x3F8] | (persistent[0x3F9] & 15) << 8;
+        if (Resources.World == 2 && entryModule == 0 && entrySelector != 0)
+        {
+            savedHeading = 0;
+        }
         camera = camera with { Heading = viewMode == 2 ? savedHeading : 0 };
         input = input with { CameraHeadingTarget = camera.Heading };
     }
@@ -85,8 +89,9 @@ public sealed partial class Ff7WorldRuntime
             }
             return;
         }
-        if (Resources.World == 2 && player.Model == SubmarineModel && input.Held == 0 && input.Horizontal == 0 && input.Vertical == 0)
+        if (Resources.World == 2 && player.Model == SubmarineModel)
         {
+            AdvanceUnderwaterSubmarineInput(player);
             return;
         }
         if (player.Model is not (0 or 1 or 2 or YellowChocoboModel))
@@ -164,7 +169,7 @@ public sealed partial class Ff7WorldRuntime
             return;
         }
         Ff7WorldEntity player = RequireEntity(controlledModel);
-        if (Resources.World == 2 && player.Model == SubmarineModel && (mainState < 0 || pendingWorldBattle is not null))
+        if (Resources.World == 2 && player.Model == SubmarineModel)
         {
             ResolveUnderwaterSubmarineTerrain(player);
             return;
@@ -309,33 +314,38 @@ public sealed partial class Ff7WorldRuntime
                 UpdateEntity(entity);
                 continue;
             }
-            if (!leaderAnimations.TryGetValue(entity.Model, out var animationResources))
-            {
-                Ff7WorldCharacterDescriptor descriptor = Ff7PcExecutableData.LoadWorldCharacterDescriptor(inputInstallation, entity.Model);
-                animationResources = (descriptor, descriptor.Load(Resources));
-                leaderAnimations.Add(entity.Model, animationResources);
-            }
-            int dx = WrappedDifference(entity.X - entity.PreviousX, 0x48000);
-            int dz = WrappedDifference(entity.Z - entity.PreviousZ, 0x38000);
-            int animation = entity.Animation != 0 ? Math.Max(0, entity.Animation) : dx * dx + dz * dz >= 100 ? 1 : 0;
-            animation = Math.Min(animation, animationResources.Descriptor.Animations.Count - 1);
-            PcFieldAnimation clip = animationResources.Models.Animations[animationResources.Descriptor.Animations[animation]];
-            int frame = entity.AnimationFrame;
-            if (frame >= clip.Frames.Count)
-            {
-                frame = (entity.Flags & 32) != 0 ? clip.Frames.Count - 1 : 0;
-            }
-            int divisor = entity.FrameDivisor >> 4;
-            int remainder = entity.FrameRemainder;
-            int nextFrame = frame;
-            if (divisor != 0)
-            {
-                remainder += 2;
-                nextFrame = unchecked((byte)(frame + remainder / divisor));
-                remainder %= divisor;
-            }
-            UpdateEntity(entity with { PoseAnimation = animation, PoseFrame = frame, AnimationFrame = nextFrame, FrameRemainder = remainder });
+            UpdateEntity(AdvanceWorldModelAnimation(entity));
         }
+    }
+
+    private Ff7WorldEntity AdvanceWorldModelAnimation(Ff7WorldEntity entity)
+    {
+        if (!leaderAnimations.TryGetValue(entity.Model, out var animationResources))
+        {
+            Ff7WorldCharacterDescriptor descriptor = Ff7PcExecutableData.LoadWorldCharacterDescriptor(inputInstallation, entity.Model, Resources.World);
+            animationResources = (descriptor, descriptor.Load(Resources));
+            leaderAnimations.Add(entity.Model, animationResources);
+        }
+        int dx = WrappedDifference(entity.X - entity.PreviousX, 0x48000);
+        int dz = WrappedDifference(entity.Z - entity.PreviousZ, 0x38000);
+        int animation = entity.Animation != 0 ? Math.Max(0, entity.Animation) : dx * dx + dz * dz >= 100 ? 1 : 0;
+        animation = Math.Min(animation, animationResources.Descriptor.Animations.Count - 1);
+        PcFieldAnimation clip = animationResources.Models.Animations[animationResources.Descriptor.Animations[animation]];
+        int frame = entity.AnimationFrame;
+        if (frame >= clip.Frames.Count)
+        {
+            frame = (entity.Flags & 32) != 0 ? clip.Frames.Count - 1 : 0;
+        }
+        int divisor = entity.FrameDivisor >> 4;
+        int remainder = entity.FrameRemainder;
+        int nextFrame = frame;
+        if (divisor != 0)
+        {
+            remainder += 2;
+            nextFrame = unchecked((byte)(frame + remainder / divisor));
+            remainder %= divisor;
+        }
+        return entity with { PoseAnimation = animation, PoseFrame = frame, AnimationFrame = nextFrame, FrameRemainder = remainder };
     }
 
     private PcWorldMesh GetWorldCollisionMesh(int chunkX, int chunkZ)
@@ -352,7 +362,7 @@ public sealed partial class Ff7WorldRuntime
 
     private int ResolveCollisionBlock(int chunkX, int chunkZ, int mapState)
     {
-        return Resources.World == 2 ? ResolveUnderwaterBlock(chunkX, chunkZ) : Ff7WorldVisibility.ResolveBlockIndex((chunkZ >> 2) * 9 + (chunkX >> 2), mapState);
+        return Resources.World == 2 ? Ff7WorldVisibility.ResolveUnderwaterBlock(chunkX, chunkZ) : Ff7WorldVisibility.ResolveBlockIndex((chunkZ >> 2) * 9 + (chunkX >> 2), mapState);
     }
 
     private (int Height, int Terrain)? QueryTerrain(int x, int z, int previousHeight, int previousTerrain, int model, bool dismount = false)

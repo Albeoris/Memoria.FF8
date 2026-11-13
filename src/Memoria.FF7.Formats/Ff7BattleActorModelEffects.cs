@@ -1,9 +1,13 @@
+using System.Collections.Immutable;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF7.Formats;
 
 public sealed record Ff7BattleActorModelModifiers(bool ScaleOverride = false, byte Red = 0, byte Green = 0, byte Blue = 0, ushort Transparency = 0, bool Visible = true, bool Deferred = false, bool ExtraEnabled = false, float ExtraAngleX = 0, float ExtraAngleY = 0, float ExtraAngleZ = 0, float ExtraX = 0, float ExtraY = 0, float ExtraZ = 0)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableDictionary<int, uint>? TexturePalette { get; init; }
+
     [JsonIgnore]
     public BattleActorPoseTransform? PoseTransform => ExtraEnabled ? new(ExtraAngleX, ExtraAngleY, ExtraAngleZ, ExtraX, ExtraY, ExtraZ) : null;
 

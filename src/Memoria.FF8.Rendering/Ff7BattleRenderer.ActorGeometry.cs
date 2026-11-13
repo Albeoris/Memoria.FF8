@@ -54,12 +54,7 @@ public sealed partial class Ff7BattleRenderer
                     {
                         throw new InvalidDataException("The posed host polygon references an absent texture.");
                     }
-                    PcTexture texture = textures[group.TextureNumber];
-                    if (!images.TryGetValue(texture, out image))
-                    {
-                        image = Ff7FieldRenderer.DecodeTexture(texture);
-                        images.Add(texture, image);
-                    }
+                    image = BattleModelTexture(textures[group.TextureNumber], group.TextureNumber, actor.ModelModifiers?.TexturePalette);
                 }
                 NativeBattleForeignRenderMaterial surfaceMaterial = new(new(image, materialState.Blend, materialState.DepthTest ? TriangleDepthComparison.GreaterEqual : TriangleDepthComparison.Always, materialState.DepthWrite, materialState.AlphaReference, materialState.Sampler) { PreserveTargetAlpha = false, TextureSelectsAlpha = false }, materialState.Cull);
                 for (int polygonIndex = group.PolygonStart; polygonIndex < group.PolygonStart + group.PolygonCount; polygonIndex++)

@@ -242,7 +242,13 @@ public static class Ff7NativeBattleActionResolver
         int mode = Ff7NativeBattleStatuses.ReadRecordMode(record);
         uint mask = ReadStatusMask(record);
         uint supportedStatuses = guestContact ? Ff7GuestBattleStatuses.SupportedHost | Ff7NativeBattleStatuses.SupportedRecordStatuses : SupportedRecordStatuses;
-        if ((mask & ~supportedStatuses) != 0 || record is { AdditionalEffect: not byte.MaxValue })
+        if (mode == 1)
+        {
+            supportedStatuses |= 0x100 | Stop;
+        }
+        // The original 0x87 entry has no handler in any native damage-resolution phase.
+        bool unsupportedEffect = record is { AdditionalEffect: not byte.MaxValue } && record is not { DamageCalculation: 0x6D, AdditionalEffect: 0x87 };
+        if ((mask & ~supportedStatuses) != 0 || unsupportedEffect)
         {
             throw new NotSupportedException($"FFVII attack has unsupported additional effect or status mask 0x{mask:X8}.");
         }

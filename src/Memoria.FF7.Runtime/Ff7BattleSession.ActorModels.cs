@@ -1,3 +1,5 @@
+using System.Buffers.Binary;
+using System.Collections.Immutable;
 using System.Numerics;
 using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
@@ -11,7 +13,11 @@ public readonly record struct Ff7BattleWorldJoint(float X, float Y, float Z)
 }
 
 public sealed record Ff7BattleActorRenderState(int Clip, int Frame, Ff7BattlePosition Position, int Yaw, Ff7BattleActorModelModifiers Modifiers, ushort? Limit = null, short ProjectedScreenX = -1);
-public sealed record Ff7BattleActorModelState(int Slot, short Action = 0, BattleActionPoseState? Pose = null, bool Ready = true, ushort? Limit = null, long? IdleStarted = null, bool Reaction = false, long PendingSince = -1, Ff7BattleActorModelModifiers? Modifiers = null, Ff7BattlePosition? Position = null, int? FacingYaw = null, Ff7BattleWorldJoint[]? Joints = null, Ff7BattleActorRenderState? Render = null, bool ReactionKnockedOut = false, bool? PresentedKnockedOut = null);
+public sealed record Ff7BattleActorModelState(int Slot, short Action = 0, BattleActionPoseState? Pose = null, bool Ready = true, ushort? Limit = null, long? IdleStarted = null, bool Reaction = false, long PendingSince = -1, Ff7BattleActorModelModifiers? Modifiers = null, Ff7BattlePosition? Position = null, int? FacingYaw = null, Ff7BattleWorldJoint[]? Joints = null, Ff7BattleActorRenderState? Render = null, bool ReactionKnockedOut = false, bool? PresentedKnockedOut = null)
+{
+    public bool LinkedAction { get; init; }
+    public Ff7BattleMotion? Motion { get; init; }
+}
 
 public sealed partial class Ff7BattleSession
 {
@@ -81,7 +87,7 @@ public sealed partial class Ff7BattleSession
             return;
         }
         Ff7BattleActorModelState model = ActorModelState(action.Command.ActorSlot);
-        ReplaceActorModel(model with { Action = checked((short)action.Animation), Pose = null, Ready = false, Limit = action.Command.CommandId == (byte)Ff7BattleCommand.Limit ? action.Command.Argument : null, IdleStarted = null, Reaction = false, PendingSince = -1 });
+        ReplaceActorModel(model with { Action = checked((short)action.Animation), Pose = null, Ready = false, Limit = action.Command.CommandId == (byte)Ff7BattleCommand.Limit ? action.Command.Argument : null, IdleStarted = null, Reaction = false, PendingSince = -1, LinkedAction = false, Motion = null });
     }
 
     private void PublishSourceModel(Ff7BattleActionState action, BattleActionPoseState? pose)
@@ -145,14 +151,65 @@ public sealed partial class Ff7BattleSession
         return actor == state.ModelPrimaryTarget || state.ActorModels.Length == 0 || state.ModelPrimaryTarget < 10 && (state.ActorModels.SingleOrDefault(model => model.Slot == state.ModelPrimaryTarget)?.Ready ?? true);
     }
 
+    private void ApplyActorPaletteColor(int actor, ReadOnlySpan<byte> operands)
+    {
+        if (actor is < 6 or >= 10 || operands[0] is < 1 or > 7 || state.ActorModels.SingleOrDefault(model => model.Slot == 4) is not { } model)
+        {
+            throw new NotSupportedException("FFVII battle palette opcode requires the original paired enemy texture layout.");
+        }
+
+        int paletteIndex = (actor - 6) * 8 + operands[0];
+        uint color = BinaryPrimitives.ReadUInt16LittleEndian(operands[1..]);
+        uint argb = 0xFF000000 | (color & 0x7C00) << 9 | (color & 0x03E0) << 6 | (color & 0x001F) << 3;
+        Ff7BattleActorModelModifiers modifiers = model.Modifiers!;
+        ImmutableDictionary<int, uint> palette = modifiers.TexturePalette ?? ImmutableDictionary<int, uint>.Empty;
+        ReplaceActorModel(model with { Modifiers = modifiers with { TexturePalette = palette.SetItem(paletteIndex, argb) } });
+    }
+
+    private void DispatchLinkedActorAction(int source, BattleActionInstruction instruction, bool copyFacing)
+    {
+        ReadOnlySpan<byte> operands = instruction.Operands.Span;
+        int target = source + BinaryPrimitives.ReadInt16LittleEndian(operands);
+        if (target is < 4 or >= 10 || state.ActorModels.SingleOrDefault(model => model.Slot == target && model.Modifiers!.Visible) is not { } model)
+        {
+            return;
+        }
+
+        int currentFrame = VisualPose(target).Frame;
+        ReplaceActorModel(model with
+        {
+            Action = operands[2],
+            Pose = new() { ContinuedClipFrame = currentFrame },
+            Ready = false,
+            Limit = null,
+            IdleStarted = null,
+            Reaction = true,
+            PendingSince = -1,
+            FacingYaw = copyFacing ? VisualPlacement(source).Yaw : model.FacingYaw,
+            ReactionKnockedOut = false,
+            LinkedAction = true
+        });
+    }
+
     private void AdvanceActorReactionModels(int minimum, int maximum)
     {
         if (animations is null)
         {
             return;
         }
-        foreach (Ff7BattleActorModelState previous in state.ActorModels.Where(model => model.Slot >= minimum && model.Slot < maximum && model.Reaction && model.PendingSince < PresentationTick).OrderBy(model => model.Slot).ToArray())
+        foreach (int slot in state.ActorModels.Where(model => model.Slot >= minimum && model.Slot < maximum).Select(model => model.Slot).Order())
         {
+            Ff7BattleActorModelState previous = ActorModelState(slot);
+            if (!previous.Reaction || previous.PendingSince >= PresentationTick)
+            {
+                continue;
+            }
+            if (previous.Motion is { } motion)
+            {
+                motion = motion.Advance();
+                previous = previous with { Motion = motion.Remaining == 0 ? null : motion, Position = motion.Position };
+                ReplaceActorModel(previous);
+            }
             BattleActionSequence sequence = animations.Get(ActorModel(previous.Slot), previous.Action);
             BattleActionPoseUpdate update = sequence.Advance(previous.PendingSince >= 0 ? new() : previous.Pose ?? new(), effectReady: true, primaryCallbacksReady: !HasPrimaryPresentationCallbacks, linkedActorReady: LinkedModelReady(previous.Slot));
             ObserveModelClip(previous, update.State);
@@ -162,6 +219,45 @@ public sealed partial class Ff7BattleSession
             {
                 switch (instruction.Opcode)
                 {
+                    case 0x90:
+                        ApplyActorPaletteColor(previous.Slot, instruction.Operands.Span);
+                        break;
+                    case 0xD8:
+                        ScheduleActorAnimationSound(instruction.Operands.Span);
+                        break;
+                    case 0x97:
+                        StartExplicitActorDeath(previous.Slot, instruction.Operands.Span);
+                        break;
+                    case 0xC7:
+                        if (!previous.LinkedAction)
+                        {
+                            DispatchLinkedActorAction(previous.Slot, instruction, copyFacing: false);
+                        }
+                        break;
+                    case 0xFA when previous.LinkedAction:
+                        ResetActorPosition(previous.Slot);
+                        ReplaceActorModel(ActorModelState(previous.Slot) with { Motion = null });
+                        break;
+                    case 0xFC when previous.LinkedAction:
+                        if (state.Action is { } source)
+                        {
+                            model = ActorModelState(previous.Slot);
+                            ReplaceActorModel(model with { FacingYaw = TurnTowardTarget(source, previous.Slot) });
+                        }
+                        break;
+                    case 0xD1 when previous.LinkedAction:
+                        if (state.Action is { } parent)
+                        {
+                            ReadOnlySpan<byte> operands = instruction.Operands.Span;
+                            Ff7BattleMotion? approach = BeginApproach(parent, BinaryPrimitives.ReadInt16LittleEndian(operands), operands[4], actor: previous.Slot)?.Advance();
+                            model = ActorModelState(previous.Slot);
+                            ReplaceActorModel(model with { Position = approach?.Position ?? model.Position, Motion = approach });
+                        }
+                        break;
+                    case 0xC9 when previous.LinkedAction:
+                    case 0xCA when previous.LinkedAction:
+                    case 0xAA when previous.LinkedAction:
+                    case 0xB6 when previous.LinkedAction:
                     case 0xF2:
                     case 0x9E:
                         break;
@@ -177,7 +273,7 @@ public sealed partial class Ff7BattleSession
                     case 0xEE:
                     case 0xFF:
                         model = ActorModelState(previous.Slot);
-                        ReplaceActorModel(model with { Action = Actor(model.Slot).Actor.IdleAction, Pose = null, Ready = true, IdleStarted = PresentationTick, Reaction = false, ReactionKnockedOut = false });
+                        ReplaceActorModel(model with { Action = Actor(model.Slot).Actor.IdleAction, Pose = null, Ready = true, IdleStarted = PresentationTick, Reaction = false, ReactionKnockedOut = false, LinkedAction = false, Motion = null });
                         break;
                     default:
                         throw new NotSupportedException($"FFVII actor reaction opcode {instruction.Opcode:X2} requires its native model-event owner.");
@@ -213,7 +309,7 @@ public sealed partial class Ff7BattleSession
             }
             return;
         }
-        ReplaceActorModel(model with { Action = selector, Pose = new(ClipIndex: clip, ClipFrame: frame), Ready = false, IdleStarted = null, Reaction = true, PendingSince = PresentationTick, ReactionKnockedOut = impact.PostActionKnockedOut });
+        ReplaceActorModel(model with { Action = selector, Pose = new(ClipIndex: clip, ClipFrame: frame), Ready = false, IdleStarted = null, Reaction = true, PendingSince = PresentationTick, ReactionKnockedOut = impact.PostActionKnockedOut, LinkedAction = false, Motion = null });
     }
 
     private void SetActorModelDeferral(int slot, bool deferred)
@@ -305,9 +401,13 @@ public sealed partial class Ff7BattleSession
         long presentation = (snapshot.Tick + LogicUpdatesPerPresentation - 1) / LogicUpdatesPerPresentation;
         foreach (Ff7BattleActorModelState model in snapshot.ActorModels)
         {
-            if (model.Action < 0 || model.PendingSince < -1 || model.PendingSince > presentation || model.PendingSince >= 0 && !model.Reaction || model.ReactionKnockedOut && !model.Reaction || model.IdleStarted < 0 || model.IdleStarted > presentation || model.Pose is { TerminalOpcode: not (null or 0x9E or 0xEE or 0xFF) })
+            if (model.Action < 0 || model.PendingSince < -1 || model.PendingSince > presentation || model.PendingSince >= 0 && !model.Reaction || (model.ReactionKnockedOut || model.LinkedAction) && !model.Reaction || model.IdleStarted < 0 || model.IdleStarted > presentation || model.Pose is { TerminalOpcode: not (null or 0x9E or 0xEE or 0xFF) })
             {
                 throw new InvalidDataException("FFVII saved actor model readiness or pose cursor is invalid.");
+            }
+            if (model.Motion is { } motion && (!model.LinkedAction || motion.Remaining is < 0 or > 255 || motion.VerticalSteps is not null))
+            {
+                throw new InvalidDataException("FFVII saved linked actor motion is invalid.");
             }
             if (model.Modifiers is { } modifiers && !ValidModelModifiers(modifiers) || model.Render is { } render && (render.Clip < 0 || render.Frame < 0 || render.Modifiers is null || !ValidModelModifiers(render.Modifiers)))
             {
@@ -325,5 +425,5 @@ public sealed partial class Ff7BattleSession
         ValidateActorMotion(snapshot);
     }
 
-    private static bool ValidModelModifiers(Ff7BattleActorModelModifiers modifiers) => float.IsFinite(modifiers.ExtraAngleX) && float.IsFinite(modifiers.ExtraAngleY) && float.IsFinite(modifiers.ExtraAngleZ) && float.IsFinite(modifiers.ExtraX) && float.IsFinite(modifiers.ExtraY) && float.IsFinite(modifiers.ExtraZ);
+    private static bool ValidModelModifiers(Ff7BattleActorModelModifiers modifiers) => (modifiers.TexturePalette is null || modifiers.TexturePalette.Keys.All(index => index is >= 0 and < 32)) && float.IsFinite(modifiers.ExtraAngleX) && float.IsFinite(modifiers.ExtraAngleY) && float.IsFinite(modifiers.ExtraAngleZ) && float.IsFinite(modifiers.ExtraX) && float.IsFinite(modifiers.ExtraY) && float.IsFinite(modifiers.ExtraZ);
 }

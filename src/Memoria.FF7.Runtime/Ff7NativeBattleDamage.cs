@@ -5,6 +5,7 @@ namespace Memoria.FF7.Runtime;
 public readonly record struct Ff7BattleDamageActor(byte Level, byte Attack, byte Magic, byte Dexterity, byte Luck, byte Evade, byte MagicEvade, ushort Defense, ushort MagicDefense, byte CriticalBonus = 0, uint Statuses = 0, bool IsEnemy = false, bool BackRow = false, bool Defending = false, sbyte AttackModifier = 0, sbyte MagicModifier = 0, sbyte DefenseModifier = 0, sbyte MagicDefenseModifier = 0, sbyte EvadeModifier = 0, sbyte DexterityModifier = 0, uint? CurrentHitPoints = null, uint? MaximumHitPoints = null, ushort? CurrentMagicPoints = null, ushort? MaximumMagicPoints = null)
 {
     public uint NativeConditions { get; init; }
+    public byte EquippedMateriaCount { get; init; }
     public Ff7BattleParameterOperation? ParameterStatus { get; init; }
     public ushort OriginSavedStatuses { get; init; }
 }
@@ -122,7 +123,7 @@ public static class Ff7NativeBattleDamage
     {
         ArgumentNullException.ThrowIfNull(random);
         const Ff7BattleDamageAffinity supportedAffinities = Ff7BattleDamageAffinity.Double | Ff7BattleDamageAffinity.Half | Ff7BattleDamageAffinity.Nullify | Ff7BattleDamageAffinity.Absorb;
-        if (action.Formula is not (0x00 or 0x04 or 0x11 or 0x22 or 0x23 or 0x24 or 0x25 or 0x26 or 0x37 or 0x47 or 0x50 or 0xB1) || (action.Affinity & ~supportedAffinities) != 0)
+        if (action.Formula is not (0x00 or 0x04 or 0x11 or 0x22 or 0x23 or 0x24 or 0x25 or 0x26 or 0x37 or 0x47 or 0x50 or 0x6D or 0xB1) || (action.Affinity & ~supportedAffinities) != 0)
         {
             throw new NotSupportedException($"FFVII battle HP damage formula 0x{action.Formula:X2} or affinity 0x{(byte)action.Affinity:X2} is unsupported.");
         }
@@ -175,6 +176,10 @@ public static class Ff7NativeBattleDamage
             critical |= action.ForceCritical;
             damage = PhysicalDamage(attacker, target, action, critical);
         }
+        else if (action.Formula == 0x6D)
+        {
+            damage = target.IsEnemy ? 0 : target.EquippedMateriaCount * 1111;
+        }
         else
         {
             damage = action.Formula is 0x04 or 0x23 or 0x24 ? action.FractionDenominator == 0 ? unchecked((int)fractionBasis.Value * action.Power) / 32 : checked((int)((long)fractionBasis.Value * action.FractionNumerator / action.FractionDenominator)) : MagicDamage(attacker, target, action);
@@ -184,7 +189,7 @@ public static class Ff7NativeBattleDamage
         {
             damage = Math.Max(action.MinimumDamage, damage);
         }
-        if (action.Formula is not (0x04 or 0x23 or 0x24 or 0x26))
+        if (action.Formula is not (0x04 or 0x23 or 0x24 or 0x26 or 0x6D))
         {
             damage = Math.Max(1, damage * (3841 + random.NextByte()) >> 12);
         }

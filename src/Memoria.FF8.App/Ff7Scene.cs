@@ -346,10 +346,12 @@ internal sealed partial class Ff7Scene : IDisposable
                     {
                         DrawDialogues(batch, bounds);
                     }
-                    int worldFade = Session.World?.Process.FadeDisplayedAlpha ?? 0;
+                    Ff7WorldProcess? worldProcess = Session.World?.Process;
+                    int worldFade = worldProcess?.FadeDisplayedAlpha ?? 0;
                     if (worldFade > 0)
                     {
-                        batch.Draw(pixel, windowBounds, Color.Black * (worldFade / 255f));
+                        Color fadeColor = worldProcess?.WhiteFadeDisplayed == true ? new(worldFade, worldFade, worldFade) : Color.Black * (worldFade / 255f);
+                        batch.Draw(pixel, windowBounds, fadeColor);
                     }
                 }
             }

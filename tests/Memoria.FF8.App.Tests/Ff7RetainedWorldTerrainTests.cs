@@ -126,6 +126,32 @@ public sealed class Ff7RetainedWorldTerrainTests(ITestOutputHelper output)
         }
     }
 
+    [Fact]
+    public void UnderwaterFrameDrawsOriginalTerrainAndVehicleModels()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(root), "Select original FFVII resources for underwater rendering checks.");
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer renderer = new(device.Device);
+        Ff7Installation installation = Ff7Installation.Discover(root!);
+        using Ff7WorldResources resources = Ff7WorldResources.Load(installation, 2);
+        Ff7WorldCharacterDescriptor submarine = Ff7PcExecutableData.LoadWorldCharacterDescriptor(installation, 13, 2, 6);
+        Ff7WorldCharacterDescriptor emerald = Ff7PcExecutableData.LoadWorldCharacterDescriptor(installation, 30, 2);
+        Assert.Equal("ddd.hrc", submarine.HrcName, ignoreCase: true);
+        Assert.Equal(((short)-17, (short)-15, (short)10), submarine.ColorOffset);
+        Assert.Equal("bud.hrc", emerald.HrcName, ignoreCase: true);
+        Assert.Equal(2, emerald.Load(resources).Animations.Count);
+        Ff7WorldPresentation scene = new(installation, resources);
+        Ff7WorldRenderFrame frame = new(13, true, 1, 2, 0, 0, 0, 0, new(0, 1800, 7000, -4000, 0, 400),
+            [new(13, new(164668, -4000, 141000), 0, 0, 0, 2), new(30, new(164668, -4250, 139764), 0, 0, 0, 2)], [])
+        {
+            SubmarineTint = 6
+        };
+        scene.Render(renderer, 640, 480, frame);
+        Assert.True(renderer.FrameTerrainUploads > 0);
+        Assert.True(GpuTestDevice.Read(renderer.Target).Count(pixel => pixel != Color.Black) > 100);
+    }
+
     private static void AssertSimilar(Color[] expected, Color[] actual)
     {
         int count = expected.Zip(actual).Count(pair => Math.Max(Math.Abs(pair.First.R - pair.Second.R), Math.Max(Math.Abs(pair.First.G - pair.Second.G), Math.Abs(pair.First.B - pair.Second.B))) > 3);

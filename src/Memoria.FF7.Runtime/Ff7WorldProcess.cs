@@ -14,6 +14,7 @@ public sealed record Ff7WorldEntity(int Model, int X = 0, int Y = 0, int Z = 0, 
 }
 public sealed record Ff7WorldLight(int Index, int X = 0, int Z = 0, int Enabled = 0, int AmbientRed = 0, int AmbientGreen = 0, int AmbientBlue = 0, int Radius = 0, int Radius2 = 0, int Red = 0, int Green = 0, int Blue = 0, int Red2 = 0, int Green2 = 0, int Blue2 = 0);
 public sealed record Ff7WorldMarsh(bool Initialized = false, int X = 0, int Z = 0, int Direction = 0x400);
+public sealed record Ff7WorldApproachBubble(int X, int Y, int Z, int Age = 0);
 public sealed record Ff7WorldFieldDeparture(long RequestId, int ExecutingModel, int ProgramCounter, ushort Selector, WorldOperation Operation);
 public sealed record Ff7WorldProcess(int WorldId, long Tick, int EntrySelector, WorldSnapshot Vm, Ff7WorldEntity[] Entities, int ControlledModel, bool MovementEnabled, int ViewMode, int RadarMode, Ff7WorldCameraState? Camera, Ff7WorldLight[] Lights, int SelectedLight, Ff7WorldMarsh Marsh, int PlayerModel, int EncounterRate, Ff7Window? Window = null, Ff7Dialogue? Dialogue = null, short LastSelection = 0, int ControlLock = 0, int MainState = -15, int FadeAlpha = 255, int FadeRate = 0, int FadeDisplayedAlpha = 255, bool Initialized = false, uint PresentationCounter = 0, Ff7WorldInputState? Input = null, Ff7WorldAudioState? Audio = null, Ff7WorldSkyState? Sky = null, int WorldMapState = 0)
 {
@@ -27,6 +28,12 @@ public sealed record Ff7WorldProcess(int WorldId, long Tick, int EntrySelector, 
     public int EntryModule { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? SubmarineTint { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7WorldApproachBubble? ApproachBubble { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int WhiteFadeCallbacks { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool WhiteFadeDisplayed { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Ff7WorldScreenShake? ScreenShake { get; init; }
     public IReadOnlyList<Ff7Window> Windows => Window is null ? [] : [Window];

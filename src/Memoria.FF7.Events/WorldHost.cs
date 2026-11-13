@@ -13,6 +13,7 @@ public enum WorldOperation
     VerticalSpeed = 0x30A,
     Elevation = 0x30B,
     BoardTransport = 0x30C,
+    RestoreModelPosition = 0x30D,
     Animation = 0x30E,
     SelectLight = 0x310,
     LightChunkPosition = 0x311,
@@ -29,6 +30,7 @@ public enum WorldOperation
     CameraRotation = 0x31E,
     CameraRotationSpeed = 0x31F,
     ResetMarsh = 0x320,
+    FaceZone = 0x321,
     Window = 0x324,
     Text = 0x325,
     Choice = 0x326,
@@ -73,6 +75,8 @@ public interface IWorldHost
     WorldHostReply Execute(WorldHostRequest request);
     int ReadSpecial(int selector, int activeModel);
     int ReadModelDistance(int activeModel, int targetModel) => throw new NotSupportedException("The FFVII world host does not support model distances.");
+    int ReadZoneDistance(int activeModel, int zone) => throw new NotSupportedException("The FFVII world host does not support zone distances.");
+    int ReadZoneDirection(int activeModel, int zone) => throw new NotSupportedException("The FFVII world host does not support zone directions.");
 }
 
 public sealed record WorldStackValue(ushort Opcode, int Value);

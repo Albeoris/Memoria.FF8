@@ -107,6 +107,75 @@ internal static class NativeBattleActorModelTests
         InstalledModelContacts(installation);
     }
 
+    public static void RunEmeraldLinkedModels()
+    {
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            Console.WriteLine("SKIP installed Emerald Weapon model callbacks: MEMORIA_FF7_GAME_DIR is unset.");
+            return;
+        }
+
+        Ff7Installation installation = Ff7Installation.Discover(directory);
+        using Ff7Session original = Ff7Session.NewGame(installation);
+        Ff7Progress progress = original.Progress with { Party = [0, 255, 255] };
+        IReadOnlyList<KernelSection> kernel = KernelArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.Kernel).Path));
+        IReadOnlyList<SceneFormation> formations = SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path));
+        IReadOnlyList<short> materia = Ff7PcExecutableData.Load(installation).NativeMateriaStatModifiers;
+        using LgpArchive models = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
+        using LgpArchive magic = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.MagicArchive).Path);
+        Ff7BattleAnimationResources animations = new(models, Ff7PcExecutableData.LoadBattlePlacement(installation), magic, Ff7PcExecutableData.LoadBattleJumpDeltas(installation), Ff7PcExecutableData.LoadBattleHitmarks(installation), Ff7PcExecutableData.LoadBattleActorModelResources(installation));
+        SceneFormation formation = formations[984];
+        Ff7BattleSession battle = new(formation, progress, kernel, materia, 1, animations: animations);
+        Ff7BattleSnapshot snapshot = battle.Capture();
+        Ff7BattleQueuedCommand opening = new(1, 4, 0x20, 1, 1) { AttackId = 984 };
+        battle = new(formation, progress, kernel, materia, 1, snapshot: snapshot with { Queue = Ff7BattleCommandQueue.Enqueue(snapshot.Queue, opening) }, animations: animations);
+        Ff7BattleSession? cold = null;
+        bool linkedLegStarted = false;
+        bool linkedLegRetired = false;
+        for (int tick = 0; tick < 1200 && !linkedLegRetired; tick++)
+        {
+            battle.Advance(waitForCommand: true);
+            Ff7BattleSnapshot current = battle.Capture();
+            Ff7BattleActorModelState leg = current.ActorModels.Single(model => model.Slot == 5);
+            if (!linkedLegStarted && current.Action is { Command.ActorSlot: 4, Animation: 4, Pose: { ClipIndex: 0 } })
+            {
+                Check(leg is { LinkedAction: true, Action: 4, Pose.ClipIndex: 0, Ready: false }, "The signed C7 offset did not start the leg's original selector during the same ordered callback.");
+                linkedLegStarted = true;
+                cold = new(formation, progress, kernel, materia, 1, snapshot: JsonSerializer.Deserialize<Ff7BattleSnapshot>(JsonSerializer.Serialize(current)), animations: animations);
+            }
+            else if (cold is not null)
+            {
+                cold.Advance(waitForCommand: true);
+                Check(JsonSerializer.Serialize(current) == JsonSerializer.Serialize(cold.Capture()), "Restoring the linked leg model changed its next callback.");
+                linkedLegRetired = leg is { LinkedAction: false, Ready: true };
+            }
+        }
+        Check(linkedLegStarted && linkedLegRetired, "Emerald Weapon's native action did not dispatch and retire its linked leg model.");
+
+        Ff7BattleActorModelState eye = snapshot.ActorModels.Single(model => model.Slot == 7);
+        snapshot.ActorModels[Array.IndexOf(snapshot.ActorModels, eye)] = eye with { Action = 8, Reaction = true, Ready = false, Pose = null, PendingSince = -1 };
+        battle = new(formation, progress, kernel, materia, 1, snapshot: snapshot, animations: animations);
+        battle.Advance(waitForCommand: true);
+        Ff7BattleSnapshot reaction = battle.Capture();
+        Check(reaction.ActorModels.Single(model => model.Slot == 4) is { LinkedAction: true, Action: 8, Ready: false }, "A direct eye reaction did not publish its signed C7 link to the main body.");
+        for (int tick = 0; tick < 200 && !battle.NativeActorModelsReady; tick++)
+        {
+            battle.Advance(waitForCommand: true);
+        }
+        Check(battle.NativeActorModelsReady, "Reciprocal C7 rows kept the model bank from returning to idle.");
+
+        snapshot = battle.Capture();
+        eye = snapshot.ActorModels.Single(model => model.Slot == 7);
+        snapshot.ActorModels[Array.IndexOf(snapshot.ActorModels, eye)] = eye with { Action = 0x13, Reaction = true, Ready = false, Pose = null, PendingSince = -1 };
+        battle = new(formation, progress, kernel, materia, 1, snapshot: snapshot, animations: animations);
+        for (int tick = 0; tick < 8 && battle.ActorModelOutput(4).TexturePalette is null; tick++)
+        {
+            battle.Advance(waitForCommand: true);
+        }
+        Check(battle.ActorModelOutput(4).TexturePalette is { Count: 7 } palette && palette[9] == 0xFF40A8B8 && palette[15] == 0xFF80D0C8, "The eye row did not publish its seven RGB555 writes to the odd bank of the body texture.");
+    }
+
     private static void MechanicalDeathPose()
     {
         BattleClipFrame frame = new(100, -200, 300, [new(128, 256, 384), new(), new()]);

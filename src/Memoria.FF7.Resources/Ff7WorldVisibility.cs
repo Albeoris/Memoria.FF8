@@ -59,7 +59,16 @@ public sealed class Ff7WorldVisibility(Ff7WorldPresentationData presentation)
         };
     }
 
-    public IReadOnlyList<Ff7WorldChunkPlacement> RequiredChunks(int x, int z, int heading, int worldState = 0)
+    public static int ResolveUnderwaterBlock(int chunkX, int chunkZ)
+    {
+        int x = (chunkX >> 2) - 3;
+        int z = (chunkZ >> 2) - 2;
+        x = x < 0 ? x + 3 : x > 2 ? x - 3 : x;
+        z = z < 0 ? z + 4 : z > 3 ? z - 4 : z;
+        return z * 3 + x;
+    }
+
+    public IReadOnlyList<Ff7WorldChunkPlacement> RequiredChunks(int x, int z, int heading, int worldState = 0, bool underwater = false)
     {
         if (x is < 0 or >= 0x48000 || z is < 0 or >= 0x38000)
         {
@@ -89,7 +98,8 @@ public sealed class Ff7WorldVisibility(Ff7WorldPresentationData presentation)
                 }
                 int actualX = (chunkX + dx + 36) % 36;
                 int actualZ = (chunkZ + dz + 28) % 28;
-                result.Add(new(actualX, actualZ, ResolveBlockIndex((actualZ >> 2) * 9 + (actualX >> 2), worldState), (actualZ & 3) * 4 + (actualX & 3), new((chunkX + dx) << 13, 0, (chunkZ + dz) << 13)));
+                int block = underwater ? ResolveUnderwaterBlock(actualX, actualZ) : ResolveBlockIndex((actualZ >> 2) * 9 + (actualX >> 2), worldState);
+                result.Add(new(actualX, actualZ, block, (actualZ & 3) * 4 + (actualX & 3), new((chunkX + dx) << 13, 0, (chunkZ + dz) << 13)));
             }
         }
         return result.AsReadOnly();

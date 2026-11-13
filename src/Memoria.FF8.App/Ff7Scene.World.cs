@@ -47,6 +47,8 @@ internal sealed partial class Ff7Scene
         {
             BridgeDeformation = state.Input?.Bridge?.Deformation,
             HeightSmoothVelocity = state.Input?.HeightSmoothVelocity ?? 0,
+            ApproachBubble = state.ApproachBubble is { } bubble ? new(new(bubble.X, bubble.Y, bubble.Z), bubble.Age) : null,
+            SubmarineTint = state.SubmarineTint,
             ShakeX = state.ScreenShake?.X ?? 0,
             ShakeY = state.ScreenShake?.Y ?? 0
         };

@@ -3,6 +3,7 @@ namespace Memoria.FF7.Formats;
 public sealed record BattleActionPoseState(int NextInstruction = 0, int ClipIndex = -1, int ClipFrame = 0, byte WaitFrames = 0, bool Completed = false, byte PresetWaitFrames = 15)
 {
     public byte? TerminalOpcode { get; init; }
+    public int? ContinuedClipFrame { get; init; }
 }
 public sealed record BattleActionPoseUpdate(BattleActionPoseState State, IReadOnlyList<BattleActionInstruction> Events);
 
@@ -51,7 +52,7 @@ public sealed class BattleActionSequence
         {
             return new(state, []);
         }
-        if ((uint)state.NextInstruction >= instructions.Count || state.ClipIndex < -1 || state.ClipIndex >= clips.Count || state.ClipFrame < 0 || state.ClipIndex >= 0 && state.ClipFrame >= clips[state.ClipIndex].FrameCount)
+        if (state.ContinuedClipFrame < 0 || (uint)state.NextInstruction >= instructions.Count || state.ClipIndex < -1 || state.ClipIndex >= clips.Count || state.ClipFrame < 0 || state.ClipIndex >= 0 && state.ClipFrame >= clips[state.ClipIndex].FrameCount)
         {
             throw new InvalidDataException("FFVII battle pose continuation is outside its original script or clip.");
         }
@@ -72,7 +73,7 @@ public sealed class BattleActionSequence
                 {
                     throw new NotSupportedException($"FFVII battle action requests clip {clipIndex} without a packed body pose.");
                 }
-                int startFrame = opcode == 0xB6 ? idleClipFrame : 0;
+                int startFrame = opcode == 0xB6 ? (int)((state.ContinuedClipFrame ?? idleClipFrame) % clips[clipIndex].FrameCount) : 0;
                 if (startFrame < 0 || startFrame >= clips[clipIndex].FrameCount)
                 {
                     throw new InvalidDataException("FFVII continued idle animation frame lies outside its body clip.");
@@ -81,7 +82,7 @@ public sealed class BattleActionSequence
                 {
                     events.Add(instruction);
                 }
-                return new(state with { NextInstruction = index + 1, ClipIndex = clipIndex, ClipFrame = startFrame }, events.AsReadOnly());
+                return new(state with { NextInstruction = index + 1, ClipIndex = clipIndex, ClipFrame = startFrame, ContinuedClipFrame = null }, events.AsReadOnly());
             }
             if (opcode == 0xC6)
             {

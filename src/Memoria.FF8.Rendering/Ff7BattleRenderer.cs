@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Collections.Immutable;
 using System.Numerics;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF7.Formats;
@@ -60,6 +61,7 @@ public sealed partial class Ff7BattleRenderer
     private PcPolygonModel? ice;
     private readonly Dictionary<string, ActorModel> actors = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<PcTexture, PixelImage> images = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<PcTexture, (ImmutableDictionary<int, uint> Palette, PixelImage Image)> actorPaletteImages = new(ReferenceEqualityComparer.Instance);
     private readonly PcTexture[] arenaTextures;
 
     public Ff7BattleRenderer(LgpArchive archive, int locationId, LgpArchive? magicArchive = null, PcTexture? cureTexture = null, PcTexture? grenadeTexture = null, Ff7BattleShadowResources? shadow = null)
@@ -251,7 +253,7 @@ public sealed partial class Ff7BattleRenderer
         Ff7BattleScreenBounds bounds = default;
         VisitActorGeometry(actor, (model, textures, transform) =>
         {
-            DrawModel(renderer, model, textures, transform, view, material, alpha / 255f, tint, nativeActorColor: actor.NativeColor);
+            DrawModel(renderer, model, textures, transform, view, material, alpha / 255f, tint, nativeActorColor: actor.NativeColor, actorPalette: actor.ModelModifiers?.TexturePalette);
             if (captureBounds && actor.Slot.HasValue && alpha != 0)
             {
                 foreach (Vector3 vertex in model.Vertices)
@@ -266,7 +268,43 @@ public sealed partial class Ff7BattleRenderer
         }
     }
 
-    private void DrawModel(ITriangleRenderer renderer, PcPolygonModel model, IReadOnlyList<PcTexture> textures, Matrix4x4 transform, CameraView view, Ff7ModelMaterialState material, float opacity = 1, ModelColorBlend? colorBlend = null, CrossoverNativeStageColor? guestStageColor = null, int? arenaPart = null, IReadOnlySet<NativeBattleArenaPrimitiveId>? suppressedArenaPrimitives = null, CrossoverNativeActorColor? nativeActorColor = null)
+    private PixelImage BattleModelTexture(PcTexture texture, int textureIndex, ImmutableDictionary<int, uint>? actorPalette)
+    {
+        int paletteStart = textureIndex * 16;
+        if (actorPalette is not null && actorPalette.Keys.Any(index => index >= paletteStart && index < paletteStart + 16))
+        {
+            if (actorPaletteImages.TryGetValue(texture, out var cached) && ReferenceEquals(cached.Palette, actorPalette))
+            {
+                return cached.Image;
+            }
+            if (texture.BytesPerPixel != 1 || texture.Palettes.Count != 1 || texture.Palettes[0].Count != 16)
+            {
+                throw new NotSupportedException("FFVII battle palette animation requires the original indexed texture profile.");
+            }
+
+            uint[] colors = texture.Palettes[0].ToArray();
+            foreach ((int index, uint argb) in actorPalette)
+            {
+                int entry = index - paletteStart;
+                if ((uint)entry < colors.Length)
+                {
+                    colors[entry] = argb;
+                }
+            }
+            PixelImage updated = Ff7FieldRenderer.DecodeTexture(texture with { Palettes = [colors] });
+            actorPaletteImages[texture] = (actorPalette, updated);
+            return updated;
+        }
+
+        if (!images.TryGetValue(texture, out PixelImage? image))
+        {
+            image = Ff7FieldRenderer.DecodeTexture(texture);
+            images.Add(texture, image);
+        }
+        return image;
+    }
+
+    private void DrawModel(ITriangleRenderer renderer, PcPolygonModel model, IReadOnlyList<PcTexture> textures, Matrix4x4 transform, CameraView view, Ff7ModelMaterialState material, float opacity = 1, ModelColorBlend? colorBlend = null, CrossoverNativeStageColor? guestStageColor = null, int? arenaPart = null, IReadOnlySet<NativeBattleArenaPrimitiveId>? suppressedArenaPrimitives = null, CrossoverNativeActorColor? nativeActorColor = null, ImmutableDictionary<int, uint>? actorPalette = null)
     {
         if (model.Groups.Count != model.RenderStates.Count)
         {
@@ -284,12 +322,7 @@ public sealed partial class Ff7BattleRenderer
                 {
                     throw new InvalidDataException($"FFVII battle P group {index} references absent texture {group.TextureNumber}.");
                 }
-                PcTexture texture = textures[group.TextureNumber];
-                if (!images.TryGetValue(texture, out image))
-                {
-                    image = Ff7FieldRenderer.DecodeTexture(texture);
-                    images.Add(texture, image);
-                }
+                image = BattleModelTexture(textures[group.TextureNumber], group.TextureNumber, actorPalette);
             }
             TriangleMaterial triangleMaterial = new(image, opacity < 1 ? TriangleBlend.Alpha : material.Blend, material.DepthTest ? TriangleDepthComparison.GreaterEqual : TriangleDepthComparison.Always, material.DepthWrite && opacity == 1, material.AlphaReference, material.Sampler) { PreserveTargetAlpha = false, TextureSelectsAlpha = false };
             triangleMaterial = nativeActorColor?.ApplyHostMaterial(triangleMaterial, material.BlendMode) ?? triangleMaterial;

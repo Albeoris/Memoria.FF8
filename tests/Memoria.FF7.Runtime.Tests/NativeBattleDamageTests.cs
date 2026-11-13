@@ -9,6 +9,7 @@ internal static class NativeBattleDamageTests
     {
         PhysicalRolls();
         InstalledOpeningAttacks();
+        InstalledAireTamStorm();
     }
 
     private static void PhysicalRolls()
@@ -52,7 +53,7 @@ internal static class NativeBattleDamageTests
         Ff7BattlePlayerStats[] party = initialParty.Select(character => Ff7NativeBattlePlayerStats.Create(character, kernel, materiaModifiers)).ToArray();
 
         Ff7BattlePlayerStats cloud = party[0];
-        Check(cloud == new Ff7BattlePlayerStats(new(6, 36, 23, 6, 14, 0, 0, 24, 17), new(0x11, 16, 96, CanBeBlinded: true) { NativePhysicalCategory = true, NativeElements = 0x400 }, 0x23, 0x400) { AttackFlags = 0xFFFB }, $"Original Cloud actor and weapon projection changed: {cloud}.");
+        Check(cloud == new Ff7BattlePlayerStats(new(6, 36, 23, 6, 14, 0, 0, 24, 17) { EquippedMateriaCount = 2 }, new(0x11, 16, 96, CanBeBlinded: true) { NativePhysicalCategory = true, NativeElements = 0x400 }, 0x23, 0x400) { AttackFlags = 0xFFFB }, $"Original Cloud actor and weapon projection changed: {cloud}.");
         Check(party[1] == new Ff7BattlePlayerStats(new(1, 29, 11, 5, 13, 0, 0, 21, 9), new(0x11, 16, 97, LongRange: true, CanBeBlinded: true) { NativePhysicalCategory = true, NativeElements = 0x2000 }, 0x03, 0x2000) { AttackFlags = 0xFFFB }, $"Original Barret actor and weapon projection changed: {party[1]}.");
         Check(party[2] == new Ff7BattlePlayerStats(new(1, 24, 11, 7, 14, 0, 0, 19, 10, CriticalBonus: 2), new(0x11, 16, 99, CanBeBlinded: true) { NativePhysicalCategory = true, NativeElements = 0x800 }, 0x23, 0x800) { AttackFlags = 0xFFFB }, $"Original Tifa actor and weapon projection changed: {party[2]}.");
 
@@ -104,6 +105,36 @@ internal static class NativeBattleDamageTests
         Check(bubbles.HasStatusOperation && bubbles.AddsStatuses, "The original status-only action lost its add-status descriptor.");
         CheckInstalledHit(kernel[2], Ff7NativeBattleDamage.FromEnemy(subway.Enemies.First(enemy => enemy.Placement.EnemyId == 27)), cloud.Actor, bubbles, 0, 0, 41);
         CheckInstalledHit(kernel[2], Ff7NativeBattleDamage.FromEnemy(scorpion), cloud.Actor, Ff7BattleDamageAction.FromAttack(reactor.Attacks.Single(attack => attack.Id == 0x11F).Data), 0, 0, 41);
+    }
+
+    private static void InstalledAireTamStorm()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            return;
+        }
+        Ff7Installation installation = Ff7Installation.Discover(root);
+        IReadOnlyList<KernelSection> kernel = KernelArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.Kernel).Path));
+        SceneBattleData data = SceneBattleData.Read(SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path))[984]);
+        Ff7BattleAttack record = data.Attacks.Single(attack => attack.Id == 0x3E1).Data;
+        Ff7BattleDamageAction action = Ff7BattleDamageAction.FromAttack(record);
+        Ff7BattleDamageActor attacker = Ff7NativeBattleDamage.FromEnemy(data.Enemies[0]);
+        const uint dispelled = 0x10178700;
+        const uint poison = 8;
+        Ff7BattleDamageActor player = new(99, 255, 255, 255, 255, 0, 0, 255, 255);
+        Ff7BattleActionVitals source = new(1_000_000, 1_000_000, 100, 100, 0);
+        foreach ((byte count, int damage) in new (byte, int)[] { (0, 0), (1, 1111), (8, 8888), (9, 9999), (16, 9999) })
+        {
+            Ff7BattleRngState seed = Ff7BattleRng.BeginBattle();
+            Ff7BattleRng random = new(kernel[2].Data.Span, seed);
+            Ff7BattleActionReceipt hit = Ff7NativeBattleActionResolver.Resolve(attacker, source, player with { EquippedMateriaCount = count }, new(9999, 9999, 999, 999, dispelled | poison), action, record, random);
+            Check(hit.Damage == new Ff7BattleDamageResult(false, false, damage) && hit.RemovedStatuses == dispelled && (hit.Target.Statuses & poison) != 0 && hit.Target.Hp == 9999 - damage &&
+                JsonSerializer.Serialize(random.Capture()) == JsonSerializer.Serialize(seed), $"Original Aire Tam Storm failed materia count {count}, dispel, damage cap or RNG ownership. {hit} rng={JsonSerializer.Serialize(random.Capture())}");
+        }
+        Ff7BattleRng resistRandom = new(kernel[2].Data.Span, Ff7BattleRng.BeginBattle());
+        Ff7BattleActionReceipt resisted = Ff7NativeBattleActionResolver.Resolve(attacker, source, player, new(9999, 9999, 999, 999, dispelled | 0x20000000), action, record, resistRandom);
+        Check(resisted.RemovedStatuses == 0x20000000 && resisted.Target.Statuses == dispelled, "Native Resist protects the other statuses from the same dispel contact.");
     }
 
     private static void CheckInstalledHit(KernelSection randomTable, Ff7BattleDamageActor attacker, Ff7BattleDamageActor target, Ff7BattleDamageAction action, int expectedDamage, uint wordCount, byte firstStreamIndex)

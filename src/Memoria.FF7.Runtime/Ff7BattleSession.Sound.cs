@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Numerics;
 using Memoria.FF7.Formats;
 
@@ -10,6 +11,12 @@ public sealed partial class Ff7BattleSession
         Ff7BattleSoundReceipt[] requests = state.SoundRequests;
         state = state with { SoundRequests = [] };
         return requests;
+    }
+
+    private void ScheduleActorAnimationSound(ReadOnlySpan<byte> operands)
+    {
+        Ff7BattleSecondaryState secondary = EnsureSecondaryEffects();
+        state = state with { SecondaryEffects = Ff7BattleSecondaryEffects.ScheduleSound(secondary, BinaryPrimitives.ReadUInt16LittleEndian(operands[1..]), operands[0]) };
     }
 
     private void BeginSoundAction()

@@ -386,6 +386,18 @@ public sealed partial class Ff7BattleSession
                         active = ScheduleTargetReactions(active, command.TargetMask, instruction.Operands.Span[0]);
                     }
                 }
+                else if (instruction.Opcode == 0x90)
+                {
+                    ApplyActorPaletteColor(command.ActorSlot, instruction.Operands.Span);
+                }
+                else if (instruction.Opcode == 0x97)
+                {
+                    StartExplicitActorDeath(command.ActorSlot, instruction.Operands.Span);
+                }
+                else if (instruction.Opcode == 0xC7)
+                {
+                    DispatchLinkedActorAction(command.ActorSlot, instruction, copyFacing: true);
+                }
                 else if (instruction.Opcode == 0x92)
                 {
                     SetCameraActiveAction();
@@ -442,9 +454,7 @@ public sealed partial class Ff7BattleSession
                 }
                 else if (instruction.Opcode == 0xD8)
                 {
-                    ReadOnlySpan<byte> operands = instruction.Operands.Span;
-                    Ff7BattleSecondaryState secondary = EnsureSecondaryEffects();
-                    state = state with { SecondaryEffects = Ff7BattleSecondaryEffects.ScheduleSound(secondary, BinaryPrimitives.ReadUInt16LittleEndian(operands[1..]), operands[0]) };
+                    ScheduleActorAnimationSound(instruction.Operands.Span);
                 }
                 else if (instruction.Opcode == 0xAD)
                 {
