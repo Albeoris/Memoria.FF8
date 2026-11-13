@@ -19,7 +19,17 @@ public sealed partial class BattleSession
         }
         else if (subject is >= 220 and <= 227)
         {
-            left = ReadNativeActorVariable(FindNativeConditionActor(actor, selector), subject);
+            BattleCombatant owner = FindNativeConditionActor(actor, selector);
+            if (UsesExpandedRoster && owner.AiActorReferences.ContainsKey(subject - 220))
+            {
+                // A native reference occupies slot 0..6. Constants above that range are distinct markers.
+                if (value < NativeBattleSlots.Count || comparison is not (0 or 3))
+                {
+                    throw new NotSupportedException("Expanded battle AI cannot compare an actor reference as a native slot index.");
+                }
+                return comparison == 3;
+            }
+            left = ReadNativeActorVariable(owner, subject);
         }
         else
         {
@@ -183,6 +193,7 @@ public sealed partial class BattleSession
             {
                 200 => actor,
                 203 when actor.LastAttackerId is string attacker => GetActor(attacker),
+                >= 220 and <= 227 when actor.AiActorReferences.TryGetValue(selector - 220, out string? targetId) => GetActor(targetId),
                 _ => combatants.FirstOrDefault(candidate => HasAiRosterSlot(candidate) && NativeModelId(candidate) == selector)
                     ?? throw new NotSupportedException($"Expanded battle AI model selector {selector} has no current participant.")
             };

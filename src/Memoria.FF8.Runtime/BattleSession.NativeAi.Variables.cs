@@ -9,7 +9,12 @@ public sealed partial class BattleSession
         (BattleCombatant owner, int member) = ResolveNativeActorVariable(actor, variable);
         if (member is >= 36 and <= 64)
         {
-            return owner.AiVariables[(member - 36) / 4];
+            int index = (member - 36) / 4;
+            if (UsesExpandedRoster && owner.AiActorReferences.ContainsKey(index))
+            {
+                throw new NotSupportedException("Expanded battle AI cannot read an actor reference as a number.");
+            }
+            return owner.AiVariables[index];
         }
         return BinaryPrimitives.ReadUInt32LittleEndian(owner.MutableNativeStatusResistances.AsSpan(member - 144, 4));
     }
@@ -20,6 +25,14 @@ public sealed partial class BattleSession
         if (member is >= 36 and <= 64)
         {
             int index = (member - 36) / 4;
+            if (UsesExpandedRoster)
+            {
+                if (add && owner.AiActorReferences.ContainsKey(index))
+                {
+                    throw new NotSupportedException("Expanded battle AI cannot perform arithmetic on an actor reference.");
+                }
+                owner.AiActorReferences.Remove(index);
+            }
             owner.AiVariables[index] = add ? unchecked(owner.AiVariables[index] + operand) : operand;
             return;
         }

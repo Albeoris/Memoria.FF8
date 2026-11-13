@@ -24,9 +24,39 @@ public static class NativeBattleExpandedAi
         {
             blockers?.Add($"command:{berserk.Command}/{berserk.Id}");
         }
+        HashSet<int> storedReferences = [];
+        List<(int Selector, string Description)> referenceUses = [];
+        List<(int Variable, int Comparison, int Value)> localConditions = [];
+        List<(int Variable, int Value)> localConstants = [];
+        HashSet<int> incrementedLocals = [];
         for (int callback = 0; callback < program.Scripts.Length; callback++)
         {
             CheckScript(program.Scripts[callback], callback);
+        }
+        foreach ((int selector, string description) in referenceUses)
+        {
+            if (!storedReferences.Contains(selector))
+            {
+                MarkUnsupportedService(description);
+            }
+        }
+        foreach ((int variable, int comparison, int value) in localConditions)
+        {
+            if (storedReferences.Contains(variable) && (comparison is not (0 or 3) || value < NativeBattleSlots.Count))
+            {
+                MarkUnsupportedService($"actor-reference-comparison:{variable}/{comparison}/{value}");
+            }
+        }
+        foreach (int variable in storedReferences.Intersect(incrementedLocals))
+        {
+            MarkUnsupportedService($"actor-reference-arithmetic:{variable}");
+        }
+        foreach ((int variable, int value) in localConstants)
+        {
+            if (storedReferences.Contains(variable) && (value & 31) < 16)
+            {
+                MarkUnsupportedService($"actor-reference-constant:{variable}/{value}");
+            }
         }
         return admission;
 
@@ -92,7 +122,11 @@ public static class NativeBattleExpandedAi
                         }
                         else if ((subject is 0 or 4 or 7 or >= 220 and <= 227) && selector is >= 220 and <= 227)
                         {
-                            MarkUnsupportedService($"actor-reference-condition:{subject}/{selector}");
+                            referenceUses.Add((selector, $"actor-reference-condition:{subject}/{selector}"));
+                        }
+                        if (subject is >= 220 and <= 227)
+                        {
+                            localConditions.Add((subject, comparison, value));
                         }
                         int otherwise = next + ReadWord(script, pc + 5);
                         if (subject is 3 or 14)
@@ -127,9 +161,13 @@ public static class NativeBattleExpandedAi
                         }
                         break;
                     case 4:
-                        if (script[pc] is 209 or >= 220 and <= 227)
+                        if (script[pc] == 209)
                         {
                             MarkUnsupportedService($"actor-reference-target:{script[pc]}");
+                        }
+                        else if (script[pc] is >= 220 and <= 227)
+                        {
+                            referenceUses.Add((script[pc], $"actor-reference-target:{script[pc]}"));
                         }
                         break;
                     case 11 or 12:
@@ -153,9 +191,21 @@ public static class NativeBattleExpandedAi
                         }
                         break;
                     case 14 or 18:
-                        if (script[pc] is < 220 or > 227 || script[pc + 1] == 203)
+                        if (script[pc] is < 220 or > 227 || script[pc + 1] == 203 && (opcode != 14 || callback != 2))
                         {
                             MarkUnsupportedService($"actor-reference-write:{opcode}/{script[pc]}/{script[pc + 1]}");
+                        }
+                        else if (script[pc + 1] == 203)
+                        {
+                            storedReferences.Add(script[pc]);
+                        }
+                        else if (opcode == 18)
+                        {
+                            incrementedLocals.Add(script[pc]);
+                        }
+                        else
+                        {
+                            localConstants.Add((script[pc], script[pc + 1]));
                         }
                         break;
                     case 35:

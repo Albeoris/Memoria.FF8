@@ -98,9 +98,35 @@ public sealed partial class BattleSession
             206 => new([.. combatants.Where(IsExpandedAiTarget).Select(candidate => candidate.Id)]),
             207 => PickExpandedAiTarget(enemies.Where(candidate => candidate != actor && IsExpandedAiTarget(candidate)).DefaultIfEmpty(actor).Where(IsExpandedAiTarget)),
             208 => new([.. allies.Where(IsExpandedAiTarget).Select(candidate => candidate.Id)]) { RandomSide = BattleSide.Allies },
-            209 or >= 220 and <= 227 => throw new NotSupportedException($"Expanded AI selector {selector} requires a separately owned allocation or actor reference."),
+            >= 220 and <= 227 => ResolveExpandedAiLocalTarget(actor, selector - 220),
+            209 => throw new NotSupportedException($"Expanded AI selector {selector} requires a separately owned allocation."),
             _ => new([.. combatants.Where(candidate => IsExpandedAiTarget(candidate) && NativeModelId(candidate) == selector).Take(1).Select(candidate => candidate.Id)])
         };
+    }
+
+    private static BattleAiRecipients ResolveExpandedAiLocalTarget(BattleCombatant actor, int index)
+    {
+        if (actor.AiActorReferences.TryGetValue(index, out string? targetId))
+        {
+            return new([targetId]);
+        }
+        if ((actor.AiVariables[index] & 31) >= 16)
+        {
+            return new([]);
+        }
+        throw new NotSupportedException("Expanded battle AI cannot target a numeric local variable as an actor slot.");
+    }
+
+    private static void StoreExpandedAiLastAttacker(BattleCombatant actor, int variable, bool add)
+    {
+        if (variable is < 220 or > 227 || add)
+        {
+            throw new NotSupportedException("Expanded battle AI can only assign an actor reference to a local variable.");
+        }
+        int index = variable - 220;
+        string attackerId = actor.LastAttackerId ?? throw new NotSupportedException("Expanded AI requires the last contact owner to store an attacker reference.");
+        actor.AiVariables[index] = 0;
+        actor.AiActorReferences[index] = attackerId;
     }
 
     private BattleAiRecipients FilterExpandedAiTargets(byte allTargets, byte group, byte comparison, byte criterion)

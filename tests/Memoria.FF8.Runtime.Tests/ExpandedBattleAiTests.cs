@@ -141,8 +141,10 @@ public sealed class ExpandedBattleAiTests
         Assert.Equal(Enumerable.Range(0, hitCount).SelectMany(_ => Enumerable.Range(0, 11).Select(slot => $"ally-{slot}")), contacts);
     }
 
-    [Fact]
-    public void HitCallbackQueuesOneCounterAgainstTheEleventhAllyAndSurvivesRestore()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void HitCallbackQueuesOneCounterAgainstTheEleventhAllyAndSurvivesRestore(bool retainAttacker)
     {
         BattleCombatantDefinition[] allies = Enumerable.Range(0, 11).Select(i => new BattleCombatantDefinition
         {
@@ -150,7 +152,10 @@ public sealed class ExpandedBattleAiTests
             Abilities = [BattleAbility.Attack], InitialAtb = i == 10 ? BattleSession.AtbMaximum : 0,
             NativeAttack = Physical with { Command = 1, ActionId = 0 }
         }).ToArray();
-        NativeBattleAiDefinition counter = new([[0], [0], [2, 10, 203, 0, 10, 0, 5, 0, 4, 203, 7, 1, 6, 0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(8, 0, 1), 48).ToArray(), 0, []);
+        byte[] reaction = retainAttacker
+            ? [14, 220, 203, 2, 220, 200, 3, 240, 0, 5, 0, 4, 220, 7, 1, 6, 0]
+            : [2, 10, 203, 0, 10, 0, 5, 0, 4, 203, 7, 1, 6, 0];
+        NativeBattleAiDefinition counter = new([[14, 220, 240, 0], [0], reaction, [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(8, 0, 1), 48).ToArray(), 0, []);
         Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(counter, [Physical], 0));
         BattleCombatantDefinition[] enemies = Enumerable.Range(0, 11).Select(i => new BattleCombatantDefinition
         {
@@ -166,7 +171,18 @@ public sealed class ExpandedBattleAiTests
         BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
         Assert.Equal((byte)2, queued.NativeAiCallbackStage);
         Assert.Equal("ally-10", Assert.Single(queued.AiRecipients!.ActorIds));
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!;
+        NativeBattleParticipantSnapshot saved = Assert.IsType<NativeBattleParticipantSnapshot>(Assert.Single(snapshot.Combatants, actor => actor.Id == "enemy-10").NativeParticipant);
+        if (retainAttacker)
+        {
+            Assert.Equal("ally-10", Assert.Single(saved.ActorReferences!).Value);
+            Assert.Equal(0u, saved.Variables[0]);
+        }
+        else
+        {
+            Assert.Null(saved.ActorReferences);
+        }
+        BattleSession restored = BattleSession.Restore(snapshot);
         for (int tick = 0; tick <= BattleSession.AttackWindupFrames; tick++)
         {
             battle.Tick();
