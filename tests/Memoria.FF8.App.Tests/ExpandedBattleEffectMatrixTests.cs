@@ -31,6 +31,20 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         ILookup<int, BattleNativeAction> limitMappings = assets.NativeActions.Where(action => action.KernelSection == 19 && action.CrisisLevel == 4 || action.KernelSection == 18 && action.CharacterId == action.KernelIndex + 6).ToLookup(action => (int)action.MagicId);
         bool requireFull = Environment.GetEnvironmentVariable("MEMORIA_FF8_REQUIRE_FULL_EFFECT_MATRIX") == "1";
         bool probeEnemies = requireFull || Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT_MATRIX_PROBE_ENEMIES") == "1";
+        HashSet<int>? selectedEffects = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT_MATRIX_EFFECTS") is { Length: > 0 } selection
+            ? selection.Split(',').Select(value => int.Parse(value, System.Globalization.CultureInfo.InvariantCulture)).ToHashSet() : null;
+        if (Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT_MATRIX_SHARD") is { Length: > 0 } shard)
+        {
+            string[] parts = shard.Split('/');
+            Assert.Equal(2, parts.Length);
+            int index = int.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture);
+            int total = int.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture);
+            Assert.InRange(index, 0, total - 1);
+            Assert.Null(selectedEffects);
+            selectedEffects = catalog.Where(binding => binding.Effect % total == index).Select(binding => (int)binding.Effect).ToHashSet();
+        }
+        Assert.True(!requireFull || selectedEffects is null, "Strict coverage requires the entire catalog.");
+        Assert.True(selectedEffects is null || selectedEffects.IsSubsetOf(catalog.Select(binding => (int)binding.Effect)), "Every selected effect must belong to the installed catalog.");
         EnemyScenarioDiscoveryResult enemies = ScenarioEnemyDiscovery.Discover(assets);
         ILookup<int, EnemyScenarioScriptedAction> enemyMappings = enemies.ScriptedActions.Where(action => action.NativeEffectId.HasValue).ToLookup(action => action.NativeEffectId!.Value);
         Assert.Contains(catalog, binding => binding.Effect == oilboyleCounter.MagicId);
@@ -40,7 +54,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         List<EffectResult> results = [];
         List<string> failures = [];
 
-        foreach (NativeBattleEffectBinding effect in catalog)
+        foreach (NativeBattleEffectBinding effect in catalog.Where(effect => selectedEffects is null || selectedEffects.Contains(effect.Effect)))
         {
             BattleNativeAction[] mappings = assets.NativeActions.Where(action => ScenarioDiscovery.ResolveCatalogEffect(action, assets.NativeActions) == effect.Effect).ToArray();
             BattleActionDefinition? player = admitted.Where(action => action.NativeAction is { } native && ScenarioDiscovery.ResolveCatalogEffect(native, assets.NativeActions) == effect.Effect)
@@ -182,7 +196,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                     firstBlockerStage = "enemy-turn-execution";
                     (status, detail, firstBlockerStage) = RunCactuarTurn(directory, field, effect, scripts);
                 }
-                else if (probeEnemies && effect.Effect is 166 or 213 or 219 or 257 or 258 or 285 or 320)
+                else if (probeEnemies && effect.Effect is 19 or 47 or 49 or 60 or 126 or 129 or 135 or 155 or 166 or 172 or 213 or 219 or 235 or 257 or 258 or 285 or 313 or 320 or 323)
                 {
                     firstBlockerStage = "enemy-turn-execution";
                     (status, detail, firstBlockerStage) = RunPreparedEnemyTurn(directory, field, effect, scripts);
@@ -213,6 +227,11 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                     (status, detail, firstBlockerStage) = enemyDeath;
                     admissionBlockers = enemyDeath.AdmissionBlockers;
                 }
+                if (probeEnemies && status == "blocked" && ProbeOriginalSlotRoutes(directory, field, assets, effect, scripts) is { } originalSlots)
+                {
+                    (status, detail, firstBlockerStage) = originalSlots;
+                    admissionBlockers = originalSlots.AdmissionBlockers;
+                }
                 firstBlockerStage = status switch
                 {
                     "native" => null,
@@ -239,11 +258,14 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         if (Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT_MATRIX_REPORT") is { Length: > 0 } reportPath)
         {
             using FileStream report = new(reportPath, FileMode.CreateNew, FileAccess.Write);
-            JsonSerializer.Serialize(report, new { Allies = 11, Enemies = 11, CatalogCount = catalog.Length, ProbedEnemyRoutes = probeEnemies, Counts = counts, Results = results, EnemyDiscoveryIssues = enemies.Issues }, new JsonSerializerOptions { WriteIndented = true });
+            JsonSerializer.Serialize(report, new { Allies = 11, Enemies = 11, CatalogCount = catalog.Length, TestedCount = results.Count, ProbedEnemyRoutes = probeEnemies, Counts = counts, Results = results, EnemyDiscoveryIssues = enemies.Issues }, new JsonSerializerOptions { WriteIndented = true });
         }
-        output.WriteLine($"11x11 installed effects: {catalog.Length} catalog, {counts.GetValueOrDefault("native")} native, {counts.GetValueOrDefault("logical")} logical, {counts.GetValueOrDefault("blocked")} blocked, {counts.GetValueOrDefault("failed")} failed.");
-        Assert.True(counts.GetValueOrDefault("native") > 0, "The installed expanded host did not present any catalog effect.");
-        Assert.Empty(failures);
+        output.WriteLine($"Installed effects: {results.Count}/{catalog.Length} checked, {counts.GetValueOrDefault("native")} native, {counts.GetValueOrDefault("logical")} logical, {counts.GetValueOrDefault("blocked")} blocked, {counts.GetValueOrDefault("failed")} failed.");
+        if (failures.Count != 0)
+        {
+            Assert.Fail(string.Join(Environment.NewLine, failures));
+        }
+        Assert.True(selectedEffects is not null || counts.GetValueOrDefault("native") > 0, "The installed expanded host did not present any catalog effect.");
         if (requireFull)
         {
             Assert.True(counts.GetValueOrDefault("blocked") == 0 && counts.GetValueOrDefault("logical") == 0, $"The installed catalog still has {counts.GetValueOrDefault("blocked")} unexecuted and {counts.GetValueOrDefault("logical")} logic-only effects in 11x11.");
@@ -478,7 +500,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         };
     }
 
-    internal static GameWorld StartBattle(string directory, GameState field, ushort formation, BattleActionDefinition? action = null, bool requireExpanded = true, BattleNativeAction? limit = null, BattleNativeAction? equipped = null, byte nativeSeed = 0, Action<GameSession>? captureSession = null, bool prepareHigherBand = false, Action<NativeCharacterVital[]>? prepareParty = null, Func<NativeCharacterVitals, NativeCharacterVitals>? prepareVitals = null, bool useAreaEnemyRoster = false)
+    internal static GameWorld StartBattle(string directory, GameState field, ushort formation, BattleActionDefinition? action = null, bool requireExpanded = true, BattleNativeAction? limit = null, BattleNativeAction? equipped = null, byte nativeSeed = 0, Action<GameSession>? captureSession = null, bool prepareHigherBand = false, Action<NativeCharacterVital[]>? prepareParty = null, Func<NativeCharacterVitals, NativeCharacterVitals>? prepareVitals = null, bool useAreaEnemyRoster = false, int examSeconds = 600)
     {
         GameSession session = new(field);
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
@@ -551,6 +573,10 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                 world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = 11, AdditionalEnemies = 10 });
             }
             string source = world.Events.Capture().GetProperty("ProgramHash").GetString()!;
+            if (examSeconds != 600)
+            {
+                session.SetExamTimer(session.ExamTimer!.SetRemaining(examSeconds));
+            }
             session.SetRandomEncounters(new(true, NativeRandomEncounterState.FromColdProcess(), new(SceneKind.Field, 133, world.Events.Frame, formation, source)));
             world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: nativeSeed));
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);

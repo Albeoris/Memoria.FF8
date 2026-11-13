@@ -55,6 +55,10 @@ internal sealed partial class GameWorld
         if (saved is not null)
         {
             saved = BattlePartyProjection.RestoreLegacyCommandProjection(saved, BattleResources);
+            if (saved.Definition.UsesOriginalEnemySlots && saved.Definition.EncounterId is not null)
+            {
+                saved = saved with { Definition = BindOriginalEnemyAiResources(saved.Definition) };
+            }
             if (saved.Definition.ExpandedEnemyLevels is null && saved.Definition.EncounterId is not null)
             {
                 saved = saved with { Definition = BindExpandedEnemyLevels(saved.Definition) };
@@ -85,6 +89,24 @@ internal sealed partial class GameWorld
                 return "Interactive battle cannot enter: " + exception.Message;
             }
         };
+    }
+
+    private BattleDefinition BindOriginalEnemyAiResources(BattleDefinition definition)
+    {
+        return definition with
+        {
+            Combatants = definition.Combatants.Select(Bind).ToArray()
+        };
+
+        BattleCombatantDefinition Bind(BattleCombatantDefinition actor)
+        {
+            if (actor.NativeAi is not { DeathSequenceReleasesAllocation: null } ai)
+            {
+                return actor;
+            }
+            NativeBattleAiDefinition installed = BattleResources.ReadEnemyAi(actor.ModelId, actor.Level, includeDeathLifecycle: true);
+            return actor with { NativeAi = ai with { DeathSequenceReleasesAllocation = installed.DeathSequenceReleasesAllocation } };
+        }
     }
 
     public BattleDefinition CreateEncounterBattle(int encounterId, byte nativeSeed = 0, ushort activeFlags = 0, BattleDefinition? restoredDefinition = null)
@@ -185,7 +207,7 @@ internal sealed partial class GameWorld
             BattleEnemyNativeProjection stats = BattleResources.ReadEnemyNativeStats(enemy.ModelId).Project(level);
             int initialAtb = enemy.Enabled ? BattleInitialAtb.Calculate(stats.Speed, entryRoll) : 0;
             NativeBattleStatusAllocation nativeStatuses = BattleResources.ReadEnemyNativeStatusData(enemy.ModelId);
-            NativeBattleAiDefinition? enemyAi = BattleResources.ReadEnemyAi(enemy.ModelId, level);
+            NativeBattleAiDefinition? enemyAi = BattleResources.ReadEnemyAi(enemy.ModelId, level, includeDeathLifecycle: expanded && useOriginalEnemySlots);
             if (expanded)
             {
                 ExpandedAiAdmission admission = NativeBattleExpandedAi.Evaluate(enemyAi, BattleResources.NativeActions, encounterId, originalEnemySlots: useOriginalEnemySlots);

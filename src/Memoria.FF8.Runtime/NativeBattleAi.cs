@@ -8,6 +8,8 @@ public sealed record NativeBattleLastAction(byte? AttackType, byte? AttackerMode
 public sealed record NativeBattleAiDefinition(byte[][] Scripts, NativeBattleAiAbility[] Abilities, int LevelBand, string[] Texts)
 {
     public System.Collections.Immutable.ImmutableArray<NativeBattleSequenceTrack> SequenceTracks { get; init; } = [];
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public bool? DeathSequenceReleasesAllocation { get; init; }
     public byte[][] NameBuffers { get; init; } = [];
     public string[] DisplayNames { get; init; } = [];
 }

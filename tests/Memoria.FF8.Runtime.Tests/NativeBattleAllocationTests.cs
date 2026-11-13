@@ -148,6 +148,88 @@ public sealed class NativeBattleAllocationTests
         AssertExpandedContinuation(battle);
     }
 
+    [Theory]
+    [InlineData(false, "enemy-2")]
+    [InlineData(true, "enemy-7")]
+    public void ExpandedOpcode50RetainsUntargetableActorInOriginalSlot(bool disableReplacement, string expectedTarget)
+    {
+        byte[] turn = disableReplacement ? [50, 43, 4, 7, 1, 6, 0] : [43, 4, 7, 1, 6, 0];
+        BattleSession battle = CreateExpanded([0], hiddenActor: true, turn: turn);
+        battle.Tick();
+        Assert.Equal(disableReplacement, battle.NativeScriptState.DisableAutomaticTargetReplacement);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        for (int callback = 0; callback < 90 && !battle.Events.Any(entry => entry.Kind == "EffectContact"); callback++)
+        {
+            battle.Tick();
+            restored.Tick();
+        }
+        Assert.Equal(expectedTarget, Assert.Single(battle.Events, entry => entry.Kind == "EffectContact").TargetId);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+    }
+
+    [Theory]
+    [InlineData(true, "party-1")]
+    [InlineData(false, "party-3")]
+    public void ExpandedReplacementRespectsTheOriginalRangeForDirectButNotGenericSelectors(bool direct, string expectedTarget)
+    {
+        byte[] turn = [direct ? (byte)43 : (byte)4, 2, 7, 1, 6, 0];
+        BattleSession battle = CreateExpanded([0], turn: turn, untargetableAlly: true);
+        for (int callback = 0; callback < 90 && !battle.Events.Any(entry => entry.Kind == "EffectContact"); callback++)
+        {
+            battle.Tick();
+        }
+        Assert.Equal(expectedTarget, Assert.Single(battle.Events, entry => entry.Kind == "EffectContact").TargetId);
+    }
+
+    [Fact]
+    public void ExpandedDirectSelectionRetainsActiveTargetWhenNoPhysicalReplacementExists()
+    {
+        BattleSession battle = CreateExpanded([0], turn: [43, 2, 7, 1, 6, 0], untargetableOriginalAllies: 3);
+        for (int callback = 0; callback < 90 && !battle.Events.Any(entry => entry.Kind == "EffectContact"); callback++)
+        {
+            battle.Tick();
+        }
+        Assert.Equal("party-2", Assert.Single(battle.Events, entry => entry.Kind == "EffectContact").TargetId);
+    }
+
+    [Fact]
+    public void ExpandedScriptedKoRetainsHitPointsAndTheAllocationWithoutDefeatCredit()
+    {
+        BattleSession battle = CreateExpanded([0], hiddenActor: true, turn: [8, 0]);
+        battle.Tick();
+        BattleCombatant caller = Assert.Single(battle.Combatants, actor => actor.Id == "enemy-2");
+        Assert.True(caller.IsActive);
+        Assert.False(caller.IsAlive);
+        Assert.Equal(100, caller.CurrentHp);
+        Assert.Equal(0, caller.Atb);
+        Assert.Equal(BattleRosterSlot.Enemy(0), caller.Slot);
+        Assert.Empty(battle.EnemyDefeats);
+        Assert.Single(battle.Events, entry => entry.Kind == "Defeated" && entry.TargetId == caller.Id);
+        AssertExpandedContinuation(battle);
+    }
+
+    [Fact]
+    public void ExpandedDeathSequenceFreesItsSlotBeforeFirstFreeAllocationAfterJsonRestore()
+    {
+        BattleSession battle = CreateExpanded([8, 51, 31, 6, 0], hiddenActor: true, releasesOnDeath: true);
+        BattleCombatant caller = Assert.Single(battle.Combatants, actor => actor.Id == "enemy-2");
+        Assert.True(caller.IsActive);
+        Assert.False(caller.IsAlive);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        for (int callback = 0; callback < 90 && !battle.Events.Any(entry => entry.Kind == "NativeSpawn"); callback++)
+        {
+            battle.Tick();
+            restored.Tick();
+        }
+        int release = Array.FindIndex(battle.Events.ToArray(), entry => entry.Kind == "NativeModelRemoved");
+        int allocation = Array.FindIndex(battle.Events.ToArray(), entry => entry.Kind == "NativeSpawn");
+        Assert.True(release >= 0 && allocation > release);
+        Assert.False(caller.IsActive);
+        Assert.Null(caller.Slot);
+        Assert.Equal(BattleRosterSlot.Enemy(0), Assert.Single(battle.Combatants, actor => actor.Id == "native-allocation-1").Slot);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+    }
+
     [Fact]
     public void ExpandedGraphicsBarrierOrdersEarlierActionThenAllocationAndActivationAcrossJson()
     {
@@ -172,14 +254,14 @@ public sealed class NativeBattleAllocationTests
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
     }
 
-    private static BattleSession CreateExpanded(byte[] init, bool hiddenActor = false, byte[]? turn = null)
+    private static BattleSession CreateExpanded(byte[] init, bool hiddenActor = false, byte[]? turn = null, bool untargetableAlly = false, int untargetableOriginalAllies = 0, bool releasesOnDeath = false)
     {
         NativeBattleAiAbility[] abilities = Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray();
         NativeBattleEnemyLevel level = new(100, 10, 10, 10, 10, 10, new int[8], [], [], 0);
         NativeBattleEnemyTemplate template = new(5, Enumerable.Repeat(level, 101).ToArray()) { NativeStatusAllocation = new(0, 0, Enumerable.Repeat((byte)100, 40).ToImmutableArray()) };
         BattleCombatantDefinition prototype = new() { Id = "enemy-6", Name = "Prototype", SceneSlot = 6, Attack = level.Strength, Defense = level.Vitality, Magic = level.Magic, Spirit = level.Spirit, Speed = level.Speed, ElementDefenses = level.ElementDefenses, InitialActive = false, NativeTemplate = template, NativeAi = new([[18, 220, 1, 0], [0], [0], [0], [0]], abilities, 0, []) };
-        BattleCombatantDefinition caller = prototype with { Id = "enemy-2", Name = "Caller", SceneSlot = 2, Level = 5, InitialActive = true, InitialAtb = turn is null ? 0 : BattleSession.AtbMaximum, NativeAi = new([init, turn ?? [0], [0], [0], [0]], abilities, 0, []) };
-        BattleCombatantDefinition[] combatants = [.. Enumerable.Range(0, 4).Select(index => new BattleCombatantDefinition { Id = $"party-{index}", Name = $"Party {index}", IsPlayer = true, ModelId = index }), caller, prototype];
+        BattleCombatantDefinition caller = prototype with { Id = "enemy-2", Name = "Caller", SceneSlot = 2, Level = 5, InitialActive = true, InitialAtb = turn is null ? 0 : BattleSession.AtbMaximum, NativeAi = new([init, turn ?? [0], [0], [0], [0]], abilities, 0, []) { DeathSequenceReleasesAllocation = releasesOnDeath } };
+        BattleCombatantDefinition[] combatants = [.. Enumerable.Range(0, 4).Select(index => new BattleCombatantDefinition { Id = $"party-{index}", Name = $"Party {index}", IsPlayer = true, ModelId = index, InitialUntargetable = index < untargetableOriginalAllies || untargetableAlly && index == 2 }), caller, prototype];
         if (hiddenActor)
         {
             combatants = [.. combatants, prototype with { Id = "enemy-7", SceneSlot = 7, Level = 5, InitialActive = true, InitialHidden = true, InitialUntargetable = true, InitialSuspended = true }];

@@ -44,7 +44,7 @@ public sealed partial class BattleAssets
         return Enumerable.Range(0, 4).Select(slot => (int)bytes[information + 260 + band * 8 + 2 * slot]).Where(id => id >= 64).Select(id => id - 64).ToArray();
     }
 
-    public NativeBattleAiDefinition ReadEnemyAi(int modelId, int level)
+    public NativeBattleAiDefinition ReadEnemyAi(int modelId, int level, bool includeDeathLifecycle = false)
     {
         byte[] bytes = Read($"c0m{modelId:000}.dat");
         int sections = bytes.Length >= 16 ? BinaryPrimitives.ReadInt32LittleEndian(bytes) : 0;
@@ -102,14 +102,24 @@ public sealed partial class BattleAssets
         }
         int band = level < bytes[information + 244] ? 0 : level < bytes[information + 245] ? 1 : 2;
         System.Collections.Immutable.ImmutableArray<NativeBattleSequenceTrack> tracks = [];
+        bool? deathSequenceReleasesAllocation = includeDeathLifecycle ? false : null;
         if (sections == 11)
         {
             int sequenceStart = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(16));
             int sequenceEnd = Enumerable.Range(0, sections).Select(index => BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(4 + 4 * index))).Where(offset => offset > sequenceStart).DefaultIfEmpty(bytes.Length).Min();
             BattleSequenceSet sequencePrograms = new(bytes[sequenceStart..sequenceEnd]);
             tracks = System.Collections.Immutable.ImmutableArray.CreateRange(abilities.Select(ability => ability.Sequence).Where(sequence => sequence != 0).Distinct().Select(sequencePrograms.ReadLocalControlTrack).OfType<NativeBattleSequenceTrack>());
+            if (includeDeathLifecycle)
+            {
+                int modelSequenceStart = NativeBattleDatDirectory.Section(bytes, 4);
+                int modelSequenceEnd = Enumerable.Range(0, sections).Select(index => BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(4 + 4 * index))).Where(offset => offset > modelSequenceStart).DefaultIfEmpty(bytes.Length).Min();
+                deathSequenceReleasesAllocation = new BattleSequenceSet(bytes[modelSequenceStart..modelSequenceEnd]).DeathSequenceRequestsAllocationRelease();
+            }
         }
-        return new NativeBattleAiDefinition(scripts, abilities, band, texts) { NameBuffers = nameBuffers, DisplayNames = displayNames, SequenceTracks = tracks };
+        return new NativeBattleAiDefinition(scripts, abilities, band, texts)
+        {
+            NameBuffers = nameBuffers, DisplayNames = displayNames, SequenceTracks = tracks, DeathSequenceReleasesAllocation = deathSequenceReleasesAllocation
+        };
     }
 
     private System.Collections.Immutable.ImmutableArray<string> ReadEnemyGraphicsTextBank(byte[] bytes)

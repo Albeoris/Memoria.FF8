@@ -5,7 +5,8 @@ public enum BattleExpandedAiDescriptorKind
     Barrier,
     Remove,
     Allocate,
-    Activate
+    Activate,
+    DeathRelease
 }
 
 public sealed record BattleExpandedAiDescriptor(BattleExpandedAiDescriptorKind Kind, int Operand = 0, int PhysicalIndex = 0, bool Activate = false);
@@ -33,6 +34,7 @@ public sealed partial class BattleSession
             BattleExpandedAiDescriptorKind.Remove => (operation.Operand == 200 || (uint)operation.Operand < NativeBattleSlots.EnemyCount) && operation is { PhysicalIndex: 0, Activate: false },
             BattleExpandedAiDescriptorKind.Allocate => (uint)operation.Operand < NativeBattleSlots.FormationSlotCount && (operation.PhysicalIndex == 0 || operation.PhysicalIndex is >= NativeBattleSlots.AllyCount and < NativeBattleSlots.Count),
             BattleExpandedAiDescriptorKind.Activate => (operation.Operand == 209 || NativeBattleSlots.Contains(operation.Operand)) && operation is { PhysicalIndex: 0, Activate: false },
+            BattleExpandedAiDescriptorKind.DeathRelease => operation is { Operand: 0, PhysicalIndex: 0, Activate: false } && GetActor(command.ActorId).NativeAi?.DeathSequenceReleasesAllocation == true,
             _ => false
         };
         BattleAttackCommand expected = new(command.ActorId, command.ActorId, BattleAbility.EnemyAbility) { ExpandedAiDescriptor = operation };
@@ -59,6 +61,12 @@ public sealed partial class BattleSession
                 break;
             case BattleExpandedAiDescriptorKind.Activate:
                 ActivateNativeParticipant(FindNativeActor(operation.Operand == 209 ? nativeLastAllocatedIndex : operation.Operand));
+                break;
+            case BattleExpandedAiDescriptorKind.DeathRelease:
+                if (caller.IsActive && (NativeSavedStatusBits(caller) & 1) != 0)
+                {
+                    ReleaseNativeParticipant(caller);
+                }
                 break;
         }
     }

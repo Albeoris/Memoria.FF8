@@ -198,6 +198,10 @@ public sealed partial class BattleSession
             command = command with { NativeDraw = draw.NativeDraw, NativeAction = draw.NativeAction };
             if (draw.NativeDraw!.Failed || drawSpell is null)
             {
+                if (draw.NativeDraw is { Failed: false, Selection: >= 64 })
+                {
+                    RefreshNativeEnemyDrawSlots();
+                }
                 CompleteActionPresentation(command, "Draw completed.");
                 return;
             }
@@ -432,7 +436,7 @@ public sealed partial class BattleSession
                 {
                     // Native48E830 stops the remaining pass when a previously selected target is KO.
                     bool deathSelfContact = recipient == actor && recipient.Id == command.AiRecipients?.DeathSelfTargetId && command.NativeAiCallbackStage == 3;
-                    bool targetsKnockedOutAlly = recipient.IsPlayer && (IsNativeRevive(action) || ExpandedBattleActionRules.IsEnemyEjection(native));
+                    bool targetsKnockedOutAlly = recipient.IsPlayer && (IsNativeRevive(action) || EnemyActionTargetsKnockedOutAllies(native));
                     if (!recipient.IsActive || (NativeSavedStatusBits(recipient) & 1) != 0 && !deathSelfContact && !targetsKnockedOutAlly)
                     {
                         return (contacts.ToImmutable(), firstReflector);

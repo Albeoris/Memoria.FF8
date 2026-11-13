@@ -35,6 +35,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         134 => 227,
         234 => 40,
         190 => 155,
+        174 => 226,
         231 => 67,
         304 => 133,
         _ => null

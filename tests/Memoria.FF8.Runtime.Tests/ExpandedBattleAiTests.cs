@@ -110,13 +110,15 @@ public sealed class ExpandedBattleAiTests
         Assert.Empty(references);
     }
 
-    [Fact]
-    public void StatusOnlyEnemyEjectionContactsTheSelectedKnockedOutAlly()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void EnemyAttackBit80ContactsTheSelectedKnockedOutAlly(bool ejection)
     {
-        BattleNativeAction ejection = Physical with { Power = 0, AttackFlags = 0x83, StatusAttack = 255, Statuses1 = 0x10000 };
+        BattleNativeAction action = Physical with { Power = 0, AttackFlags = 0x83, StatusAttack = ejection ? (byte)255 : (byte)0, Statuses1 = ejection ? 0x10000u : 0u };
         byte[] turn = [4, 3, 7, 1, 6, 0];
-        Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(Ai(turn), [ejection], 0));
-        BattleSession battle = Start(turn, 4, 6, native: ejection);
+        Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(Ai(turn), [action], 0));
+        BattleSession battle = Start(turn, 4, 6, native: action);
         Assert.Equal("ally-3", battle.ActiveAction!.TargetId);
         BattleCombatant target = Assert.Single(battle.Combatants, actor => actor.Id == "ally-3");
         target.NativeDeathCount = 0;
@@ -126,7 +128,7 @@ public sealed class ExpandedBattleAiTests
         {
             battle.Tick();
         }
-        Assert.True(target.IsEjected);
+        Assert.Equal(ejection, target.IsEjected);
         Assert.Single(battle.Events, entry => entry.Kind == "EffectContact" && entry.ActorId == "enemy-4" && entry.TargetId == target.Id);
         Assert.Equal(BattleOutcome.Active, battle.Outcome);
     }

@@ -29,6 +29,16 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         Assert.Contains($"{contacts} contacts", detail);
     }
 
+    [Fact]
+    public void Installed_expanded_Renzokuken_preserves_contact_owner_after_sorceress_allocations()
+    {
+        string directory = TestResources.GameDirectory;
+        using GameAssets game = new(directory);
+        using BattleAssets assets = new(directory);
+        (string status, string detail) = RunExpandedRenzokuken(directory, PrepareField(directory), game, assets, 337);
+        Assert.True(status == "logical", detail);
+    }
+
     private static bool IsExpandedRenzokukenEffect(int effect) => effect is 141 or 159 or 160 or 161 or 259 or >= 332 and <= 337 or >= 339 and <= 343;
 
     private static (string Status, string Detail) RunExpandedRenzokuken(string directory, GameState field, GameAssets game, BattleAssets assets, ushort? effect, BattleNativeAction? finisher = null)
@@ -43,7 +53,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             336 => (354, 90),
             337 => (813, 117),
             339 => (796, 112),
-            340 => (981, 126),
+            340 => (982, 126),
             341 => (712, 84),
             342 => (510, 124),
             343 => (509, 122),
@@ -63,6 +73,10 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         bool sawActiveTarget = false;
         for (int seed = 0; seed < 96; seed++)
         {
+            if (originalAllocation && seed == 3 && !sawActiveTarget)
+            {
+                break;
+            }
             using GameWorld world = StartBattle(directory, field, checked((ushort)formation), limit: squall, nativeSeed: (byte)seed, prepareHigherBand: true, requireExpanded: !originalAllocation, useAreaEnemyRoster: originalAllocation);
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
             if (!battle.UsesExpandedRoster)
@@ -70,6 +84,10 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                 return ("blocked", $"Formation {formation} remains on its original battle host because the expanded host cannot execute all required encounter services.");
             }
             BattleCombatant caster = Assert.Single(battle.Combatants, actor => actor.Id == casterId);
+            if (effect == 337 && !AdvanceSorceressAllocations(world, battle, targetModel))
+            {
+                return ("blocked", "The original Sorceress allocations did not reach the last model after their lethal contacts.");
+            }
             if (effect == 334)
             {
                 // Bahamut fills ATB in its initialization callback. Give Squall the first HUD selection.
@@ -159,6 +177,36 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         return ("blocked", originalAllocation && !sawActiveTarget
             ? $"Formation {formation} has no targetable allocation of original model {targetModel} at the reached phase."
             : $"No bounded genuine HUD invocation selected the installed effect {finisher?.MagicId ?? effect}.");
+    }
+
+    private static bool AdvanceSorceressAllocations(GameWorld world, BattleSession battle, int finalModel)
+    {
+        BattleCombatant attacker = Assert.Single(battle.Combatants, actor => actor.Id == CasterId);
+        HashSet<string> defeated = [];
+        for (int step = 0; step < 40 && battle.Outcome == BattleOutcome.Active; step++)
+        {
+            BattleCombatant? enemy = battle.Combatants.FirstOrDefault(candidate => !candidate.IsPlayer && candidate.IsActive && candidate.IsAlive && !candidate.Untargetable);
+            if (enemy?.ModelId == finalModel)
+            {
+                Assert.Equal(10, defeated.Count);
+                return true;
+            }
+            if (enemy is null || battle.ActiveAction is not null || battle.QueuedActions.Count != 0 || attacker.IsBusy)
+            {
+                world.ApplyBattleInput(new(BattleInputKind.Tick, Frames: 30));
+                continue;
+            }
+            // Prepare a lethal HP boundary and leave allocation, counters and targetability to the original callbacks.
+            enemy.CurrentHp = 1;
+            attacker.Atb = BattleSession.AtbMaximum;
+            world.ApplyBattleInput(new(BattleInputKind.Attack, ActorId: attacker.Id, TargetId: enemy.Id));
+            FinishTurnStimulus(world, battle, attacker);
+            if (!enemy.IsAlive)
+            {
+                Assert.True(defeated.Add(enemy.Id));
+            }
+        }
+        return false;
     }
 
     private static void CompleteExpandedRenzokuken(GameWorld world, BattleSession battle, string casterId)

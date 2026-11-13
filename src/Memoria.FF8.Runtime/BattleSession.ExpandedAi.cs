@@ -10,6 +10,15 @@ public sealed record BattleAiRecipients(ImmutableArray<string> ActorIds)
     public BattleSide? RandomSide { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public BattleAiTargetPolicy TargetPolicy { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public BattleAiSelection Selection { get; init; }
+}
+
+public enum BattleAiSelection
+{
+    Selected,
+    Group,
+    Physical
 }
 
 public enum BattleAiTargetPolicy
@@ -87,7 +96,7 @@ public sealed partial class BattleSession
 
     private void CompleteExpandedEnemyDeath(BattleCombatant actor)
     {
-        if (nativeAiCallbackStage != 3)
+        if (nativeAiCallbackStage != 3 && !UsesOriginalEnemySlots)
         {
             throw new NotSupportedException("Expanded AI death projection requires the enemy death callback.");
         }
@@ -95,6 +104,15 @@ public sealed partial class BattleSession
         actor.NativeStatus0 |= 1;
         actor.NativeCombatantFlags &= ~0xCu;
         actor.Atb = 0;
+        if (nativeAiCallbackStage != 3)
+        {
+            Log("Defeated", actor.Id, actor.Id, 0, $"{actor.Name} is defeated.");
+        }
+        if (UsesOriginalEnemySlots && actor.NativeAi?.DeathSequenceReleasesAllocation == true)
+        {
+            // TODO(TD-009): The expanded host retains sequence 3's allocation release in the graphics FIFO.
+            QueueExpandedAiDescriptor(actor, new(BattleExpandedAiDescriptorKind.DeathRelease));
+        }
     }
 
     private void RunExpandedNativeAi(BattleCombatant actor, int callback)
@@ -126,9 +144,9 @@ public sealed partial class BattleSession
             201 => PickExpandedAiTarget(allies.Where(IsExpandedAiTarget)),
             202 => PickExpandedAiTarget(enemies.Where(IsExpandedAiTarget)),
             203 => actor.LastAttackerId is { } attacker ? new([attacker]) : new([]),
-            204 => new([.. allies.Where(IsExpandedAiTarget).Select(candidate => candidate.Id)]),
-            205 => new([.. enemies.Where(IsExpandedAiTarget).Select(candidate => candidate.Id)]),
-            206 => new([.. combatants.Where(IsExpandedAiTarget).Select(candidate => candidate.Id)]),
+            204 => ResolveExpandedAiGroup(allies),
+            205 => ResolveExpandedAiGroup(enemies),
+            206 => ResolveExpandedAiGroup(combatants),
             207 => PickExpandedAiTarget(enemies.Where(candidate => candidate != actor && IsExpandedAiTarget(candidate)).DefaultIfEmpty(actor).Where(IsExpandedAiTarget)),
             208 => new([.. allies.Where(IsExpandedAiTarget).Select(candidate => candidate.Id)]) { RandomSide = BattleSide.Allies },
             >= 220 and <= 227 => ResolveExpandedAiLocalTarget(actor, selector - 220),
@@ -136,6 +154,11 @@ public sealed partial class BattleSession
             209 => throw new NotSupportedException($"Expanded AI selector {selector} requires a separately owned allocation."),
             _ => ResolveExpandedModelTarget(selector)
         };
+    }
+
+    private BattleAiRecipients ResolveExpandedAiGroup(IEnumerable<BattleCombatant> actors)
+    {
+        return new([.. actors.Where(IsExpandedAiTarget).Select(candidate => candidate.Id)]) { Selection = UsesOriginalEnemySlots ? BattleAiSelection.Group : BattleAiSelection.Selected };
     }
 
     private BattleAiRecipients ResolveExpandedModelTarget(int selector)
@@ -157,7 +180,7 @@ public sealed partial class BattleSession
             throw new NotSupportedException("Expanded AI direct actor targeting requires original enemy slots.");
         }
         BattleCombatant? target = FindActiveNativeActor(index);
-        return target is null ? new([]) : new([target.Id]);
+        return target is null ? new([]) : new([target.Id]) { Selection = BattleAiSelection.Physical };
     }
 
     private void ValidateExpandedOriginalEnemySlots()
@@ -212,20 +235,67 @@ public sealed partial class BattleSession
         return candidate.IsActive && candidate.IsAlive && !candidate.Untargetable && (NativeSavedStatusBits(candidate) & 5) == 0;
     }
 
-    private BattleCombatant[] CurrentExpandedAiTargets(BattleAiRecipients recipients, BattleNativeAction? action = null)
+    internal BattleCombatant[] CurrentExpandedAiTargets(BattleAiRecipients recipients, BattleNativeAction? action = null)
     {
+        if (!Enum.IsDefined(recipients.Selection) || recipients.Selection != BattleAiSelection.Selected && (!UsesOriginalEnemySlots || recipients.TargetPolicy != BattleAiTargetPolicy.Standard || recipients.RandomSide is not null) ||
+            recipients.Selection == BattleAiSelection.Physical && recipients.ActorIds.Length != 1)
+        {
+            throw new InvalidDataException("Expanded AI target selection has invalid roster or recipient ownership.");
+        }
         IEnumerable<BattleCombatant> targets = recipients.RandomSide is BattleSide side ? Roster(side) : recipients.ActorIds.Select(GetActor);
         if (recipients.TargetPolicy == BattleAiTargetPolicy.DrawnMagic)
         {
             bool includesKnockedOutAllies = (action?.TargetFlags.GetValueOrDefault() & 1) != 0;
             return targets.Where(candidate => IsExpandedDrawCastTarget(candidate, includesKnockedOutAllies)).ToArray();
         }
-        if (recipients.RandomSide is null && ExpandedBattleActionRules.IsEnemyEjection(action))
+        if (UsesOriginalEnemySlots && recipients.RandomSide is null && recipients.Selection != BattleAiSelection.Group)
+        {
+            return ResolveExpandedOriginalAiTargets(recipients, action, targets.ToArray());
+        }
+        if (recipients.RandomSide is null && EnemyActionTargetsKnockedOutAllies(action))
         {
             // Attack flag 0x80 admits selected KO party recipients in the native target mask.
             return targets.Where(candidate => IsExpandedAiTarget(candidate) || candidate.IsPlayer && candidate.IsActive && !candidate.Untargetable && !candidate.IsEjected && !candidate.IsAlive).ToArray();
         }
         return targets.Where(target => IsExpandedAiTarget(target) || target.IsActive && target.Id == recipients.DeathSelfTargetId).ToArray();
+    }
+
+    private BattleCombatant[] ResolveExpandedOriginalAiTargets(BattleAiRecipients recipients, BattleNativeAction? action, BattleCombatant[] selected)
+    {
+        bool includesKnockedOutAllies = EnemyActionTargetsKnockedOutAllies(action);
+        BattleCombatant[] available = selected.Where(IsAvailable).ToArray();
+        if (available.Length != 0)
+        {
+            return available;
+        }
+        if (!nativeScriptState.DisableAutomaticTargetReplacement && selected.FirstOrDefault() is { Slot: { } slot } source)
+        {
+            IEnumerable<BattleCombatant> roster = Roster(source.Side).Where(candidate => candidate.Slot is not null && IsAvailable(candidate));
+            if (recipients.Selection == BattleAiSelection.Physical)
+            {
+                roster = roster.Where(HasNativeRosterSlot);
+            }
+            BattleCombatant? replacement = roster.OrderBy(candidate => candidate.Slot!.Value.Position).FirstOrDefault(candidate => candidate.Slot!.Value.Position > slot.Position)
+                ?? roster.OrderByDescending(candidate => candidate.Slot!.Value.Position).FirstOrDefault(candidate => candidate.Slot!.Value.Position < slot.Position);
+            if (replacement is not null)
+            {
+                return [replacement];
+            }
+        }
+        // 48EE50/48EEB0 keep the selected mask when replacement is disabled or exhausts the side.
+        // The contact loop owns KO rejection after resolution.
+        return selected.Where(candidate => candidate.IsActive).ToArray();
+
+        bool IsAvailable(BattleCombatant candidate)
+        {
+            return candidate.IsActive && (candidate.Id == recipients.DeathSelfTargetId ||
+                !candidate.Untargetable && !candidate.IsEjected && (candidate.IsAlive || candidate.IsPlayer && includesKnockedOutAllies));
+        }
+    }
+
+    private static bool EnemyActionTargetsKnockedOutAllies(BattleNativeAction? action)
+    {
+        return action is { Command: 8 } && (action.AttackFlags & 0x80) != 0;
     }
 
     private void QueueExpandedAiAction(BattleCombatant actor, byte command, ushort id, byte sequence, BattleAiRecipients? recipients)

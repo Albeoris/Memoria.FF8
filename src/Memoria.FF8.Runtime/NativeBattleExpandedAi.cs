@@ -114,6 +114,9 @@ public static class NativeBattleExpandedAi
                 }
                 switch (opcode)
                 {
+                    case 1 or 24 or 26 or 34 when originalEnemySlots && script[pc] >= program.Texts.Length:
+                        MarkUnsupportedService($"text-operand:{opcode}/{script[pc]}");
+                        break;
                     case 2:
                         int subject = script[pc];
                         int selector = script[pc + 1];
@@ -150,8 +153,8 @@ public static class NativeBattleExpandedAi
                             pending.Push(otherwise);
                         }
                         break;
-                    case 8 when callback != 3:
-                    case 30 or 50:
+                    case 8 when callback != 3 && !originalEnemySlots:
+                    case 30:
                         MarkUnsupportedService($"opcode:{opcode}");
                         break;
                     case 42:
@@ -160,7 +163,7 @@ public static class NativeBattleExpandedAi
                             MarkUnsupportedService("drawn-magic-contract");
                         }
                         break;
-                    case 27 or 31 or 43 or 44 or 49 or 51 or 52 or 53 or 54 or 55 or 56 or 57 or 58 or 59 when !originalEnemySlots:
+                    case 27 or 31 or 43 or 44 or 49 or 50 or 51 or 52 or 53 or 54 or 55 or 56 or 57 or 58 or 59 when !originalEnemySlots:
                         admission = ExpandedAiAdmission.RequiresOriginalSlots;
                         blockers?.Add($"physical-opcode:{opcode}");
                         break;
@@ -272,8 +275,13 @@ public static class NativeBattleExpandedAi
 
     internal static bool SupportsAction(BattleNativeAction action)
     {
-        return ExpandedBattleActionRules.IsEnemyEjection(action) || action.Command is 2 or 8 && ExpandedBattleActionRules.SupportsEnemyContacts(action) && action.AttackType is not (5 or 6) &&
-            ((action.TargetFlags.GetValueOrDefault() & 3) == 0 || action is { Command: 2, ActionId: 16 }) && (action.Command != 8 || (action.AttackFlags & 0x80) == 0);
+        if (action is { Command: 4, KernelSection: 2, AttackType: 4, TargetFlags: byte flags })
+        {
+            // Enemy AI provides the target and dispatches the Item record without a party inventory reservation.
+            return (flags & 3) == 0 && ExpandedBattleActionRules.SupportsContacts(action);
+        }
+        return action.Command is 2 or 8 && ExpandedBattleActionRules.SupportsEnemyContacts(action) && action.AttackType is not (5 or 6) &&
+            ((action.TargetFlags.GetValueOrDefault() & 3) == 0 || action is { Command: 2, ActionId: 16 });
     }
 
     private static int ReadWord(byte[] script, int offset) => script[offset] | script[offset + 1] << 8;

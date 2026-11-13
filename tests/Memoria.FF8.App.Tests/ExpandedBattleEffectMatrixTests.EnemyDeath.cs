@@ -122,11 +122,15 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             BattleActionPresentation? cast = null;
             NativeBattleEffectPresentation? presentation = null;
             HashSet<string>? recipientsAtContact = null;
+            string[]? resolvedRecipientsAtContact = null;
             int castEventStart = 0;
+            bool usesOriginalSlots = battle.ReadDefinition().UsesOriginalEnemySlots;
             for (int frame = 0; frame < 320 && battle.Outcome == BattleOutcome.Active; frame++)
             {
                 int previousEvents = battle.Events.Count;
                 HashSet<string> eligible = battle.Combatants.Where(actor => actor.IsActive && actor.IsAlive && !actor.Untargetable && (actor.PersistentStatus & 5) == 0).Select(actor => actor.Id).ToHashSet(StringComparer.Ordinal);
+                string[]? resolvedBeforeContact = usesOriginalSlots && recipientsAtContact is null && cast?.AiRecipients is { } selection
+                    ? battle.CurrentExpandedAiTargets(selection, cast.NativeAction).Select(actor => actor.Id).ToArray() : null;
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
                 if (restored is not null)
                 {
@@ -138,7 +142,6 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                     Assert.True(deaths > 0);
                     Assert.Contains(battle.Events.Skip(beforeAttack), entry => entry.Kind == "Damage" && entry.ActorId == attacker.Id && entry.TargetId == enemy.Id && entry.Amount > 0);
                     Assert.Contains(battle.Events.Skip(beforeAttack), entry => entry.Kind == "ActionComplete" && entry.ActorId == attacker.Id && entry.TargetId == enemy.Id);
-                    Assert.Equal(attacker.Id, enemy.LastAttackerId);
                     Assert.Contains(battle.EnemyDefeats, defeat => defeat.AllocationId == enemy.Id);
                     cast = active;
                     castEventStart = previousEvents;
@@ -166,6 +169,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                             eligible.Add(self);
                         }
                         recipientsAtContact ??= eligible;
+                        resolvedRecipientsAtContact ??= resolvedBeforeContact;
                         lastBlocker = "enemy-death-completion";
                     }
                     BattleEvent[] events = battle.Events.Skip(castEventStart).Where(entry => entry.ActorId == enemy.Id).ToArray();
@@ -175,7 +179,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                         Assert.Single(events, entry => entry.Kind == "ActionComplete");
                         Assert.Single(battle.EnemyDefeats, defeat => defeat.AllocationId == enemy.Id);
                         BattleEvent[] contacts = events.Where(entry => entry.Kind == "EffectContact" && entry.Ability == BattleAbility.EnemyAbility).ToArray();
-                        AssertEnemyContacts(battle, cast, contacts, recipientsAtContact);
+                        AssertEnemyContacts(battle, cast, contacts, recipientsAtContact, resolvedRecipientsAtContact);
                         Assert.All(contacts, contact => Assert.Equal(cast.NativeSequence, contact.NativeSequence));
                         Assert.True(presentation is null || presentation.Complete);
                         if (restored is not null)

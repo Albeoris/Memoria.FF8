@@ -17,9 +17,10 @@ internal static class ExpandedBattleActionRules
             IsEnemyEjection(action);
     }
 
-    internal static bool IsEnemyEjection(BattleNativeAction? action)
+    private static bool IsEnemyEjection(BattleNativeAction action)
     {
-        return action is { Command: 8, KernelSection: 3, AttackType: 1, Power: 0, Element: 0, StatusAttack: 255, Statuses0: 0, Statuses1: 0x10000, AttackFlags: 0x83, HitCount: 1, PresentationOnly: false, CrisisLevel: null };
+        // Pure Eject follows the shared status/contact path even when the native graphics have no expanded binding.
+        return action is { Command: 8, KernelSection: 3, AttackType: 1 or 2, Power: 0, Element: 0, StatusAttack: 255, Statuses0: 0, Statuses1: 0x10000 or 0x4010000, HitCount: 1, PresentationOnly: false, CrisisLevel: null };
     }
 
     public static bool SupportsDrawnEnemyMagic(BattleNativeAction action)
