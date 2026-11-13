@@ -284,6 +284,10 @@ internal static class AutoPlayTraversalPolicy
             ("528:2145", "528:talk:8") => -6,
             ("530:2145", "530:gateway:0") => -7,
             ("524:2145", "524:talk:9") => -8,
+            // NG-070: Leave the laboratory after the briefing to start the countdown.
+            ("524:2300", "524:gateway:0") => -1,
+            ("530:2300", "530:talk:7") => -2,
+            ("528:2300", "528:line:12") => -3,
             _ => 0
         };
     }
@@ -362,6 +366,8 @@ internal static class AutoPlayTraversalPolicy
             "532:2000:9:160:1753:1:1:2" or "422:2000:8:190:2341:2:1:2" => 1,
             // NG-069: Ask the assistant to admit the party to the laboratory.
             "434:2145:7:38:233:4:2:3" => 2,
+            // NG-070: Take the original lift down after the briefing.
+            "530:2300:7:142:2526:1:1:2" => 1,
             // NG-036: Take the elevator to 2F for the approaching ship.
             "172:614:12:98:1227:4:2:4" => 3,
             // NG-039, NG-040: Take the elevator to 2F for Fishermans Horizon.

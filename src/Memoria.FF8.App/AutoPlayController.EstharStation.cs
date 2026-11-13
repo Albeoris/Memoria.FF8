@@ -30,4 +30,29 @@ internal sealed partial class AutoPlayController
         }
         return true;
     }
+
+    private bool TryWaitForEstharCountdown(GameWorld world)
+    {
+        EventEngine events = world.Events;
+        if (events.FieldId != 434 || session.State.WorldEntryMemory?.StoryWord != 2300 || session.State.ExamTimer is not { TimerMemoryActivated: true, DisplayEnabled: true } timer || !world.HasCurrentFieldAllocation || world.ReadAutoPlayFieldProgramHash(434) != "E3D356234021435181E88E9EA5C5F4CAA360F2EE0CD2549298650FDB07C1B598" || events.EventMemory.Read(672, 2).RequireExact() != 19 || !events.IsAtScriptedInputLoop(11, 53, 429, 458))
+        {
+            return false;
+        }
+
+        // NG-070: The original city script continues when its own clock expires.
+        int remaining = timer.RequireRemaining();
+        for (int callback = 0; callback < 300 && session.State.FieldId == 434 && events.NextTrigger.Kind == PlayerTriggerKind.Playable && session.State.ExamTimer is { DisplayEnabled: true }; callback++)
+        {
+            AdvanceInputFrame(world);
+            if (events.LastFault is { } fault)
+            {
+                throw new EventScriptException(fault.Message);
+            }
+        }
+        if (session.State.ExamTimer is { } current && current.RequireRemaining() < remaining)
+        {
+            ResetIdleDeadline();
+        }
+        return true;
+    }
 }
