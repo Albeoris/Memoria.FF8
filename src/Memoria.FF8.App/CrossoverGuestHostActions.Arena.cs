@@ -18,6 +18,7 @@ internal sealed partial class CrossoverGuestHostActions
         readArenaGeometry = geometry;
         compositor.ForeignMaterialResolver = materialResolver;
         abilityCapabilities.Clear();
+        capabilityVersion++;
     }
 
     private NativeBattleArenaHost? CreateArena(CrossoverGunbladeHostPlacement placement)

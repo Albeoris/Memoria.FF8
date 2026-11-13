@@ -8,6 +8,14 @@ namespace Memoria.FF8;
 internal sealed partial class CrossoverGuestHostActions
 {
     private GameplaySaveLimitProgress? originLimitProgress;
+    private readonly CrossoverGuestAbilityCatalogCache abilityCatalog;
+    private IReadOnlyList<CrossoverGuestAbility>? menuCatalog;
+    private CrossoverGuestItemInventory? menuItems;
+    private bool menuLimitReady;
+    private ushort menuPresentationReady;
+    private long capabilityVersion;
+    private long menuCapabilityVersion;
+    private object? menuState;
     private readonly Dictionary<(ushort Ability, int Target, ushort Targets, bool Geometry), string?> abilityCapabilities = [];
 
     public void BindLimitProgress(GameplaySaveLimitProgress progress)
@@ -17,7 +25,39 @@ internal sealed partial class CrossoverGuestHostActions
         originLimitProgress = progress;
     }
 
-    private IReadOnlyList<CrossoverGuestAbility> ReadOriginAbilities() => ReadIntegratedAbilities(CrossoverGuestAbilityCatalog.Read(assets, encounter.Working, kit, originLimitProgress, limitSelection?.Crisis ?? 0));
+    private IReadOnlyList<CrossoverGuestAbility> ReadNativeAbilities() => abilityCatalog.Read(encounter.Working, kit, originLimitProgress, limitSelection?.Crisis ?? 0);
+
+    private IReadOnlyList<CrossoverGuestAbility> ReadOriginAbilities() => ReadIntegratedAbilities(ReadNativeAbilities());
+
+    public object CommandMenuState
+    {
+        get
+        {
+            IReadOnlyList<CrossoverGuestAbility> catalog = ReadNativeAbilities();
+            bool ready = LimitReady;
+            ushort presentationReady = 0;
+            if (attack.Visual is not null)
+            {
+                foreach (var actor in host.Actors)
+                {
+                    if (host.IsActorPresentationReady(actor.Actor.Slot))
+                    {
+                        presentationReady |= (ushort)(1 << actor.Actor.Slot);
+                    }
+                }
+            }
+            if (menuState is null || !ReferenceEquals(menuCatalog, catalog) || !ReferenceEquals(menuItems, encounter.Items) || menuLimitReady != ready || menuPresentationReady != presentationReady || menuCapabilityVersion != capabilityVersion)
+            {
+                menuCatalog = catalog;
+                menuItems = encounter.Items;
+                menuLimitReady = ready;
+                menuPresentationReady = presentationReady;
+                menuCapabilityVersion = capabilityVersion;
+                menuState = new object();
+            }
+            return menuState;
+        }
+    }
 
     private BattleNativeAction NativeAbility(ushort ability) => ReadOriginAbilities().SingleOrDefault(choice => choice.Key == ability)?.NativeAction ?? throw new InvalidOperationException("The selected ability is not available in the original guest's current command state.");
 
@@ -47,6 +87,7 @@ internal sealed partial class CrossoverGuestHostActions
         {
             ushort key = item ? CrossoverGuestAbilityCatalog.Key(4, original.ActionId) : receipt.Invocation.GuestAbility;
             abilityCapabilities[(key, receipt.Invocation.TargetSlot, AbilityTargetMask(original, receipt.Invocation.TargetSlot), readForeignGeometry is not null)] = reason;
+            capabilityVersion++;
         }
         return reason;
     }
@@ -223,6 +264,7 @@ internal sealed partial class CrossoverGuestHostActions
         {
             reason = ProbeAbility(original, target);
             abilityCapabilities.Add(key, reason);
+            capabilityVersion++;
         }
         return reason;
     }

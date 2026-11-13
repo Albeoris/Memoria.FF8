@@ -12,6 +12,8 @@ public sealed record Ff7BattleGuestAbility(Ff7BattleCommand Command, ushort Abil
 public interface IFf7BattleGuestAbilities
 {
     IReadOnlyList<Ff7BattleGuestAbility> Abilities { get; }
+    /// <summary>Opts into command menu reuse while this identity and host combat inputs remain unchanged. Replace the token when origin abilities, items, support rules or relevant presentation geometry change; return null to evaluate every read.</summary>
+    object? CommandMenuState => null;
     bool SupportsAbility(Ff7BattleCommand command, ushort ability, Ff7BattleGuestAttackTarget target);
     string? TargetUnsupportedReason(Ff7BattleCommand command, ushort ability, Ff7BattleGuestAttackTarget target) => SupportsAbility(command, ability, target) ? null : "The selected ability cannot be applied to this target.";
 }

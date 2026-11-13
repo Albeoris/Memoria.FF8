@@ -36,6 +36,8 @@ Normal ATB dispatches continuously. TurnBased automatically advances toward read
 
 The HUD exposes equipped commands, available action lists and eligible targets. Input bindings are configurable; see [controls](../players/controls.md). Victory confirmation commits the result once and returns to the suspended field/world owner. Defeat does not manufacture a winning outcome or replay an encounter; recovery uses an existing [standalone save](../players/saves.md).
 
+Mixed FFVII command menus retain their command options and target masks while the ready actor, combat inputs and origin provider's command-state token remain unchanged. Drawing, moving the selection and advancing ATB alone do not rebuild the menu. Actor state, stock, inventory, Limit readiness and presentation capability changes invalidate it; submission still uses the current execution checks. Origin ability catalogs separately retain their native choices until the encounter working state, projected kit, learned Limit progress or crisis level changes. These caches are presentation queries and are not serialized into saves.
+
 ## Formation, allocation and AI
 
 The formation reader preserves eight scene slot records and their coordinates, level data and enabled/hidden/untargetable/suspended flags. Scene slot identity is distinct from a live actor allocation. Hidden or suspended actors may await activation; their resource identity does not imply that they are currently selectable or loaded for drawing.

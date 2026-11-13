@@ -25,12 +25,90 @@ public sealed record Ff7BattleCommandOption(Ff7BattleCommand Command, ushort Arg
 
 public sealed partial class Ff7BattleSession
 {
+    private GuestCommandMenuCache? guestCommandMenuCache;
+
     public IReadOnlyList<Ff7BattleCommandOption> Commands(int slot)
     {
         if (slot != ReadyPlayer)
         {
+            guestCommandMenuCache = null;
             return [];
         }
+        IFf7BattleGuestAttack? provider = GetGuestAttack(slot);
+        object? token = (provider as IFf7BattleGuestAbilities)?.CommandMenuState;
+        if (token is null)
+        {
+            guestCommandMenuCache = null;
+            return BuildCommands(slot);
+        }
+        if (guestCommandMenuCache is { } cached && cached.Matches(this, slot, provider!, token))
+        {
+            return cached.Options;
+        }
+        IReadOnlyList<Ff7BattleCommandOption> options = Array.AsReadOnly(BuildCommands(slot).ToArray());
+        object? completedToken = ((IFf7BattleGuestAbilities)provider!).CommandMenuState;
+        guestCommandMenuCache = completedToken is null ? null : new(this, slot, provider!, completedToken, options);
+        return options;
+    }
+
+    private sealed class GuestCommandMenuCache
+    {
+        private readonly int slot;
+        private readonly IFf7BattleGuestAttack provider;
+        private readonly object token;
+        private readonly (int Identity, Ff7BattleAiActor Actor, bool GuestVitals)[] actors;
+        private readonly Ff7InventorySlot[] inventory;
+        private readonly byte limitGauge;
+        private readonly KeyValuePair<byte, int>[] allUses;
+
+        public IReadOnlyList<Ff7BattleCommandOption> Options { get; }
+
+        public GuestCommandMenuCache(Ff7BattleSession session, int slot, IFf7BattleGuestAttack provider, object token, IReadOnlyList<Ff7BattleCommandOption> options)
+        {
+            this.slot = slot;
+            this.provider = provider;
+            this.token = token;
+            actors = session.state.Actors.Select(actor => (actor.Identity, actor.Actor, session.IsGuestVitalsSlot(actor.Actor.Slot))).ToArray();
+            inventory = session.state.Inventory.ToArray();
+            Ff7BattleActorState source = session.Actor(slot);
+            limitGauge = source.LimitGauge;
+            allUses = source.AllUses?.ToArray() ?? [];
+            Options = options;
+        }
+
+        public bool Matches(Ff7BattleSession session, int selectedSlot, IFf7BattleGuestAttack selectedProvider, object selectedToken)
+        {
+            if (slot != selectedSlot || !ReferenceEquals(provider, selectedProvider) || !ReferenceEquals(token, selectedToken) || actors.Length != session.state.Actors.Length || !inventory.AsSpan().SequenceEqual(session.state.Inventory))
+            {
+                return false;
+            }
+            Ff7BattleActorState source = session.Actor(slot);
+            if (limitGauge != source.LimitGauge || allUses.Length != (source.AllUses?.Count ?? 0))
+            {
+                return false;
+            }
+            foreach (KeyValuePair<byte, int> use in allUses)
+            {
+                if (source.AllUses is null || !source.AllUses.TryGetValue(use.Key, out int remaining) || remaining != use.Value)
+                {
+                    return false;
+                }
+            }
+            for (int index = 0; index < actors.Length; index++)
+            {
+                Ff7BattleActorState current = session.state.Actors[index];
+                var previous = actors[index];
+                if (previous.Identity != current.Identity || previous.Actor != current.Actor || previous.GuestVitals != session.IsGuestVitalsSlot(current.Actor.Slot))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+
+    private IReadOnlyList<Ff7BattleCommandOption> BuildCommands(int slot)
+    {
         Ff7BattleActorState actor = Actor(slot);
         Ff7BattlePlayerStats stats = party[slot]!.Value;
         List<Ff7BattleCommandOption> commands = [];

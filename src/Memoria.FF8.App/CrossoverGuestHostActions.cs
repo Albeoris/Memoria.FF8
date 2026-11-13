@@ -60,6 +60,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         this.roster = roster;
         this.kit = kit;
         this.assets = assets;
+        abilityCatalog = new((working, currentKit, limits, crisis) => CrossoverGuestAbilityCatalog.Read(assets, working, currentKit, limits, crisis));
         this.encounter = encounter;
         graphicsRules = game.ReadNativeBattleGraphicsRules();
         this.attack = attack;
@@ -174,6 +175,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
             throw new InvalidOperationException("The guest already has a host geometry owner.");
         }
         readForeignGeometry = geometry;
+        capabilityVersion++;
     }
 
     public bool SuppressForeignActor(int slot) => fire?.Presentation.SuppressedForeignSlots.Contains(slot) == true;

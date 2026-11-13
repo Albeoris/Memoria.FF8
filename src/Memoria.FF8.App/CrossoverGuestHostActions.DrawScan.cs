@@ -15,6 +15,10 @@ internal sealed partial class CrossoverGuestHostActions
 
     private IReadOnlyList<CrossoverGuestAbility> ReadIntegratedAbilities(IReadOnlyList<CrossoverGuestAbility> original)
     {
+        if (!kit.Commands.Contains((byte)6))
+        {
+            return original;
+        }
         var enemies = host.Actors.Where(actor => actor.Actor.Slot >= 4).Select(actor => host.EnemyExtension(actor.Actor.Slot)).OfType<Ff7ResolvedEnemyExtension>().ToArray();
         if (enemies.Length == 0)
         {

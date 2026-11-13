@@ -9,6 +9,37 @@ namespace Memoria.FF8.App.Tests;
 public sealed class CrossoverGuestAbilityCatalogTests
 {
     [Fact]
+    public void Cached_catalog_reuses_choices_and_refreshes_native_inputs()
+    {
+        NativeCharacterVitals vitals = (NativeCharacterVitals)RuntimeHelpers.GetUninitializedObject(typeof(NativeCharacterVitals));
+        CrossoverFf8BattleKit kit = Kit(3, 15);
+        GameplaySaveLimitProgress limits = new(1, 0, 0, 0, ImmutableArray.CreateRange(new byte[8]), 0, 0, 0);
+        BattleNativeAction[] actions = [Action(15, 0, 1), Action(15, 0, 2), Action(15, 1, 2)];
+        int builds = 0;
+        CrossoverGuestAbilityCatalogCache cache = new((working, currentKit, progress, crisis) =>
+        {
+            builds++;
+            return CrossoverGuestAbilityCatalog.Read(actions, [], Binding, working, currentKit, progress, crisis);
+        });
+        IReadOnlyList<CrossoverGuestAbility> first = cache.Read(vitals, kit, limits, 1);
+        for (int query = 0; query < 1000; query++)
+        {
+            Assert.Same(first, cache.Read(vitals, kit, limits, 1));
+        }
+        Assert.Equal(1, builds);
+        Assert.Equal((byte)1, Assert.Single(first).NativeAction!.CrisisLevel);
+        Assert.Equal((byte)2, Assert.Single(cache.Read(vitals, kit, limits, 2)).NativeAction!.CrisisLevel);
+        limits = limits with { BlueMagicFlags = 3 };
+        Assert.Equal(2, cache.Read(vitals, kit, limits, 2).Count);
+        vitals = vitals with { };
+        Assert.Equal(2, cache.Read(vitals, kit, limits, 2).Count);
+        kit = kit with { };
+        Assert.Equal(2, cache.Read(vitals, kit, limits, 2).Count);
+        Assert.Empty(cache.Read(vitals, kit, limits, 0));
+        Assert.Equal(6, builds);
+    }
+
+    [Fact]
     public void Blue_magic_uses_only_learned_spells_and_the_retained_crisis_record()
     {
         BattleNativeAction[] actions = [Action(15, 0, 1), Action(15, 0, 2), Action(15, 1, 2), Action(15, 2, 2)];
@@ -110,6 +141,14 @@ public sealed class CrossoverGuestAbilityCatalogTests
             Assert.Equal(MagicCastingService.Quote(vitals, row, spell, MagicCastContext.Battle).Available, choice.Stock);
             Assert.Null(choice.RuleUnsupportedReason);
         }
+        CrossoverGuestAbilityCatalogCache cache = new((working, currentKit, limits, crisis) => CrossoverGuestAbilityCatalog.Read(assets, working, currentKit, limits, crisis));
+        IReadOnlyList<CrossoverGuestAbility> before = cache.Read(vitals, kit, null, 0);
+        Assert.Same(before, cache.Read(vitals, kit, null, 0));
+        ushort consumed = spells[0];
+        NativeCharacterVitals exhausted = vitals.ChangeMagicStock(row, consumed, -4, MagicOperationReason.ScriptReward, out _);
+        IReadOnlyList<CrossoverGuestAbility> after = cache.Read(exhausted, kit, null, 0);
+        Assert.DoesNotContain(after, choice => choice.Command == 2 && choice.Key == consumed);
+        Assert.Contains(before, choice => choice.Command == 2 && choice.Key == consumed && choice.Stock == 4);
     }
 
     [Fact]
