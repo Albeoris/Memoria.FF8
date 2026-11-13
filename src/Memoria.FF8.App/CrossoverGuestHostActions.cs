@@ -70,7 +70,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         ValidateItemQueue();
         fire = saved?.Fire;
         NativeBattleGraphicsResource sourceResource = assets.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = kit.CharacterId, WeaponId = kit.Weapon });
-        fireProgram = new(game, sourceResource, assets, () => host.Actors.Where(actor => actor.Actor.Slot != ActorSlot && (actor.Actor.Slot < 3 || (actor.Actor.Conditions & 8) != 0)).Select(actor => actor.Actor.Slot).ToImmutableArray(), ReadPresentationParticipant, ReadPresentationSceneContext, () => host.Actors.Count(actor => actor.Actor.Slot < 3));
+        fireProgram = new(game, sourceResource, assets, ReadSceneParticipants, ReadPresentationParticipant, ReadPresentationSceneContext, () => host.Actors.Count(actor => actor.Actor.Slot < 3));
         limitResource = sourceResource;
         attack.BindNativeTargetGeometry((placement, slot) => encounter.GuestAt(slot) is null ? null : ReadAbilityForeign(placement, slot));
         limitProgram = new(game, sourceResource, graphicsRules);

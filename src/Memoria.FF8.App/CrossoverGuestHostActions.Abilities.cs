@@ -13,10 +13,11 @@ internal sealed partial class CrossoverGuestHostActions
     private CrossoverGuestItemInventory? menuItems;
     private bool menuLimitReady;
     private ushort menuPresentationReady;
+    private ushort menuSceneParticipants;
     private long capabilityVersion;
     private long menuCapabilityVersion;
     private object? menuState;
-    private readonly Dictionary<(ushort Ability, int Target, ushort Targets, bool Geometry, string OriginStatuses), string?> abilityCapabilities = [];
+    private readonly Dictionary<(ushort Ability, int Target, ushort Targets, ushort SceneParticipants, bool Geometry, string OriginStatuses), string?> abilityCapabilities = [];
 
     public void BindLimitProgress(GameplaySaveLimitProgress progress)
     {
@@ -44,6 +45,7 @@ internal sealed partial class CrossoverGuestHostActions
         {
             IReadOnlyList<CrossoverGuestAbility> catalog = ReadNativeAbilities();
             bool ready = LimitReady;
+            ushort sceneParticipants = ReadSceneParticipantMask();
             ushort presentationReady = 0;
             if (attack.Visual is not null)
             {
@@ -55,12 +57,13 @@ internal sealed partial class CrossoverGuestHostActions
                     }
                 }
             }
-            if (menuState is null || !ReferenceEquals(menuCatalog, catalog) || !ReferenceEquals(menuItems, encounter.Items) || menuLimitReady != ready || menuPresentationReady != presentationReady || menuCapabilityVersion != capabilityVersion)
+            if (menuState is null || !ReferenceEquals(menuCatalog, catalog) || !ReferenceEquals(menuItems, encounter.Items) || menuLimitReady != ready || menuPresentationReady != presentationReady || menuSceneParticipants != sceneParticipants || menuCapabilityVersion != capabilityVersion)
             {
                 menuCatalog = catalog;
                 menuItems = encounter.Items;
                 menuLimitReady = ready;
                 menuPresentationReady = presentationReady;
+                menuSceneParticipants = sceneParticipants;
                 menuCapabilityVersion = capabilityVersion;
                 menuState = new object();
             }
@@ -280,10 +283,25 @@ internal sealed partial class CrossoverGuestHostActions
         return reason;
     }
 
-    private (ushort Ability, int Target, ushort Targets, bool Geometry, string OriginStatuses) AbilityCapabilityKey(ushort ability, int target, ushort targets)
+    private ImmutableArray<int> ReadSceneParticipants()
+    {
+        return host.Actors.Where(actor => actor.Actor.Slot != ActorSlot && (actor.Actor.Slot < 3 || (actor.Actor.Conditions & 8) != 0)).Select(actor => actor.Actor.Slot).ToImmutableArray();
+    }
+
+    private ushort ReadSceneParticipantMask()
+    {
+        ushort mask = 0;
+        foreach (int slot in ReadSceneParticipants())
+        {
+            mask |= checked((ushort)(1 << slot));
+        }
+        return mask;
+    }
+
+    private (ushort Ability, int Target, ushort Targets, ushort SceneParticipants, bool Geometry, string OriginStatuses) AbilityCapabilityKey(ushort ability, int target, ushort targets)
     {
         string statuses = string.Join(";", host.Actors.Where(actor => (targets & (1 << actor.Actor.Slot)) != 0).OrderBy(actor => actor.Actor.Slot).Select(actor => $"{actor.Actor.Slot}:{host.GetOriginSavedStatuses(actor.Actor.Slot):X4}"));
-        return (ability, target, targets, readForeignGeometry is not null, statuses);
+        return (ability, target, targets, ReadSceneParticipantMask(), readForeignGeometry is not null, statuses);
     }
 
     private string? ProbeAbility(BattleNativeAction original, int target, NativeBattleContactHalf? preparedContact = null)

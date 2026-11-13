@@ -314,12 +314,12 @@ public sealed class CrossoverBattleAbilityRulesTests
         Ff7BattleGuestPhysicalHit hit = CrossoverBattleAbilityRules.Describe(Kit(), Action(25) with { Power = 0 });
         Assert.True(hit.Attack.SourceMissingHitPoints);
         Assert.Null(hit.Attack.FixedDamage);
-        Ff7BattleActionVitals source = new(sourceHp, 1000, 0, 0, 0);
+        Ff7BattleActionVitals source = new(sourceHp, 1000, 0, 0, sourceHp == 0 ? Ff7NativeBattleActionResolver.Death : 0u);
         Ff7BattleActionReceipt receipt = Resolve(hit, source, new(100, 2000, 0, 0, 0x20000), magicDefense: 500);
         Assert.False(receipt.Damage.Missed);
         Assert.Equal(damage, receipt.Damage.Damage);
         Assert.Equal((uint)(100 - damage), receipt.Target.Hp);
-        Assert.Equal(source with { Statuses = sourceHp == 0 ? Ff7NativeBattleActionResolver.Death : 0u }, receipt.Source);
+        Assert.Equal(source, receipt.Source);
     }
 
     [Fact]
