@@ -13,6 +13,7 @@ public class UiTheme
     public UiColor SliderFill { get; init; } = new(144, 104, 224);
     public UiColor SliderLight { get; init; } = new(232, 216, 255);
     public UiColor SliderDark { get; init; } = new(40, 20, 104);
+    public UiColor SliderMarker { get; init; } = new(255, 201, 88);
     public byte PanelBackgroundAlpha { get; init; } = 255;
     public float FontSize { get; init; } = 16;
 

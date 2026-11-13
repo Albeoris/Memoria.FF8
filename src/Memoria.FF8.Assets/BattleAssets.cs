@@ -112,6 +112,7 @@ public sealed partial class BattleAssets : IDisposable
         return spells.ToArray();
     }
 
+    public int FormationCount => encounters.Length / 128;
     public string EncounterSourceHash => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(encounters));
     public string FormationSourceHash(int encounterId)
     {

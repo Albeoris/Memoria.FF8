@@ -13,7 +13,13 @@ internal static class ExpandedBattleActionRules
     public static bool SupportsEnemyContacts(BattleNativeAction action)
     {
         return SupportsContacts(action) || action is { Command: 8, AttackType: 0, Power: 0, Statuses0: 0, Statuses1: 0, AttackFlags: 3, HitCount: 1 } ||
-            action is { Command: 8, KernelSection: 3, AttackType: 0, Power: 0, Element: 0, StatusAttack: 0, Statuses0: 0, Statuses1: 0, AttackFlags: 0 or 1, HitCount: 1, PresentationOnly: false, CrisisLevel: null };
+            action is { Command: 8, KernelSection: 3, AttackType: 0, Power: 0, Element: 0, StatusAttack: 0, Statuses0: 0, Statuses1: 0, AttackFlags: 0 or 1, HitCount: 1, PresentationOnly: false, CrisisLevel: null } ||
+            IsEnemyEjection(action);
+    }
+
+    internal static bool IsEnemyEjection(BattleNativeAction? action)
+    {
+        return action is { Command: 8, KernelSection: 3, AttackType: 1, Power: 0, Element: 0, StatusAttack: 255, Statuses0: 0, Statuses1: 0x10000, AttackFlags: 0x83, HitCount: 1, PresentationOnly: false, CrisisLevel: null };
     }
 
     public static bool SupportsDrawnEnemyMagic(BattleNativeAction action)

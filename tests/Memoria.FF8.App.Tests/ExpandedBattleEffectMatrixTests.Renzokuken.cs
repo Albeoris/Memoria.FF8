@@ -32,34 +32,26 @@ public sealed partial class ExpandedBattleEffectMatrixTests
 
     private static (string Status, string Detail) RunExpandedRenzokuken(string directory, GameState field, GameAssets game, BattleAssets assets, ushort? effect, BattleNativeAction? finisher = null)
     {
-        string? allocationBlocker = effect switch
-        {
-            335 => "Formation 63 starts model 77 hidden, untargetable and suspended.",
-            337 => "Formation 813 keeps model 117 in a disabled reserve allocation.",
-            339 => "Formation 796 requires the original Adel and Rinoa allocations for its scripted removals.",
-            340 => "Formations 981 and 982 require original allocation operations 29, 58 and 59 for model 126.",
-            342 => "Formation 510 requires the original model 124 and 125 allocations for physical conditions, removal and activation.",
-            343 => "Formation 509 includes a hidden model 123 allocation and requires physical operations 31 and 53 for model 122.",
-            _ => null
-        };
-        if (allocationBlocker is not null)
-        {
-            return ("blocked", allocationBlocker);
-        }
-
+        bool originalAllocation = effect is 335 or 337 or 339 or 340 or 342 or 343;
         (int formation, int targetModel) = effect switch
         {
             159 => (9, 92),
             161 => (738, 131),
             334 => (326, 67),
+            335 => (63, 77),
             336 => (354, 90),
+            337 => (813, 117),
+            339 => (796, 112),
+            340 => (981, 126),
             341 => (712, 84),
+            342 => (510, 124),
+            343 => (509, 123),
             _ => (71, 36)
         };
         const int invocation = 5 << 16;
         const string casterId = "party-0";
         BattleNativeAction squall = Assert.Single(assets.NativeActions, action => action is { Command: 249, ActionId: 0, CharacterId: 0 });
-        Assert.Contains(assets.LoadEncounter(formation).Enemies, placement => placement.ModelId == targetModel);
+        Assert.Contains(assets.LoadEncounter(formation).Slots, placement => placement.ModelId == targetModel);
         ushort[] selectors = assets.ReadNativeRenzokukenMagicIds(targetModel).ToArray();
         if (effect is ushort requestedEffect)
         {
@@ -67,10 +59,15 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         }
 
         // The selected result must come from a fresh encounter seed and a real HUD crisis roll.
+        bool sawActiveTarget = false;
         for (int seed = 0; seed < 96; seed++)
         {
-            using GameWorld world = StartBattle(directory, field, checked((ushort)formation), limit: squall, nativeSeed: (byte)seed, prepareHigherBand: true);
+            using GameWorld world = StartBattle(directory, field, checked((ushort)formation), limit: squall, nativeSeed: (byte)seed, prepareHigherBand: true, requireExpanded: !originalAllocation, useAreaEnemyRoster: originalAllocation);
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
+            if (originalAllocation && !battle.UsesExpandedRoster)
+            {
+                return ("blocked", $"Formation {formation} remains on its original battle host because the expanded host cannot execute all required encounter services.");
+            }
             BattleCombatant caster = Assert.Single(battle.Combatants, actor => actor.Id == casterId);
             if (effect == 334)
             {
@@ -88,6 +85,12 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             }
 
             BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: input => world.ApplyBattleInput(input));
+            BattleCombatant? originalTarget = battle.Combatants.LastOrDefault(candidate => candidate.ModelId == targetModel && !candidate.IsPlayer && candidate.IsActive && candidate.IsAlive && !candidate.Untargetable);
+            if (originalAllocation && originalTarget is null)
+            {
+                continue;
+            }
+            sawActiveTarget = true;
             hud.SelectParty(caster.Id);
             byte crisis = battle.GetNativeLimitLevel(caster.Id);
             if (!hud.NativeLimitAvailable || effect is ushort requested && selectors[crisis + 1] != requested && selectors[crisis + 2] != requested)
@@ -100,7 +103,14 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             Assert.Equal(invocation, Assert.Single(hud.ActionChoices).Id);
             Assert.True(hud.SelectingTarget);
             BattleCombatant target = hud.Targets.Last(candidate => candidate.ModelId == targetModel);
-            Assert.Equal(10, target.Slot!.Value.Position);
+            if (originalAllocation)
+            {
+                Assert.Equal(originalTarget!.Id, target.Id);
+            }
+            else
+            {
+                Assert.Equal(10, target.Slot!.Value.Position);
+            }
             hud.SelectTarget(target.Id, false);
             Assert.Equal(target.Id, hud.SelectedTarget?.Id);
             int initialHp = target.CurrentHp;
@@ -145,7 +155,9 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             return ("logical", $"Formation {formation}, seed {seed}, {target.Id}, original Renzokuken effect {effect}, {contacts.Length} contacts and JSON continuation.");
         }
 
-        return ("blocked", $"No bounded genuine HUD invocation selected the installed effect {finisher?.MagicId ?? effect}.");
+        return ("blocked", originalAllocation && !sawActiveTarget
+            ? $"Formation {formation} has no targetable allocation of original model {targetModel} at the reached phase."
+            : $"No bounded genuine HUD invocation selected the installed effect {finisher?.MagicId ?? effect}.");
     }
 
     private static void CompleteExpandedRenzokuken(GameWorld world, BattleSession battle, string casterId)

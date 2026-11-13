@@ -7,7 +7,7 @@ public static class ExpandedBattleFormation
 
     public static int DefaultEnemyCount(int allyCount) => allyCount == 4 ? 6 : 8;
 
-    public static bool SupportsRoster(int allyCount, int enemyCount) => (allyCount, enemyCount) is (4, 6) or (8, 8) or (11, 8) or (11, 11);
+    public static bool SupportsRoster(int allyCount, int enemyCount) => allyCount is >= 1 and <= MaximumSideSize && enemyCount is >= 1 and <= MaximumSideSize;
 
     public static NativeBattleVector Position(int slot, int count, bool isAlly)
     {

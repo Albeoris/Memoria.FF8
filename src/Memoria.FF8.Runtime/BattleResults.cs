@@ -83,8 +83,14 @@ public sealed partial record BattleResult([property: JsonRequired] BattleEncount
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? ExpandedEnemyCount { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool UsesOriginalEnemySlots { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public System.Collections.Immutable.ImmutableSortedDictionary<int, BattleEnemyRosterSource>? AddedEnemySources { get; init; }
+
     [JsonIgnore]
-    public int EffectiveEnemySlotCount => UsesExpandedRoster ? ExpandedEnemyCount ?? ExpandedBattleFormation.DefaultEnemyCount(Party.Length) : NativeBattleSlots.FormationSlotCount;
+    public int EffectiveEnemySlotCount => UsesExpandedRoster && !UsesOriginalEnemySlots ? ExpandedEnemyCount ?? ExpandedBattleFormation.DefaultEnemyCount(Party.Length) : NativeBattleSlots.FormationSlotCount;
 
     public void Validate()
     {
@@ -93,9 +99,20 @@ public sealed partial record BattleResult([property: JsonRequired] BattleEncount
             throw new InvalidDataException("Battle outcome requires its observed encounter occurrence.");
         }
         Encounter.Validate();
-        if (UsesExpandedRoster ? Party is null || Encounter.ScriptedOwner is not null || !ExpandedBattleFormation.SupportsRoster(Party.Length, EffectiveEnemySlotCount) : ExpandedEnemyCount.HasValue)
+        if (UsesExpandedRoster ? Party is null || Encounter.ScriptedOwner is not null || !ExpandedBattleFormation.SupportsRoster(Party.Length, ExpandedEnemyCount ?? EffectiveEnemySlotCount) : ExpandedEnemyCount.HasValue || UsesOriginalEnemySlots || AddedEnemySources is not null)
         {
             throw new InvalidDataException("Battle outcome has invalid expanded roster dimensions.");
+        }
+        if (AddedEnemySources is not null)
+        {
+            if (UsesOriginalEnemySlots || AddedEnemySources.Count > 10 || AddedEnemySources.Any(entry => entry.Key < 1 || entry.Key >= EffectiveEnemySlotCount || entry.Value is null))
+            {
+                throw new InvalidDataException("Battle outcome has invalid added enemy placements.");
+            }
+            foreach (BattleEnemyRosterSource source in AddedEnemySources.Values)
+            {
+                source.Validate();
+            }
         }
         (Tuning ?? throw new InvalidDataException("Battle reward tuning is missing.")).Validate();
         MagicSystemReceipt?.Validate();

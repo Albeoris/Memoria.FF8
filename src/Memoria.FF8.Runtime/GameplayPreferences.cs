@@ -31,10 +31,19 @@ public sealed class NewGameOption
 /// <summary>Recreation gameplay choices owned by one standalone save, separate from native FF8 configuration.</summary>
 public sealed record GameplayPreferences
 {
+    public const int MaximumAdditionalEnemies = 10;
+
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public int BattleAllyCount { get; init; }
 
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public int AdditionalEnemies { get; init; }
+
     public static bool IsBattleAllyCountSupported(int value) => value is 0 or 3 or 4 or 8 or 11;
+
+    public int GetMinimumAdditionalEnemies(int playerCount) => Math.Max(playerCount > 3 ? playerCount - 2 : 0, Difficulty == BattleDifficulty.Hardcore ? 1 : 0);
+
+    public int GetEffectiveAdditionalEnemies(int playerCount) => Math.Max(AdditionalEnemies, GetMinimumAdditionalEnemies(playerCount));
 
     public BattleDifficulty Difficulty { get; init; } = BattleDifficulty.Normal;
     public BattleAtbMode AtbMode { get; init; } = BattleAtbMode.TurnBased;
@@ -93,7 +102,7 @@ public sealed record GameplayPreferences
             throw new InvalidDataException("Triple Triad settings are missing.");
         }
         TripleTriad.Validate(Difficulty);
-        if (!IsBattleAllyCountSupported(BattleAllyCount) || !Enum.IsDefined(Difficulty) || !Enum.IsDefined(AtbMode) || !Enum.IsDefined(GunbladeMode) || ChocoboWorldMode is { } mode && !Enum.IsDefined(mode))
+        if (!IsBattleAllyCountSupported(BattleAllyCount) || AdditionalEnemies is < 0 or > MaximumAdditionalEnemies || !Enum.IsDefined(Difficulty) || !Enum.IsDefined(AtbMode) || !Enum.IsDefined(GunbladeMode) || ChocoboWorldMode is { } mode && !Enum.IsDefined(mode))
         {
             throw new InvalidDataException("Invalid saved gameplay preferences.");
         }

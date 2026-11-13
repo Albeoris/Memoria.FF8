@@ -1350,6 +1350,8 @@ public static partial class SystemTextCatalog
         defaults["ui.battlesettingsdetails.details.no.active.battle"] = "No active battle";
         defaults["ui.battlesettingsdetails.details.save.normally.to.retain.current.game.changes"] = "Save normally to retain current-game changes.";
         defaults["ui.battlesettingsentries.entry.help.edit.an.isolated.scenario.start.launches.it.explicitly"] = "Edit an isolated scenario; Start launches it explicitly.";
+        defaults["setting.additional-enemies"] = "Additional enemies";
+        defaults["ui.battlesettings.additional-enemies.help"] = "Stored {0}, gold marker {1}. Parties above three require party size minus two. Hardcore requires at least one. Eligible encounters may add fewer.";
         defaults["ui.battlesettingsentries.entry.label.battle.laboratory"] = "Battle laboratory\u2026";
         defaults["ui.begincharacterselection.message.no.characters.are.available"] = "No characters are available.";
         defaults["ui.begincharacterselection.message.select.a.character"] = "Select a character.";

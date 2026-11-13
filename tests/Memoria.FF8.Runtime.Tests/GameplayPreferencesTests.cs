@@ -6,6 +6,23 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class GameplayPreferencesTests
 {
+    [Theory]
+    [InlineData(BattleDifficulty.Normal, 3, 0, 0)]
+    [InlineData(BattleDifficulty.Hard, 3, 0, 0)]
+    [InlineData(BattleDifficulty.Hardcore, 3, 0, 1)]
+    [InlineData(BattleDifficulty.Normal, 4, 0, 2)]
+    [InlineData(BattleDifficulty.Hardcore, 8, 1, 6)]
+    [InlineData(BattleDifficulty.Normal, 11, 4, 9)]
+    [InlineData(BattleDifficulty.Hardcore, 11, 10, 10)]
+    public void Additional_enemy_request_respects_roster_and_difficulty_without_rewriting_the_preference(BattleDifficulty difficulty, int allies, int stored, int expected)
+    {
+        GameplayPreferences preferences = new GameplayPreferences { Difficulty = difficulty, AdditionalEnemies = stored }.NormalizeForDifficulty();
+        preferences.Validate();
+        Assert.Equal(expected, preferences.GetEffectiveAdditionalEnemies(allies));
+        Assert.Equal(stored, preferences.AdditionalEnemies);
+        Assert.Equal(preferences, JsonSerializer.Deserialize<GameplayPreferences>(JsonSerializer.Serialize(preferences)));
+    }
+
     [Fact]
     public void Smart_attack_is_intrinsic_and_hardcore_leaves_transformations_optional()
     {

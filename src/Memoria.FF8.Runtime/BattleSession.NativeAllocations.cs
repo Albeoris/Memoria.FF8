@@ -30,6 +30,10 @@ public sealed partial class BattleSession
 
     private BattleCombatant AllocateNativeEnemy(BattleCombatant caller, int sceneSlot, int requestedIndex, bool activate)
     {
+        if (UsesExpandedRoster && !UsesOriginalEnemySlots)
+        {
+            throw new NotSupportedException("Expanded AI cannot allocate original enemy slots on this roster.");
+        }
         RequireNoPendingEncounterAllocation();
         BattleCombatantDefinition prototype = definition.Combatants.SingleOrDefault(candidate => !candidate.IsPlayer && candidate.SceneSlot == sceneSlot) ?? throw new InvalidDataException($"Native enemy allocation has no scene resource {sceneSlot}.");
         NativeBattleEnemyTemplate template = prototype.NativeTemplate ?? throw new InvalidDataException("Native enemy allocation lacks its installed resource template.");
@@ -97,11 +101,19 @@ public sealed partial class BattleSession
         NativeBattleEnemyTemplate template = spawned.NativeTemplate ?? throw new InvalidDataException("Native allocation lacks its original level resource.");
         spawned.NativeCombatantFlags = template.NativeCombatantFlags | 0x11;
         spawned.NativePendingReaction = new(0, 0);
-        nativeActionMemory.State = nativeActionMemory.State.InitializeStatistics(spawned.EncodeNativeSlot());
+        if (UsesExpandedRoster)
+        {
+            spawned.LastNativeAction = new(0, null, null, null, null, null);
+        }
+        else
+        {
+            nativeActionMemory.State = nativeActionMemory.State.InitializeStatistics(spawned.EncodeNativeSlot());
+        }
         int drawCount = NativeBattleEnemyLevelRules.RandomByteCount(template.SceneLevel);
         byte firstRoll = drawCount > 0 ? (byte)NextRandomByte() : (byte)0;
         byte? secondRoll = drawCount == 2 ? (byte)NextRandomByte() : null;
-        int level = NativeBattleEnemyLevelRules.Resolve(template.SceneLevel, combatants.Where(candidate => candidate.IsPlayer && candidate.IsActive).Select(candidate => checked((byte)candidate.Level)).ToArray(), firstRoll, secondRoll);
+        byte[] partyLevels = allies.Where(candidate => candidate.IsActive).Select(candidate => checked((byte)candidate.Level)).ToArray();
+        int level = UsesExpandedRoster ? NativeBattleEnemyLevelRules.ResolveExpanded(template.SceneLevel, partyLevels, firstRoll, secondRoll) : NativeBattleEnemyLevelRules.Resolve(template.SceneLevel, partyLevels, firstRoll, secondRoll);
         spawned.BindNativeLevel(level);
         spawned.ResetNativeStatusAllocation();
         ResetNativeDrawAllocation(spawned);
@@ -109,6 +121,13 @@ public sealed partial class BattleSession
         spawned.Hidden = spawned.SourceDefinition.InitialHidden;
         spawned.Untargetable = spawned.SourceDefinition.InitialUntargetable;
         spawned.Suspended = spawned.SourceDefinition.InitialSuspended;
+        if (UsesOriginalEnemySlots)
+        {
+            // TODO(TD-009): The expanded host materializes the reserved model without the native descriptor queue.
+            spawned.Hidden = true;
+            spawned.Untargetable = true;
+            spawned.Suspended = true;
+        }
         spawned.AiTurnCount = 0;
         Array.Fill(spawned.NativeStatMultipliers, (byte)10);
         Array.Clear(spawned.AiVariables);
@@ -134,8 +153,8 @@ public sealed partial class BattleSession
             prototype = CloneDefinition(definition with { Combatants = [resolved] }).Combatants[0];
         }
         BattleCombatant actor = new(prototype with { Id = allocation.Id, InitialActive = false, InitialAtb = 0 });
-        actor.NativeActionMemoryOwner = nativeActionMemory;
-        actor.NativePresentationStatusOwner = nativePresentationStatusMemory;
+        actor.NativeActionMemoryOwner = UsesExpandedRoster ? null : nativeActionMemory;
+        actor.NativePresentationStatusOwner = UsesExpandedRoster ? null : nativePresentationStatusMemory;
         InitializeNativeAtb(actor);
         combatants.Add(actor);
         enemies.Add(actor);

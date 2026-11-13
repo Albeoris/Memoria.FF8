@@ -8,7 +8,8 @@ namespace Memoria.FF8;
 internal sealed partial class GameWorld
 {
     private readonly int defaultExpandedRandomAllyCount;
-    private readonly int defaultLargeRandomEnemyCount;
+    private readonly int? legacyExpandedEnemyCount;
+    private readonly int defaultAdditionalEnemyCount;
     internal int ConfiguredBattleAllyCount => session.State.GameplayPreferences.BattleAllyCount == 0 ? defaultExpandedRandomAllyCount : session.State.GameplayPreferences.BattleAllyCount;
 
     private void EnsureGuestBattleRecords()
@@ -32,26 +33,25 @@ internal sealed partial class GameWorld
     internal static void AttachExpandedEffects(BattleSession active, GameAssets game, BattleAssets assets)
     {
         BattleDefinition definition = active.ReadDefinition();
-        Dictionary<string, BattleCombatantDefinition> definitions = definition.Combatants.ToDictionary(actor => actor.Id);
         BattleStageCamera camera = ExpandedBattleCamera(active.Combatants.Count);
         NativeBattleCameraPose pose = new(Point(camera.NativeEye), Point(camera.NativeTarget), checked((short)camera.FocalLength), 0);
         NativeBattleCameraProjection projection = new(NativeBattlePoseMatrices.CameraView(pose), checked((ushort)camera.FocalLength), 160, 108);
         NativeBattlePrimitiveTables tables = assets.ReadNativePrimitiveTables();
         var softwareTable = assets.ReadNativeSoftwarePrimitiveTable();
         var rules = game.ReadNativeBattleGraphicsRules();
-        Dictionary<string, NativeBattleGraphicsResource> actorResources = definitions.ToDictionary(pair => pair.Key, pair => assets.ReadNativeGraphicsResource(pair.Value));
-        Dictionary<string, NativeBattleGraphicsModel> posedActors = active.Combatants.ToDictionary(actor => actor.Id, CreateModel);
+        Dictionary<string, NativeBattleGraphicsResource> actorResources = [];
         active.AttachExpandedEffectFactory((caster, action, sequence, contacts) =>
         {
-            NativeBattleGraphicsResource sourceResource = actorResources[caster.Id];
-            (NativeBattleGraphicsModel source, NativeBattleEffectTextureState textures) = NativeEffectActorTextures.Allocate(posedActors[caster.Id], sourceResource);
+            NativeBattleGraphicsResource sourceResource = GetResource(caster.Id);
+            (NativeBattleGraphicsModel source, NativeBattleEffectTextureState textures) = NativeEffectActorTextures.Allocate(CreateModel(caster, sourceResource), sourceResource);
             ushort occupiedSlots = source.TextureAllocationMask.GetValueOrDefault();
             ImmutableArray<NativeBattleEffectModelBinding>.Builder nativeTargets = ImmutableArray.CreateBuilder<NativeBattleEffectModelBinding>();
             ImmutableArray<NativeBattleForeignActor>.Builder foreignTargets = ImmutableArray.CreateBuilder<NativeBattleForeignActor>();
             foreach (ExpandedBattleContact contact in contacts.Where(contact => contact.RecipientId != caster.Id))
             {
-                NativeBattleGraphicsModel target = posedActors[contact.RecipientId] with { Index = contact.Contact.ActorIndex };
-                NativeBattleGraphicsResource resource = actorResources[contact.RecipientId];
+                NativeBattleGraphicsResource resource = GetResource(contact.RecipientId);
+                BattleCombatant recipient = active.Combatants.Single(actor => actor.Id == contact.RecipientId);
+                NativeBattleGraphicsModel target = CreateModel(recipient, resource) with { Index = contact.Contact.ActorIndex };
                 if (action.MagicId is 1 or 25 or 39 or 50 or 139 || definition.NativeEffectCatalog.Any(binding => binding.Effect == action.MagicId && binding.Entry == NativeBattleLaserEye71Profile.Entry))
                 {
                     (target, textures) = NativeEffectActorTextures.Allocate(target, resource, textures, occupiedSlots);
@@ -90,13 +90,23 @@ internal sealed partial class GameWorld
             return new(new(resources, source, sourceResource, packets, new(0, 0, mask, 0, 0, 0), action.MagicId, textures, NativeCrtRandomState.FromColdProcess(), projection, foreignTargets.ToImmutable()) { CameraMode = NativeBattleEffectCameraMode.HostPoseWithEffectTranslation, NativeTargets = nativeTargets.ToImmutable() });
         });
 
-        NativeBattleGraphicsModel CreateModel(BattleCombatant actor)
+        NativeBattleGraphicsResource GetResource(string id)
         {
-            BattleCombatantDefinition actorDefinition = definitions[actor.Id];
-            NativeBattleGraphicsResource resource = actorResources[actor.Id];
+            if (!actorResources.TryGetValue(id, out NativeBattleGraphicsResource? resource))
+            {
+                resource = assets.ReadNativeGraphicsResource(active.GetCombatantDefinition(id));
+                actorResources.Add(id, resource);
+            }
+            return resource;
+        }
+
+        NativeBattleGraphicsModel CreateModel(BattleCombatant actor, NativeBattleGraphicsResource resource)
+        {
             BattleRosterSlot slot = actor.Slot ?? throw new InvalidDataException("Expanded actor has no roster position.");
-            int sideCount = active.Combatants.Count(candidate => candidate.Slot?.Side == slot.Side);
-            NativeBattleVector position = ExpandedBattleFormation.Position(slot.Position, sideCount, actor.IsPlayer);
+            int sideCount = actor.IsPlayer ? definition.Combatants.Count(candidate => candidate.IsPlayer) : definition.Combatants.Count(candidate => !candidate.IsPlayer);
+            NativeBattleVector position = definition.UsesOriginalEnemySlots && !actor.IsPlayer
+                ? assets.LoadEncounter(definition.EncounterId!.Value).Slots.Single(placement => placement.Slot == actor.SceneSlot).NativePosition ?? throw new InvalidDataException("Original enemy lost its authored position.")
+                : ExpandedBattleFormation.Position(slot.Position, sideCount, actor.IsPlayer);
             NativeGlobalRandomState random = new(0);
             NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(new(0, 0)
             {
@@ -105,7 +115,7 @@ internal sealed partial class GameWorld
                 Color40 = rules.SummonColors!.Transition,
                 Color44 = (rules.SummonColors!.Normal & 0xFFFFFFu) | 0x32000000u,
                 SequenceState = new() { Locals = NativeBattleSequenceState.ColdProcessLocals() }
-            }, checked((byte)(actor.IsPlayer ? actorDefinition.ModelId : actorDefinition.ModelId + 16)), 0, ref random, actor.IsPlayer ? null : assets.ReadEnemyNativeInformation246(actorDefinition.ModelId));
+            }, checked((byte)(actor.IsPlayer ? actor.ModelId : actor.ModelId + 16)), 0, ref random, actor.IsPlayer ? null : assets.ReadEnemyNativeInformation246(actor.ModelId));
             // Use the first installed idle pose, independently of model initialization scripts.
             NativeBattlePoseSource poseSource = resource.PoseSource!;
             model = NativeBattleGraphicsModels.SelectSequence(model with { Rotation14 = model.Transform!.Angle36 }, actor.IsPlayer ? (byte)1 : (byte)0);

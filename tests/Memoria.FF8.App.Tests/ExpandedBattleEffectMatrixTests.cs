@@ -165,6 +165,12 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                 else if (enemyReaction is { } reaction && (reaction.Status is "native" || scripts.All(script => script.Callback == 2)))
                 {
                     (status, detail, firstBlockerStage) = reaction;
+                    admissionBlockers = reaction.AdmissionBlockers;
+                }
+                else if (enemyDeath is { } death && scripts.All(script => script.Callback is 2 or 3))
+                {
+                    (status, detail, firstBlockerStage) = death;
+                    admissionBlockers = death.AdmissionBlockers;
                 }
                 else if (probeEnemies && effect.Effect == PetrifyStareEffect)
                 {
@@ -176,7 +182,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                     firstBlockerStage = "enemy-turn-execution";
                     (status, detail, firstBlockerStage) = RunCactuarTurn(directory, field, effect, scripts);
                 }
-                else if (probeEnemies && effect.Effect is 166 or 213 or 219 or 257 or 258)
+                else if (probeEnemies && effect.Effect is 166 or 213 or 219 or 257 or 258 or 285 or 320)
                 {
                     firstBlockerStage = "enemy-turn-execution";
                     (status, detail, firstBlockerStage) = RunPreparedEnemyTurn(directory, field, effect, scripts);
@@ -200,10 +206,12 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                 if (enemyReaction is { Status: "native" } && status != "native" || enemyReaction is { Status: "logical" } && status == "blocked")
                 {
                     (status, detail, firstBlockerStage) = enemyReaction;
+                    admissionBlockers = enemyReaction.AdmissionBlockers;
                 }
-                if (enemyDeath is { Status: "native" } && status != "native" || enemyDeath is { Status: "logical" } && status == "blocked" || enemyDeath is not null && status == "blocked" && scripts.All(script => script.Callback == 3))
+                if (enemyDeath is { Status: "native" } && status != "native" || enemyDeath is { Status: "logical" } && status == "blocked")
                 {
                     (status, detail, firstBlockerStage) = enemyDeath;
+                    admissionBlockers = enemyDeath.AdmissionBlockers;
                 }
                 firstBlockerStage = status switch
                 {
@@ -470,11 +478,11 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         };
     }
 
-    internal static GameWorld StartBattle(string directory, GameState field, ushort formation, BattleActionDefinition? action = null, bool requireExpanded = true, BattleNativeAction? limit = null, BattleNativeAction? equipped = null, byte nativeSeed = 0, Action<GameSession>? captureSession = null, bool prepareHigherBand = false, Action<NativeCharacterVital[]>? prepareParty = null, Func<NativeCharacterVitals, NativeCharacterVitals>? prepareVitals = null)
+    internal static GameWorld StartBattle(string directory, GameState field, ushort formation, BattleActionDefinition? action = null, bool requireExpanded = true, BattleNativeAction? limit = null, BattleNativeAction? equipped = null, byte nativeSeed = 0, Action<GameSession>? captureSession = null, bool prepareHigherBand = false, Action<NativeCharacterVital[]>? prepareParty = null, Func<NativeCharacterVitals, NativeCharacterVitals>? prepareVitals = null, bool useAreaEnemyRoster = false)
     {
         GameSession session = new(field);
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
-        GameWorld world = new(session, directory, expandedBattleAllyCount: 11, expandedBattleEnemyCount: 11);
+        GameWorld world = new(session, directory, expandedBattleAllyCount: 11, expandedBattleEnemyCount: useAreaEnemyRoster ? null : 11);
         try
         {
             world.EnsureField();
@@ -538,6 +546,10 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
             prepareParty?.Invoke(records);
             vitals = vitals with { Records = records };
             session.SetCharacterVitals(prepareVitals?.Invoke(vitals) ?? vitals);
+            if (useAreaEnemyRoster)
+            {
+                world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = 11, AdditionalEnemies = 10 });
+            }
             string source = world.Events.Capture().GetProperty("ProgramHash").GetString()!;
             session.SetRandomEncounters(new(true, NativeRandomEncounterState.FromColdProcess(), new(SceneKind.Field, 133, world.Events.Frame, formation, source)));
             world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: nativeSeed));
@@ -546,7 +558,15 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
             {
                 Assert.True(battle.UsesExpandedRoster);
                 Assert.Equal(11, battle.Combatants.Count(actor => actor.IsPlayer));
-                Assert.Equal(11, battle.Combatants.Count(actor => !actor.IsPlayer && actor.IsActive));
+                int enemies = battle.Combatants.Count(actor => !actor.IsPlayer && actor.IsActive);
+                if (useAreaEnemyRoster)
+                {
+                    Assert.InRange(enemies, 1, 11);
+                }
+                else
+                {
+                    Assert.Equal(11, enemies);
+                }
             }
             captureSession?.Invoke(session);
             return world;

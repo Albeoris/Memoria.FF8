@@ -524,13 +524,29 @@ internal sealed partial class RecreateGame
 
     private UiPreferences ReadCurrentUiPreferences()
     {
-        UiPreferences current = session.State.Scene == SceneKind.Title ? uiPreferences : uiPreferences with
+        if (session.State.Scene == SceneKind.Title)
+        {
+            return uiPreferences;
+        }
+        GameplayPreferences gameplay = session.State.PendingGameplayPreferences ?? session.State.GameplayPreferences;
+        return uiPreferences with
         {
             BattlePolicy = session.State.FullBattlePlaythrough == true ? "NewGameFullCombat" : "ResearchInstantVictory",
-            RandomEncounters = session.State.RandomEncounters?.Enabled == true
+            RandomEncounters = session.State.RandomEncounters?.Enabled == true,
+            BattleAllyCount = gameplay.BattleAllyCount == 0 ? world?.ConfiguredBattleAllyCount ?? 0 : gameplay.BattleAllyCount,
+            AdditionalEnemies = gameplay.AdditionalEnemies,
+            WeaponMagazineRequired = gameplay.WeaponMagazineRequired,
+            WeaponUpgradeOrder = gameplay.WeaponUpgradeOrder,
+            CardModOnce = gameplay.CardModOnce,
+            LimitOncePerTurn = gameplay.LimitOncePerTurn,
+            SelphieCardSlots = gameplay.SelphieCardSlots,
+            DrawOncePerSpell = gameplay.DrawOncePerSpell,
+            Difficulty = gameplay.Difficulty,
+            AtbMode = gameplay.AtbMode,
+            GunbladeMode = gameplay.GunbladeMode,
+            TripleTriad = gameplay.TripleTriad,
+            GuardianFormsEnabled = gameplay.GuardianFormsEnabled
         };
-        GameplayPreferences gameplay = session.State.PendingGameplayPreferences ?? session.State.GameplayPreferences;
-        return current with { BattleAllyCount = session.State.Scene == SceneKind.Title ? uiPreferences.BattleAllyCount : gameplay.BattleAllyCount == 0 ? world?.ConfiguredBattleAllyCount ?? 0 : gameplay.BattleAllyCount, WeaponMagazineRequired = session.State.Scene == SceneKind.Title ? uiPreferences.WeaponMagazineRequired : gameplay.WeaponMagazineRequired, WeaponUpgradeOrder = session.State.Scene == SceneKind.Title ? uiPreferences.WeaponUpgradeOrder : gameplay.WeaponUpgradeOrder, CardModOnce = session.State.Scene == SceneKind.Title ? uiPreferences.CardModOnce : gameplay.CardModOnce, LimitOncePerTurn = session.State.Scene == SceneKind.Title ? uiPreferences.LimitOncePerTurn : gameplay.LimitOncePerTurn, SelphieCardSlots = session.State.Scene == SceneKind.Title ? uiPreferences.SelphieCardSlots : gameplay.SelphieCardSlots, DrawOncePerSpell = session.State.Scene == SceneKind.Title ? uiPreferences.DrawOncePerSpell : gameplay.DrawOncePerSpell, Difficulty = session.State.Scene == SceneKind.Title ? uiPreferences.Difficulty : gameplay.Difficulty, AtbMode = session.State.Scene == SceneKind.Title ? uiPreferences.AtbMode : gameplay.AtbMode, GunbladeMode = session.State.Scene == SceneKind.Title ? uiPreferences.GunbladeMode : gameplay.GunbladeMode, TripleTriad = session.State.Scene == SceneKind.Title ? uiPreferences.TripleTriad : gameplay.TripleTriad, GuardianFormsEnabled = session.State.Scene == SceneKind.Title ? uiPreferences.GuardianFormsEnabled : gameplay.GuardianFormsEnabled };
     }
 
     private void ApplyCurrentBattleSettings(UiPreferences preferences, string key)
@@ -563,10 +579,26 @@ internal sealed partial class RecreateGame
                 world.ApplyBattleInput(new BattleInput(BattleInputKind.ConfigureEncounters, RandomEncounters: preferences.RandomEncounters));
             }
         }
-        if (session.State.Scene != SceneKind.Title && (UiPreferences.TripleTriadSettingKeys.Contains(key) || key is "Weapon magazine required" or "Weapon upgrade order" or "Card Mod once" or "Draw once per spell" or "Limit once per turn" or "Selphie card Slots" or "Difficulty" or "Battle ATB mode" or "Gunblade trigger" or "GF Transformations" or "Battle roster size"))
+        if (session.State.Scene != SceneKind.Title && (UiPreferences.TripleTriadSettingKeys.Contains(key) || key is "Weapon magazine required" or "Weapon upgrade order" or "Card Mod once" or "Draw once per spell" or "Limit once per turn" or "Selphie card Slots" or "Difficulty" or "Battle ATB mode" or "Gunblade trigger" or "GF Transformations" or "Battle roster size" or "Additional enemies"))
         {
             world ??= CreateWorld();
-            world.ConfigureGameplayPreferences((session.State.PendingGameplayPreferences ?? session.State.GameplayPreferences) with { BattleAllyCount = key == "Battle roster size" ? preferences.BattleAllyCount : (session.State.PendingGameplayPreferences ?? session.State.GameplayPreferences).BattleAllyCount, WeaponMagazineRequired = preferences.WeaponMagazineRequired, WeaponUpgradeOrder = preferences.WeaponUpgradeOrder, CardModOnce = preferences.CardModOnce, LimitOncePerTurn = preferences.LimitOncePerTurn, SelphieCardSlots = preferences.SelphieCardSlots, DrawOncePerSpell = preferences.DrawOncePerSpell, Difficulty = preferences.Difficulty, AtbMode = preferences.AtbMode, GunbladeMode = preferences.GunbladeMode, TripleTriad = preferences.TripleTriad, GuardianFormsEnabled = preferences.GuardianFormsEnabled });
+            GameplayPreferences current = session.State.PendingGameplayPreferences ?? session.State.GameplayPreferences;
+            world.ConfigureGameplayPreferences(current with
+            {
+                BattleAllyCount = key == "Battle roster size" ? preferences.BattleAllyCount : current.BattleAllyCount,
+                AdditionalEnemies = preferences.AdditionalEnemies,
+                WeaponMagazineRequired = preferences.WeaponMagazineRequired,
+                WeaponUpgradeOrder = preferences.WeaponUpgradeOrder,
+                CardModOnce = preferences.CardModOnce,
+                LimitOncePerTurn = preferences.LimitOncePerTurn,
+                SelphieCardSlots = preferences.SelphieCardSlots,
+                DrawOncePerSpell = preferences.DrawOncePerSpell,
+                Difficulty = preferences.Difficulty,
+                AtbMode = preferences.AtbMode,
+                GunbladeMode = preferences.GunbladeMode,
+                TripleTriad = preferences.TripleTriad,
+                GuardianFormsEnabled = preferences.GuardianFormsEnabled
+            });
         }
         if (key == "Difficulty" && debugBattle is not null)
         {

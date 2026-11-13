@@ -10,7 +10,7 @@ public enum ExpandedAiAdmission
 /// <summary>Checks reachable original AI bytecode against the services available in expanded battles.</summary>
 public static class NativeBattleExpandedAi
 {
-    public static ExpandedAiAdmission Evaluate(NativeBattleAiDefinition program, IReadOnlyList<BattleNativeAction> actions, int formation, ICollection<string>? blockers = null)
+    public static ExpandedAiAdmission Evaluate(NativeBattleAiDefinition program, IReadOnlyList<BattleNativeAction> actions, int formation, ICollection<string>? blockers = null, bool originalEnemySlots = false, ICollection<string>? explicitModelReferences = null)
     {
         if (program.Scripts.Length != 5 || program.LevelBand is < 0 or > 2 || program.Abilities.Length != 48)
         {
@@ -115,7 +115,15 @@ public static class NativeBattleExpandedAi
                         int selector = script[pc + 1];
                         int comparison = script[pc + 2];
                         int value = ReadWord(script, pc + 3);
-                        if (subject == 15 || subject == 10 && selector == 203 && comparison is not (0 or 3))
+                        if (selector < 200 && subject is 0 or 1 or 4 or 5 or 6 or 7 or >= 220 and <= 227)
+                        {
+                            explicitModelReferences?.Add($"condition-model:{subject}/{selector}");
+                        }
+                        else if (value < 200 && (subject is 8 or 9 || subject == 10 && selector == 203))
+                        {
+                            explicitModelReferences?.Add($"condition-model:{subject}/{value}");
+                        }
+                        if (subject == 15 && !originalEnemySlots || subject == 10 && selector == 203 && comparison is not (0 or 3))
                         {
                             admission = ExpandedAiAdmission.RequiresOriginalSlots;
                             blockers?.Add($"physical-condition:{subject}/{selector}/{comparison}");
@@ -139,7 +147,7 @@ public static class NativeBattleExpandedAi
                         }
                         break;
                     case 8 when callback != 3:
-                    case 30 or 44 or 49 or 50 or 51 or 54 or 55 or 56 or 57:
+                    case 30 or 50:
                         MarkUnsupportedService($"opcode:{opcode}");
                         break;
                     case 42:
@@ -148,16 +156,29 @@ public static class NativeBattleExpandedAi
                             MarkUnsupportedService("drawn-magic-contract");
                         }
                         break;
-                    case 27 or 31 or 43 or 52 or 53 or 58 or 59:
+                    case 27 or 31 or 43 or 44 or 49 or 51 or 52 or 53 or 54 or 55 or 56 or 57 or 58 or 59 when !originalEnemySlots:
                         admission = ExpandedAiAdmission.RequiresOriginalSlots;
                         blockers?.Add($"physical-opcode:{opcode}");
                         break;
+                    case 27:
+                        MarkUnsupportedService($"opcode:{opcode}");
+                        break;
                     case 29:
-                        if (script[pc] != 200)
+                        if (script[pc] != 200 && !originalEnemySlots)
                         {
                             admission = ExpandedAiAdmission.RequiresOriginalSlots;
                             blockers?.Add($"physical-opcode:{opcode}");
                         }
+                        else if (script[pc] != 200 && script[pc] >= NativeBattleSlots.EnemyCount)
+                        {
+                            MarkUnsupportedService($"physical-operand:{opcode}/{script[pc]}");
+                        }
+                        break;
+                    case 31 or 52 when script[pc] >= NativeBattleSlots.FormationSlotCount:
+                    case 43 or 58 when !NativeBattleSlots.Contains(script[pc]):
+                    case 53 when script[pc] != 209 && !NativeBattleSlots.Contains(script[pc]):
+                    case 59 when script[pc] >= NativeBattleSlots.FormationSlotCount || script[pc + 1] != 0 && (script[pc + 1] < NativeBattleSlots.AllyCount || !NativeBattleSlots.Contains(script[pc + 1])):
+                        MarkUnsupportedService($"physical-operand:{opcode}");
                         break;
                     case 3 or 7:
                         byte command = opcode == 3 ? (byte)2 : (byte)8;
@@ -167,14 +188,22 @@ public static class NativeBattleExpandedAi
                         }
                         break;
                     case 4:
-                        if (script[pc] == 209)
+                        if (script[pc] == 209 && !originalEnemySlots)
                         {
-                            MarkUnsupportedService($"actor-reference-target:{script[pc]}");
+                            admission = ExpandedAiAdmission.RequiresOriginalSlots;
+                            blockers?.Add($"actor-reference-target:{script[pc]}");
                         }
                         else if (script[pc] is >= 220 and <= 227)
                         {
                             referenceUses.Add((script[pc], $"actor-reference-target:{script[pc]}"));
                         }
+                        else if (script[pc] < 200)
+                        {
+                            explicitModelReferences?.Add($"target-model:{script[pc]}");
+                        }
+                        break;
+                    case 38 when script[pc + 1] < 200:
+                        explicitModelReferences?.Add($"target-filter-model:{script[pc + 1]}");
                         break;
                     case 11 or 12:
                         for (int i = 0; i < operands; i++)
@@ -239,7 +268,7 @@ public static class NativeBattleExpandedAi
 
     internal static bool SupportsAction(BattleNativeAction action)
     {
-        return action.Command is 2 or 8 && ExpandedBattleActionRules.SupportsEnemyContacts(action) && action.AttackType is not (5 or 6) &&
+        return ExpandedBattleActionRules.IsEnemyEjection(action) || action.Command is 2 or 8 && ExpandedBattleActionRules.SupportsEnemyContacts(action) && action.AttackType is not (5 or 6) &&
             ((action.TargetFlags.GetValueOrDefault() & 3) == 0 || action is { Command: 2, ActionId: 16 }) && (action.Command != 8 || (action.AttackFlags & 0x80) == 0);
     }
 

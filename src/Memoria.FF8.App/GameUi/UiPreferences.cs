@@ -75,6 +75,7 @@ internal sealed record UiPreferences
     public bool LimitOncePerTurn { get; init; }
     public bool SelphieCardSlots { get; init; }
     public int BattleAllyCount { get; init; }
+    public int AdditionalEnemies { get; init; }
     public bool DrawOncePerSpell { get; init; }
     public bool CardModOnce { get; init; }
     public bool WeaponMagazineRequired { get; init; }
@@ -361,6 +362,14 @@ internal sealed record UiPreferences
                 _ => throw new ArgumentException("Battle roster size requires 3, 4, 8 or 11.")
             };
         }
+        if (key == "Additional enemies")
+        {
+            if (!int.TryParse(value, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int count) || count is < 0 or > GameplayPreferences.MaximumAdditionalEnemies)
+            {
+                throw new ArgumentException($"Additional enemies requires a value from 0 to {GameplayPreferences.MaximumAdditionalEnemies}.");
+            }
+            return this with { AdditionalEnemies = count };
+        }
         if (key == "GF Transformations")
         {
             return value switch
@@ -482,7 +491,7 @@ internal sealed record UiPreferences
 
     public UiPreferences WithInstallationSetting(string key, string value, bool activeGame, bool allowDifficultyChange = false)
     {
-        if (activeGame && key is "Weapon magazine required" or "Weapon upgrade order" or "Card Mod once" or "Draw once per spell" or "Limit once per turn" or "Selphie card Slots" or "Difficulty" or "Battle ATB mode" or "Gunblade trigger" or "Battle policy" or "Random encounters" or "GF Transformations" or "Battle roster size")
+        if (activeGame && key is "Weapon magazine required" or "Weapon upgrade order" or "Card Mod once" or "Draw once per spell" or "Limit once per turn" or "Selphie card Slots" or "Difficulty" or "Battle ATB mode" or "Gunblade trigger" or "Battle policy" or "Random encounters" or "GF Transformations" or "Battle roster size" or "Additional enemies")
         {
             return this;
         }
@@ -516,6 +525,10 @@ internal sealed record UiPreferences
         if (!GameplayPreferences.IsBattleAllyCountSupported(BattleAllyCount))
         {
             throw new InvalidDataException("Invalid battle roster size.");
+        }
+        if (AdditionalEnemies is < 0 or > GameplayPreferences.MaximumAdditionalEnemies)
+        {
+            throw new InvalidDataException("Invalid additional enemies setting.");
         }
         if (TripleTriad is null)
         {

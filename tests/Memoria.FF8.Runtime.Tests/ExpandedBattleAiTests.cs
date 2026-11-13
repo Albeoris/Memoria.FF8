@@ -88,12 +88,26 @@ public sealed class ExpandedBattleAiTests
     {
         NativeBattleAiDefinition program = Ai([2, 3, 0, 0, 62, 0, 3, 0, 43, 4, 0, 4, 201, 7, 1, 6, 0]);
         Assert.Equal(ExpandedAiAdmission.RequiresOriginalSlots, NativeBattleExpandedAi.Evaluate(program, [Physical], 62));
+        Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(program, [Physical], 62, originalEnemySlots: true));
         Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(program, [Physical], 344));
         Assert.Equal(ExpandedAiAdmission.RequiresOriginalSlots, NativeBattleExpandedAi.Evaluate(Ai([43, 6, 0]), [Physical], 0));
         Assert.Equal(ExpandedAiAdmission.RequiresOriginalSlots, NativeBattleExpandedAi.Evaluate(Ai([2, 15, 0, 0, 6, 0, 0, 0, 0]), [Physical], 0));
         Assert.Equal(ExpandedAiAdmission.RequiresOriginalSlots, NativeBattleExpandedAi.Evaluate(Ai([31, 0, 0]), [Physical], 236));
         Assert.Equal(ExpandedAiAdmission.RequiresUnsupportedService, NativeBattleExpandedAi.Evaluate(Ai([4, 220, 0]), [Physical], 0));
         Assert.Equal(ExpandedAiAdmission.RequiresUnsupportedService, NativeBattleExpandedAi.Evaluate(Ai([14, 96, 0, 0]), [Physical], 0));
+        Assert.Equal(ExpandedAiAdmission.RequiresUnsupportedService, NativeBattleExpandedAi.Evaluate(Ai([27, 1, 0, 0]), [Physical], 0, originalEnemySlots: true));
+    }
+
+    [Fact]
+    public void StaticModelReferencesAreReportedIndependentlyOfExecutionAdmission()
+    {
+        List<string> references = [];
+        byte[] turn = [2, 3, 0, 0, 62, 0, 3, 0, 4, 32, 0, 4, 201, 0];
+        Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(Ai(turn), [Physical], 62, explicitModelReferences: references));
+        Assert.Equal("target-model:32", Assert.Single(references));
+        references.Clear();
+        Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(Ai(turn), [Physical], 344, explicitModelReferences: references));
+        Assert.Empty(references);
     }
 
     [Fact]

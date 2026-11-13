@@ -80,7 +80,8 @@ public sealed partial class BattleSession
                     left = actor.NativeAi?.LevelBand ?? throw new InvalidDataException("Native battle AI level-band condition requires its installed program.");
                     break;
                 case 15:
-                    return CompareNativeConditionBit(combatants.Any(candidate => candidate.EncodeNativeSlot() == value && candidate.IsActive && (NativeSavedStatusBits(candidate) & 1) == 0), comparison);
+                    BattleCombatant? allocated = FindActiveNativeActor(value);
+                    return CompareNativeConditionBit(allocated is not null && (NativeSavedStatusBits(allocated) & 1) == 0, comparison);
                 case 16:
                     BattleCombatant[] party = allies.Where(candidate => HasAiRosterSlot(candidate) && candidate.IsActive && (NativeSavedStatusBits(candidate) & 1) == 0).ToArray();
                     if (party.Any(candidate => candidate.NativeCharacterFlag100 is null))
@@ -148,7 +149,7 @@ public sealed partial class BattleSession
         {
             if (UsesExpandedRoster)
             {
-                string? expected = value == 200 ? actor.Id : combatants.FirstOrDefault(candidate => HasAiRosterSlot(candidate) && NativeModelId(candidate) == value)?.Id;
+                string? expected = value == 200 ? actor.Id : ExpandedAiModelActor(value)?.Id;
                 return CompareNativeConditionBit(actor.LastAttackerId == expected, comparison);
             }
             left = NativeConditionLastAttackerIndex(actor);
@@ -194,7 +195,7 @@ public sealed partial class BattleSession
                 200 => actor,
                 203 when actor.LastAttackerId is string attacker => GetActor(attacker),
                 >= 220 and <= 227 when actor.AiActorReferences.TryGetValue(selector - 220, out string? targetId) => GetActor(targetId),
-                _ => combatants.FirstOrDefault(candidate => HasAiRosterSlot(candidate) && NativeModelId(candidate) == selector)
+                _ => ExpandedAiModelActor(selector)
                     ?? throw new NotSupportedException($"Expanded battle AI model selector {selector} has no current participant.")
             };
         }

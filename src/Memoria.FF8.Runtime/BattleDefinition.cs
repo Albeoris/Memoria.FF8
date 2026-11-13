@@ -152,6 +152,10 @@ public sealed record BattleDefinition
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool UsesExpandedRoster { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool UsesOriginalEnemySlots { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableSortedDictionary<int, BattleEnemyRosterSource>? AddedEnemySources { get; init; }
     public EncounterCompiledDefinition? EncounterMod { get; init; }
     public bool GuardianFormsEnabled { get; init; }
     public bool LimitOncePerTurn { get; init; }
@@ -251,6 +255,8 @@ public sealed record ExpandedEnemyLevelProfile(ImmutableArray<ExpandedEnemyLevel
 public sealed record BattleNativeEventOwner(string ActorId, int SourceHeaderIndex);
 public sealed record BattleAttackCommand(string ActorId, string TargetId, BattleAbility Ability = BattleAbility.Attack, int ActionId = 0, bool DrawCast = false, int NativeTargetSelector = 0)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public BattleExpandedAiDescriptor? ExpandedAiDescriptor { get; init; }
     public BattleGuardianFormAction? GuardianFormAction { get; init; }
     public BattleGuardianFormInvocation? GuardianFormInvocation { get; init; }
     public string? MagicReservationId { get; init; }

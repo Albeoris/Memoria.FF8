@@ -12,6 +12,8 @@ public sealed partial class ExpandedBattleEffectMatrixTests
     [InlineData(219, 462)]
     [InlineData(257, 326)]
     [InlineData(258, 190)]
+    [InlineData(285, 410)]
+    [InlineData(320, 483)]
     public void Installed_enemy_turn_reaches_its_original_late_or_hit_counter_branch(int effectId, int formation)
     {
         string directory = TestResources.GameDirectory;
@@ -37,10 +39,13 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         bool elnoyle = effect.Effect == 213;
         bool sacred = effect.Effect == 258;
         bool omega = effect.Effect is 166 or 219;
+        bool useAreaEnemyRoster = effect.Effect is 285 or 320;
         // Elnoyle's turn callback increments local 220 only after its RNG guard and uses the action at five.
         // Sacred's hit callback increments battle variable 96 while more than one enemy remains.
         // Formation 189 takes the separate solo branch before the shared-counter test.
         // Bahamut's turn callback can reach Mega Flare from six on its local turn counter.
+        // Catoblepas reaches Thunder Summon when its cast counter reaches three.
+        // Tiamat spends five turns showing its Dark Flare message before casting.
         (int formation, int model, int pc) = effect.Effect switch
         {
             166 => (462, 114, 115),
@@ -48,6 +53,8 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             219 => (462, 114, 145),
             257 => (326, 67, 284),
             258 => (190, 63, 94),
+            285 => (410, 133, 45),
+            320 => (483, 132, 85),
             _ => throw new ArgumentOutOfRangeException(nameof(effect))
         };
         field = field with { GameplayPreferences = field.GameplayPreferences with { Tuning = field.GameplayPreferences.Tuning with { MaximumDamage = 4 } } };
@@ -55,9 +62,10 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         string? firstBlocker = null;
         foreach (byte seed in new byte[] { 0, 5, 9 })
         {
-            using GameWorld world = StartBattle(directory, field, checked((ushort)formation), nativeSeed: seed, prepareHigherBand: elnoyle);
+            using GameWorld world = StartBattle(directory, field, checked((ushort)formation), nativeSeed: seed, prepareHigherBand: elnoyle, useAreaEnemyRoster: useAreaEnemyRoster);
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
-            BattleCombatant target = battle.Combatants.Last(actor => !actor.IsPlayer && actor.ModelId == model);
+            IEnumerable<BattleCombatant> owners = battle.Combatants.Where(actor => !actor.IsPlayer && actor.ModelId == model);
+            BattleCombatant target = useAreaEnemyRoster ? owners.First() : owners.Last();
             int band = Assert.IsType<NativeBattleAiDefinition>(battle.GetCombatantDefinition(target.Id).NativeAi).LevelBand;
             if (elnoyle && band == 0)
             {

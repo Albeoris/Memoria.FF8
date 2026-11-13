@@ -164,7 +164,7 @@ public sealed partial class MenuController
         }
         var panes = Grid([1], [0.95f, 1.05f]);
         Place(content, panes, showSummary ? 1 : 0);
-        Place(panes, Panel(null, Commands(30, 19)), 0, 0);
+        Place(panes, Panel(null, IsHostSettingsScreen ? BuildBattleSettingsRows() : Commands(30, 19)), 0, 0);
         bool showFontPreviews = ScreenId is "config-text" or "font-picker";
         Place(panes, Panel(ScreenId == "debug-room" ? SystemText("ui.buildstandard.panel.selected.preview", "Selected preview") : CurrentScreen.Title, showFontPreviews ? BuildFontPreviews() : Details()), 0, 1);
         return content;

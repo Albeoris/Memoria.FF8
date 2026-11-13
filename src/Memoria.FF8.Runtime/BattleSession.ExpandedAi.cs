@@ -132,9 +132,41 @@ public sealed partial class BattleSession
             207 => PickExpandedAiTarget(enemies.Where(candidate => candidate != actor && IsExpandedAiTarget(candidate)).DefaultIfEmpty(actor).Where(IsExpandedAiTarget)),
             208 => new([.. allies.Where(IsExpandedAiTarget).Select(candidate => candidate.Id)]) { RandomSide = BattleSide.Allies },
             >= 220 and <= 227 => ResolveExpandedAiLocalTarget(actor, selector - 220),
+            209 when UsesOriginalEnemySlots => ResolveExpandedOriginalTarget(nativeLastAllocatedIndex),
             209 => throw new NotSupportedException($"Expanded AI selector {selector} requires a separately owned allocation."),
-            _ => new([.. combatants.Where(candidate => IsExpandedAiTarget(candidate) && NativeModelId(candidate) == selector).Take(1).Select(candidate => candidate.Id)])
+            _ => ResolveExpandedModelTarget(selector)
         };
+    }
+
+    private BattleAiRecipients ResolveExpandedModelTarget(int selector)
+    {
+        BattleCombatant? target = UsesOriginalEnemySlots ? ExpandedAiModelActor(selector) : combatants.FirstOrDefault(candidate => IsExpandedAiTarget(candidate) && NativeModelId(candidate) == selector);
+        return target is null ? new([]) : new([target.Id]);
+    }
+
+    private BattleCombatant? ExpandedAiModelActor(int model)
+    {
+        IEnumerable<BattleCombatant> candidates = combatants.Where(candidate => candidate.Slot is not null && NativeModelId(candidate) == model);
+        return UsesOriginalEnemySlots ? candidates.OrderBy(candidate => candidate.Side).ThenBy(candidate => candidate.Slot!.Value.Position).FirstOrDefault() : candidates.FirstOrDefault();
+    }
+
+    private BattleAiRecipients ResolveExpandedOriginalTarget(int index)
+    {
+        if (!UsesOriginalEnemySlots)
+        {
+            throw new NotSupportedException("Expanded AI direct actor targeting requires original enemy slots.");
+        }
+        BattleCombatant? target = FindActiveNativeActor(index);
+        return target is null ? new([]) : new([target.Id]);
+    }
+
+    private void ValidateExpandedOriginalEnemySlots()
+    {
+        BattleCombatant[] allocated = enemies.Where(actor => actor.Slot is not null).ToArray();
+        if (allocated.Select(actor => actor.Slot).Distinct().Count() != allocated.Length || allocated.Any(actor => actor.ResolvedNativeLevel is null || actor.NativeAllocationPendingStatistics || actor.NativeTemplate is null))
+        {
+            throw new InvalidDataException("Expanded original enemy slots require unique owners with resolved allocation statistics.");
+        }
     }
 
     private static BattleAiRecipients ResolveExpandedAiLocalTarget(BattleCombatant actor, int index)
@@ -187,6 +219,11 @@ public sealed partial class BattleSession
         {
             bool includesKnockedOutAllies = (action?.TargetFlags.GetValueOrDefault() & 1) != 0;
             return targets.Where(candidate => IsExpandedDrawCastTarget(candidate, includesKnockedOutAllies)).ToArray();
+        }
+        if (recipients.RandomSide is null && ExpandedBattleActionRules.IsEnemyEjection(action))
+        {
+            // Attack flag 0x80 admits selected KO party recipients in the native target mask.
+            return targets.Where(candidate => IsExpandedAiTarget(candidate) || candidate.IsPlayer && candidate.IsActive && !candidate.Untargetable && !candidate.IsEjected && !candidate.IsAlive).ToArray();
         }
         return targets.Where(target => IsExpandedAiTarget(target) || target.IsActive && target.Id == recipients.DeathSelfTargetId).ToArray();
     }

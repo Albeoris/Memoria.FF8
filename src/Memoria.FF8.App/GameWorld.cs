@@ -62,11 +62,12 @@ internal sealed partial class GameWorld : IDisposable
             "11x8" or "11x11" => 11,
             _ => 0
         });
-        defaultLargeRandomEnemyCount = expandedBattleEnemyCount ?? (expandedRoster == "11x11" ? 11 : 8);
-        if (!ExpandedBattleFormation.SupportsRoster(11, defaultLargeRandomEnemyCount))
+        legacyExpandedEnemyCount = expandedBattleEnemyCount;
+        if (legacyExpandedEnemyCount is < 1 or > ExpandedBattleFormation.MaximumSideSize)
         {
             throw new ArgumentOutOfRangeException(nameof(expandedBattleEnemyCount));
         }
+        defaultAdditionalEnemyCount = expandedRoster == "11x11" ? 10 : 0;
         this.legacyGameplayProjection = legacyGameplayProjection;
         this.readGameplayPolicy = readGameplayPolicy;
         this.readSceneMods = readSceneMods;

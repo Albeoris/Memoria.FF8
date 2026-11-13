@@ -1,3 +1,7 @@
+using System.Globalization;
+using Memoria.FF8.Runtime;
+using Memoria.FF8.Ui;
+
 namespace Memoria.FF8.GameUi;
 
 public sealed partial class MenuController
@@ -38,8 +42,66 @@ public sealed partial class MenuController
 
     internal IReadOnlyList<MenuEntry> BattleSettingsEntries()
     {
+        UiPreferences preferences = FontPreferences;
+        string help = FormatSystemText("ui.battlesettings.additional-enemies.help", "Stored {0}, gold marker {1}. Parties above three require party size minus two. Hardcore requires at least one. Eligible encounters may add fewer.", preferences.AdditionalEnemies, EffectiveAdditionalEnemies(preferences));
         return [new MenuEntry("battle-laboratory", SystemText("ui.battlesettingsentries.entry.label.battle.laboratory", "Battle laboratory…"), SystemText("ui.battlesettingsentries.entry.help.edit.an.isolated.scenario.start.launches.it.explicitly", "Edit an isolated scenario; Start launches it explicitly."), Action: new("open-battle-debug"), Enabled: BattleDebugAvailable),
-            .. HostSettingsEntries("Battle policy", "Random encounters", "Battle roster size")];
+            .. HostSettingsEntries("Battle policy", "Random encounters", "Battle roster size"),
+            new MenuEntry("Additional enemies", LocalizeSettingLabel("Additional enemies", "Additional enemies"), help, Enabled: _writePreferences is not null)];
+    }
+
+    private static int EffectiveAdditionalEnemies(UiPreferences preferences)
+    {
+        GameplayPreferences gameplay = new() { Difficulty = preferences.Difficulty, AdditionalEnemies = preferences.AdditionalEnemies };
+        return gameplay.GetEffectiveAdditionalEnemies(preferences.BattleAllyCount);
+    }
+
+    private UiElement BuildBattleSettingsRows()
+    {
+        IReadOnlyList<MenuEntry> entries = Entries;
+        var rows = new UiGrid { Columns = 1, Gap = 0 };
+        for (int index = 0; index < entries.Count; index++)
+        {
+            int selected = index;
+            MenuEntry entry = entries[index];
+            rows.RowDefinitions.Add(UiGridLength.Pixel(38 * TextScale));
+            UiElement row;
+            if (entry.Id == "Additional enemies")
+            {
+                UiPreferences preferences = FontPreferences;
+                row = new UiNumericSlider
+                {
+                    Text = entry.Label,
+                    Max = GameplayPreferences.MaximumAdditionalEnemies,
+                    Step = 1,
+                    Value = preferences.AdditionalEnemies,
+                    MarkerValue = EffectiveAdditionalEnemies(preferences),
+                    ReadOnly = !entry.Enabled,
+                    FontSize = 19 * TextScale,
+                    ValueWidth = 32 * TextScale,
+                    TextInset = 23,
+                    TrackHeight = 18 * TextScale,
+                    LabelWidthRatio = 0.52f,
+                    ValueChanged = value => Execute(new MenuAction("host-config", entry.Id, Value: value.ToString(CultureInfo.InvariantCulture)))
+                };
+            }
+            else
+            {
+                row = new UiButton
+                {
+                    Text = entry.Label,
+                    FontSize = 19 * TextScale,
+                    TextInset = 23,
+                    DrawBackground = false,
+                    HighlightSelection = false,
+                    Enabled = entry.Enabled,
+                    Click = () => Activate(selected)
+                };
+            }
+            row.Id = entry.Id;
+            row.FocusChanged = focused => SelectConfigRow(focused, selected);
+            Place(rows, row, selected);
+        }
+        return rows;
     }
 
     internal IReadOnlyList<string> BattleSettingsDetails() => [battleSource?.Invoke() ?? (_hasActiveBattle?.Invoke() == true ? SystemText("ui.battlesettingsdetails.details.active.battle", "Active battle") : SystemText("ui.battlesettingsdetails.details.no.active.battle", "No active battle")), FormatSystemText("ui.battlesettingsdetails.details.encounter.execution.template", "Encounter execution: {0}", (HostSettingValue("Battle policy") == "Instant victory" ? SystemText("ui.battlesettingsdetails.details.automatic.victory", "Automatic victory") : SystemText("ui.battlesettingsdetails.details.full.combat", "Full combat"))), SystemText("ui.battlesettingsdetails.details.applies.to.the.current.game.at.title.it", "Applies to the current game; at Title it is the new-game default."), SystemText("ui.battlesettingsdetails.details.save.normally.to.retain.current.game.changes", "Save normally to retain current-game changes."), SelectedEntry?.Help ?? ""];
@@ -179,7 +241,7 @@ public sealed partial class MenuController
             SetSystemMessage(() => SystemText("ui.executehostsettingsaction.message.local.settings.are.not.connected.to.this.menu", "Local settings are not connected to this menu host."));
             return true;
         }
-        if (action.SubjectId is not ("Battle policy" or "Random encounters" or "Battle roster size"))
+        if (action.SubjectId is not ("Battle policy" or "Random encounters" or "Battle roster size" or "Additional enemies"))
         {
             SetSystemMessage(() => SystemText("ui.executehostsettingsaction.message.this.preference.has.its.canonical.editor.in.config", "This preference has its canonical editor in Config."));
             return true;

@@ -323,7 +323,7 @@ public sealed partial class MenuController
             Select(Math.Clamp(SelectedIndex + (input is MenuInput.PageUp or MenuInput.PageLeft ? -ConfigRowsPerPage : ConfigRowsPerPage), 0, Math.Max(0, entries.Count - 1)), entries.Count);
             return;
         }
-        if (IsConfigSettingsScreen && input is MenuInput.Up or MenuInput.Down)
+        if ((IsConfigSettingsScreen || IsHostSettingsScreen) && input is MenuInput.Up or MenuInput.Down)
         {
             Select(SelectedIndex + (input == MenuInput.Up ? -1 : 1), entries.Count);
             return;
@@ -797,6 +797,15 @@ public sealed partial class MenuController
         }
         if (SelectedEntry?.Enabled != true)
         {
+            return;
+        }
+        if (IsHostSettingsScreen && SelectedEntry.Id == "Additional enemies")
+        {
+            var key = direction < 0 ? UiKey.Left : UiKey.Right;
+            if (BuildView().Key(key))
+            {
+                SoundRequested?.Invoke(MenuSound.Move);
+            }
             return;
         }
         var setting = MenuSettings.Definitions.FirstOrDefault(s => s.Id == SelectedEntry?.Id);

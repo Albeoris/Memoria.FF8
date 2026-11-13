@@ -1,11 +1,43 @@
 using System.Text.Json;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.App.Tests;
 
 public sealed class DebugRoomSettingsTests
 {
+    [Fact]
+    public void Additional_enemies_slider_edits_stored_value_and_marks_effective_request()
+    {
+        UiPreferences preferences = new() { BattleAllyCount = 8, Difficulty = BattleDifficulty.Hardcore };
+        MenuController menus = new();
+        menus.ConnectPreferences(() => preferences, action => preferences = preferences.WithSetting(action.SubjectId, action.Value));
+        menus.Open("debug-battle", true);
+        menus.SelectEntry("debug-battle", "Additional enemies");
+
+        UiNumericSlider slider = Assert.IsType<UiNumericSlider>(menus.BuildView().FocusedElement);
+        Assert.Equal(0, slider.Value);
+        Assert.Equal(6f, slider.MarkerValue);
+        Assert.Equal(10, slider.Max);
+        Assert.Contains("Stored 0, gold marker 6", menus.SelectedEntry!.Help);
+        menus.Navigate(MenuInput.Confirm);
+        menus.Navigate(MenuInput.Left);
+        Assert.Equal(0, preferences.AdditionalEnemies);
+        menus.Navigate(MenuInput.Right);
+        Assert.Equal(1, preferences.AdditionalEnemies);
+        Assert.Equal(6f, Assert.IsType<UiNumericSlider>(menus.BuildView().FocusedElement).MarkerValue);
+
+        UiView view = menus.BuildView();
+        slider = Assert.IsType<UiNumericSlider>(view.FocusedElement);
+        float trackRight = slider.ValueBounds.Right - slider.ValueWidth - slider.ValueGap;
+        view.Pointer(trackRight - 1, slider.Bounds.Y + slider.Bounds.Height / 2, pressed: true);
+        Assert.Equal(10, preferences.AdditionalEnemies);
+        Assert.Equal(10f, Assert.IsType<UiNumericSlider>(menus.BuildView().FocusedElement).MarkerValue);
+        Assert.Equal(10, preferences.WithInstallationSetting("Additional enemies", "2", activeGame: true).AdditionalEnemies);
+        Assert.Equal(2, preferences.WithInstallationSetting("Additional enemies", "2", activeGame: false).AdditionalEnemies);
+    }
+
     [Fact]
     public void LaboratoryContainsOnlyScenarioControlsAndChangingItsAtbModeIsLocal()
     {

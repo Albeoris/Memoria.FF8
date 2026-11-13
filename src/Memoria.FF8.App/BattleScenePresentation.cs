@@ -80,7 +80,7 @@ internal sealed partial class BattleScenePresentation
         for (int index = 0; index < enemies.Length; index++)
         {
             BattleCombatantDefinition actor = enemies[index];
-            positions[actor.Id] = definition.UsesExpandedRoster ? ExpandedPosition(index, enemies.Length, false) : encounter is null ? BattleFormationPresentation.DebugEnemyPosition(index, enemies.Length) : encounter.Slots.Single(slot => slot.Slot == (actor.SceneSlot ?? throw new NotSupportedException("An original battle participant requires its scene slot identity."))).Position;
+            positions[actor.Id] = definition.UsesExpandedRoster && !definition.UsesOriginalEnemySlots ? ExpandedPosition(index, enemies.Length, false) : encounter is null ? BattleFormationPresentation.DebugEnemyPosition(index, enemies.Length) : encounter.Slots.Single(slot => slot.Slot == (actor.SceneSlot ?? throw new NotSupportedException("An original battle participant requires its scene slot identity."))).Position;
         }
         foreach (BattleCombatantDefinition actor in definition.Combatants.Where(actor => actor.InitialActive))
         {

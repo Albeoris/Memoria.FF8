@@ -268,6 +268,7 @@ public sealed class UiNumericSlider : UiSlider
     public float ValueGap { get; set; } = 8;
     public float TrackHeight { get; set; } = 10;
     public string ValueFormat { get; set; } = "0";
+    public float? MarkerValue { get; set; }
 
     private UiRect NumberBounds
     {
@@ -296,6 +297,13 @@ public sealed class UiNumericSlider : UiSlider
         if (!track.IsEmpty)
         {
             theme.NumericSlider(canvas, track, Max == Min ? 0 : (Value - Min) / (Max - Min), Enabled);
+            if (MarkerValue is float marker && Max > Min)
+            {
+                float ratio = (Math.Clamp(marker, Min, Max) - Min) / (Max - Min);
+                float width = Math.Min(track.Width, track.Height / 5);
+                float x = track.X + (track.Width - width) * ratio;
+                canvas.Fill(new UiRect(x, track.Y, width, track.Height), Enabled ? theme.SliderMarker : theme.Muted);
+            }
         }
 
         canvas.Text(Value.ToString(ValueFormat, CultureInfo.InvariantCulture), FontSize > 0 ? FontSize : theme.FontSize, NumberBounds, Enabled ? theme.Foreground : theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);
