@@ -26,10 +26,13 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         }
         List<string> attempted = [];
         string firstBlocker = "enemy-formation-entry";
-        foreach (var routes in candidates)
+        // Adamantoise's White Wind requires two successful random conditions in the same low-band turn.
+        // Retry with independent entry seeds so unrelated AI admissions cannot hide this route by changing the RNG stream.
+        IEnumerable<byte> seeds = effect.Effect == 226 ? [0, 1, 2, 3] : [0];
+        foreach (var (routes, seed) in seeds.SelectMany(seed => candidates.Select(routes => (routes, seed))))
         {
             ushort formation = checked((ushort)routes.Key);
-            using GameWorld world = StartBattle(directory, field, formation, requireExpanded: false);
+            using GameWorld world = StartBattle(directory, field, formation, requireExpanded: false, nativeSeed: seed);
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
             if (!battle.UsesExpandedRoster)
             {
@@ -56,10 +59,10 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             EnemyRouteResult witnessed = ObserveEnemyCast(world, battle, effect, actors);
             if (witnessed.Status is "native" or "logical")
             {
-                return witnessed with { Detail = $"Formation {formation}, {witnessed.Detail}" };
+                return witnessed with { Detail = $"Formation {formation}, seed {seed}, {witnessed.Detail}" };
             }
             firstBlocker = witnessed.FirstBlockerStage!;
-            attempted.Add($"formation {formation}: {witnessed.Detail}");
+            attempted.Add($"formation {formation}, seed {seed}: {witnessed.Detail}");
         }
 
         if (attempted.Count > 0)
