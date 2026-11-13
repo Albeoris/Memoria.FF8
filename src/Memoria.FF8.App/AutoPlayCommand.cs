@@ -96,7 +96,7 @@ internal static class AutoPlayCommand
                 {
                     controller.Advance((int)Math.Min(4096, remaining));
                 }
-                if (maxSteps is long limit && controller.State.Steps >= limit)
+                if (controller.Running && maxSteps is long limit && controller.State.Steps >= limit)
                 {
                     controller.SaveAndStop();
                 }

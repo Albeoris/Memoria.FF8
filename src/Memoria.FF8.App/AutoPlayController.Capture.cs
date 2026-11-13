@@ -1,3 +1,6 @@
+using System.Text;
+using System.Text.Json;
+using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
@@ -64,6 +67,149 @@ internal sealed partial class AutoPlayController
     {
         Memoria.AutoPlay.AutoPlayRecording.AppendRecent(run.RecentActions, new AutoPlayRecentAction(run.Steps, session.State.FieldId, session.State.Scene.ToString(), Memoria.AutoPlay.AutoPlayRecording.LimitActionText(action)));
     }
+
+    private void PreserveFailureCapture(Exception exception)
+    {
+        if (runDirectory is not string directory)
+        {
+            return;
+        }
+
+        using IDisposable suspended = idleDeadline.Suspend();
+        try
+        {
+            ReproductionPath = SaveFailureBundle(directory, exception);
+        }
+        catch (Exception captureError)
+        {
+            Status += $" Exact failure snapshot unavailable. Location checkpoint: {ReproductionPath ?? "unavailable"}. Capture error: {captureError.Message}";
+        }
+
+        try
+        {
+            const int maximumDiagnosticText = 8192;
+            string text = Status + Environment.NewLine + Error;
+            string details = string.Join(Environment.NewLine, text[..Math.Min(text.Length, maximumDiagnosticText)], JsonSerializer.Serialize((exception as EventScriptException)?.FaultContext, BeforeSnapshotJsonOptions), JsonSerializer.Serialize(run.RecentActions, BeforeSnapshotJsonOptions));
+            if (Encoding.UTF8.GetByteCount(details) <= RemainingCaptureBytes(directory))
+            {
+                AtomicWrite(Path.Combine(directory, "failure.txt"), details);
+            }
+        }
+        catch (Exception saveError) when (saveError is IOException or UnauthorizedAccessException)
+        {
+            // The reproduction path still points to the last successfully published bundle.
+        }
+    }
+
+    private string SaveFailureBundle(string directory, Exception exception)
+    {
+        long remainingBytes = RemainingCaptureBytes(directory);
+        if (remainingBytes <= 0)
+        {
+            throw new IOException("Automatic exploration capture reached its 128 MiB storage budget");
+        }
+
+        GameState failure = CaptureFailureState(exception);
+        string snapshot = $"failure-{run.Steps:D10}.json";
+        string manifest = Path.ChangeExtension(snapshot, ".run.json");
+        string? previousSnapshot = run.Snapshot;
+        string staging = Path.Combine(directory, ".failure-" + Guid.NewGuid().ToString("N"));
+        List<string> files = [];
+        int published = 0;
+        void StageFile(string filename, Action<string> write)
+        {
+            string temporary = Path.Combine(staging, filename);
+            write(temporary);
+            remainingBytes -= new FileInfo(temporary).Length;
+            if (remainingBytes < 0)
+            {
+                throw new IOException("The failure bundle exceeds the remaining 128 MiB capture budget");
+            }
+            files.Add(filename);
+        }
+
+        Directory.CreateDirectory(staging);
+        try
+        {
+            foreach (string reference in CaptureDependencies(run))
+            {
+                if (reference != Path.GetFileName(reference))
+                {
+                    throw new InvalidDataException("An automatic exploration dependency is outside its run directory");
+                }
+                if (File.Exists(Path.Combine(directory, reference)))
+                {
+                    continue;
+                }
+                if (stagedAttempt is not { } staged || reference != staged.Name)
+                {
+                    throw new InvalidDataException($"Automatic exploration checkpoint dependency '{reference}' is missing");
+                }
+                StageFile(reference, path => new GameSession(staged.State).Save(path, compact: true));
+            }
+
+            run.Snapshot = snapshot;
+            StageFile(snapshot, path => new GameSession(failure).Save(path, compact: true));
+            StageFile(manifest, path => File.WriteAllText(path, JsonSerializer.Serialize(run, BeforeSnapshotJsonOptions)));
+            foreach (string file in files)
+            {
+                File.Move(Path.Combine(staging, file), Path.Combine(directory, file));
+                published++;
+            }
+            return Path.Combine(directory, manifest);
+        }
+        catch
+        {
+            foreach (string file in files.Take(published))
+            {
+                File.Delete(Path.Combine(directory, file));
+            }
+            throw;
+        }
+        finally
+        {
+            run.Snapshot = previousSnapshot;
+            try
+            {
+                Directory.Delete(staging, recursive: true);
+            }
+            catch (Exception cleanupError) when (cleanupError is IOException or UnauthorizedAccessException)
+            {
+                // A staging cleanup failure cannot invalidate a published manifest.
+            }
+        }
+    }
+
+    private GameState CaptureFailureState(Exception exception)
+    {
+        bool wasAdvancing = advancing;
+        advancing = false;
+        try
+        {
+            GameWorld world = getWorld();
+            if (world.Events.LastFault is not null && world.Field?.Id != world.Events.FieldId)
+            {
+                throw new InvalidOperationException("The fault interrupted native field allocation before its VM could be saved");
+            }
+            GameState state = CaptureState(world);
+            if (exception is EventScriptException { FaultContext: { } fault }
+                && !HasFaultedVirtualMachine(state.EventState, fault) && !HasFaultedVirtualMachine(state.DepartingFieldState, fault))
+            {
+                throw new InvalidOperationException($"The captured state lacks the faulted field {fault.FieldId} VM");
+            }
+            return state;
+        }
+        finally
+        {
+            advancing = wasAdvancing;
+        }
+    }
+
+    private static bool HasFaultedVirtualMachine(JsonElement? state, EventFaultContext fault) =>
+        state is { } vm && vm.GetProperty("FieldId").GetInt32() == fault.FieldId && vm.GetProperty("Frame").GetInt64() == fault.Frame;
+
+    private static long RemainingCaptureBytes(string directory) =>
+        MaximumCaptureBytes - Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories).Sum(path => new FileInfo(path).Length);
 
     internal static void RetireClosedSearchSnapshots(AutoPlayRunState state)
     {
@@ -156,8 +302,7 @@ internal sealed partial class AutoPlayController
                 File.Delete(path);
             }
         }
-        long bytes = Directory.EnumerateFiles(runDirectory, "*", SearchOption.AllDirectories).Sum(path => new FileInfo(path).Length);
-        if (bytes > MaximumCaptureBytes)
+        if (RemainingCaptureBytes(runDirectory) < 0)
         {
             throw new IOException("Automatic exploration capture reached its 128 MiB storage budget. The last committed checkpoint remains available; stop and inspect the active search before continuing.");
         }

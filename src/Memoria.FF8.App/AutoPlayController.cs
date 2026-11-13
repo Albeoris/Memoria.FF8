@@ -488,11 +488,11 @@ internal sealed partial class AutoPlayController
         }
     }
 
-    internal GameState CaptureState()
+    internal GameState CaptureState(GameWorld? currentWorld = null)
     {
         using IDisposable suspended = idleDeadline.Suspend();
         using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("Snapshot.Capture");
-        GameWorld world = getWorld();
+        GameWorld world = currentWorld ?? getWorld();
         if (world.Field is not null && session.State.Scene is SceneKind.Field or SceneKind.Movie && world.HasCurrentFieldAllocation && !session.HasActiveBattle)
         {
             GameState snapshot;
@@ -2373,17 +2373,7 @@ internal sealed partial class AutoPlayController
         Status = $"Failed at step {run.Steps}: {exception.Message}";
         run.Error = Error;
         ReproductionPath = latestBundleManifest ?? ReproductionPath;
-        try
-        {
-            if (runDirectory is not null)
-            {
-                AtomicWrite(Path.Combine(runDirectory, "failure.txt"), Error + Environment.NewLine + JsonSerializer.Serialize(run.RecentActions, BeforeSnapshotJsonOptions));
-            }
-        }
-        catch (Exception saveError) when (saveError is IOException or UnauthorizedAccessException)
-        {
-            // The last published location remains available when diagnostic output cannot be written.
-        }
+        PreserveFailureCapture(exception);
     }
 
     private GameState ReadCheckpoint(string path)

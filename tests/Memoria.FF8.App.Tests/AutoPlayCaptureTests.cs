@@ -6,6 +6,118 @@ namespace Memoria.FF8.App.Tests;
 public sealed class AutoPlayCaptureTests(ITestOutputHelper output)
 {
     [Fact]
+    public void IdleFailurePreservesCurrentNativeFrameAndEntryCheckpoint()
+    {
+        string gameDirectory = TestResources.GameDirectory;
+        GameSession session = GameWorld.CreateColdProcess(gameDirectory);
+        GameWorld? world = null;
+        ManualClock clock = new();
+        string directory = Path.Combine(Path.GetTempPath(), "autoplay-failure-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            GameWorld GetWorld() => world ??= new(session, gameDirectory, validateWorldPresentation: false);
+            AutoPlayController controller = new(session, GetWorld, session.Restore, directory, deadlineTime: clock);
+            session.StartNewGame();
+            controller.StartFromCurrentState();
+            string entry = Assert.Single(Directory.GetFiles(directory, "latest.run.json", SearchOption.AllDirectories));
+            GameWorld live = GetWorld();
+            live.EnsureField();
+            live.Events.Step();
+            JsonElement liveVm = live.Events.Capture();
+            Assert.True(live.Events.Frame > 0);
+            Assert.Empty(Directory.GetFiles(directory, "failure-*", SearchOption.AllDirectories));
+
+            string staged = controller.StageAttempt("active-source.json", session.State);
+            controller.State.ActiveBeforeCheckpoint = staged;
+            controller.State.Steps = 7;
+            for (int i = 0; i < 40; i++)
+            {
+                Memoria.AutoPlay.AutoPlayRecording.AppendRecent(controller.State.RecentActions, new(i, session.State.FieldId, "Field", $"Input {i}"));
+            }
+            controller.CheckIdleDeadline();
+            clock.Advance(TimeSpan.FromSeconds(10));
+            controller.Advance(1);
+
+            Assert.False(controller.Running);
+            Assert.Contains("10 seconds", controller.Error);
+            string manifest = Assert.IsType<string>(controller.ReproductionPath);
+            Assert.Equal("failure-0000000007.run.json", Path.GetFileName(manifest));
+            AutoPlayRunState failure = ReadManifest(manifest);
+            Assert.Equal(7, failure.Steps);
+            Assert.Equal(32, failure.RecentActions.Count);
+            Assert.Equal("Input 8", failure.RecentActions[0].Action);
+            Assert.Equal("Input 39", failure.RecentActions[^1].Action);
+            Assert.Equal(staged, failure.ActiveBeforeCheckpoint);
+            Assert.Equal(session.State.FieldId, AutoPlayCheckpointStore.Load(Path.Combine(Path.GetDirectoryName(manifest)!, staged)).FieldId);
+            GameState saved = GameSession.Load(Path.Combine(Path.GetDirectoryName(manifest)!, failure.Snapshot!));
+            JsonElement savedVm = Assert.IsType<JsonElement>(saved.EventState);
+            Assert.Equal(live.Events.FieldId, saved.FieldId);
+            Assert.Equal(live.Events.Frame, savedVm.GetProperty("Frame").GetInt64());
+            Assert.True(JsonElement.DeepEquals(liveVm.GetProperty("Fibers"), savedVm.GetProperty("Fibers")));
+            Assert.Equal("start.json", ReadManifest(entry).Snapshot);
+            Assert.True(File.Exists(Path.Combine(Path.GetDirectoryName(entry)!, "start.json")));
+            Assert.Empty(Directory.GetFiles(directory, "*.tmp", SearchOption.AllDirectories));
+        }
+        finally
+        {
+            world?.Dispose();
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, true);
+            }
+        }
+    }
+
+    [Fact]
+    public void ExhaustedCaptureBudgetKeepsEntryCheckpointAndPrimaryError()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "autoplay-failure-budget-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            GameSession session = GameSession.CreateColdProcess();
+            AutoPlayController controller = new(session, () => throw new InvalidOperationException("Budget should be checked before allocating a world."), session.Restore, directory);
+            controller.Start();
+            string entry = Assert.Single(Directory.GetFiles(directory, "start.run.json", SearchOption.AllDirectories));
+            using (FileStream occupied = File.Create(Path.Combine(Path.GetDirectoryName(entry)!, "occupied")))
+            {
+                occupied.SetLength(128L * 1024 * 1024);
+            }
+
+            controller.ReportHostFailure(new InvalidOperationException("Primary failure."));
+
+            Assert.False(controller.Running);
+            Assert.Equal(entry, controller.ReproductionPath);
+            Assert.Contains("Primary failure.", controller.Error);
+            Assert.Contains("128 MiB", controller.Status);
+            Assert.Empty(Directory.GetFiles(directory, "failure*", SearchOption.AllDirectories));
+            Assert.Empty(Directory.GetFiles(directory, "*.tmp", SearchOption.AllDirectories));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, true);
+            }
+        }
+    }
+
+    private static AutoPlayRunState ReadManifest(string path) =>
+        JsonSerializer.Deserialize<AutoPlayRunState>(File.ReadAllText(path), AutoPlayController.JsonOptions)!;
+
+    private sealed class ManualClock : TimeProvider
+    {
+        private long timestamp;
+
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+        public override long GetTimestamp() => timestamp;
+
+        public void Advance(TimeSpan elapsed)
+        {
+            timestamp += elapsed.Ticks;
+        }
+    }
+
+    [Fact]
     public void ConfiguredHistoricalRunImportsWithinBudgetAndPreservesCurrentState()
     {
         string? fixture = Environment.GetEnvironmentVariable("MEMORIA_FF8_AUTOPLAY_STORAGE_MANIFEST");
