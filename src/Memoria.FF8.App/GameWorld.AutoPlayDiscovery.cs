@@ -84,7 +84,13 @@ internal sealed partial class GameWorld
             }
             if (actor.PushEnabled && obj.Scripts.Count > 3 && AutoPlayHasBody(program, obj.Scripts[3]))
             {
+                int before = targets.Count;
                 AddActorTarget(actor, obj.Scripts[3], AutoPlayTargetKind.Contact, "push", Math.Max(1, ((ushort)player.PushRadius + (ushort)actor.PushRadius) * 0.25f));
+                if (targets.Count == before)
+                {
+                    // The collision envelope can reach this component even when the actor and its inner samples do not.
+                    AddActorTarget(actor, obj.Scripts[3], AutoPlayTargetKind.Contact, "push", Math.Max(1, ((ushort)player.PushRadius + (ushort)actor.PushRadius) * 0.5f), ":outer");
+                }
             }
         }
         foreach (EventObject obj in program.Objects.Where(obj => obj.IsDoor))
@@ -142,6 +148,10 @@ internal sealed partial class GameWorld
                 if (kind == AutoPlayTargetKind.Contact)
                 {
                     float distance = (ushort)player.PushRadius + (ushort)actor.PushRadius + 2;
+                    if (suffix == ":outer")
+                    {
+                        distance = ((ushort)player.PushRadius + (ushort)actor.PushRadius) / 2f + (ushort)player.PushRadius + 2;
+                    }
                     if (!Resolve(actor.X + MathF.Sin(angle) * distance, actor.Y - MathF.Cos(angle) * distance, actor.Z, out Vector3 resolved, out int resolvedTriangle))
                     {
                         continue;
