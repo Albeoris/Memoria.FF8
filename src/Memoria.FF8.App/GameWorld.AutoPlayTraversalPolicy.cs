@@ -356,6 +356,16 @@ internal static class AutoPlayTraversalPolicy
             ("539:3601" or "539:3602" or "539:3604", "539:talk:6") => -16,
             // NG-080: Return to the native Pandora approach after the assault.
             ("968:3800", "968:talk:1" or "968:talk:4" or "968:talk:5") => -1,
+            // NG-081: Take the original lifts and high control-room route.
+            ("378:3802", "378:gateway:0") => -1,
+            ("379:3802", "379:gateway:0") => -2,
+            ("380:3802", "380:gateway:1") => -3,
+            ("373:3802", "373:gateway:1" or "373:gateway:2") => -4,
+            ("375:3802", "375:line:8" or "375:line-action:8") => -5,
+            ("371:3802", "371:line:9" or "371:line-action:9") => -6,
+            ("392:3802", "392:gateway:0") => -7,
+            ("401:3802", "401:gateway:3") => -8,
+            ("369:3810", "369:gateway:2") => -9,
             _ => 0
         };
     }
