@@ -138,7 +138,7 @@ internal sealed partial class GameWorld : IDisposable
         Events = new EventEngine(session);
         Events.PreparingCheckpoint += CaptureNativeTutorialPlayback;
         Events.IsInspectionScriptEnabled = (objectId, scriptId) => !inspectionDisabledScripts.Contains((objectId, scriptId));
-        Events.PrepareSpuAudio = () => (spuAudio ??= new SpuWaveAudioOutput(assets.GameDirectory, assets.ResolveMusicCue(MusicCue.EyesOnMe), audioEnabled)).Prepare();
+        Events.PrepareSpuAudio = () => (spuAudio ??= new SpuWaveAudioOutput(assets.GameDirectory, assets.ResolveMusicCue(MusicCue.EyesOnMe), audioEnabled, clock.ToolsDirectory)).Prepare();
         Events.StopSpuAudio = () => spuAudio?.Stop();
         Events.HasLiveSpuAudio = () => spuAudio?.HasLiveAudio == true;
         Events.ReadFieldMagicStatRules = (vitals, row) => BattleResources.ReadPlayerNativeStatRules(vitals, row);

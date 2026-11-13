@@ -88,6 +88,27 @@ public sealed class SpuWaveAudioOutputTests
     }
 
     [Fact]
+    public void InstalledRemasteredCueDecodesTheMountedOgg()
+    {
+        string game = TestResources.GameDirectory;
+        Assert.SkipUnless(File.Exists(Path.Combine(game, "main.zzz")), "The installed Remastered archive is required.");
+        string tools = MediaToolsInstallation.ResolveDirectory();
+        Assert.SkipUnless(File.Exists(MediaToolsInstallation.ResolveExecutable(tools, "ffmpeg")), "The installed media decoder is required.");
+        MusicCueResource resource = new ClassicMusicCueResolver().Resolve(MusicCue.EyesOnMe);
+        using SpuWaveAudioOutput output = new(game, resource, false, tools);
+        NativeSpuAudioAttempt receipt = output.Prepare();
+        receipt.Validate();
+        using GameFileResources files = new(game);
+        string path = files.ResolveInstallationFile(resource.RelativePath);
+        Assert.Equal(".ogg", Path.GetExtension(path), ignoreCase: true);
+        using FileStream source = File.OpenRead(path);
+        Assert.Equal(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(source)), receipt.SourceSha256);
+        Assert.Equal(44100, receipt.SampleRate);
+        Assert.Equal(2, receipt.Channels);
+        Assert.False(receipt.PlaybackStarted);
+    }
+
+    [Fact]
     public void InstalledCueStartsAndStopsExistingWindowsAudioOutput()
     {
         string game = TestResources.GameDirectory;

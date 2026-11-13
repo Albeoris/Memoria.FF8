@@ -5,7 +5,7 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8;
 
 /// <summary>Presentation of a resolved music cue; it owns no original CD device or simulation clock.</summary>
-internal sealed class SpuWaveAudioOutput(string gameDirectory, MusicCueResource resource, bool audioEnabled) : IDisposable
+internal sealed class SpuWaveAudioOutput(string gameDirectory, MusicCueResource resource, bool audioEnabled, string? toolsDirectory = null) : IDisposable
 {
     private PcmAudioOutput? output;
     private PcmAudioOutput.Buffer? buffer;
@@ -34,7 +34,12 @@ internal sealed class SpuWaveAudioOutput(string gameDirectory, MusicCueResource 
         string path = files.ResolveInstallationFile(resource.RelativePath);
         byte[] source = File.ReadAllBytes(path);
         string hash = Convert.ToHexString(SHA256.HashData(source));
-        PcmAudio pcm = PcmAudioDecoder.ReadWave(source);
+        PcmAudio pcm = Path.GetExtension(path).ToLowerInvariant() switch
+        {
+            ".wav" => PcmAudioDecoder.ReadWave(source),
+            ".ogg" => new(PcmAudioDecoder.Decode(MediaToolsInstallation.ResolveDirectory(toolsDirectory), "pipe:0", source, 44100, 2), 44100, 2),
+            string extension => throw new NotSupportedException($"The SPU audio resource format '{extension}' is unsupported.")
+        };
         if (audioEnabled)
         {
             try
