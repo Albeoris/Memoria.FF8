@@ -123,6 +123,11 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                     firstBlockerStage = "combine-execution";
                     (status, detail) = RunExpandedCombine(directory, field, combine);
                 }
+                else if (mappings.FirstOrDefault(action => action is { Command: 19, KernelSection: 25, Statuses1: 0x2000000 }) is { } angelWing)
+                {
+                    firstBlockerStage = "angel-wing-execution";
+                    (status, detail) = RunExpandedAngelWing(directory, field, game, assets, angelWing);
+                }
                 else if (effect.Effect is 112 or 212 or 215 or 216 or 274)
                 {
                     firstBlockerStage = "duel-execution";
@@ -171,7 +176,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                     firstBlockerStage = "enemy-turn-execution";
                     (status, detail, firstBlockerStage) = RunCactuarTurn(directory, field, effect, scripts);
                 }
-                else if (probeEnemies && effect.Effect is 213 or 257 or 258)
+                else if (probeEnemies && effect.Effect is 166 or 213 or 219 or 257 or 258)
                 {
                     firstBlockerStage = "enemy-turn-execution";
                     (status, detail, firstBlockerStage) = RunPreparedEnemyTurn(directory, field, effect, scripts);

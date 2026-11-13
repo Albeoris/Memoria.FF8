@@ -6,14 +6,14 @@ public sealed partial class BattleSession
     {
         BattleCombatant actor = GetActor(actorId);
         return actor.NativeLimit is { } limit && (!UsesExpandedRoster || limit.Command is 5 or 11 or 14 or 15 or 16 ||
-            HasExpandedCombine(actor) || actor.ModelId is >= 6 and <= 10 && SupportsExpandedLimit(FindInstalledNativeAction(limit.Command, NativeBattleLimitRules.GuestActionId(actor.ModelId))));
+            HasExpandedCombine(actor) || HasExpandedAngelWing(actor) || actor.ModelId is >= 6 and <= 10 && SupportsExpandedLimit(FindInstalledNativeAction(limit.Command, NativeBattleLimitRules.GuestActionId(actor.ModelId))));
     }
 
     private static bool SupportsExpandedLimit(BattleNativeAction action)
     {
         if (action.KernelSection == 25)
         {
-            return SupportsExpandedCombine(action);
+            return SupportsExpandedCombine(action) || IsExpandedAngelWingLimit(action);
         }
         // Commands that require another invocation process never enter this route.
         return action.KernelSection is 18 or 19 && action.HitCount > 0 && action.TargetFlags is byte flags && (flags & 0xB3) is 0 or 0x10 &&

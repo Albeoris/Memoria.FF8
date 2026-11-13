@@ -612,6 +612,7 @@ public sealed partial class BattleCombatant
     internal int EncodeNativeSlot() => NativeBattleSlots.Encode(Slot);
 
     internal int? ResolvedNativeLevel { get; set; }
+    internal bool ExpandedAiRemovalPending { get; set; }
     internal ExpandedEnemyLevelProfile? ExpandedEnemyLevels { get; set; }
     internal byte[] NativeStatMultipliers { get; } = [10, 10, 10, 10, 10, 10];
 

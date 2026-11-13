@@ -7,7 +7,9 @@ namespace Memoria.FF8.App.Tests;
 public sealed partial class ExpandedBattleEffectMatrixTests
 {
     [Theory]
+    [InlineData(166, 462)]
     [InlineData(213, 284)]
+    [InlineData(219, 462)]
     [InlineData(257, 326)]
     [InlineData(258, 190)]
     public void Installed_enemy_turn_reaches_its_original_late_or_hit_counter_branch(int effectId, int formation)
@@ -34,13 +36,16 @@ public sealed partial class ExpandedBattleEffectMatrixTests
     {
         bool elnoyle = effect.Effect == 213;
         bool sacred = effect.Effect == 258;
+        bool omega = effect.Effect is 166 or 219;
         // Elnoyle's turn callback increments local 220 only after its RNG guard and uses the action at five.
         // Sacred's hit callback increments battle variable 96 while more than one enemy remains.
         // Formation 189 takes the separate solo branch before the shared-counter test.
         // Bahamut's turn callback can reach Mega Flare from six on its local turn counter.
         (int formation, int model, int pc) = effect.Effect switch
         {
+            166 => (462, 114, 115),
             213 => (284, 131, 55),
+            219 => (462, 114, 145),
             257 => (326, 67, 284),
             258 => (190, 63, 94),
             _ => throw new ArgumentOutOfRangeException(nameof(effect))
@@ -61,8 +66,8 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                 continue;
             }
             EnemyScenarioScriptedAction script = Assert.Single(scripts, script => script.ModelId == model && script.Callback == 1 && script.LevelBand == band && script.Offset == pc);
-            // Sacred stores the hit count in the shared bank. Any Sacred can spend it on its next turn.
-            Dictionary<string, EnemyScenarioScriptedAction[]> actors = sacred
+            // Sacred shares the counter; any Omega can reach the authored late phase first.
+            Dictionary<string, EnemyScenarioScriptedAction[]> actors = sacred || omega
                 ? battle.Combatants.Where(actor => !actor.IsPlayer && actor.ModelId == model).ToDictionary(actor => actor.Id, _ => new[] { script })
                 : new() { [target.Id] = [script] };
             EnemyAttackPreparation? preparation = sacred ? new(new(formation, model, 11, 0, band), target, battle.Events.Count) : null;

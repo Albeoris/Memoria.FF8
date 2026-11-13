@@ -273,7 +273,7 @@ public sealed partial class BattleSession
         {
             PumpNativeHostFrame(!timeAdvanced);
         }
-        else if (WaitingForTurnBasedDecision && !HasPendingTurn && !combatants.Any(actor => !actor.IsPlayer && actor.IsReady))
+        else if (WaitingForTurnBasedDecision && !HasPendingTurn && !combatants.Any(actor => actor.IsReady && (!actor.IsPlayer || UsesExpandedRoster && HasNativeAngelWing(actor))))
         {
             DispatchNativeScriptTasks();
         }
@@ -323,7 +323,7 @@ public sealed partial class BattleSession
         RequireNormalGuardianFormCommands(actorId);
         BattleCombatant actor = GetActor(actorId);
         BattleCombatant target = GetActor(targetId);
-        if (Outcome != BattleOutcome.Active || UsesExpandedRoster && actor.IsPlayer && ExpandedTimedLimitOwnsInput || !actor.IsReady || !CanNativeBattleActorAct(actor) || !target.IsActive || !target.IsAlive || target.Untargetable || !actor.Abilities.Contains(BattleAbility.Attack))
+        if (Outcome != BattleOutcome.Active || UsesExpandedRoster && actor.IsPlayer && (ExpandedTimedLimitOwnsInput || HasNativeAngelWing(actor)) || !actor.IsReady || !CanNativeBattleActorAct(actor) || !target.IsActive || !target.IsAlive || target.Untargetable || !actor.Abilities.Contains(BattleAbility.Attack))
         {
             throw new InvalidOperationException("Attack requires a ready living actor with Attack and a living target in an active battle.");
         }
@@ -1053,7 +1053,7 @@ public sealed partial class BattleSession
             return Outcome == pending && NativeGraphics!.NativeOutcome!.FadeDurationB0C == 0 ? pending : BattleOutcome.Active;
         }
         if (!NativeEntryReady || NativeScriptAllocationPending || nativeTimedAction is not null || ActiveAction?.NativeHeaderIndex is not null || IsNativeSupportInvocation(ActiveAction?.NativePlayerReaction) || IsNativeReturnDamageAction(ActiveAction?.NativeAction) || QueuedActions.Any(command => command.NativeHeaderIndex is not null || IsNativeReturnDamageAction(command.NativeAction) || IsNativeSupportInvocation(command.NativePlayerReaction) || IsNativeSupportCallback(command.NativeCallback)) ||
-            UsesExpandedRoster && (expandedEffect is not null || enemies.Any(HasExpandedEnemyDeathAction) || nativeShotProcesses.Count != 0 || nativeDuelProcesses.Count != 0 || IsShotCallback(ActiveAction?.NativeLimitCallback) || actions.Any(command => IsShotCallback(command.NativeLimitCallback))))
+            UsesExpandedRoster && (expandedEffect is not null || enemies.Any(actor => actor.ExpandedAiRemovalPending || HasExpandedEnemyDeathAction(actor)) || nativeShotProcesses.Count != 0 || nativeDuelProcesses.Count != 0 || IsShotCallback(ActiveAction?.NativeLimitCallback) || actions.Any(command => IsShotCallback(command.NativeLimitCallback))))
         {
             return BattleOutcome.Active;
         }
@@ -1085,11 +1085,15 @@ public sealed partial class BattleSession
         {
             return BattleOutcome.Victory;
         }
-        return enemies.Any(actor => IsNativeBattleCapable(actor) && !actor.Untargetable) ? BattleOutcome.Active : BattleOutcome.Victory;
+        return enemies.Any(actor => IsNativeBattleCapable(actor) && (UsesExpandedRoster || !actor.Untargetable)) ? BattleOutcome.Active : BattleOutcome.Victory;
     }
 
     private void CompleteBattleIfNeeded()
     {
+        if (UsesExpandedRoster)
+        {
+            CompleteExpandedAiRemovals();
+        }
         CleanupDefeatedEncounterAllocations();
         CleanupEncounterPoliciesAtTerminal();
         BattleOutcome outcome = DetermineOutcome();
@@ -1175,6 +1179,7 @@ public sealed partial class BattleSession
         foreach (BattleCombatant actor in combatants)
         {
             actor.IsBusy = false;
+            actor.ExpandedAiRemovalPending = false;
             actor.NativeStatus1 &= 0x7FFFFFFF;
         }
         Log("Outcome", null, null, 0, outcome.ToString());
@@ -1288,7 +1293,9 @@ public sealed partial class BattleSession
             }
             bool invalidName = actor.Name is null || (actor.IsPlayer || actor.NativeTemplate is null) && string.IsNullOrWhiteSpace(actor.Name);
             bool invalidModel = actor.ModelId < -1 || actor.IsPlayer && actor.ModelId < 0 || actor.ModelId == -1 && (source.EncounterId is not null || actor.WeaponId is not null || actor.Costume != 0);
-            if (string.IsNullOrWhiteSpace(actor.Id) || !ids.Add(actor.Id) || invalidName || invalidModel || actor.Costume < 0 || actor.MaximumHp < 0 || actor.NativeTemplate is null && actor.MaximumHp > 1_000_000 || actor.MaximumHp == 0 && (actor.InitialActive || actor.NativeTemplate is null) || actor.CurrentHp < 0 || actor.CurrentHp > actor.MaximumHp || actor.Speed is < 1 or > AtbMaximum || actor.Attack is < 0 or > 1_000_000 || actor.Defense is < 0 or > 1_000_000 || actor.InitialAtb is < 0 or > AtbMaximum || actor.WeaponId < 0 || actor.EquipmentIds.Any(id => id < 0) || actor.Level is < 0 or > 100 || actor.Magic is < 0 or > 255 || actor.Spirit is < 0 or > 255 || actor.PhysicalPower is < 0 or > 255 || actor.ElementAttack is < 0 or > 255 || actor.ElementAttackPercent is < 0 or > 255 || actor.DrainPercent is < 0 or > 255 || actor.ElementDefenses.Length != 8 || actor.ElementDefenses.Any(value => value is < 0 or > 2550) || actor.DrawSpells.Any(spell => spell.Id is < 1 or >= 64 || spell.Resistance is < 0 or > 255) || actor.DrawSpells.Select(spell => spell.Id).Distinct().Count() != actor.DrawSpells.Length)
+            // Both native enemy projections carry the original HP DWORD.
+            bool hasNativeHpProjection = actor.NativeTemplate is not null || actor.ExpandedEnemyBaseStatistics.HasValue;
+            if (string.IsNullOrWhiteSpace(actor.Id) || !ids.Add(actor.Id) || invalidName || invalidModel || actor.Costume < 0 || actor.MaximumHp < 0 || !hasNativeHpProjection && actor.MaximumHp > 1_000_000 || actor.MaximumHp == 0 && (actor.InitialActive || actor.NativeTemplate is null) || actor.CurrentHp < 0 || actor.CurrentHp > actor.MaximumHp || actor.Speed is < 1 or > AtbMaximum || actor.Attack is < 0 or > 1_000_000 || actor.Defense is < 0 or > 1_000_000 || actor.InitialAtb is < 0 or > AtbMaximum || actor.WeaponId < 0 || actor.EquipmentIds.Any(id => id < 0) || actor.Level is < 0 or > 100 || actor.Magic is < 0 or > 255 || actor.Spirit is < 0 or > 255 || actor.PhysicalPower is < 0 or > 255 || actor.ElementAttack is < 0 or > 255 || actor.ElementAttackPercent is < 0 or > 255 || actor.DrainPercent is < 0 or > 255 || actor.ElementDefenses.Length != 8 || actor.ElementDefenses.Any(value => value is < 0 or > 2550) || actor.DrawSpells.Any(spell => spell.Id is < 1 or >= 64 || spell.Resistance is < 0 or > 255) || actor.DrawSpells.Select(spell => spell.Id).Distinct().Count() != actor.DrawSpells.Length)
             {
                 throw new ArgumentException("Invalid battle combatant identity, vitals, stats or equipment.");
             }
@@ -1508,6 +1515,7 @@ public sealed partial class BattleSession
         nativeReactionOrder = snapshot.NativeReactionOrder;
         RestoreNativeTimedAction(snapshot.NativeTimedAction);
         ActiveAction = snapshot.ActiveAction;
+        ValidateExpandedAiRemovals();
         nativeEscape = snapshot.Escape;
         nativeEscape.Validate();
         RestoreDebugOutcome(snapshot);
@@ -1562,21 +1570,7 @@ public sealed partial class BattleSession
         ValidateStocks(snapshot.Items, 198);
         RestoreNativeItems(snapshot.NativeItemInventory ?? throw new InvalidDataException("Battle snapshot requires its explicitly migrated198-slot native item inventory."));
         RestoreNativeGil(snapshot.NativeGil);
-        if (snapshot.EnemyDefeats is null || snapshot.EnemyDefeats.Select(defeat => defeat.AllocationKey).Distinct(StringComparer.Ordinal).Count() != snapshot.EnemyDefeats.Length)
-        {
-            throw new InvalidDataException("Battle snapshot lacks its unique observed enemy defeat facts.");
-        }
-        foreach (BattleEnemyDefeat defeat in snapshot.EnemyDefeats)
-        {
-            defeat.Validate();
-            BattleCombatantDefinition source = definition.Combatants.SingleOrDefault(actor => actor.RewardSlot == defeat.Slot && actor.Rewards is not null) ?? throw new InvalidDataException("Observed enemy defeat has no installed reward owner.");
-            BattleCombatant defeated = defeat.AllocationId is string allocationId ? GetActor(allocationId) : GetActor(source.Id);
-            if (defeated.SceneSlot != source.SceneSlot || defeated.IsAlive && source.NativeAi is null || defeated.Level != defeat.Level)
-            {
-                throw new InvalidDataException("Observed enemy defeat contradicts its actual combatant state.");
-            }
-        }
-        enemyDefeats.AddRange(snapshot.EnemyDefeats);
+        RestoreEnemyDefeats(snapshot.EnemyDefeats);
         if ((snapshot.PersistentAiVariables is null) != (definition.PersistentAiVariables is null) || snapshot.PersistentAiVariables is { Length: not 8 })
         {
             throw new InvalidDataException("Battle snapshot persistent AI owner disagrees with its explicit entry bank.");
@@ -1689,6 +1683,12 @@ public sealed partial class BattleSession
         if (UsesExpandedRoster && ability == BattleAbility.LimitBreak && !expandedRenzokuken && !expandedDuel && (nativeAction is null || !SupportsPlayerLimitSelection(actorId) || !expandedShot && !expandedSlots && (!SupportsExpandedLimit(nativeAction) || actor.NativeLimit?.Command != nativeAction.Command) || nativeQueuedCommand != nativeAction.Command || actionId != (nativeAction.Command << 16 | nativeAction.ActionId) || nativeTargetMask != 0 || factualHeader || !allowDefeatedTarget && !expandedShot && ExpandedActionTargets(actor, targetId, ability, actionId, null, nativeAction).Length == 0))
         {
             throw new InvalidDataException("Saved expanded Limit lacks its installed command or logical recipients.");
+        }
+        if (UsesExpandedRoster && ability == BattleAbility.EnemyAbility && actor.IsPlayer && nativeAction?.Command == 2 &&
+            (!HasNativeAngelWing(actor) || !SupportsExpandedAngelWingSpell(nativeAction) || nativeQueuedCommand != 2 || actionId != nativeAction.ActionId ||
+                nativeTargetMask != 0 || factualHeader || target.IsPlayer || !allowDefeatedTarget && ExpandedActionTargets(actor, targetId, ability, actionId, null, nativeAction).Length == 0))
+        {
+            throw new InvalidDataException("Saved expanded Angel Wing spell lacks its installed command or logical recipient.");
         }
         if (UsesExpandedRoster && ability == BattleAbility.NativeCommand && (nativeAction is null || !actor.IsPlayer || !SupportsExpandedOrdinaryCommand(nativeAction) ||
             !actor.NativeCommands.Any(binding => binding.Command == nativeAction.Command && NativeBindingActionId(binding) == nativeAction.ActionId) ||

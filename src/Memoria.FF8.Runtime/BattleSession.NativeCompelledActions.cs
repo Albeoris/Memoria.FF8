@@ -9,12 +9,25 @@ public sealed partial class BattleSession
 
     private static bool RequiresNativeCompelledCommand(BattleCombatant actor)
     {
-        return actor.IsPlayer && ((NativeSavedStatusBits(actor) & 0x20) != 0 || (NativeBattleStatusBits(actor) & 0x2004000) != 0);
+        return actor.IsPlayer && ((NativeSavedStatusBits(actor) & 0x20) != 0 || (NativeBattleStatusBits(actor) & 0x4000) != 0 || HasNativeAngelWing(actor));
+    }
+
+    private static bool HasNativeAngelWing(BattleCombatant actor)
+    {
+        return (NativeBattleStatusBits(actor) & 0x2000000) != 0;
     }
 
     private void DispatchNativeCompelledActors()
     {
-        if (UsesExpandedRoster || HasNativeUiServiceClock)
+        if (UsesExpandedRoster)
+        {
+            if (!ExpandedTimedLimitOwnsInput)
+            {
+                DispatchExpandedAngelWingActors();
+            }
+            return;
+        }
+        if (HasNativeUiServiceClock)
         {
             //483EB0 already queued the original command at full-gauge registration, preserving its gauge until completion.
             return;
@@ -79,24 +92,11 @@ public sealed partial class BattleSession
             ushort mask = binding.Source == BattleGuardianFormActionSource.Physical ? ResolveNativeAiTargetMask(actor, (battleStatus & 0x4000) != 0 ? (byte)201 : (byte)202) : NativeCompelledTargetMask(actor, native.TargetFlags ?? throw new InvalidDataException("GF compelled spell lacks its installed targeting flags."), true);
             return new(native.Command, native.ActionId, mask, binding.Cost == BattleGuardianFormActionCost.Innate) { GuardianFormBinding = binding };
         }
-        if ((battleStatus & 0x2000000) != 0)
+        if (HasNativeAngelWing(actor))
         {
-            // Angel Wing keeps its native free-cast source; stock and ownership still select its candidates.
-            NativeCharacterVitals? owner = actor.MagicOwner?.Invoke();
-            bool logical = owner is not null && (owner.MagicSystem.SharedMagicStock || owner.MagicSystem.RecordZeroExtension.Length != 0 && actor.MagicRecordId == 0);
-            NativeMagicStock[] inventory = logical ? actor.MagicStocks.Select(stock => new NativeMagicStock((byte)stock.Id, (byte)stock.Count)).ToArray() : actor.NativeMagicInventory;
-            bool Eligible(NativeMagicStock stock) => stock.SpellId != 0 && (RequiredNativeSpellFlags(stock.SpellId) & 0x40) != 0 && (owner is null || actor.MagicRecordId is not int row || MagicJunctionPolicy.CanAccess(owner, row, stock.SpellId));
-            if (!inventory.Any(Eligible))
-            {
-                return new(1, 0, ResolveNativeAiTargetMask(actor, 202), false);
-            }
-            int slot = logical ? NextRandomByte() % inventory.Length : NextRandomByte() & 31;
-            while (!Eligible(inventory[slot]))
-            {
-                slot = (slot + 1) % inventory.Length;
-            }
-            byte spell = inventory[slot].SpellId;
-            return new(2, spell, NativeCompelledTargetMask(actor, RequiredNativeSpellFlags(spell), true), true);
+            return SelectNativeAngelWingSpell(actor) is byte spell
+                ? new(2, spell, NativeCompelledTargetMask(actor, RequiredNativeSpellFlags(spell), true), true)
+                : new(1, 0, ResolveNativeAiTargetMask(actor, 202), false);
         }
         if ((NativeSavedStatusBits(actor) & 0x20) != 0)
         {
@@ -156,6 +156,35 @@ public sealed partial class BattleSession
             commandSlot = (commandSlot + 1) & 3;
         }
         throw new NotSupportedException("Native Confuse command rejection has no supported available physical command and would not terminate.");
+    }
+
+    private byte? SelectNativeAngelWingSpell(BattleCombatant actor)
+    {
+        //483D60 scans the stocked spells from RNG & 31. Logical stock calls use their own bounded bank.
+        (NativeMagicStock[] inventory, bool logical, NativeCharacterVitals? owner) = NativeAngelWingInventory(actor);
+        bool Eligible(NativeMagicStock stock) => IsNativeAngelWingSpell(actor, stock.SpellId, owner);
+        if (!inventory.Any(Eligible))
+        {
+            return null;
+        }
+        int slot = logical ? NextRandomByte() % inventory.Length : NextRandomByte() & 31;
+        while (!Eligible(inventory[slot]))
+        {
+            slot = (slot + 1) % inventory.Length;
+        }
+        return inventory[slot].SpellId;
+    }
+
+    private static (NativeMagicStock[] Inventory, bool Logical, NativeCharacterVitals? Owner) NativeAngelWingInventory(BattleCombatant actor)
+    {
+        NativeCharacterVitals? owner = actor.MagicOwner?.Invoke();
+        bool logical = owner is not null && (owner.MagicSystem.SharedMagicStock || owner.MagicSystem.RecordZeroExtension.Length != 0 && actor.MagicRecordId == 0);
+        return (logical ? actor.MagicStocks.Select(stock => new NativeMagicStock((byte)stock.Id, (byte)stock.Count)).ToArray() : actor.NativeMagicInventory, logical, owner);
+    }
+
+    private bool IsNativeAngelWingSpell(BattleCombatant actor, byte spell, NativeCharacterVitals? owner)
+    {
+        return spell != 0 && (RequiredNativeSpellFlags(spell) & 0x40) != 0 && (owner is null || actor.MagicRecordId is not int row || MagicJunctionPolicy.CanAccess(owner, row, spell));
     }
 
     private int SelectNativeConfuseItem()

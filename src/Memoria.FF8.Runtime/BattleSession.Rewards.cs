@@ -2,6 +2,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
+    private const uint NativeEnemyRewardedFlag = 0x40000;
     private readonly List<BattleEnemyDefeat> enemyDefeats = [];
     private readonly List<BattleStock> nativeRewardItems = [];
     public IReadOnlyList<BattleStock> NativeRewardItems => nativeRewardItems.AsReadOnly();
@@ -15,7 +16,7 @@ public sealed partial class BattleSession
             return;
         }
         int slot = source.RewardSlot ?? throw new InvalidDataException("Native enemy reward inputs require their actual formation slot.");
-        if ((target.NativeCombatantFlags & 0x40000) != 0)
+        if ((target.NativeCombatantFlags & NativeEnemyRewardedFlag) != 0)
         {
             if (source.NativeAi is not null)
             {
@@ -49,10 +50,39 @@ public sealed partial class BattleSession
             IncrementNativeGuardianForceKill(id);
         }
         enemyDefeats.Add(fact);
-        target.NativeCombatantFlags |= 0x40000;
+        target.NativeCombatantFlags |= NativeEnemyRewardedFlag;
         if (credit == BattleDefeatCredit.Character && actor is not null)
         {
             actor.NativeKillCount = unchecked((ushort)(actor.NativeKillCount + 1));
         }
+    }
+
+    private void RestoreEnemyDefeats(BattleEnemyDefeat[] defeats)
+    {
+        if (defeats is null || defeats.Any(defeat => defeat is null))
+        {
+            throw new InvalidDataException("Battle snapshot lacks its observed enemy defeat facts.");
+        }
+        HashSet<string> rewardedAllocations = new(StringComparer.Ordinal);
+        foreach (BattleEnemyDefeat defeat in defeats)
+        {
+            defeat.Validate();
+            BattleCombatantDefinition source = definition.Combatants.SingleOrDefault(actor => actor.RewardSlot == defeat.Slot && actor.Rewards is not null) ?? throw new InvalidDataException("Observed enemy defeat has no installed reward owner.");
+            if (!byId.TryGetValue(defeat.AllocationId ?? source.Id, out BattleCombatant? defeated) || defeated.IsPlayer || defeated.SceneSlot != source.SceneSlot || defeated.SourceDefinition.RewardSlot != source.RewardSlot)
+            {
+                throw new InvalidDataException("Observed enemy defeat has no matching combatant allocation.");
+            }
+            if (!rewardedAllocations.Add(defeated.Id))
+            {
+                throw new InvalidDataException("Battle snapshot repeats an observed enemy defeat allocation.");
+            }
+            // A revived expanded enemy can change level while retaining its first defeat's reward operands.
+            bool hasHistoricalLevel = UsesExpandedRoster && source.NativeAi is not null && defeated.ResolvedNativeLevel is not null && (defeated.NativeCombatantFlags & NativeEnemyRewardedFlag) != 0;
+            if (defeated.IsAlive && source.NativeAi is null || defeated.Level != defeat.Level && !hasHistoricalLevel)
+            {
+                throw new InvalidDataException("Observed enemy defeat contradicts its actual combatant state.");
+            }
+        }
+        enemyDefeats.AddRange(defeats);
     }
 }

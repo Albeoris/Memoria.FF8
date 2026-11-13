@@ -246,13 +246,17 @@ public sealed partial class BattleSession
                         {
                             QueueNativeGraphicsRemoval(removed);
                         }
+                        else if (UsesExpandedRoster && HasExpandedAiAction(removed))
+                        {
+                            removed.ExpandedAiRemovalPending = true;
+                        }
                         else
                         {
                             ReleaseNativeParticipant(removed);
                         }
                         //487DF0 calls493B60 for the executing actor, not the removed target.
                         actor.Atb = 0;
-                        actor.IsBusy = false;
+                        actor.IsBusy = actor.ExpandedAiRemovalPending;
                         break;
                     case 30:
                         int effect = ReadAiByte(code, ref pc);
@@ -546,12 +550,13 @@ public sealed partial class BattleSession
         return value;
     }
 
-    private NativeBattleParticipantSnapshot CaptureNativeParticipant(BattleCombatant actor) => new(actor.IsActive, actor.Hidden, actor.Untargetable, actor.Suspended, UsesExpandedRoster ? NativeBattleSlots.Unassigned : actor.EncodeNativeSlot(), actor.ResolvedNativeLevel, actor.AiVariables.ToArray(), actor.AiTurnCount, actor.LastAttackerId, actor.LastAttackerAbility, actor.AiDeathHandled) { MaximumHitPoints = actor.IsPlayer && actor.NativePlayerStatRules is not null && actor.GuardianFormVitals is null ? actor.MaximumHp : null, StatMultipliers = actor.NativeStatMultipliers.ToArray(), LastAction = actor.LastNativeAction, LastHealing = actor.LastNativeHealing, AllocationPendingStatistics = actor.NativeAllocationPendingStatistics, NativeCombatantFlags = actor.NativeCombatantFlags, KillCount = actor.NativeKillCount, DeathCount = actor.NativeDeathCount, Growth = actor.NativeGrowth, DisplayNameIndex = actor.NativeDisplayNameIndex, ElementDefenses = actor.HumanElementDefenses.ToArray(), PreviousTargetMask = actor.NativePreviousTargetMask, ExpandedPreviousAiTargetId = actor.ExpandedPreviousAiTargetId, DrawnSpell = actor.NativeDrawnSpell, ReturnDamage = actor.NativeReturnDamage, PendingReaction = actor.NativePendingReaction, RemainingHits = actor.NativeRemainingHits, ActorReferences = actor.AiActorReferences.Count == 0 ? null : new(actor.AiActorReferences) };
+    private NativeBattleParticipantSnapshot CaptureNativeParticipant(BattleCombatant actor) => new(actor.IsActive, actor.Hidden, actor.Untargetable, actor.Suspended, UsesExpandedRoster ? NativeBattleSlots.Unassigned : actor.EncodeNativeSlot(), actor.ResolvedNativeLevel, actor.AiVariables.ToArray(), actor.AiTurnCount, actor.LastAttackerId, actor.LastAttackerAbility, actor.AiDeathHandled) { MaximumHitPoints = actor.IsPlayer && actor.NativePlayerStatRules is not null && actor.GuardianFormVitals is null ? actor.MaximumHp : null, StatMultipliers = actor.NativeStatMultipliers.ToArray(), LastAction = actor.LastNativeAction, LastHealing = actor.LastNativeHealing, AllocationPendingStatistics = actor.NativeAllocationPendingStatistics, NativeCombatantFlags = actor.NativeCombatantFlags, KillCount = actor.NativeKillCount, DeathCount = actor.NativeDeathCount, Growth = actor.NativeGrowth, DisplayNameIndex = actor.NativeDisplayNameIndex, ElementDefenses = actor.HumanElementDefenses.ToArray(), PreviousTargetMask = actor.NativePreviousTargetMask, ExpandedPreviousAiTargetId = actor.ExpandedPreviousAiTargetId, ExpandedAiRemovalPending = actor.ExpandedAiRemovalPending, DrawnSpell = actor.NativeDrawnSpell, ReturnDamage = actor.NativeReturnDamage, PendingReaction = actor.NativePendingReaction, RemainingHits = actor.NativeRemainingHits, ActorReferences = actor.AiActorReferences.Count == 0 ? null : new(actor.AiActorReferences) };
 
     private void RestoreNativeParticipant(BattleCombatant actor, NativeBattleParticipantSnapshot? saved)
     {
         if (saved is null)
         {
+            actor.ExpandedAiRemovalPending = false;
             actor.NativeReturnDamage = null;
             actor.NativePendingReaction = new(null, null);
             actor.NativeRemainingHits = null;
@@ -632,6 +637,7 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Battle participant has an invalid previous logical AI target.");
         }
         actor.ExpandedPreviousAiTargetId = saved.ExpandedPreviousAiTargetId;
+        actor.ExpandedAiRemovalPending = saved.ExpandedAiRemovalPending;
         actor.NativeDrawnSpell = saved.DrawnSpell;
         saved.Growth?.Validate();
         actor.NativeGrowth = saved.Growth ?? actor.NativeGrowth;

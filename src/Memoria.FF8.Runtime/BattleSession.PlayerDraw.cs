@@ -6,7 +6,7 @@ public sealed partial class BattleSession
     {
         BattleCombatant actor = GetActor(actorId);
         BattleCombatant source = GetActor(sourceId);
-        if (Outcome != BattleOutcome.Active || !actor.IsReady || !actor.Abilities.Contains(BattleAbility.Draw) || HasStatus(actor, BattleStatusKind.Silence) || !source.IsActive || !source.IsAlive || source.Untargetable || source.IsPlayer == actor.IsPlayer || selection is < 1 or >= 80 || !source.NativeDrawSlots.Any(slot => slot.Id == selection) || cast && selection >= 64 || !cast && castTargetId is not null)
+        if (Outcome != BattleOutcome.Active || !actor.IsReady || UsesExpandedRoster && HasNativeAngelWing(actor) || !actor.Abilities.Contains(BattleAbility.Draw) || HasStatus(actor, BattleStatusKind.Silence) || !source.IsActive || !source.IsAlive || source.Untargetable || source.IsPlayer == actor.IsPlayer || selection is < 1 or >= 80 || !source.NativeDrawSlots.Any(slot => slot.Id == selection) || cast && selection >= 64 || !cast && castTargetId is not null)
         {
             throw new InvalidOperationException("Draw requires an available source entry, a ready caster and a valid Stock/Cast selection.");
         }

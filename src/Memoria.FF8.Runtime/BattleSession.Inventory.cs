@@ -90,13 +90,17 @@ public sealed partial class BattleSession
         }
     }
 
-    private static void ValidateNativeActionInventory(BattleCombatant actor, BattleAbility ability, BattleNativeAction? native, int? reservedSlot, bool freeMagic)
+    private void ValidateNativeActionInventory(BattleCombatant actor, BattleAbility ability, BattleNativeAction? native, int? reservedSlot, bool freeMagic)
     {
         if (reservedSlot is int slot && ((uint)slot >= 198 || ability != BattleAbility.Item && native?.Command != 4))
         {
             throw new InvalidDataException("Saved item reservation does not identify its physical inventory slot and item command.");
         }
         bool reflectedMagic = ability == BattleAbility.Magic && native?.Command == 247;
+        if (UsesExpandedRoster && actor.IsPlayer && ability == BattleAbility.EnemyAbility && native?.Command == 2 && !freeMagic)
+        {
+            throw new InvalidDataException("Saved expanded Angel Wing spell must retain its free-cast source.");
+        }
         if (freeMagic && !reflectedMagic && (!actor.IsPlayer || ability != BattleAbility.Magic && native?.Command != 2))
         {
             throw new InvalidDataException("Saved free magic requires a player compelled spell or a native reflected spell command.");

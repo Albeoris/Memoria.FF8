@@ -162,10 +162,14 @@ public sealed partial class BattleSession
             return;
         }
         BattleCombatant[] recipients = ExpandedActionTargets(actor, command.TargetId, command.Ability, command.ActionId, command.AiRecipients, command.NativeAction);
+        bool silencedMagic = (command.Ability == BattleAbility.Magic || command.NativeAction?.Command == 2) && (NativeSavedStatusBits(actor) & 0x10) != 0;
         if (!CanExecuteExpandedAction(actor, command.NativeAiCallbackStage, command.AiRecipients) && !CanNativeSupportCommandAct(actor, command.NativePlayerReaction) ||
-            !CanExecuteMagicReservation(actor, new(command.ActorId, command.TargetId, command.Ability, command.ActionId) { MagicReservationId = command.MagicReservationId }) || recipients.Length == 0 ||
-            (command.Ability == BattleAbility.Magic || command.NativeAction?.Command == 2) && (NativeSavedStatusBits(actor) & 0x10) != 0)
+            !CanExecuteMagicReservation(actor, new(command.ActorId, command.TargetId, command.Ability, command.ActionId) { MagicReservationId = command.MagicReservationId }) || recipients.Length == 0 || silencedMagic)
         {
+            if (silencedMagic && command.FreeNativeMagic && HasNativeAngelWing(actor) && CanNativeBattleActorAct(actor))
+            {
+                QueueNativeSpecialText(actor, target, NativeBattleGlobalText(100), BattleTextIdentity.Global(100));
+            }
             RefundCancelledNativeItem(command);
             CompleteActionPresentation(command, "Expanded action cancelled.");
             return;
@@ -245,7 +249,7 @@ public sealed partial class BattleSession
             command.IndependentGuardian is null && (drawSpell is not null || command.Ability is BattleAbility.Magic or BattleAbility.Item or BattleAbility.NativeCommand or BattleAbility.EnemyAbility) && (native.TargetFlags.GetValueOrDefault() & 2) != 0;
         BattleCombatant[][] hitPlan = PlanExpandedHits(recipients, native.HitCount, randomTarget);
         bool hasReflector = hitPlan.Any(targets => targets.Any(recipient => NativeActionReflects(recipient, native)));
-        bool spellPresentation = command.Ability == BattleAbility.Magic || drawSpell is not null;
+        bool spellPresentation = command.Ability == BattleAbility.Magic || drawSpell is not null || command.FreeNativeMagic && native.Command == 2;
         BattleNativeAction? reflected = null;
         if (hasReflector)
         {
@@ -481,6 +485,7 @@ public sealed partial class BattleSession
         return command.Ability switch
         {
             BattleAbility.Attack => new(BattleAbility.Attack, 0, actor.NativeAttack!.Name ?? "Attack", BattleActionEffect.Native, actor.NativeAttack.Power, false) { NativeAction = actor.NativeAttack },
+            BattleAbility.EnemyAbility when actor.IsPlayer && command.FreeNativeMagic && SupportsExpandedAngelWingSpell(command.NativeAction) => FindAction(BattleAbility.Magic, command.ActionId),
             BattleAbility.EnemyAbility when command.AiRecipients is not null => new(BattleAbility.EnemyAbility, command.ActionId, command.NativeAction!.Name ?? $"Enemy ability {command.ActionId}", BattleActionEffect.Native, command.NativeAction.Power, false) { NativeAction = command.NativeAction },
             BattleAbility.EnemyAbility when IsExpandedIndependentSupport(command.NativeAction, command.NativePlayerReaction) => new(BattleAbility.EnemyAbility, command.ActionId, command.NativeAction!.Name ?? "Automatic Support", BattleActionEffect.Native, command.NativeAction.Power, false) { NativeAction = command.NativeAction },
             BattleAbility.NativeCommand when command.NativeAction is { } ordinary => ExpandedOrdinaryCommandDefinition(actor, ordinary),
@@ -504,6 +509,15 @@ public sealed partial class BattleSession
             return CurrentExpandedAiTargets(aiRecipients, native);
         }
         BattleCombatant target = GetActor(targetId);
+        if (ability == BattleAbility.EnemyAbility && actor.IsPlayer && SupportsExpandedAngelWingSpell(native))
+        {
+            byte spellFlags = native!.TargetFlags!.Value;
+            if ((spellFlags & 0x30) == 0x10)
+            {
+                return IsExpandedAiTarget(target) && !target.IsPlayer ? [target] : [];
+            }
+            return enemies.Where(IsExpandedAiTarget).ToArray();
+        }
         if (ability == BattleAbility.EnemyAbility && IsExpandedAngeloAction(native))
         {
             return IsExpandedAngeloTarget(target, native!) ? [target] : [];

@@ -60,6 +60,31 @@ public sealed partial class BattleSession
             actions.Any(command => command.ActorId == actor.Id && IsExpandedEnemyDeathAction(actor, command.NativeAiCallbackStage, command.AiRecipients));
     }
 
+    private bool HasExpandedAiAction(BattleCombatant actor)
+    {
+        return ActiveAction is { NativeAiCallbackStage: not null } active && active.ActorId == actor.Id ||
+            actions.Any(command => command.ActorId == actor.Id && command.NativeAiCallbackStage is not null);
+    }
+
+    private void CompleteExpandedAiRemovals()
+    {
+        foreach (BattleCombatant actor in enemies.Where(actor => actor.ExpandedAiRemovalPending && !HasExpandedAiAction(actor)))
+        {
+            // TODO(TD-009): Descriptor 105 waits for the native model callback; expanded actions own the logical wait.
+            actor.ExpandedAiRemovalPending = false;
+            ReleaseNativeParticipant(actor);
+            actor.IsBusy = false;
+        }
+    }
+
+    private void ValidateExpandedAiRemovals()
+    {
+        if (combatants.Any(actor => actor.ExpandedAiRemovalPending && (!UsesExpandedRoster || actor.IsPlayer || !actor.IsActive || actor.NativeAi is null || !HasExpandedAiAction(actor))))
+        {
+            throw new InvalidDataException("Saved expanded AI removal requires its active enemy and pending action.");
+        }
+    }
+
     private void CompleteExpandedEnemyDeath(BattleCombatant actor)
     {
         if (nativeAiCallbackStage != 3)

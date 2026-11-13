@@ -14,14 +14,14 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native Rinoa Limit menu requires both original kernel24 records.");
         }
-        if ((flags & 0x10) == 0)
+        if ((flags & 0x10) == 0 && (!UsesExpandedRoster || HasExpandedCombine(actor)))
         {
             NativeLimitProgress progress = definition.LimitProgress ?? throw new NotSupportedException("Combine requires the actual saved Angelo learned flags.");
             progress.Validate();
             ushort id = NativeBattleLimitRules.AngeloActionId(crisis, (byte)(progress.AngeloFlags >> 4));
             yield return FindInstalledNativeAction(19, id) with { Name = limit.InvocationChoices[0].Name };
         }
-        if ((flags & 0x20) != 0)
+        if ((flags & 0x20) != 0 && (!UsesExpandedRoster || HasExpandedAngelWing(actor)))
         {
             yield return FindInstalledNativeAction(19, 4) with { Name = limit.InvocationChoices[1].Name };
         }
