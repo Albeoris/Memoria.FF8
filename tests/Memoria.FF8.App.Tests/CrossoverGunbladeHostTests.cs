@@ -49,7 +49,8 @@ public sealed class CrossoverGunbladeHostTests(ITestOutputHelper output)
             host.Advance();
         }
         Assert.Equal(0, host.ReadyPlayer);
-        Assert.False(host.SubmitGuestAttack(0, 0));
+        Assert.True(guest.Supports(host.GuestAbilityTarget(0)));
+        Assert.False(host.SubmitGuestAttack(0, 3));
         Assert.True(host.SubmitGuestAttack(0, 4));
         Assert.Contains(host.Capture().Queue.Ready, command => command is { GuestAttack: true, ActorSlot: 0, TargetMask: 16 });
         Assert.False(host.SubmitGuestAttack(0, 5));
@@ -176,10 +177,9 @@ public sealed class CrossoverGunbladeHostTests(ITestOutputHelper output)
         foreach (byte character in actors)
         {
             NativeCharacterVitals vitals = original.DeepCopy();
-            if (character >= 8)
+            if (character >= 6)
             {
-                vitals = vitals with { DreamEnabled = true };
-                vitals.Records[0] = vitals.Records[0] with { CharacterId = character };
+                vitals = vitals.WithExtendedRoster(true);
             }
             CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.Read(vitals, assets, character);
             Ff7BattleSession host = Host(null);

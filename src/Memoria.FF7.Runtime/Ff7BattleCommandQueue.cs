@@ -12,6 +12,8 @@ public sealed record Ff7BattleQueuedCommand(byte Priority, int ActorSlot, byte C
     public bool CompelledAttack { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public bool Reflected { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public int? GuestPrimaryTarget { get; init; }
 
     public static Ff7BattleQueuedCommand FromAi(Ff7BattleAiCommand command)
     {
@@ -183,6 +185,10 @@ public static class Ff7BattleCommandQueue
         if (command.CompelledAttack && command is not { GuestAttack: true, GuestAbility: 0, CommandId: 1, Argument: 0, TargetMask: 0, GroupTarget: false })
         {
             throw new InvalidDataException("A compelled guest attack must await its ordinary target selection.");
+        }
+        if (command.GuestPrimaryTarget is int primary && (command is not { GuestAttack: true, Reflected: true, GroupTarget: true, CommandId: 2 } || primary is < 0 or 3 or > 9 || (command.TargetMask & (1 << primary)) == 0))
+        {
+            throw new InvalidDataException("A reflected group primary target must belong to its ordered selected contacts.");
         }
         if (command.GuestAbility != 0 && !command.GuestAttack || command.GuestAttack && (command.Priority != ReadyPriority(command.CommandId) || command is not { ActorSlot: >= 0 and < 3, AttackId: null, Message: null, Callback: null } || !guestShape || command.Argument != command.GuestAbility || (command.TargetMask & 0x3F7) != command.TargetMask || command.CommandId == 0x14 && (command.TargetMask & 0x3F0) != command.TargetMask || (!command.CompelledAttack && (command.GroupTarget ? command.CommandId != 2 || command.TargetMask == 0 : !System.Numerics.BitOperations.IsPow2(command.TargetMask)))))
         {

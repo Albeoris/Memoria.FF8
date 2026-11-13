@@ -16,6 +16,24 @@ internal static class NativeStatusConsumersTests
         Ff7BattleCommandQueueState queue = Ff7BattleCommandQueue.StageReady(Ff7BattleCommandQueueState.Create(), 0, 1, guestAttack: true, compelledAttack: true);
         RoundTrip(queue).Validate();
         Check(queue.Ready.Single(command => command is not null) is { CompelledAttack: true, TargetMask: 0 }, "A compelled guest must retain an unselected automatic target until dispatch.");
+        Ff7BattleCommandQueueState group = Ff7BattleCommandQueue.StageReady(Ff7BattleCommandQueueState.Create(), 0, 2, 1, 0x21, groupTarget: true, guestAttack: true, guestAbility: 1);
+        group = group with { Ready = group.Ready.Select(command => command is null ? null : command with { Reflected = true, GuestPrimaryTarget = 5 }).ToArray() };
+        group = RoundTrip(group);
+        group.Validate();
+        Check(group.Ready.Single(command => command is not null) is { GuestPrimaryTarget: 5, TargetMask: 0x21 }, "An ordered reflected group must preserve its first contact even when another recipient has a lower slot.");
+        foreach (Ff7BattleQueuedCommand invalid in new[] { group.Ready[0]! with { GuestPrimaryTarget = 1 }, group.Ready[0]! with { Reflected = false }, group.Ready[0]! with { GroupTarget = false } })
+        {
+            bool rejected = false;
+            try
+            {
+                Ff7BattleCommandQueue.Enqueue(Ff7BattleCommandQueueState.Create(), invalid);
+            }
+            catch (InvalidDataException)
+            {
+                rejected = true;
+            }
+            Check(rejected, "A reflected primary marker must reject absent targets, ordinary commands and nongroup actions.");
+        }
         Installed();
         Console.WriteLine("PASS common Confuse targets, automatic guest queue, native Reflect charges and JSON continuation.");
     }

@@ -20,11 +20,17 @@ internal sealed record CrossoverPhysicalHostEffectsStep(CrossoverPhysicalHostEff
 
 internal sealed partial class CrossoverGunbladeHostAttack
 {
-    // Foreign targets have no FFVIII model header. Physical slot 3 represents the selected FFVII occurrence within this module instance.
+    // Physical slot 3 represents the selected host occurrence within this module instance.
     private const byte ForeignModuleTarget = 3;
     private ImmutableArray<NativeBattleModuleResource> physicalModules;
     private ImmutableArray<NativeBattleStaticMeshResource> physicalMeshes;
     private NativeBattleEffectTextureState? physicalTextures;
+    private Func<CrossoverGunbladeHostPlacement, int, CrossoverNativeForeignTarget?>? readNativeTargetGeometry;
+
+    public void BindNativeTargetGeometry(Func<CrossoverGunbladeHostPlacement, int, CrossoverNativeForeignTarget?> read)
+    {
+        readNativeTargetGeometry = read;
+    }
 
     private static CrossoverPhysicalHostEffectsState CapturePhysicalEffects(CrossoverPhysicalHostEffectsState current) => current with
     {
@@ -49,9 +55,9 @@ internal sealed partial class CrossoverGunbladeHostAttack
 
     private CrossoverPhysicalHostEffectsState QueuePhysicalHostParticle(CrossoverPhysicalHostEffectsState? current, NativeBattleVector target, int hostTargetSlot, NativeBattleSequenceParticle particle, NativeBattleGraphicsModel model, bool contact, NativeCrtRandomState random)
     {
-        if (hostTargetSlot < 4 || state.Invocation?.TargetSlot != hostTargetSlot)
+        if (hostTargetSlot is < 0 or 3 or > 9 || state.Invocation?.TargetSlot != hostTargetSlot || !roster.Participants.Any(actor => actor.HostSlot == hostTargetSlot))
         {
-            throw new InvalidDataException("Physical attack particles require the active FFVII target occurrence.");
+            throw new InvalidDataException("Physical attack particles require the active host target occurrence.");
         }
         NativeBattleModuleResource selected = ReadPhysicalResources().Single(item => item.Id == (byte)particle.PackedParameters);
         if (selected.WrapperCallback == 0x56F9C0 && (model.ModelId4 != 4 || particle.Placement != 1 || contact || current is { Complete: false }))
@@ -76,6 +82,9 @@ internal sealed partial class CrossoverGunbladeHostAttack
         NativeBattleCameraProjection projection = CrossoverNativeSpriteRenderer.Camera(readHostCamera(), placement.Matrix);
         NativeBattleActionMatrix worldBasis = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
         NativeBattleActionMatrix? weaponMatrix = current.WeaponMatrix;
+        CrossoverNativeForeignTarget? nativeTarget = current.HostTarget == ActorSlot ? null : readNativeTargetGeometry?.Invoke(placement, current.HostTarget);
+        NativeBattleGraphicsModel? targetModel = current.HostTarget == ActorSlot ? model : nativeTarget?.NativeModel;
+        NativeBattlePoseSource? targetPose = current.HostTarget == ActorSlot ? resource.PoseSource : nativeTarget?.NativeResource?.PoseSource;
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();
         memory = memory with { Arena = NativeBattleEffectArena.Clear(), ScriptedGraphics = memory.ScriptedGraphics!.InitializeGeom56BAA0() };
         NativeBattleFileStaging staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.FromColdProcess());
@@ -93,8 +102,8 @@ internal sealed partial class CrossoverGunbladeHostAttack
             Resources = resources,
             CrtRandom = current.Random,
             ReadModelAnchor = actor => actor == ForeignModuleTarget ? TargetAnchor() : NativeBattlePoseMatrices.ReadAnchor(model, resource.PoseSource!),
-            ReadModelBone = (actor, bone, fraction) => actor == ForeignModuleTarget ? TargetBone(bone) : NativeBattlePoseMatrices.ReadBone(model, resource.PoseSource!, bone, fraction),
-            ReadModelRotation14 = actor => actor == ForeignModuleTarget ? (short)0 : model.Rotation14!.Value,
+            ReadModelBone = (actor, bone, fraction) => actor == ForeignModuleTarget ? TargetBone(bone, fraction) : NativeBattlePoseMatrices.ReadBone(model, resource.PoseSource!, bone, fraction),
+            ReadModelRotation14 = actor => actor == ForeignModuleTarget ? targetModel?.Rotation14 ?? (short)0 : model.Rotation14!.Value,
             TransformModelPosition = (actor, local) => actor == ActorSlot ? NativeBattlePoseMatrices.TransformModulePosition570CC0(model, local) : throw new InvalidDataException("Physical attack placement4 requires the source model matrix.")
         };
         NativeBattleModuleStep step = current.Modules.Advance(inputs, Dispatch);
@@ -198,13 +207,21 @@ internal sealed partial class CrossoverGunbladeHostAttack
 
         NativeBattleModuleAnchor TargetAnchor()
         {
+            if (targetModel is not null && targetPose is not null)
+            {
+                return NativeBattlePoseMatrices.ReadAnchor(targetModel, targetPose);
+            }
             NativeBattleVector target = readHostImpactAnchor is { } read ? placement.ResolvePosition(read(current.HostTarget)) : current.Target;
             return new(target.X, target.Y, target.Z, 0);
         }
 
-        NativeBattleVector TargetBone(byte bone)
+        NativeBattleVector TargetBone(byte bone, short fraction)
         {
-            Vector3 position = (readHostTargetBone ?? throw new NotSupportedException("The selected FFVII target requires its current joint pose for the native impact."))(current.HostTarget, bone);
+            if (targetModel is not null && targetPose is not null)
+            {
+                return NativeBattlePoseMatrices.ReadBone(targetModel, targetPose, bone, fraction);
+            }
+            Vector3 position = (readHostTargetBone ?? throw new NotSupportedException("The selected host target requires its current joint pose for the native impact."))(current.HostTarget, bone);
             return placement.ResolvePosition(position);
         }
     }

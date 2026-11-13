@@ -445,7 +445,7 @@ public sealed partial class Ff7BattleSession
     }
 
     private Ff7BattleGuestInvocation GuestInvocation(Ff7BattleQueuedCommand command, long startedAt)
-        => new(RequestId, Formation.FormationId, startedAt, command.ActorSlot, BitOperations.TrailingZeroCount(command.TargetMask)) { TargetMask = command.GroupTarget ? command.TargetMask : (ushort)0, GuestAbility = command.GuestAbility, GuestCommand = command.CommandId switch { (byte)Ff7BattleCommand.Item => command.CommandId, (byte)Ff7BattleCommand.Limit => 5, _ => null }, Reflected = command.Reflected };
+        => new(RequestId, Formation.FormationId, startedAt, command.ActorSlot, command.GuestPrimaryTarget ?? BitOperations.TrailingZeroCount(command.TargetMask)) { TargetMask = command.GroupTarget ? command.TargetMask : (ushort)0, GuestAbility = command.GuestAbility, GuestCommand = command.CommandId switch { (byte)Ff7BattleCommand.Item => command.CommandId, (byte)Ff7BattleCommand.Limit => 5, _ => null }, Reflected = command.Reflected };
 
     private static bool SupportsGuestAbility(IFf7BattleGuestAttack guest, ushort ability, Ff7BattleGuestAttackTarget target)
         => ability == 0 ? guest.Supports(target) : guest is IFf7BattleGuestAbilities catalog ? catalog.SupportsAbility(Ff7BattleCommand.Magic, ability, target) : guest is IFf7BattleGuestMagic magic && magic.MagicStock(ability) > 0 && magic.SupportsMagic(ability, target);

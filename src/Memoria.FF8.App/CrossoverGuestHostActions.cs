@@ -71,6 +71,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         NativeBattleGraphicsResource sourceResource = assets.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = kit.CharacterId, WeaponId = kit.Weapon });
         fireProgram = new(game, sourceResource, assets);
         limitResource = sourceResource;
+        attack.BindNativeTargetGeometry((placement, slot) => encounter.GuestAt(slot) is null ? null : ReadAbilityForeign(placement, slot));
         limitProgram = new(game, sourceResource, graphicsRules);
         roughDivideProgram = new(game, sourceResource, graphicsRules.SummonColors!);
         limitOptions = originLimitOptions;

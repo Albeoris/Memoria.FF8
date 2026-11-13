@@ -175,6 +175,15 @@ public sealed class CrossoverGuestStatusHostTests
         public uint Hp(int slot) => Host.Actors.Single(actor => actor.Actor.Slot == slot).Actor.HitPoints;
         public int Stock(ushort spell) => encounter.Working.GetMagicCount(0, spell);
 
+        public void IsolateReadyPlayer(int slot)
+        {
+            Assert.Null(Host.Action);
+            Ff7BattleSnapshot snapshot = Host.Capture();
+            Assert.Equal(snapshot.Queue.ReadyRead, snapshot.Queue.ReadyWrite);
+            Assert.All(snapshot.Queue.Slots, entry => Assert.Null(entry));
+            RestoreQueuedBoundary(snapshot with { Actors = snapshot.Actors.Select(actor => actor with { Gauge = actor.Actor.Slot == slot ? ushort.MaxValue : (ushort)0, AwaitingTurn = actor.Actor.Slot == slot }).ToArray() });
+        }
+
         public void Ready(int slot)
         {
             for (int tick = 0; tick < 12000 && Host.ReadyPlayer != slot; tick++)

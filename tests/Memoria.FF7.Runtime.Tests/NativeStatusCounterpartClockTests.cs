@@ -41,11 +41,12 @@ internal static class NativeStatusCounterpartClockTests
             healed = direct.Timers;
         }
         Check(recovery == (90 * 10 * Ff7NativeAtb.BaseRate(128) * 2 >> 15), "Regen must accumulate maxHP/32 on the native signed Q15 clock.");
-        InstalledCountdown();
+        InstalledCountdown(false);
+        InstalledCountdown(true);
         Console.WriteLine("PASS native status counterpart clocks, Regen recovery, expiry, countdown ownership and JSON continuation.");
     }
 
-    private static void InstalledCountdown()
+    private static void InstalledCountdown(bool guest)
     {
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
         if (string.IsNullOrWhiteSpace(directory))
@@ -61,7 +62,12 @@ internal static class NativeStatusCounterpartClockTests
         Ff7BattleAttack death = Ff7BattleAttack.Read(kernel[1].Data.Span.Slice(0x36 * Ff7BattleAttack.RecordSize, Ff7BattleAttack.RecordSize));
         Check(death.TargetFlags == 0 && death.CastingCost == 0 && death.StatusMask == 1, "The original countdown must use its cost-free self-targeted Death record.");
         Ff7BattleSession Create(Ff7BattleSnapshot? snapshot = null) => new(formation, original.Progress, kernel, modifiers, 1, snapshot: snapshot);
-        Ff7BattleSnapshot initial = Create().Capture();
+        Ff7BattleSession seeded = Create();
+        if (guest)
+        {
+            seeded.BindGuestVitals(new(Guid.NewGuid(), new('A', 64), 0, 0, 0, 0, 486, 486, 6, 14, 24, 17) { OriginBattleStatuses = 0x400 });
+        }
+        Ff7BattleSnapshot initial = seeded.Capture();
         Ff7BattleSnapshot setup = initial with { Actors = initial.Actors.Select(actor => actor.Actor.Slot == 0 ? actor with { Actor = actor.Actor with { Statuses = Ff7NativeBattleStatuses.DeathSentence | Ff7NativeBattleActionResolver.Sleep }, Timers = new(0, 100, 0) { DeathSentence = 1, FixedRemainder = 4050 } } : actor with { Actor = actor.Actor with { Statuses = 0x400 } }).ToArray() };
         Ff7BattleSession battle = Create(RoundTrip(setup));
         battle.AdvanceTurn();
@@ -77,6 +83,10 @@ internal static class NativeStatusCounterpartClockTests
         }
         Ff7BattleAiActor target = battle.Capture().Actors.Single(actor => actor.Actor.Slot == 0).Actor;
         Check((target.Statuses & 1) != 0 && (target.Statuses & Ff7NativeBattleStatuses.DeathSentence) == 0 && target.MagicPoints == setup.Actors.Single(actor => actor.Actor.Slot == 0).Actor.MagicPoints, "A sleeping actor's countdown must execute Death, clear Doom and spend no MP.");
+        if (guest)
+        {
+            Check((battle.GetGuestOriginBattleStatuses(0) & 0x400) == 0 && battle.GetGuestOriginSavedStatuses(0) == 1, "The countdown must settle the mapped FFVIII guest's Doom and KO through its current source status projection.");
+        }
     }
 
     private static T RoundTrip<T>(T value) => JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(value))!;

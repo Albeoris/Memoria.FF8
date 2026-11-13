@@ -8,6 +8,64 @@ namespace Memoria.FF8.App.Tests;
 public sealed class Ff7GuestGroupMagicTests
 {
     [Fact]
+    public void Reflected_disjoint_group_keeps_contact_order_and_the_first_occurrence_as_its_primary_target()
+    {
+        using Fixture fixture = new(reflectedTargets: 0x10);
+        Ff7BattleSession battle = fixture.Battle;
+        Assert.True(battle.Submit(0, Ff7BattleCommand.Magic, GroupProbe.Ability, 0x30));
+        for (int tick = 0; tick < 1000 && fixture.Guest.BeginCalls == 0; tick++)
+        {
+            battle.Advance(waitForCommand: true);
+        }
+        Assert.Equal(new[] { 5, 0 }, fixture.Guest.Prepared.Select(hit => hit.PreparedContact!.Invocation.TargetSlot));
+        Assert.Equal(5, fixture.Guest.Invocation!.TargetSlot);
+        Ff7BattleSnapshot captured = JsonSerializer.Deserialize<Ff7BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!;
+        Assert.Equal(5, captured.Action!.Command.GuestPrimaryTarget);
+        Assert.True(captured.Action.Command.Reflected);
+        List<int> contacts = [];
+        for (int tick = 0; tick < 1000 && !fixture.Guest.Completed; tick++)
+        {
+            battle.Advance(waitForCommand: true);
+            if (battle.LastHit is { Source: 0 } hit && hit.Tick == battle.Tick)
+            {
+                contacts.Add(hit.Target);
+            }
+        }
+        Assert.Equal(new[] { 5, 0 }, contacts);
+        Assert.Equal(1, fixture.Guest.BeginCalls);
+        Assert.Equal(1, fixture.Guest.PrepareCalls);
+        Assert.Equal(3, fixture.Guest.Stock);
+        Assert.Null(battle.Action);
+    }
+
+    [Fact]
+    public void Converging_reflected_group_rejects_without_committing_contacts_random_stock_or_ward_charges()
+    {
+        using Fixture fixture = new(reflectedTargets: 0x30);
+        using Fixture control = new(reflectedTargets: 0x30);
+        Assert.True(fixture.Battle.Submit(0, Ff7BattleCommand.Magic, GroupProbe.Ability, 0x30));
+        for (int tick = 0; tick < 1000 && fixture.Battle.GuestAbilityFailure is null; tick++)
+        {
+            fixture.Battle.Advance(waitForCommand: true);
+            control.Battle.Advance(waitForCommand: true);
+        }
+        Assert.Contains("multiple contact occurrences", fixture.Battle.GuestAbilityFailure!.Reason);
+        Assert.Equal(0, fixture.Guest.BeginCalls);
+        Assert.Equal(0, fixture.Guest.PrepareCalls);
+        Assert.Equal(4, fixture.Guest.Stock);
+        Assert.Null(fixture.Battle.LastHit);
+        Assert.Null(fixture.Battle.Action);
+        Assert.Equal(0, fixture.Battle.ReadyPlayer);
+        Ff7BattleSnapshot rejected = fixture.Battle.Capture();
+        Assert.Equal(JsonSerializer.Serialize(control.Battle.Capture().Random), JsonSerializer.Serialize(rejected.Random));
+        Assert.All(rejected.Actors.Where(actor => actor.Actor.Slot >= 4), actor =>
+        {
+            Assert.Null(actor.ReflectionCount);
+            Assert.NotEqual(0u, actor.Actor.Statuses & Ff7NativeBattleStatuses.Reflect);
+        });
+    }
+
+    [Fact]
     public void GroupQueuesOnceConsumesOneStockAndPublishesEachTargetOnce()
     {
         using Fixture fixture = new();
@@ -243,7 +301,7 @@ public sealed class Ff7GuestGroupMagicTests
         public Ff7BattleSession Battle { get; }
         public GroupProbe Guest { get; }
 
-        public Fixture(bool revive = false, bool allTargets = false, bool restoreMagicPoints = false, bool reprojectTarget = false)
+        public Fixture(bool revive = false, bool allTargets = false, bool restoreMagicPoints = false, bool reprojectTarget = false, ushort reflectedTargets = 0)
         {
             string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
             Assert.SkipUnless(!string.IsNullOrWhiteSpace(directory), "Select the installed original FFVII resources.");
@@ -276,12 +334,13 @@ public sealed class Ff7GuestGroupMagicTests
                     {
                         Gauge = 0,
                         AwaitingTurn = false,
-                        Actor = actor.Actor with { Statuses = revive && actor.Actor.Slot == 1 ? 1u : 0x400u, HitPoints = revive && actor.Actor.Slot == 1 ? 0 : actor.Actor.HitPoints },
+                        Actor = actor.Actor with { Statuses = (revive && actor.Actor.Slot == 1 ? 1u : 0x400u) | ((reflectedTargets & (1 << actor.Actor.Slot)) != 0 ? Ff7NativeBattleStatuses.Reflect : 0), HitPoints = revive && actor.Actor.Slot == 1 ? 0 : actor.Actor.HitPoints },
                         Timers = Ff7NativeBattleStatusClock.Apply(actor.Timers, actor.Actor.Statuses, revive && actor.Actor.Slot == 1 ? 1u : 0x400u)
                     }).Select(actor => restoreMagicPoints && actor.Actor.Slot < 3 ? actor with { Actor = actor.Actor with { MagicPoints = 10, MaxMagicPoints = 100 } } : actor).ToArray()
             };
             Battle = Create(snapshot);
             Guest = new(encounter, revive, allTargets, restoreMagicPoints, reprojectTarget);
+            Guest.Reflectable = reflectedTargets != 0;
             Battle.BindGuestAttack(Guest);
             Assert.Equal(0, Battle.ReadyPlayer);
 
@@ -314,6 +373,7 @@ public sealed class Ff7GuestGroupMagicTests
         public bool ReverseOrder { get; set; }
         public Action? BeginAction { get; set; }
         public bool Completed { get; private set; }
+        public bool Reflectable { get; set; }
         public IReadOnlyList<Ff7BattleGuestPhysicalHit> Prepared { get; private set; } = [];
         private int published;
         public IReadOnlyList<Ff7BattleGuestAbility> Abilities => [new(Ff7BattleCommand.Magic, Ability, "Native group", revive || restoreMagicPoints || reprojectTarget ? (byte)0x14 : allTargets ? (byte)0x04 : (byte)0x16, Stock) { CanTargetDead = revive, AllTargets = allTargets }];
@@ -322,7 +382,7 @@ public sealed class Ff7GuestGroupMagicTests
         public string? TargetUnsupportedReason(Ff7BattleCommand command, ushort ability, Ff7BattleGuestAttackTarget target) => target.Slot == BlockedTarget ? Reason : null;
         public bool SupportsMagic(ushort ability, Ff7BattleGuestAttackTarget target) => SupportsAbility(Ff7BattleCommand.Magic, ability, target);
         public int MagicStock(ushort ability) => Stock;
-        public Ff7BattleGuestPhysicalHit DescribeMagic(ushort ability) => new(new(6, 24, 0, 0, 14, 0, 0, 24, 17), restoreMagicPoints ? new(0x26, 1, 255, LongRange: true, Healing: true, TargetsMagicPoints: true) : reprojectTarget ? new(0x24, 32, 255, LongRange: true, Healing: true) : new(0x22, 1, 100, LongRange: true) { SuppressCritical = true, AlwaysHits = true }, 0);
+        public Ff7BattleGuestPhysicalHit DescribeMagic(ushort ability) => new(new(6, 24, 0, 0, 14, 0, 0, 24, 17), restoreMagicPoints ? new(0x26, 1, 255, LongRange: true, Healing: true, TargetsMagicPoints: true) : reprojectTarget ? new(0x24, 32, 255, LongRange: true, Healing: true) : new(0x22, 1, 100, LongRange: true) { SuppressCritical = true, AlwaysHits = true, Reflectable = Reflectable }, 0);
         public void PrepareMagic(Ff7BattleGuestPhysicalHit prepared) => throw new InvalidOperationException("Group stock belongs to the shared group transaction.");
 
         public string? PrepareGroupUnsupportedReason(IReadOnlyList<Ff7BattleGuestPhysicalHit> prepared)
@@ -340,6 +400,10 @@ public sealed class Ff7GuestGroupMagicTests
 
         public void Begin(Ff7BattleGuestInvocation invocation, Ff7BattlePlacement source, Ff7BattleGuestAttackTarget target)
         {
+            if (invocation.Reflected)
+            {
+                Assert.Equal(Prepared[0].PreparedContact!.Invocation, invocation);
+            }
             BeginCalls++;
             Invocation = invocation;
             HostTick = invocation.StartedAt;

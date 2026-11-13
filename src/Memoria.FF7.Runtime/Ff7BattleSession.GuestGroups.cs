@@ -114,7 +114,7 @@ public sealed partial class Ff7BattleSession
                 return;
             }
             targets = reflection.Contacts.Select(contact => contact.TargetSlot).ToArray();
-            command = command with { TargetMask = (ushort)targets.Aggregate(0, (mask, slot) => mask | (1 << slot)), Reflected = true };
+            command = command with { TargetMask = (ushort)targets.Aggregate(0, (mask, slot) => mask | (1 << slot)), Reflected = true, GuestPrimaryTarget = targets[0] };
             invocation = GuestInvocation(command, Tick);
         }
         List<Ff7BattleGuestPhysicalHit> prepared = [];

@@ -594,7 +594,7 @@ public sealed partial class Ff7BattleSession
         {
             foreach (Ff7BattleReflectedContact contact in reflection.Contacts)
             {
-                ValidateGuestIncoming(command, contact.TargetSlot, record);
+                ValidateGuestIncoming(command with { Reflected = true }, contact.TargetSlot, record);
             }
         }
         if (command.CommandId == (byte)Ff7BattleCommand.Item)
@@ -634,7 +634,7 @@ public sealed partial class Ff7BattleSession
             CommitReflections(reflection);
             foreach (Ff7BattleReflectedContact contact in reflection.Contacts)
             {
-                ApplyHit(command, contact.TargetSlot, contact.Attack, record, elements, contact.Receipt);
+                ApplyHit(command with { Reflected = true }, contact.TargetSlot, contact.Attack, record, elements, contact.Receipt);
             }
             return;
         }

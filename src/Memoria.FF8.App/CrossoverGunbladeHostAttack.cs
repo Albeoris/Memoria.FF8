@@ -312,7 +312,7 @@ internal sealed partial class CrossoverGunbladeHostAttack : IFf7BattleGuestAttac
         {
             OriginGlobalRandom = state.OriginGlobalRandom,
             EffectTarget = placement.ResolvePosition(readHostImpactAnchor?.Invoke(target.Slot) ?? target.Placement.Position),
-            TargetJointCount = target.JointCount,
+            TargetJointCount = target.Slot == ActorSlot ? resource.PoseSource!.BoneCount : readNativeTargetGeometry?.Invoke(placement, target.Slot)?.NativeResource?.PoseSource?.BoneCount ?? target.JointCount,
             PreviousParticleBone = state.PreviousParticleBone,
             SourceSavedStatuses = state.SourceSavedStatuses
         };

@@ -68,10 +68,35 @@ public sealed class CrossoverSharedStatusHostTests
     }
 
     [Fact]
+    public void A_confused_guest_executes_its_original_attack_against_the_source_side_without_manual_selection()
+    {
+        using CrossoverGuestStatusHostTests.Fixture fixture = new(additionalSpells: ["Confuse"]);
+        fixture.Cast(0, "Confuse", 2);
+        int stock = fixture.Stock(fixture.Spell("Cure"));
+        Ff7BattleHit? contact = null;
+        for (int tick = 0; tick < 20000 && contact is null; tick++)
+        {
+            if (fixture.Host.ReadyPlayer is int ready)
+            {
+                Assert.True(fixture.Host.Submit(ready, Ff7BattleCommand.Defend, 0, (ushort)(1 << ready)));
+            }
+            fixture.Host.Advance(waitForCommand: false);
+            if (fixture.Host.LastHit is { Source: 1 } hit && hit.Tick == fixture.Host.Tick)
+            {
+                contact = hit;
+            }
+        }
+        Assert.NotNull(contact);
+        Assert.Contains(contact.Target, new[] { 0, 1 });
+        Assert.Equal(stock, fixture.Stock(fixture.Spell("Cure")));
+    }
+
+    [Fact]
     public void Reflected_origin_magic_uses_the_host_recipient_and_charges_its_source_once()
     {
         using CrossoverGuestStatusHostTests.Fixture fixture = new(additionalSpells: ["Reflect", "Fire"]);
         fixture.Cast(0, "Reflect", 2);
+        fixture.IsolateReadyPlayer(0);
         uint targetHp = fixture.Hp(1);
         uint sourceHp = fixture.Hp(0);
         ushort spell = fixture.Spell("Fire");
