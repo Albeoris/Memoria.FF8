@@ -258,6 +258,18 @@ internal static class AutoPlayTraversalPolicy
             ("555:1745", "555:gateway:0") => -3,
             ("550:1745", "550:line:8" or "550:line-action:8") => -4,
             ("553:1745", "553:line:9") => -5,
+            // NG-068: Take the ground-level Esthar passages toward Lunar Gate.
+            ("534:2000", "534:gateway:0") => -1,
+            ("533:2000", "533:gateway:1") => -2,
+            ("532:2000", "532:line:9") => -3,
+            ("449:2000", "449:gateway:0" or "449:gateway:1" or "449:gateway:2" or "449:gateway:3") => -4,
+            ("440:2000", "440:gateway:0") => -5,
+            ("443:2000", "443:gateway:2" or "443:gateway:3") => -6,
+            ("414:2000", "414:gateway:1" or "414:gateway:2") => -6,
+            ("404:2000", "404:gateway:3" or "404:gateway:4") => -7,
+            ("402:2000", "402:gateway:2" or "402:gateway:3") => -8,
+            ("420:2000", "420:gateway:6") => -9,
+            ("422:2000", "422:line:8") => -10,
             _ => 0
         };
     }
@@ -332,6 +344,8 @@ internal static class AutoPlayTraversalPolicy
             // NG-067: Sit down in the lift and choose Go down on return.
             "529:1750:8:109:1852:1:1:2" => 1,
             "531:1750:3:62:1100:1:0:1" => 0,
+            // NG-068: Accept both ordinary city exit prompts.
+            "532:2000:9:160:1753:1:1:2" or "422:2000:8:190:2341:2:1:2" => 1,
             // NG-036: Take the elevator to 2F for the approaching ship.
             "172:614:12:98:1227:4:2:4" => 3,
             // NG-039, NG-040: Take the elevator to 2F for Fishermans Horizon.
