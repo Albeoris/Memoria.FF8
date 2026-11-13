@@ -117,14 +117,56 @@ public sealed class GraphicsDispatcherTests : IDisposable
             attempts.Add(backend);
             return Child(backend, $"exit {childExit}");
         }, output, error);
-        Assert.NotEqual(0, result);
-        Assert.Single(attempts);
-        Assert.DoesNotContain("Graphics ready:", output.ToString());
-        Assert.Contains("before graphics readiness", error.ToString());
         BootstrapFailure failure = Assert.Single(failures);
         Assert.Null(failure.Exception);
-        Assert.Null(Assert.Single(failure.Attempts).Exception);
+        GraphicsAttemptEvidence attempt = Assert.Single(failure.Attempts);
+        Assert.Null(attempt.Exception);
+        Assert.Equal(childExit == 0 ? 1 : childExit, result);
+        Assert.Equal(result, attempt.ExitCode);
+        Assert.False(attempt.Ready);
+        Assert.False(attempt.InitializationFailure);
+        Assert.Single(attempts);
+        Assert.DoesNotContain("Graphics ready:", output.ToString());
+        Assert.Contains($"before graphics readiness (exit {childExit})", error.ToString());
         Assert.Null(failure.Capture().Exception.Stack);
+    }
+
+    [Theory]
+    [InlineData("processStarted", "0")]
+    [InlineData("token", "'another-launch'")]
+    public async Task InvalidSuccessorIdentityCannotTransferDispatcherOwnership(string property, string value)
+    {
+        using StringWriter output = new();
+        using StringWriter error = new();
+        string body = ReadyScript + "\n" + """
+            $receipt = @{schemaVersion=1; processId=$PID; processStarted=([Diagnostics.Process]::GetCurrentProcess().StartTime.ToUniversalTime().Ticks); token=$env:MEMORIA_FF8_HOST_SUCCESSOR_TOKEN; successorProcessId=[int]::MaxValue; successorStarted=1}
+            """ + $"\n$receipt['{property}'] = {value}\n" + """
+            $request = Join-Path $env:MEMORIA_FF8_HOST_SUCCESSOR_DIRECTORY "$PID.json"
+            [IO.File]::WriteAllText($request + '.tmp', ($receipt | ConvertTo-Json -Compress))
+            [IO.File]::Move($request + '.tmp', $request)
+            Start-Sleep -Seconds 120
+            """;
+        int result = await RunAsync(GraphicsBackend.Vulkan, backend => Child(backend, body), output, error);
+        Assert.Equal(1, result);
+        InvalidDataException exception = Assert.IsType<InvalidDataException>(Assert.Single(failures).Exception);
+        Assert.Contains("does not belong to this game process", exception.Message);
+        Assert.DoesNotContain("World transfer: following game host", output.ToString());
+    }
+
+    [Fact]
+    public async Task MalformedSuccessorReceiptCannotBeTreatedAsAnOrdinaryHostExit()
+    {
+        using StringWriter output = new();
+        using StringWriter error = new();
+        int result = await RunAsync(GraphicsBackend.Vulkan, backend => Child(backend, ReadyScript + "\n" + """
+            $request = Join-Path $env:MEMORIA_FF8_HOST_SUCCESSOR_DIRECTORY "$PID.json"
+            [IO.File]::WriteAllText($request + '.tmp', '{')
+            [IO.File]::Move($request + '.tmp', $request)
+            Start-Sleep -Seconds 120
+            """), output, error);
+        Assert.Equal(1, result);
+        Assert.IsAssignableFrom<JsonException>(Assert.Single(failures).Exception);
+        Assert.DoesNotContain("World transfer: following game host", output.ToString());
     }
 
     [Fact]
@@ -196,6 +238,7 @@ public sealed class GraphicsDispatcherTests : IDisposable
             attempts.Add(backend);
             return Child(backend, ReadyScript + "\n[Console]::Out.WriteLine('game stdout')\n[Console]::Error.WriteLine('game crash detail')\nexit 37");
         }, output, error);
+        Assert.Null(Assert.Single(failures).Exception);
         Assert.Equal(37, result);
         Assert.Single(attempts);
         Assert.Contains("Graphics ready: requested=Auto actual=" + attempts[0], output.ToString());

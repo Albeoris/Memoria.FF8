@@ -25,14 +25,13 @@ internal static class GraphicsHostSuccessor
         {
             while (true)
             {
-                long started = current.StartTime.ToUniversalTime().Ticks;
                 Task exited = current.WaitForExitAsync(CancellationToken.None);
                 while (!exited.IsCompleted)
                 {
                     cancellation.ThrowIfCancellationRequested();
                     Process? previousPending = pending;
                     int? previousPendingId = pending?.Id;
-                    pending = ReadSuccessor(current.Id, started, directory, token, pending, visited, predecessorRunning: true);
+                    pending = ReadSuccessor(current, directory, token, pending, visited, predecessorRunning: true);
                     if (previousPendingId is int retired && !ReferenceEquals(previousPending, pending))
                     {
                         Retire(retired, directory, relays);
@@ -48,12 +47,12 @@ internal static class GraphicsHostSuccessor
                     await Task.WhenAny(exited, Task.Delay(50, cancellation));
                 }
                 await exited.WaitAsync(cancellation);
-                pending = ReadSuccessor(current.Id, started, directory, token, pending, visited, predecessorRunning: false);
+                pending = ReadSuccessor(current, directory, token, pending, visited, predecessorRunning: false);
                 foreach (SuccessorOutput relay in relays.Values)
                 {
                     await relay.DrainAsync(stdout, stderr, output, error);
                 }
-                int exitCode = ReadExitCode(current, ReferenceEquals(current, initial), started, directory, token);
+                int exitCode = ReadExitCode(current, ReferenceEquals(current, initial), directory, token);
                 Retire(current.Id, directory, relays);
                 if (pending is null || exitCode != 0)
                 {
@@ -141,7 +140,7 @@ internal static class GraphicsHostSuccessor
         }
     }
 
-    private static int ReadExitCode(Process process, bool initial, long started, string directory, string token)
+    private static int ReadExitCode(Process process, bool initial, string directory, string token)
     {
         if (initial || OperatingSystem.IsWindows())
         {
@@ -155,15 +154,16 @@ internal static class GraphicsHostSuccessor
         }
         using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
         JsonElement root = document.RootElement;
-        if (root.GetProperty("schemaVersion").GetInt32() != 1 || root.GetProperty("processId").GetInt32() != process.Id || root.GetProperty("processStarted").GetInt64() != started || root.GetProperty("token").GetString() != token)
+        if (root.GetProperty("schemaVersion").GetInt32() != 1 || root.GetProperty("processId").GetInt32() != process.Id || root.GetProperty("processStarted").GetInt64() != process.StartTime.ToUniversalTime().Ticks || root.GetProperty("token").GetString() != token)
         {
             throw new InvalidDataException("The replacement game host completion receipt does not belong to this process.");
         }
         return root.GetProperty("exitCode").GetInt32();
     }
 
-    private static Process? ReadSuccessor(int processId, long started, string directory, string token, Process? pending, HashSet<int> visited, bool predecessorRunning)
+    private static Process? ReadSuccessor(Process process, string directory, string token, Process? pending, HashSet<int> visited, bool predecessorRunning)
     {
+        int processId = process.Id;
         string path = Path.Combine(directory, processId + ".json");
         if (!File.Exists(path))
         {
@@ -186,7 +186,9 @@ internal static class GraphicsHostSuccessor
             pending?.Dispose();
             return null;
         }
-        if (receipt.SchemaVersion != 1 || receipt.ProcessId != processId || receipt.ProcessStarted != started || receipt.Token != token || receipt.SuccessorProcessId <= 0 || visited.Contains(receipt.SuccessorProcessId))
+        // Unix may already have reaped an initial host that never requested a transfer.
+        // Query its start time only when a receipt requires process identity validation.
+        if (receipt.SchemaVersion != 1 || receipt.ProcessId != processId || receipt.ProcessStarted != process.StartTime.ToUniversalTime().Ticks || receipt.Token != token || receipt.SuccessorProcessId <= 0 || visited.Contains(receipt.SuccessorProcessId))
         {
             throw new InvalidDataException("The game host successor receipt does not belong to this game process.");
         }
