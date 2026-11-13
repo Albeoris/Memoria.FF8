@@ -19,7 +19,6 @@ public sealed class IndependentGuardianItemTests
         BattleSession battle = CreateExpanded(assets, itemId, 1, variant);
         BattleActionDefinition item = Assert.Single(battle.ActionDefinitions, action => action.Ability == BattleAbility.Item && action.Id == itemId);
         Assert.True(battle.SupportsExpandedAction(item));
-        Assert.False(battle.SupportsExpandedAction(Assert.Single(battle.ActionDefinitions, action => action.Ability == BattleAbility.Item && action.Id == 31)));
         battle.QueueAction("party-10", "enemy-10", BattleAbility.Item, itemId);
         Assert.Equal(1, Assert.Single(battle.Items).Count);
         Assert.Null(Assert.Single(battle.QueuedActions).IndependentGuardian);
@@ -83,16 +82,69 @@ public sealed class IndependentGuardianItemTests
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
     }
 
+    [Fact]
+    public void ExpandedPhoenixDamagesBeforeRevivingTheFullPartyAndDefersVictory()
+    {
+        using BattleAssets assets = new(TestResources.GameDirectory);
+        BattleDefinition definition = CreateExpanded(assets, 31, 0, 0).ReadDefinition();
+        BattleCombatantDefinition[] roster = definition.Combatants.Select(actor =>
+        {
+            if (actor.Id is "party-8" or "party-9")
+            {
+                return actor with { CurrentHp = 0, NativeStatus0 = 1 };
+            }
+            return actor.IsPlayer ? actor : actor with { CurrentHp = 1 };
+        }).ToArray();
+        BattleSession battle = new(definition with { Combatants = roster, NativeSavedBattleFlags = 2 }, BattleAtbMode.TurnBased);
+        battle.QueueAction("party-10", "enemy-10", BattleAbility.Item, 31);
+        Assert.Equal(1, Assert.Single(battle.Items).Count);
+        BattleSession queued = RestoreJson(battle);
+        battle.Tick();
+        queued.Tick();
+        Assert.Equal((ushort)140, battle.ActiveAction!.IndependentGuardian!.Action!.MagicId);
+        Assert.Null(battle.NativeScriptState.SavedBattleFlagsAfter);
+        BattleSession active = RestoreJson(battle);
+        for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
+        {
+            battle.Tick();
+            queued.Tick();
+            active.Tick();
+        }
+
+        Assert.Equal(BattleOutcome.Victory, battle.Outcome);
+        Assert.Equal((byte?)2, battle.NativeScriptState.SavedBattleFlagsBefore);
+        Assert.Equal((byte?)6, battle.NativeScriptState.SavedBattleFlagsAfter);
+        Assert.Equal((byte)4, battle.NativeScriptState.SavedBattleFlagsSetMask);
+        Assert.Equal(1, Assert.Single(battle.Items).Count);
+        Assert.Equal(11, battle.Events.Count(entry => entry.Kind == "EffectContact" && entry.ActorId == "party-10"));
+        Assert.Equal(11, battle.Events.Count(entry => entry.Kind == "PhoenixRevivalContact" && entry.ActorId == "party-10"));
+        Assert.Equal(new[] { "party-8", "party-9" }, battle.Events.Where(entry => entry.Kind == "EffectHealing").Select(entry => entry.TargetId));
+        Assert.All(battle.Combatants.Where(actor => actor.Id is "party-8" or "party-9"), actor =>
+        {
+            Assert.True(actor.IsAlive);
+            Assert.Equal(actor.MaximumHp / 8, actor.CurrentHp);
+        });
+        BattleEvent[] events = battle.Events.ToArray();
+        Assert.True(Array.FindLastIndex(events, entry => entry.Kind == "Defeated") < Array.FindIndex(events, entry => entry.Kind == "Healing"));
+        Assert.True(Array.FindLastIndex(events, entry => entry.Kind == "PhoenixRevivalContact") < Array.FindIndex(events, entry => entry.Kind == "Outcome"));
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(queued.Capture()));
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(active.Capture()));
+    }
+
     [Theory]
     [InlineData(30)]
+    [InlineData(31)]
     [InlineData(32)]
     public void ExpandedGuardianItemRejectsMissingOrUnsupportedSourceBeforeReservingStock(int itemId)
     {
         using BattleAssets assets = new(TestResources.GameDirectory);
         BattleDefinition definition = CreateExpanded(assets, itemId, 1, 0).ReadDefinition();
-        BattleSession battle = new(itemId == 30
-            ? definition with { NativePocketStation = definition.NativePocketStation! with { Raw = definition.NativePocketStation.Raw.SetItem(45, 4) } }
-            : definition with { GuardianForces = [] }, BattleAtbMode.TurnBased);
+        BattleSession battle = new(itemId switch
+        {
+            30 => definition with { NativePocketStation = definition.NativePocketStation! with { Raw = definition.NativePocketStation.Raw.SetItem(45, 4) } },
+            31 => definition with { NativeSavedBattleFlagsKnownMask = 1 },
+            _ => definition with { GuardianForces = [] }
+        }, BattleAtbMode.TurnBased);
         Assert.Throws<NotSupportedException>(() => battle.QueueAction("party-10", "enemy-10", BattleAbility.Item, itemId));
         Assert.Equal(2, Assert.Single(battle.Items).Count);
         Assert.Empty(battle.QueuedActions);

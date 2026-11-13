@@ -76,7 +76,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                     firstBlockerStage = "player-execution";
                     (status, detail) = RunPlayerCast(directory, field, effect, player);
                 }
-                else if (mappings.FirstOrDefault(action => action is { KernelSection: 9, Command: 244, ActionId: >= 2 and <= 5 or 15 }) is { } independentGuardian)
+                else if (mappings.FirstOrDefault(action => action is { KernelSection: 9, Command: 244, ActionId: >= 2 and <= 5 or 1 or 15 }) is { } independentGuardian)
                 {
                     firstBlockerStage = "independent-guardian-item-execution";
                     (status, detail) = RunIndependentGuardianItem(directory, field, assets, effect, independentGuardian);
@@ -275,6 +275,15 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         {
             Assert.All(contacts, contact => Assert.Equal(independentGuardian.Name, contact.Message));
             Assert.All(contacts, contact => Assert.True(contact.Amount > 0));
+            if (independentGuardian.ActionId == 1)
+            {
+                BattleCombatant revived = Assert.Single(battle.Combatants, actor => actor.Id == "party-9");
+                Assert.True(revived.IsAlive);
+                Assert.Equal(Math.Max(1, revived.MaximumHp / 8), revived.CurrentHp);
+                Assert.NotEqual(0, battle.NativeScriptState.SavedBattleFlagsAfter.GetValueOrDefault() & 4);
+                BattleEvent revivedContact = Assert.Single(castEvents, entry => entry.Kind == "PhoenixRevivalContact" && entry.TargetId == revived.Id);
+                Assert.True(Array.IndexOf(castEvents, contacts[^1]) < Array.IndexOf(castEvents, revivedContact));
+            }
         }
         if (random)
         {
@@ -389,7 +398,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         };
     }
 
-    internal static GameWorld StartBattle(string directory, GameState field, ushort formation, BattleActionDefinition? action = null, bool requireExpanded = true, BattleNativeAction? limit = null, BattleNativeAction? equipped = null, byte nativeSeed = 0, Action<GameSession>? captureSession = null)
+    internal static GameWorld StartBattle(string directory, GameState field, ushort formation, BattleActionDefinition? action = null, bool requireExpanded = true, BattleNativeAction? limit = null, BattleNativeAction? equipped = null, byte nativeSeed = 0, Action<GameSession>? captureSession = null, bool prepareHigherBand = false)
     {
         GameSession session = new(field);
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
@@ -399,6 +408,10 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
             world.EnsureField();
             world.Apply(new(PlayerActionKind.Wait, Frames: 4));
             NativeCharacterVitals vitals = (session.State.CharacterVitals! with { CombatParty = [0, 1, 2] }).WithGuestBattleRecords().Rest();
+            if (prepareHigherBand)
+            {
+                vitals = PrepareHigherBandParty(directory, vitals);
+            }
             NativeCharacterVital[] records = vitals.Records.Select(record => record with
             {
                 MemberFlags = (ushort)(record.MemberFlags | 1),
@@ -426,7 +439,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
             }
             if (action is not null)
             {
-                if (action.NativeAction?.AttackType is 5 or 6)
+                if (action.NativeAction?.AttackType is 5 or 6 || action is { Ability: BattleAbility.Item, NativeAction: { AttackType: 14, ActionId: 31 } })
                 {
                     records[9] = records[9] with { HitPoints = new(0, 0), Status = 1 };
                 }

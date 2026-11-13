@@ -12,13 +12,13 @@ public sealed partial class BattleSession
     private static bool SupportsExpandedLimit(BattleNativeAction action)
     {
         // Commands that require another invocation process never enter this route.
-        return action.KernelSection is 18 or 19 && action.HitCount == 1 && action.TargetFlags is byte flags && (flags & 0xB3) is 0 or 0x10 &&
-            action.AttackType is 1 or 2 or 8 or 26 && (action.Statuses1 & 0x10000) == 0;
+        return action.KernelSection is 18 or 19 && action.HitCount > 0 && action.TargetFlags is byte flags && (flags & 0xB3) is 0 or 0x10 &&
+            (action.AttackType == 1 || action.HitCount == 1 && action.AttackType is 2 or 8 or 25 or 26) && (action.Statuses1 & 0x10000) == 0;
     }
 
     private bool CanPresentExpandedLimit(BattleNativeAction action, int recipients)
     {
-        return recipients == 1 && definition.NativeEffectCatalog.Any(binding => binding.Effect == action.MagicId && binding.Entry == NativeBattleLaserEye71Profile.Entry);
+        return action.HitCount == 1 && recipients == 1 && definition.NativeEffectCatalog.Any(binding => binding.Effect == action.MagicId && binding.Entry == NativeBattleLaserEye71Profile.Entry);
     }
 
     private static BattleActionDefinition ExpandedLimitDefinition(BattleCombatant actor, BattleNativeAction native)

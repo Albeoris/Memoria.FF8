@@ -7,6 +7,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed partial class ExpandedBattleEffectMatrixTests
 {
     [Theory]
+    [InlineData(1)]
     [InlineData(2)]
     [InlineData(3)]
     [InlineData(4)]

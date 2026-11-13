@@ -105,6 +105,7 @@ public sealed record BattleVitalAppearance(bool NameKnockedOut, bool HitPointsKn
 public sealed partial class BattleSession
 {
     private NativeBattlePartyPresentation? nativePartyPresentation;
+    private int? expandedRecoverSourceHp;
 
     private int ReadNativeRecoverSourceHp(BattleCombatant actor)
     {
@@ -118,7 +119,7 @@ public sealed partial class BattleSession
             return RequireNativePartyPresentedRow(actor.EncodeNativeSlot()).HitPoints;
         }
         //TODO(TD-009): Declared graphicsless components retain their existing HP projection.
-        return actor.CurrentHp;
+        return expandedRecoverSourceHp ?? actor.CurrentHp;
     }
 
     public BattlePresentedVital ReadPresentedVital(string actorId, int? guardianForceId = null)

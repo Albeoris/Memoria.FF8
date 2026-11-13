@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace Memoria.FF8.Runtime;
 
 public sealed record BattleIndependentGuardianInvocation(BattleNativeAction? Action, byte Level, int? FailureMessage);
@@ -15,13 +17,11 @@ public sealed partial class BattleSession
         {
             return false;
         }
-        // The only shared child contracts currently available are the direct GF damage formula and HP-minus-one.
-        // Phoenix has its own follow-up revival and saved battle flag.
         if (item.ActionId == 30)
         {
             return Enumerable.Range(0, 4).All(variant => HasChild(variant + 2, 11));
         }
-        return HasChild(item.MagicId, 28);
+        return HasChild(item.MagicId, item.ActionId == 31 ? (byte)11 : (byte)28);
 
         bool HasChild(int id, byte attackType)
         {
@@ -66,6 +66,10 @@ public sealed partial class BattleSession
             if (item.ActionId == 31)
             {
                 _ = RequireCompleteNativeSavedBattleFlags();
+                if (UsesExpandedRoster && definition.NativeFieldBattleRules is null)
+                {
+                    throw new NotSupportedException("Phoenix Pinion requires the current field battle prohibition byte.");
+                }
             }
         }
     }
@@ -119,7 +123,7 @@ public sealed partial class BattleSession
         {
             effect = FindInstalledNativeAction(244, item.MagicId);
             level = IndependentGuardianLevel();
-            if (item.ActionId == 31)
+            if (item.ActionId == 31 && !UsesExpandedRoster)
             {
                 SetNativeSavedBattleFlag(4);
             }
@@ -179,6 +183,28 @@ public sealed partial class BattleSession
         finally
         {
             nativeProductionContext = previous;
+        }
+    }
+
+    private (BattleActionPresentation Command, ImmutableArray<ExpandedBattleContact> Contacts) ResolveExpandedPhoenixRevival(BattleCombatant actor, BattleActionPresentation source)
+    {
+        // 484050 selects every allocated party row with the KO modifier before command 0/8 runs.
+        BattleNativeAction revival = NativePhoenixRevivalAction() with { Name = source.NativeAction!.Name };
+        BattleActionDefinition action = new(BattleAbility.Item, source.ActionId, revival.Name ?? "Rebirth Flame", BattleActionEffect.Native, 0, true) { NativeAction = revival };
+        BattleActionPresentation command = source with { NativeQueuedCommand = 0, NativeAction = revival };
+        BattleCombatant[] recipients = allies.Where(ally => ally.IsActive && !ally.Untargetable).ToArray();
+        NativeBattleActionScratch previousScratch = nativeActionScratch;
+        resolvingNativeAction = command;
+        nativeActionScratch = nativeActionScratch with { Command = 0, Action = revival.ActionId };
+        try
+        {
+            (var contacts, _) = ResolveExpandedHitPlan(actor, command, action, revival, [recipients], presentsNativeEffect: false);
+            return (command, contacts);
+        }
+        finally
+        {
+            resolvingNativeAction = source;
+            nativeActionScratch = nativeActionScratch with { Command = previousScratch.Command, Action = previousScratch.Action };
         }
     }
 

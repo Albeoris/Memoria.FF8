@@ -237,11 +237,18 @@ public sealed partial class BattleSession
         ImmutableArray<ExpandedBattleContact> contacts;
         ImmutableArray<ExpandedBattleContact> reflectedContacts = [];
         BattleActionPresentation? reflectedCommand = null;
+        (BattleActionPresentation Command, ImmutableArray<ExpandedBattleContact> Contacts)? phoenixRevival = null;
+        bool phoenixPinion = command is { Ability: BattleAbility.Item, ActionId: 31, IndependentGuardian.Action: not null };
         resolvingNativeAction = resolved;
+        expandedRecoverSourceHp = native.AttackType == 25 ? actor.CurrentHp : null;
         BeginNativeReactionBatch();
         nativeActionCommitDepth++;
         try
         {
+            if (phoenixPinion)
+            {
+                SetNativeSavedBattleFlag(4);
+            }
             BattleCombatant? reflector;
             (contacts, reflector) = ResolveExpandedHitPlan(actor, resolved, action, native, hitPlan, presentsNativeEffect);
             if (reflector is not null && reflected is not null)
@@ -274,11 +281,16 @@ public sealed partial class BattleSession
                 nativeAffinityAction = native;
                 CompleteGuardianForceAffinity(actor, resolved);
             }
+            if (phoenixPinion)
+            {
+                phoenixRevival = ResolveExpandedPhoenixRevival(actor, resolved);
+            }
             CompleteNativeActionStatuses(actor);
         }
         finally
         {
             nativeActionCommitDepth--;
+            expandedRecoverSourceHp = null;
             resolvingNativeAction = null;
         }
         FlushExpandedEnemyReactions();
@@ -294,6 +306,10 @@ public sealed partial class BattleSession
             if (reflectedCommand is not null)
             {
                 PublishExpandedImpacts(reflectedCommand, reflectedContacts);
+            }
+            if (phoenixRevival is { } revival)
+            {
+                PublishExpandedImpacts(revival.Command, revival.Contacts, "PhoenixRevivalContact");
             }
             CompleteActionPresentation(command, "Action completed.");
             return;
@@ -376,11 +392,11 @@ public sealed partial class BattleSession
         }
     }
 
-    private void PublishExpandedImpacts(BattleActionPresentation command, ImmutableArray<ExpandedBattleContact> contacts)
+    private void PublishExpandedImpacts(BattleActionPresentation command, ImmutableArray<ExpandedBattleContact> contacts, string contactKind = "EffectContact")
     {
         foreach (ExpandedBattleContact contact in contacts)
         {
-            PublishExpandedImpact(command, contact.RecipientId, contact.Contact, "EffectContact");
+            PublishExpandedImpact(command, contact.RecipientId, contact.Contact, contactKind);
             if (contact.Packet.Secondary.ActorIndex == 0)
             {
                 PublishExpandedImpact(command, command.ActorId, contact.Packet.Secondary, "SecondaryEffectContact");
