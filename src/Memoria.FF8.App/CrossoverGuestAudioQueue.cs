@@ -24,7 +24,7 @@ internal sealed record CrossoverGuestAudioState(NativeGlobalSoundProcess Process
         for (int index = 0; index < Pending.Length; index++)
         {
             CrossoverGuestAudioReceipt receipt = Pending[index];
-            if (receipt.EncounterId != encounter || receipt.Ordinal != AcknowledgedOrdinal + index + 1 || receipt.HostTick < 0 || receipt.HostTick > hostTick || !Enum.IsDefined(receipt.Kind) || receipt.Sound.Pan is null)
+            if (receipt.EncounterId != encounter || receipt.Ordinal != AcknowledgedOrdinal + index + 1 || receipt.HostTick < 0 || receipt.HostTick > hostTick || !Enum.IsDefined(receipt.Kind) || receipt.Sound.Pan is null && receipt.Sound.RawPan is null)
             {
                 throw new InvalidDataException("The guest sound queue contains an unbound native event.");
             }

@@ -57,7 +57,7 @@ public static class NativeBattleForeignPlacement
         if (!sameScale)
         {
             NativeBattlePosedActor pose = actor.Pose ?? throw new NotSupportedException("Temporary actor scaling requires its actual posed root pivot.");
-            NativeBattleVector pivot = pose.ReadLocalBone(240, 0);
+            NativeBattleVector pivot = !pose.Endpoints.IsDefaultOrEmpty ? pose.Endpoints[0] : throw new NotSupportedException("Temporary actor scaling requires its actual root-zero joint point.");
             (int beforeX, _, int beforeZ) = NativeBattleGfMatrices.Rotate56C3D0(current, pivot);
             current = NativeBattlePoseMatrices.Scale56BEF0(current, Relative(currentScale.X, originalScale.X), Relative(currentScale.Y, originalScale.Y), Relative(currentScale.Z, originalScale.Z));
             (int afterX, _, int afterZ) = NativeBattleGfMatrices.Rotate56C3D0(current, pivot);

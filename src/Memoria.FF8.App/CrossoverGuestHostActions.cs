@@ -459,7 +459,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
     private static short Word(float value) => checked((short)NativePrecision53.RoundInteger(value));
     private void QueueSound(long hostTick, CrossoverGuestAudioKind kind, NativeBattleModuleSound sound, Matrix4x4 originToHost)
     {
-        if (sound.Pan is null)
+        if (sound.Pan is null && sound.RawPan is null)
         {
             NativeBattleModuleAnchor anchor = sound.Anchor ?? throw new InvalidDataException("The guest sound has neither an explicit pan nor a native position.");
             sound = sound with { Pan = CrossoverNativeSpriteRenderer.Camera(host.CameraOutput, originToHost).ReadPan(new(anchor.X, anchor.Y, anchor.Z)) };

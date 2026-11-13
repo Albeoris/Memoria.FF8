@@ -20,6 +20,7 @@ public sealed class CrossoverParticipantResourceHostTests(ITestOutputHelper outp
     [InlineData("Ray-Bomb", (byte)3, (byte)4)]
     [InlineData("Ultra Waves", (byte)3, (byte)4)]
     [InlineData("No Mercy", (byte)6, (byte)4)]
+    [InlineData("Eden", (byte)0, (byte)0)]
     public void Original_participant_resources_survive_full_host_queue_and_next_ordinary_action(string name, byte character, byte crisis)
     {
         Run(name, character, crisis);
@@ -43,11 +44,19 @@ public sealed class CrossoverParticipantResourceHostTests(ITestOutputHelper outp
         origin = origin with { MagicSystem = origin.MagicSystem with { SharedMagicStock = true } };
         BattleNativeAction fire = Assert.Single(assets.NativeActions, action => action.Command == 2 && action.Name == "Fire");
         origin = origin.ChangeMagicStock(row, fire.ActionId, 4, MagicOperationReason.ScriptReward, out _);
+        if (crisis == 0)
+        {
+            BattleActionDefinition guardian = Assert.Single(assets.ActionDefinitions, action => action.Ability == BattleAbility.GuardianForce && (action.DisplayName ?? action.Name) == name);
+            int guardianCommand = origin.MenuDefinitions.CommandAbilityCommands.IndexOf((byte)3) + 20;
+            origin.Records[row] = origin.Records[row] with { Junction = origin.Records[row].Junction with { Commands = (uint)(magicCommand | guardianCommand << 8), GuardianForces = checked((ushort)(1 << guardian.Id)) } };
+            NativeGuardianForceVital acquired = origin.GuardianForces[guardian.Id] with { Flags = (byte)(origin.GuardianForces[guardian.Id].Flags | 1) };
+            origin.GuardianForces[guardian.Id] = acquired with { HitPoints = origin.Definitions.GuardianForceMaximum(guardian.Id, acquired) };
+        }
         CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.Read(origin, assets, character);
         GameplaySaveLimitProgress learned = GameplaySaveLimitProgress.Capture(game.ReadNewGameLimitProgress()) with { BlueMagicFlags = ushort.MaxValue };
         CrossoverGuestAbility ability = Assert.Single(CrossoverGuestAbilityCatalog.Read(assets, origin, kit, learned, crisis), choice => choice.Name == name);
         BattleNativeAction action = ability.NativeAction!;
-        Assert.Equal(character == 3 ? (byte)15 : kit.Limit.Command, action.Command);
+        Assert.Equal(crisis == 0 ? (byte)254 : character == 3 ? (byte)15 : kit.Limit.Command, action.Command);
         if (character == 3)
         {
             Assert.Equal(crisis, action.CrisisLevel);
@@ -116,6 +125,10 @@ public sealed class CrossoverParticipantResourceHostTests(ITestOutputHelper outp
         int contacts = 0;
         int visuals = 0;
         bool capturedArena = false;
+        bool scaledForeignActor = false;
+        int scaledCallbacks = 0;
+        int scaledIndex = -1;
+        NativeBattleEffectPresentation? lastEffect = null;
         NativeBattleGraphicsModel? restored = null;
         for (int tick = 0; tick < 10000; tick++)
         {
@@ -130,6 +143,22 @@ public sealed class CrossoverParticipantResourceHostTests(ITestOutputHelper outp
                 restored = active.Presentation.Cast.Model;
                 Assert.Null(active.StockAction);
                 Assert.Null(active.ItemCost);
+                if (crisis == 0 && active.Presentation.Effect is { } effect)
+                {
+                    lastEffect = effect;
+                    scaledIndex = active.Presentation.BoundTargets.First(target => target.HostSlot == 4).Contact.ActorIndex;
+                    NativeBattleGraphicsModel target = effect.Graphics.Models[scaledIndex];
+                    NativeBattleForeignActor originalActor = ReadHostCapabilities() with { Index = scaledIndex };
+                    NativeBattleModelTransform currentTransform = target.Transform!;
+                    if (currentTransform.Scale148 != originalActor.Transform.Scale148 || currentTransform.Scale154 != originalActor.Transform.Scale154)
+                    {
+                        NativeBattleGraphicsModel unscaled = target with { Transform = currentTransform with { Scale148 = originalActor.Transform.Scale148, Scale154 = originalActor.Transform.Scale154 } };
+                        NativeBattleActionMatrix baselinePlacement = NativeBattleForeignPlacement.Delta(originalActor, unscaled);
+                        Assert.False(effect.ForeignPlacement(scaledIndex).Rotation.SequenceEqual(baselinePlacement.Rotation), "The actual host placement must consume the native animation scale fields.");
+                        scaledForeignActor = true;
+                        scaledCallbacks++;
+                    }
+                }
                 if (name == "Ultra Waves" && active.Presentation.Ordering is { } ordering)
                 {
                     foreach (NativeBattleArenaCaptureMaterial capture in ordering.Packets.Select(packet => packet.PilotGeometry?.ForeignSurface?.Material).OfType<NativeBattleArenaCaptureMaterial>())
@@ -166,6 +195,14 @@ public sealed class CrossoverParticipantResourceHostTests(ITestOutputHelper outp
         Assert.Equal(restored.OriginalResourceRow104, restored.ActiveResourceRow100);
         Assert.NotNull(restored.ActiveResourceRow100);
         Assert.NotNull(restored.BodyTextureSlots);
+        if (crisis == 0)
+        {
+            Assert.True(scaledForeignActor && scaledCallbacks > 1, "The original action must retain the changing native scale across host callbacks.");
+            Assert.NotNull(lastEffect);
+            NativeBattleActionMatrix finalPlacement = lastEffect.ForeignPlacement(scaledIndex);
+            Assert.Equal(NativeBattleForeignModelGeometry.Identity.Rotation.ToArray(), finalPlacement.Rotation.ToArray());
+            Assert.Equal((0, 0, 0), (finalPlacement.X, finalPlacement.Y, finalPlacement.Z));
+        }
         Assert.Equal(stock, JsonSerializer.Serialize(provider.WorkingStock.MagicSystem));
         for (int index = 0; index < inventories.Length; index++)
         {

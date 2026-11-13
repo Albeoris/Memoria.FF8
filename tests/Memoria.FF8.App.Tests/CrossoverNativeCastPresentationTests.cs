@@ -97,7 +97,7 @@ public sealed class CrossoverNativeCastPresentationTests(ITestOutputHelper outpu
                 Assert.True(castingGround && observedEffect && rejectedLiveCapture);
                 if (ability == 1)
                 {
-                    Assert.Equal(115, callback);
+                    Assert.Equal(117, callback);
                 }
                 if (ability == 4)
                 {
