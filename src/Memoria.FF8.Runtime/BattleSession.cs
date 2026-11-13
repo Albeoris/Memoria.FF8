@@ -1590,6 +1590,13 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Saved expanded Limit lacks its installed command or logical recipients.");
         }
+        if (UsesExpandedRoster && ability == BattleAbility.NativeCommand && (nativeAction is null || !actor.IsPlayer || !SupportsExpandedOrdinaryCommand(nativeAction) ||
+            !actor.NativeCommands.Any(binding => binding.Command == nativeAction.Command && NativeBindingActionId(binding) == nativeAction.ActionId) ||
+            nativeQueuedCommand != nativeAction.Command || actionId != (nativeAction.Command << 16 | nativeAction.ActionId) || nativeTargetMask != 0 || factualHeader ||
+            !allowDefeatedTarget && ExpandedActionTargets(actor, targetId, ability, actionId, null, nativeAction).Length == 0))
+        {
+            throw new InvalidDataException("Saved expanded equipped command lacks its installed binding or logical recipients.");
+        }
         bool formEntry = ability == BattleAbility.GuardianForce && actorId == targetId && GetGuardianForm(actorId) is { Phase: BattleGuardianFormPhase.Charging };
         bool validTargetSide = native || formEntry || ability == BattleAbility.Attack || (ability == BattleAbility.Draw ? actor.IsPlayer != target.IsPlayer : CanSelectEitherTargetSide(FindAction(ability, actionId)) || (actor.IsPlayer == target.IsPlayer) == FindAction(ability, actionId).Allies);
         bool unique = busy.Add(actorId);

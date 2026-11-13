@@ -95,6 +95,11 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                         firstBlockerStage = "limit-admission";
                     }
                 }
+                else if (mappings.FirstOrDefault(action => action.KernelSection == 10 && action.Command is 23 or 24 or 25 or 26 or 27 or 32) is { } equipped)
+                {
+                    firstBlockerStage = "command-execution";
+                    (status, detail) = RunEquippedCommand(directory, field, effect, equipped);
+                }
                 else if (enemyReaction is { } reaction && (reaction.Status is "native" || scripts.All(script => script.Callback == 2)))
                 {
                     (status, detail, firstBlockerStage) = reaction;
@@ -374,7 +379,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         };
     }
 
-    private static GameWorld StartBattle(string directory, GameState field, ushort formation, BattleActionDefinition? action = null, bool requireExpanded = true, BattleNativeAction? limit = null)
+    private static GameWorld StartBattle(string directory, GameState field, ushort formation, BattleActionDefinition? action = null, bool requireExpanded = true, BattleNativeAction? limit = null, BattleNativeAction? equipped = null)
     {
         GameSession session = new(field);
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
@@ -399,6 +404,15 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                     records[knockedOut] = records[knockedOut] with { HitPoints = new(0, 0), Status = 1 };
                 }
                 session.SetLimitProgress(session.State.LimitProgress! with { BlueMagicFlags = ushort.MaxValue });
+            }
+            if (equipped is not null)
+            {
+                uint commandAbility = checked((uint)(20 + vitals.MenuDefinitions.CommandAbilityCommands.IndexOf(equipped.Command)));
+                records[10] = records[10] with { Junction = records[10].Junction with { Commands = commandAbility } };
+                if (equipped.AttackType is 5 or 6)
+                {
+                    records[9] = records[9] with { HitPoints = new(0, 0), Status = 1 };
+                }
             }
             if (action is not null)
             {

@@ -9,7 +9,7 @@ public sealed partial class BattleSession
 
     public void QueueAction(string actorId, string targetId, BattleAbility ability, int actionId, bool drawCast = false, IReadOnlyList<string>? magicTargets = null, string? drawCastTargetId = null)
     {
-        if (UsesExpandedRoster && (ability is not (BattleAbility.Attack or BattleAbility.Magic or BattleAbility.Item or BattleAbility.Draw or BattleAbility.GuardianForce or BattleAbility.LimitBreak) || magicTargets is { Count: > 1 }))
+        if (UsesExpandedRoster && (ability is not (BattleAbility.Attack or BattleAbility.Magic or BattleAbility.Item or BattleAbility.Draw or BattleAbility.GuardianForce or BattleAbility.NativeCommand or BattleAbility.LimitBreak) || magicTargets is { Count: > 1 }))
         {
             throw new NotSupportedException("This command requires a battle process outside the expanded host.");
         }

@@ -181,7 +181,7 @@ public sealed partial class BattleSession
             command = command with { TargetId = recipient.Id };
         }
         bool randomTarget = command.AiRecipients?.RandomSide is not null ||
-            (drawSpell is not null || command.Ability is BattleAbility.Magic or BattleAbility.Item or BattleAbility.EnemyAbility) && (native.TargetFlags.GetValueOrDefault() & 2) != 0;
+            (drawSpell is not null || command.Ability is BattleAbility.Magic or BattleAbility.Item or BattleAbility.NativeCommand or BattleAbility.EnemyAbility) && (native.TargetFlags.GetValueOrDefault() & 2) != 0;
         BattleCombatant[][] hitPlan = PlanExpandedHits(recipients, native.HitCount, randomTarget);
         bool hasReflector = hitPlan.Any(targets => targets.Any(recipient => NativeActionReflects(recipient, native)));
         bool spellPresentation = command.Ability == BattleAbility.Magic || drawSpell is not null;
@@ -374,6 +374,7 @@ public sealed partial class BattleSession
         {
             BattleAbility.Attack => new(BattleAbility.Attack, 0, actor.NativeAttack!.Name ?? "Attack", BattleActionEffect.Native, actor.NativeAttack.Power, false) { NativeAction = actor.NativeAttack },
             BattleAbility.EnemyAbility when command.AiRecipients is not null => new(BattleAbility.EnemyAbility, command.ActionId, command.NativeAction!.Name ?? $"Enemy ability {command.ActionId}", BattleActionEffect.Native, command.NativeAction.Power, false) { NativeAction = command.NativeAction },
+            BattleAbility.NativeCommand when command.NativeAction is { } ordinary => ExpandedOrdinaryCommandDefinition(ordinary),
             BattleAbility.LimitBreak when command.NativeAction is { } limit => ExpandedLimitDefinition(actor, limit),
             _ => FindAction(command.Ability, command.ActionId)
         };
@@ -394,7 +395,12 @@ public sealed partial class BattleSession
         {
             return target.IsActive && target.IsAlive && !target.Untargetable ? [target] : [];
         }
-        BattleActionDefinition action = ability == BattleAbility.LimitBreak && native is not null ? ExpandedLimitDefinition(actor, native) : FindAction(ability, actionId);
+        BattleActionDefinition action = ability switch
+        {
+            BattleAbility.LimitBreak when native is not null => ExpandedLimitDefinition(actor, native),
+            BattleAbility.NativeCommand when native is not null => ExpandedOrdinaryCommandDefinition(native),
+            _ => FindAction(ability, actionId)
+        };
         if (ability == BattleAbility.GuardianForce)
         {
             return ExpandedGuardianForceTargetGroup(action);

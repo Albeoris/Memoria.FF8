@@ -211,7 +211,8 @@ public sealed partial class BattleHudController
         IEnumerable<BattleCommandPresentation> choices = BattleCommandPresentation.Read(actor);
         if (session.UsesExpandedRoster)
         {
-            choices = choices.Where(choice => choice.Ability is BattleAbility.Attack or BattleAbility.Magic or BattleAbility.Item or BattleAbility.Draw or BattleAbility.GuardianForce);
+            choices = choices.Where(choice => choice.Ability is BattleAbility.Attack or BattleAbility.Magic or BattleAbility.Item or BattleAbility.Draw or BattleAbility.GuardianForce ||
+                choice.Ability == BattleAbility.NativeCommand && session.GetNativePlayerActionChoices(actor.Id, limits: false, command: choice.Command).Count > 0);
         }
         BattleCommandPresentation[] commands = choices.Select(choice => choice.Ability == BattleAbility.LimitBreak ? LimitCommand(actor) : choice).ToArray();
         if (nativeLimitCommandSelected && NativeLimitAvailable && commands.Length > 0)

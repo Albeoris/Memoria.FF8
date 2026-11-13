@@ -30,13 +30,13 @@ public sealed partial class BattleSession
         return CreateNativePlayerActionChoice(BattleAbility.LimitBreak, native, native.TargetFlags!.Value, native.Name);
     }
 
-    private void QueueExpandedLimit(BattleCombatant actor, BattleCombatant target, BattleNativeAction native, byte sequence)
+    private void QueueExpandedPlayerAction(BattleCombatant actor, BattleCombatant target, BattleActionDefinition action, byte sequence)
     {
-        BattleActionDefinition action = ExpandedLimitDefinition(actor, native);
+        BattleNativeAction native = action.NativeAction!;
         ValidateNativeActionContract(native);
         if (!IsValidSelectedActionTarget(actor, action, target))
         {
-            throw new InvalidOperationException("The Limit requires a valid target for its installed targeting mode.");
+            throw new InvalidOperationException("The command requires a valid target for its installed targeting mode.");
         }
         byte nativeSequence = NativeBattleActionGraphics.ResolvePlayerSequence(native.Command, sequence, native.ActionId, definition.NativeCommandSequences);
         OnNativePlayerCommandSubmitted(actor, native.Command);

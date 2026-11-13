@@ -302,6 +302,78 @@ public sealed class NativeOrdinaryCommandTests
         Assert.Equal((ushort)0, ally.NativeDeathCount);
     }
 
+    [Theory]
+    [InlineData(23, "actor", 1000, 0)]
+    [InlineData(24, "actor", 1000, 0)]
+    [InlineData(25, "ally-3", 500, 0x7E)]
+    [InlineData(26, "ally-3", 100, 0)]
+    [InlineData(27, "ally-3", 0, 1)]
+    [InlineData(30, "enemy-5", 1000, 0)]
+    [InlineData(32, "enemy-5", 1000, 0)]
+    public void ExpandedEquippedCommandsPreserveEffectsAndTheirLogicalRecipients(byte command, string targetId, int allyHp, ushort allyStatus)
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleDefinition original = Create(game, assets, command, allyHp, allyStatus).ReadDefinition();
+        BattleCombatantDefinition caster = original.Combatants[0] with { CurrentHp = command == 32 ? 500 : 1000, NativeCommands = [.. original.Combatants[0].NativeCommands, assets.ReadNativeCommand(29)] };
+        BattleCombatantDefinition ally = original.Combatants[1] with { Id = "ally-3", ModelId = 3 };
+        BattleCombatantDefinition enemy = original.Combatants[2];
+        BattleCombatantDefinition[] enemies = Enumerable.Range(0, 6).Select(index => enemy with { Id = $"enemy-{index}" }).ToArray();
+        BattleSession battle = new(original with
+        {
+            UsesExpandedRoster = true,
+            Combatants = [caster, ally with { Id = "ally-1", ModelId = 1, CurrentHp = 1000, NativeStatus0 = 0 }, ally with { Id = "ally-2", ModelId = 2, CurrentHp = 1000, NativeStatus0 = 0 }, ally, .. enemies]
+        }, BattleAtbMode.Normal);
+
+        BattleActionDefinition action = Assert.Single(battle.GetNativePlayerActionChoices(caster.Id, limits: false));
+        Assert.Equal((command << 16) | assets.ReadNativeCommand(command).ActionId, action.Id);
+        Assert.Empty(battle.GetNativePlayerActionChoices(caster.Id, limits: false, command: 29));
+        Assert.Throws<NotSupportedException>(() => battle.QueueNativePlayerCommand(caster.Id, enemies[^1].Id, 29, assets.ReadNativeCommand(29).ActionId));
+        battle.QueueAction(caster.Id, targetId, BattleAbility.NativeCommand, action.Id);
+        BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
+        Assert.Equal(targetId, queued.TargetId);
+        Assert.Equal((ushort)0, queued.NativeTargetMask);
+        Assert.Equal(command, queued.NativeQueuedCommand);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
+        {
+            battle.Tick();
+            restored.Tick();
+        }
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        Assert.Single(battle.Events, entry => entry.Kind == "ActionComplete");
+        Assert.Contains(battle.Events, entry => entry.Kind == "EffectContact" && entry.TargetId == targetId);
+        BattleCombatant recipient = battle.Combatants.Single(actor => actor.Id == targetId);
+        BattleCombatantSnapshot saved = battle.Capture().Combatants.Single(actor => actor.Id == targetId);
+        switch (command)
+        {
+            case 23:
+                Assert.Equal(0x80000u, saved.NativeStatus!.Battle & 0x80000);
+                break;
+            case 24:
+                Assert.Equal(0x22u, saved.NativeStatus!.Battle & 0x22);
+                Assert.Equal(0x20, saved.NativeStatus.Saved & 0x20);
+                break;
+            case 25:
+                Assert.Equal(500, recipient.CurrentHp);
+                Assert.Equal(0, recipient.PersistentStatus & 0x7F);
+                break;
+            case 26:
+            case 27:
+                Assert.Equal(1000, recipient.CurrentHp);
+                Assert.True(recipient.IsAlive);
+                break;
+            case 30:
+                Assert.Equal(0x400u, saved.NativeStatus!.Battle & 0x400);
+                break;
+            case 32:
+                Assert.True(recipient.CurrentHp < recipient.MaximumHp);
+                Assert.True(battle.Combatants.Single(actor => actor.Id == caster.Id).CurrentHp > 500);
+                Assert.Single(battle.Events, entry => entry.Kind == "SecondaryEffectContact" && entry.TargetId == caster.Id);
+                break;
+        }
+    }
+
     private static void QueueAndHit(BattleSession battle, string target, byte command, ushort id)
     {
         battle.QueueNativePlayerCommand("actor", target, command, id);

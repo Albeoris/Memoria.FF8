@@ -88,6 +88,10 @@ public sealed partial class BattleSession
         {
             return choices.Where(SupportsExpandedLimit).Select(action => ExpandedLimitDefinition(actor, action)).ToArray();
         }
+        if (UsesExpandedRoster)
+        {
+            return choices.Where(SupportsExpandedOrdinaryCommand).Select(ExpandedOrdinaryCommandDefinition).ToArray();
+        }
         return choices.Select(action =>
         {
             byte targetFlags = action.TargetFlags ?? actor.NativeCommands.Single(binding => binding.Command == action.Command).TargetFlags;
@@ -108,6 +112,19 @@ public sealed partial class BattleSession
             NativeAction = action,
             NativeAttackFlags = action.AttackFlags
         };
+    }
+
+    private static bool SupportsExpandedOrdinaryCommand(BattleNativeAction action)
+    {
+        // Section 10 also contains special invocations and a physical action that removes its owner.
+        return action.KernelSection == 10 && action.TargetFlags is byte flags && (flags & 0x30) != 0x30 &&
+            ((flags & 1) == 0 || action.AttackType is 5 or 6) && action.AttackType is 2 or 3 or 4 or 5 or 6 or 25 or 32 &&
+            ExpandedBattleActionRules.SupportsContacts(action);
+    }
+
+    private static BattleActionDefinition ExpandedOrdinaryCommandDefinition(BattleNativeAction native)
+    {
+        return CreateNativePlayerActionChoice(BattleAbility.NativeCommand, native, native.TargetFlags!.Value, native.Name);
     }
 
     public byte RefreshNativeLimit(string actorId)
@@ -159,7 +176,7 @@ public sealed partial class BattleSession
             throw new InvalidOperationException("Native player command requires an active battle and a ready player.");
         }
         bool limit = actor.NativeLimit?.Command == command;
-        if (UsesExpandedRoster && (!limit || !SupportsPlayerLimitSelection(actorId)))
+        if (UsesExpandedRoster && limit && !SupportsPlayerLimitSelection(actorId))
         {
             throw new NotSupportedException("This command requires a battle process outside the expanded host.");
         }
@@ -179,7 +196,13 @@ public sealed partial class BattleSession
         }
         if (UsesExpandedRoster)
         {
-            QueueExpandedLimit(actor, target, FindNativeCommandAction(actor, command, actionId, crisis), sequence);
+            BattleNativeAction native = FindNativeCommandAction(actor, command, actionId, crisis);
+            if (!limit && !SupportsExpandedOrdinaryCommand(native))
+            {
+                throw new NotSupportedException("The equipped command requires a battle process outside the expanded host.");
+            }
+            BattleActionDefinition expandedAction = limit ? ExpandedLimitDefinition(actor, native) : ExpandedOrdinaryCommandDefinition(native);
+            QueueExpandedPlayerAction(actor, target, expandedAction, sequence);
             return;
         }
         if (target.EncodeNativeSlot() is < 0 or >= 16)
