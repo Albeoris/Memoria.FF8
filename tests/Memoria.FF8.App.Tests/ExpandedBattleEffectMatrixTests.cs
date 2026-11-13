@@ -59,7 +59,9 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                 if (reactions.Length > 0)
                 {
                     firstBlockerStage = "enemy-reaction-execution";
-                    enemyReaction = RunDiscoveredEnemyReaction(directory, field, assets, effect, reactions, probeEnemies);
+                    enemyReaction = probeEnemies && effect.Effect == PetrifyStareEffect
+                        ? RunExpandedPetrifyStare(directory, field, assets, effect, scripts)
+                        : RunDiscoveredEnemyReaction(directory, field, assets, effect, reactions, probeEnemies);
                     if (reactions.Any(IsOilboyleCounter))
                     {
                         Assert.True(enemyReaction.Status is "native" or "logical", enemyReaction.Detail);
@@ -106,7 +108,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                     firstBlockerStage = "enemy-turn-execution";
                     (status, detail) = RunSonicWave(directory, field, effect, sonicWave);
                 }
-                else if (effect.Effect is 141 or 160 or 161 or 259 or 332 or 333)
+                else if (IsExpandedRenzokukenEffect(effect.Effect))
                 {
                     firstBlockerStage = "renzokuken-execution";
                     (status, detail) = RunExpandedRenzokuken(directory, field, game, assets, checked((ushort)effect.Effect));
@@ -158,6 +160,21 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                 else if (enemyReaction is { } reaction && (reaction.Status is "native" || scripts.All(script => script.Callback == 2)))
                 {
                     (status, detail, firstBlockerStage) = reaction;
+                }
+                else if (probeEnemies && effect.Effect == PetrifyStareEffect)
+                {
+                    firstBlockerStage = "enemy-reaction-execution";
+                    (status, detail, firstBlockerStage) = enemyReaction!;
+                }
+                else if (probeEnemies && effect.Effect == 177)
+                {
+                    firstBlockerStage = "enemy-turn-execution";
+                    (status, detail, firstBlockerStage) = RunCactuarTurn(directory, field, effect, scripts);
+                }
+                else if (probeEnemies && effect.Effect is 213 or 257 or 258)
+                {
+                    firstBlockerStage = "enemy-turn-execution";
+                    (status, detail, firstBlockerStage) = RunPreparedEnemyTurn(directory, field, effect, scripts);
                 }
                 else if (scripts.Length > 0)
                 {

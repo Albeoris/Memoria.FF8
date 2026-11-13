@@ -13,7 +13,11 @@ public sealed partial class ExpandedBattleEffectMatrixTests
     [InlineData(259, 6)]
     [InlineData(332, 7)]
     [InlineData(333, 8)]
+    [InlineData(159, 4)]
     [InlineData(161, 6)]
+    [InlineData(334, 6)]
+    [InlineData(336, 7)]
+    [InlineData(341, 7)]
     public void Installed_expanded_Renzokuken_selects_and_completes_its_original_timeline(ushort effect, int contacts)
     {
         string directory = TestResources.GameDirectory;
@@ -24,10 +28,34 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         Assert.Contains($"{contacts} contacts", detail);
     }
 
+    private static bool IsExpandedRenzokukenEffect(int effect) => effect is 141 or 159 or 160 or 161 or 259 or >= 332 and <= 337 or >= 339 and <= 343;
+
     private static (string Status, string Detail) RunExpandedRenzokuken(string directory, GameState field, GameAssets game, BattleAssets assets, ushort? effect, BattleNativeAction? finisher = null)
     {
-        ushort formation = effect == 161 ? (ushort)738 : (ushort)71;
-        int targetModel = effect == 161 ? 131 : 36;
+        string? allocationBlocker = effect switch
+        {
+            335 => "Formation 63 starts model 77 hidden, untargetable and suspended.",
+            337 => "Formation 813 keeps model 117 in a disabled reserve allocation.",
+            339 => "Formation 796 requires the original Adel and Rinoa allocations for its scripted removals.",
+            340 => "Formations 981 and 982 require original allocation operations 29, 58 and 59 for model 126.",
+            342 => "Formation 510 requires the original model 124 and 125 allocations for physical conditions, removal and activation.",
+            343 => "Formation 509 includes a hidden model 123 allocation and requires physical operations 31 and 53 for model 122.",
+            _ => null
+        };
+        if (allocationBlocker is not null)
+        {
+            return ("blocked", allocationBlocker);
+        }
+
+        (int formation, int targetModel) = effect switch
+        {
+            159 => (9, 92),
+            161 => (738, 131),
+            334 => (326, 67),
+            336 => (354, 90),
+            341 => (712, 84),
+            _ => (71, 36)
+        };
         const int invocation = 5 << 16;
         const string casterId = "party-0";
         BattleNativeAction squall = Assert.Single(assets.NativeActions, action => action is { Command: 249, ActionId: 0, CharacterId: 0 });
@@ -41,9 +69,14 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         // The selected result must come from a fresh encounter seed and a real HUD crisis roll.
         for (int seed = 0; seed < 96; seed++)
         {
-            using GameWorld world = StartBattle(directory, field, formation, limit: squall, nativeSeed: (byte)seed, prepareHigherBand: true);
+            using GameWorld world = StartBattle(directory, field, checked((ushort)formation), limit: squall, nativeSeed: (byte)seed, prepareHigherBand: true);
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
             BattleCombatant caster = Assert.Single(battle.Combatants, actor => actor.Id == casterId);
+            if (effect == 334)
+            {
+                // Bahamut fills ATB in its initialization callback. Give Squall the first HUD selection.
+                caster.Atb = BattleSession.AtbMaximum;
+            }
             for (int turn = 0; turn < 24 && (!caster.IsReady || battle.ActiveAction is not null) && battle.Outcome == BattleOutcome.Active; turn++)
             {
                 world.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));

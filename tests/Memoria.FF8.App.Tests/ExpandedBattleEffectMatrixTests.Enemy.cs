@@ -36,7 +36,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         // Retry with independent entry seeds so unrelated AI admissions cannot hide this route by changing the RNG stream.
         byte[] seeds = effect.Effect switch
         {
-            153 or 158 => [0, 5, 9, 12, 16, 23, 37, 51],
+            153 or 158 or 186 => [0, 5, 9, 12, 16, 23, 37, 51],
             _ when effect.Effect == 226 || seededFormation is not null || attackSetup is not null => [0, 5, 9],
             _ => [0]
         };
@@ -45,8 +45,15 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             ushort formation = checked((ushort)routes.Key);
             BattleActionDefinition? fire = verifyActorReference && referenceSetup?.UsesFire == true ? Assert.Single(assets.ActionDefinitions, action => action.Ability == BattleAbility.Magic && action.Id == 1) : null;
             BattleActionDefinition? demi = attackSetup?.UsesDemi == true ? Assert.Single(assets.ActionDefinitions, action => action.Ability == BattleAbility.Magic && action.Id == DemiSpellId) : null;
-            Action<NativeCharacterVital[]>? prepareParty = demi is not null ? PrepareDemiStock : effect.Effect == 238 ? PrepareThreeLivingParty : null;
-            using GameWorld world = StartBattle(directory, field, formation, fire ?? demi, requireExpanded: false, nativeSeed: seed, prepareHigherBand: higherBandFormation.HasValue || attackSetup?.Band == HigherEnemyBand, prepareParty: prepareParty);
+            Action<NativeCharacterVital[]>? prepareParty = effect.Effect switch
+            {
+                186 => PrepareBlasterParty,
+                238 => PrepareThreeLivingParty,
+                _ when demi is not null => PrepareDemiStock,
+                _ => null
+            };
+            Func<NativeCharacterVitals, NativeCharacterVitals>? prepareVitals = effect.Effect == 186 ? vitals => PrepareHigherBandParty(directory, vitals, BlasterPartyLevel) : null;
+            using GameWorld world = StartBattle(directory, field, formation, fire ?? demi, requireExpanded: false, nativeSeed: seed, prepareHigherBand: prepareVitals is null && (higherBandFormation.HasValue || attackSetup?.Band == HigherEnemyBand), prepareParty: prepareParty, prepareVitals: prepareVitals);
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
             if (!battle.UsesExpandedRoster)
             {

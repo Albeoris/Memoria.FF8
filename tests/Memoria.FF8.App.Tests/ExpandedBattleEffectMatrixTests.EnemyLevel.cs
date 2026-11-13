@@ -10,6 +10,8 @@ public sealed partial class ExpandedBattleEffectMatrixTests
     private const int HigherEnemyBand = 2;
 
     [Theory]
+    [InlineData(113, 22)]
+    [InlineData(234, 40)]
     [InlineData(134, 227)]
     [InlineData(190, 155)]
     [InlineData(231, 67)]
@@ -29,14 +31,16 @@ public sealed partial class ExpandedBattleEffectMatrixTests
 
     private static int? HigherBandFormation(int effect) => effect switch
     {
+        113 => 22,
         134 => 227,
+        234 => 40,
         190 => 155,
         231 => 67,
         304 => 133,
         _ => null
     };
 
-    private static NativeCharacterVitals PrepareHigherBandParty(string directory, NativeCharacterVitals vitals)
+    private static NativeCharacterVitals PrepareHigherBandParty(string directory, NativeCharacterVitals vitals, int level = HigherBandPartyLevel)
     {
         using GameAssets game = new(directory);
         byte[] rows = Enumerable.Range(0, vitals.Records.Length).Select(row => checked((byte)row)).ToArray();
@@ -47,11 +51,11 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             NativeStatCurve curve = vitals.Definitions.Characters[record.CharacterId];
             int low = 0;
             int high = ushort.MaxValue;
-            Assert.True(NativeStatDefinitions.Level(record.Experience + (uint)high, curve) >= HigherBandPartyLevel);
+            Assert.True(NativeStatDefinitions.Level(record.Experience + (uint)high, curve) >= level);
             while (low < high)
             {
                 int middle = low + (high - low) / 2;
-                if (NativeStatDefinitions.Level(record.Experience + (uint)middle, curve) >= HigherBandPartyLevel)
+                if (NativeStatDefinitions.Level(record.Experience + (uint)middle, curve) >= level)
                 {
                     high = middle;
                 }

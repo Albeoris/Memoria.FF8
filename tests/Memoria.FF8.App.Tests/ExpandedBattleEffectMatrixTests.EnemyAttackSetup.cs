@@ -11,6 +11,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
     [InlineData(29, 368, 0)]
     [InlineData(152, 137, HigherEnemyBand)]
     [InlineData(239, 221, 0)]
+    [InlineData(240, 221, HigherEnemyBand)]
     public void Installed_enemy_turn_follows_genuine_party_attack_setup(int effectId, int formation, int band)
     {
         string directory = TestResources.GameDirectory;
@@ -32,12 +33,14 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         // Formation 137 resolves the original HP curve at the party's level instead of fixing the enemy at level 4.
         152 => new(137, 18, 0, 5, HigherEnemyBand),
         239 => new(221, 45, 5, 0),
+        // Ochu resets its hit counter and chooses its alternate attack in the higher level bands.
+        240 => new(221, 45, 5, 0, HigherEnemyBand),
         _ => HpTurnSetup(effect)
     };
 
     private sealed record EnemyAttackSetup(int Formation, int Model, int RequiredHits, int HpTenths, int Band = 0, bool UsesDemi = false, bool QuarterHp = false);
 
-    private sealed class EnemyAttackPreparation(EnemyAttackSetup setup, BattleCombatant target, int firstEvent, BattleActionDefinition? demi = null)
+    private sealed class EnemyAttackPreparation(EnemyAttackSetup setup, BattleCombatant target, int firstEvent, BattleActionDefinition? magic = null)
     {
         private const int MaximumAttacks = 24;
         private int submitted;
@@ -46,9 +49,9 @@ public sealed partial class ExpandedBattleEffectMatrixTests
 
         public bool HasHit => hits > 0;
         private bool ReachedHpThreshold => setup.QuarterHp ? target.CurrentHp < (target.MaximumHp >> 2) : setup.HpTenths == 0 || target.CurrentHp < setup.HpTenths * (target.MaximumHp / 10);
-        private BattleAbility SetupAbility => demi?.Ability ?? BattleAbility.Attack;
+        private BattleAbility SetupAbility => magic?.Ability ?? BattleAbility.Attack;
         public bool Ready => hits > 0 && hits >= setup.RequiredHits && ReachedHpThreshold;
-        public string Describe() => $"{target.Id}, {hits} damaging hit(s), {target.CurrentHp}/{target.MaximumHp} HP after genuine {demi?.Name ?? "Attack"} setup";
+        public string Describe() => $"{target.Id}, {hits} damaging hit(s), {target.CurrentHp}/{target.MaximumHp} HP after genuine {magic?.Name ?? "Attack"} setup";
 
         public void SubmitIfReady(GameWorld world, BattleSession battle)
         {
@@ -58,9 +61,9 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             {
                 return;
             }
-            if (demi is not null)
+            if (magic is not null)
             {
-                SubmitDemi(world, battle, demi);
+                SubmitMagic(world, battle, magic);
                 return;
             }
             BattleCombatant? attacker = battle.Combatants.Where(actor => actor.IsPlayer && actor.IsReady && actor.Abilities.Contains(BattleAbility.Attack))
@@ -88,7 +91,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             }
         }
 
-        private void SubmitDemi(GameWorld world, BattleSession battle, BattleActionDefinition action)
+        private void SubmitMagic(GameWorld world, BattleSession battle, BattleActionDefinition action)
         {
             BattleCombatant? caster = battle.Combatants.FirstOrDefault(actor => actor.IsPlayer && battle.CanChoosePlayerCommand(actor.Id) && actor.MagicStocks.Any(stock => stock.Id == action.Id && stock.Count > 0));
             if (caster is null || submitted >= 5)

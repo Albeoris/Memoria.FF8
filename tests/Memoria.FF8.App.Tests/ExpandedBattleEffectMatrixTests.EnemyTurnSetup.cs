@@ -37,6 +37,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         153 or 154 => new(37, 17, 0, 5, HigherEnemyBand),
         158 => new(413, 24, 0, 3, HigherEnemyBand, UsesDemi: true),
         170 => new(71, 36, 0, 0, HigherEnemyBand, UsesDemi: true, QuarterHp: true),
+        186 => new(247, 57, 0, 5, BlasterEnemyBand, UsesDemi: true),
         _ => null
     };
 
@@ -63,7 +64,9 @@ public sealed partial class ExpandedBattleEffectMatrixTests
 
     private static int? SeededTurnFormation(int effect) => effect switch
     {
+        68 => 377,
         238 => 117,
+        345 => 247,
         _ => null
     };
 
