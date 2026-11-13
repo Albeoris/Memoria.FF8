@@ -19,6 +19,7 @@ public sealed record Ff7ModelRenderOverrides(Func<int, bool> PartVisible, Func<V
 public sealed record Ff7FieldPointerVisual(PixelImage Image, Vector2 Position, bool FlipHorizontal, bool FlipVertical);
 public sealed record Ff7FieldRenderFrame(int CameraIndex, Vector2 CameraOffsetPixels, IReadOnlyList<Ff7ActorVisual> Actors, IReadOnlyList<ushort> BackgroundParameters, bool MovieActive = false, PcFieldCamera? CameraOverride = null, bool DrawBackgroundDuringMovie = false, IReadOnlyList<ushort[]>? PaletteRows = null, long PaletteVersion = 0)
 {
+    public bool FieldHidden { get; init; }
     public uint? FieldColorArgb { get; init; }
     public uint? QuadColorArgb { get; init; }
     public TriangleBlend QuadBlend { get; init; } = TriangleBlend.Alpha;
@@ -81,7 +82,7 @@ public sealed partial class Ff7FieldRenderer
             throw new InvalidDataException("FF7 field render dimensions, camera or background parameter state is invalid.");
         }
         frame = PrepareViewport(width, height, frame);
-        bool drawBackground = !frame.MovieActive || frame.DrawBackgroundDuringMovie;
+        bool drawBackground = !frame.FieldHidden && (!frame.MovieActive || frame.DrawBackgroundDuringMovie);
         if (drawBackground)
         {
             PrepareBackground(frame);
@@ -89,6 +90,10 @@ public sealed partial class Ff7FieldRenderer
         renderer.Begin(width, height, new Vector4(0, 0, 0, frame.MovieActive ? 0 : 1));
         try
         {
+            if (frame.FieldHidden)
+            {
+                return;
+            }
             if (drawBackground)
             {
                 DrawBackground(renderer, width, height, frame, false);

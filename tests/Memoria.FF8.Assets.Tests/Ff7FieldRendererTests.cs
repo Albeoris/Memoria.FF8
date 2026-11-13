@@ -45,6 +45,15 @@ public sealed class Ff7FieldRendererTests
         renderer.Render(movie, width, height, frame with { MovieActive = true });
         Assert.Equal(new Vector2(width / 2f + scroll * scale, 127 * scale), movie.Positions[0]);
         Assert.Equal(new Vector4(0, height * 8f / 240, width, height * 232f / 240), movie.Clips[0]);
+
+        foreach (bool movieActive in new[] { false, true })
+        {
+            Capture hidden = new();
+            renderer.Render(hidden, width, height, frame with { FieldHidden = true, MovieActive = movieActive, DrawBackgroundDuringMovie = true });
+            Assert.True(hidden.BeginCalled && hidden.EndCalled);
+            Assert.Equal(new Vector4(0, 0, 0, movieActive ? 0 : 1), hidden.ClearColor);
+            Assert.Equal(0, hidden.Count);
+        }
     }
 
     private sealed class ViewportAppearance : IFf7ActorAppearance

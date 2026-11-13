@@ -226,7 +226,7 @@ internal sealed partial class Ff7Scene : IDisposable
             }
             if (Session.HasPendingTick)
             {
-                Session.AdvanceTick(advanceClock: false);
+                AdvanceFieldTick();
                 RememberReportCheckpoint();
                 UpdateAudio();
                 PublishCurrentMovieCameraFrame();
@@ -265,7 +265,7 @@ internal sealed partial class Ff7Scene : IDisposable
                 else
                 {
                     ApplyLogicalInput();
-                    Session.AdvanceTick(advanceClock: false);
+                    AdvanceFieldTick();
                 }
                 if (Session.Battle is { } startedBattle)
                 {
@@ -297,7 +297,8 @@ internal sealed partial class Ff7Scene : IDisposable
         Memoria.FF8.Runtime.PixelBounds fit = Memoria.FF8.Runtime.ViewportLayout.Fit(320, 240, bounds.Width, bounds.Height);
         bounds = new Rectangle(bounds.X + fit.X, bounds.Y + fit.Y, fit.Width, fit.Height);
         Rectangle sceneBounds = bounds;
-        if (Session is not null && error is null)
+        bool bufferingMovie = IsMovieBuffering;
+        if (Session is not null && error is null && !bufferingMovie)
         {
             PixelBounds target = ViewportLayout.FieldRenderTarget(windowBounds.Width, windowBounds.Height, RenderLimit);
             Rectangle renderBounds = new(0, 0, target.Width, target.Height);
@@ -322,11 +323,15 @@ internal sealed partial class Ff7Scene : IDisposable
             }
             else
             {
+                if (bufferingMovie)
+                {
+                    batch.Draw(pixel, windowBounds, Color.Black);
+                }
                 if (Session.World is null && Session.Battle is null)
                 {
                     DrawMovie(batch, bounds);
                 }
-                if ((renderer is not null || Session.World is not null || Session.Battle is not null) && error is null)
+                if (!bufferingMovie && (renderer is not null || Session.World is not null || Session.Battle is not null) && error is null)
                 {
                     PixelBounds fieldFit = ViewportLayout.Fit(triangles.Target.Width, triangles.Target.Height, windowBounds.Width, windowBounds.Height);
                     sceneBounds = new(windowBounds.X + fieldFit.X, windowBounds.Y + fieldFit.Y, fieldFit.Width, fieldFit.Height);
@@ -440,7 +445,7 @@ internal sealed partial class Ff7Scene : IDisposable
         PcFieldCamera? camera = CurrentMovieCamera();
         PcFieldCamera effectCamera = camera ?? session.Field.Cameras[0];
         Ff7ActorVisual[] actors = state.Actors.Select(PresentationActor).Select(actor => new Ff7ActorVisual(actor.Entity, actor.Model, checked(actor.X4096 + actor.OffsetX * 4096), checked(actor.Y4096 + actor.OffsetY * 4096), checked(actor.Z4096 + actor.OffsetZ * 4096), checked((byte)actor.Direction), actor.Animation, actor.AnimationFrame16, actor.Visible) { PartyCharacter = actor.PartyCharacter, AutomaticBlinkDisabled = actor.AutomaticBlinkDisabled, NativeEyeLeft = actor.NativeEyeLeft, NativeEyeRight = actor.NativeEyeRight, ModelEffects = ModelEffects(actor, effectCamera) }).ToArray();
-        Ff7FieldRenderFrame frame = new(0, PresentationCameraOffset(state, camera), actors, state.BackgroundStates, state.Movie is { Playing: true }, camera, state.MovieBackgroundEnabled, state.PaletteRows, state.PaletteVersion) { FieldColorArgb = state.FadeState?.FieldColorArgb, QuadColorArgb = state.FadeState?.QuadColorArgb, QuadBlend = FadeQuadBlend(state.FadeState), PlayerPointer = PlayerPointer() };
+        Ff7FieldRenderFrame frame = new(0, PresentationCameraOffset(state, camera), actors, state.BackgroundStates, state.Movie is { Playing: true }, camera, state.MovieBackgroundEnabled, state.PaletteRows, state.PaletteVersion) { FieldHidden = state.FadeState?.HidesField == true, FieldColorArgb = state.FadeState?.FieldColorArgb, QuadColorArgb = state.FadeState?.QuadColorArgb, QuadBlend = FadeQuadBlend(state.FadeState), PlayerPointer = PlayerPointer() };
         renderer.Render(triangles, Math.Max(1, bounds.Width), Math.Max(1, bounds.Height), frame);
     }
 

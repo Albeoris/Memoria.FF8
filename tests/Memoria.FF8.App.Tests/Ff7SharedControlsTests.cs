@@ -9,6 +9,7 @@ public sealed class Ff7SharedControlsTests
     public void ActiveSceneUsesItsOwnSharedFrameLimitAndMenusKeepTheMenuLimit()
     {
         Ff7Scene scene = (Ff7Scene)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(Ff7Scene));
+        typeof(Ff7Scene).GetField("envelope", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.SetValue(scene, new Memoria.FF7.Runtime.CombinedSessionSave());
         GameUi.UiPreferences preferences = new() { FieldFps = 30, WorldFps = 60, MenuFps = 120 };
         typeof(Ff7Scene).GetField("dialoguePreferences", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.SetValue(scene, (Func<GameUi.UiPreferences>)(() => preferences));
         Assert.Equal(120, scene.PresentationFrameLimit);

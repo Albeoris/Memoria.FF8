@@ -19,8 +19,10 @@ public sealed record Ff7FadeColorOrigin(int Red, int Green, int Blue)
     }
 }
 
-public sealed record Ff7FadeProcess(int Type, int Position, int Speed, int Red, int Green, int Blue, bool UsesFieldColor, uint FieldColorArgb = 0x80FFFFFF, uint? QuadColorArgb = null, Ff7FadeQuadBlend QuadBlend = Ff7FadeQuadBlend.Alpha, bool EntryCurve = false)
+public sealed record Ff7FadeProcess(int Type, int Position, int Speed, int Red, int Green, int Blue, bool UsesFieldColor, uint FieldColorArgb = 0x80FFFFFF, uint? QuadColorArgb = null, Ff7FadeQuadBlend QuadBlend = Ff7FadeQuadBlend.Alpha, bool EntryCurve = false, bool? FieldHidden = null)
 {
+    public bool HidesField => FieldHidden ?? Type == 4;
+
     public bool Completed => Type is 0 or 4 || Type is 1 or 5 or 9 && Position == 0 || Type is 2 or 6 or 10 && Position >= 255 || Type == 12 && Position == Speed;
 
     public void Validate()
@@ -66,7 +68,7 @@ public static class Ff7NativeFade
                 throw new NotSupportedException("FFVII fullscreen fade composition requires its native quad output contract.");
             }
         }
-        Ff7FadeProcess next = new(type, command.Type == 12 ? 0 : command.Type is 1 or 5 or 9 ? command.Adjustment + 1 : command.Type is 2 or 6 or 10 ? command.Adjustment : previous?.Position ?? 0, command.Speed, command.Red, command.Green, command.Blue, fieldColor, previous?.FieldColorArgb ?? 0x80FFFFFF, QuadBlend: command.Type is 5 or 6 or 9 or 10 ? Ff7FadeQuadBlend.Additive : Ff7FadeQuadBlend.Alpha, EntryCurve: previous?.EntryCurve ?? false);
+        Ff7FadeProcess next = new(type, command.Type == 12 ? 0 : command.Type is 1 or 5 or 9 ? command.Adjustment + 1 : command.Type is 2 or 6 or 10 ? command.Adjustment : previous?.Position ?? 0, command.Speed, command.Red, command.Green, command.Blue, fieldColor, previous?.FieldColorArgb ?? 0x80FFFFFF, QuadBlend: command.Type is 5 or 6 or 9 or 10 ? Ff7FadeQuadBlend.Additive : Ff7FadeQuadBlend.Alpha, EntryCurve: previous?.EntryCurve ?? false, FieldHidden: previous?.HidesField ?? false);
         next.Validate();
         return next;
     }
@@ -74,6 +76,7 @@ public static class Ff7NativeFade
     public static Ff7FadeProcess Advance(Ff7FadeProcess process, bool movieActive = false, Ff7FadeColorOrigin? newFadeOrigin = null, IReadOnlyList<byte>? entryAlpha = null)
     {
         process.Validate();
+        process = process with { FieldHidden = process.Type == 4 };
         if (process.Type != 1 && process.EntryCurve)
         {
             process = process with { EntryCurve = false };

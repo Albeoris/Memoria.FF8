@@ -18,6 +18,27 @@ internal sealed partial class Ff7Scene
     private (long Generation, long? Request, int Id)? movieSourceIdentity;
     private readonly MovieSkipGesture movieSkipGesture = new();
     private (long Generation, long? Request)? movieSkipIdentity;
+    private bool movieCompletionPending;
+
+    internal bool IsMovieBuffering => Session?.World is null && Session?.Battle is null && Session?.Host.Process.Movie is { Playing: true } && movie?.HasFrame != true;
+
+    private void AdvanceFieldTick()
+    {
+        CompleteMovieBeforeFieldTick();
+        Session!.AdvanceTick(advanceClock: false);
+    }
+
+    private void CompleteMovieBeforeFieldTick()
+    {
+        if (!movieCompletionPending)
+        {
+            return;
+        }
+        // Native movie completion is consumed before the VM in the same field callback.
+        // Keep the active video surface until that callback can also resume the script.
+        Session!.Host.PublishMovieFrame(movieSource!.NativeFrameCount - 1, true);
+        StopMovie();
+    }
 
     private void UpdateMovieSkip(TimeSpan elapsed)
     {
@@ -28,7 +49,7 @@ internal sealed partial class Ff7Scene
             movieSkipGesture.Reset();
             movieSkipIdentity = identity;
         }
-        if (identity is null || !movieSkipGesture.Update(elapsed, sharedInput.CancelHeld))
+        if (identity is null || movieCompletionPending || !movieSkipGesture.Update(elapsed, sharedInput.CancelHeld))
         {
             return;
         }
@@ -57,9 +78,12 @@ internal sealed partial class Ff7Scene
         }
         if (Session.FieldGeneration == identity.Value.Item1 && Session.Host.Process.Movie is { Playing: true } remaining && remaining.RequestId == state.RequestId)
         {
-            Session.Host.PublishMovieFrame(source.NativeFrameCount - 1, true);
+            movieCompletionPending = true;
         }
-        StopMovie();
+        else
+        {
+            StopMovie();
+        }
         tickRemainder = 0;
         previousActorGeneration = -1;
         UpdateAudio();
@@ -128,6 +152,10 @@ internal sealed partial class Ff7Scene
             MovieInformation native = new(source.Information.Width, source.Information.Height, source.LogicalFramesPerSecond, source.NativeFrameCount / source.LogicalFramesPerSecond, source.NativeFrameCount);
             movie = new MoviePresentation(device, mediaToolsDirectory, source.Path, startSeconds, source.Information, audioEnabled: audioEnabled, nativeInformation: native);
         }
+        if (movieCompletionPending)
+        {
+            return;
+        }
         movie.Update((playback, _) =>
         {
             Session!.Host.PublishMovieFrame(playback.FrameIndex, false);
@@ -140,8 +168,7 @@ internal sealed partial class Ff7Scene
         }
         if (movie.Finished)
         {
-            Session!.Host.PublishMovieFrame(movieSource!.NativeFrameCount - 1, true);
-            StopMovie();
+            movieCompletionPending = true;
         }
     }
 
@@ -209,6 +236,7 @@ internal sealed partial class Ff7Scene
 
     private void StopMovie()
     {
+        movieCompletionPending = false;
         movie?.Dispose();
         movie = null;
         movieSource = null;
