@@ -12,7 +12,7 @@ public sealed partial class BattleHudController
     {
         get
         {
-            if (HasGuardianFormCommands || !SelectingTarget || SelectedCommand != BattleAbility.Attack || SelectedActor is not { } actor || SelectedTarget is not { } target)
+            if (session.UsesExpandedRoster || HasGuardianFormCommands || !SelectingTarget || SelectedCommand != BattleAbility.Attack || SelectedActor is not { } actor || SelectedTarget is not { } target)
             {
                 return null;
             }

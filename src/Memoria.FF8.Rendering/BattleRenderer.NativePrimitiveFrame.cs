@@ -106,11 +106,14 @@ public sealed partial class BattleRenderer
     public byte[] RenderNativePrimitiveFrame(NativeBattlePrimitiveFrame frame, NativeBattleEffectTextureState? textures, BattleCamera? overlayCamera = null, NativeBattlePrimitiveCapabilities? capabilities = null, NativeBattlePcTextureWindowCache? textureWindowCache = null, IReadOnlyList<NativeBattleTextureReplacement>? replacements = null, NativeBattlePcUiFrame? uiFrame = null, Func<int, int, bool, PixelImage>? uiTexture = null, INativeBattleEffectTextureSource? effectTextureSource = null)
         => RenderNativePrimitiveFrame(NativeBattlePreparedPrimitiveFrame.From(frame), textures, overlayCamera, capabilities, textureWindowCache, replacements, uiFrame, uiTexture, effectTextureSource);
 
-    public byte[] RenderNativePrimitiveFrame(NativeBattlePreparedPrimitiveFrame frame, NativeBattleEffectTextureState? textures, BattleCamera? overlayCamera = null, NativeBattlePrimitiveCapabilities? capabilities = null, NativeBattlePcTextureWindowCache? textureWindowCache = null, IReadOnlyList<NativeBattleTextureReplacement>? replacements = null, NativeBattlePcUiFrame? uiFrame = null, Func<int, int, bool, PixelImage>? uiTexture = null, INativeBattleEffectTextureSource? effectTextureSource = null)
+    public byte[] RenderNativePrimitiveFrame(NativeBattlePreparedPrimitiveFrame frame, NativeBattleEffectTextureState? textures, BattleCamera? overlayCamera = null, NativeBattlePrimitiveCapabilities? capabilities = null, NativeBattlePcTextureWindowCache? textureWindowCache = null, IReadOnlyList<NativeBattleTextureReplacement>? replacements = null, NativeBattlePcUiFrame? uiFrame = null, Func<int, int, bool, PixelImage>? uiTexture = null, INativeBattleEffectTextureSource? effectTextureSource = null, bool overlay = false)
     {
         //The executed OT already owns projected XY/depth; a native WAIT can legitimately publish coincident eye and target.
-        sceneProjectionReady = false;
-        actorBounds.Clear();
+        if (!overlay)
+        {
+            sceneProjectionReady = false;
+            actorBounds.Clear();
+        }
         textureDiagnosticRender++;
         if (PilotDiagnosticsEnabled)
         {
@@ -137,7 +140,10 @@ public sealed partial class BattleRenderer
         TriangleRenderer?.Begin(Width, Height, new Vector4(0, 0, 0, 1));
         if (TriangleRenderer is null)
         {
-            Array.Clear(pixels);
+            if (!overlay)
+            {
+                Array.Clear(pixels);
+            }
             Array.Fill(depth, float.PositiveInfinity);
         }
         DrawnTriangles = 0;

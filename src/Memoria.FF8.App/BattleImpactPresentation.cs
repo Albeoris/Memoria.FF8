@@ -4,7 +4,7 @@ namespace Memoria.FF8;
 
 internal readonly record struct BattleImpactCue(BattleEvent Event, int Age)
 {
-    public bool IsHealing => Event.Kind == "Healing";
+    public bool IsHealing => Event.Kind is "Healing" or "EffectHealing";
     public bool IsPhysical => Event.Kind == "Damage" && Event.ActorId is not null && Event.Ability == BattleAbility.Attack;
 }
 
@@ -25,7 +25,9 @@ internal static class BattleImpactPresentation
             {
                 break;
             }
-            if (age >= 0 && item.Amount > 0 && item.TargetId is not null && item.Kind is "Damage" or "Healing")
+            bool nativeSpell = session.UsesExpandedRoster && item.Ability == BattleAbility.Magic;
+            bool hit = nativeSpell ? item.Kind is "EffectDamage" or "EffectHealing" : item.Kind is "Damage" or "Healing";
+            if (age >= 0 && item.Amount > 0 && item.TargetId is not null && hit)
             {
                 result.Add(new BattleImpactCue(item, (int)age));
             }

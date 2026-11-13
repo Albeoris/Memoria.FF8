@@ -1,12 +1,12 @@
 namespace Memoria.FF8.Runtime;
 
-internal enum BattleSide
+public enum BattleSide
 {
     Allies,
     Enemies
 }
 
-internal readonly record struct BattleRosterSlot
+public readonly record struct BattleRosterSlot
 {
     private BattleRosterSlot(BattleSide side, int position)
     {

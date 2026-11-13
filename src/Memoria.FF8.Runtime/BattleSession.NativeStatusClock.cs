@@ -11,7 +11,7 @@ public sealed partial class BattleSession
         }
         ObserveNativeUnknownStackCallback(0x483470, "admitted status clock");
         // The caller already admitted the earlier DEB/UI gates.
-        foreach (BattleCombatant actor in combatants.Where(candidate => candidate.IsActive && candidate.EncodeNativeSlot() is >= 0 and < 7))
+        foreach (BattleCombatant actor in combatants.Where(candidate => candidate.IsActive && (UsesExpandedRoster || HasNativeRosterSlot(candidate))))
         {
             if ((NativeSavedStatusBits(actor) & 5) != 0)
             {

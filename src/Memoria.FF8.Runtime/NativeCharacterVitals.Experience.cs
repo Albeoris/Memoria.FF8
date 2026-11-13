@@ -17,14 +17,14 @@ public sealed record NativeBattleExperienceDefinition(string KernelSha256, Immut
 public sealed partial record NativeCharacterVitals
 {
     /// <summary>Native496CB0/496F30 add their ushort awards; level gains apply equipped bonuses before the ordinary saved-stat rebuild.</summary>
-    public NativeCharacterVitals AwardBattleExperience(IReadOnlyDictionary<byte, ushort> characterAwards, IReadOnlyDictionary<byte, ushort> guardianForceAwards, NativeBattleExperienceDefinition definition)
+    public NativeCharacterVitals AwardBattleExperience(IReadOnlyDictionary<byte, ushort> characterAwards, IReadOnlyDictionary<byte, ushort> guardianForceAwards, NativeBattleExperienceDefinition definition, IReadOnlyList<byte>? battleRows = null)
     {
         Validate();
         ArgumentNullException.ThrowIfNull(characterAwards);
         ArgumentNullException.ThrowIfNull(guardianForceAwards);
         ArgumentNullException.ThrowIfNull(definition);
         definition.Validate();
-        if (!string.Equals(KernelSha256, definition.KernelSha256, StringComparison.OrdinalIgnoreCase) || characterAwards.Keys.Any(row => row >= Records.Length || !CombatParty.Contains(row)) || guardianForceAwards.Keys.Any(id => id >= GuardianForces.Length || (GuardianForces[id].Flags & 1) == 0))
+        if (!string.Equals(KernelSha256, definition.KernelSha256, StringComparison.OrdinalIgnoreCase) || characterAwards.Keys.Any(row => row >= Records.Length || !(battleRows ?? CombatParty).Contains(row)) || guardianForceAwards.Keys.Any(id => id >= GuardianForces.Length || (GuardianForces[id].Flags & 1) == 0))
         {
             throw new InvalidDataException("Experience awards require current canonical recipients and matching kernel resources.");
         }

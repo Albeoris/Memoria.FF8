@@ -66,8 +66,8 @@ public sealed partial class BattleSession
         foreach (BattleCombatant actor in combatants)
         {
             (actor.IsPlayer ? allies : enemies).Add(actor);
-            actor.NativeActionMemoryOwner = nativeActionMemory;
-            actor.NativePresentationStatusOwner = nativePresentationStatusMemory;
+            actor.NativeActionMemoryOwner = UsesExpandedRoster ? null : nativeActionMemory;
+            actor.NativePresentationStatusOwner = UsesExpandedRoster ? null : nativePresentationStatusMemory;
             InitializeNativeAtb(actor);
         }
         Combatants = combatants.AsReadOnly();
@@ -96,11 +96,11 @@ public sealed partial class BattleSession
         foreach (BattleCombatant actor in combatants.ToArray())
         {
             actor.BindRosterSlot(actor.IsPlayer ? BattleRosterSlot.Ally(allySlot++) : actor.IsActive ? BattleRosterSlot.Enemy(enemySlot++) : null);
-            if (initializeNativeAi && actor.IsActive && actor.EncodeNativeSlot() is >= 0 and < 7)
+            if (initializeNativeAi && actor.IsActive && HasNativeRosterSlot(actor) && !UsesExpandedRoster)
             {
                 nativeActionMemory.State = nativeActionMemory.State.InitializeStatistics(actor.EncodeNativeSlot());
             }
-            if (initializeNativeAi)
+            if (initializeNativeAi && !UsesExpandedRoster)
             {
                 PublishNativeElementAttack(actor);
             }
@@ -128,6 +128,8 @@ public sealed partial class BattleSession
         }
         RefreshPreparedPresentation();
     }
+
+    public bool UsesExpandedRoster => definition.UsesExpandedRoster;
 
     public BattleDifficulty Difficulty { get; private set; } = BattleDifficulty.Normal;
     public BattleAtbMode Mode { get; private set; }
@@ -264,7 +266,7 @@ public sealed partial class BattleSession
             throw new ArgumentOutOfRangeException(nameof(maxFrames));
         }
         HashSet<string> waiting = combatants.Where(actor => IsNativeBattleCapable(actor) && !actor.Suspended && (!actor.IsBusy || guardianForceCasts.ContainsKey(actor.Id) && (actor.NativeCombatantFlags & 0x400) == 0) && !actor.IsReady).Select(actor => actor.Id).ToHashSet(StringComparer.Ordinal);
-        if (!CanExplicitlyAdvanceTurn || waiting.Count == 0)
+        if (expandedEffect is not null || !CanExplicitlyAdvanceTurn || waiting.Count == 0)
         {
             return 0;
         }
@@ -296,7 +298,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("Attack requires a ready living actor with Attack and a living target in an active battle.");
         }
-        if (actor.IsPlayer && PhysicalCommand(actor) == 12)
+        if (!UsesExpandedRoster && actor.IsPlayer && PhysicalCommand(actor) == 12)
         {
             QueueNativePlayerCommand(actorId, targetId, 12, 0);
             return;
@@ -345,6 +347,10 @@ public sealed partial class BattleSession
     public BattleSnapshot Capture()
     {
         RequireEncounterDamagePublicationBoundary();
+        if (expandedEffect is not null)
+        {
+            throw new NotSupportedException("Wait until the current expanded battle effect finishes before saving.");
+        }
         return NativeBattleStorageSnapshots.Capture(new BattleSnapshot
         {
             DiagnosticTerminalHold = DiagnosticTerminalHold,
@@ -579,6 +585,11 @@ public sealed partial class BattleSession
                         return;
                     }
                     BattleCombatant actor = byId[command.ActorId];
+                    if (UsesExpandedRoster)
+                    {
+                        StartExpandedAction(actor, command);
+                        return;
+                    }
                     if (command.NativeHeaderIndex is not null)
                     {
                         ValidateCurrentNativeQueuedHeader(command);
@@ -660,6 +671,11 @@ public sealed partial class BattleSession
             return;
         }
         BattleActionPresentation action = ActiveAction;
+        if (UsesExpandedRoster)
+        {
+            AdvanceExpandedAction(action);
+            return;
+        }
         int remaining;
         if (action.Phase == BattleActionPhase.Windup && NativeGraphics is { } graphics)
         {
@@ -734,7 +750,7 @@ public sealed partial class BattleSession
         actor.Atb = 0;
         actor.IsBusy = true;
         BattleAttackCommand command = new(actor.Id, target.Id) { NativeQueuedCommand = 1 };
-        if (actor.IsPlayer)
+        if (actor.IsPlayer && !UsesExpandedRoster)
         {
             EnqueueNativeInputCommand(command);
         }
@@ -930,7 +946,7 @@ public sealed partial class BattleSession
         }
         foreach (BattleCombatant actor in combatants)
         {
-            bool nativeQueued = actor.EncodeNativeSlot() is >= 0 and < 7 && nativeCommandBanks.CountActor(checked((byte)actor.EncodeNativeSlot())) != 0;
+            bool nativeQueued = !UsesExpandedRoster && actor.EncodeNativeSlot() is >= 0 and < 7 && nativeCommandBanks.CountActor(checked((byte)actor.EncodeNativeSlot())) != 0;
             actor.IsBusy = (NativeGraphics is not null || actor.IsAlive || ActiveAction is { } support && IsNativeSupportInvocation(support.NativePlayerReaction) && support.ActorId == actor.Id || actions.Any(command => command.ActorId == actor.Id && IsNativeSupportInvocation(command.NativePlayerReaction))) && (nativeQueued || nativeTimedAction?.Command.ActorId == actor.Id || guardianForceCasts.ContainsKey(actor.Id) || ActiveAction?.ActorId == actor.Id || actions.Any(command => command.NativeCallback is null && command.ActorId == actor.Id));
         }
     }
@@ -1000,6 +1016,10 @@ public sealed partial class BattleSession
             return;
         }
         if (outcome == BattleOutcome.Victory && DeferDiagnosticTerminalOutcome(outcome))
+        {
+            return;
+        }
+        if (UsesExpandedRoster && DebugOutcome is null && ActiveAction is not null)
         {
             return;
         }
@@ -1111,6 +1131,10 @@ public sealed partial class BattleSession
 
     private void ValidateDefinition(BattleDefinition source)
     {
+        if (source.UsesExpandedRoster && (source.NativeGraphics is not null || source.Combatants.Count(actor => actor.IsPlayer) != 4 || source.Combatants.Count(actor => !actor.IsPlayer) != 6 || source.Combatants.Any(actor => !actor.InitialActive || actor.NativeAi is not null) || source.GuardianFormsEnabled))
+        {
+            throw new NotSupportedException("The expanded battle host requires four allies, six enemies and host-owned actions.");
+        }
         source.Tuning.Validate();
         source.MagicVitals?.Validate();
         source.MagicVitals?.ValidateMagicSystemConsistency();
@@ -1286,7 +1310,7 @@ public sealed partial class BattleSession
             }
             actor.MutableGuardianForceCompatibility = saved.GuardianForceCompatibility?.ToArray() ?? actor.MutableGuardianForceCompatibility;
             actor.CurrentHp = saved.CurrentHp;
-            if (snapshot.NativePresentationStatusMemory is not null && actor.EncodeNativeSlot() is >= 0 and < NativeBattlePresentationStatusMemory.PhysicalCount && saved.NativeStatus?.Presentation != actor.NativePresentationStatus)
+            if (!UsesExpandedRoster && snapshot.NativePresentationStatusMemory is not null && HasNativeRosterSlot(actor) && saved.NativeStatus?.Presentation != actor.NativePresentationStatus)
             {
                 throw new InvalidDataException("Native actor B92/B1C projection contradicts its physical presentation-status bank.");
             }

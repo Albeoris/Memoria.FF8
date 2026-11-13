@@ -370,7 +370,7 @@ public sealed partial class BattleSession
                     MarkNativeContactFlags(0, 4);
                 }
                 int divisor = 8;
-                if (native.AttackType == 5 && native.Command is 4 or 13 && actor.EncodeNativeSlot() < 3)
+                if (native.AttackType == 5 && native.Command is 4 or 13 && (UsesExpandedRoster ? actor.IsPlayer : actor.EncodeNativeSlot() < 3))
                 {
                     uint passiveFlags = actor.NativePlayerStatRules?.NativeStatusPassiveFlags ?? throw new NotSupportedException("Native item revival requires the equipped character-ability flags.");
                     divisor = (passiveFlags & 2) != 0 ? 4 : 8;
@@ -486,7 +486,7 @@ public sealed partial class BattleSession
                         return;
                     }
                     damage = native.AttackType == 32 ? -native.Power * recipient.MaximumHp / 16 : native.AttackType == 25 ? -(actor.MaximumHp - ReadNativeRecoverSourceHp(actor)) : -50 * native.Power;
-                    if ((native.AttackFlags & 3) == 2 && actor.EncodeNativeSlot() < 3)
+                    if ((native.AttackFlags & 3) == 2 && (UsesExpandedRoster ? actor.IsPlayer : actor.EncodeNativeSlot() < 3))
                     {
                         uint passiveFlags = actor.NativePlayerStatRules?.NativeStatusPassiveFlags ?? throw new NotSupportedException("Native item healing requires the equipped character-ability flags.");
                         if ((passiveFlags & 2) != 0)

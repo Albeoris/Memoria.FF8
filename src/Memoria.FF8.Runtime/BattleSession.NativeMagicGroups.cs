@@ -47,6 +47,10 @@ public sealed partial class BattleSession
     {
         BattleCombatant actor = GetActor(actorId);
         int available = GetAvailableMagicCasts(actorId, spellId);
+        if (UsesExpandedRoster)
+        {
+            return available > 0 ? [1] : [];
+        }
         return NativeBattleMagicRepetition.PlayerCounts(NativeBattleStatusBits(actor), available, actor.NativePlayerStatRules?.NativeStatusPassiveFlags ?? 0, magicVitals?.MagicSystem.InfiniteMagic == true, UnlimitedMagic);
     }
 

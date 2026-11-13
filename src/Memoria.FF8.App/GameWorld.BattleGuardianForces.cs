@@ -16,7 +16,7 @@ internal sealed partial class GameWorld
         {
             guardianForces[gf.Id] = guardianForces[gf.Id] with { HitPoints = gf.HitPoints };
         }
-        return BattleResultProjection.EligibleGuardianForces(vitals with { Records = records, GuardianForces = guardianForces });
+        return BattleResultProjection.EligibleGuardianForces(vitals with { Records = records, GuardianForces = guardianForces }, party.Select(member => member.Row).ToArray());
     }
 
     private static BattleGuardianForceCompatibilityChange[] CaptureGuardianForceCompatibilityChanges(BattleSnapshot completed, IReadOnlyList<BattlePartyResult> party)

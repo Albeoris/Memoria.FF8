@@ -148,6 +148,8 @@ public sealed record BattleCombatantDefinition
 
 public sealed record BattleDefinition
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool UsesExpandedRoster { get; init; }
     public EncounterCompiledDefinition? EncounterMod { get; init; }
     public bool GuardianFormsEnabled { get; init; }
     public bool LimitOncePerTurn { get; init; }
@@ -541,23 +543,37 @@ public sealed partial class BattleCombatant
     internal byte AiTurnCount { get; set; }
     internal string? LastAttackerId { get; set; }
     internal NativeBattleActionMemoryOwner? NativeActionMemoryOwner { get; set; }
+    private byte? logicalLastHealing;
+    private NativeBattleLastAction? logicalLastAction;
     internal byte? LastNativeHealing
     {
-        get => NativeActionMemoryOwner?.State.Healing(EncodeNativeSlot());
+        get => NativeActionMemoryOwner is { } owner ? owner.State.Healing(EncodeNativeSlot()) : logicalLastHealing;
         set
         {
-            NativeBattleActionMemoryOwner owner = NativeActionMemoryOwner ?? throw new InvalidOperationException("Native healing memory has no bound physical bank.");
-            owner.State = owner.State.WithHealing(EncodeNativeSlot(), value);
+            if (NativeActionMemoryOwner is { } owner)
+            {
+                owner.State = owner.State.WithHealing(EncodeNativeSlot(), value);
+            }
+            else
+            {
+                logicalLastHealing = value;
+            }
         }
     }
     internal bool NativeAllocationPendingStatistics { get; set; }
     internal NativeBattleLastAction? LastNativeAction
     {
-        get => NativeActionMemoryOwner?.State.Action(EncodeNativeSlot());
+        get => NativeActionMemoryOwner is { } owner ? owner.State.Action(EncodeNativeSlot()) : logicalLastAction;
         set
         {
-            NativeBattleActionMemoryOwner owner = NativeActionMemoryOwner ?? throw new InvalidOperationException("Native action memory has no bound physical bank.");
-            owner.State = owner.State.WithAction(EncodeNativeSlot(), value);
+            if (NativeActionMemoryOwner is { } owner)
+            {
+                owner.State = owner.State.WithAction(EncodeNativeSlot(), value);
+            }
+            else
+            {
+                logicalLastAction = value;
+            }
         }
     }
     internal ushort NativePreviousTargetMask { get; set; }
@@ -565,7 +581,7 @@ public sealed partial class BattleCombatant
     internal BattleAbility? LastAttackerAbility { get; set; }
     internal bool AiDeathHandled { get; set; }
     internal BattleSide Side => IsPlayer ? BattleSide.Allies : BattleSide.Enemies;
-    internal BattleRosterSlot? Slot { get; private set; }
+    public BattleRosterSlot? Slot { get; private set; }
 
     internal void BindRosterSlot(BattleRosterSlot? slot)
     {

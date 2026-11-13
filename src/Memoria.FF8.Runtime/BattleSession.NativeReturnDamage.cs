@@ -15,7 +15,7 @@ public sealed partial class BattleSession
 
     private void AccumulateNativeReturnDamage(BattleCombatant recipient, BattleCombatant? source, int magnitude)
     {
-        if (!recipient.IsPlayer || source?.EncodeNativeSlot() is not (>= 3 and < 7) || magnitude == 0 || recipient.NativePlayerStatRules is not { NativeStatusPassiveFlags: uint flags } || (flags & 8) == 0)
+        if (UsesExpandedRoster || !recipient.IsPlayer || source?.EncodeNativeSlot() is not (>= 3 and < 7) || magnitude == 0 || recipient.NativePlayerStatRules is not { NativeStatusPassiveFlags: uint flags } || (flags & 8) == 0)
         {
             return;
         }

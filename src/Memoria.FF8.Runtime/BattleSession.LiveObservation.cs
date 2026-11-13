@@ -84,7 +84,7 @@ public sealed partial class BattleSession
     private static BattleLiveMaximumHp ObserveMaximumHitPoints(BattleCombatant actor)
     {
         bool maximum = actor.IsActive && !actor.Suspended && actor.IsPlayer && actor.NativePlayerStatRules is not null && actor.GuardianFormVitals is null && actor.MaximumHp == 9999;
-        return new(actor.Id, actor.MagicRecordId, maximum, maximum && actor.EncodeNativeSlot() is >= 0 and < 3 && actor.MagicRecordId is >= 0 and < 11);
+        return new(actor.Id, actor.MagicRecordId, maximum, maximum && actor.Slot is { Position: < NativeBattleSlots.AllyCount } && actor.MagicRecordId is >= 0 and < 11);
     }
 
     public byte EntrySeed => definition.NativeSeed;

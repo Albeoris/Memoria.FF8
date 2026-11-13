@@ -1,4 +1,4 @@
-﻿namespace Memoria.FF8.Runtime;
+namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
@@ -14,7 +14,7 @@ public sealed partial class BattleSession
 
     private void DispatchNativeCompelledActors()
     {
-        if (HasNativeUiServiceClock)
+        if (UsesExpandedRoster || HasNativeUiServiceClock)
         {
             //483EB0 already queued the original command at full-gauge registration, preserving its gauge until completion.
             return;

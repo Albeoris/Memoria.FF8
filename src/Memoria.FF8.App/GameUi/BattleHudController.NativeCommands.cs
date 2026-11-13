@@ -51,7 +51,7 @@ public sealed partial class BattleHudController
 
     public void SetNativeCommandButtons(ushort buttons)
     {
-        if (CardSlotsOwnsInput)
+        if (session.UsesExpandedRoster || CardSlotsOwnsInput)
         {
             return;
         }
@@ -207,6 +207,10 @@ public sealed partial class BattleHudController
         if (HasGuardianFormCommands)
         {
             return [BattleCommandPresentation.Default(BattleAbility.Attack), BattleCommandPresentation.Default(BattleAbility.Magic), BattleCommandPresentation.Default(BattleAbility.GuardianForce)];
+        }
+        if (session.UsesExpandedRoster)
+        {
+            return BattleCommandPresentation.Read(actor).Where(choice => choice.Ability is BattleAbility.Attack or BattleAbility.Magic or BattleAbility.Item).ToArray();
         }
         if (nativeLimitCommandSelected && NativeLimitAvailable && actor.Abilities.Count > 0)
         {

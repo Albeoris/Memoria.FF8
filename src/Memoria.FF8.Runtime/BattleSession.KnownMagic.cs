@@ -17,7 +17,7 @@ public sealed partial class BattleSession
             return;
         }
         //48B8B0 scans all32 slots of the three physical party records after pending counters.
-        foreach (BattleCombatant actor in combatants.Where(actor => actor.IsPlayer && actor.EncodeNativeSlot() is >= 0 and < 3))
+        foreach (BattleCombatant actor in combatants.Where(actor => actor.IsPlayer && (UsesExpandedRoster || HasNativeRosterSlot(actor))))
         {
             foreach (BattleStock stock in actor.MagicStocks)
             {

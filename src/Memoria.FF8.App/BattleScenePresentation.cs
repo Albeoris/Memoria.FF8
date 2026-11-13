@@ -58,7 +58,12 @@ internal sealed partial class BattleScenePresentation
         BattleCombatantDefinition[] party = definition.Combatants.Where(actor => actor.IsPlayer).ToArray();
         BattleCombatantDefinition[] enemies = definition.Combatants.Where(actor => !actor.IsPlayer).ToArray();
         BattleEncounter? encounter = useEncounter && definition.EncounterId is int id ? assets.LoadEncounter(id) : null;
-        if (definition.NativeGraphics is null)
+        if (definition.UsesExpandedRoster)
+        {
+            BattleStageCamera expandedCamera = GameWorld.ExpandedBattleCamera();
+            camera = BattleCamera.FromNative(expandedCamera) with { FieldOfView = 2 * MathF.Atan(108f / expandedCamera.FocalLength), VerticalCenter = 0.5f };
+        }
+        else if (definition.NativeGraphics is null)
         {
             //TODO(TD-009): Component battles without the raw graphics owner retain their declared settled introduction view.
             int cameraId = (encounter?.PrimaryCamera ?? 0) & 0xF7;
@@ -70,17 +75,23 @@ internal sealed partial class BattleScenePresentation
         }
         for (int index = 0; index < party.Length; index++)
         {
-            positions[party[index].Id] = BattleFormationPresentation.PartyPosition(index, party.Length);
+            positions[party[index].Id] = definition.UsesExpandedRoster ? ExpandedPosition(index, party.Length, true) : BattleFormationPresentation.PartyPosition(index, party.Length);
         }
         for (int index = 0; index < enemies.Length; index++)
         {
             BattleCombatantDefinition actor = enemies[index];
-            positions[actor.Id] = encounter is null ? BattleFormationPresentation.DebugEnemyPosition(index, enemies.Length) : encounter.Slots.Single(slot => slot.Slot == (actor.SceneSlot ?? throw new NotSupportedException("An original battle participant requires its scene slot identity."))).Position;
+            positions[actor.Id] = definition.UsesExpandedRoster ? ExpandedPosition(index, enemies.Length, false) : encounter is null ? BattleFormationPresentation.DebugEnemyPosition(index, enemies.Length) : encounter.Slots.Single(slot => slot.Slot == (actor.SceneSlot ?? throw new NotSupportedException("An original battle participant requires its scene slot identity."))).Position;
         }
         foreach (BattleCombatantDefinition actor in definition.Combatants.Where(actor => actor.InitialActive))
         {
             EnsureActorResources(actor.Id);
         }
+    }
+
+    private static Vector3 ExpandedPosition(int index, int count, bool ally)
+    {
+        NativeBattleVector position = ExpandedBattleFormation.Position(index, count, ally);
+        return new Vector3(position.X, -position.Y, -position.Z) / 100f;
     }
 
     internal BattleCamera Camera => renderedCamera ?? camera ?? throw new InvalidOperationException("The original camera has not published its first pose.");
@@ -239,6 +250,13 @@ internal sealed partial class BattleScenePresentation
                     : renderer.RenderNativePilotPrimitiveFrame(prepared, pilotNext, pilotAlpha, selectedCamera, primitiveCapabilities, replacements.Count == 0 ? null : replacements, uiFrame is null ? null : assets.ReadNativePcUiIcons().Resolve, assets.EffectTextureSource);
             }
         }
+        if (selectedCamera is { } baseCamera && session.ExpandedEffect is { ViewTranslationY: not 0 } effectCamera)
+        {
+            Vector3 forward = Vector3.Normalize(baseCamera.Target - baseCamera.Eye);
+            Vector3 right = Vector3.Normalize(Vector3.Cross(forward, Vector3.UnitY));
+            Vector3 shift = Vector3.Cross(right, forward) * (effectCamera.ViewTranslationY / 100f);
+            selectedCamera = baseCamera with { Eye = baseCamera.Eye + shift, Target = baseCamera.Target + shift };
+        }
         renderedCamera = selectedCamera;
         List<BattleActorDraw> actors = [];
         impactTimeline.Collect(session);
@@ -294,7 +312,7 @@ internal sealed partial class BattleScenePresentation
                 actors.Add(drawing with { Model = weapon, ActorId = null });
             }
         }
-        byte[] pixels = renderer!.Render(stage, actors, selectedCamera ?? throw new InvalidOperationException("The original camera has not published its first pose."));
+        byte[] pixels = renderer!.Render(stage, actors, selectedCamera ?? throw new InvalidOperationException("The original camera has not published its first pose."), effect: session.ExpandedEffect?.Overlay, effectTextures: session.ExpandedEffect?.Memory.Textures, effectTextureSource: assets.EffectTextureSource);
         return pixels;
     }
 

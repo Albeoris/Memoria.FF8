@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         nativeReactionOrder = 0;
     }
 
-    private bool HasNativePendingReactions => nativeReactionOrder is > 0 && combatants.Any(actor => actor.EncodeNativeSlot() is >= 0 and < 7 && actor.NativePendingReaction.Stage is > 0 && actor.NativePendingReaction.Order < nativeReactionOrder);
+    private bool HasNativePendingReactions => !UsesExpandedRoster && nativeReactionOrder is > 0 && combatants.Any(actor => actor.EncodeNativeSlot() is >= 0 and < 7 && actor.NativePendingReaction.Stage is > 0 && actor.NativePendingReaction.Order < nativeReactionOrder);
 
     private void SetNativeReactionActionGate(bool value)
     {
@@ -69,7 +69,7 @@ public sealed partial class BattleSession
 
     private void QueueNativeReaction(BattleCombatant actor, int stage)
     {
-        if (actor.NativeAi is null && !actor.IsPlayer)
+        if (UsesExpandedRoster || actor.NativeAi is null && !actor.IsPlayer)
         {
             return;
         }
@@ -93,7 +93,7 @@ public sealed partial class BattleSession
 
     private void FlushNativeReactions()
     {
-        if (flushingNativeReactions)
+        if (UsesExpandedRoster || flushingNativeReactions)
         {
             return;
         }

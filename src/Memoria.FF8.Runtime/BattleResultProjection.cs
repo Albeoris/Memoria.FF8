@@ -19,7 +19,7 @@ public static partial class BattleResultProjection
         result.Validate();
         sourceVitals.Validate();
         sourceEconomy.Validate();
-        byte[] party = sourceVitals.CombatParty.Where(row => row != 255).ToArray();
+        byte[] party = result.UsesExpandedRoster ? ExpandedBattlePartyRows.Select(sourceVitals) ?? throw new InvalidDataException("Expanded battle result lost its eligible party rows.") : sourceVitals.CombatParty.Where(row => row != 255).ToArray();
         if (!party.SequenceEqual(result.Party.Select(member => member.Row)))
         {
             throw new InvalidDataException($"Battle result party does not match the current canonical combat party: recorded [{string.Join(",", result.Party.Select(member => $"{member.Row}:{member.CharacterId}"))}], current [{string.Join(",", party.Select(row => $"{row}:{sourceVitals.Records[row].CharacterId}"))}].");
@@ -151,8 +151,8 @@ public static partial class BattleResultProjection
         BattleLootOwners loot = new(economy with { Items = items }, ApplyNativeCardChange(result, sourceCards), [], []);
         if (result.Outcome is BattleOutcome.Victory or BattleOutcome.Escaped && result.RewardPolicy == BattleRewardPolicy.NativeCombat)
         {
-            experience = NativeBattleRewardDistribution.Experience(result.EnemyDefeats, vitals, currentEnemyRewards, noExperience, result.RemainingEnemyExperience, result.Tuning);
-            vitals = vitals.AwardBattleExperience(experience.Characters, experience.GuardianForces, experienceDefinition);
+            experience = NativeBattleRewardDistribution.Experience(result.EnemyDefeats, vitals, currentEnemyRewards, noExperience, result.RemainingEnemyExperience, result.Tuning, party);
+            vitals = vitals.AwardBattleExperience(experience.Characters, experience.GuardianForces, experienceDefinition, party);
             loot = NativeBattleRewardDistribution.Loot(result.EnemyDefeats, currentEnemyRewards, loot.Economy, loot.Cards, result.NativeRewardItems, itemOrderAliases);
             List<byte> grantedCards = [.. loot.CardsGranted];
             foreach (byte id in result.NativeScriptEffects.Cards)
@@ -167,7 +167,7 @@ public static partial class BattleResultProjection
             }
             loot = loot with { CardsGranted = grantedCards.ToArray() };
         }
-        int[] eligible = result.Outcome is BattleOutcome.Victory or BattleOutcome.Escaped && !result.DebugVictory ? EligibleGuardianForces(vitals) : [];
+        int[] eligible = result.Outcome is BattleOutcome.Victory or BattleOutcome.Escaped && !result.DebugVictory ? EligibleGuardianForces(vitals, party) : [];
         if (!eligible.Order().SequenceEqual(result.RewardEligibleGuardianForceIds.Order()))
         {
             throw new InvalidDataException("Observed GF reward eligibility disagrees with the current canonical junction/HP owners.");
@@ -207,9 +207,9 @@ public static partial class BattleResultProjection
         return new BattleResultOwners(vitals.RebuildParty(), loot.Economy, loot.Cards, new BattleRewardSummary(experience.Characters, experience.GuardianForces, abilityPoints, loot.ItemsGranted, loot.CardsGranted) { AbilityPointsNotice = abilityPointsNotice, LootOffers = NativeBattleResultPresentation.GroupLootOffers(loot.Offers), CharacterGrowth = NativeBattleResultPresentation.BuildCharacters(rewardSourceVitals, vitals), GuardianForceGrowth = NativeBattleResultPresentation.BuildGuardianForces(rewardSourceVitals, vitals) });
     }
 
-    public static int[] EligibleGuardianForces(NativeCharacterVitals vitals)
+    public static int[] EligibleGuardianForces(NativeCharacterVitals vitals, IReadOnlyList<byte>? battleRows = null)
     {
         // Native494D40 includes an active actor when KO is clear OR Petrify is clear. Each living junctioned GF gets full AP.
-        return vitals.CombatParty.Where(row => row != 255 && ((vitals.Records[row].Status & 1) == 0 || (vitals.Records[row].Status & 4) == 0)).SelectMany(row => vitals.Records[row].Junction.GuardianForceAssignments).Distinct().Where(id => vitals.GuardianForces[id].HitPoints > 0).Order().ToArray();
+        return (battleRows ?? vitals.CombatParty).Where(row => row != 255 && ((vitals.Records[row].Status & 1) == 0 || (vitals.Records[row].Status & 4) == 0)).SelectMany(row => vitals.Records[row].Junction.GuardianForceAssignments).Distinct().Where(id => vitals.GuardianForces[id].HitPoints > 0).Order().ToArray();
     }
 }

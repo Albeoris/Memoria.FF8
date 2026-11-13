@@ -256,6 +256,22 @@ public sealed partial class BattleSession
         return result;
     }
 
+    internal NativeBattlePreparedPrimitiveFrame? PrepareEffectOverlay()
+    {
+        if (NativeGraphics?.PrimitiveFrame is not { } frame || definition.NativeGraphics?.PrimitiveTables is not { } tables || NativeEffectMemory?.PrimitiveProcess is not { } process)
+        {
+            return null;
+        }
+        NativeBattleLogicalOrdering pending = SubmitNativeModulePackets(NativeGraphics).PrimitiveFrame!.Pending;
+        var executed = NativeBattleLogicalPasses.Execute(pending, tables, new(0) { TextureWindowBits = 0 }, 1, NativeBattlePcTextureWindowCache.Reset4647A0(null) with { ScaleU = 0, ScaleV = 0, SpriteTileCacheControl1CCFD90 = 0 }, ReadNativePhysicalPrimitive);
+        return new(executed.Commands, [])
+        {
+            LastDescriptorPerspective = true,
+            LastDepthState = process.Depth,
+            LastColorState = process.Color
+        };
+    }
+
     private ImmutableArray<NativeBattleGraphicsModel> BindPresentationForeignModels(ImmutableArray<NativeBattleGraphicsModel> models, Dictionary<int, NativeBattleForeignActor>? previous = null)
     {
         foreach (NativeBattleForeignActor actor in presentationForeignActors!.Values)

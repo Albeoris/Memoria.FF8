@@ -47,10 +47,14 @@ public sealed record NativeBattleEffectPresentationStep(ImmutableArray<NativeBat
 public sealed class NativeBattleEffectPresentation : IDisposable
 {
     private readonly BattleSession owner;
+    private readonly NativeBattleCameraProjection projection;
+    private readonly ImmutableArray<NativeBattleForeignActor> actors;
 
     public NativeBattleEffectPresentation(NativeBattleEffectPresentationInputs inputs)
     {
         owner = BattleSession.CreateEffectPresentation(inputs);
+        projection = inputs.Projection;
+        actors = inputs.ForeignActors;
     }
 
     private NativeBattleEffectPresentation(BattleSession owner)
@@ -93,6 +97,14 @@ public sealed class NativeBattleEffectPresentation : IDisposable
     public void WriteSourceVariable(byte variable, int value) => owner.WriteEffectPresentationSourceVariable(variable, value);
     public NativeBattleGraphicsModel WriteSourceTargetVariable(NativeBattleGraphicsModel source, byte variable, int value) => owner.WriteEffectPresentationSourceTargetVariable(source, variable, value);
     public ushort NextGlobalRandom() => owner.NextEffectPresentationGlobalRandom();
+    public NativeBattlePreparedPrimitiveFrame? Overlay { get; private set; }
+
+    public NativeBattleEffectPresentationStep AdvanceCurrent()
+    {
+        NativeBattleEffectPresentationStep step = Advance(Source, Random, projection, actors, Memory.Textures!);
+        Overlay = owner.PrepareEffectOverlay();
+        return step;
+    }
 
     public NativeBattleEffectPresentationStep Advance(NativeBattleGraphicsModel source, NativeCrtRandomState random, NativeBattleCameraProjection projection, ImmutableArray<NativeBattleForeignActor> foreignActors, NativeBattleEffectTextureState textures)
     {

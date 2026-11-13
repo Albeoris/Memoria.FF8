@@ -42,7 +42,7 @@ public sealed partial class BattleSession
 {
     private NativeBattleEscapeState nativeEscape = new();
     public NativeBattleEscapeState Escape => nativeEscape;
-    public bool EscapeDisabled => nativeScriptState.EscapeDisabled ?? (ResolvedNativeFlags & 1) != 0;
+    public bool EscapeDisabled => UsesExpandedRoster || (nativeScriptState.EscapeDisabled ?? (ResolvedNativeFlags & 1) != 0);
 
     private bool EscapeAdvancesBattleTime => nativeEscape.Held && Outcome == BattleOutcome.Active && !HasPendingNativeOutcome && NativeEntryReady && PendingSlotsDeal is null && NativeGraphics?.UiServices?.PauseDE9 != true;
     private bool UsesRealTimeBattleClock => Mode != BattleAtbMode.TurnBased || EscapeAdvancesBattleTime;

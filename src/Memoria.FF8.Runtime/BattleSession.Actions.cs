@@ -1,4 +1,4 @@
-﻿namespace Memoria.FF8.Runtime;
+namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
@@ -9,6 +9,14 @@ public sealed partial class BattleSession
 
     public void QueueAction(string actorId, string targetId, BattleAbility ability, int actionId, bool drawCast = false, IReadOnlyList<string>? magicTargets = null, string? drawCastTargetId = null)
     {
+        if (UsesExpandedRoster && (ability is not (BattleAbility.Attack or BattleAbility.Magic or BattleAbility.Item) || magicTargets is { Count: > 1 }))
+        {
+            throw new NotSupportedException("This command requires a battle process outside the expanded host.");
+        }
+        if (UsesExpandedRoster && magicTargets is { Count: 1 } && magicTargets[0] == targetId)
+        {
+            magicTargets = null;
+        }
         if (drawCast && ability != BattleAbility.Draw)
         {
             throw new InvalidOperationException("Only Draw can request a Cast selection.");
@@ -52,6 +60,10 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("Action requires an available command, a ready actor and a valid target.");
         }
+        if (UsesExpandedRoster)
+        {
+            RequireExpandedAction(action);
+        }
         int? reservedItemSlot = null;
         switch (ability)
         {
@@ -77,7 +89,11 @@ public sealed partial class BattleSession
         BattleAttackCommand queued = new(actorId, targetId, ability, actionId, drawCast) { NativeMagicTargets = magicMasks, NativeMagicCastMode = magicMode, ReservedNativeItemSlot = reservedItemSlot, NativeQueuedCommand = ability switch { BattleAbility.Magic => 2, BattleAbility.Item => 4, BattleAbility.Draw => 6, BattleAbility.GuardianForce => 254, _ => null } };
         queued = EnsureMagicReservation(actor, queued with { SmartAttack = pendingSmartAttack });
         OnNativePlayerCommandSubmitted(actor, ability == BattleAbility.GuardianForce ? (byte)3 : queued.NativeQueuedCommand!.Value);
-        if (NativeGraphics is not null)
+        if (UsesExpandedRoster)
+        {
+            actions.Enqueue(queued);
+        }
+        else if (NativeGraphics is not null)
         {
             EnqueueNativeInputCommand(ability == BattleAbility.GuardianForce ? queued with { NativeQueuedCommand = 3 } : queued);
         }

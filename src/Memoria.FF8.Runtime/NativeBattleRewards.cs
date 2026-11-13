@@ -158,17 +158,17 @@ public static class NativeBattleRewardDistribution
         return new BattleLootOwners(nextEconomy, nextCards, granted.ToArray(), grantedCards.ToArray()) { Offers = offers.ToArray() };
     }
 
-    public static BattleExperienceAwards Experience(IReadOnlyList<BattleEnemyDefeat> defeats, NativeCharacterVitals vitals, IReadOnlyDictionary<int, BattleEnemyRewardDefinition> definitions, bool noExperience, IReadOnlyList<BattleEnemyRemainingExperience>? remainingEnemies = null, GameplayTuning? tuning = null)
+    public static BattleExperienceAwards Experience(IReadOnlyList<BattleEnemyDefeat> defeats, NativeCharacterVitals vitals, IReadOnlyDictionary<int, BattleEnemyRewardDefinition> definitions, bool noExperience, IReadOnlyList<BattleEnemyRemainingExperience>? remainingEnemies = null, GameplayTuning? tuning = null, IReadOnlyList<byte>? battleRows = null)
     {
         tuning ??= new();
         tuning.Validate();
         vitals.Validate();
-        byte[] party = vitals.CombatParty.Where(row => row != 255).ToArray();
-        if (party.Length == 0)
+        IReadOnlyList<byte> party = battleRows ?? vitals.CombatParty.Where(row => row != 255).ToArray();
+        if (party.Count == 0)
         {
             throw new InvalidDataException("Battle experience requires its actual nonempty combat party.");
         }
-        int averageLevel = party.Sum(row => NativeStatDefinitions.Level(vitals.Records[row].Experience, vitals.Definitions.Characters[vitals.Records[row].CharacterId])) / party.Length;
+        int averageLevel = party.Sum(row => NativeStatDefinitions.Level(vitals.Records[row].Experience, vitals.Definitions.Characters[vitals.Records[row].CharacterId])) / party.Count;
         Dictionary<byte, ushort> personal = [];
         Dictionary<byte, ushort> guardian = [];
         ushort shared = 0;

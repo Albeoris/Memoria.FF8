@@ -87,7 +87,7 @@ public sealed partial class BattleRenderer
         return float.IsFinite(screen.X) && float.IsFinite(screen.Y);
     }
 
-    public byte[] Render(BattleStage stage, IReadOnlyList<BattleActorDraw> actors, BattleCamera? camera = null, TimeSpan? animationClock = null)
+    public byte[] Render(BattleStage stage, IReadOnlyList<BattleActorDraw> actors, BattleCamera? camera = null, TimeSpan? animationClock = null, NativeBattlePreparedPrimitiveFrame? effect = null, NativeBattleEffectTextureState? effectTextures = null, INativeBattleEffectTextureSource? effectTextureSource = null)
     {
         Begin(camera ?? BattleCamera.NativeInitial);
         TriangleRenderer?.Begin(Width, Height, new Vector4(17f / 255, 20f / 255, 29f / 255, 1), 0);
@@ -99,8 +99,40 @@ public sealed partial class BattleRenderer
         {
             DrawActor(actor);
         }
+        if (effect is { LastCommands.IsEmpty: false })
+        {
+            ITriangleRenderer? host = TriangleRenderer;
+            try
+            {
+                if (host is not null)
+                {
+                    TriangleRenderer = new EffectOverlayPass(host);
+                }
+                RenderNativePrimitiveFrame(effect, effectTextures, capabilities: NativeBattlePrimitiveCapabilities.PrimaryRgba8(), effectTextureSource: effectTextureSource, overlay: true);
+            }
+            finally
+            {
+                TriangleRenderer = host;
+            }
+        }
         TriangleRenderer?.End();
         return pixels;
+    }
+
+    private sealed class EffectOverlayPass(ITriangleRenderer host) : ITriangleRenderer
+    {
+        public void Begin(int width, int height, Vector4 clearColor, float clearDepth = 1)
+        {
+        }
+
+        public void End()
+        {
+        }
+
+        public void Draw(in TriangleVertex a, in TriangleVertex b, in TriangleVertex c, in TriangleMaterial material)
+        {
+            host.Draw(a, b, c, material with { DepthComparison = TriangleDepthComparison.Always, DepthWrite = false });
+        }
     }
 
     private void Begin(BattleCamera camera)

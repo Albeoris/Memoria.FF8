@@ -41,14 +41,14 @@ internal static class BattlePartyProjection
         return action with { Level = NativeStatDefinitions.Level(gf.Experience, vitals.Definitions.GuardianForces[action.Id]), DamagePercent = unchecked((byte)percent), Available = gf.HitPoints > 0 && (gf.Flags & 1) != 0, Statuses = action.Statuses?.ToArray(), NativeGuardianBoostAvailable = (flags & 1) != 0 };
     }
 
-    public static BattleCombatantDefinition[] Create(GameState state, IReadOnlyDictionary<int, string>? names, LiveMenuCatalog catalog, BattleAssets resources)
+    public static BattleCombatantDefinition[] Create(GameState state, IReadOnlyDictionary<int, string>? names, LiveMenuCatalog catalog, BattleAssets resources, IReadOnlyList<byte>? battleRows = null)
     {
         NativeCharacterVitals vitals = state.CharacterVitals ?? throw new NotSupportedException("Interactive battle requires the actual current character records.");
         NativeCharacterAppearance appearance = state.CharacterAppearance ?? throw new NotSupportedException("Interactive battle requires the current saved costume owner.");
         vitals.Validate();
         appearance.Validate();
         List<BattleCombatantDefinition> party = [];
-        foreach (byte row in vitals.CombatParty.Where(row => row != 255))
+        foreach (byte row in battleRows ?? vitals.CombatParty.Where(row => row != 255).ToArray())
         {
             NativeCharacterVital saved = vitals.Records[row];
             if (saved.HitPoints.Minimum != saved.HitPoints.Maximum)

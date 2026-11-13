@@ -7,6 +7,16 @@ public static class NativeBattleEnemyLevelRules
 
     public static int Resolve(byte sceneLevel, ReadOnlySpan<byte> presentPartyLevels, byte originalBattleRoll, byte? secondBattleRoll = null)
     {
+        return ResolveForParty(sceneLevel, presentPartyLevels, originalBattleRoll, secondBattleRoll, 3);
+    }
+
+    public static int ResolveExpanded(byte sceneLevel, ReadOnlySpan<byte> presentPartyLevels, byte originalBattleRoll, byte? secondBattleRoll = null)
+    {
+        return ResolveForParty(sceneLevel, presentPartyLevels, originalBattleRoll, secondBattleRoll, 4);
+    }
+
+    private static int ResolveForParty(byte sceneLevel, ReadOnlySpan<byte> presentPartyLevels, byte originalBattleRoll, byte? secondBattleRoll, int capacity)
+    {
         if (sceneLevel <= 100)
         {
             return sceneLevel;
@@ -19,9 +29,9 @@ public static class NativeBattleEnemyLevelRules
         {
             throw new InvalidDataException("Native enemy level code requires its second original battle random byte.");
         }
-        if (presentPartyLevels.Length is < 1 or > 3)
+        if (presentPartyLevels.Length < 1 || presentPartyLevels.Length > capacity)
         {
-            throw new InvalidDataException("Native enemy level requires the actual one-to-three present battle party levels.");
+            throw new InvalidDataException("Native enemy level requires the actual present battle party levels within its roster capacity.");
         }
         int sum = 0;
         foreach (byte level in presentPartyLevels)

@@ -19,6 +19,8 @@ public sealed class NativeBattleEffectContactBridge<TRecipient> where TRecipient
         }
     }
 
+    public int Count => targets.Length;
+
     public (NativeBattleActionPacketsState Packets, ushort TargetMask) Prepare(byte command, byte sequence, ushort action, ushort effect)
     {
         NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[NativeBattleActionPacketsState.HeaderCapacity * 20], new byte[NativeBattleActionPacketsState.ContactCapacity * 24]);

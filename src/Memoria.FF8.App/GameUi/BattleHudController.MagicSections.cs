@@ -66,7 +66,7 @@ public sealed partial class BattleHudController
         {
             return [];
         }
-        return session.ActionDefinitions.Where(action => action.Ability == BattleAbility.Magic && actor.MagicStocks.Any(stock => stock.Id == action.Id && stock.Count > 0) && session.QuoteMagic(actor.Id, action.Id).Capacity > 0).OrderBy(action => action.Id).ToArray();
+        return session.ActionDefinitions.Where(action => action.Ability == BattleAbility.Magic && (!session.UsesExpandedRoster || session.SupportsExpandedAction(action)) && actor.MagicStocks.Any(stock => stock.Id == action.Id && stock.Count > 0) && session.QuoteMagic(actor.Id, action.Id).Capacity > 0).OrderBy(action => action.Id).ToArray();
     }
 
     private IReadOnlyList<BattleActionDefinition> MagicActionChoices()

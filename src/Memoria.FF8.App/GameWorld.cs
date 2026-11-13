@@ -51,9 +51,10 @@ internal sealed partial class GameWorld : IDisposable
         return GameSession.CreateColdProcess(NativeExecutionStackSelection.Apply(memory, NativeExecutionStackSelection.Read(selectedExecutionStackPath)));
     }
 
-    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, bool audioEnabled = false, bool validateWorldPresentation = true, Func<string, string>? resolveGameFile = null, GameAssets? sharedAssets = null, Func<FieldSceneMods>? readSceneMods = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null, Func<BattleDefinition, EncounterBindingContext, BattleDefinition>? applyEncounterMods = null, GameplaySaveSceneFacts? gameplaySaveFacts = null, bool legacyGameplayProjection = false)
+    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, bool audioEnabled = false, bool validateWorldPresentation = true, Func<string, string>? resolveGameFile = null, GameAssets? sharedAssets = null, Func<FieldSceneMods>? readSceneMods = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null, Func<BattleDefinition, EncounterBindingContext, BattleDefinition>? applyEncounterMods = null, GameplaySaveSceneFacts? gameplaySaveFacts = null, bool legacyGameplayProjection = false, bool? expandedRandomBattles = null)
     {
         this.session = session;
+        this.expandedRandomBattles = expandedRandomBattles ?? Environment.GetEnvironmentVariable("MEMORIA_FF8_BATTLE_ROSTER") == "4x6";
         this.legacyGameplayProjection = legacyGameplayProjection;
         this.readGameplayPolicy = readGameplayPolicy;
         this.readSceneMods = readSceneMods;

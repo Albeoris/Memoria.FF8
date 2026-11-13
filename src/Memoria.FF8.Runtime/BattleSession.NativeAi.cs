@@ -504,7 +504,7 @@ public sealed partial class BattleSession
         return value;
     }
 
-    private static NativeBattleParticipantSnapshot CaptureNativeParticipant(BattleCombatant actor) => new(actor.IsActive, actor.Hidden, actor.Untargetable, actor.Suspended, actor.EncodeNativeSlot(), actor.ResolvedNativeLevel, actor.AiVariables.ToArray(), actor.AiTurnCount, actor.LastAttackerId, actor.LastAttackerAbility, actor.AiDeathHandled) { MaximumHitPoints = actor.IsPlayer && actor.NativePlayerStatRules is not null && actor.GuardianFormVitals is null ? actor.MaximumHp : null, StatMultipliers = actor.NativeStatMultipliers.ToArray(), LastAction = actor.LastNativeAction, LastHealing = actor.LastNativeHealing, AllocationPendingStatistics = actor.NativeAllocationPendingStatistics, NativeCombatantFlags = actor.NativeCombatantFlags, KillCount = actor.NativeKillCount, DeathCount = actor.NativeDeathCount, Growth = actor.NativeGrowth, DisplayNameIndex = actor.NativeDisplayNameIndex, ElementDefenses = actor.HumanElementDefenses.ToArray(), PreviousTargetMask = actor.NativePreviousTargetMask, DrawnSpell = actor.NativeDrawnSpell, ReturnDamage = actor.NativeReturnDamage, PendingReaction = actor.NativePendingReaction, RemainingHits = actor.NativeRemainingHits };
+    private NativeBattleParticipantSnapshot CaptureNativeParticipant(BattleCombatant actor) => new(actor.IsActive, actor.Hidden, actor.Untargetable, actor.Suspended, UsesExpandedRoster ? NativeBattleSlots.Unassigned : actor.EncodeNativeSlot(), actor.ResolvedNativeLevel, actor.AiVariables.ToArray(), actor.AiTurnCount, actor.LastAttackerId, actor.LastAttackerAbility, actor.AiDeathHandled) { MaximumHitPoints = actor.IsPlayer && actor.NativePlayerStatRules is not null && actor.GuardianFormVitals is null ? actor.MaximumHp : null, StatMultipliers = actor.NativeStatMultipliers.ToArray(), LastAction = actor.LastNativeAction, LastHealing = actor.LastNativeHealing, AllocationPendingStatistics = actor.NativeAllocationPendingStatistics, NativeCombatantFlags = actor.NativeCombatantFlags, KillCount = actor.NativeKillCount, DeathCount = actor.NativeDeathCount, Growth = actor.NativeGrowth, DisplayNameIndex = actor.NativeDisplayNameIndex, ElementDefenses = actor.HumanElementDefenses.ToArray(), PreviousTargetMask = actor.NativePreviousTargetMask, DrawnSpell = actor.NativeDrawnSpell, ReturnDamage = actor.NativeReturnDamage, PendingReaction = actor.NativePendingReaction, RemainingHits = actor.NativeRemainingHits };
 
     private void RestoreNativeParticipant(BattleCombatant actor, NativeBattleParticipantSnapshot? saved)
     {
@@ -519,7 +519,7 @@ public sealed partial class BattleSession
             }
             return;
         }
-        if (saved.Variables is null || saved.Variables.Length != 8 || saved.ActorIndex is < NativeBattleSlots.Unassigned or >= NativeBattleSlots.Count || saved.Active && saved.ActorIndex < 0 || saved.ActorIndex >= 0 && actor.Side != NativeBattleSlots.Decode(saved.ActorIndex).Side || saved.LastAttackerId is not null && !byId.ContainsKey(saved.LastAttackerId) || saved.LastAttackerAbility is { } ability && !Enum.IsDefined(ability))
+        if (saved.Variables is null || saved.Variables.Length != 8 || saved.ActorIndex is < NativeBattleSlots.Unassigned or >= NativeBattleSlots.Count || saved.Active && saved.ActorIndex < 0 && !UsesExpandedRoster || UsesExpandedRoster && saved.ActorIndex != NativeBattleSlots.Unassigned || saved.ActorIndex >= 0 && actor.Side != NativeBattleSlots.Decode(saved.ActorIndex).Side || saved.LastAttackerId is not null && !byId.ContainsKey(saved.LastAttackerId) || saved.LastAttackerAbility is { } ability && !Enum.IsDefined(ability))
         {
             throw new InvalidDataException("Battle participant has invalid native allocation or AI owner state.");
         }
@@ -536,7 +536,10 @@ public sealed partial class BattleSession
             }
             actor.NativeCombatantFlags = flags;
         }
-        actor.BindRosterSlot(saved.ActorIndex == NativeBattleSlots.Unassigned ? null : NativeBattleSlots.Decode(saved.ActorIndex));
+        if (!UsesExpandedRoster)
+        {
+            actor.BindRosterSlot(saved.ActorIndex == NativeBattleSlots.Unassigned ? null : NativeBattleSlots.Decode(saved.ActorIndex));
+        }
         if (saved.ResolvedLevel is int level)
         {
             if (nativeAllocations.SingleOrDefault(allocation => allocation.Id == actor.Id)?.ResolvedDefinition is { } resolved)

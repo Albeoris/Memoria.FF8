@@ -124,7 +124,7 @@ public sealed partial class BattleHudController
         }
         return session.ActionDefinitions.Where(action => command switch
         {
-            BattleAbility.Item => action.Ability == BattleAbility.Item && session.Items.Any(stock => stock.Id == action.Id && stock.Count > 0),
+            BattleAbility.Item => action.Ability == BattleAbility.Item && (!session.UsesExpandedRoster || session.SupportsExpandedAction(action)) && session.Items.Any(stock => stock.Id == action.Id && stock.Count > 0),
             BattleAbility.GuardianForce => action.Ability == BattleAbility.GuardianForce && actor.EquipmentIds.Contains(action.Id) && action.Available && (session.GuardianForces.Count == 0 || session.GuardianForces.Any(gf => gf.Id == action.Id && gf.Acquired && gf.HitPoints > 0)) && !session.GuardianForceCasts.Any(cast => cast.Command.ActionId == action.Id),
             _ => false
         }).ToArray();

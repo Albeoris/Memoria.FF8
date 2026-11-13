@@ -14,6 +14,12 @@ public sealed partial class BattleSession
 
     private void ValidateNativeActionMemoryProjection(BattleCombatant actor, NativeBattleParticipantSnapshot saved)
     {
+        if (UsesExpandedRoster)
+        {
+            actor.LastNativeAction = saved.LastAction;
+            actor.LastNativeHealing = saved.LastHealing;
+            return;
+        }
         if (saved.LastAction != actor.LastNativeAction || saved.LastHealing != actor.LastNativeHealing)
         {
             throw new InvalidDataException("Native participant action/healing projection disagrees with its sole physical B98..B9F owner.");

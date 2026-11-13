@@ -2,12 +2,12 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private sealed class NativeContactWorking(BattleCombatant actor, BattleCombatant recipient, BattleNativeAction action, byte specialSource)
+    private sealed class NativeContactWorking(BattleCombatant actor, BattleCombatant recipient, BattleNativeAction action, byte specialSource, byte? presentationRow = null)
     {
         public BattleCombatant Actor { get; } = actor;
         public BattleCombatant Recipient { get; } = recipient;
         public BattleNativeAction Action { get; } = action;
-        public byte PrimaryIndex { get; } = checked((byte)recipient.EncodeNativeSlot());
+        public byte PrimaryIndex { get; } = presentationRow ?? checked((byte)recipient.EncodeNativeSlot());
         public byte Sequence { get; set; } = action.DamagePresentation;
         public byte Flags { get; set; }
         public byte HitFlags { get; set; }
@@ -51,7 +51,7 @@ public sealed partial class BattleSession
         }
     }
 
-    private NativeBattleContactPacket ResolveInstalledNativeHitWithContact(BattleCombatant actor, BattleCombatant recipient, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native, byte specialSource, bool preliminary = false)
+    private NativeBattleContactPacket ResolveInstalledNativeHitWithContact(BattleCombatant actor, BattleCombatant recipient, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native, byte specialSource, bool preliminary = false, byte? presentationRow = null)
     {
         DecrementNativeRemainingHits(recipient);
         bool? deferred = native.Command switch
@@ -63,7 +63,7 @@ public sealed partial class BattleSession
         };
         nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = deferred };
         NativeContactWorking? previous = nativeContactWorking;
-        NativeContactWorking contact = new(actor, recipient, preliminary ? native with { AttackFlags = 3, DamagePresentation = 0 } : native, specialSource) { DiagnosticPreliminary = preliminary };
+        NativeContactWorking contact = new(actor, recipient, preliminary ? native with { AttackFlags = 3, DamagePresentation = 0 } : native, specialSource, presentationRow) { DiagnosticPreliminary = preliminary };
         byte attackClass = preliminary || native.Command is 0 or 14 or 238 or 246 or 252 || native.Command == 241 && native.ActionId is 65530 or 65532 ? (byte)3 : native.Command is 1 or 12 or 28 or 243 or 248 or 251 or 253 ? (byte)0 : (byte)(native.AttackFlags & 3);
         if (native.Command == 6 && command.NativeDraw is not null && !command.DrawCast)
         {
