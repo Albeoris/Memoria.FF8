@@ -123,10 +123,62 @@ public sealed class NativeSlotsInvocationTests
         }
     }
 
-    private static BattleSession CreateBattle(BattleAssets assets, byte? specialFlags, bool cardSlots = false, byte crisis = 4)
+    [Fact]
+    public void Expanded_card_deal_keeps_the_original_draws_and_queues_only_the_supported_owned_candidate()
+    {
+        using BattleAssets assets = InstalledAssets();
+        BattleNativeLimitDefinition rules = assets.ReadNativeLimitDefinition(5);
+        NativeBattleRandomState initial = Enumerable.Range(0, 256).Select(seed => NativeBattleRandomState.Initialize((byte)seed)).First(state => ExpectedDeal(state).Rolls.Any(roll => roll.MagicId == 53));
+        (BattleNativeSlotsRoll[] expected, NativeBattleRandomState after) = ExpectedDeal(initial);
+        BattleSession battle = CreateBattle(assets, 0x80, cardSlots: true, expanded: true, initial: initial);
+        BattleNativeSlotsDeal deal = battle.BeginNativeSlotsDeal("selphie");
+        Assert.Equal(expected, deal.Candidates.ToArray());
+        Assert.Equal(JsonSerializer.Serialize(after), JsonSerializer.Serialize(battle.Capture().Random));
+        Assert.Equal((ulong)1, battle.NativeGlobalRandomChange!.Calls);
+        int rapture = Array.FindIndex(expected, roll => roll.MagicId == 53);
+        int other = Array.FindIndex(expected, roll => roll.MagicId != 53);
+        Assert.True(battle.CanCastNativeSlotsCard(expected[rapture]));
+        Assert.False(battle.CanCastNativeSlotsCard(expected[other]));
+
+        BattleSession rejected = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        Assert.True(rejected.SelectNativeSlotsCard(deal.Id, other));
+        Assert.Throws<NotSupportedException>(() => rejected.SubmitNativeSlotsCard(deal.Id));
+        Assert.Empty(rejected.QueuedActions);
+        Assert.Null(rejected.PendingSlotsDeal);
+        Assert.Equal(JsonSerializer.Serialize(after), JsonSerializer.Serialize(rejected.Capture().Random));
+        Assert.Equal((ulong)1, rejected.NativeGlobalRandomChange!.Calls);
+
+        Assert.True(battle.SelectNativeSlotsCard(deal.Id, rapture));
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        Assert.True(restored.SubmitNativeSlotsCard(deal.Id));
+        BattleAttackCommand command = Assert.Single(restored.QueuedActions);
+        Assert.Equal(expected[rapture], command.NativeSlots);
+        Assert.Equal(BattleAbility.LimitBreak, command.Ability);
+        Assert.Equal(0, command.NativeTargetMask);
+        Assert.Equal(JsonSerializer.Serialize(after), JsonSerializer.Serialize(restored.Capture().Random));
+        Assert.Equal((ulong)1, restored.NativeGlobalRandomChange!.Calls);
+
+        (BattleNativeSlotsRoll[] Rolls, NativeBattleRandomState After) ExpectedDeal(NativeBattleRandomState state)
+        {
+            BattleNativeSlotsRoll[] rolls = new BattleNativeSlotsRoll[9];
+            for (int index = 0; index < rolls.Length; index++)
+            {
+                state = state.Draw(out byte a).Draw(out byte b).Draw(out byte c).Draw(out byte d);
+                rolls[index] = NativeBattleSlotsRules.Roll(rules, 20, 4, a, b, c, d);
+            }
+            return (rolls, state);
+        }
+    }
+
+    private static BattleSession CreateBattle(BattleAssets assets, byte? specialFlags, bool cardSlots = false, byte crisis = 4, bool expanded = false, NativeBattleRandomState? initial = null)
     {
         NativeLimitProgress progress = new(new string('A', 64), 0, 0, 0, 0, Enumerable.Repeat((byte)0, 8).ToImmutableArray()) { SpecialMagicFlags = specialFlags };
-        BattleSession battle = new(new BattleDefinition { SelphieCardSlots = cardSlots, NativeGlobalRandom = new(12345), NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeActions = assets.NativeActions.ToArray(), LimitProgress = progress, NativeLimitsDisabled = false, Combatants = [new() { Id = "selphie", Name = "Selphie", NativeStatusResistances = new byte[40], IsPlayer = true, ModelId = 5, Level = 20, InitialAtb = BattleSession.AtbMaximum, NativeLimit = assets.ReadNativeLimitDefinition(5) }, new() { Id = "enemy", Name = "Enemy", NativeStatusResistances = new byte[40], Speed = 1 }] }, BattleAtbMode.TurnBased);
+        BattleCombatantDefinition selphie = new() { Id = "selphie", Name = "Selphie", NativeStatusResistances = new byte[40], IsPlayer = true, ModelId = 5, Level = 20, InitialAtb = BattleSession.AtbMaximum, NativeLimit = assets.ReadNativeLimitDefinition(5) };
+        BattleCombatantDefinition enemy = new() { Id = "enemy", Name = "Enemy", NativeStatusResistances = new byte[40], Speed = 1 };
+        BattleCombatantDefinition[] combatants = expanded
+            ? [selphie, .. Enumerable.Range(1, 3).Select(index => selphie with { Id = $"ally-{index}", NativeLimit = null, InitialAtb = 0 }), .. Enumerable.Range(0, 6).Select(index => enemy with { Id = $"enemy-{index}" })]
+            : [selphie, enemy];
+        BattleSession battle = new(new BattleDefinition { SelphieCardSlots = cardSlots, NativeGlobalRandom = new(12345), NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeActions = assets.NativeActions.ToArray(), LimitProgress = progress, NativeLimitsDisabled = false, UsesExpandedRoster = expanded, InitialRandom = initial, Combatants = combatants }, BattleAtbMode.TurnBased);
         return BattleSession.Restore(battle.Capture() with { NativeLimits = [new("selphie", crisis)] });
     }
 
