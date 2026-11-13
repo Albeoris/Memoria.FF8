@@ -351,7 +351,7 @@ internal sealed partial class Ff7Scene : IDisposable
             }
             if (error is null)
             {
-                DrawPlayerMenu(windowBounds);
+                DrawPlayerMenu(batch, windowBounds);
                 DrawNamingMenu(windowBounds);
                 DrawShop(batch, windowBounds);
             }

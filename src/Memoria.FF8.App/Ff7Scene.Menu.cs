@@ -4,6 +4,7 @@ using Memoria.FF7.Runtime;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Ui;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 
 namespace Memoria.FF8;
@@ -289,12 +290,13 @@ internal sealed partial class Ff7Scene
         SetAudioPaused(focusPaused || userPaused || debugMenu || error is not null);
     }
 
-    private void DrawPlayerMenu(Rectangle bounds)
+    private void DrawPlayerMenu(SpriteBatch batch, Rectangle bounds)
     {
         if (ActivePlayerMenu is not { } menu)
         {
             return;
         }
+        batch.Draw(pixel, bounds, Color.Black);
         menu.Presentation = PresentationPreferences.MenuPresentation;
         menu.PrepareViewport(bounds.Width, bounds.Height);
         UiView view = menu.BuildView();
