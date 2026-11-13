@@ -733,6 +733,10 @@ internal sealed partial class AutoPlayController
         {
             return;
         }
+        if (TryDriveLunarRescue(world))
+        {
+            return;
+        }
         if (TryDriveCurrentLadderInput(world))
         {
             return;

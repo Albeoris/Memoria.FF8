@@ -369,6 +369,8 @@ internal static class AutoPlayTraversalPolicy
         // NG-028: Follow the native blackout, maintenance and escape choices.
         return key switch
         {
+            // NG-074: Retry the original rescue after an unsuccessful catch.
+            var rescue when rescue.StartsWith("878:", StringComparison.Ordinal) && rescue.EndsWith(":2:11:286:7:0:1", StringComparison.Ordinal) => 0,
             "771:462:7:44:264:0:2:3" => 2,
             "771:462:7:44:331:5:1:2" or "771:462:7:44:497:5:1:2" => 1,
             "779:463:8:85:1114:22:2:3" => 3,
