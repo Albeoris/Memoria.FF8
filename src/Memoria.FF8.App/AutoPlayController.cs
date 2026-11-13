@@ -870,6 +870,15 @@ internal sealed partial class AutoPlayController
                 return;
             }
         }
+        if (AutoPlayTraversalPolicy.OrphanageDeparturePassage(visit) is string departure)
+        {
+            AutoPlayEventCoverage? passage = run.Coverage.Visits.Single(item => item.Visit.Key == visit).Events.FirstOrDefault(item => item.Event.Id == departure && item.Available && !item.Unavailable && item.BlockedReason is null);
+            if (passage is not null && next?.Event.Id != departure)
+            {
+                next = new(visit, passage.Event, false);
+                resumedWalk = null;
+            }
+        }
         next ??= PlanWithExhaustedSurvey(run, planner, navigation, candidate => NeedsVisitRefresh(world, candidate), vertex => IsNavigationResourceCurrent(world, vertex), guard => world.ReadAutoPlayFieldProgramHash(guard.FieldId) == guard.ProgramHash ? world.Events.ReadPersistentPredicateFingerprint(guard.Reads) : null, canTravel, preferredGoal);
         if (resumedWalk is null && session.State.WorldEntryMemory?.StoryWord == 894)
         {

@@ -8,19 +8,43 @@ internal sealed partial class WorldMapScene
     internal PlayerAction? PlanAutoPlayRagnarokFlight(bool releaseConfirm)
     {
         WorldState current = State;
-        if (current.NativeFootRuntime is not null || current.NativeRagnarokRuntime is not { } ship)
+        if (current.NativeRagnarokRuntime is not { } ship)
         {
             return null;
+        }
+        int story = WorldEntryVariables.Read(session.State).StoryWord;
+        if (current.NativeFootRuntime is not null)
+        {
+            if (story != 3600)
+            {
+                return null;
+            }
+            // NG-079: Approach the original parked body and board at broad contact.
+            if (ship.BroadContact == ship.Allocation.RagnarokIndex)
+            {
+                return new(releaseConfirm || ship.PreviousButtons is null ? PlayerActionKind.Wait : PlayerActionKind.Confirm);
+            }
+            NativeWorldPathPosition parked = ship.Objects[ship.Allocation.RagnarokIndex].Position;
+            if (current.X < -28750 && current.Z > 69380)
+            {
+                return WorldNavigationGuide.Next(current, current.X, 69345);
+            }
+            if (current.X < -28750)
+            {
+                return WorldNavigationGuide.Next(current, -28715, 69345);
+            }
+            return WorldNavigationGuide.Next(current, NearWrapped(parked.X, current.X, 262144), NearWrapped(-parked.Z, current.Z, 196608));
         }
         if (ship.Transfer is not null)
         {
             return new(PlayerActionKind.Wait, Frames: 12);
         }
-        // NG-076, NG-078: Approach each original story landing area in normal flight.
-        (int X, int Z)? landing = WorldEntryVariables.Read(session.State).StoryWord switch
+        // NG-076, NG-078, NG-079: Approach the original landing or dock area.
+        (int X, int Z)? landing = story switch
         {
             3167 => (76288, 11520),
             3400 or 3410 => (-28160, 69632),
+            3600 => (54813, 5197),
             _ => null
         };
         if (landing is not { } target)
@@ -30,6 +54,10 @@ internal sealed partial class WorldMapScene
         double dx = NearWrapped(target.X, current.X, 262144) - current.X;
         double dz = NearWrapped(target.Z, current.Z, 196608) - current.Z;
         double distance = Math.Sqrt(dx * dx + dz * dz);
+        if (story == 3600 && distance < 70 && ship.Motor.Speed == 0)
+        {
+            return new(PlayerActionKind.WorldButtons, releaseConfirm || ship.PreviousButtons is null ? 0 : 0x40);
+        }
         if (distance < 650 && ship.Motor.Speed == 0 && PrepareRagnarokLanding(current) is not null)
         {
             return new(releaseConfirm || ship.PreviousButtons is null ? PlayerActionKind.Wait : PlayerActionKind.Confirm);
@@ -46,7 +74,7 @@ internal sealed partial class WorldMapScene
         {
             buttons |= 0x4000;
         }
-        else if (distance < 2200 && current.NativeHeight < -550)
+        else if (distance < 2200 && current.NativeHeight < (story == 3600 ? -1000 : -550))
         {
             buttons |= 0x1000;
         }

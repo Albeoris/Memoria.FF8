@@ -337,6 +337,23 @@ internal static class AutoPlayTraversalPolicy
             ("505:3400" or "505:3410" or "505:3494", "505:gateway:0") => -1,
             ("506:3498", "506:talk:5") => -2,
             ("506:3500", "506:gateway:0") => -3,
+            // NG-079: Exit to the parked ship, then use the authorized palace approach.
+            ("499:3600", "499:gateway:0") => -1,
+            ("503:3600", "503:gateway:0") => -2,
+            ("502:3600", "502:gateway:2") => -3,
+            ("505:3600", "505:gateway:2") => -4,
+            ("462:3600", "462:gateway:0") => -5,
+            ("465:3600", "465:gateway:0" or "465:gateway:4") => -6,
+            ("412:3600", "412:gateway:0" or "412:gateway:1") => -7,
+            ("447:3600", "447:gateway:0") => -8,
+            ("441:3600", "441:gateway:2" or "441:gateway:3" or "441:gateway:4") => -9,
+            ("450:3600", "450:line:9" or "450:line-action:9") => -10,
+            ("532:3600", "532:gateway:0") => -11,
+            ("533:3600", "533:line:11") => -12,
+            ("973:3600", "973:gateway:1") => -13,
+            ("536:3600", "536:gateway:0") => -14,
+            ("537:3600", "537:line:9") => -15,
+            ("539:3601" or "539:3602" or "539:3604", "539:talk:6") => -16,
             _ => 0
         };
     }
@@ -363,6 +380,18 @@ internal static class AutoPlayTraversalPolicy
         };
     }
 
+    internal static string? OrphanageDeparturePassage(string visitKey)
+    {
+        return visitKey switch
+        {
+            "499:3600" => "499:gateway:0",
+            "503:3600" => "503:gateway:0",
+            "502:3600" => "502:gateway:2",
+            "505:3600" => "505:gateway:2",
+            _ => null
+        };
+    }
+
     internal static int? GalbadiaKeyRouteOrder(int keys, string eventId)
     {
         // NG-051: Use the original approaches gated by the card keys already awarded by the field scripts.
@@ -383,6 +412,10 @@ internal static class AutoPlayTraversalPolicy
         {
             // NG-074: Retry the original rescue after an unsuccessful catch.
             var rescue when rescue.StartsWith("878:", StringComparison.Ordinal) && rescue.EndsWith(":2:11:286:7:0:1", StringComparison.Ordinal) => 0,
+            // NG-079: Take the palace transport and accept Laguna's original mission.
+            "450:3600:9:166:2283:3:1:2" => 1,
+            "539:3601:0:15:138:17:2:5" or "539:3602:0:15:138:17:2:5" or "539:3601:10:176:2770:30:2:3" or "539:3602:10:176:2770:30:2:3" or "539:3604:6:94:904:130:2:3" => 2,
+            "539:3601:0:16:176:18:0:4" or "539:3602:0:16:176:18:0:4" => 0,
             "771:462:7:44:264:0:2:3" => 2,
             "771:462:7:44:331:5:1:2" or "771:462:7:44:497:5:1:2" => 1,
             "779:463:8:85:1114:22:2:3" => 3,
