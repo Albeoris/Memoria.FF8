@@ -156,7 +156,7 @@ public sealed class DebugRoomSettingsTests
         MenuController menus = new();
         menus.ConnectPreferences(() => preferences, _ => writes++);
         menus.Open("debug-room", true);
-        Assert.Equal(new[] { "Localization", "Gameplay rules", "Models", "Battle", "Scene", "UI tools", "Session", "Automation", "Shortcuts", "Quit" }, menus.Entries.Select(entry => entry.Label));
+        Assert.Equal(new[] { "Localization", "Gameplay rules", "Models", "Battle", "Scene", "UI tools", "Session", "Automation", "Shortcuts", "Switch world: FFVII", "Quit" }, menus.Entries.Select(entry => entry.Label));
         menus.SelectEntry("debug-room", "debug-gallery");
         menus.Navigate(MenuInput.Confirm);
         Assert.Equal("debug-gallery", menus.ScreenId);
@@ -192,7 +192,7 @@ public sealed class DebugRoomSettingsTests
         MenuController menus = new();
         menus.SoundRequested += sounds.Add;
         menus.Open("debug-room", true);
-        menus.Navigate(MenuInput.Down);
+        menus.SelectEntry("debug-room", "debug-gallery");
         menus.Navigate(MenuInput.Confirm);
         menus.Navigate(MenuInput.Cancel);
         Assert.Equal(new[] { MenuSound.Move, MenuSound.Confirm, MenuSound.Cancel }, sounds);
