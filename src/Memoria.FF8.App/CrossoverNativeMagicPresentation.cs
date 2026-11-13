@@ -139,7 +139,7 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
         }
         else if (retained is null)
         {
-            (source, textures) = CrossoverNativeActorTextures.Allocate(source, currentResource);
+            (source, textures) = NativeEffectActorTextures.Allocate(source, currentResource);
         }
         else
         {
