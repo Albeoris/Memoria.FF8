@@ -46,7 +46,20 @@ public sealed class CrossoverForeignBodyBridgeTests(ITestOutputHelper output)
         using GpuTestDevice device = new();
         using GpuTriangleRenderer gpu = new(device.Device);
         bool rendered = false;
+        int foreignCallbacks = 0;
+        int texturedSurfaces = 0;
+        int untexturedSurfaces = 0;
+        int submittedTriangles = 0;
+        int matchedTriangles = 0;
+        int maximumChangedPixels = 0;
+        Vector2 minimumPosition = new(float.PositiveInfinity);
+        Vector2 maximumPosition = new(float.NegativeInfinity);
+        float minimumDepth = float.PositiveInfinity;
+        float maximumDepth = float.NegativeInfinity;
+        Vector4 minimumColor = new(float.PositiveInfinity);
+        Vector4 maximumColor = new(float.NegativeInfinity);
         Run(name, character, crisis, observe: Observe);
+        output.WriteLine($"{name} GPU: foreign callbacks {foreignCallbacks}, textured/untextured surfaces {texturedSurfaces}/{untexturedSurfaces}, submitted/matched triangles {submittedTriangles}/{matchedTriangles}, maximum changed pixels {maximumChangedPixels}, screen bounds {minimumPosition}..{maximumPosition}, depth {minimumDepth}..{maximumDepth}, colors {minimumColor}..{maximumColor}.");
         Assert.True(rendered, "The original body operation must emit visible geometry using the actual posed host's material.");
 
         void Observe(Ff7BattleRenderer renderer, Ff7BattleSession host, CrossoverGuestHostActions provider)
@@ -60,25 +73,39 @@ public sealed class CrossoverForeignBodyBridgeTests(ITestOutputHelper output)
             {
                 return;
             }
+            foreignCallbacks++;
+            texturedSurfaces += materials.Count(material => material.Material.Texture is not null);
+            untexturedSurfaces += materials.Count(material => material.Material.Texture is null);
             MethodInfo actorVisual = typeof(Ff7Scene).GetMethod("BattleActorVisual", BindingFlags.Static | BindingFlags.NonPublic)!;
-            HashSet<object> hostTextures = host.Actors.Where(actor => actor.Actor.Slot != 0).SelectMany(actor => renderer.CaptureActorGeometry((Ff7BattleActorVisual)actorVisual.Invoke(null, [host, actor])!).Faces).Select(face => ((NativeBattleForeignRenderMaterial)face.Surface!.Material).Material.Texture).OfType<object>().ToHashSet(ReferenceEqualityComparer.Instance);
-            Assert.NotEmpty(hostTextures);
-            Assert.All(materials.Where(material => material.Material.Texture is not null), material => Assert.Contains(material.Material.Texture!, hostTextures));
+            HashSet<TriangleMaterial> hostMaterials = host.Actors.Where(actor => actor.Actor.Slot != 0).SelectMany(actor => renderer.CaptureActorGeometry((Ff7BattleActorVisual)actorVisual.Invoke(null, [host, actor])!).Faces).Select(face => NormalizeMaterial(((NativeBattleForeignRenderMaterial)face.Surface!.Material).Material)).ToHashSet();
+            Assert.NotEmpty(hostMaterials);
+            Assert.All(materials, material => Assert.Contains(NormalizeMaterial(material.Material), hostMaterials));
+            HashSet<TriangleMaterial> foreignMaterials = materials.Select(material => NormalizeMaterial(material.Material)).ToHashSet();
             foreach ((int width, int height) in new[] { (320, 240), (640, 360) })
             {
                 gpu.Begin(width, height, Vector4.Zero, 0);
                 gpu.End();
                 Microsoft.Xna.Framework.Color[] baseline = GpuTestDevice.Read(gpu.Target);
                 gpu.Begin(width, height, Vector4.Zero, 0);
-                HostMaterialRenderer body = new(gpu, hostTextures);
+                HostMaterialRenderer body = new(gpu, foreignMaterials);
                 visual.Draw(body, host.GuestRenderCameraOutput, width, height);
                 gpu.End();
+                submittedTriangles += body.Submitted;
+                matchedTriangles += body.Triangles;
+                minimumPosition = Vector2.Min(minimumPosition, body.MinimumPosition);
+                maximumPosition = Vector2.Max(maximumPosition, body.MaximumPosition);
+                minimumDepth = Math.Min(minimumDepth, body.MinimumDepth);
+                maximumDepth = Math.Max(maximumDepth, body.MaximumDepth);
+                minimumColor = Vector4.Min(minimumColor, body.MinimumColor);
+                maximumColor = Vector4.Max(maximumColor, body.MaximumColor);
                 if (body.Triangles == 0)
                 {
                     return;
                 }
                 Microsoft.Xna.Framework.Color[] drawn = GpuTestDevice.Read(gpu.Target);
-                if (baseline.Where((pixel, index) => pixel != drawn[index]).Take(17).Count() <= 16)
+                int changedPixels = baseline.Where((pixel, index) => pixel != drawn[index]).Count();
+                maximumChangedPixels = Math.Max(maximumChangedPixels, changedPixels);
+                if (changedPixels <= 16)
                 {
                     return;
                 }
@@ -307,9 +334,18 @@ public sealed class CrossoverForeignBodyBridgeTests(ITestOutputHelper output)
 
     private static string Normalize(string? name) => (name ?? string.Empty).Replace(" ", string.Empty, StringComparison.Ordinal);
 
-    private sealed class HostMaterialRenderer(ITriangleRenderer renderer, HashSet<object> textures) : ITriangleRenderer
+    private static TriangleMaterial NormalizeMaterial(TriangleMaterial material) => material with { DepthComparison = material.DepthComparison == TriangleDepthComparison.Always ? TriangleDepthComparison.Always : TriangleDepthComparison.GreaterEqual, ActorOpacity = 1 };
+
+    private sealed class HostMaterialRenderer(ITriangleRenderer renderer, HashSet<TriangleMaterial> materials) : ITriangleRenderer
     {
         public int Triangles { get; private set; }
+        public int Submitted { get; private set; }
+        public Vector2 MinimumPosition { get; private set; } = new(float.PositiveInfinity);
+        public Vector2 MaximumPosition { get; private set; } = new(float.NegativeInfinity);
+        public float MinimumDepth { get; private set; } = float.PositiveInfinity;
+        public float MaximumDepth { get; private set; } = float.NegativeInfinity;
+        public Vector4 MinimumColor { get; private set; } = new(float.PositiveInfinity);
+        public Vector4 MaximumColor { get; private set; } = new(float.NegativeInfinity);
 
         public void Begin(int width, int height, Vector4 clearColor, float clearDepth = 1)
         {
@@ -317,13 +353,20 @@ public sealed class CrossoverForeignBodyBridgeTests(ITestOutputHelper output)
 
         public void Draw(in TriangleVertex a, in TriangleVertex b, in TriangleVertex c, in TriangleMaterial material)
         {
-            if (material.Texture is null || !textures.Contains(material.Texture))
+            Submitted++;
+            if (!materials.Contains(NormalizeMaterial(material)))
             {
                 return;
             }
             Assert.True(float.IsFinite(a.Uv.X) && float.IsFinite(a.Uv.Y));
             Assert.True(float.IsFinite(b.Uv.X) && float.IsFinite(b.Uv.Y));
             Assert.True(float.IsFinite(c.Uv.X) && float.IsFinite(c.Uv.Y));
+            MinimumPosition = Vector2.Min(MinimumPosition, Vector2.Min(a.Position, Vector2.Min(b.Position, c.Position)));
+            MaximumPosition = Vector2.Max(MaximumPosition, Vector2.Max(a.Position, Vector2.Max(b.Position, c.Position)));
+            MinimumDepth = Math.Min(MinimumDepth, Math.Min(a.Depth, Math.Min(b.Depth, c.Depth)));
+            MaximumDepth = Math.Max(MaximumDepth, Math.Max(a.Depth, Math.Max(b.Depth, c.Depth)));
+            MinimumColor = Vector4.Min(MinimumColor, Vector4.Min(a.Color, Vector4.Min(b.Color, c.Color)));
+            MaximumColor = Vector4.Max(MaximumColor, Vector4.Max(a.Color, Vector4.Max(b.Color, c.Color)));
             renderer.Draw(a, b, c, material);
             Triangles++;
         }

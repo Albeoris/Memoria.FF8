@@ -73,6 +73,8 @@ Common status mappings cover KO, Poison, Petrify, Blind, Silence, Berserk, Sleep
 
 Status support and effect presentation are independent capabilities. A spell whose operation is supported can still have a red target because its original animation requires an unavailable model consumer. Older mixed snapshots recover newly shared statuses from their retained origin facts; later restores preserve status removal and do not replay completed actions.
 
+Foreign body operations use the host's actual posed skeleton, indexed body/weapon vertices, original polygon indices and materials. Bone-only queries do not require an FFVIII animation bank. Shared vertices retain one deformation coefficient, including through bounded native body caches; polygons do not invent independent corner identities. Native dither, clipping, depth and packet producers still execute their original operations. The bridge supplies semantic target bounds, observed anchors, segment counts and typed reaction requests while preserving the native resource path for actual FFVIII participants. Unsupported native animation replacement, UI ownership or cache capacity remains an explicit capability refusal.
+
 - FFVIII states without a supported mixed operation include Zombie application, Aura, Curse, Float, Eject, Charged, Vit 0, Angel Wing and The End.
 - FFVII statuses without a shared counterpart include Sadness, Fury, Frog, Small, Dual, Shield, Manipulate, Paralysis, Dual Drain, Death Force, Resist, Lucky Girl and Imprisoned. Near Death is an FFVII HP state.
 
