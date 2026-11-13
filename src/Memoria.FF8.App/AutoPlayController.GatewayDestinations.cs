@@ -7,10 +7,21 @@ internal sealed partial class AutoPlayController
 {
     private void ObserveTravelForwarding(GameWorld world)
     {
-        if (run.ActiveTravelRoute is { } route && run.ActiveField != world.Events.FieldId && world.Field?.Id == world.Events.FieldId && session.State.Scene == SceneKind.Field && session.State.FieldId != world.Events.FieldId && route.DestinationVisitKey == $"{world.Events.FieldId}:{world.Events.Variables.GetValueOrDefault(256)}")
+        GameState actual = session.State;
+        if (run.ActiveTravelRoute is not { } route || actual.Scene != SceneKind.Field)
+        {
+            return;
+        }
+        bool forwardedField = run.ActiveField != world.Events.FieldId && world.Field?.Id == world.Events.FieldId && actual.FieldId != world.Events.FieldId && route.DestinationVisitKey == $"{world.Events.FieldId}:{world.Events.Variables.GetValueOrDefault(256)}";
+        if (forwardedField || ForwardedWorldGateway(run, actual))
         {
             run.ActiveTravelForwarded = true;
         }
+    }
+
+    private static bool ForwardedWorldGateway(AutoPlayRunState state, GameState actual)
+    {
+        return actual.FieldLoadContext?.Origin == NativeFieldLoadOrigin.WorldReturn && actual.PreviousFieldId == state.ActiveField && actual.DepartingWorldState is not null && state.ActiveEvent is string eventId && eventId.StartsWith($"{state.ActiveField}:gateway:", StringComparison.Ordinal) && state.ActiveTravelRoute?.DestinationVisitKey == $"world:{state.ActiveStory}";
     }
 
     internal static bool HasNativeGatewayDestinationContext(AutoPlayRunState state, GameState actual, out int gateway)

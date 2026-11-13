@@ -2285,7 +2285,8 @@ internal sealed partial class AutoPlayController
         }
         string destination = session.State.Scene == SceneKind.WorldMap ? "world:" + session.State.Variables.GetValueOrDefault(256) : VisitKey();
         bool changedDestination = run.ActiveTravelRoute is { } route && route.DestinationVisitKey != destination;
-        if (changedDestination && !run.ActiveTravelForwarded && !CanCorrectNativeGatewayDestination())
+        bool forwarded = run.ActiveTravelForwarded || ForwardedWorldGateway(run, session.State);
+        if (changedDestination && !forwarded && !CanCorrectNativeGatewayDestination())
         {
             throw new NotSupportedException("The executed native choices returned to a different destination than the recorded travel route.");
         }
@@ -2297,7 +2298,7 @@ internal sealed partial class AutoPlayController
         string destinationNavigation = CurrentNavigationKey(world, destination);
         if (changedDestination)
         {
-            if (!run.ActiveTravelForwarded)
+            if (!forwarded)
             {
                 planner.RetireObservedGatewayDestination(run.ActiveNavigationKey!, eventId, run.ActiveTravelRoute!, destinationNavigation);
             }
