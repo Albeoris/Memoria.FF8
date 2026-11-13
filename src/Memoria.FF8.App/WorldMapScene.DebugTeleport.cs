@@ -147,6 +147,7 @@ internal sealed partial class WorldMapScene
                 891 when story == 765 && before.NativeGardenRuntime is not null => -1,
                 505 when story is 912 or 1350 && before.NativeGardenRuntime is not null => -1,
                 516 when story == 1650 => -1,
+                545 when story == 2000 => -1,
                 159 => 0,
                 106 => 10,
                 136 => 20,
