@@ -21,7 +21,9 @@ public sealed class CrossoverWorldSwitchMenuTests
         MenuController menu = new() { Presentation = presentation };
         menu.ConnectWorldSwitch(() => issue, () => opened = true);
         menu.Open("debug-room", demo: true);
-        Assert.Equal("world-switch", menu.SelectedEntry?.Id);
+        Assert.Equal("world-switch", menu.Entries[^2].Id);
+        Assert.Equal("quit", menu.Entries[^1].Id);
+        menu.SelectEntry("debug-room", "world-switch", allowDisabled: true);
         Assert.False(menu.SelectedEntry!.Enabled);
         UiLabel explanation = Assert.Single(Descendants(menu.BuildView().Root).OfType<UiLabel>(), label => label.Id == "world-switch-explanation");
         Assert.Equal(issue, explanation.Text);
