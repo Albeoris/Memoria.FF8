@@ -33,6 +33,8 @@ public sealed partial class Ff7MidgarAutoPlayPolicy(Ff7Session session)
             ("mktpb", 29 or 31, 2, 3) => 3,
             ("mkt_mens", 24, 1, 2) => 2,
             ("mkt_mens", 29, 2, 3) => 3,
+            ("colne_4", 60, 1, 2) => 1,
+            ("colne_b1", 146, 1, 2) => 1,
             ("colne_6", 39, 0, 2) => 1,
             _ => null
         };
@@ -42,7 +44,7 @@ public sealed partial class Ff7MidgarAutoPlayPolicy(Ff7Session session)
     {
         input = default;
         string field = session.Field.Name;
-        if (field is not ("ealin_1" or "ealin_2" or "niv_cl" or "eals_1" or "mds5_1" or "mds5_3" or "mds6_1" or "mds6_2" or "mds6_3" or "mrkt2" or "mrkt1" or "mrkt3" or "mkt_s1" or "mktpb" or "mkt_mens" or "colne_1" or "colne_2" or "colne_3" or "colne_4" or "colne_5" or "colne_6" or "blin70_1" or "blin70_2" or "colne_b1" or "colne_b3" or "mds7st1" or "mds7st2" or "mds7st3" or "mds7plr1" or "mds7plr2" or "pillar_1" or "pillar_2"))
+        if (field is not ("ealin_1" or "ealin_2" or "niv_cl" or "eals_1" or "mds5_1" or "mds5_3" or "mds6_1" or "mds6_2" or "mds6_3" or "mrkt2" or "mrkt1" or "mrkt3" or "mkt_s1" or "mktpb" or "mkt_mens" or "colne_1" or "colne_2" or "colne_3" or "colne_4" or "colne_5" or "colne_6" or "blin70_1" or "blin70_2" or "colne_b1" or "colne_b3" or "mds7st1" or "mds7st2" or "mds7st3" or "mds7plr1" or "mds7plr2" or "pillar_1" or "pillar_2" or "pillar_3"))
         {
             return false;
         }
@@ -112,7 +114,7 @@ public sealed partial class Ff7MidgarAutoPlayPolicy(Ff7Session session)
             "blin70_1" when story == 203 => default,
             "blin70_2" when story is 203 or 206 => default,
             "colne_b1" when story == 206 => session.Machine.Variables.ReadByte(FieldBank.MapByte, 0x0A) == 0 ? driver.TalkTo(2) : session.Machine.Variables.ReadByte(FieldBank.MapByte, 9) == 0 ? driver.TalkTo(3) : default,
-            "colne_b1" when story == 209 => default,
+            "colne_b1" when story == 209 => ChooseSewerExitInput(driver, player),
             "colne_b3" when story == 209 => ApproachLineWithConfirm(driver, 2),
             "mds7st1" when story is 209 or 212 => ChooseTrainGraveyardEntryInput(driver, player),
             "mds7st2" when story == 212 => ChooseTrainGraveyardSwitchInput(driver, player),
@@ -122,6 +124,7 @@ public sealed partial class Ff7MidgarAutoPlayPolicy(Ff7Session session)
             "mds7plr1" when story == 221 => ChoosePillarApproach(driver, player),
             "pillar_1" when story == 221 => driver.Gateway(159),
             "pillar_2" when story == 221 => driver.TalkTo(4),
+            "pillar_3" when story == 221 => ChoosePillarTopInput(driver),
             _ => throw new NotSupportedException($"FFVII Midgar autoplay has reached an unproved story goal in {field} at story {story}.")
         };
         return true;
@@ -160,7 +163,8 @@ public sealed partial class Ff7MidgarAutoPlayPolicy(Ff7Session session)
     private Ff7AutoplayInput ChooseCorneoHallInput(Ff7AutoplayDriver driver)
     {
         bool thresholdBlocked = (session.Host.Process.BlockedTriangles[78 >> 3] & (1 << (78 & 7))) != 0;
-        if (thresholdBlocked && (session.Machine.Variables.ReadByte(FieldBank.Persistent1Byte, 0xA3) & 8) != 0)
+        bool leftRoomPending = (session.Machine.Variables.ReadByte(FieldBank.Persistent1Byte, 0xA2) & 0x80) == 0;
+        if (thresholdBlocked && leftRoomPending && (session.Machine.Variables.ReadByte(FieldBank.Persistent1Byte, 0xA3) & 8) != 0)
         {
             return driver.Gateway(209);
         }
@@ -169,8 +173,8 @@ public sealed partial class Ff7MidgarAutoPlayPolicy(Ff7Session session)
 
     private Ff7AutoplayInput ChooseCorneoBasementInput(Ff7AutoplayDriver driver)
     {
-        int scene = session.Machine.Variables.ReadByte(FieldBank.Persistent1Byte, 0xA3);
-        return (scene & 0x0C) == 8 ? ApproachLine(driver, 20) : driver.Gateway(207);
+        Ff7Line reunion = session.Host.Process.Lines.Single(line => line.Entity == 20);
+        return reunion.Enabled == 1 ? ApproachLine(driver, reunion.Entity) : driver.Gateway(207);
     }
 
     private Ff7AutoplayInput ChooseCorneoLoungeInput(Ff7AutoplayDriver driver)
@@ -187,6 +191,39 @@ public sealed partial class Ff7MidgarAutoPlayPolicy(Ff7Session session)
         return driver.TalkTo(11);
     }
 
+    private Ff7AutoplayInput ChooseSewerExitInput(Ff7AutoplayDriver driver, Ff7Actor player)
+    {
+        int ladder = player.Triangle switch
+        {
+            >= 11 and <= 23 or >= 38 and <= 45 or 65 or 66 or >= 76 and <= 79 => 5,
+            >= 46 and <= 62 => 8,
+            _ => -1
+        };
+        if (player.Triangle is 30 or 31)
+        {
+            return driver.Steer(new Vector3(1060, -555, 128));
+        }
+        return ladder >= 0 ? ApproachLineWithConfirm(driver, ladder) : ApproachLine(driver, 9, 26);
+    }
+
+    private Ff7AutoplayInput ChoosePillarTopInput(Ff7AutoplayDriver driver)
+    {
+        if (session.Machine.Variables.ReadByte(FieldBank.MapByte, 7) != 0)
+        {
+            throw new NotSupportedException("FFVII Midgar autoplay has reached the unproved Sector 7 pillar wire evacuation.");
+        }
+        if (session.Machine.Variables.ReadByte(FieldBank.MapByte, 0x13) != 0 && session.Machine.Variables.ReadByte(FieldBank.MapByte, 0x17) == 0)
+        {
+            return driver.TalkTo(4);
+        }
+        if (session.Machine.Variables.ReadByte(FieldBank.MapByte, 0x10) != 0)
+        {
+            return ApproachLine(driver, 1);
+        }
+        return session.Machine.Variables.ReadByte(FieldBank.MapByte, 0x12) == 0
+            && session.Progress.CompletedBattles.Any(battle => battle.FieldGeneration == session.FieldGeneration && battle.Formation is >= 412 and <= 414) ? driver.TalkTo(5) : default;
+    }
+
     private Ff7AutoplayInput ApproachLineWithConfirm(Ff7AutoplayDriver driver, int entity)
     {
         Ff7Line counter = session.Host.Process.Lines.Single(line => line.Entity == entity);
@@ -194,9 +231,9 @@ public sealed partial class Ff7MidgarAutoPlayPolicy(Ff7Session session)
         return ApproachLine(driver, entity) with { Held = counter.Push || counter.Touch || counter.OnLine ? confirm : (ushort)0 };
     }
 
-    private Ff7AutoplayInput ApproachLine(Ff7AutoplayDriver driver, int entity)
+    private Ff7AutoplayInput ApproachLine(Ff7AutoplayDriver driver, int entity, int? triangle = null)
     {
         Ff7Line line = session.Host.Process.Lines.Single(line => line.Entity == entity);
-        return driver.Approach(new Vector3((line.X1 + line.X2) / 2f, (line.Y1 + line.Y2) / 2f, line.Z1));
+        return driver.Approach(new Vector3((line.X1 + line.X2) / 2f, (line.Y1 + line.Y2) / 2f, line.Z1), triangle);
     }
 }
