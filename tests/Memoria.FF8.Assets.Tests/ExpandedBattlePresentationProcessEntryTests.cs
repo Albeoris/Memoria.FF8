@@ -19,6 +19,7 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         var (logicalDefinition, selected) = CreateDefinitions(game, assets, allyCount, enemyCount, authoredCount, expanded: true);
         BattleSession logical = new(logicalDefinition, BattleAtbMode.TurnBased);
         string before = LogicalState(logical);
+        ulong initialGlobalCalls = logical.NativeGlobalRandomChange!.Calls;
         ExpandedBattlePresentationProcess process = new(logical, selected);
         NativeBattleGraphicsRoster roster = logical.ReadExpandedPresentationRoster();
 
@@ -107,6 +108,8 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         Assert.True(process.PreparedPresentation!.Version > prepared.Version);
         Assert.Equal(prepared.Frame, process.PreparedPresentation.Frame);
         AssertCompletedModelOwners(process, roster, selected.NativeGraphics!);
+        AssertRandomExchange(logical, process);
+        Assert.True(process.GlobalRandomCalls > initialGlobalCalls);
         Assert.True(string.Equals(before, LogicalState(logical), StringComparison.Ordinal), "Presentation entry or idle changed the logical battle.");
     }
 
@@ -138,7 +141,8 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         Assert.Equal(native.NativeStage!.ResourceStageId, process.Stage.ResourceStageId);
         Assert.Equal(nativeGraphics.Models.Select(row => (row.ModelId4, row.Transform?.Initial20, row.SequenceState?.Default2)).ToArray(),
             process.Graphics.Models.Select(row => (row.ModelId4, row.Transform?.Initial20, row.SequenceState?.Default2)).ToArray());
-        Assert.Equal(native.Capture().NativeGlobalRandomCalls, process.GlobalRandomCalls);
+        Assert.Equal(native.NativeGlobalRandomChange, process.GlobalRandomChange);
+        AssertRandomExchange(logical, process);
         Assert.Equal(0, native.Frame);
 
         native.Tick();
@@ -147,7 +151,8 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         Assert.True(process.EntryReady);
         Assert.Equal((byte)4, process.Graphics.EntryLifecycle);
         Assert.Equal(native.NativeEffectMemory!.ActionPhaseDEA, process.Memory.ActionPhaseDEA);
-        Assert.Equal(native.Capture().NativeGlobalRandomCalls, process.GlobalRandomCalls);
+        Assert.Equal(native.NativeGlobalRandomChange, process.GlobalRandomChange);
+        AssertRandomExchange(logical, process);
         Assert.Equal(0, native.Frame);
         Assert.Equal(0, logical.Frame);
     }
@@ -259,9 +264,17 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         return JsonSerializer.Serialize(new
         {
             data.Frame, data.Combatants, data.NativeItemInventory, data.NativeGil, data.Events, data.ScriptedRewards, data.NativeRewardItems,
-            data.Random, data.NativeGlobalRandom, data.NativeGlobalRandomCalls, data.NativeCrtRandom, data.NativeAiVariables, data.PersistentAiVariables,
+            data.Random, data.NativeBattleUiRandom, data.NativeAiVariables, data.PersistentAiVariables,
             data.QueuedActions, data.ActiveAction, data.Outcome, data.NativeScriptState
         });
+    }
+
+    internal static void AssertRandomExchange(BattleSession logical, ExpandedBattlePresentationProcess process)
+    {
+        NativeGlobalRandomChange owner = Assert.IsType<NativeGlobalRandomChange>(logical.NativeGlobalRandomChange);
+        owner.Validate();
+        Assert.Equal(owner, process.GlobalRandomChange);
+        Assert.Equal(logical.CurrentCrtRandom, process.CurrentCrtRandom);
     }
 
     internal static (BattleDefinition Logical, BattleDefinition Selected) CreateDefinitions(GameAssets game, BattleAssets assets, int allyCount, int enemyCount, int authoredCount, bool expanded)

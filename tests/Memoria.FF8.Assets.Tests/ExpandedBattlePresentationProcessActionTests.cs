@@ -45,6 +45,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         }
         Assert.True(process.EntryReady, $"Installed entry stalled at callback {process.Graphics.Callback}.");
         Assert.Equal((byte)4, process.Graphics.EntryLifecycle);
+        ExpandedBattlePresentationProcessEntryTests.AssertRandomExchange(logical, process);
 
         BattleSession.PreparedHostedAction stale = process.PrepareAction(attackHeader, [attackPacket]);
         process.ValidatePreparedAction(stale);
@@ -105,6 +106,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         ImmutableArray<NativeBattleContactPacket> firePackets = roster.EnemyRows.Select((row, index) => Contact(checked((byte)row), fire, checked((ushort)(201 + index)))).ToImmutableArray();
         Assert.Equal(enemyCount, firePackets.Length);
         long beforeFire = process.Graphics.Callback;
+        NativeCrtRandomState crtBeforeFire = Assert.IsType<NativeCrtRandomState>(logical.CurrentCrtRandom);
         long fireToken = process.BeginAction(fireHeader, firePackets);
         Descriptor fireDescriptor = ReadDescriptor(process);
         Assert.NotEqual(attackDescriptor.Serial, fireDescriptor.Serial);
@@ -124,6 +126,8 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         Assert.Equal(originalStage.Callback, process.Stage.Task!.Callback);
         Assert.NotNull(process.Camera.Projection);
         Assert.True(process.GlobalRandomCalls >= initialRandomCalls);
+        ExpandedBattlePresentationProcessEntryTests.AssertRandomExchange(logical, process);
+        Assert.NotEqual(crtBeforeFire, logical.CurrentCrtRandom);
         Assert.Same(originalCpu, process.ModelCpuResources);
         Assert.Same(originalCache, process.ModelTextureCache);
         Assert.Equal(originalModelOwners, Models(process));

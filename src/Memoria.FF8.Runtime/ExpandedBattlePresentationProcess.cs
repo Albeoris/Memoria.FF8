@@ -5,13 +5,17 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Owns the native presentation process for one expanded battle.</summary>
 public sealed class ExpandedBattlePresentationProcess
 {
+    private readonly BattleSession logicalOwner;
     private readonly BattleSession presentation;
+    private bool advancing;
 
     public ExpandedBattlePresentationProcess(BattleSession logicalOwner, BattleDefinition presentationResources)
     {
         ArgumentNullException.ThrowIfNull(logicalOwner);
         ArgumentNullException.ThrowIfNull(presentationResources);
+        this.logicalOwner = logicalOwner;
         presentation = BattleSession.CreateHostedBattlePresentation(logicalOwner, presentationResources);
+        presentation.ValidateHostedPresentationRandomOwner(logicalOwner);
     }
 
     public NativeBattleGraphicsState Graphics => presentation.NativeGraphics!;
@@ -24,6 +28,8 @@ public sealed class ExpandedBattlePresentationProcess
     public NativeBattleEffectPresentationStep LastStep { get; private set; } = new([], []);
 
     internal ulong GlobalRandomCalls => presentation.NativeGlobalRandomChange!.Calls;
+    internal NativeGlobalRandomChange? GlobalRandomChange => presentation.NativeGlobalRandomChange;
+    internal NativeCrtRandomState? CurrentCrtRandom => presentation.CurrentCrtRandom;
     internal NativeBattleModelCpuResources ModelCpuResources => presentation.NativeModelCpuResources!;
     internal NativeBattleModelTextureCache ModelTextureCache => presentation.NativeModelTextureCache!;
     internal long? ActiveActionToken => presentation.HostedActiveActionToken;
@@ -57,11 +63,36 @@ public sealed class ExpandedBattlePresentationProcess
     internal NativeBattleModelLifecycleServices Advance(BattleSession logicalOwner, NativeExamTimerState? timerObservation = null)
     {
         ArgumentNullException.ThrowIfNull(logicalOwner);
-        long? actionToken = ActiveActionToken;
-        NativeBattleModelLifecycleServices services = presentation.AdvanceHostedBattlePresentationFrame(logicalOwner, timerObservation ?? logicalOwner.NativeExamTimer);
-        presentation.RefreshHostedPreparedPresentation(logicalOwner, services);
-        LastStep = presentation.ReadAndClearHostedPresentationFrameOutputs();
-        LastStepActionToken = actionToken;
-        return services;
+        if (!ReferenceEquals(this.logicalOwner, logicalOwner))
+        {
+            throw new InvalidOperationException("Hosted presentation must advance with its original logical battle owner.");
+        }
+        if (advancing)
+        {
+            throw new InvalidOperationException("A hosted presentation frame is already advancing.");
+        }
+
+        advancing = true;
+        try
+        {
+            presentation.ImportHostedPresentationRandom(logicalOwner);
+            try
+            {
+                long? actionToken = ActiveActionToken;
+                NativeBattleModelLifecycleServices services = presentation.AdvanceHostedBattlePresentationFrame(logicalOwner, timerObservation ?? logicalOwner.NativeExamTimer);
+                presentation.RefreshHostedPreparedPresentation(logicalOwner, services);
+                LastStep = presentation.ReadAndClearHostedPresentationFrameOutputs();
+                LastStepActionToken = actionToken;
+                return services;
+            }
+            finally
+            {
+                presentation.ExportHostedPresentationRandom(logicalOwner);
+            }
+        }
+        finally
+        {
+            advancing = false;
+        }
     }
 }
