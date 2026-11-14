@@ -217,7 +217,7 @@ public static partial class NativeBattleShockwavePulsar260Controller
     }
 
     private static NativeBattleEffectParameters RootParameters(NativeBattleShockwavePulsar260Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Shockwave Pulsar requires its captured native action parameters.");
-    private static uint RootModelAddress(int actor) => (uint)actor < 7 ? checked(0x1D972C0u + (uint)actor * 156) : throw new InvalidDataException("Shockwave Pulsar selected an actor outside its seven-model bank.");
+    private static uint RootModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Shockwave Pulsar selected an actor outside its seven-model bank.");
     private static void RootRequireBinding(NativeBattleShockwavePulsar260Frame frame)
     {
         if (frame.Effect.RequestedEffect != 260 || frame.Effect.Binding.Entry != Entry)

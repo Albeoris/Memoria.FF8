@@ -83,7 +83,7 @@ public static class NativeBattleChoco100Secondary
                     {
                         Store(frame.Task.WriteWord(offset, 0));
                     }
-                    Store(frame.Task.WriteDword(0xAC, workAddress).WriteDword(0xB0, 0x2565890).WriteDword(0xB4, checked(0x1D972C0u + 0x9Cu * (uint)frame.Actor.Index)).WriteDword(0xB8, 0x1D8E054).WriteDword(0xBC, 0x1D8E054));
+                    Store(frame.Task.WriteDword(0xAC, workAddress).WriteDword(0xB0, 0x2565890).WriteDword(0xB4, NativeBattleGraphicsModelAddress.Encode(frame.Actor.Index)).WriteDword(0xB8, 0x1D8E054).WriteDword(0xBC, 0x1D8E054));
                     frame = frame with { Settings = (frame.Settings ?? NativeBattleChoco100SecondarySettings.Unknown()).Initialize717450(workAddress), Actor = frame.Actor with { Flags0 = (ushort)(frame.Actor.Flags0 | 4), Rotation12 = 0xC00 } };
                     NativeBattleEffectLocalBounds bounds = frame.Actor.GeometryBounds52 ?? throw new NotSupportedException("Native Choco actor secondary requires its retained bounds.");
                     short height = unchecked((short)(bounds.Maximum.Y - bounds.Minimum.Y));

@@ -101,7 +101,7 @@ public static partial class NativeBattleEffect313Controller
         return packets.Headers[parameters.HeaderIndex7C];
     }
 
-    public static uint ModelAddress(int actor) => (uint)actor < 7 ? checked(0x1D972C0u + (uint)(actor * 156)) : throw new InvalidDataException("Effect313 requires an actual physical model row.");
+    public static uint ModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Effect313 requires an actual physical model row.");
     private static void RequireBinding(NativeBattleEffect313Frame frame)
     {
         if (frame.Effect.RequestedEffect != Effect || frame.Effect.Binding.Entry != Entry || frame.Effect.Binding.Initializer != Initializer)

@@ -351,7 +351,7 @@ public static partial class NativeBattleDuel215Controller
         int Target(int index)
         {
             int target = services.Targets[index];
-            if (task.ReadDword(64 + index * 32) != 0x1D972C0u + (uint)target * 156)
+            if (task.ReadDword(64 + index * 32) != NativeBattleGraphicsModelAddress.Encode(target))
             {
                 throw new InvalidDataException("Native Duel215 scene lost its actual target pointer.");
             }

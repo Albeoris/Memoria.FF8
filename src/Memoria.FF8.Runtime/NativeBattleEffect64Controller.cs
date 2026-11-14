@@ -137,5 +137,5 @@ public static partial class NativeBattleEffect64Controller
         }
     }
 
-    private static uint ModelAddress(int actor) => (uint)actor < 7 ? checked(0x1D972C0u + (uint)(actor * 156)) : throw new InvalidDataException("Effect64 requires its actual physical caster.");
+    private static uint ModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Effect64 requires its actual physical caster.");
 }

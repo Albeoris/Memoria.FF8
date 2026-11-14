@@ -109,12 +109,11 @@ public static partial class NativeBattleEffect227Controller
         };
         if (index >= 0)
         {
-            uint delta = unchecked(frame.State.ReadDword(CasterGlobal) - 0x1D972C0);
-            if (delta % 156 != 0 || delta / 156 >= 7)
+            if (!NativeBattleGraphicsModelAddress.TryDecode(frame.State.ReadDword(CasterGlobal), out int row))
             {
                 throw new InvalidDataException("Effect227 text requires its actual physical caster.");
             }
-            frame = inputs.Execute(frame, new NativeBattleEffect227Text4876F0((int)(delta / 156), index, duration));
+            frame = inputs.Execute(frame, new NativeBattleEffect227Text4876F0(row, index, duration));
         }
         return frame;
     }

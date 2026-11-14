@@ -7,12 +7,11 @@ public sealed partial class BattleSession
 {
     private static int ActorNativeEffect65(uint pointer, NativeBattleGraphicsState graphics)
     {
-        uint delta = unchecked(pointer - 0x1D972C0);
-        if (delta % 156 != 0 || delta / 156 >= (uint)graphics.Models.Length)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
         {
             throw new InvalidDataException("Effect65 requires an actual physical model row.");
         }
-        return checked((int)(delta / 156));
+        return actorIndex;
     }
 
     private NativeBattlePoseSource PoseNativeEffect65(NativeBattleGraphicsState graphics, NativeBattleEffect65Frame frame, uint pointer)

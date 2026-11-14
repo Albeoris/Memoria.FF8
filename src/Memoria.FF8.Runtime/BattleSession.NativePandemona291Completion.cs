@@ -10,12 +10,11 @@ public sealed partial class BattleSession
         int index = Enumerable.Range(0, main.Slots.Length).Single(index => (main.Slots[index].Flags & 1) != 0 && main.Slots[index].Callback == 0x6ED900);
         int row = NativeBattleWaterExecutionFields.ArenaOffset(unchecked(main.BankAddress + (uint)(index * main.Stride) + 0x14), 32);
         NativeBattleEffectArena arena = frame.Memory.Arena!;
-        uint relative = unchecked(BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(row, 4)) - 0x1D972C0);
-        if (relative % 156 != 0 || relative / 156 >= graphics.Models.Length)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(row, 4)), out int actorIndex, graphics.Models.Length))
         {
             throw new InvalidDataException("Native Pandemona camera requires its actual first target pointer.");
         }
-        return (graphics.Models[checked((int)(relative / 156))], arena.Read(row + 0x1C, 1)[0]);
+        return (graphics.Models[actorIndex], arena.Read(row + 0x1C, 1)[0]);
     }
 
     private bool NativePandemona291TargetsAwaitResource40(NativeBattlePandemona291Frame frame, NativeBattleGraphicsState graphics)
@@ -26,12 +25,11 @@ public sealed partial class BattleSession
         int count = nativeActionPackets.Headers[frame.Effect.Parameters!.HeaderIndex7C].ReadByte(0x10);
         for (int target = 0; target < count; target++)
         {
-            uint relative = unchecked(BinaryPrimitives.ReadUInt32LittleEndian(frame.Memory.Arena!.Read(start + 0x14 + target * 32, 4)) - 0x1D972C0);
-            if (relative % 156 != 0 || relative / 156 >= graphics.Models.Length)
+            if (!NativeBattleGraphicsModelAddress.TryDecode(BinaryPrimitives.ReadUInt32LittleEndian(frame.Memory.Arena!.Read(start + 0x14 + target * 32, 4)), out int actorIndex, graphics.Models.Length))
             {
                 throw new InvalidDataException("Native Pandemona completion requires its actual target resource pointer.");
             }
-            if (!NativeGraphicsActorAtStandingPose(graphics, checked((int)(relative / 156))))
+            if (!NativeGraphicsActorAtStandingPose(graphics, actorIndex))
             {
                 return true;
             }
@@ -64,12 +62,10 @@ public sealed partial class BattleSession
         {
             int row = start + 0x14 + index * 32;
             uint pointer = BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(row, 4));
-            uint relative = unchecked(pointer - 0x1D972C0);
-            if (relative % 156 != 0 || relative / 156 >= graphics.Models.Length)
+            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actor, graphics.Models.Length))
             {
                 throw new InvalidDataException("Native Pandemona completion target leaves its original actor rows.");
             }
-            int actor = checked((int)(relative / 156));
             NativeBattleGraphicsModel model = graphics.Models[actor];
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Pandemona completion requires its current actor position.");
             NativeBattleVector position = new(Word(row + 0xC), Word(row + 0xE), Word(row + 0x10));

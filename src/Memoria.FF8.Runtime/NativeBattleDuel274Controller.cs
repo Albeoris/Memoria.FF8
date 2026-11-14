@@ -187,16 +187,15 @@ public static class NativeBattleDuel274Controller
         {
             throw new InvalidDataException("Native Duel requires a physical model index in its seven-row bank.");
         }
-        return checked(0x1D972C0u + (uint)index * 156);
+        return NativeBattleGraphicsModelAddress.Encode(index);
     }
 
     public static int Index(uint address)
     {
-        uint offset = unchecked(address - 0x1D972C0u);
-        if (offset % 156 != 0 || offset / 156 >= 7)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int row))
         {
             throw new InvalidDataException("Native Duel requires its exact physical model pointer.");
         }
-        return checked((int)(offset / 156));
+        return row;
     }
 }

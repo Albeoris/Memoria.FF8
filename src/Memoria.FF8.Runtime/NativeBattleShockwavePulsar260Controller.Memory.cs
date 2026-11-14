@@ -169,12 +169,11 @@ public static partial class NativeBattleShockwavePulsar260Controller
 
     public static int Actor(uint address)
     {
-        uint relative = unchecked(address - 0x1D972C0);
-        if (relative % 156 != 0 || relative / 156 >= 7)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int row))
         {
             throw new InvalidDataException("Shockwave Pulsar selected a model outside the original actor bank.");
         }
-        return (int)(relative / 156);
+        return row;
     }
     private static short Signed(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
     private static NativeBattleShockwavePulsar260Frame DrawRandom(NativeBattleShockwavePulsar260Frame frame, out ushort value) => frame with { Random = frame.Random.Draw(out value) };

@@ -342,12 +342,11 @@ public static class NativeBattleDuel216Scene
         int ModelIndex(uint address)
         {
             uint pointer = BinaryPrimitives.ReadUInt32LittleEndian(frame.Staging.Read(address, 4));
-            uint displacement = pointer - 0x1D972C0u;
-            if (displacement >= 7 * 156 || displacement % 156 != 0)
+            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row))
             {
                 throw new InvalidDataException("Native Different Beat model pointer leaves its physical rows.");
             }
-            return (int)(displacement / 156);
+            return row;
         }
         NativeBattleActionMatrix Identity() => new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
     }

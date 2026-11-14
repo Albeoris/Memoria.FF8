@@ -50,12 +50,11 @@ public static partial class NativeBattleEffect207Lower
 
     public static NativeBattleEffect207BoundsStep Bounds5F10(NativeBattleEffect207Frame frame, uint modelPointer, NativeBattleEffectArena rect8, int minimumDepth, NativeBattleEffect207Resources resources, NativeBattleEffect207Inputs inputs)
     {
-        long difference = (long)modelPointer - 0x1D972C0;
-        if (difference < 0 || difference % 156 != 0 || difference / 156 >= 7)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(modelPointer, out int row))
         {
             throw new InvalidDataException("Effect207 bounds require their current physical actor.");
         }
-        NativeBattleEffectArena model = inputs.ReadModelArena9C(frame, (int)(difference / 156));
+        NativeBattleEffectArena model = inputs.ReadModelArena9C(frame, row);
         NativeBattleVector bottom = new(L207S(model, 0x1C), L207S(model, 0x1E), L207S(model, 0x20));
         NativeBattleVector top = bottom with { Y = unchecked((short)(L207S(model, 0x36) - 512)) };
         short size = unchecked((short)(L207S(model, 0x26) + 256));

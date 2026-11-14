@@ -96,11 +96,11 @@ public sealed partial class BattleSession
 
         int ActorIndex(uint pointer)
         {
-            if (pointer < 0x1D972C0 || (pointer - 0x1D972C0) % 156 != 0 || (pointer - 0x1D972C0) / 156 >= graphics.Models.Length)
+            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
             {
                 throw new NotSupportedException("Native trail requires its actual physical actor pointer.");
             }
-            return checked((int)((pointer - 0x1D972C0) / 156));
+            return actorIndex;
         }
     }
 }

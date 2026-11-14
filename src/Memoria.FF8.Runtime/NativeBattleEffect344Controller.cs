@@ -175,7 +175,7 @@ public static class NativeBattleEffect344Controller
     }
 
     private static NativeBattleEffectParameters Parameters(NativeBattleEffect344Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Effect344 requires its actual original parameters.");
-    private static uint ModelAddress(int actor) => (uint)actor < 7 ? checked(0x1D972C0u + (uint)actor * 156) : throw new InvalidDataException("Effect344 requires an actual physical actor index.");
+    private static uint ModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Effect344 requires an actual physical actor index.");
     private static NativeBattleEffectArena Slice(NativeBattleEffectArena source, int offset, int length) => NativeBattleEffectNodeContextMemory.Copy(source, offset, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
 
     private static NativeBattleModulePoolTask CopyTask(NativeBattleModulePoolTask task, int offset, NativeBattleEffectArena source, int length)

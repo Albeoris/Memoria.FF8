@@ -56,7 +56,7 @@ public sealed partial class BattleSession
             int contact = header.FirstContactIndex ?? throw new InvalidDataException("Native Full-cure requires its current target contacts.");
             for (int index = 0; index < count; index++)
             {
-                director = director.WriteDword(16 + index * 4, checked(0x1D972C0u + (uint)nativeActionPackets.ReadContact(contact + index).Primary.ActorIndex * 156));
+                director = director.WriteDword(16 + index * 4, NativeBattleGraphicsModelAddress.Encode(nativeActionPackets.ReadContact(contact + index).Primary.ActorIndex));
             }
             directors = directors.WriteSlot(slot, director);
         }
@@ -74,7 +74,7 @@ public sealed partial class BattleSession
                 {
                     (targets, int targetSlot) = targets!.Append(0x67EA80);
                     uint actorPointer = task.ReadDword(16 + index * 4);
-                    int actor = checked((int)((actorPointer - 0x1D972C0) / 156));
+                    int actor = NativeBattleGraphicsModelAddress.Decode(actorPointer, graphics.Models.Length);
                     NativeBattleModulePoolTask target = targets.Slots[targetSlot].WriteDword(12, actorPointer);
                     target = WindStore(target, 16, ReadNativeGraphicsBone(graphics, actor, 0xF1, 0)).WriteWord(22, 0);
                     NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(target, 12 + (12), 2244);
@@ -105,7 +105,7 @@ public sealed partial class BattleSession
                     return current;
                 });
                 task = StoreWorkspace(task, played.Workspace);
-                int actor = checked((int)((task.ReadDword(12) - 0x1D972C0) / 156));
+                int actor = NativeBattleGraphicsModelAddress.Decode(task.ReadDword(12), graphics.Models.Length);
                 int age = WindWord(task, 22);
                 if (age >= 19 && (age & 1) == 0 && sparks!.Slots.Any(candidate => (candidate.Flags & 1) == 0))
                 {

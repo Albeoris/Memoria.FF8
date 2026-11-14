@@ -64,7 +64,7 @@ public static partial class NativeBattleEffect312Late
     {
         NativeBattleModulePoolTask task = Read(frame, address);
         int index = TaskWord(task, 0x0E);
-        uint model = unchecked(0x1D972C0u + (uint)(index * 0x9C));
+        uint model = NativeBattleGraphicsModelAddress.Encode(index);
         uint saved = unchecked(0x223EFC8u + (uint)(index * 28));
         int age = TaskWord(task, 0x0C);
         if (age == 0)
@@ -90,7 +90,7 @@ public static partial class NativeBattleEffect312Late
     {
         NativeBattleModulePoolTask task = Read(frame, address);
         int index = TaskWord(task, 0x0E);
-        uint model = unchecked(0x1D972C0u + (uint)(index * 0x9C));
+        uint model = NativeBattleGraphicsModelAddress.Encode(index);
         uint saved = unchecked(0x223EFC8u + (uint)(index * 28));
         int age = TaskWord(task, 0x0C);
         if (age == 0)

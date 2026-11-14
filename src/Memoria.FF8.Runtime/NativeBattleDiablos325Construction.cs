@@ -66,7 +66,7 @@ public static class NativeBattleDiablos325Construction
             int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Diablos timeline requires its current contact pointer.");
             byte actor = inputs.Packets.ReadContact(first + index).Primary.ActorIndex;
             int offset = checked(0x94 + index * 12 - 12);
-            task.WriteDword(12 + offset, checked(0x1D972C0u + actor * 0x9Cu));
+            task.WriteDword(12 + offset, NativeBattleGraphicsModelAddress.Encode(actor));
             task.WriteWord(12 + offset + 8, 0);
             task.WriteWord(12 + offset + 10, 4096);
         }

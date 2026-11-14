@@ -16,7 +16,7 @@ public sealed partial class BattleSession
         uint manager = CoreDword(frame, 0x27973EC);
         byte actorIndex = ReadSlot(frame, 0x1B, 1)[0];
         uint actorAddress = CoreDword(frame, CoreDword(frame, 0x279744C) + 0x60u + 4u * actorIndex);
-        if (actorIndex >= graphics.Models.Length || actorAddress != 0x1D972C0u + 156u * actorIndex)
+        if (actorIndex >= graphics.Models.Length || actorAddress != NativeBattleGraphicsModelAddress.Encode(actorIndex))
         {
             throw new NotSupportedException("Native actor glow requires its actual physical actor row.");
         }

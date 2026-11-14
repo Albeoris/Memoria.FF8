@@ -89,15 +89,14 @@ public sealed partial class BattleSession
 
         NativeBattleEffectArena ReadPhysical(NativeBattleEffect345Frame current, uint address, int length)
         {
-            if (address >= 0x1D972C0 && (ulong)address + (uint)length <= 0x1D972C0ul + (uint)graphics.Models.Length * 156)
+            if (TryResolveNativeModelRead(graphics, address, length, out int modelOffset))
             {
-                int actor = checked((int)((address - 0x1D972C0) / 156));
-                int offset = checked((int)((address - 0x1D972C0) % 156));
-                if (length > 156 - offset)
+                if (length > NativeBattleGraphicsModelAddress.RowSize - modelOffset)
                 {
                     throw new InvalidDataException("Effect345 physical read crosses a current model row.");
                 }
-                return NativeBattleEffectNodeContextMemory.Copy(ReadModel(0x1D972C0u + (uint)actor * 156), offset, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
+                (int actor, int offset) = NativeBattleGraphicsModelAddress.ResolveField(address, length, graphics.Models.Length);
+                return NativeBattleEffectNodeContextMemory.Copy(ReadModel(NativeBattleGraphicsModelAddress.Encode(actor)), offset, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
             }
             return NativeBattleEffect345Controller.ReadBytes(current, address, length);
         }
@@ -179,12 +178,11 @@ public sealed partial class BattleSession
 
     private static int NativeEffect345Actor(NativeBattleGraphicsState graphics, uint address)
     {
-        long offset = (long)address - 0x1D972C0;
-        if (offset < 0 || offset % 156 != 0 || offset / 156 >= graphics.Models.Length)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int actorIndex, graphics.Models.Length))
         {
             throw new NotSupportedException("Effect345 requires an actual current physical model address.");
         }
-        return checked((int)(offset / 156));
+        return actorIndex;
     }
 
     private void PublishNativeEffect345Frame(NativeBattleEffect345Frame frame)

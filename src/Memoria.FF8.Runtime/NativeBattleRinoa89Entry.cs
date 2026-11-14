@@ -51,7 +51,7 @@ public static partial class NativeBattleRinoa89Controller
         return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(frame.Effect.Pools.IndexOf(frame.Effect.Pools.Single(pool => pool.DescriptorAddress == Root)), root) } };
     }
 
-    private static uint ModelAddress(byte actor) => checked(0x1D972C0u + actor * 156u);
+    private static uint ModelAddress(byte actor) => NativeBattleGraphicsModelAddress.Encode(actor);
     private static NativeBattleFileStaging Dword(NativeBattleFileStaging staging, uint address, uint value)
     {
         byte[] bytes = new byte[4];

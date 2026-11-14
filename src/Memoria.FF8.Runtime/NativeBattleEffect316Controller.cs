@@ -137,5 +137,5 @@ public static partial class NativeBattleEffect316Controller
         }
     }
 
-    private static uint ModelAddress(int physical) => (uint)physical < 7 ? checked(0x1D972C0u + (uint)(physical * 156)) : throw new InvalidDataException("Effect316 requires its actual physical caster.");
+    private static uint ModelAddress(int physical) => (uint)physical < 7 ? NativeBattleGraphicsModelAddress.Encode(physical) : throw new InvalidDataException("Effect316 requires its actual physical caster.");
 }

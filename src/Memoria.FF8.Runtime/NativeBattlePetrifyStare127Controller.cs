@@ -197,8 +197,8 @@ public static class NativeBattlePetrifyStare127Controller
     private static int FirstContact(NativeBattlePetrifyStare127Frame frame, NativeBattlePetrifyStare127Inputs inputs) => inputs.Packets.Headers[Parameters(frame).HeaderIndex7C].FirstContactIndex ?? throw new NotSupportedException("Petrify Stare requires its captured physical contact pointer.");
     private static NativeBattleEffectArena Arena(NativeBattlePetrifyStare127Frame frame) => frame.Memory.Arena ?? throw new NotSupportedException("Petrify Stare requires its current working arena.");
     private static uint Working(NativeBattlePetrifyStare127Frame frame) => frame.State.ReadDword(WorkingGlobal);
-    private static uint ModelAddress(int actor) => actor is >= 0 and < 7 ? checked(0x1D972C0u + (uint)(actor * 156)) : throw new NotSupportedException("Petrify Stare selected an absent physical actor.");
-    private static int Actor(uint pointer) => pointer >= 0x1D972C0 && pointer < 0x1D972C0 + 7 * 156 && (pointer - 0x1D972C0) % 156 == 0 ? checked((int)((pointer - 0x1D972C0) / 156)) : throw new NotSupportedException("Petrify Stare requires an actual physical actor pointer.");
+    private static uint ModelAddress(int actor) => actor is >= 0 and < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new NotSupportedException("Petrify Stare selected an absent physical actor.");
+    private static int Actor(uint pointer) => NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row) ? row : throw new NotSupportedException("Petrify Stare requires an actual physical actor pointer.");
     private static NativeBattlePetrifyStare127Frame WithPool(NativeBattlePetrifyStare127Frame frame, int index, NativeBattleEffectTaskPool pool) => frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };
     private static NativeBattlePetrifyStare127Frame Put(NativeBattlePetrifyStare127Frame frame, int pool, int slot, NativeBattleModulePoolTask task) => WithPool(frame, pool, frame.Effect.Pools[pool].WriteSlot(slot, task));
 }

@@ -159,6 +159,6 @@ public static partial class NativeBattleEnergyBomber217Controller
     private static NativeBattleEffectParameters Parameters(NativeBattleEnergyBomber217Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("EnergyBomber217 requires its captured native parameters.");
     private static int FirstContact(NativeBattleEnergyBomber217Frame frame, NativeBattleEnergyBomber217Inputs inputs) => inputs.Packets.Headers[Parameters(frame).HeaderIndex7C].FirstContactIndex ?? throw new NotSupportedException("EnergyBomber217 requires its current physical contacts.");
     private static uint Working(NativeBattleEnergyBomber217Frame frame) => frame.State.ReadDword(WorkingGlobal);
-    private static uint ModelAddress(int actor) => actor is >= 0 and < 7 ? 0x1D972C0u + (uint)(actor * 156) : throw new NotSupportedException("EnergyBomber217 selected an absent actor.");
-    private static int Actor(uint pointer) => pointer >= 0x1D972C0 && pointer < 0x1D972C0 + 7 * 156 && (pointer - 0x1D972C0) % 156 == 0 ? (int)((pointer - 0x1D972C0) / 156) : throw new NotSupportedException("EnergyBomber217 requires its current physical model pointer.");
+    private static uint ModelAddress(int actor) => actor is >= 0 and < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new NotSupportedException("EnergyBomber217 selected an absent actor.");
+    private static int Actor(uint pointer) => NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row) ? row : throw new NotSupportedException("EnergyBomber217 requires its current physical model pointer.");
 }

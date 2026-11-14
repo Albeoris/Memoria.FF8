@@ -302,7 +302,7 @@ public static class NativeBattleHypnotize133Controller
     private static NativeBattleActionHeaderSlot Header(NativeBattleHypnotize133Frame frame, NativeBattleHypnotize133Inputs inputs) => inputs.Packets.Headers[Parameters(frame).HeaderIndex7C];
     private static int FirstContact(NativeBattleHypnotize133Frame frame, NativeBattleHypnotize133Inputs inputs) => Header(frame, inputs).FirstContactIndex ?? throw new NotSupportedException("Hypnotize requires its current physical contacts.");
     private static uint Working(NativeBattleHypnotize133Frame frame) => frame.State.ReadDword(WorkingGlobal);
-    private static uint ModelAddress(int actor) => actor is >= 0 and < 7 ? 0x1D972C0u + (uint)(actor * 156) : throw new NotSupportedException("Hypnotize selected an absent actor.");
-    private static int Actor(uint pointer) => pointer >= 0x1D972C0 && pointer < 0x1D972C0 + 7 * 156 && (pointer - 0x1D972C0) % 156 == 0 ? (int)((pointer - 0x1D972C0) / 156) : throw new NotSupportedException("Hypnotize requires its current physical model pointer.");
+    private static uint ModelAddress(int actor) => actor is >= 0 and < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new NotSupportedException("Hypnotize selected an absent actor.");
+    private static int Actor(uint pointer) => NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row) ? row : throw new NotSupportedException("Hypnotize requires its current physical model pointer.");
     private static NativeBattleModulePoolTask Vector(NativeBattleModulePoolTask task, int offset, NativeBattleVector point) => task.WriteWord(offset, unchecked((ushort)point.X)).WriteWord(offset + 2, unchecked((ushort)point.Y)).WriteWord(offset + 4, unchecked((ushort)point.Z));
 }

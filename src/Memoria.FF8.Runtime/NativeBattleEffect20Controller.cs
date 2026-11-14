@@ -215,7 +215,7 @@ public static class NativeBattleEffect20Controller
                         NativeBattleEffectHierarchyAppend overlay = hierarchy.Append8DC540(4, 0x8DDC30, 64, address, Select);
                         hierarchy = overlay.Hierarchy.Write(overlay.Address, overlay.Hierarchy.Read(overlay.Address).WriteDword(0x34, 0x1629F14).WriteWord(0x38, 1));
                         task = hierarchy.Read(address).WriteWord(0x60, 288).WriteWord(0x62, unchecked((ushort)-320)).WriteWord(0x64, 32);
-                        current = inputs.Execute(With(current, hierarchy.Write(address, task)), new NativeBattleEffect20RingSequence(0x1D97668, 12));
+                        current = inputs.Execute(With(current, hierarchy.Write(address, task)), new NativeBattleEffect20RingSequence(NativeBattleGraphicsModelAddress.Encode(6), 12));
                         hierarchy = new(current.Effect.Pools);
                         hierarchy = hierarchy.Write(address, hierarchy.Read(address).WriteWord(0x70, 24));
                         hierarchy = Next(hierarchy, address);

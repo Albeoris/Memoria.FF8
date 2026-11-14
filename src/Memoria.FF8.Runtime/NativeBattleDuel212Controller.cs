@@ -27,7 +27,7 @@ public static partial class NativeBattleDuel212Controller
         root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0));
         staging = Put(staging, 0x2510278, 0x20DFAB8);
         staging = Put(staging, 0x25101FC, 0x1D99A78);
-        staging = Put(staging, 0x2510200, checked(0x1D972C0u + 156u * parameters.Actor78));
+        staging = Put(staging, 0x2510200, NativeBattleGraphicsModelAddress.Encode(parameters.Actor78));
         state = new(true, parameters, resources);
         return enqueueInitialTexture(new(memory with { Duel212 = state }, effect with { Pools = [root], ReturnedDescriptor = Root }, staging, random));
     }

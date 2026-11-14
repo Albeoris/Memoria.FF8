@@ -191,6 +191,6 @@ public static partial class NativeBattleMiniPulseCannon286Controller
         {
             throw new NotSupportedException("Mini Pulse Cannon requires an actual physical model row.");
         }
-        return checked(0x1D972C0u + (uint)(actor * 156));
+        return NativeBattleGraphicsModelAddress.Encode(actor);
     }
 }

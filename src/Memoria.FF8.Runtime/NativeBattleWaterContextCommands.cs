@@ -94,8 +94,7 @@ public static class NativeBattleWaterContextCommands
 
     private static byte PhysicalIndex(uint pointer)
     {
-        uint offset = unchecked(pointer - 0x1D972C0);
-        return offset % 0x9C == 0 && offset / 0x9C < 7 ? (byte)(offset / 0x9C) : throw new InvalidDataException("Native ring context requires one of the seven aligned physical graphics models.");
+        return NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row) ? (byte)row : throw new InvalidDataException("Native ring context requires one of the seven aligned physical graphics models.");
     }
 
     private static NativeBattleWaterExecutionFrame CoreByte(NativeBattleWaterExecutionFrame frame, uint address, byte value) => frame with { Core = frame.Core.Write(address, new byte[] { value }) };

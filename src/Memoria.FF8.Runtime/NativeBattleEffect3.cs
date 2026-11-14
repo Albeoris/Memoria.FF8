@@ -77,7 +77,7 @@ public static class NativeBattleEffect3
                 {
                     int first = FirstContact(Header(sequence));
                     int model = inputs.Packets.ReadContact(first).Primary.ActorIndex;
-                    uint modelAddress = checked(0x1D972C0u + 156u * (uint)model);
+                    uint modelAddress = NativeBattleGraphicsModelAddress.Encode(model);
                     bool busy = children.Slots.Any(child => (child.Flags & 1) != 0 && BinaryPrimitives.ReadUInt32LittleEndian(child.ReadRawPayloadSpan().Slice(4)) == modelAddress && Word(child, 12) <= 15);
                     if (busy)
                     {
@@ -121,12 +121,10 @@ public static class NativeBattleEffect3
             }
             short frame = Word(task, 12);
             uint address = BinaryPrimitives.ReadUInt32LittleEndian(task.ReadRawPayloadSpan().Slice(4));
-            uint relative = unchecked(address - 0x1D972C0u);
-            if (relative % 156 != 0 || relative / 156 >= 7)
+            if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int model))
             {
                 throw new InvalidDataException("Native700DE0 model pointer leaves the original seven-row bank.");
             }
-            int model = (int)(relative / 156);
             NativeBattleModuleAnchor anchor = new(Word(task, 20), Word(task, 22), Word(task, 24), 0);
             int depth = Word(task, 26);
             if (frame == 0)

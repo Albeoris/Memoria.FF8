@@ -218,7 +218,7 @@ public static class NativeBattleRaldo19BallController
         void InitializeBall()
         {
             SetBall(NativeBattleEffectArena.Clear());
-            SetDword(0x68, checked(0x1D972C0u + 156u * (uint)actor));
+            SetDword(0x68, NativeBattleGraphicsModelAddress.Encode(actor));
             SetDword(0x60, 0x2726AC0);
             SetDword(0x6C, 0x1D8E054);
             SetDword(0x70, 0x1D8E054);

@@ -16,12 +16,11 @@ public static partial class NativeBattleEffect68Lower
 
     private static int PhysicalIndex(uint pointer)
     {
-        uint offset = unchecked(pointer - 0x1D972C0u);
-        if (offset >= 7 * 0x9C || offset % 0x9C != 0)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row))
         {
             throw new InvalidDataException("Effect68 requires its current selected physical model.");
         }
-        return (int)(offset / 0x9C);
+        return row;
     }
 
     private static short V(NativeBattleEffectArena row, int offset) => BinaryPrimitives.ReadInt16LittleEndian(row.Read(offset, 2));

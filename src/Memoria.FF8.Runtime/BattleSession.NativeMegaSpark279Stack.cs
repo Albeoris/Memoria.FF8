@@ -114,10 +114,9 @@ public sealed partial class BattleSession
         if (task.Kind == NativeBattleAuxiliaryKind.TextureAnimation5057D0 && task.Payload.Length == 32 && (task.UnknownByteMask & 0x20F) == 0 && task.Program is { } program)
         {
             uint pointer = BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan());
-            uint delta = unchecked(pointer - 0x1D972C0);
-            if (delta % 156 == 0 && delta / 156 < (uint)graphics.Models.Length)
+            if (NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
             {
-                var model = graphics.Models[(int)(delta / 156)];
+                var model = graphics.Models[actorIndex];
                 program.Validate();
                 if (program.Source[program.Offset] == 255 && (model.Flags0 & 2) != 0 && model.ResourceFlags44 is ushort flags && (flags & 0x40) == 0 && model.Sequence == task.Payload[9])
                 {

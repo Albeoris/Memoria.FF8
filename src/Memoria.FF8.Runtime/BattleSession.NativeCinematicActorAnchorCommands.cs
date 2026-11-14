@@ -8,11 +8,10 @@ public sealed partial class BattleSession
     {
         NativeBattleCinematicActorAnchorServices services = new((current, address, restore, linked) =>
         {
-            if (address < 0x1D972C0 || (address - 0x1D972C0) % 156 != 0 || (address - 0x1D972C0) / 156 >= graphics.Models.Length)
+            if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int index, graphics.Models.Length))
             {
                 throw new NotSupportedException("Native actor anchor requires its actual physical model pointer.");
             }
-            int index = checked((int)((address - 0x1D972C0) / 156));
             NativeBattleGraphicsModel actor = graphics.Models[index];
             if (presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true)
             {
@@ -59,11 +58,11 @@ public sealed partial class BattleSession
         {
             ReadScale38 = pointer =>
             {
-                if (pointer < 0x1D972C0 || (pointer - 0x1D972C0) % 156 != 0 || (pointer - 0x1D972C0) / 156 >= graphics.Models.Length)
+                if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
                 {
                     throw new NotSupportedException("Native radial anchor requires its actual physical actor pointer.");
                 }
-                return graphics.Models[checked((int)((pointer - 0x1D972C0) / 156))].Transform?.Scale38 ?? throw new NotSupportedException("Native radial anchor requires the actual actor scale WORD38.");
+                return graphics.Models[actorIndex].Transform?.Scale38 ?? throw new NotSupportedException("Native radial anchor requires the actual actor scale WORD38.");
             }
         };
         return (NativeBattleCinematicActorAnchorCommands.Execute(frame, program, services), graphics);

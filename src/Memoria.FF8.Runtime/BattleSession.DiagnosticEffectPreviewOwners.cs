@@ -49,8 +49,7 @@ public sealed partial class BattleSession
         NativeBattleEffect101State? state = NativeEffectMemory?.Effect101;
         uint? target = state is null ? null : PreviewScalar<uint>(() => state.ReadDword(NativeBattleEffect101Profile.TargetGlobal));
         uint? working = state is null ? null : PreviewScalar<uint>(() => state.ReadDword(NativeBattleEffect101Profile.WorkingGlobal));
-        uint relative = target is uint pointer ? unchecked(pointer - 0x1D972C0u) : uint.MaxValue;
-        int? targetIndex = relative % 156 == 0 && relative / 156 < 7 ? (int)(relative / 156) : null;
+        int? targetIndex = target is uint pointer && NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex) ? actorIndex : null;
         return new
         {
             TargetPointer = target,

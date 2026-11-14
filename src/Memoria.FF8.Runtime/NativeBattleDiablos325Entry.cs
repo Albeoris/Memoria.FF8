@@ -48,7 +48,7 @@ public static class NativeBattleDiablos325Entry
         }
         int centerZ = sumZ / count;
         int centerX = sumX / count;
-        state = state with { Pause5180 = 0, Action5184 = 0x1D99A78, Caster5188 = checked(0x1D972C0u + (uint)parameters.Actor78 * 0x9C), CenterZ51D4 = centerZ, CenterX51D8 = centerX, FarZ51DC = unchecked(centerZ + 4000), MidZ51E0 = unchecked(centerZ + 2000), Control51E4 = 0, ModelBuffer5208 = NativeBattleEffectNodeMemory.ArenaAddress };
+        state = state with { Pause5180 = 0, Action5184 = 0x1D99A78, Caster5188 = NativeBattleGraphicsModelAddress.Encode(parameters.Actor78), CenterZ51D4 = centerZ, CenterX51D8 = centerX, FarZ51DC = unchecked(centerZ + 4000), MidZ51E0 = unchecked(centerZ + 2000), Control51E4 = 0, ModelBuffer5208 = NativeBattleEffectNodeMemory.ArenaAddress };
         return frame with { Memory = frame.Memory with { Textures = textures, Diablos325 = state }, Effect = frame.Effect with { Pools = [pool], ReturnedDescriptor = MainDescriptor } };
     }
 

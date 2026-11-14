@@ -91,10 +91,10 @@ public static class NativeBattleDiablos325Recipients
 
     internal static int ActorIndex(uint address)
     {
-        if (address < 0x1D972C0 || (address - 0x1D972C0) % 156 != 0 || (address - 0x1D972C0) / 156 >= 7)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int row))
         {
             throw new InvalidDataException("Native Diablos recipient requires its exact physical actor pointer.");
         }
-        return checked((int)((address - 0x1D972C0) / 156));
+        return row;
     }
 }

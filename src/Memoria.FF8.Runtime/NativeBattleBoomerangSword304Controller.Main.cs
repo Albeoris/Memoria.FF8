@@ -267,12 +267,10 @@ public static partial class NativeBattleBoomerangSword304Controller
 
     public static NativeBattleBoomerangSword304Frame ApplyModelContacts66A2C0(NativeBattleBoomerangSword304Frame frame, uint modelAddress, NativeBattleBoomerangSword304Inputs inputs)
     {
-        uint delta = unchecked(modelAddress - 0x1D972C0);
-        if (delta % 156 != 0 || delta / 156 >= 7)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(modelAddress, out int actor))
         {
             throw new InvalidDataException("Boomerang Sword contact matcher requires a physical graphics model.");
         }
-        int actor = checked((int)(delta / 156));
         for (int index = 0; index < Header(frame, inputs.ReadPackets(frame)).ReadByte(16); index++)
         {
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);

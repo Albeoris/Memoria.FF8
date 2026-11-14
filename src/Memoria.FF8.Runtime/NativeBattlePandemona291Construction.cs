@@ -45,7 +45,7 @@ public static class NativeBattlePandemona291Construction
             NativeBattleGraphicsModel actor = inputs.ReadModel(actorIndex);
             NativeBattleModelTransform transform = actor.Transform ?? throw new NotSupportedException("Native Pandemona target requires its current position and scale.");
             int record = child + 0x14 + index * 32;
-            WriteDword(record, unchecked(0x1D972C0u + (uint)actorIndex * 156));
+            WriteDword(record, NativeBattleGraphicsModelAddress.Encode(actorIndex));
             WriteWord(record + 0xC, unchecked((ushort)transform.Position28.X));
             WriteWord(record + 0xE, unchecked((ushort)transform.Position28.Y));
             WriteWord(record + 0x10, unchecked((ushort)transform.Position28.Z));
@@ -129,7 +129,7 @@ public static class NativeBattlePandemona291Construction
 
         void WriteWord(int offset, ushort value) => arena = arena.Write(offset, BitConverter.GetBytes(value));
         void WriteDword(int offset, uint value) => arena = arena.Write(offset, BitConverter.GetBytes(value));
-        int ActorIndex(int record) => checked((int)((BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(record, 4)) - 0x1D972C0) / 156));
+        int ActorIndex(int record) => NativeBattleGraphicsModelAddress.Decode(BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(record, 4)));
         NativeBattleGraphicsModel ReadActor(int record) => inputs.ReadModel(ActorIndex(record));
         void CopySnapshot(int source, int destination) => StoreSnapshot(destination, arena.ReadSnapshot(source, 32));
         void StoreSnapshot(int destination, (byte[] Data, bool[] Known) snapshot)

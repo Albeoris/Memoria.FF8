@@ -24,14 +24,13 @@ public static partial class NativeBattleElectrocute275Controller
     }
     private static int Actor(uint address)
     {
-        uint offset = unchecked(address - 0x1D972C0);
-        if (offset % 156 != 0 || offset / 156 >= 7)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int row))
         {
             throw new InvalidDataException("Electrocute actor pointer leaves the native seven-model bank.");
         }
-        return (int)(offset / 156);
+        return row;
     }
-    private static uint ModelAddress(int actor) => (uint)actor < 7 ? checked(0x1D972C0u + (uint)actor * 156) : throw new InvalidDataException("Electrocute actor leaves the native model bank.");
+    private static uint ModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Electrocute actor leaves the native model bank.");
     private static NativeBattleModulePoolTask Task(NativeBattleElectrocute275Frame frame, int pool, int slot) => frame.Effect.Pools[pool].Slots[slot];
     private static NativeBattleElectrocute275Frame WithPool(NativeBattleElectrocute275Frame frame, int index, NativeBattleEffectTaskPool pool) => frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };
     private static NativeBattleElectrocute275Frame Put(NativeBattleElectrocute275Frame frame, int pool, int slot, NativeBattleModulePoolTask task) => WithPool(frame, pool, frame.Effect.Pools[pool].WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, Task(frame, pool, slot).Next, task.Callback)));

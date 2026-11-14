@@ -7,7 +7,7 @@ public static partial class NativeBattleEffect312Controller
 {
     public static NativeBattleEffect312Step AdvanceMain59CC60(NativeBattleEffect312Frame frame, uint address, NativeBattleEffect312Resources resources, NativeBattleEffect312Inputs inputs)
     {
-        uint modelAddress = checked(0x1D972C0u + frame.State.ReadDword(CasterGlobal) * 0x9Cu);
+        uint modelAddress = NativeBattleGraphicsModelAddress.Encode(checked((int)frame.State.ReadDword(CasterGlobal)));
         NativeBattleActionMatrix composed = NativeBattleGfMatrices.Compose56C2F0(inputs.ReadWorld(frame, modelAddress).ReadMatrix(), inputs.ReadBoneMatrix59D3C0(frame, modelAddress, 10).ReadMatrix());
         NativeBattleVector offset = Vector(NativeBattleEffectArena.Clear().Write(0, resources.ReadStatic(CenterOffsetAddress, 6)));
         NativeBattleVector rotated = NativeBattleGfMatrices.RotateShort56C4F0(composed, offset);
@@ -110,7 +110,7 @@ public static partial class NativeBattleEffect312Controller
         {
             for (int actor = 0; actor < 3; actor++)
             {
-                NativeBattleEffectArena row = inputs.ReadModelArena9C(frame, 0x1D972C0u + (uint)(actor * 0x9C));
+                NativeBattleEffectArena row = inputs.ReadModelArena9C(frame, NativeBattleGraphicsModelAddress.Encode(actor));
                 if ((row.Read(0, 1)[0] & 2) == 0)
                 {
                     continue;

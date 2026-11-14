@@ -7,12 +7,10 @@ public sealed partial class BattleSession
 {
     private (NativeBattleGraphicsState Graphics, NativeBattleEffect283Frame Frame, short MaximumDeviation) DrawNativeEffect283Body(NativeBattleGraphicsState graphics, NativeBattleEffect283Frame frame, uint modelAddress, short centerX, short centerY, short threshold, int bankIndex, int fade, NativeBattleEffect283Resources resources)
     {
-        uint delta = unchecked(modelAddress - 0x1D972C0);
-        if (delta % 156 != 0 || delta / 156 >= (uint)graphics.Models.Length)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(modelAddress, out int actor, graphics.Models.Length))
         {
             throw new InvalidDataException("Effect283 body requires its actual physical target model.");
         }
-        int actor = checked((int)(delta / 156));
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
         NativeBattlePilotVisualIdentity? bodyIdentity = frame.PilotIdentity;
         int geometryPass = 0;

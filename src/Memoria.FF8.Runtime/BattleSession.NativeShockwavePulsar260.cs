@@ -29,12 +29,11 @@ public sealed partial class BattleSession
         NativeBattleEffectArena Position(int actor) => NativeBattleEffectNodeContextMemory.Copy(NativeBattleRaldo19ModelMemory.Capture(graphics.Models[actor]), 0x1C, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8);
         int Actor(uint pointer)
         {
-            uint offset = unchecked(pointer - 0x1D972C0u);
-            if (offset % 156 != 0 || offset / 156 >= graphics.Models.Length)
+            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
             {
                 throw new InvalidDataException("Shockwave Pulsar model pointer leaves its current physical model directory.");
             }
-            return checked((int)(offset / 156));
+            return actorIndex;
         }
         void Publish(NativeBattleShockwavePulsar260Frame current)
         {

@@ -17,7 +17,7 @@ public sealed partial class BattleSession
         uint body = checked(taskAddress + 0x6C);
         frame = NativeBattleEffect83Controller.ClearBytes(frame, body, 88);
         NativeBattleEffectArena context = NativeBattleEffect83Controller.ReadBytes(frame, body, 88);
-        context = context.Write(0x40, BitConverter.GetBytes(TransformedAddress)).Write(0x44, BitConverter.GetBytes(DescriptorAddress)).Write(0x48, BitConverter.GetBytes(checked(0x1D972C0u + (uint)actor * 156))).Write(0x4C, BitConverter.GetBytes(0x25C9F74u)).Write(0x50, BitConverter.GetBytes(0x25C9F74u));
+        context = context.Write(0x40, BitConverter.GetBytes(TransformedAddress)).Write(0x44, BitConverter.GetBytes(DescriptorAddress)).Write(0x48, BitConverter.GetBytes(NativeBattleGraphicsModelAddress.Encode(actor))).Write(0x4C, BitConverter.GetBytes(0x25C9F74u)).Write(0x50, BitConverter.GetBytes(0x25C9F74u));
         frame = NativeBattleEffect83Controller.WriteBytes(frame, body, context, 88);
         NativeBattleEffect83State state = frame.State.WriteDword(DescriptorAddress + 4, TransformedAddress).WriteWord(DescriptorAddress + 0x14, 0).WriteWord(DescriptorAddress + 0x16, 0).WriteWord(DescriptorAddress + 0x18, 320).WriteWord(DescriptorAddress + 0x1A, 0).Write(DescriptorAddress + 0x1C, [128, 128, 128]).WriteDword(DescriptorAddress + 0x20, uint.MaxValue).WriteWord(DescriptorAddress + 0x24, 0).WriteDword(0x25CF3F0, 0x209FAB8);
         NativeBattleGuardianWorkBuffer work = frame.Memory.GuardianWorkBuffer ?? throw new NotSupportedException("Effect83 requires its separately retained work buffer.");
@@ -28,12 +28,10 @@ public sealed partial class BattleSession
     {
         NativeBattleEffectArena context = NativeBattleEffect83Controller.ReadBytes(frame, bodyAddress, 88);
         uint modelAddress = BinaryPrimitives.ReadUInt32LittleEndian(context.Read(0x48, 4));
-        uint delta = unchecked(modelAddress - 0x1D972C0);
-        if (delta % 156 != 0 || delta / 156 >= (uint)graphics.Models.Length)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(modelAddress, out int actor, graphics.Models.Length))
         {
             throw new InvalidDataException("Effect83 body requires its captured physical model.");
         }
-        int actor = checked((int)(delta / 156));
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
         NativeBattlePoseSource pose = resource.PoseSource ?? throw new NotSupportedException("Effect83 requires its current target skeleton.");
         _ = resource.LinkedGeometry ?? throw new NotSupportedException("Effect83 requires observed linked geometry presence.");

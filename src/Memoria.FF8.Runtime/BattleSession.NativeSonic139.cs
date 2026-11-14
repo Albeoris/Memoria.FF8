@@ -34,12 +34,11 @@ public sealed partial class BattleSession
         NativeBattlePoseSource Pose(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Sonic Wave requires its actual current actor skeleton.");
         static int Actor(uint address)
         {
-            uint relative = unchecked(address - 0x1D972C0);
-            if (relative % 156 != 0 || relative / 156 >= 7)
+            if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int actorIndex))
             {
                 throw new InvalidDataException("Sonic Wave actor pointer leaves its actual model bank.");
             }
-            return (int)(relative / 156);
+            return actorIndex;
         }
 
         void Publish(NativeBattleSonic139Frame current)

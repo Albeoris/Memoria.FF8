@@ -35,7 +35,7 @@ public static class NativeBattleStatusCureItemController
         NativeBattleEffectTaskPool roots = NativeBattleEffectTaskPool.Initialize(profile.MainDescriptor, profile.MainBank, 20, 1);
         (roots, int slot) = roots.Append(profile.RootCallback);
         roots = roots.WriteSlot(slot, roots.Slots[slot].WriteDword(12, 0).WriteDword(16, 0));
-        NativeBattleStatusCureItemExecution execution = new(arenaOffset, checked(0x1D972C0u + (uint)parameters.Actor78 * 156));
+        NativeBattleStatusCureItemExecution execution = new(arenaOffset, NativeBattleGraphicsModelAddress.Encode(parameters.Actor78));
         return new(memory with { Textures = textures }, effect with { Pools = [roots], ReturnedDescriptor = profile.MainDescriptor, StatusCureItem = execution, DrawArenaOffset = null }, execution);
     }
 

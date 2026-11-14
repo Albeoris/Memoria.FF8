@@ -12,7 +12,7 @@ public static partial class NativeBattleEffect313Lower
         {
             throw new NotSupportedException("Effect313 actor callback requires its selected party row.");
         }
-        uint model = checked(0x1D972C0u + (uint)actor * 0x9C);
+        uint model = NativeBattleGraphicsModelAddress.Encode(actor);
         uint saved = checked(0x223CC38u + (uint)actor * 20);
         int age = Signed(task, 12);
         if (age == 0)

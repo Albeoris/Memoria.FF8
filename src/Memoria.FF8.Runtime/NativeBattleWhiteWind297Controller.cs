@@ -274,16 +274,15 @@ public static class NativeBattleWhiteWind297Controller
         {
             throw new InvalidDataException("Blue Magic White Wind actor leaves its seven-model bank.");
         }
-        return checked(0x1D972C0u + (uint)actor * 156);
+        return NativeBattleGraphicsModelAddress.Encode(actor);
     }
     private static int Actor(uint address)
     {
-        uint offset = unchecked(address - 0x1D972C0);
-        if (offset % 156 != 0 || offset / 156 >= 7)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int row))
         {
             throw new InvalidDataException("Blue Magic White Wind actor pointer leaves its native model bank.");
         }
-        return (int)(offset / 156);
+        return row;
     }
     private static uint Working(NativeBattleWhiteWind297Frame frame)
     {

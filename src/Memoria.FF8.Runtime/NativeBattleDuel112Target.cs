@@ -21,7 +21,7 @@ public static partial class NativeBattleDuel112Target
         {
             throw new InvalidDataException("Native Duel target leaves the seven physical graphics rows.");
         }
-        task = task.WriteWord(14, (ushort)sequence).WriteDword(176, 0x1D972C0u + 156u * target);
+        task = task.WriteWord(14, (ushort)sequence).WriteDword(176, NativeBattleGraphicsModelAddress.Encode(target));
         Store();
         uint row = checked(pool.BankAddress + (uint)(slot * pool.Stride) + 16);
         frame = services.BindActor5022C0(frame, actor, row);

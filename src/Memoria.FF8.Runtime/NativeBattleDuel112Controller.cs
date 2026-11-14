@@ -23,7 +23,7 @@ public static class NativeBattleDuel112Controller
         memory = memory with { Duel112 = new(true, parameters, resources) };
         NativeBattleDuel112Frame frame = enqueueInitialTexture(new(memory, effect, staging, random));
         frame = frame with { Staging = Dword(frame.Staging, 0x25218E8, Arena) };
-        frame = frame with { Staging = Dword(frame.Staging, 0x25218E0, 0x1D972C0u + 156u * parameters.Actor78) };
+        frame = frame with { Staging = Dword(frame.Staging, 0x25218E0, NativeBattleGraphicsModelAddress.Encode(parameters.Actor78)) };
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x2521960, 0x25218F8, 28, 1);
         (root, int slot) = root.Append(0x6CBCF0);
         root = root.WriteSlot(slot, root.Slots[slot].ClearPayload(16));

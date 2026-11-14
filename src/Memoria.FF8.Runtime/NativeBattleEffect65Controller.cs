@@ -138,5 +138,5 @@ public static partial class NativeBattleEffect65Controller
             throw new InvalidDataException("Effect65 requires its actual selected entry.");
         }
     }
-    public static uint ModelAddress(int actor) => (uint)actor < 7 ? checked(0x1D972C0u + (uint)(actor * 156)) : throw new InvalidDataException("Effect65 requires an actual physical model.");
+    public static uint ModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Effect65 requires an actual physical model.");
 }

@@ -309,10 +309,9 @@ public sealed partial class BattleSession
     }
     private static int PhysicalActor(uint pointer)
     {
-        uint relative = unchecked(pointer - 0x1D972C0);
-        return relative % 156 == 0 && relative / 156 < 7 ? (int)(relative / 156) : throw new NotSupportedException("Native Water actor pointer leaves its physical model bank.");
+        return NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex) ? actorIndex : throw new NotSupportedException("Native Water actor pointer leaves its physical model bank.");
     }
-    private static uint ActorPointer(int index) => 0x1D972C0 + checked((uint)(156 * index));
+    private static uint ActorPointer(int index) => NativeBattleGraphicsModelAddress.Encode(index);
     private static int ContactIndex(uint address)
     {
         uint relative = unchecked(address - WaterContactsAddress);

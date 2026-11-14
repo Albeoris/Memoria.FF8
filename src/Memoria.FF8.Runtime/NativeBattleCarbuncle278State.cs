@@ -13,8 +13,7 @@ public sealed record NativeBattleCarbuncle278State([property: JsonRequired] uint
 
     public void Validate()
     {
-        uint actor = unchecked(Caster8124 - 0x1D972C0);
-        if (Random811C > 0x7FFF || Action8120 is not (0 or 0x1D99A78) || Caster8124 != 0 && (actor % 0x9C != 0 || actor / 0x9C >= 7) || ModelBuffer81F8 != 0 && ModelBuffer81F8 != NativeBattleEffectNodeMemory.ArenaAddress || !Cursor(PacketCursor81BC) || !Cursor(AlternateCursor81C0))
+        if (Random811C > 0x7FFF || Action8120 is not (0 or 0x1D99A78) || Caster8124 != 0 && !NativeBattleGraphicsModelAddress.TryDecode(Caster8124, out _) || ModelBuffer81F8 != 0 && ModelBuffer81F8 != NativeBattleEffectNodeMemory.ArenaAddress || !Cursor(PacketCursor81BC) || !Cursor(AlternateCursor81C0))
         {
             throw new InvalidDataException("Native Carbuncle module publications leave their original CRT, action, actor or effect-arena owners.");
         }

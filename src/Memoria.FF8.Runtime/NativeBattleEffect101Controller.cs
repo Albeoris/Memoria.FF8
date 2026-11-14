@@ -230,6 +230,6 @@ public static class NativeBattleEffect101Controller
     private static NativeBattleEffectParameters Parameters(NativeBattleEffect101Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Effect101 requires its captured native parameters.");
     private static int FirstContact(NativeBattleEffect101Frame frame, NativeBattleEffect101Inputs inputs) => inputs.Packets.Headers[Parameters(frame).HeaderIndex7C].FirstContactIndex ?? throw new NotSupportedException("Effect101 requires its current physical contacts.");
     private static uint Working(NativeBattleEffect101Frame frame) => frame.State.ReadDword(WorkingGlobal);
-    private static uint ModelAddress(int actor) => actor is >= 0 and < 7 ? 0x1D972C0u + (uint)(actor * 156) : throw new NotSupportedException("Effect101 selected an absent actor.");
-    private static int Actor(uint pointer) => pointer >= 0x1D972C0 && pointer < 0x1D972C0 + 7 * 156 && (pointer - 0x1D972C0) % 156 == 0 ? (int)((pointer - 0x1D972C0) / 156) : throw new NotSupportedException("Effect101 requires its current physical model pointer.");
+    private static uint ModelAddress(int actor) => actor is >= 0 and < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new NotSupportedException("Effect101 selected an absent actor.");
+    private static int Actor(uint pointer) => NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row) ? row : throw new NotSupportedException("Effect101 requires its current physical model pointer.");
 }

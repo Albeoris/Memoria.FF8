@@ -155,11 +155,11 @@ public sealed partial class BattleSession
         int Caster(NativeBattleHypnotize133Frame current)
         {
             uint pointer = current.State.ReadDword(NativeBattleHypnotize133Profile.CasterGlobal);
-            if (pointer < 0x1D972C0 || (pointer - 0x1D972C0) % 156 != 0 || (pointer - 0x1D972C0) / 156 >= graphics.Models.Length)
+            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
             {
                 throw new InvalidDataException("Hypnotize caster pointer leaves its actual model bank.");
             }
-            return checked((int)((pointer - 0x1D972C0) / 156));
+            return actorIndex;
         }
     }
 }

@@ -20,7 +20,7 @@ public sealed partial record NativeBattleAuxiliaryState
             throw new InvalidOperationException("Native9F dereferences506C10's allocation; all sixteen physical auxiliary slots are occupied.");
         }
         byte[] payload = Slots[slot].Payload.ToArray();
-        BinaryPrimitives.WriteUInt32LittleEndian(payload, 0x1D972C0u + 156u * (uint)model);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload, NativeBattleGraphicsModelAddress.Encode(model));
         payload[8] = 1;
         payload[9] = sequence;
         BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(10), 0);
@@ -38,12 +38,10 @@ public sealed partial record NativeBattleAuxiliaryState
         NativeBattleAuxiliaryProgram program = task.Program ?? throw new InvalidDataException("Native5057D0 lacks its original deadline list.");
         program.Validate();
         uint address = BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan());
-        uint relative = unchecked(address - 0x1D972C0u);
-        if (relative % 156 != 0 || relative / 156 >= 7)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int model))
         {
             throw new InvalidDataException("Native5057D0's retained graphics model pointer is invalid.");
         }
-        int model = (int)(relative / 156);
         byte deadline = program.Source[program.Offset];
         if (deadline != 255)
         {

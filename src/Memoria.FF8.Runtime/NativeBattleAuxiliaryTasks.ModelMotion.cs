@@ -18,8 +18,8 @@ public sealed partial record NativeBattleAuxiliaryState
             return (this, false);
         }
         byte[] payload = Slots[slot].Payload.ToArray();
-        BinaryPrimitives.WriteUInt32LittleEndian(payload, 0x1D972C0u + 156u * (uint)source);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4), 0x1D972C0u + 156u * (uint)target);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload, NativeBattleGraphicsModelAddress.Encode(source));
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4), NativeBattleGraphicsModelAddress.Encode(target));
         uint written;
         if (opcode == 0x9E)
         {
@@ -103,11 +103,10 @@ public sealed partial record NativeBattleAuxiliaryState
 
     private static int MotionModel(byte[] payload, int offset)
     {
-        uint relative = unchecked(BinaryPrimitives.ReadUInt32LittleEndian(payload.AsSpan(offset)) - 0x1D972C0u);
-        if (relative % 156 != 0 || relative / 156 >= 7)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(BinaryPrimitives.ReadUInt32LittleEndian(payload.AsSpan(offset)), out int row))
         {
             throw new NotSupportedException("Native model motion pointer lies outside its seven-model bank.");
         }
-        return (int)(relative / 156);
+        return row;
     }
 }

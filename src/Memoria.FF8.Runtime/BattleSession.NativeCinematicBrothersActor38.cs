@@ -74,11 +74,11 @@ public sealed partial class BattleSession
 
         int ActorIndex(uint address)
         {
-            if (address < 0x1D972C0 || (address - 0x1D972C0) % 156 != 0 || (address - 0x1D972C0) / 156 >= graphics.Models.Length)
+            if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int actorIndex, graphics.Models.Length))
             {
                 throw new NotSupportedException("Native Brothers actor positioning requires its actual physical model pointer.");
             }
-            return checked((int)((address - 0x1D972C0) / 156));
+            return actorIndex;
         }
 
         NativeBattleCinematicBonePose Restore(NativeBattleWaterExecutionFrame current, uint address)

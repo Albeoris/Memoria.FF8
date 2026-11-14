@@ -19,7 +19,7 @@ public static class NativeBattleRaldo19BallRendering
     {
         ValidateBound(ball, 0xC4);
         short actor = Short(ball, 0xAC);
-        if (actor is < 0 or >= 11 || Dword(ball, 0x64) != DescriptorAddress || Dword(ball, 0x68) != 0x1D972C0u + (uint)actor * 0x9C || Dword(ball, 0x6C) != 0x1D8E054)
+        if (actor is < 0 or >= 11 || Dword(ball, 0x64) != DescriptorAddress || Dword(ball, 0x68) != NativeBattleGraphicsModelAddress.Encode(actor) || Dword(ball, 0x6C) != 0x1D8E054)
         {
             throw new InvalidDataException("Raldo ball rendering requires its actual selected actor, descriptor and common cursor owner.");
         }

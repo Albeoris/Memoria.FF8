@@ -58,7 +58,7 @@ public sealed partial class BattleSession
                 NativeBattleActionHeaderSlot selected = nativeActionPackets.Headers[effect.Parameters.HeaderIndex7C + action];
                 int contact = selected.FirstContactIndex ?? throw new InvalidDataException("Native Funguar Laser requires the selected action's first contact.");
                 int target = nativeActionPackets.ReadContact(contact).Primary.ActorIndex;
-                uint pointer = checked(0x1D972C0u + (uint)target * 156);
+                uint pointer = NativeBattleGraphicsModelAddress.Encode(target);
                 NativeBattleModulePoolTask live = pools[1].Slots[0];
                 if ((live.Flags & 1) != 0 && live.ReadDword(16) == pointer)
                 {
@@ -117,12 +117,10 @@ public sealed partial class BattleSession
         int Beam(ref NativeBattleModulePoolTask task)
         {
             int counter = LaserWord(task, 12);
-            uint relative = unchecked(task.ReadDword(16) - 0x1D972C0u);
-            if (relative % 156 != 0 || relative / 156 >= 7)
+            if (!NativeBattleGraphicsModelAddress.TryDecode(task.ReadDword(16), out int target))
             {
                 throw new InvalidDataException("Native Funguar Laser target leaves its physical model bank.");
             }
-            int target = (int)(relative / 156);
             NativeBattleVector origin = VertexPoint();
             NativeBattleModuleAnchor targetAnchor = ReadNativeModelAnchor(graphics, target);
             NativeBattleVector endpoint = new(targetAnchor.X, targetAnchor.Y, targetAnchor.Z);

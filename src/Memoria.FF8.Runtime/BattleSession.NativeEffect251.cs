@@ -53,14 +53,13 @@ public sealed partial class BattleSession
 
         NativeBattleEffectArena ReadPhysical(NativeBattleEffect251Frame current, uint address, int length)
         {
-            if (address >= 0x1D972C0 && (ulong)address + (uint)length <= 0x1D972C0ul + (uint)graphics.Models.Length * 156)
+            if (TryResolveNativeModelRead(graphics, address, length, out int modelOffset))
             {
-                int actor = checked((int)((address - 0x1D972C0) / 156));
-                int offset = checked((int)((address - 0x1D972C0) % 156));
-                if (length > 156 - offset)
+                if (length > NativeBattleGraphicsModelAddress.RowSize - modelOffset)
                 {
                     throw new InvalidDataException("Effect251 physical read crosses a current model row.");
                 }
+                (int actor, int offset) = NativeBattleGraphicsModelAddress.ResolveField(address, length, graphics.Models.Length);
                 return NativeBattleEffectNodeContextMemory.Copy(CaptureNativeEffect301Model(graphics.Models[actor]), offset, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
             }
             return ReadNativeEffect251ActionBytes(current, address, length);

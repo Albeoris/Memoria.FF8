@@ -19,7 +19,7 @@ public static partial class NativeBattleEffect320Controller
         uint texture = checked(CommonAddress + (uint)textureOffset);
         frame = frame with { State = frame.State.WriteDword(InitializerGlobal, texture) };
         frame = inputs.Execute(frame, new NativeBattleEffect320UploadTim505E30(texture));
-        frame = frame with { State = frame.State.WriteDword(ArenaGlobal, CommonAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, unchecked(0x1D972C0u + (uint)(parameters.Actor78 * 156))) };
+        frame = frame with { State = frame.State.WriteDword(ArenaGlobal, CommonAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, NativeBattleGraphicsModelAddress.Encode(parameters.Actor78)) };
         if (frame.State.MutableAnchorSourceBound is null)
         {
             throw new NotSupportedException("Effect320 unknown mutable source requires an explicit original-owner migration.");
@@ -109,8 +109,7 @@ public static partial class NativeBattleEffect320Controller
 
     public static int Actor(uint modelAddress)
     {
-        long offset = (long)modelAddress - 0x1D972C0;
-        return offset >= 0 && offset % 156 == 0 && offset / 156 < 7 ? (int)(offset / 156) : throw new InvalidDataException("Effect320 requires an actual physical model pointer.");
+        return NativeBattleGraphicsModelAddress.TryDecode(modelAddress, out int row) ? row : throw new InvalidDataException("Effect320 requires an actual physical model pointer.");
     }
 
     private static void RequireBinding(NativeBattleEffect320Frame frame)

@@ -12,7 +12,7 @@ public static partial class NativeBattleNoMercy200Controller
         NativeBattleGuardianCameraTask camera = NativeBattleGuardianCameraProgram.Begin63E960(process, resources.Camera.Data, 0);
         (pool, int slot) = pool.Append(0x63E9C0);
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(12, 0).WriteWord(14, 0);
-        task = TaskDword(TaskDword(TaskDword(task, 20, 0xE33D8C), 24, 0x24F8D90), 28, checked(0x1D972C0u + (uint)frame.Parameters.Actor78 * 156));
+        task = TaskDword(TaskDword(TaskDword(task, 20, 0xE33D8C), 24, 0x24F8D90), 28, NativeBattleGraphicsModelAddress.Encode(frame.Parameters.Actor78));
         pool = pool.WriteSlot(slot, task);
         frame = frame with { Memory = frame.Memory with { NoMercy200 = state with { CameraTask = camera }, GuardianCameraProcess = camera.Process } };
         return new(frame, pool, 0);
@@ -23,7 +23,7 @@ public static partial class NativeBattleNoMercy200Controller
         NativeBattleNoMercy200State state = frame.Memory.NoMercy200 ?? throw new InvalidDataException("Native No Mercy camera requires its entered owner.");
         NativeBattleGuardianCameraTask camera = state.CameraTask ?? throw new NotSupportedException("Native No Mercy camera requires its actually appended program task.");
         NativeBattleModulePoolTask task = pool.Slots[slot];
-        if (task.Callback != 0x63E9C0 || task.ReadWord(12) != camera.Frame || TaskDword(task, 20) != 0xE33D8Cu + camera.Offset || TaskDword(task, 24) != 0x24F8D90 || TaskDword(task, 28) != 0x1D972C0u + (uint)frame.Parameters.Actor78 * 156)
+        if (task.Callback != 0x63E9C0 || task.ReadWord(12) != camera.Frame || TaskDword(task, 20) != 0xE33D8Cu + camera.Offset || TaskDword(task, 24) != 0x24F8D90 || TaskDword(task, 28) != NativeBattleGraphicsModelAddress.Encode(frame.Parameters.Actor78))
         {
             throw new InvalidDataException("Native No Mercy camera lost its physical task operands.");
         }

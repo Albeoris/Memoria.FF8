@@ -111,7 +111,7 @@ public static partial class NativeBattleEffect324Controller
         return Write(frame, address, Read(frame, address).WriteWord(12, 0));
     }
 
-    public static uint ModelAddress(int actor) => (uint)actor < 7 ? checked(0x1D972C0u + (uint)(actor * 156)) : throw new InvalidDataException("Effect324 requires an actual physical model row.");
+    public static uint ModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Effect324 requires an actual physical model row.");
 
     private static int FirstContact(NativeBattleEffect324Frame frame, NativeBattleActionPacketsState packets)
     {

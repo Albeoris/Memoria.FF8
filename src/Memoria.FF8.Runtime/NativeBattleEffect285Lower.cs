@@ -37,7 +37,7 @@ public static class NativeBattleEffect285Lower
         frame = inputs.Execute(frame, new NativeBattleEffect285StageFlags(0xFD, unchecked((byte)((argument & 1) << 1))));
         for (int actor = 6; actor >= 0; actor--)
         {
-            uint model = checked(0x1D972C0u + (uint)actor * 0x9C);
+            uint model = NativeBattleGraphicsModelAddress.Encode(actor);
             if (argument == 0)
             {
                 frame = inputs.Execute(frame, new NativeBattleEffect285ModelFlags(model, 1, 0xFF, 4));

@@ -9,7 +9,7 @@ public static class NativeBattleEffect321Actor
     {
         NativeBattleModulePoolTask task = Read(frame, address);
         int actor = Signed(task, 14);
-        uint model = checked(0x1D972C0u + (uint)actor * 0x9C);
+        uint model = NativeBattleGraphicsModelAddress.Encode(actor);
         uint saved = checked(0x221D420u + (uint)actor * 36);
         int age = Signed(task, 12);
         if (age == 0)

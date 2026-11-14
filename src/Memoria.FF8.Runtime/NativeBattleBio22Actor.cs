@@ -75,7 +75,7 @@ public static class NativeBattleBio22Actor
     {
         Target(target);
         owner.Validate();
-        owner = owner.WriteDword(0, 0x2705160).WriteDword(4, 0x2714DE8).WriteDword(8, checked(0x1D972C0u + (uint)target * 156)).WriteDword(0xC, 0x1D8E054).WriteDword(0x10, 0x270456C).WriteWord(0xDA, (ushort)target);
+        owner = owner.WriteDword(0, 0x2705160).WriteDword(4, 0x2714DE8).WriteDword(8, NativeBattleGraphicsModelAddress.Encode(target)).WriteDword(0xC, 0x1D8E054).WriteDword(0x10, 0x270456C).WriteWord(0xDA, (ushort)target);
         foreach (int offset in new[] { 0xB4, 0xB6, 0xB8, 0xCE, 0xF2, 0xA4, 0xA6, 0xA8, 0xAC, 0xAE, 0xB0, 0xBC, 0xBE, 0xC0 })
         {
             owner = owner.WriteWord(offset, 0);
@@ -94,12 +94,10 @@ public static class NativeBattleBio22Actor
         NativeBattleBio22ActorMemory owner = RequireOwner(frame.Memory);
         Target(owner.Word(0xDA));
         uint pointer = owner.Dword(8);
-        uint offset = unchecked(pointer - 0x1D972C0u);
-        if (offset % 156 != 0 || offset / 156 >= 7)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int target))
         {
             throw new NotSupportedException("Native Bio captured model pointer leaves its seven physical graphics rows.");
         }
-        int target = (int)(offset / 156);
         NativeBattleActionMatrix original = frame.Models[target].GeometryWorldMatrix ?? throw new NotSupportedException("Native Bio actor requires its previously published model world matrix.");
         NativeBattleVector localOffset = new(owner.SignedWord(0xB4), owner.SignedWord(0xB6), owner.SignedWord(0xB8));
         NativeBattleActionMatrix moved = NativeBattlePoseMatrices.CureMovedModelWorld8D7200(original, localOffset, owner.SignedWord(0xD2));

@@ -69,11 +69,10 @@ public static partial class NativeBattleJunk44Controller
 
     public static NativeBattleJunk44Frame ApplyModelContacts6E87A0(NativeBattleJunk44Frame frame, uint modelAddress, NativeBattleJunk44Inputs inputs)
     {
-        if (modelAddress < 0x1D972C0 || (modelAddress - 0x1D972C0) % 156 != 0)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(modelAddress, out int actor))
         {
             throw new InvalidDataException("Junk contact source is not an actual current graphics-model row.");
         }
-        uint actor = (modelAddress - 0x1D972C0) / 156;
         int ordinal = 0;
         while (true)
         {

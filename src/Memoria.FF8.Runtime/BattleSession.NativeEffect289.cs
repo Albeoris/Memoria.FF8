@@ -26,12 +26,11 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection Projection() => Camera().Projection ?? throw new NotSupportedException("Effect289 requires its current projection.");
         int Actor(uint pointer)
         {
-            uint delta = unchecked(pointer - 0x1D972C0);
-            if (delta % 156 != 0 || delta / 156 >= (uint)graphics.Models.Length)
+            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
             {
                 throw new InvalidDataException("Effect289 requires an actual physical graphics-model row.");
             }
-            return checked((int)(delta / 156));
+            return actorIndex;
         }
         void Publish(NativeBattleEffect289Frame current)
         {

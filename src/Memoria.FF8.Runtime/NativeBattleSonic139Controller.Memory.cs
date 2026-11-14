@@ -106,7 +106,7 @@ public static partial class NativeBattleSonic139Controller
     private static NativeBattleEffectParameters Parameters(NativeBattleSonic139Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Sonic Wave requires its captured parameters.");
     private static short Signed(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
     private static NativeBattleVector Point(NativeBattleEffectArena source, int offset = 0) => new(BinaryPrimitives.ReadInt16LittleEndian(source.Read(offset, 2)), BinaryPrimitives.ReadInt16LittleEndian(source.Read(offset + 2, 2)), BinaryPrimitives.ReadInt16LittleEndian(source.Read(offset + 4, 2)));
-    private static uint ModelAddress(int actor) => checked(0x1D972C0u + (uint)actor * 156);
+    private static uint ModelAddress(int actor) => NativeBattleGraphicsModelAddress.Encode(actor);
 
     private static (NativeBattleSonic139Frame Frame, uint Address) Append(NativeBattleSonic139Frame frame, int index, uint callback)
     {

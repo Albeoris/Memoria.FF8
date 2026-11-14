@@ -18,7 +18,7 @@ public static partial class NativeBattleWendigoController
             uint descriptor = shoot ? 0x267AC68u : 0x2698A60u;
             Dword(Ball + 0x60, shoot ? 0x26591F8u : 0x267B920u);
             Dword(Ball + 0x64, descriptor);
-            Dword(Ball + 0x68, 0x1D972C0 + (uint)actor * 0x9C);
+            Dword(Ball + 0x68, NativeBattleGraphicsModelAddress.Encode(actor));
             Dword(Ball + 0x6C, 0x1D8E054);
             Dword(Ball + 0x70, 0x1D8E054);
             Word(Ball + (shoot ? 0xD0u : 0xB0u), actor);

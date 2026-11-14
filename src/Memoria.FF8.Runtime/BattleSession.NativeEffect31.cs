@@ -53,7 +53,7 @@ public sealed partial class BattleSession
                         current = ObserveNativeEffect31Point(current, producer);
                         if (anchors == 2)
                         {
-                            current = current with { State = current.State with { CallbackStack = NativeBattleEffect31Stack.ObserveTarget(current.State.ReadCallbackStack(), temporary, checked(0x1D972C0u + (uint)targetActor * 0x9C), boneMatrix!) } };
+                            current = current with { State = current.State with { CallbackStack = NativeBattleEffect31Stack.ObserveTarget(current.State.ReadCallbackStack(), temporary, NativeBattleGraphicsModelAddress.Encode(targetActor), boneMatrix!) } };
                         }
                     });
                     return NativeBattleEffect31Controller.Write(current, target.TaskAddress, targetTask);

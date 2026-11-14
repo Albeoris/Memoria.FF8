@@ -29,7 +29,6 @@ public static class NativeBattleThundaraController
     public const uint SecondaryBank = 0x2544380;
     public const uint TertiaryDescriptor = 0x2544E00;
     public const uint TertiaryBank = 0x2544060;
-    private const uint ActorBank = 0x1D972C0;
 
     public static NativeBattleOriginalEffectState Initialize6DC2E0(NativeBattleOriginalEffectState effect, NativeBattleActionPacketsState packets)
     {
@@ -309,12 +308,11 @@ public static class NativeBattleThundaraController
 
     public static int ActorIndex(uint address)
     {
-        long offset = (long)address - ActorBank;
-        if (offset < 0 || offset % 156 != 0 || offset / 156 >= 7)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int row))
         {
             throw new NotSupportedException("Native Thundara requires an exact retained156-byte graphics row pointer.");
         }
-        return (int)(offset / 156);
+        return row;
     }
 
     public static int SecondarySlot(uint pointer)
@@ -333,7 +331,7 @@ public static class NativeBattleThundaraController
         {
             throw new NotSupportedException("Native Thundara's contact selects an unowned graphics row.");
         }
-        return ActorBank + (uint)actor * 156;
+        return NativeBattleGraphicsModelAddress.Encode(actor);
     }
 
     private static NativeBattleModulePoolTask Clear(NativeBattleModulePoolTask task, int bytes)

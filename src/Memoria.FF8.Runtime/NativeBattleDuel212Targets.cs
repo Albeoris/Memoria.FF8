@@ -164,11 +164,10 @@ public static class NativeBattleDuel212Targets
 
     private static int Actor(uint address)
     {
-        uint offset = unchecked(address - 0x1D972C0u);
-        if (offset % 156 != 0 || offset / 156 >= 7)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int row))
         {
             throw new InvalidDataException("Native Burning Rave retained target pointer leaves the seven original model rows.");
         }
-        return checked((int)(offset / 156));
+        return row;
     }
 }

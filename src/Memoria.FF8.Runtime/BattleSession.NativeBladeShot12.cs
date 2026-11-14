@@ -142,12 +142,11 @@ public sealed partial class BattleSession
 
         int Actor(uint pointer)
         {
-            long offset = (long)pointer - 0x1D972C0;
-            if (offset < 0 || offset % 156 != 0 || offset / 156 >= graphics.Models.Length)
+            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
             {
                 throw new InvalidDataException("Blade Shot12 requires its actual current model pointer.");
             }
-            return checked((int)(offset / 156));
+            return actorIndex;
         }
 
         (NativeBattleVector Vertex, short? W) ReadInline(NativeBattleBladeShot12Frame current, uint sourceAddress, int offset)

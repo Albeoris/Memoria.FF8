@@ -137,11 +137,10 @@ public static partial class NativeBattleEffect312Controller
         return new(frame, completed != 0 ? 2 : 0);
     }
 
-    public static uint ModelAddress(int actor) => (uint)actor < 7 ? checked(0x1D972C0u + (uint)(actor * 156)) : throw new InvalidDataException("Effect312 requires an actual physical model.");
+    public static uint ModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Effect312 requires an actual physical model.");
     public static int Actor(uint modelAddress)
     {
-        long offset = (long)modelAddress - 0x1D972C0;
-        return offset >= 0 && offset % 156 == 0 && offset / 156 < 7 ? (int)(offset / 156) : throw new InvalidDataException("Effect312 requires an actual physical model pointer.");
+        return NativeBattleGraphicsModelAddress.TryDecode(modelAddress, out int row) ? row : throw new InvalidDataException("Effect312 requires an actual physical model pointer.");
     }
 
     private static void RequireBinding(NativeBattleEffect312Frame frame)

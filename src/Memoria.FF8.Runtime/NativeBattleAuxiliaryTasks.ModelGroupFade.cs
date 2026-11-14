@@ -18,7 +18,7 @@ public sealed partial record NativeBattleAuxiliaryState
             throw new InvalidOperationException("Native50F0B0 exhausted its shared sixteen-slot auxiliary pool.");
         }
         byte[] payload = Slots[slot].Payload.ToArray();
-        BinaryPrimitives.WriteUInt32LittleEndian(payload, 0x1D972C0u + 156u * (uint)model);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload, NativeBattleGraphicsModelAddress.Encode(model));
         payload[4] = group;
         payload[6] = 0;
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(16), 255);

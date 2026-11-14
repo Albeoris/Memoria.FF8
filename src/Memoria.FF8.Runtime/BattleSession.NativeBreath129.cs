@@ -168,12 +168,11 @@ public sealed partial class BattleSession
 
         static int Actor(uint address)
         {
-            uint relative = unchecked(address - 0x1D972C0);
-            if (relative % 156 != 0 || relative / 156 >= 7)
+            if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int actorIndex))
             {
                 throw new InvalidDataException("Breath actor pointer leaves its model bank.");
             }
-            return (int)(relative / 156);
+            return actorIndex;
         }
 
         NativeBattleBreath129BodyStep ReadBody(NativeBattleBreath129Frame current, uint row)

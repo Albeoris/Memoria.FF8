@@ -57,7 +57,7 @@ public sealed partial class BattleSession
             for (int index = 0; index < count; index++)
             {
                 int model = nativeActionPackets.ReadContact(first + index).Primary.ActorIndex;
-                task = task.WriteDword(20 + index * 4, checked(0x1D972C0u + (uint)model * 156));
+                task = task.WriteDword(20 + index * 4, NativeBattleGraphicsModelAddress.Encode(model));
                 NativeBattleModuleAnchor anchor = ReadNativeModelAnchor(graphics, model);
                 x = unchecked((short)(x + anchor.X));
                 y = unchecked((short)(y + anchor.Y));

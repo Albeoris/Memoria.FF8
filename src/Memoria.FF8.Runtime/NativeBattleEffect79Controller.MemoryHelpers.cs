@@ -166,7 +166,7 @@ public static partial class NativeBattleEffect79Controller
 
     public static short Signed(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
     public static NativeBattleVector Vector(NativeBattleEffectArena point) => new(BinaryPrimitives.ReadInt16LittleEndian(point.Read(0, 2)), BinaryPrimitives.ReadInt16LittleEndian(point.Read(2, 2)), BinaryPrimitives.ReadInt16LittleEndian(point.Read(4, 2)));
-    public static uint PhysicalModelAddress(int actor) => (uint)actor < 7 ? checked(0x1D972C0u + (uint)(156 * actor)) : throw new InvalidDataException("Effect79 requires an actual physical model row.");
+    public static uint PhysicalModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Effect79 requires an actual physical model row.");
     private static bool IsSourceRange(NativeBattleEffect79Frame frame, uint address, int length) => Contains(ScriptAddress, ScriptLength, address, length) || frame.State.NodeBanks.Any(bank => Contains(bank.Key, bank.Value.Length, address, length));
     private static NativeBattleEffectParameters Parameters(NativeBattleEffect79Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Effect79 requires its actual captured parameters.");
     private static bool Contains(uint start, int extent, uint address, int length) => length >= 0 && address >= start && (ulong)address + (uint)length <= (ulong)start + (uint)extent;

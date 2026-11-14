@@ -197,6 +197,6 @@ public static partial class NativeBattleBladeShot12Controller
         {
             throw new NotSupportedException("Blade Shot requires an actual physical model row.");
         }
-        return checked(0x1D972C0u + (uint)(actor * 156));
+        return NativeBattleGraphicsModelAddress.Encode(actor);
     }
 }

@@ -31,7 +31,7 @@ public static partial class NativeBattleEffect345Particles
             NativeBattleEffectArena view = ReadBytes(frame, workspace, 16);
             origins = new(Vector(view, 0), Vector(view, 8));
         }
-        task = NativeBattleEffectNodeContext.Initialize(task, Read(frame, task.ReadDword(0x10)), Parameters(frame), inputs.ReadPackets(frame), actor => inputs.ReadModel(frame, actor), actor => inputs.ReadPoseSource(frame, actor), source, singleSelectedTarget: true, dogOrigins: origins, observeBone: (actor, selector) => frame = inputs.Point502170(frame, checked(0x1D972C0u + (uint)(actor * 0x9C)), selector, 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 8)).Frame);
+        task = NativeBattleEffectNodeContext.Initialize(task, Read(frame, task.ReadDword(0x10)), Parameters(frame), inputs.ReadPackets(frame), actor => inputs.ReadModel(frame, actor), actor => inputs.ReadPoseSource(frame, actor), source, singleSelectedTarget: true, dogOrigins: origins, observeBone: (actor, selector) => frame = inputs.Point502170(frame, NativeBattleGraphicsModelAddress.Encode(actor), selector, 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 8)).Frame);
         frame = Write(frame, address, task);
         initialization.Publish();
         return frame;

@@ -107,10 +107,10 @@ public sealed partial class BattleSession
         }
         if (task.Kind == NativeBattleAuxiliaryKind.TextureAnimation5057D0 && (task.UnknownByteMask & 15) == 0)
         {
-            uint relative = unchecked(BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan()) - 0x1D972C0u);
-            if (relative % 156 == 0 && relative / 156 < 7)
+            uint pointer = BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan());
+            if (NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex))
             {
-                nativePreRootStack = NativeBattlePreRootStackObserver.ObserveTextureAnimation5057D0(stack, task, graphics.Models[(int)(relative / 156)], "texture-animation callback");
+                nativePreRootStack = NativeBattlePreRootStackObserver.ObserveTextureAnimation5057D0(stack, task, graphics.Models[actorIndex], "texture-animation callback");
                 return;
             }
         }

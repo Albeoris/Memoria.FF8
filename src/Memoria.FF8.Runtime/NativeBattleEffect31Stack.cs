@@ -45,7 +45,7 @@ public static class NativeBattleEffect31Stack
         Validate(stack);
         RequirePointer(temporary);
         RequirePointer(boneMatrix);
-        if (model < 0x1D972C0 || model > 0x1D972C0 + 6 * 0x9C || (model - 0x1D972C0) % 0x9C != 0)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(model, out _))
         {
             throw new InvalidDataException("Effect31 target stack writes require the actual physical model row.");
         }

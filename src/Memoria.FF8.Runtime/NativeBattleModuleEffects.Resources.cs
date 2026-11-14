@@ -199,17 +199,16 @@ public sealed partial record NativeBattleModuleState
 
     private static uint ModelAddress(int model)
     {
-        return checked(0x1D972C0u + 156u * (uint)model);
+        return NativeBattleGraphicsModelAddress.Encode(model);
     }
 
     private static int ModelIndex(uint address)
     {
-        uint offset = unchecked(address - 0x1D972C0u);
-        if (offset % 156 != 0 || offset / 156 >= 7)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int row))
         {
             throw new InvalidDataException("Native module payload does not identify a physical graphics model.");
         }
-        return (int)(offset / 156);
+        return row;
     }
 
     private static short S16(ImmutableArray<byte> payload, int offset)

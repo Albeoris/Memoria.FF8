@@ -19,7 +19,7 @@ public static class NativeBattleEffect324Lower
         };
     }
 
-    public static uint Model324(int actor) => checked(0x1D972C0u + (uint)actor * 0x9C);
+    public static uint Model324(int actor) => NativeBattleGraphicsModelAddress.Encode(actor);
     public static uint Caster324(NativeBattleEffect324Frame frame) => Model324(checked((int)frame.State.ReadDword(0x2203C4C)));
     public static bool Paused324(NativeBattleEffect324Frame frame, NativeBattleEffect324Inputs inputs) => (inputs.ReadFlags(frame) & 0x201) != 0;
     public static short Word324(NativeBattleEffectArena bytes, int offset) => BinaryPrimitives.ReadInt16LittleEndian(bytes.Read(offset, 2));

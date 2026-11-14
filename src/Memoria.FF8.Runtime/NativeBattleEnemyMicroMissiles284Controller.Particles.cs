@@ -84,7 +84,7 @@ public static partial class NativeBattleEnemyMicroMissiles284Controller
                     NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
                     int contact = Header(frame, packets).FirstContactIndex ?? throw new NotSupportedException("Enemy Micro Missiles reaction requires its actual first contact pointer.");
                     int actor = packets.ReadContact(contact).Primary.ActorIndex;
-                    frame = inputs.Execute(frame, new NativeBattleEnemyMicroMissiles284Reaction505C00(checked(0x1D972C0u + (uint)(actor * 0x9C)), 4));
+                    frame = inputs.Execute(frame, new NativeBattleEnemyMicroMissiles284Reaction505C00(NativeBattleGraphicsModelAddress.Encode(actor), 4));
                 }
             }
             for (int index = 0; index < 16; index++)

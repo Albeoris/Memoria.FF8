@@ -250,7 +250,7 @@ public static partial class NativeBattleEffect31Actors
     }
 
     private static int Caster(NativeBattleEffect31Frame frame) => Parameters(frame).Actor78;
-    private static uint ModelAddress(int actor) => checked(0x1D972C0u + (uint)actor * 0x9C);
+    private static uint ModelAddress(int actor) => NativeBattleGraphicsModelAddress.Encode(actor);
     private static NativeBattleVector Point(NativeBattleEffectArena point) => new(Word31(point, 0), Word31(point, 2), Word31(point, 4));
     private static NativeBattleEffectArena Word(NativeBattleEffectArena arena, int at, short value) => arena.Write(at, BitConverter.GetBytes(value));
     private static NativeBattleEffectArena Dword(NativeBattleEffectArena arena, int at, uint value) => arena.Write(at, BitConverter.GetBytes(value));

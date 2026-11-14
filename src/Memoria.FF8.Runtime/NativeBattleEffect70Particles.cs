@@ -178,12 +178,12 @@ public static class NativeBattleEffect70Particles
             temporary = Word(Word(Word(Word(Word(temporary, 0, cosine), 4, unchecked((short)-sine)), 8, I16(arena, offset + 4)), 12, unchecked((short)(sine * I16(arena, offset + 6) >> 12))), 16, unchecked((short)(cosine * I16(arena, offset + 6) >> 12)));
             NativeBattleEffectArena target = NativeBattleEffect70Controller.ReadBytes(frame, U32(arena, offset + 12), 24);
             uint model = U32(target, 0);
-            if (model < 0x1D972C0 || (model - 0x1D972C0) % 156 != 0 || (model - 0x1D972C0) / 156 >= 7)
+            if (!NativeBattleGraphicsModelAddress.TryDecode(model, out int row))
             {
                 throw new InvalidDataException("Effect70 ring target requires its actual physical model row.");
             }
             frame = frame with { Staging = NativeBattleTemporaryMemory.PublishView(Staging(frame), allocation.Address, temporary, 120) };
-            frame = inputs.Execute(frame, new NativeBattleEffect70QueryBonePoint((int)((model - 0x1D972C0) / 156), I16(arena, offset + 2), allocation.Address + 0x14));
+            frame = inputs.Execute(frame, new NativeBattleEffect70QueryBonePoint(row, I16(arena, offset + 2), allocation.Address + 0x14));
             temporary = NativeBattleTemporaryMemory.ReadView(Staging(frame), allocation.Address, 120);
             temporary = Put(temporary, 0x18, unchecked(U32(temporary, 0x18) + (uint)((I16(target, 0x14) + I16(target, 0x16)) / 4)));
             NativeBattleActionMatrix composed = NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), Matrix(temporary, 0));

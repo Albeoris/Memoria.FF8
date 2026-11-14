@@ -157,7 +157,7 @@ public static class NativeBattleHeroController
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(12, 0).WriteWord(14, unchecked((ushort)Radius(transform.Scale38)));
         if (profile.Effect == 310)
         {
-            task = task.WriteDword(16, checked(0x1D972C0u + 156u * actor));
+            task = task.WriteDword(16, NativeBattleGraphicsModelAddress.Encode(actor));
         }
         frame = WithPool(frame, 1, Put(pool, slot, task));
         if (inputs.ObserveAnchor571400 is { } observe)
@@ -245,7 +245,7 @@ public static class NativeBattleHeroController
             else
             {
                 uint pointer = current.Effect.Pools[1].Slots[slot].ReadDword(16);
-                int actor = unchecked((int)(pointer - 0x1D972C0)) / 156;
+                int actor = NativeBattleGraphicsModelAddress.Decode(pointer);
                 for (int index = 0; index < header.ReadByte(16); index++)
                 {
                     if (inputs.Packets.ReadContact(first + index).Primary.ActorIndex == actor)

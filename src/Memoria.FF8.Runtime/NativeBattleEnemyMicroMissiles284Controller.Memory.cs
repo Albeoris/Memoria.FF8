@@ -191,6 +191,6 @@ public static partial class NativeBattleEnemyMicroMissiles284Controller
         {
             throw new NotSupportedException("Enemy Micro Missiles requires an actual physical model row.");
         }
-        return checked(0x1D972C0u + (uint)(actor * 156));
+        return NativeBattleGraphicsModelAddress.Encode(actor);
     }
 }

@@ -77,7 +77,7 @@ public sealed partial class BattleSession
                     NativeVibrationProcess = (NativeVibrationProcess ?? throw new NotSupportedException("Effect20 requires its retained vibration process.")).Stop4A2940(vibration.Handle);
                     return current;
                 case NativeBattleEffect20RingSequence ring:
-                    if (ring.Address != 0x1D97668)
+                    if (ring.Address != NativeBattleGraphicsModelAddress.Encode(6))
                     {
                         throw new NotSupportedException("Effect20 requires its original actor ring owner.");
                     }

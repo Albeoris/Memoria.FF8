@@ -55,5 +55,5 @@ public static partial class NativeBattleEffect314Controller
         }
     }
 
-    private static uint ModelAddress(int physical) => (uint)physical < 7 ? checked(0x1D972C0u + (uint)(physical * 156)) : throw new InvalidDataException("Effect314 requires its actual consecutive physical model owners.");
+    private static uint ModelAddress(int physical) => (uint)physical < 7 ? NativeBattleGraphicsModelAddress.Encode(physical) : throw new InvalidDataException("Effect314 requires its actual consecutive physical model owners.");
 }

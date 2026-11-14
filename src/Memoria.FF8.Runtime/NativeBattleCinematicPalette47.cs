@@ -116,6 +116,6 @@ public static class NativeBattleCinematicPalette47
         byte green = unchecked((byte)((color >> 5) << 3));
         byte blue = unchecked((byte)((color >> 10) << 3));
         uint rgb = (uint)(red | green << 8 | blue << 16);
-        return [new(3, 0xB8BA00, 0x1D974BC, rgb | 0x03000000, rgb), new(4, 0xB8BA04, 0x1D97558, rgb | 0x04000000, rgb)];
+        return [new(3, 0xB8BA00, NativeBattleGraphicsModelAddress.EncodeField(3, 0x28, sizeof(uint)), rgb | 0x03000000, rgb), new(4, 0xB8BA04, NativeBattleGraphicsModelAddress.EncodeField(4, 0x28, sizeof(uint)), rgb | 0x04000000, rgb)];
     }
 }

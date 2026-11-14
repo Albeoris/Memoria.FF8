@@ -16,7 +16,7 @@ public static partial class NativeBattleEffect210Controller
         }
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect210 requires its current parameters.");
         frame = inputs.Execute(frame, new NativeBattleEffect210UploadTim505E30(TimAddress));
-        frame = frame with { State = frame.State.WriteDword(ArenaGlobal, CommonAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, unchecked(0x1D972C0u + (uint)(parameters.Actor78 * 156))) };
+        frame = frame with { State = frame.State.WriteDword(ArenaGlobal, CommonAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, NativeBattleGraphicsModelAddress.Encode(parameters.Actor78)) };
         NativeBattleEffectTaskPool root = InitializePayload(Pools[0], frame.State.ReadBank(0));
         (root, int slot) = root.Append(RootCallback);
         root = NativeBattleEffectTaskMemory.WriteBankSpan(root, slot * root.Stride + 12, NativeBattleEffectArena.Clear(), 4);
@@ -115,8 +115,7 @@ public static partial class NativeBattleEffect210Controller
 
     public static int Actor(uint pointer)
     {
-        long offset = (long)pointer - 0x1D972C0;
-        return offset >= 0 && offset % 156 == 0 && offset / 156 < 7 ? (int)(offset / 156) : throw new InvalidDataException("Effect210 requires an actual physical model pointer.");
+        return NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row) ? row : throw new InvalidDataException("Effect210 requires an actual physical model pointer.");
     }
 
     private static void RequireBinding(NativeBattleEffect210Frame frame)

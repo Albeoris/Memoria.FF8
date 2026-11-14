@@ -46,12 +46,11 @@ public sealed partial class BattleSession
 
         int Actor(uint pointer)
         {
-            long offset = (long)pointer - 0x1D972C0;
-            if (offset < 0 || offset % 156 != 0 || offset / 156 >= graphics.Models.Length)
+            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
             {
                 throw new NotSupportedException("Disolving Acid requires its actual current model pointer.");
             }
-            return checked((int)(offset / 156));
+            return actorIndex;
         }
 
         NativeBattlePackedMatrix32 ModelMatrix(NativeBattleDisolvingAcid132Frame current, uint pointer) => NativeBattlePackedMatrix32.FromMatrix(graphics.Models[Actor(pointer)].GeometryWorldMatrix ?? throw new NotSupportedException("Disolving Acid requires its current caster world matrix."), null);

@@ -35,7 +35,7 @@ public static partial class NativeBattleEffect210Controller
             {
                 int first = header.FirstContactIndex ?? throw new NotSupportedException("Effect210 requires its actual current contact pointer.");
                 int actor = packets.ReadContact(first + index).Primary.ActorIndex;
-                uint model = unchecked(0x1D972C0u + (uint)(actor * 156));
+                uint model = NativeBattleGraphicsModelAddress.Encode(actor);
                 uint record = main + 16u + (uint)(index * 24);
                 frame = WriteBytes(frame, record, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(model)), 4);
                 frame = WriteBytes(frame, record + 4, CopyBytes(inputs.ReadModelArena9C(frame, actor), 28, NativeBattleEffectArena.Clear(), 0, 8), 8);

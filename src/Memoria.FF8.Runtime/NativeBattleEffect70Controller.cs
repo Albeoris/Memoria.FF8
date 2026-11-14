@@ -123,8 +123,7 @@ public static partial class NativeBattleEffect70Controller
 
     public static int Actor(uint address)
     {
-        uint delta = unchecked(address - 0x1D972C0);
-        return delta % 156 == 0 && delta / 156 < 7 ? (int)(delta / 156) : throw new InvalidDataException("Effect70 requires an actual physical actor pointer.");
+        return NativeBattleGraphicsModelAddress.TryDecode(address, out int row) ? row : throw new InvalidDataException("Effect70 requires an actual physical actor pointer.");
     }
 
     private static void RequireBinding(NativeBattleEffect70Frame frame)

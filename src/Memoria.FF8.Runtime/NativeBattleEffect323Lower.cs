@@ -27,7 +27,7 @@ public static class NativeBattleEffect323Lower
 
     public static NativeBattleEffect323Frame AllMatchingContacts65A5F0(NativeBattleEffect323Frame frame, uint model, NativeBattleEffect323Inputs inputs)
     {
-        int actor = unchecked((int)(model - 0x1D972C0)) / 156;
+        int actor = NativeBattleGraphicsModelAddress.Decode(model);
         int relative = 0;
         while (true)
         {

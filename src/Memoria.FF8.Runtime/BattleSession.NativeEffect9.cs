@@ -161,7 +161,7 @@ public sealed partial class BattleSession
                     NativeBattleGraphicsModel setupModel = graphics.Models[setupActor];
                     NativeBattleEffectLocalBounds bounds = setupModel.GeometryBounds52 ?? throw new NotSupportedException("Effect9 requires its actual model bounds.");
                     short currentY = (setupModel.Transform ?? throw new NotSupportedException("Effect9 requires its actual model position.")).Position28.Y;
-                    return current with { State = NativeBattleEffect9Scene.InitializeBody(current.State, checked(0x1D972C0u + (uint)(setupActor * 156)), bounds.Minimum.Y, bounds.Maximum.Y, currentY) };
+                    return current with { State = NativeBattleEffect9Scene.InitializeBody(current.State, NativeBattleGraphicsModelAddress.Encode(setupActor), bounds.Minimum.Y, bounds.Maximum.Y, currentY) };
                 case NativeBattleEffect9RestoreBody restore:
                     NativeBattleGraphicsModel restored = graphics.Models[restore.Actor];
                     graphics = graphics with { Models = graphics.Models.SetItem(restore.Actor, restored with { Flags0 = (ushort)(restored.Flags0 ^ ((restored.Flags0 ^ restore.SavedFlags) & 8)) }) };

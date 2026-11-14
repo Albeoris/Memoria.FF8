@@ -83,7 +83,7 @@ public static partial class NativeBattleEffect63Controller
         return pool;
     }
 
-    public static uint ModelAddress(int actor) => (uint)actor < 7 ? checked(0x1D972C0u + (uint)(actor * 156)) : throw new InvalidDataException("Effect63 requires an actual physical model row.");
+    public static uint ModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Effect63 requires an actual physical model row.");
 
     private static void RequireBinding(NativeBattleEffect63Frame frame)
     {

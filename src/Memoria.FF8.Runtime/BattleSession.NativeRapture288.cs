@@ -51,7 +51,7 @@ public sealed partial class BattleSession
                     int actor = contact.Primary.ActorIndex;
                     NativeBattleGraphicsModel model = graphics.Models[actor];
                     NativeBattleModulePoolTask target = pools[1].Slots[slot].ClearPayload(1044);
-                    target = target.WriteWord(14, unchecked((ushort)(model.Transform ?? throw new NotSupportedException("Native Rapture requires target WORD30.")).Position28.Y)).WriteByte(16, (byte)(contact.Primary.HitFlags3 & 4)).WriteDword(20, checked(0x1D972C0u + (uint)actor * 156));
+                    target = target.WriteWord(14, unchecked((ushort)(model.Transform ?? throw new NotSupportedException("Native Rapture requires target WORD30.")).Position28.Y)).WriteByte(16, (byte)(contact.Primary.HitFlags3 & 4)).WriteDword(20, NativeBattleGraphicsModelAddress.Encode(actor));
                     target = Init(target, 24, 252, resources.First);
                     Put(1, slot, Init(target, 276, 780, resources.Second));
                 }

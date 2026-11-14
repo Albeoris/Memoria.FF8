@@ -64,7 +64,7 @@ public sealed partial class BattleSession
             int first = header.FirstContactIndex ?? throw new InvalidDataException("Native level effect requires its captured contact directory.");
             int contactIndex = root.ReadByte(14);
             int actor = nativeActionPackets.ReadContact(first + contactIndex).Primary.ActorIndex;
-            task = task.WriteWord(14, checked((ushort)contactIndex)).WriteDword(16, checked(0x1D972C0u + (uint)actor * 156));
+            task = task.WriteWord(14, checked((ushort)contactIndex)).WriteDword(16, NativeBattleGraphicsModelAddress.Encode(actor));
             NativeBattleLevelBoundsStep bounds = MeasureLevelBounds(actor);
             NativeBattleGraphicsResource targetResource = NativeGraphicsPoseResource(graphics, actor);
             NativeBattlePoseSource pose = targetResource.PoseSource ?? throw new NotSupportedException("Native level effect requires its actual target rig.");
@@ -90,12 +90,10 @@ public sealed partial class BattleSession
                     throw new NotSupportedException("Native level effect selected a different child callback.");
                 }
                 uint pointer = task.ReadDword(16);
-                uint actorOffset = unchecked(pointer - 0x1D972C0u);
-                if (actorOffset % 156 != 0 || actorOffset / 156 >= graphics.Models.Length)
+                if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actor, graphics.Models.Length))
                 {
                     throw new InvalidDataException("Native level effect child lost its actual physical actor pointer.");
                 }
-                int actor = checked((int)(actorOffset / 156));
                 short age = unchecked((short)task.ReadWord(12));
                 short scroll = profile.Effect == 272 ? unchecked((short)-age) : age;
                 short scale38 = graphics.Models[actor].Transform?.Scale38 ?? throw new NotSupportedException("Native level effect requires its target's current scale WORD38.");

@@ -63,7 +63,7 @@ public static partial class NativeBattleEffect69Particles
             }
             frame = DrawRandom(frame, out ushort radiusDraw);
             int radius = radiusDraw & 2047;
-            NativeBattleGraphicsModel caster = inputs.ReadModel(frame, checked((int)((frame.State.ReadDword(CasterGlobal) - 0x1D972C0) / 156)));
+            NativeBattleGraphicsModel caster = inputs.ReadModel(frame, Caster(frame));
             NativeBattleVector position = caster.Transform?.Position28 ?? throw new NotSupportedException("Effect69 sparks require the current caster position.");
             frame = StoreWord(frame, address + 4, unchecked((short)(position.X + NativeBattleCameraMath.Sine(angle) * radius / 4096)));
             frame = StoreWord(frame, address + 6, 0);

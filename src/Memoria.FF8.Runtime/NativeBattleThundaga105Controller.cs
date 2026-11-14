@@ -28,7 +28,6 @@ public static class NativeBattleThundaga105Controller
     public const uint SecondaryDescriptor = 0x2543DC0;
     public const uint TertiaryDescriptor = 0x2543DB0;
     public const uint ArenaAddress = NativeBattleEffectNodeMemory.ArenaAddress;
-    private const uint ActorBank = 0x1D972C0;
 
     public static NativeBattleThundaga105Frame Initialize6D3DE0(NativeBattleThundaga105Frame frame, NativeBattleThundaga105Inputs inputs, NativeBattleThundaga105Resources resources)
     {
@@ -103,7 +102,7 @@ public static class NativeBattleThundaga105Controller
                     int actor = Actor(sequence);
                     (primary, int slot) = primary!.Append(0x6D43B0);
                     NativeBattleModulePoolTask child = primary.Slots[slot].ClearPayload(0x884 - 12);
-                    child = child.WriteWord(0xE, (ushort)sequence).WriteDword(0x10, ActorBank + (uint)(156 * actor)).WriteDword(0x14, inputs.ReadActorColor40(actor)).WriteDword(0x18, unchecked((uint)(((inputs.ReadActorScale38(actor) >> 1) + 3718) >> 1)));
+                    child = child.WriteWord(0xE, (ushort)sequence).WriteDword(0x10, NativeBattleGraphicsModelAddress.Encode(actor)).WriteDword(0x14, inputs.ReadActorColor40(actor)).WriteDword(0x18, unchecked((uint)(((inputs.ReadActorScale38(actor) >> 1) + 3718) >> 1)));
                     child = NativeBattleThundaga105ProgramDrawing.InitializeWorkspace7016B0(child, resources.ProgramSource);
                     primary = Put(primary, slot, child);
                     task = task.WriteDword(0x10, primary.BankAddress + (uint)(slot * primary.Stride)).WriteByte(0xE, unchecked((byte)(sequence + 1)));
@@ -328,7 +327,7 @@ public static class NativeBattleThundaga105Controller
 
     private static NativeBattleModulePoolTask ClearSprite(NativeBattleModulePoolTask task, uint address, ushort duration) => (task.ClearPayload(0x20)).WriteDword(0x10, address).WriteWord(0xE, duration).WriteWord(0x1A, 4096);
     private static uint HalfColor(uint saved, uint current) => (current & 0xFF000000) | (((saved & 255) + 255) >> 1) | (((((saved >> 8) & 255) + 255) >> 1) << 8) | (((((saved >> 16) & 255) + 255) >> 1) << 16);
-    private static int ActorIndex(uint address) => address >= ActorBank && address < ActorBank + 7 * 156 && (address - ActorBank) % 156 == 0 ? (int)((address - ActorBank) / 156) : throw new InvalidDataException("Native Thundaga requires its actual seven-row actor address.");
+    private static int ActorIndex(uint address) => NativeBattleGraphicsModelAddress.TryDecode(address, out int row) ? row : throw new InvalidDataException("Native Thundaga requires its actual seven-row actor address.");
     private static NativeBattleVector Vector(ImmutableArray<byte> raw) => new(Signed(raw, 0), Signed(raw, 2), Signed(raw, 4));
     private static short Signed(ImmutableArray<byte> raw, int offset) => BinaryPrimitives.ReadInt16LittleEndian(raw.AsSpan().Slice(offset));
     private static short S(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));

@@ -28,7 +28,7 @@ public static partial class NativeBattleDuel112Target
                 frame = NativeBattleDuel112Workspaces.Initialize7016B0(frame, slot, 372);
                 frame = NativeBattleDuel112Workspaces.Initialize7016B0(frame, slot, 644);
             }
-            NativeBattleVector midpoint = NativeBattleDuel112Geometry.Midpoint6CD8B0(checked(0x1D972C0u + 156u * (uint)actor), (_, bone, fraction) => inputs.ReadBone502170(actor, bone, fraction));
+            NativeBattleVector midpoint = NativeBattleDuel112Geometry.Midpoint6CD8B0(NativeBattleGraphicsModelAddress.Encode(actor), (_, bone, fraction) => inputs.ReadBone502170(actor, bone, fraction));
             Draw(372, new(0x12DB664, MorphAddress(frame), midpoint, first < 22 ? (short)0 : (short)-1024, null));
             if (first > 4)
             {
@@ -155,11 +155,10 @@ public static partial class NativeBattleDuel112Target
 
     private static int ModelIndex(uint address)
     {
-        uint relative = unchecked(address - 0x1D972C0u);
-        if (relative % 156 != 0 || relative / 156 >= 7)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int row))
         {
             throw new InvalidDataException("Native Duel requires its actual graphics model pointer.");
         }
-        return (int)(relative / 156);
+        return row;
     }
 }

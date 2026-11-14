@@ -73,7 +73,7 @@ public static class NativeBattleCarbuncle278Construction
         {
             int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Carbuncle creature requires its current contact pointer.");
             byte actor = inputs.Packets.ReadContact(first + index).Primary.ActorIndex;
-            task = task.WriteDword(0x14 + index * 4, unchecked(0x1D972C0u + actor * 0x9Cu));
+            task = task.WriteDword(0x14 + index * 4, NativeBattleGraphicsModelAddress.Encode(actor));
         }
         bounds = NativeBattleStaticMeshBounds.Read6D6070(secondBounds.Bytes.AsSpan());
         state = NativeBattleCarbuncle278Entry.RequireState(frame.Memory) with { Bounds81E0 = bounds };

@@ -28,12 +28,11 @@ public sealed partial class BattleSession
 
         int Actor(uint pointer)
         {
-            uint delta = unchecked(pointer - 0x1D972C0);
-            if (delta % 156 != 0 || delta / 156 >= (uint)graphics.Models.Length)
+            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
             {
                 throw new InvalidDataException("Boomerang Sword requires an actual physical graphics-model row.");
             }
-            return checked((int)(delta / 156));
+            return actorIndex;
         }
 
         NativeBattleBoomerangSword304PointStep ReadBone502170(NativeBattleBoomerangSword304Frame current, uint pointer, int selector, int distance)

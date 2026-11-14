@@ -71,7 +71,7 @@ public static class NativeBattleScanPhysicalModels
             if (model.HasLinkedModelRing140 is not null || model.LinkedModelIndex140 is not null)
             {
                 int? linked = model.ReadLinkedModelIndex140();
-                row = row.WriteDword(0x8C, linked is int next ? checked(0x1D972C0u + 156u * (uint)next) : 0);
+                row = row.WriteDword(0x8C, linked is int next ? NativeBattleGraphicsModelAddress.Encode(next) : 0);
             }
             rows.Add(row);
         }

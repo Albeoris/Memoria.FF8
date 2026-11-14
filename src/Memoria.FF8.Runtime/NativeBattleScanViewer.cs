@@ -305,12 +305,11 @@ public static class NativeBattleScanViewer
     private static NativeBattleActionMatrix Euler(NativeBattleScanByteOwner owner, int offset) => NativeBattleGfMatrices.Euler56CE30(new(Word(owner, offset), Word(owner, offset + 2), Word(owner, offset + 4)));
     private static int Selected(NativeBattleScanViewerFrame frame)
     {
-        uint offset = unchecked(frame.Scan.Memory.Scan!.Presentation.PrimaryModel269CE30 - NativeBattleScanModelSelection.ModelBase);
-        if (offset >= 7 * 156 || offset % 156 != 0)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(frame.Scan.Memory.Scan!.Presentation.PrimaryModel269CE30, out int row))
         {
             throw new NotSupportedException("Native Scan viewer selected model leaves its actual physical bank.");
         }
-        return (int)(offset / 156);
+        return row;
     }
     private static void Validate(NativeBattleScanViewerFrame frame)
     {

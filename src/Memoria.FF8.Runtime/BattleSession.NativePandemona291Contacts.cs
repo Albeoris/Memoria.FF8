@@ -110,12 +110,11 @@ public sealed partial class BattleSession
         void Store(int offset, int value) => arena = arena.Write(offset, BitConverter.GetBytes(unchecked((ushort)value)));
         int Actor(int row)
         {
-            uint relative = unchecked(BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(row, 4)) - 0x1D972C0);
-            if (relative % 156 != 0 || relative / 156 >= graphics.Models.Length)
+            if (!NativeBattleGraphicsModelAddress.TryDecode(BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(row, 4)), out int actorIndex, graphics.Models.Length))
             {
                 throw new InvalidDataException("Native Pandemona contact target leaves its original actor rows.");
             }
-            return checked((int)(relative / 156));
+            return actorIndex;
         }
     }
 

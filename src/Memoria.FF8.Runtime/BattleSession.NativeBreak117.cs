@@ -62,7 +62,7 @@ public sealed partial class BattleSession
                 NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters.HeaderIndex7C + action];
                 int contact = header.FirstContactIndex ?? throw new InvalidDataException("Native Break requires its original selected contact.");
                 int actor = nativeActionPackets.ReadContact(contact).Primary.ActorIndex;
-                uint entity = checked(0x1D972C0u + (uint)actor * 156);
+                uint entity = NativeBattleGraphicsModelAddress.Encode(actor);
                 if (pools[1].Slots.Any(task => (task.Flags & 1) != 0 && task.ReadDword(24) == entity))
                 {
                     root = root.WriteWord(12, 0);
@@ -295,8 +295,7 @@ public sealed partial class BattleSession
         uint Address(int offset) => checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)buffer + (uint)offset);
         int Actor(uint address)
         {
-            uint delta = unchecked(address - 0x1D972C0u);
-            return delta % 156 == 0 && delta / 156 < 7 ? (int)(delta / 156) : throw new InvalidDataException("Native Break physical actor pointer leaves its original bank.");
+            return NativeBattleGraphicsModelAddress.TryDecode(address, out int actorIndex) ? actorIndex : throw new InvalidDataException("Native Break physical actor pointer leaves its original bank.");
         }
         ushort Random()
         {

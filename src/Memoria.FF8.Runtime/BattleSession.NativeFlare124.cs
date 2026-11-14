@@ -51,7 +51,7 @@ public sealed partial class BattleSession
             {
                 int first = nativeActionPackets.Headers[effect.Parameters.HeaderIndex7C + action].FirstContactIndex ?? throw new InvalidDataException("Native Flare requires its action contact pointer.");
                 int actor = nativeActionPackets.ReadContact(first).Primary.ActorIndex;
-                uint entity = checked(0x1D972C0u + (uint)actor * 156);
+                uint entity = NativeBattleGraphicsModelAddress.Encode(actor);
                 uint color = graphics.Models[actor].Color40 ?? throw new NotSupportedException("Native Flare requires its target color.");
                 bool busy = false;
                 foreach (NativeBattleModulePoolTask previous in pools[1].Slots)
@@ -121,7 +121,7 @@ public sealed partial class BattleSession
         int Target(ref NativeBattleModulePoolTask task)
         {
             int age = WindWord(task, 12);
-            int actor = checked((int)((task.ReadDword(16) - 0x1D972C0u) / 156));
+            int actor = NativeBattleGraphicsModelAddress.Decode(task.ReadDword(16), graphics.Models.Length);
             NativeBattleVector anchor = WindVector(task, 20);
             if (age == 0)
             {

@@ -23,7 +23,7 @@ public sealed record BattleDiagnosticTextureQuiescence(int Capacity, int Physica
             int? next = Head;
             foreach (BattleDiagnosticTextureTask row in Tasks)
             {
-                if (row is null || row.Slot != next || row.Slot is < 0 or >= 16 || !visited.Add(row.Slot) || (row.Flags & 1) == 0 || row.Kind != NativeBattleAuxiliaryKind.TextureAnimation5057D0 || row.PayloadLength != 32 || (row.UnknownByteMask & 0x20F) != 0 || row.ModelIndex is not (>= 0 and < 7) || row.ModelPointer != 0x1D972C0u + 156u * (uint)row.ModelIndex.Value || row.CapturedSequence is null || row.ProgramOffset is not >= 0 || row.ProgramLength is not > 0 || row.ProgramOffset >= row.ProgramLength || row.Deadline != 255 || row.ModelFlags0 is not ushort flags || (flags & 2) == 0 || row.ResourceFlags44 is not ushort resource || (resource & 0x40) != 0 || row.ModelSequence != row.CapturedSequence)
+                if (row is null || row.Slot != next || row.Slot is < 0 or >= 16 || !visited.Add(row.Slot) || (row.Flags & 1) == 0 || row.Kind != NativeBattleAuxiliaryKind.TextureAnimation5057D0 || row.PayloadLength != 32 || (row.UnknownByteMask & 0x20F) != 0 || row.ModelIndex is not (>= 0 and < 7) || row.ModelPointer != NativeBattleGraphicsModelAddress.Encode(row.ModelIndex.Value) || row.CapturedSequence is null || row.ProgramOffset is not >= 0 || row.ProgramLength is not > 0 || row.ProgramOffset >= row.ProgramLength || row.Deadline != 255 || row.ModelFlags0 is not ushort flags || (flags & 2) == 0 || row.ResourceFlags44 is not ushort resource || (resource & 0x40) != 0 || row.ModelSequence != row.CapturedSequence)
                 {
                     return false;
                 }
@@ -115,8 +115,7 @@ public sealed partial class BattleSession
             bool known = task.Kind == NativeBattleAuxiliaryKind.TextureAnimation5057D0 && !task.Payload.IsDefault && task.Payload.Length == 32 && (task.UnknownByteMask & 0x20F) == 0;
             uint? pointer = known ? BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan()) : null;
             byte? sequence = known ? task.Payload[9] : null;
-            uint relative = pointer is uint actual ? unchecked(actual - 0x1D972C0u) : uint.MaxValue;
-            int? index = relative % 156 == 0 && relative / 156 < 7 ? (int)(relative / 156) : null;
+            int? index = pointer is uint actual && NativeBattleGraphicsModelAddress.TryDecode(actual, out int actorIndex) ? actorIndex : null;
             NativeBattleGraphicsModel? model = index is int selected && !graphics.Models.IsDefault && selected < graphics.Models.Length ? graphics.Models[selected] : null;
             NativeBattleAuxiliaryProgram? program = task.Kind == NativeBattleAuxiliaryKind.TextureAnimation5057D0 ? task.Program : null;
             int? length = program is not null && !program.Source.IsDefault ? program.Source.Length : null;

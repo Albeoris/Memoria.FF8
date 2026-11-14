@@ -16,12 +16,10 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Effect80 body requires its actual descriptor and projected row owners.");
         }
         uint modelAddress = BinaryPrimitives.ReadUInt32LittleEndian(context.Read(0x64, 4));
-        uint delta = unchecked(modelAddress - 0x1D972C0);
-        if (delta % 156 != 0 || delta / 156 >= (uint)graphics.Models.Length)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(modelAddress, out int actor, graphics.Models.Length))
         {
             throw new InvalidDataException("Effect80 body requires its captured physical model.");
         }
-        int actor = checked((int)(delta / 156));
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
         NativeBattlePoseSource pose = resource.PoseSource ?? throw new NotSupportedException("Effect80 requires its current target skeleton.");
         _ = resource.LinkedGeometry ?? throw new NotSupportedException("Effect80 requires observed linked geometry presence.");

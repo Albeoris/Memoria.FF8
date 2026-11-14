@@ -121,10 +121,10 @@ public static class NativeBattleDuel216Preparation
     private static int ModelIndex(NativeBattleFileStaging staging, uint global)
     {
         uint pointer = BinaryPrimitives.ReadUInt32LittleEndian(staging.Read(global, 4));
-        if (pointer < 0x1D972C0 || (pointer - 0x1D972C0) % 156 != 0 || (pointer - 0x1D972C0) / 156 >= 7)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row))
         {
             throw new InvalidDataException("Native Duel216 requires its actual retained actor or minimum-target pointer.");
         }
-        return checked((int)((pointer - 0x1D972C0) / 156));
+        return row;
     }
 }

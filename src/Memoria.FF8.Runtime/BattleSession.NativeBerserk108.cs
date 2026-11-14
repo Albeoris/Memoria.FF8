@@ -50,7 +50,7 @@ public sealed partial class BattleSession
             {
                 int contact = nativeActionPackets.Headers[effect.Parameters.HeaderIndex7C + action].FirstContactIndex ?? throw new InvalidDataException("Native Berserk requires its selected first contact.");
                 int actor = nativeActionPackets.ReadContact(contact).Primary.ActorIndex;
-                uint entity = checked(0x1D972C0u + (uint)actor * 156);
+                uint entity = NativeBattleGraphicsModelAddress.Encode(actor);
                 if (pools[1].Slots.Any(task => (task.Flags & 1) != 0 && task.ReadDword(20) == entity && WindWord(task, 12) <= 43))
                 {
                     root = root.WriteWord(12, 0);
@@ -318,12 +318,11 @@ public sealed partial class BattleSession
         }
         int Actor(uint address)
         {
-            uint delta = unchecked(address - 0x1D972C0u);
-            if (delta % 156 != 0 || delta / 156 >= 7)
+            if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int actorIndex))
             {
                 throw new InvalidDataException("Native Berserk target leaves its physical entity bank.");
             }
-            return (int)(delta / 156);
+            return actorIndex;
         }
         void Append(NativeBattleGfGeometryBatch batch, ushort flags = 0)
         {

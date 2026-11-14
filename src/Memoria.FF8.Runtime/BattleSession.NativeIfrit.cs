@@ -228,11 +228,11 @@ public sealed partial class BattleSession
 
         int PhysicalActorIndex(uint address)
         {
-            if (address < 0x1D972C0 || (address - 0x1D972C0) % 156 != 0 || (address - 0x1D972C0) / 156 >= graphics.Models.Length)
+            if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int actorIndex, graphics.Models.Length))
             {
                 throw new NotSupportedException("Native actor store requires its actual physical model pointer.");
             }
-            return checked((int)((address - 0x1D972C0) / 156));
+            return actorIndex;
         }
 
         NativeBattleWaterExecutionFrame ExecuteInstructionCore(NativeBattleWaterExecutionFrame current, ushort opcode)
@@ -432,15 +432,13 @@ public sealed partial class BattleSession
                     return NativeBattleCinematicModelRefresh89.Execute(current, (frame, selector) => NativeBattleWaterMatrixCommands.ResolveB65520(frame, bank, selector), ModelServices(shapeAddress));
                 }
                 case 0x72:
-                    return NativeBattleCinematicActorRotation72.Execute(current, (_, address, length) =>
+                    return NativeBattleCinematicActorRotation72.Execute(current, (frame, address, length) =>
                     {
-                        uint relative = unchecked(address - 0x1D972C0);
-                        int row = checked((int)(relative / 156));
-                        uint offset = relative % 156;
-                        if (row >= graphics.Models.Length || length != 2 || offset is not (12 or 14 or 16))
+                        if (length != 2 || !NativeBattleGraphicsModelAddress.TryResolveField(address, out _, out int modelOffset, graphics.Models.Length) || modelOffset is not (12 or 14 or 16))
                         {
                             throw new NotSupportedException("Native cinematic actor rotation requires its exact current model WORD.");
                         }
+                        (int row, int offset) = NativeBattleGraphicsModelAddress.ResolveField(address, length, graphics.Models.Length);
                         NativeBattleGraphicsModel actor = graphics.Models[row];
                         short value = (offset switch
                         {
@@ -803,11 +801,11 @@ public sealed partial class BattleSession
                     byte PhysicalActor42(byte actor)
                     {
                         uint pointer = CoreDword(current, unchecked(CoreDword(current, 0x279744C) + 0x60u + 4u * actor));
-                        if (pointer < 0x1D972C0 || (pointer - 0x1D972C0) % 156 != 0 || (pointer - 0x1D972C0) / 156 >= graphics.Models.Length)
+                        if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
                         {
                             throw new NotSupportedException("Native sequence command requires its actual physical model pointer.");
                         }
-                        return checked((byte)((pointer - 0x1D972C0) / 156));
+                        return checked((byte)actorIndex);
                     }
                 case 0x96:
                     if (selectedHandler is not (0xB16F60 or 0xAF2760))

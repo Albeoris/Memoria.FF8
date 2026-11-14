@@ -58,7 +58,7 @@ public sealed partial class BattleSession
                 NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters.HeaderIndex7C + action];
                 int contact = header.FirstContactIndex ?? throw new InvalidDataException("Native Float requires the original selected contact.");
                 int target = nativeActionPackets.ReadContact(contact).Primary.ActorIndex;
-                task = task.WriteWord(14, (ushort)action).WriteDword(16, checked(0x1D972C0u + (uint)target * 156));
+                task = task.WriteWord(14, (ushort)action).WriteDword(16, NativeBattleGraphicsModelAddress.Encode(target));
                 task = Init(task, 0x14, 0x2E8, resources.Glyph);
                 task = Init(task, 0x2FC, 0x26C, resources.Upper);
                 targets = pool.WriteSlot(slot, task);
@@ -98,12 +98,10 @@ public sealed partial class BattleSession
 
         int Target(ref NativeBattleModulePoolTask task)
         {
-            uint relative = unchecked(task.ReadDword(16) - 0x1D972C0u);
-            if (relative % 156 != 0 || relative / 156 >= 7)
+            if (!NativeBattleGraphicsModelAddress.TryDecode(task.ReadDword(16), out int actor))
             {
                 throw new InvalidDataException("Native Float target leaves its physical model bank.");
             }
-            int actor = (int)(relative / 156);
             int counter = unchecked((short)task.ReadWord(12));
             NativeBattleGraphicsModel model = graphics.Models[actor];
             if (counter == 0)

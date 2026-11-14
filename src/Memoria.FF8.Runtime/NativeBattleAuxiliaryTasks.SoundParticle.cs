@@ -60,7 +60,7 @@ public sealed partial record NativeBattleAuxiliaryState
         BinaryPrimitives.WriteUInt32LittleEndian(payload, soundTwo ? 1u : 0);
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4), bone);
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(8), 0);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(16), 0x1D972C0u + 156u * (uint)model);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(16), NativeBattleGraphicsModelAddress.Encode(model));
         payload[20] = (byte)((roll & 7) + 9);
         NativeBattleAuxiliaryTask task = Slots[slot] with { Flags = (ushort)(Slots[slot].Flags | 1), State = 0, Next = null, Kind = NativeBattleAuxiliaryKind.SoundParticle50F830, Payload = payload.ToImmutableArray(), Program = program, UnknownByteMask = Slots[slot].UnknownByteMask & ~0x1F0FFFu | 0xF000u };
         ImmutableArray<NativeBattleAuxiliaryTask> slots = Slots.SetItem(slot, task);
@@ -97,12 +97,10 @@ public sealed partial record NativeBattleAuxiliaryState
             return (task, false, null);
         }
         uint address = BinaryPrimitives.ReadUInt32LittleEndian(payload.AsSpan(16));
-        uint relative = unchecked(address - 0x1D972C0u);
-        if (relative % 156 != 0 || relative / 156 >= 7)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int model))
         {
             throw new InvalidDataException("Native50F830 retained model pointer is invalid.");
         }
-        int model = (int)(relative / 156);
         byte bone = checked((byte)BinaryPrimitives.ReadUInt32LittleEndian(payload.AsSpan(4)));
         ushort? sound = null;
         NativeBattleVector? anchor = null;

@@ -12,12 +12,11 @@ public sealed partial class BattleSession
         uint rowPointer = BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(start + 0xC, 4));
         int row = NativeBattleWaterExecutionFields.ArenaOffset(rowPointer, 32);
         uint actorPointer = BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(row, 4));
-        uint relative = unchecked(actorPointer - 0x1D972C0);
-        if (relative % 156 != 0 || relative / 156 >= graphics.Models.Length)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(actorPointer, out int actorIndex, graphics.Models.Length))
         {
             throw new NotSupportedException("Native Pandemona attached programme requires its actual physical actor pointer.");
         }
-        NativeBattleGraphicsModel actor = graphics.Models[checked((int)(relative / 156))];
+        NativeBattleGraphicsModel actor = graphics.Models[actorIndex];
         NativeBattleModelTransform transform = actor.Transform ?? throw new NotSupportedException("Native Pandemona attached programme requires its current actor position and scale.");
         short height = BinaryPrimitives.ReadInt16LittleEndian(arena.Read(row + 4, 2));
         NativeBattlePandemona291Resources resources = frame.Effect.Binding.Pandemona291Resources ?? throw new NotSupportedException("Native Pandemona attached programme requires its current resources.");

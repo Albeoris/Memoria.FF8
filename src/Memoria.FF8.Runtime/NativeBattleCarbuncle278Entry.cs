@@ -87,7 +87,7 @@ public static class NativeBattleCarbuncle278Entry
             lift = 0;
             floor = centroid;
         }
-        state = state with { Random811C = value, Action8120 = 0x1D99A78, Caster8124 = checked(0x1D972C0u + (uint)parameters.Actor78 * 0x9C), Centroid81C4 = centroid, Base81CC = floor, Lift81D0 = lift, ModelBuffer81F8 = NativeBattleEffectNodeMemory.ArenaAddress };
+        state = state with { Random811C = value, Action8120 = 0x1D99A78, Caster8124 = NativeBattleGraphicsModelAddress.Encode(parameters.Actor78), Centroid81C4 = centroid, Base81CC = floor, Lift81D0 = lift, ModelBuffer81F8 = NativeBattleEffectNodeMemory.ArenaAddress };
         return frame with { Memory = frame.Memory with { Textures = textures, Carbuncle278 = state }, Effect = frame.Effect with { Pools = [pool], ReturnedDescriptor = MainDescriptor }, Random = random };
 
         NativeBattleGraphicsModel Model(int index) => (uint)index < models.Length ? models[index] : throw new NotSupportedException("Native Carbuncle target pointer leaves the seven physical actor rows.");

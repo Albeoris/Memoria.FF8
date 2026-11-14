@@ -67,7 +67,7 @@ public static class NativeBattleBlindController
                 byte model = inputs.Packets.ReadContact(contact).Primary.ActorIndex;
                 (pools[1], int slot) = pools[1].Append(0x6BE080);
                 NativeBattleModulePoolTask target = pools[1].Slots[slot].ClearPayload(0x830);
-                target = target.WriteWord(14, checked((ushort)action)).WriteDword(24, checked(0x1D972C0u + model * 156u));
+                target = target.WriteWord(14, checked((ushort)action)).WriteDword(24, NativeBattleGraphicsModelAddress.Encode(model));
                 NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(target, 12 + (16), 0x820);
                 target = StoreWorkspace(target, workspace.Initialize7016B0(resources.Layout, 0x820));
                 Store(1, slot, target);

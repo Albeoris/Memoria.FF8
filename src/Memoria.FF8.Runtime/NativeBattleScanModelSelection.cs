@@ -115,17 +115,16 @@ public static class NativeBattleScanModelSelection
         {
             throw new NotSupportedException("Native Scan actor leaves its actual seven physical model records.");
         }
-        return ModelBase + (uint)(actor * ModelStride);
+        return NativeBattleGraphicsModelAddress.Encode(actor);
     }
 
     private static int Index(uint address)
     {
-        uint offset = unchecked(address - ModelBase);
-        if (offset >= 7 * ModelStride || offset % ModelStride != 0)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int row))
         {
             throw new NotSupportedException("Native Scan model link leaves its actual physical bank.");
         }
-        return (int)(offset / ModelStride);
+        return row;
     }
 
     private static void Validate(ImmutableArray<NativeBattleScanByteOwner> models)

@@ -59,7 +59,7 @@ public static class NativeBattlePandemona291Entry
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Pandemona requires its current action parameters.");
         NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Native Pandemona requires its current model buffer.");
         arena.Validate();
-        state = state with { ModelBuffer25562F4 = NativeBattleEffectNodeMemory.ArenaAddress, Action255625C = 0x1D99A78, Caster2556260 = checked(0x1D972C0u + (uint)parameters.Actor78 * 0x9C) };
+        state = state with { ModelBuffer25562F4 = NativeBattleEffectNodeMemory.ArenaAddress, Action255625C = 0x1D99A78, Caster2556260 = NativeBattleGraphicsModelAddress.Encode(parameters.Actor78) };
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(MainDescriptor, MainBank, 0x14, 1);
         (pool, int slot) = pool.Append(MainCallback);
         NativeBattleModulePoolTask root = pool.Slots[slot].WriteDword(0xC, 0).WriteDword(0x10, 0);

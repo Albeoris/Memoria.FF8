@@ -42,7 +42,7 @@ public static class NativeBattleBrothersTargetCommand
         frame = HeaderWord(frame, 0x9E, unchecked((ushort)position.Y));
         frame = HeaderWord(frame, 0xA0, unchecked((ushort)position.Z));
         frame = HeaderWord(frame, 0x54, model.Flags0);
-        frame = WriteCoreDword(frame, CoreDword(frame, 0x279744C) + 0x6C, 0x1D97494);
+        frame = WriteCoreDword(frame, CoreDword(frame, 0x279744C) + 0x6C, NativeBattleGraphicsModelAddress.Encode(3));
         return NativeBattleScriptedCommandReads.Advance(frame, 4);
     }
 

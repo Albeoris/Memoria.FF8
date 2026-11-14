@@ -128,7 +128,7 @@ public sealed partial class BattleSession
             {
                 (pools[2], int slot) = pools[2].Append(0x694D40);
                 int actor = nativeActionPackets.ReadContact(firstContact + targetIndex / 4).Primary.ActorIndex;
-                NativeBattleModulePoolTask target = pools[2].Slots[slot].WriteDword(12, checked(0x1D972C0u + (uint)actor * 156));
+                NativeBattleModulePoolTask target = pools[2].Slots[slot].WriteDword(12, NativeBattleGraphicsModelAddress.Encode(actor));
                 target = WindStore(target, 16, Anchor(actor));
                 NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(target, 12 + (12), 0x278);
                 workspace = workspace.Initialize7016B0(resources.Target, 0x278);
@@ -140,12 +140,10 @@ public sealed partial class BattleSession
 
         int Target(ref NativeBattleModulePoolTask task)
         {
-            uint offset = unchecked(task.ReadDword(12) - 0x1D972C0u);
-            if (offset % 156 != 0 || offset / 156 >= 7)
+            if (!NativeBattleGraphicsModelAddress.TryDecode(task.ReadDword(12), out int actor))
             {
                 throw new InvalidDataException("Native White Wind target pointer leaves its physical model bank.");
             }
-            int actor = (int)(offset / 156);
             int scale = SizeScale(graphics.Models[actor].Transform!.Scale38);
             NativeBattleActionMatrix matrix = NativeBattlePoseMatrices.Scale56BEF0(Billboard673810(view, WindVector(task, 16)), scale, scale, scale);
             int remaining = Play(ref task, 0x18, 0x278, resources.Target, matrix, false);

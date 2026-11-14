@@ -53,7 +53,7 @@ public static class NativeBattleAuraController
             {
                 int first = inputs.Packets.Headers[parameters.HeaderIndex7C + action].FirstContactIndex ?? throw new NotSupportedException("Native Aura requires its action's actual first target.");
                 byte model = inputs.Packets.ReadContact(first).Primary.ActorIndex;
-                uint pointer = checked(0x1D972C0u + model * 156u);
+                uint pointer = NativeBattleGraphicsModelAddress.Encode(model);
                 if (pools[1].Slots.Any(task => (task.Flags & 1) != 0 && task.ReadDword(16) == pointer && Word(task, 12) <= 28))
                 {
                     root = root.WriteWord(12, 0);

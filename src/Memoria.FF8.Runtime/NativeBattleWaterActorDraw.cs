@@ -27,7 +27,7 @@ public static partial class NativeBattleWaterActorDraw
             throw new NotSupportedException("Native actor drawing leaves its captured graphics-row directory.");
         }
         uint header = CoreDword(frame, 0x279744C);
-        if (CoreDword(frame, checked(header + 0x60 + (uint)(4 * index))) != 0x1D972C0 + (uint)(156 * index))
+        if (CoreDword(frame, checked(header + 0x60 + (uint)(4 * index))) != NativeBattleGraphicsModelAddress.Encode(index))
         {
             throw new NotSupportedException("Native actor drawing requires its actual captured physical graphics row.");
         }

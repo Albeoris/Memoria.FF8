@@ -84,7 +84,7 @@ public static class NativeBattleWaterHeaderCapture
         for (int index = 0; index < 7; index++)
         {
             NativeBattleGraphicsModel model = graphics[index];
-            writer.Dword(0x60 + 4 * index, 0x1D972C0u + 0x9Cu * (uint)index);
+            writer.Dword(0x60 + 4 * index, NativeBattleGraphicsModelAddress.Encode(index));
             NativeBattleModelTransform? transform = model.Transform;
             writer.Word(0x84 + 8 * index, transform?.Position28.X);
             writer.Word(0x86 + 8 * index, transform?.Position28.Y);

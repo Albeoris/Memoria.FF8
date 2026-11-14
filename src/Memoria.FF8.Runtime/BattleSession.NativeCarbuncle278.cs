@@ -161,12 +161,11 @@ public sealed partial class BattleSession
 
             int ActorIndex(uint actor)
             {
-                uint offset = unchecked(actor - 0x1D972C0u);
-                if (offset % 0x9C != 0 || offset / 0x9C >= graphics.Models.Length)
+                if (!NativeBattleGraphicsModelAddress.TryDecode(actor, out int actorIndex, graphics.Models.Length))
                 {
                     throw new InvalidDataException("Native Carbuncle recipient does not address a current physical actor row.");
                 }
-                return checked((int)(offset / 0x9C));
+                return actorIndex;
             }
 
             NativeBattleCarbuncle278ModelStep AdvanceRecipient(NativeBattleCarbuncle278Frame current, NativeBattleModulePoolTask task)

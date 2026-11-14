@@ -55,7 +55,7 @@ public static class NativeBattleReflectController
         {
             int first = inputs.Packets.Headers[parameters.HeaderIndex7C + action].FirstContactIndex ?? throw new NotSupportedException("Native Reflect spawn requires its actual first target.");
             byte actor = inputs.Packets.ReadContact(first).Primary.ActorIndex;
-            uint pointer = checked(0x1D972C0u + actor * 156u);
+            uint pointer = NativeBattleGraphicsModelAddress.Encode(actor);
             bool busy = pools[1].Slots.Any(task => (task.Flags & 1) != 0 && task.ReadDword(16) == pointer && Word(task, 12) <= 35);
             if (!busy)
             {

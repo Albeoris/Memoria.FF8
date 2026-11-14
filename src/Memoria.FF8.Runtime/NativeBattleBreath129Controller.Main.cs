@@ -143,7 +143,7 @@ public static partial class NativeBattleBreath129Controller
         NativeBattleModulePoolTask main = Read(frame, mainAddress);
         int index = Signed(main, 0x20);
         uint actor = main.ReadDword(16 + index * 4);
-        int actorIndex = checked((int)((actor - 0x1D972C0) / 156));
+        int actorIndex = NativeBattleGraphicsModelAddress.Decode(actor);
         frame = Write(frame, address, Read(frame, address).WriteWord(12, 0).WriteByte(14, main.ReadByte(0x1C + index)).WriteByte(15, checked((byte)actorIndex)));
         NativeBattleBreath129PointStep point = inputs.ReadBone502170(frame, actor, 0xF1, 0);
         frame = WriteBytes(point.Frame, address + 16, point.Point8, 6);

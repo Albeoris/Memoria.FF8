@@ -30,7 +30,6 @@ public static class NativeBattleAeroController
     public const int FirstWorkspaceLength = 0x4EC;
     public const int SecondWorkspaceOffset = 0x508;
     public const int SecondWorkspaceLength = 0x184;
-    private const uint ActorBank = 0x1D972C0;
 
     public static NativeBattleOriginalEffectState Initialize6C0CB0(NativeBattleOriginalEffectState effect, NativeBattleActionPacketsState packets)
     {
@@ -236,7 +235,7 @@ public static class NativeBattleAeroController
 
     public static NativeBattleGfAnimationWorkspace ReadWorkspace(NativeBattleModulePoolTask task, bool first) => NativeBattleGfAnimationWorkspace.Borrow(task, 12 + ((first ? FirstWorkspaceOffset : SecondWorkspaceOffset) - 12), first ? FirstWorkspaceLength : SecondWorkspaceLength);
     public static int PrimarySlot(uint pointer) => Index(pointer, PrimaryBank, 0x68C, 3);
-    public static int ActorIndex(uint pointer) => Index(pointer, ActorBank, 156, 7);
+    public static int ActorIndex(uint pointer) => NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row) ? row : throw new NotSupportedException("Native Aero pointer has no exact physical task or actor owner.");
     private static int Index(uint pointer, uint bank, uint stride, uint count)
     {
         uint delta = unchecked(pointer - bank);
@@ -246,7 +245,7 @@ public static class NativeBattleAeroController
         }
         return (int)(delta / stride);
     }
-    private static uint ActorAddress(int actor) => actor is >= 0 and < 7 ? ActorBank + (uint)actor * 156 : throw new NotSupportedException("Native Aero requires an actual actor graphics row.");
+    private static uint ActorAddress(int actor) => actor is >= 0 and < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new NotSupportedException("Native Aero requires an actual actor graphics row.");
     private static NativeBattleModulePoolTask StoreWorkspace(NativeBattleModulePoolTask task, bool first, NativeBattleGfAnimationWorkspace workspace)
     {
         int expected = first ? FirstWorkspaceLength : SecondWorkspaceLength;

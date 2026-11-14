@@ -45,7 +45,7 @@ public sealed partial class BattleSession
                 throw new NotSupportedException("Mega Spark requires the actual unique current CPU bone-row owner.");
             }
             NativeBattleGraphicsModel owner = owners[0];
-            ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(owner, PoseSource(checked(0x1D972C0u + (uint)owner.Index * 156)));
+            ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(owner, PoseSource(NativeBattleGraphicsModelAddress.Encode(owner.Index)));
             if ((uint)bone >= matrices.Length)
             {
                 throw new InvalidDataException("Mega Spark bone selector leaves its current CPU publication.");
@@ -55,12 +55,11 @@ public sealed partial class BattleSession
 
         int Actor(uint pointer)
         {
-            uint delta = unchecked(pointer - 0x1D972C0);
-            if (delta % 156 != 0 || delta / 156 >= (uint)graphics.Models.Length)
+            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
             {
                 throw new InvalidDataException("Mega Spark requires an actual physical graphics-model row.");
             }
-            return checked((int)(delta / 156));
+            return actorIndex;
         }
 
         NativeBattleMegaSpark279PointStep ReadBone502170(NativeBattleMegaSpark279Frame current, uint pointer, int selector, int distance)

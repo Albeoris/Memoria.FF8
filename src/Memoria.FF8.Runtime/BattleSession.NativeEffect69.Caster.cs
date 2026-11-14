@@ -6,12 +6,10 @@ public sealed partial class BattleSession
 {
     private (NativeBattleGraphicsState Graphics, NativeBattleEffect69Frame Frame) DrawNativeEffect69Caster(NativeBattleGraphicsState graphics, NativeBattleEffect69Frame frame, NativeBattleEffect69DrawCaster draw, Func<NativeBattleEffect69Frame, NativeBattleGfGeometryBatch, NativeBattleEffect69Frame> deliver)
     {
-        uint delta = unchecked(draw.ModelAddress - 0x1D972C0);
-        if (delta % 156 != 0 || delta / 156 >= (uint)graphics.Models.Length)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(draw.ModelAddress, out int actor, graphics.Models.Length))
         {
             throw new InvalidDataException("Effect69 caster requires an actual physical model row.");
         }
-        int actor = checked((int)(delta / 156));
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Effect69 caster requires its current skeleton.");
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Effect69 caster requires its current camera.");

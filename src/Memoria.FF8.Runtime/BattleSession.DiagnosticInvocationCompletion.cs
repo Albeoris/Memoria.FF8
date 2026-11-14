@@ -257,8 +257,7 @@ public sealed partial class BattleSession
         bool known = !task.Payload.IsDefault && task.Payload.Length >= 12 && (task.UnknownByteMask & 0x20F) == 0;
         uint? pointer = known ? System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan()) : null;
         byte? sequence = known ? task.Payload[9] : null;
-        uint relative = pointer is uint observed ? unchecked(observed - 0x1D972C0u) : uint.MaxValue;
-        int? index = relative % 156 == 0 && relative / 156 < 7 ? (int)(relative / 156) : null;
+        int? index = pointer is uint observed && NativeBattleGraphicsModelAddress.TryDecode(observed, out int actorIndex) ? actorIndex : null;
         NativeBattleGraphicsModel? model = index is int selected && !graphics.Models.IsDefault && selected < graphics.Models.Length ? graphics.Models[selected] : null;
         NativeBattleAuxiliaryProgram? program = task.Program;
         int? sourceLength = program is not null && !program.Source.IsDefault ? program.Source.Length : null;

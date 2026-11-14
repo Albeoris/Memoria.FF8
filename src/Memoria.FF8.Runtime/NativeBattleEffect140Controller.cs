@@ -110,8 +110,8 @@ public static partial class NativeBattleEffect140Controller
         return frame with { Effect = frame.Effect with { Pools = pools }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [pool]) };
     }
 
-    public static uint ModelAddress(int actor) => (uint)actor < 7 ? checked(0x1D972C0u + (uint)(actor * 156)) : throw new InvalidDataException("Effect140 requires a physical model.");
-    public static int Actor(uint model) => model >= 0x1D972C0 && (model - 0x1D972C0) % 156 == 0 && (model - 0x1D972C0) / 156 < 7 ? (int)((model - 0x1D972C0) / 156) : throw new InvalidDataException("Effect140 model pointer leaves the physical rows.");
+    public static uint ModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Effect140 requires a physical model.");
+    public static int Actor(uint model) => NativeBattleGraphicsModelAddress.TryDecode(model, out int row) ? row : throw new InvalidDataException("Effect140 model pointer leaves the physical rows.");
     private static NativeBattleVector Position(NativeBattleEffect140Frame frame, int actor, NativeBattleEffect140Inputs inputs)
     {
         byte[] bytes = inputs.ReadModelPosition8(frame, actor).Read(0, 6);

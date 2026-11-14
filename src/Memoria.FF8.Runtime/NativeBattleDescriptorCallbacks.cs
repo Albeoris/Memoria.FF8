@@ -15,7 +15,7 @@ public static class NativeBattleDescriptorCallbacks
         }
         // WORD8 survives packet reuse. 502F30 sign-extends it before addressing memory,
         // even when the callback itself does not consume a model index.
-        uint address = checked((uint)(0x1D972C0 + 156 * index));
+        uint address = NativeBattleGraphicsModelAddress.Encode(index);
         byte flags = readByte(address);
         if ((flags & 2) == 0 || (flags & 8) != 0)
         {

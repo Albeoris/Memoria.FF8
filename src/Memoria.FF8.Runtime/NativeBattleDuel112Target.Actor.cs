@@ -36,12 +36,10 @@ public static partial class NativeBattleDuel112Target
         if (phase == 0)
         {
             uint target = task.ReadDword(176);
-            uint relative = unchecked(target - 0x1D972C0u);
-            if (relative % 156 != 0 || relative / 156 >= 7)
+            if (!NativeBattleGraphicsModelAddress.TryDecode(target, out int index))
             {
                 throw new InvalidDataException("Native Duel trajectory requires its actual target model pointer.");
             }
-            int index = (int)(relative / 156);
             NativeBattleModelTransform targetTransform = services.ReadModel(index).Transform ?? throw new NotSupportedException("Native Duel trajectory requires its actual target scale.");
             NativeBattleModuleAnchor anchor = readAnchor571400(index);
             task = task.WriteWord(68, unchecked((ushort)(anchor.X + unchecked((targetTransform.Scale38 + 5000) * NativeBattleCameraMath.Sine(yaw)) / 12288)));

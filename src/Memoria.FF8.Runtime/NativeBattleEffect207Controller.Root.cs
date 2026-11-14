@@ -37,7 +37,7 @@ public static partial class NativeBattleEffect207Controller
                 {
                     int first = header.FirstContactIndex ?? throw new NotSupportedException("Effect207 requires its actual contact pointer.");
                     int actor = packets.ReadContact(first + index).Primary.ActorIndex;
-                    uint pointer = unchecked(0x1D972C0u + (uint)(actor * 156));
+                    uint pointer = NativeBattleGraphicsModelAddress.Encode(actor);
                     frame = WriteBytes(frame, main + 20u + (uint)(index * 4), NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(pointer)), 4);
                     NativeBattleEffect207PointStep point = inputs.Anchor571400(frame, actor, retained);
                     frame = point.Frame;

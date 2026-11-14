@@ -18,7 +18,7 @@ public sealed partial record NativeBattleAuxiliaryState
             return (this, false);
         }
         byte[] payload = Slots[slot].Payload.ToArray();
-        BinaryPrimitives.WriteUInt32LittleEndian(payload, 0x1D972C0u + 156u * (uint)model);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload, NativeBattleGraphicsModelAddress.Encode(model));
         uint written = 15;
         if (kind == NativeBattleAuxiliaryKind.ModelStatus50A000)
         {
@@ -47,12 +47,11 @@ public sealed partial record NativeBattleAuxiliaryState
     private static void AdvanceModelRing(NativeBattleAuxiliaryTask task, NativeBattleAuxiliaryInputs? inputs)
     {
         uint pointer = BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan());
-        uint offset = unchecked(pointer - 0x1D972C0u);
-        if (offset % 156 != 0 || offset / 156 >= 7)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row))
         {
             throw new InvalidDataException("Native ring callback has no physical source model pointer.");
         }
         uint argument = task.Kind switch { NativeBattleAuxiliaryKind.ModelStatus50A000 => BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan().Slice(4)), NativeBattleAuxiliaryKind.ModelResourceFlags50B080 => BinaryPrimitives.ReadUInt16LittleEndian(task.Payload.AsSpan().Slice(4)), _ => task.Payload[9] };
-        (inputs?.ApplyModelRing ?? throw new NotSupportedException("Native model ring callback requires its current model/sequence/status owners."))(task.Kind, checked((int)(offset / 156)), argument);
+        (inputs?.ApplyModelRing ?? throw new NotSupportedException("Native model ring callback requires its current model/sequence/status owners."))(task.Kind, row, argument);
     }
 }

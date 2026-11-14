@@ -120,10 +120,9 @@ public static partial class NativeBattleEffect69Controller
         return (frame with { State = frame.State.WriteDword(RandomGlobal, seed) }, (int)seed);
     }
 
-    private static int Caster(NativeBattleEffect69Frame frame)
+    internal static int Caster(NativeBattleEffect69Frame frame)
     {
-        uint delta = unchecked(frame.State.ReadDword(CasterGlobal) - 0x1D972C0);
-        return delta % 156 == 0 && delta / 156 < 7 ? (int)(delta / 156) : throw new InvalidDataException("Effect69 requires its current physical caster pointer.");
+        return NativeBattleGraphicsModelAddress.TryDecode(frame.State.ReadDword(CasterGlobal), out int row) ? row : throw new InvalidDataException("Effect69 requires its current physical caster pointer.");
     }
 
     private static void RequireBinding(NativeBattleEffect69Frame frame)

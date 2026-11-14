@@ -276,7 +276,7 @@ public static partial class NativeBattleEffect54Controller
         return new(bytes.ToImmutableArray(), known.ToImmutableArray());
     }
     public static NativeBattleEffect54Frame ClearBytes(NativeBattleEffect54Frame frame, uint address, int length) => WriteBytes(frame, address, NativeBattleEffectArena.Clear().Write(0, new byte[length]), length);
-    public static uint PhysicalModelAddress(int actor) => (uint)actor < 7 ? checked(0x1D972C0u + (uint)(156 * actor)) : throw new InvalidDataException("Effect54 model index leaves its physical bank.");
+    public static uint PhysicalModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Effect54 model index leaves its physical bank.");
     public static NativeBattleEffectParameters Parameters(NativeBattleEffect54Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Effect54 requires its current action parameters.");
     public static NativeBattleEffectArena Source(NativeBattleEffect54Frame frame, NativeBattleEffect54Resources resources, uint address, int length) => NativeBattleEffectArena.Clear().Write(0, resources.ReadResource(RequireStaging(frame), address, length));
     private static bool Contains(uint start, int extent, uint address, int length) => length >= 0 && address >= start && (ulong)address + (uint)length <= (ulong)start + (uint)extent;

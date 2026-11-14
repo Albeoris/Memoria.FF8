@@ -197,12 +197,11 @@ public sealed partial class BattleSession
         int Actor(int row)
         {
             uint pointer = BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(row, 4));
-            uint relative = unchecked(pointer - 0x1D972C0);
-            if (relative % 156 != 0 || relative / 156 >= graphics.Models.Length)
+            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
             {
                 throw new NotSupportedException("Native Pandemona target record requires its actual physical actor pointer.");
             }
-            return checked((int)(relative / 156));
+            return actorIndex;
         }
         static NativeBattleModelTransform RequireTransform(NativeBattleGraphicsModel model) => model.Transform ?? throw new NotSupportedException("Native Pandemona target motion requires its retained signed position.");
         short Trig(int angle, bool cosine) => BinaryPrimitives.ReadInt16LittleEndian(trigonometry.AsSpan().Slice((angle & 0xFFF) * 4 + (cosine ? 2 : 0), 2));

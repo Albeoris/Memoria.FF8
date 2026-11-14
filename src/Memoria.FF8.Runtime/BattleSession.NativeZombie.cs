@@ -68,7 +68,7 @@ public sealed partial class BattleSession
                     byte model = nativeActionPackets.ReadContact(first).Primary.ActorIndex;
                     (pools[1], int slot) = pools[1].Append(0x6C9BC0);
                     NativeBattleModulePoolTask task = pools[1].Slots[slot].ClearPayload(0x704);
-                    task = task.WriteWord(14, checked((ushort)action)).WriteDword(16, checked(0x1D972C0u + model * 156u));
+                    task = task.WriteWord(14, checked((ushort)action)).WriteDword(16, NativeBattleGraphicsModelAddress.Encode(model));
                     NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (16), 0x6F4);
                     Store(1, slot, Workspace(task, workspace.Initialize7016B0(resources.Layout, 0x6F4)));
                     root = root.WriteByte(14, unchecked((byte)(action + 1)));

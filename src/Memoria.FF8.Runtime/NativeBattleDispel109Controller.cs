@@ -54,7 +54,7 @@ public static class NativeBattleDispel109Controller
                 NativeBattleActionHeaderSlot header = inputs.Packets.Headers[checked(headerIndex + group)];
                 int contact = header.FirstContactIndex ?? throw new InvalidDataException("Native Dispel requires the actual group contact pointer.");
                 byte actor = inputs.Packets.ReadContact(contact).Primary.ActorIndex;
-                uint actorPointer = checked(0x1D972C0u + (uint)actor * 156);
+                uint actorPointer = NativeBattleGraphicsModelAddress.Encode(actor);
                 NativeBattleEffectTaskPool targets = frame.Effect.Pools[1];
                 if (targets.Slots.Any(task => (task.Flags & 1) != 0 && task.ReadDword(20) == actorPointer && unchecked((short)task.ReadWord(12)) <= 67))
                 {
@@ -178,11 +178,11 @@ public static class NativeBattleDispel109Controller
     private static byte Actor(NativeBattleModulePoolTask task)
     {
         uint pointer = task.ReadDword(20);
-        if (pointer < 0x1D972C0 || (pointer - 0x1D972C0) % 156 != 0 || (pointer - 0x1D972C0) / 156 >= 7)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row))
         {
             throw new InvalidDataException("Native Dispel target lost its current actor pointer.");
         }
-        return (byte)((pointer - 0x1D972C0) / 156);
+        return (byte)row;
     }
 
     private static NativeBattleDispel109Frame AppendSprite(NativeBattleDispel109Frame frame, int x, int y, int z, ushort scale, ushort life, uint resource)

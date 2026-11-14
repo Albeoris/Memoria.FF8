@@ -61,7 +61,7 @@ public sealed partial class BattleSession
                 for (int index = 0; index < count; index++)
                 {
                     int actor = nativeActionPackets.ReadContact(contact + index).Primary.ActorIndex;
-                    director = director.WriteDword(16 + index * 4, checked(0x1D972C0u + (uint)actor * 156));
+                    director = director.WriteDword(16 + index * 4, NativeBattleGraphicsModelAddress.Encode(actor));
                 }
                 Put(5, slot, director);
                 BeginTarget(slot, 0);
@@ -350,8 +350,7 @@ public sealed partial class BattleSession
         uint Address(int offset) => checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)buffer + (uint)offset);
         int Actor(uint address)
         {
-            uint delta = unchecked(address - 0x1D972C0u);
-            return delta % 156 == 0 && delta / 156 < 7 ? (int)(delta / 156) : throw new InvalidDataException("Native control110 actor pointer leaves its actual model bank.");
+            return NativeBattleGraphicsModelAddress.TryDecode(address, out int actorIndex) ? actorIndex : throw new InvalidDataException("Native control110 actor pointer leaves its actual model bank.");
         }
         int DirectorSlot(uint address)
         {

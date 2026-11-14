@@ -84,15 +84,13 @@ public sealed partial class BattleSession
         }
         NativeBattleEffect314Frame WriteArena(NativeBattleEffect314Frame current, uint address, NativeBattleEffectArena data, int length)
         {
-            long modelRelative = (long)address - 0x1D972C0;
-            if (modelRelative >= 0 && modelRelative < graphics.Models.Length * 156L)
+            if (NativeBattleGraphicsModelAddress.TryResolveField(address, out _, out int modelOffset, graphics.Models.Length))
             {
-                int actor = checked((int)(modelRelative / 156));
-                int offset = checked((int)(modelRelative % 156));
-                if (length > 156 - offset)
+                if (length > NativeBattleGraphicsModelAddress.RowSize - modelOffset)
                 {
                     throw new InvalidDataException("Effect314 model store crosses its physical row.");
                 }
+                (int actor, int offset) = NativeBattleGraphicsModelAddress.ResolveField(address, length, graphics.Models.Length);
                 NativeBattleGraphicsModel model = graphics.Models[actor];
                 if (offset >= 0x28 && offset + length <= 0x2C || offset >= 0x2C && offset + length <= 0x30)
                 {
@@ -260,12 +258,11 @@ public sealed partial class BattleSession
 
     private static int NativeEffect314Actor(NativeBattleGraphicsState graphics, uint address)
     {
-        long offset = (long)address - 0x1D972C0;
-        if (offset < 0 || offset % 156 != 0 || offset / 156 >= graphics.Models.Length)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int actorIndex, graphics.Models.Length))
         {
             throw new NotSupportedException("Effect314 requires an actual current physical model address.");
         }
-        return checked((int)(offset / 156));
+        return actorIndex;
     }
 
     private void PublishNativeEffect314Frame(NativeBattleEffect314Frame frame)

@@ -35,7 +35,7 @@ public static class NativeBattleDuel212Preparation
             NativeBattleGraphicsModel model = services.ReadModel(target);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Burning Rave preparation requires its actual target position.");
             int offset = 64 + index * 24;
-            task = task.WriteDword(offset, checked(0x1D972C0u + (uint)target * 156));
+            task = task.WriteDword(offset, NativeBattleGraphicsModelAddress.Encode(target));
             task = Position(task, offset + 4, transform);
             task = task.WriteBytes(offset + 12, frame.Staging.Read(0x2510270, 8));
             NativeBattleModuleAnchor point = services.ReadAnchor571400(target);

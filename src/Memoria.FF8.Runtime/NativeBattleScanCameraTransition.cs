@@ -142,12 +142,10 @@ public static class NativeBattleScanCameraTransition
 
     private static int ModelIndex(ImmutableArray<NativeBattleScanByteOwner> models, uint pointer)
     {
-        long offset = (long)pointer - 0x1D972C0;
-        if (models.IsDefault || models.Length != 7 || models.Any(model => model is null) || offset < 0 || offset % 156 != 0 || offset / 156 >= 7)
+        if (models.IsDefault || models.Length != 7 || models.Any(model => model is null) || !NativeBattleGraphicsModelAddress.TryDecode(pointer, out int selected))
         {
             throw new InvalidDataException("Native Scan camera requires its actual selected physical model pointer.");
         }
-        int selected = (int)(offset / 156);
         foreach (NativeBattleScanByteOwner model in models)
         {
             model.RequireLength(156);

@@ -69,12 +69,10 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Native50F2E0 lacks its actual model/group/bone/velocity/color/angle fields.");
         }
         byte[] payload = task.Payload.ToArray();
-        uint relative = unchecked(BinaryPrimitives.ReadUInt32LittleEndian(payload) - 0x1D972C0u);
-        if (relative % 156 != 0 || relative / 156 >= 7)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(BinaryPrimitives.ReadUInt32LittleEndian(payload), out int index))
         {
             throw new InvalidDataException("Native50F2E0 model pointer exceeds its seven-row bank.");
         }
-        int index = (int)(relative / 156);
         NativeBattleGraphicsModel model = graphics.Models[index];
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native50F2E0 requires its original decoded body skeleton.");

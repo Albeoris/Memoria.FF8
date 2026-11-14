@@ -22,7 +22,6 @@ public static class NativeBattleBlizzaraController
     public const uint SmokeDescriptor = 0x2543EF8;
     public const uint TrailDescriptor = 0x2543F08;
     public const uint PrimaryBank = NativeBattleEffectNodeMemory.ArenaAddress;
-    private const uint ActorBank = 0x1D972C0;
 
     public static NativeBattleOriginalEffectState Initialize6DA310(NativeBattleOriginalEffectState effect, NativeBattleActionPacketsState packets)
     {
@@ -362,15 +361,14 @@ public static class NativeBattleBlizzaraController
 
     public static int ActorIndex(uint pointer)
     {
-        uint delta = unchecked(pointer - ActorBank);
-        if (delta % 156 != 0 || delta / 156 >= 7)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row))
         {
             throw new NotSupportedException("Native Blizzara's graphics row pointer has no actual actor owner.");
         }
-        return (int)(delta / 156);
+        return row;
     }
 
-    private static uint ActorAddress(int actor) => actor is >= 0 and < 7 ? ActorBank + (uint)actor * 156 : throw new NotSupportedException("Native Blizzara requires an actual actor graphics row.");
+    private static uint ActorAddress(int actor) => actor is >= 0 and < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new NotSupportedException("Native Blizzara requires an actual actor graphics row.");
     private static void RequireCallback(NativeBattleModulePoolTask task, uint callback)
     {
         if (task.Callback != callback)

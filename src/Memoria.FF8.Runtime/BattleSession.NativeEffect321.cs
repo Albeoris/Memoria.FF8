@@ -59,12 +59,11 @@ public sealed partial class BattleSession
 
     private static int NativeEffect321Actor(NativeBattleGraphicsState graphics, uint address)
     {
-        long offset = (long)address - 0x1D972C0;
-        if (offset < 0 || offset % 156 != 0 || offset / 156 >= graphics.Models.Length)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int actorIndex, graphics.Models.Length))
         {
             throw new NotSupportedException("Effect321 requires an actual current model address.");
         }
-        return checked((int)(offset / 156));
+        return actorIndex;
     }
 
     private void PublishNativeEffect321Frame(NativeBattleEffect321Frame frame)

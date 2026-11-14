@@ -53,11 +53,10 @@ public sealed partial class BattleSession
 
         NativeBattleCinematicBonePose RestorePhysical(NativeBattleWaterExecutionFrame current, uint address)
         {
-            if (address < 0x1D972C0 || (address - 0x1D972C0) % 156 != 0 || (address - 0x1D972C0) / 156 >= graphics.Models.Length)
+            if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int index, graphics.Models.Length))
             {
                 throw new NotSupportedException("Native bone positioning requires its actual physical model pointer.");
             }
-            int index = checked((int)((address - 0x1D972C0) / 156));
             NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
             NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native bone positioning requires its actual physical rig source.");
             NativeBattleGraphicsModel actor = NativeBattleBodyBoneMatrices.Publish508C90(graphics.Models[index], source);

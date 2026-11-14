@@ -14,7 +14,7 @@ public static class NativeBattleDuel215Preparation
         {
             int offset = 64 + index * 32;
             int target = services.Targets[index];
-            if (task.ReadDword(offset) != 0x1D972C0u + (uint)target * 156)
+            if (task.ReadDword(offset) != NativeBattleGraphicsModelAddress.Encode(target))
             {
                 throw new InvalidDataException("Native Duel215 restoration lost its actual target model pointer.");
             }
@@ -66,7 +66,7 @@ public static class NativeBattleDuel215Preparation
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Duel215 preparation requires the target's raw position WORDs.");
             NativeBattleEffectLocalBounds localBounds = model.GeometryBounds52 ?? throw new NotSupportedException("Native Duel215 placement requires the target's actual local bounds.");
             int offset = 64 + index * 32;
-            task = task.WriteDword(offset, checked(0x1D972C0u + (uint)target * 156));
+            task = task.WriteDword(offset, NativeBattleGraphicsModelAddress.Encode(target));
             task = SavePosition(task, offset + 4, transform);
             task = SaveRotation(task, offset + 12, model);
             task = task.WriteBytes(offset + 20, frame.Staging.Read(0x2508990, 8));

@@ -229,12 +229,10 @@ public sealed partial class BattleSession
             }
             else
             {
-                uint relative = emission.Model - 0x1D972C0;
-                if (relative % 156 != 0 || relative / 156 >= 7)
+                if (!NativeBattleGraphicsModelAddress.TryDecode(emission.Model, out int index))
                 {
                     throw new InvalidDataException("Native6FD2D0 selected an unknown model address.");
                 }
-                int index = checked((int)(relative / 156));
                 NativeBattleGraphicsModel model = graphics.Models[index];
                 short selector = BinaryPrimitives.ReadInt16LittleEndian(reference.AsSpan(6));
                 NativeBattleActionMatrix matrix;

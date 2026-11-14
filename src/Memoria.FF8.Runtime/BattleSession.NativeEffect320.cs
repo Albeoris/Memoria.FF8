@@ -56,12 +56,10 @@ public sealed partial class BattleSession
         NativeBattleEffect320PointStep Origin65DA30(NativeBattleEffect320Frame current, NativeBattleEffectArena input8, NativeBattleEffectArena retained)
         {
             uint modelAddress = current.State.ReadDword(NativeBattleEffect320Profile.CasterGlobal);
-            uint relative = unchecked(modelAddress - 0x1D972C0u);
-            if (relative % 156 != 0 || relative / 156 >= graphics.Models.Length)
+            if (!NativeBattleGraphicsModelAddress.TryDecode(modelAddress, out int actor, graphics.Models.Length))
             {
                 throw new InvalidDataException("Effect320 bone origin requires its current physical caster row.");
             }
-            int actor = checked((int)(relative / 156));
             NativeBattleGraphicsModel model = graphics.Models[actor];
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect320 requires its current caster skeleton.");
             ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(model, source);

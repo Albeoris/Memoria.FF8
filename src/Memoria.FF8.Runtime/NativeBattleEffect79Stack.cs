@@ -57,7 +57,7 @@ public static class NativeBattleEffect79Stack
         {
             return Invalidate(stack, 0x7BCF10, "Body callback does not have the observed first surviving particle slot");
         }
-        uint caster = checked(0x1D972C0u + (uint)(156 * task.ReadByte(0x2C)));
+        uint caster = NativeBattleGraphicsModelAddress.Encode(task.ReadByte(0x2C));
         if (task.ReadByte(0x2C) >= 7)
         {
             throw new InvalidDataException("Effect79 stack observation requires its current physical caster row.");

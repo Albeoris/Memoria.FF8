@@ -70,7 +70,7 @@ public static class NativeBattleStatusMagicController
                     NativeBattleModulePoolTask target = targets.Slots[slot].ClearPayload(resources.TargetStride - 12);
                     int first = inputs.Packets.Headers[checked(parameters.HeaderIndex7C + action)].FirstContactIndex ?? throw new NotSupportedException("Native status spawn requires its action's first target.");
                     byte model = inputs.Packets.ReadContact(first).Primary.ActorIndex;
-                    target = target.WriteWord(14, checked((ushort)action)).WriteDword(resources.Effect == 120 ? 32 : 16, checked(0x1D972C0u + model * 156u));
+                    target = target.WriteWord(14, checked((ushort)action)).WriteDword(resources.Effect == 120 ? 32 : 16, NativeBattleGraphicsModelAddress.Encode(model));
                     if (resources.Effect == 120)
                     {
                         target = InitializeWorkspace(target, 36, 0x140, resources.Layouts[0]);
@@ -213,11 +213,11 @@ public static class NativeBattleStatusMagicController
 
     public static int ModelIndex(uint pointer)
     {
-        if (pointer < 0x1D972C0 || (pointer - 0x1D972C0) % 156 != 0 || (pointer - 0x1D972C0) / 156 >= 7)
+        if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row))
         {
             throw new InvalidDataException("Native status target lost its physical model pointer.");
         }
-        return checked((int)((pointer - 0x1D972C0) / 156));
+        return row;
     }
 
     private static NativeBattleModulePoolTask InitializeWorkspace(NativeBattleModulePoolTask task, int offset, int length, NativeBattleGfAnimationSource source)

@@ -82,7 +82,7 @@ public static class NativeBattlePreRootStackObserver
             return ObserveUnknownCall(stack, 0x5057D0, phase);
         }
         uint modelAddress = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan());
-        if (modelAddress != 0x1D972C0u + 156u * checked((uint)model.Index))
+        if (!NativeBattleGraphicsModelAddress.TryDecode(modelAddress, out int row, NativeBattleGraphicsModelAddress.MaximumRowCount) || row != model.Index)
         {
             throw new InvalidDataException("Native5057D0 observation selected a different physical model.");
         }

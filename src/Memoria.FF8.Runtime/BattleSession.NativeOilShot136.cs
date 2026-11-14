@@ -34,12 +34,11 @@ public sealed partial class BattleSession
 
         int Actor(uint pointer)
         {
-            long offset = (long)pointer - 0x1D972C0;
-            if (offset < 0 || offset % 156 != 0 || offset / 156 >= graphics.Models.Length)
+            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
             {
                 throw new NotSupportedException("Oil Shot requires its actual current model pointer.");
             }
-            return checked((int)(offset / 156));
+            return actorIndex;
         }
 
         short ModelYaw(uint pointer) => graphics.Models[Actor(pointer)].Rotation14 ?? throw new NotSupportedException("Oil Shot requires its actual current model rotation WORD14.");

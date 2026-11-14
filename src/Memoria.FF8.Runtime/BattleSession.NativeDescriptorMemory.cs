@@ -2,13 +2,24 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
+    private static bool TryResolveNativeModelRead(NativeBattleGraphicsState graphics, uint address, int length, out int offset)
+    {
+        int actorCount = graphics.Models.Length;
+        if (!NativeBattleGraphicsModelAddress.TryResolveField(address, out int actor, out offset, actorCount))
+        {
+            return false;
+        }
+
+        int bankEnd = actor < NativeBattleGraphicsModelAddress.NativeRowCount ? Math.Min(actorCount, NativeBattleGraphicsModelAddress.NativeRowCount) : actorCount;
+        return (uint)length <= (uint)((bankEnd - actor) * NativeBattleGraphicsModelAddress.RowSize - offset);
+    }
+
     private byte ReadNativeDescriptorByte(NativeBattleGraphicsState graphics, uint address)
     {
-        if (address >= 0x1D972C0 && address < 0x1D972C0 + 7 * 156)
+        if (NativeBattleGraphicsModelAddress.TryResolveField(address, out _, out _, graphics.Models.Length))
         {
-            uint relative = address - 0x1D972C0;
-            NativeBattleGraphicsModel model = graphics.Models[checked((int)(relative / 156))];
-            int offset = checked((int)(relative % 156));
+            (int actor, int offset) = NativeBattleGraphicsModelAddress.ResolveField(address, 1, graphics.Models.Length);
+            NativeBattleGraphicsModel model = graphics.Models[actor];
             if (offset == 4)
             {
                 return model.ModelId4 ?? throw new NotSupportedException("Native descriptor memory requires its retained model identity byte.");

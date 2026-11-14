@@ -192,6 +192,6 @@ public static partial class NativeBattleEffect289Controller
         {
             throw new NotSupportedException("Effect289 requires an actual physical model row.");
         }
-        return checked(0x1D972C0u + (uint)(actor * 156));
+        return NativeBattleGraphicsModelAddress.Encode(actor);
     }
 }

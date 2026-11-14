@@ -86,7 +86,7 @@ public static partial class NativeBattleEffect290Controller
         return pool;
     }
 
-    public static uint ModelAddress(int actor) => (uint)actor < 7 ? checked(0x1D972C0u + (uint)(actor * 156)) : throw new InvalidDataException("Effect290 requires an actual physical model row.");
+    public static uint ModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Effect290 requires an actual physical model row.");
     private static void RequireBinding(NativeBattleEffect290Frame frame)
     {
         if (frame.Effect.RequestedEffect != Effect || frame.Effect.Binding.Entry != Entry || frame.Effect.Binding.Initializer != Initializer)

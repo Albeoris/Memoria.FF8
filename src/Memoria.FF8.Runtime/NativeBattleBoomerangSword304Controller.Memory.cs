@@ -191,6 +191,6 @@ public static partial class NativeBattleBoomerangSword304Controller
         {
             throw new NotSupportedException("Boomerang Sword requires an actual physical model row.");
         }
-        return checked(0x1D972C0u + (uint)(actor * 156));
+        return NativeBattleGraphicsModelAddress.Encode(actor);
     }
 }

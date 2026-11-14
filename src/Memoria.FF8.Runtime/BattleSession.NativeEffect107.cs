@@ -58,7 +58,7 @@ public sealed partial class BattleSession
                 NativeBattleActionHeaderSlot header = Effect107Header(sequence);
                 int contact = header.FirstContactIndex ?? throw new InvalidDataException("Native6D13B0 requires its physical contact pointer.");
                 int model = nativeActionPackets.ReadContact(contact).Primary.ActorIndex;
-                uint modelAddress = checked(0x1D972C0u + (uint)model * 156);
+                uint modelAddress = NativeBattleGraphicsModelAddress.Encode(model);
                 if (pools[1].Slots.Any(task => (task.Flags & 1) != 0 && task.ReadDword(20) == modelAddress))
                 {
                     canComplete = false;
@@ -348,7 +348,6 @@ public sealed partial class BattleSession
     private static NativeBattleVector Effect107Vector(NativeBattleModulePoolTask task, int offset) => new(Effect107Word(task, offset), Effect107Word(task, offset + 2), Effect107Word(task, offset + 4));
     private static int Effect107Model(uint address)
     {
-        uint offset = unchecked(address - 0x1D972C0u);
-        return offset % 156 == 0 && offset / 156 < 7 ? (int)(offset / 156) : throw new InvalidDataException("Native effect107 target leaves the seven physical model rows.");
+        return NativeBattleGraphicsModelAddress.TryDecode(address, out int actorIndex) ? actorIndex : throw new InvalidDataException("Native effect107 target leaves the seven physical model rows.");
     }
 }

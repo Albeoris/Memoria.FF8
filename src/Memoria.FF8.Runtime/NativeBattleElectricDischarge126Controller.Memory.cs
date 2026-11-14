@@ -79,10 +79,9 @@ public static partial class NativeBattleElectricDischarge126Controller
 
     private static int Actor(uint address)
     {
-        uint offset = unchecked(address - 0x1D972C0);
-        return offset % 156 == 0 && offset / 156 < 7 ? (int)(offset / 156) : throw new InvalidDataException("Electric Discharge model pointer leaves its seven-model bank.");
+        return NativeBattleGraphicsModelAddress.TryDecode(address, out int row) ? row : throw new InvalidDataException("Electric Discharge model pointer leaves its seven-model bank.");
     }
 
-    private static uint ModelAddress(int actor) => (uint)actor < 7 ? checked(0x1D972C0u + (uint)actor * 156) : throw new InvalidDataException("Electric Discharge actor leaves its seven-model bank.");
+    private static uint ModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Electric Discharge actor leaves its seven-model bank.");
 
 }

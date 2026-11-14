@@ -93,7 +93,7 @@ public sealed partial class BattleSession
                 for (int index = 0; index < count; index++)
                 {
                     int actor = nativeActionPackets.ReadContact(firstContact + ordered[index]).Primary.ActorIndex;
-                    target = target.WriteDword(16 + index * 4, checked(0x1D972C0u + (uint)actor * 156)).WriteByte(0x1C + index, (byte)ordered[index]);
+                    target = target.WriteDword(16 + index * 4, NativeBattleGraphicsModelAddress.Encode(actor)).WriteByte(0x1C + index, (byte)ordered[index]);
                 }
                 target = target.WriteWord(0x22, count > 1 ? (ushort)1 : (ushort)0).WriteWord(0x26, (ushort)((count << 12) / 40)).WriteWord(0x2C, unchecked((ushort)CountVertices(Model(target.ReadDword(16)))));
                 Put(1, slot, target);
@@ -472,8 +472,7 @@ public sealed partial class BattleSession
 
     private static int Model(uint address)
     {
-        uint offset = unchecked(address - 0x1D972C0u);
-        return offset % 156 == 0 && offset / 156 < 7 ? (int)(offset / 156) : throw new InvalidDataException("Native Storm Breath model pointer exceeds its actual bank.");
+        return NativeBattleGraphicsModelAddress.TryDecode(address, out int actorIndex) ? actorIndex : throw new InvalidDataException("Native Storm Breath model pointer exceeds its actual bank.");
     }
     private static NativeBattleModulePoolTask WriteBasis(NativeBattleModulePoolTask task, NativeBattleActionMatrix matrix)
     {

@@ -19,7 +19,7 @@ public static partial class NativeBattleEffect308Controller
         uint texture = checked(CommonAddress + (uint)textureOffset);
         frame = frame with { State = frame.State.WriteDword(InitializerGlobal, texture) };
         frame = inputs.Execute(frame, new NativeBattleEffect308UploadTim505E30(texture));
-        frame = frame with { State = frame.State.WriteDword(ArenaGlobal, CommonAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, unchecked(0x1D972C0u + (uint)(parameters.Actor78 * 156))) };
+        frame = frame with { State = frame.State.WriteDword(ArenaGlobal, CommonAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, NativeBattleGraphicsModelAddress.Encode(parameters.Actor78)) };
         frame = frame with { State = frame.State.BindOriginalScriptSources(resources) };
         frame = inputs.Execute(frame, new NativeBattleEffect308ModelFlags(frame.State.ReadDword(CasterGlobal), 2, 0xFFF3, 0));
         NativeBattleCureFamilyPool shape = Pools[0];
@@ -104,8 +104,7 @@ public static partial class NativeBattleEffect308Controller
 
     public static int Actor(uint modelAddress)
     {
-        long offset = (long)modelAddress - 0x1D972C0;
-        return offset >= 0 && offset % 156 == 0 && offset / 156 < 7 ? (int)(offset / 156) : throw new InvalidDataException("Effect308 requires an actual physical model pointer.");
+        return NativeBattleGraphicsModelAddress.TryDecode(modelAddress, out int row) ? row : throw new InvalidDataException("Effect308 requires an actual physical model pointer.");
     }
 
     private static void RequireBinding(NativeBattleEffect308Frame frame)

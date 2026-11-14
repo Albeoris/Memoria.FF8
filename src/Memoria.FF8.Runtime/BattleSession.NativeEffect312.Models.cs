@@ -11,14 +11,13 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Effect312 physical read requires a nonnegative length.");
         }
-        if (address >= 0x1D972C0 && (ulong)address + (uint)length <= 0x1D972C0ul + (uint)graphics.Models.Length * 156)
+        if (TryResolveNativeModelRead(graphics, address, length, out int modelOffset))
         {
-            int actor = checked((int)((address - 0x1D972C0) / 156));
-            int offset = checked((int)((address - 0x1D972C0) % 156));
-            if (length > 156 - offset)
+            if (length > NativeBattleGraphicsModelAddress.RowSize - modelOffset)
             {
                 throw new InvalidDataException("Effect312 physical read crosses a current model row.");
             }
+            (int actor, int offset) = NativeBattleGraphicsModelAddress.ResolveField(address, length, graphics.Models.Length);
             return NativeBattleEffectNodeContextMemory.Copy(CaptureNativeEffect301Model(graphics.Models[actor]), offset, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
         }
         if (address >= 0x1D99A78 && (ulong)address + (uint)length <= 0x1D99A80)

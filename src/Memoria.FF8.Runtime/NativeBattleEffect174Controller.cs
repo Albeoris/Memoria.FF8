@@ -123,7 +123,7 @@ public static partial class NativeBattleEffect174Controller
         return new(frame, completed ? 2 : 0);
     }
 
-    public static uint ModelAddress(int actor) => (uint)actor < 7 ? checked(0x1D972C0u + (uint)(actor * 156)) : throw new InvalidDataException("Effect174 requires an actual physical model.");
+    public static uint ModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Effect174 requires an actual physical model.");
     private static void RequireBinding(NativeBattleEffect174Frame frame)
     {
         if (frame.Effect.RequestedEffect != Effect || frame.Effect.Binding.Entry != Entry || frame.Effect.Binding.Initializer != Initializer)
