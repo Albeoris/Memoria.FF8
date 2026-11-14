@@ -135,6 +135,9 @@ public sealed record Ff7FieldProcess
     public Ff7Line[] Lines { get; init; } = [];
     public bool LineBlocked { get; init; }
     public Ff7Actor[] Actors { get; init; } = [];
+    public int NativeIdleAnimation { get; init; }
+    public int NativeWalkAnimation { get; init; } = 1;
+    public int NativeRunAnimation { get; init; } = 2;
     public Ff7NativeWaterSplash[] NativeWaterSplashes { get; init; } = [];
     public int NativeWaterSplashCursor { get; init; }
     public Ff7Window[] Windows { get; init; } = [];
@@ -228,6 +231,10 @@ public sealed record Ff7FieldProcess
         if (NativeWaterSplashCursor is < 0 or > 3 || NativeWaterSplashes is null || NativeWaterSplashes.Any(splash => splash is null || splash.ModelSlot < 0 || splash.BoneIndex < 0 || splash.TextureIndex is < 0 or > 3 || !float.IsFinite(splash.X) || !float.IsFinite(splash.Y) || !float.IsFinite(splash.Depth) || !float.IsFinite(splash.HalfSize) || splash.HalfSize <= 0))
         {
             throw new InvalidDataException("FFVII native water splash queues have invalid ownership, coordinates or texture selection.");
+        }
+        if (NativeIdleAnimation is < 0 or > byte.MaxValue || NativeWalkAnimation is < 0 or > byte.MaxValue || NativeRunAnimation is < 0 or > byte.MaxValue)
+        {
+            throw new InvalidDataException("FFVII native player movement animation indices are outside their unsigned byte range.");
         }
         CameraShakeX?.Validate();
         Menu?.Shop?.Validate();

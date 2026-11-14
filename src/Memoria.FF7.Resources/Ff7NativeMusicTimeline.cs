@@ -23,6 +23,10 @@ public sealed record Ff7NativeMusicTimeline(int Division, long DurationNumerator
         }
         using LgpArchive archive = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.MidiArchive).Path);
         IReadOnlyList<LgpEntry> members = archive.Find(native.MusicNames[track].ToLowerInvariant() + ".mid");
+        if (members.Count == 0)
+        {
+            return new(1, 0, false);
+        }
         if (members.Count != 1)
         {
             throw new InvalidDataException("FFVII music timeline requires exactly one original MIDI member.");

@@ -25,6 +25,7 @@ public sealed record FieldActorPosition(short X, short Y, short Z, short Triangl
 [JsonDerivedType(typeof(FieldPartyRecovery), "partyRecovery")]
 [JsonDerivedType(typeof(FieldCameraShake), "cameraShake")]
 [JsonDerivedType(typeof(FieldAnimation), "animation")]
+[JsonDerivedType(typeof(FieldMovementAnimationCommand), "movement-animation")]
 [JsonDerivedType(typeof(FieldActorProperty), "actor-property")]
 [JsonDerivedType(typeof(FieldWindowCommand), "window")]
 [JsonDerivedType(typeof(FieldTimerCommand), "timer")]
@@ -67,6 +68,8 @@ public sealed record FieldActorPosition(short X, short Y, short Z, short Triangl
 [JsonDerivedType(typeof(FieldPartyProjection), "party-projection")]
 [JsonDerivedType(typeof(FieldPartyCharacter), "party-character")]
 public abstract record FieldCommand;
+
+public sealed record FieldMovementAnimationCommand(byte Animation, byte Selector) : FieldCommand;
 
 public enum FieldMovieOperation
 {

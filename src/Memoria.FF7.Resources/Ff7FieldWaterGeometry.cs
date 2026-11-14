@@ -35,7 +35,7 @@ public static class Ff7FieldWaterGeometryMath
         {
             throw new InvalidDataException("Native water sampling requires finite model and camera coordinates.");
         }
-        if (parameters.EnvironmentProfile is not (0 or 3))
+        if (parameters.EnvironmentProfile is not (0 or 3 or 4))
         {
             throw new NotSupportedException("This native water environment requires its distinct color and splash geometry contract.");
         }
@@ -70,7 +70,7 @@ public static class Ff7FieldWaterGeometryMath
                             throw new InvalidDataException("Native water colors require finite original vertices and pose transforms.");
                         }
                         float height = (parameters.Flags & 4) != 0 ? world.Y : world.Z;
-                        colorPlane ??= PlaneHeight(height, parameters.Level);
+                        colorPlane ??= PlaneHeight(height, world.Y, parameters);
                         modified[vertex] = height > colorPlane.Value;
                     }
                 }
@@ -93,7 +93,7 @@ public static class Ff7FieldWaterGeometryMath
             Matrix4x4 transform = pose.Bones[bone.Index] * actor;
             Vector3 start = Vector3.Transform(Vector3.Zero, transform);
             Vector3 end = Vector3.Transform(new Vector3(0, 0, -(bone.Length + 1 / basis.M11)), transform);
-            splashPlane ??= PlaneHeight(start.Z, parameters.Level);
+            splashPlane ??= PlaneHeight(start.Z, start.Y, parameters);
             double plane = splashPlane.Value;
             if (!(start.Z > plane) || end.Z == start.Z)
             {
@@ -134,12 +134,26 @@ public static class Ff7FieldWaterGeometryMath
         return double.IsNegativeInfinity(plane.Value) ? new(true, 0, useY, All: true) : new(true, plane.Value, useY);
     }
 
-    private static double PlaneHeight(float height, short level)
+    private static double PlaneHeight(float height, float firstY, Ff7FieldWaterParameters parameters)
     {
-        float scalar = height > -165 ? 70 : (float)(((double)height + 286) * 0.84f - 60);
-        float factor = (float)((double)scalar * 0.11f - 32);
-        factor = (float)(7d * factor / Math.Abs((int)level));
-        return -(double)level * factor;
+        if (parameters.EnvironmentProfile == 4)
+        {
+            float scalar = height <= -229 ? 33 : height < 0 ? (float)(((double)height + 229) * -1.121f + 33) : (float)((double)height * -1.11f);
+            float factor = (float)(200d + scalar);
+            if (firstY > -1350)
+            {
+                return double.NaN;
+            }
+            if (parameters.Level != 1)
+            {
+                factor = 1000;
+            }
+            return -(double)parameters.Level * factor;
+        }
+        float profileThreeScalar = height > -165 ? 70 : (float)(((double)height + 286) * 0.84f - 60);
+        float profileThreeFactor = (float)((double)profileThreeScalar * 0.11f - 32);
+        profileThreeFactor = (float)(7d * profileThreeFactor / Math.Abs((int)parameters.Level));
+        return -(double)parameters.Level * profileThreeFactor;
     }
 }
 

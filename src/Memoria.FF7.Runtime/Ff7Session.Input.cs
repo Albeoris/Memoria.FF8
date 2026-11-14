@@ -169,7 +169,7 @@ public sealed partial class Ff7Session
         if (horizontal == 0 && vertical == 0)
         {
             Host.UpdateLineContacts(player, player, moving: false);
-            Host.ApplyPlayerMovement(new Ff7NativeMoveResult(player with { RequestedAnimation = null, Animation = 0 }, false, false, []));
+            Host.ApplyPlayerMovement(new Ff7NativeMoveResult(Host.SelectPlayerMovementAnimation(player, moving: false, run: false), false, false, []));
             return;
         }
         int direction;
@@ -190,14 +190,9 @@ public sealed partial class Ff7Session
         bool run = Machine.Input.Run;
         int speed = GetPlayerMovementSpeed(run);
         Ff7NativeMovement movement = Host.Movement ?? throw new NotSupportedException("FFVII control requires its native movement contract.");
-        var controlled = player with { MoveSpeed = unchecked((ushort)speed), RequestedAnimation = null, Animation = 0, AnimationSpeed = checked((ushort)(16 * movementSpeedPercent / 100)) };
+        Ff7Actor controlled = player with { MoveSpeed = unchecked((ushort)speed), AnimationSpeed = checked((ushort)(16 * movementSpeedPercent / 100)) };
         Ff7NativeMoveResult result = movement.StepDirection(controlled, (byte)direction, process.Actors, process.BlockedTriangles, playerLocked: false, lineBlocked: process.LineBlocked);
-        int animation = run ? 2 : 1;
-        if (Field.Models.Models[player.Model].Animations.Count <= animation)
-        {
-            animation = 0;
-        }
-        result = result with { Actor = result.Actor with { RequestedAnimation = null, Animation = result.Moved ? animation : 0 } };
+        result = result with { Actor = Host.SelectPlayerMovementAnimation(result.Actor, result.Moved, run) };
         Host.UpdateLineContacts(controlled, result.ProbeActor ?? result.Actor, moving: true);
         Host.ApplyPlayerMovement(result);
         foreach (int entity in result.PushEntities)

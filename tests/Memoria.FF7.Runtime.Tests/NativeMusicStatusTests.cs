@@ -70,6 +70,14 @@ internal static class NativeMusicStatusTests
         catch (NotSupportedException)
         {
         }
+        Ff7FieldResources upperJunon = Ff7FieldResources.Load(archive, "junair");
+        Check(upperJunon.Scripts.Data.Span.Slice(0x0710, 2).SequenceEqual(new byte[] { 0xF0, 4 }), "The reached upper-Junon music request changed.");
+        Ff7NativeMusicTimeline wind = Ff7NativeMusicTimeline.Load(installation, 65);
+        Ff7FieldHost windHost = new(upperJunon, (_, _) => 1, new Ff7FieldProcess { NativeMusicTrack = 65, MusicTicks = 308 }) { NativeMusicTimeline = _ => wind };
+        Command(windHost, new FieldMusicCommand(FieldMusicOperation.Play, 4), 0x0710);
+        Check(windHost.Process.NativeMusicTrack == 65 && windHost.Process.MusicTicks == 0 && Query(windHost) == 0, "The original same-track WIND request must complete when its native MIDI archive member is absent, without claiming playback.");
+        Ff7FieldHost windCold = new(upperJunon, (_, _) => 1, JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(windHost.Capture()))!) { NativeMusicTimeline = _ => wind };
+        Check(Query(windCold) == 0 && AudioFacts(windCold) == AudioFacts(windHost), "An absent native MIDI member must preserve stopped status and exact recorded audio facts after cold restore.");
         Console.WriteLine("PASS original farm FD/FE ownership, exact finite MIDI endpoint, loop/stop/replay, zero-volume cold continuation and locked pre-resource completion");
     }
 

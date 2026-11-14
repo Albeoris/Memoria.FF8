@@ -4,6 +4,22 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7FieldHost
 {
+    public Ff7Actor SelectPlayerMovementAnimation(Ff7Actor actor, bool moving, bool run)
+    {
+        int animation = moving ? run ? Process.NativeRunAnimation : Process.NativeWalkAnimation : Process.NativeIdleAnimation;
+        int count = field.Models.Models[actor.Model].Animations.Count;
+        if (moving && animation >= count)
+        {
+            animation = 0;
+        }
+        if (animation > sbyte.MaxValue)
+        {
+            throw new NotSupportedException("The native signed animation binding would address a negative model-animation table index.");
+        }
+        bool binds = animation < count;
+        return actor with { Animation = binds ? animation : actor.Animation, RequestedAnimation = binds ? null : animation };
+    }
+
     private Ff7FieldProcess SetPlayerControl(bool locked)
     {
         return Process with

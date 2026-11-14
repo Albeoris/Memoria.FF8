@@ -170,6 +170,15 @@ public sealed partial class Ff7FieldHost : IFieldHost
                     _ => throw new NotSupportedException("Unsupported FFVII actor query.")
                 };
                 return new(true, value);
+            case FieldMovementAnimationCommand animationSelection:
+                Process = animationSelection.Selector switch
+                {
+                    0 => Process with { NativeIdleAnimation = animationSelection.Animation },
+                    1 => Process with { NativeWalkAnimation = animationSelection.Animation },
+                    2 => Process with { NativeRunAnimation = animationSelection.Animation },
+                    _ => Process
+                };
+                return new(true);
             case FieldAnimation animation:
                 return Animate(request, animation);
             case FieldActorOffset offset:
