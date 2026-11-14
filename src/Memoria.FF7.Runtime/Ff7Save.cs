@@ -20,6 +20,8 @@ public sealed record Ff7MixedCombatBinding(int StoryCharacter, int OriginCharact
 public sealed record Ff7SoundVoicePosition(int Channel, int SoundId, string Fingerprint, int SampleRate, int Channels, long PositionFrames, bool Loop, int LoopStartFrames, int LoopEndFrames, bool LoopStarted, int Pan, int Gain, int NativeVolume = 127, int NativeSampleRate = 0, int PrimaryFrequency = 0, int SecondaryFrequency = 0, double? LoopHandoffRemainingSeconds = null, long NativePanVersion = 0, int? SecondaryPan = null, long NativeFrequencyVersion = 0, long NativeGainVersion = 0)
 {
     public double FractionalFrame { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Cached { get; init; }
 }
 public sealed record Ff7MusicVoicePosition(int Track, string Fingerprint, int SampleRate, int Channels, long PositionFrames, int LoopStartFrames, int LoopEndFrames, bool LoopStarted);
 
@@ -40,14 +42,14 @@ public sealed record Ff7AudioPresentationState
         {
             throw new InvalidDataException("Guest sound presentation exceeds its saved metadata limit.");
         }
-        if (Sounds is null || Sounds.Length > 6 || Sounds.Any(sound => sound is null) || Sounds.Select(sound => sound.Channel).Distinct().Count() != Sounds.Length)
+        if (Sounds is null || Sounds.Length > 756 || Sounds.Any(sound => sound is null) || Sounds.Select(sound => (sound.Cached, Owner: sound.Cached ? sound.SoundId : sound.Channel)).Distinct().Count() != Sounds.Length)
         {
             throw new InvalidDataException("FFVII saved audio presentation has invalid voice ownership.");
         }
         foreach (Ff7SoundVoicePosition sound in Sounds)
         {
             ValidatePosition(sound.Fingerprint, sound.SampleRate, sound.Channels, sound.PositionFrames, sound.LoopStartFrames, sound.LoopEndFrames, sound.LoopStarted, allowEnd: sound.Loop && !sound.LoopStarted && sound.LoopHandoffRemainingSeconds is not null);
-            if (!double.IsFinite(sound.FractionalFrame) || sound.FractionalFrame is < 0 or >= 1 || sound.Channel is < 0 or > 5 || sound.SoundId is < 1 or > 750 || sound.Pan is < -10000 or > 10000 || sound.Gain is < -10000 or > 0 || sound.NativeVolume is < 0 or > 127 || sound.NativeSampleRate < 0 || sound.NativePanVersion < 0 || sound.NativeFrequencyVersion < 0 || sound.NativeGainVersion < 0 || sound.SecondaryPan is < -10000 or > 10000 || sound.PrimaryFrequency != 0 && !Ff7NativeSoundFrequency.Accepted(sound.PrimaryFrequency) || sound.SecondaryFrequency != 0 && !Ff7NativeSoundFrequency.Accepted(sound.SecondaryFrequency) || sound.LoopHandoffRemainingSeconds is double remaining && (!double.IsFinite(remaining) || remaining < 0 || !sound.Loop || sound.LoopStarted) || sound.Channel == 0 && sound.Loop || !sound.Loop && (sound.LoopStarted || sound.LoopStartFrames != 0))
+            if (!double.IsFinite(sound.FractionalFrame) || sound.FractionalFrame is < 0 or >= 1 || sound.Channel is < 0 or > 5 || sound.SoundId is < 1 or > 750 || sound.Pan is < -10000 or > 10000 || sound.Gain is < -10000 or > 0 || sound.NativeVolume is < 0 or > 127 || sound.NativeSampleRate < 0 || sound.NativePanVersion < 0 || sound.NativeFrequencyVersion < 0 || sound.NativeGainVersion < 0 || sound.SecondaryPan is < -10000 or > 10000 || sound.PrimaryFrequency != 0 && !Ff7NativeSoundFrequency.Accepted(sound.PrimaryFrequency) || sound.SecondaryFrequency != 0 && !Ff7NativeSoundFrequency.Accepted(sound.SecondaryFrequency) || sound.LoopHandoffRemainingSeconds is double remaining && (!double.IsFinite(remaining) || remaining < 0 || !sound.Loop || sound.LoopStarted) || sound.Cached && sound.Channel != 0 || !sound.Cached && sound.Channel == 0 && sound.Loop || !sound.Loop && (sound.LoopStarted || sound.LoopStartFrames != 0))
             {
                 throw new InvalidDataException("FFVII saved sound voice contract is corrupt.");
             }

@@ -27,6 +27,8 @@ public sealed record Ff7BattleActorState(int Identity, Ff7BattleAiActor Actor, u
 }
 public sealed record Ff7BattleActionState(Ff7BattleQueuedCommand Command, long StartedAt, int Animation, bool Applied = false, BattleActionPoseState? Pose = null, Ff7BattleTargetCallbacks? Reactions = null, Ff7BattleMotion? Motion = null, Ff7BattleFireState? Fire = null, Ff7BattleIceState? Ice = null, Ff7BattleBoltState? Bolt = null, Ff7BattleCureState? Cure = null, Ff7BattleBraverState? Braver = null)
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ElectromagStarted { get; init; }
     public bool GuestPresentationOnly { get; init; }
 
     public ushort GuestAppliedTargets { get; init; }

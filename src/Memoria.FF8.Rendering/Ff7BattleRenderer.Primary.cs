@@ -10,6 +10,12 @@ public sealed partial class Ff7BattleRenderer
         {
             switch (draw)
             {
+                case Ff7BattleElectromagMeshDraw electromagMesh:
+                    DrawElectromagMesh(renderer, electromagMesh, view);
+                    break;
+                case Ff7BattleElectromagSpriteDraw electromagSprite:
+                    DrawElectromagSprite(renderer, electromagSprite, view);
+                    break;
                 case Ff7BattlePrimaryLaserCannonBeamDraw laserCannonBeam:
                     DrawLaserCannonBeam(renderer, laserCannonBeam, view);
                     break;

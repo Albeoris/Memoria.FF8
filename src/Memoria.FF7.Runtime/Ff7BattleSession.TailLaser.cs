@@ -14,7 +14,7 @@ public sealed partial class Ff7BattleSession
         return action with { TailLaserStarted = true, PrimaryCallbacksRunning = true };
     }
 
-    private void ApplyTailLaserSecondaryReceipts(Ff7BattlePrimaryState primary)
+    private void ApplyPrimarySecondaryReceipts(Ff7BattlePrimaryState primary)
     {
         if (primary.TailLaserSecondaries.Count == 0)
         {
@@ -23,7 +23,7 @@ public sealed partial class Ff7BattleSession
         Ff7BattleSecondaryState secondary = EnsureSecondaryEffects();
         foreach (Ff7BattleSecondaryCallback callback in primary.TailLaserSecondaries)
         {
-            secondary = Ff7BattleSecondaryEffects.ScheduleTailLaser(secondary, (Ff7BattleTailLaserSecondary)callback);
+            secondary = Ff7BattleSecondaryEffects.ScheduleCallback(secondary, callback);
         }
         state = state with { SecondaryEffects = secondary };
     }
@@ -31,7 +31,7 @@ public sealed partial class Ff7BattleSession
     private static void ValidateTailLaserPrimary(Ff7BattlePrimaryState primary, Ff7BattleSnapshot snapshot)
     {
         bool HasTarget(int target) => snapshot.Actors.Any(actor => actor.Actor.Slot == target);
-        if (primary.TailLaserSecondaries is null || primary.TailLaserSecondaries.Count > Ff7BattleSecondaryEffects.Capacity || primary.TailLaserSecondaries.Any(callback => !IsValidTailLaserSecondary(callback) || callback.Age != 0) || primary.Slots.Any(callback => callback switch
+        if (primary.TailLaserSecondaries is null || primary.TailLaserSecondaries.Count > Ff7BattleSecondaryEffects.Capacity || primary.TailLaserSecondaries.Any(callback => !(IsValidTailLaserSecondary(callback) || IsValidElectromagSecondary(callback)) || callback.Age != 0) || primary.Slots.Any(callback => callback switch
         {
             Ff7BattleTailLaserStage stage => stage.Age > 44 || stage.Source is null || stage.Center is null || stage.Targets == 0,
             Ff7BattleTailLaserSweep sweep => sweep.Age > 14 || sweep.Source is null || sweep.Sweep is null,

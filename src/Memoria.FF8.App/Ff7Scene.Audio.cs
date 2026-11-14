@@ -313,6 +313,10 @@ internal sealed partial class Ff7Scene
 
     private void PlayBattleSound(Ff7BattleSoundReceipt request)
     {
+        if (ReleaseCachedBattleSound(request, soundChannels))
+        {
+            return;
+        }
         if (request.ChannelGain is byte gain)
         {
             soundChannels.SetGain(request.Channel, NativeGain(gain, dialoguePreferences?.Invoke().SoundVolume ?? 100), gain);
@@ -326,6 +330,16 @@ internal sealed partial class Ff7Scene
         var decoded = DecodeSound(request.Sound);
         audioOutput ??= new PcmAudioOutput();
         audioNative ??= Ff7PcExecutableData.Load(installation);
+        if (request.PlayCached)
+        {
+            if (request.RawPan || request.Pan > 127)
+            {
+                throw new InvalidDataException("Cached native battle playback requires its explicit admitted pan.");
+            }
+            soundChannels.PlayCached(audioOutput, decoded.Pcm.Bytes, decoded.Pcm.SampleRate, decoded.Pcm.Channels, audioNative.NativeSoundPan[request.Pan], NativeGain(127, dialoguePreferences?.Invoke().SoundVolume ?? 100), request.Sound, decoded.Loop, decoded.LoopStart, decoded.LoopEnd, decoded.Fingerprint, nativeSampleRate: decoded.NativeRate, nativeLoopDelaySeconds: decoded.LoopDelay);
+            soundChannels.Pause(audioPaused);
+            return;
+        }
         int pan;
         if (Session is { } session)
         {
@@ -341,6 +355,16 @@ internal sealed partial class Ff7Scene
         }
         soundChannels.Play(audioOutput, decoded.Pcm.Bytes, decoded.Pcm.SampleRate, decoded.Pcm.Channels, decoded.Streamed, audioNative.NativeSoundPan[pan], NativeGain(127, dialoguePreferences?.Invoke().SoundVolume ?? 100), request.Sound, decoded.Loop, decoded.LoopStart, decoded.LoopEnd, decoded.Fingerprint, channel: request.Channel, nativeVolume: 127, nativeSampleRate: decoded.NativeRate, nativeLoopDelaySeconds: decoded.LoopDelay);
         soundChannels.Pause(audioPaused);
+    }
+
+    internal static bool ReleaseCachedBattleSound(Ff7BattleSoundReceipt request, Ff7SoundChannels channels)
+    {
+        if (request.ReleaseQueueBank is null)
+        {
+            return false;
+        }
+        channels.ReleaseCached(request.Sound);
+        return true;
     }
 
     internal static int ApplyRelativeMusicGain(int volume, int? relativeGain)

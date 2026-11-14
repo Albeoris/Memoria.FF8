@@ -23,6 +23,10 @@ public sealed record Ff7BattleSoundReceipt(long Sequence, ushort Sound, byte Pan
 {
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public byte? ChannelGain { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public int? ReleaseQueueBank { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool PlayCached { get; init; }
 }
 
 public sealed record Ff7BattleSoundUpdate(Ff7BattleSoundState State, IReadOnlyList<Ff7BattleSoundReceipt> Sounds);
@@ -45,13 +49,21 @@ public static class Ff7NativeBattleSound
         return state.EscapePlayed ? new(state, []) : Emit(state with { EscapePlayed = true }, 0x185, 64);
     }
 
-    public static Ff7BattleSoundUpdate Emit(Ff7BattleSoundState state, ushort sound, byte pan, int channel = 1)
+    public static Ff7BattleSoundUpdate Emit(Ff7BattleSoundState state, ushort sound, byte pan, int channel = 1, bool playCached = false)
     {
         ArgumentOutOfRangeException.ThrowIfGreaterThan(pan, (byte)127);
-        return EmitCore(state, sound, pan, channel, false);
+        return EmitCore(state, sound, pan, channel, false, playCached);
     }
 
-    public static Ff7BattleSoundUpdate EmitRawPan(Ff7BattleSoundState state, ushort sound, byte pan, int channel) => EmitCore(state, sound, pan, channel, true);
+    public static Ff7BattleSoundUpdate EmitRawPan(Ff7BattleSoundState state, ushort sound, byte pan, int channel, bool playCached = false) => EmitCore(state, sound, pan, channel, true, playCached);
+
+    public static Ff7BattleSoundUpdate Release(Ff7BattleSoundState state, ushort sound, int queueBank)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(queueBank);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(queueBank, 15);
+        long sequence = checked(state.Sequence + 1);
+        return new(state with { Sequence = sequence }, [new(sequence, sound, 64) { ReleaseQueueBank = queueBank }]);
+    }
 
     public static Ff7BattleSoundUpdate SetChannelGain(Ff7BattleSoundState state, int channel, byte gain)
     {
@@ -59,12 +71,12 @@ public static class Ff7NativeBattleSound
         return new(state with { Sequence = sequence }, [new(sequence, 0, 64, channel) { ChannelGain = Math.Min(gain, (byte)127) }]);
     }
 
-    private static Ff7BattleSoundUpdate EmitCore(Ff7BattleSoundState state, ushort sound, byte pan, int channel, bool rawPan)
+    private static Ff7BattleSoundUpdate EmitCore(Ff7BattleSoundState state, ushort sound, byte pan, int channel, bool rawPan, bool playCached)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(channel, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(channel, 5);
         long sequence = checked(state.Sequence + 1);
-        return new(state with { Sequence = sequence }, [new(sequence, sound, pan, channel, rawPan)]);
+        return new(state with { Sequence = sequence }, [new(sequence, sound, pan, channel, rawPan) { PlayCached = playCached }]);
     }
 
     public static int WeaponImpactSound(ReadOnlySpan<byte> weapon, bool critical, bool missed, bool berserk)

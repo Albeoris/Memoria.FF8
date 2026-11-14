@@ -5,11 +5,14 @@ using Memoria.FF8.Audio;
 
 namespace Memoria.FF8;
 
-/// <summary>Explicit native resident channels and the independent global streamed SFX owner.</summary>
+/// <summary>Native resident channels, the global streamed owner and separately owned direct cached SFX buffers.</summary>
 internal sealed class Ff7SoundChannels(Func<double>? elapsedSeconds = null) : IDisposable
 {
     private readonly Dictionary<int, Voice> voices = [];
+    private readonly Dictionary<int, Voice> cachedVoices = [];
     private double tempo = 1;
+
+    private IEnumerable<Voice> AllVoices => voices.Values.Concat(cachedVoices.Values);
 
     public static (int Start, int End) ConvertLoopBounds(Ff7SoundSample sample, int outputRate, int outputChannels)
     {
@@ -67,18 +70,50 @@ internal sealed class Ff7SoundChannels(Func<double>? elapsedSeconds = null) : ID
 
     public Ff7SoundVoicePosition[] Capture(int queuedFrames)
     {
-        return voices.OrderBy(pair => pair.Key).Select(pair => pair.Value.Capture(pair.Key, queuedFrames)).Where(position => position is not null).Select(position => position!).ToArray();
+        return voices.OrderBy(pair => pair.Key).Select(pair => pair.Value.Capture(pair.Key, queuedFrames)).Concat(cachedVoices.OrderBy(pair => pair.Key).Select(pair => pair.Value.Capture(0, queuedFrames) is { } position ? position with { Cached = true } : null)).Where(position => position is not null).Select(position => position!).ToArray();
+    }
+
+    public void PlayCached(PcmAudioOutput output, byte[] pcm, int rate, int channels, int pan, int gain, int sampleIndex, bool loop = false, int loopStart = 0, int loopEnd = 0, string fingerprint = "", Ff7SoundVoicePosition? resume = null, int nativeVolume = 127, int nativeSampleRate = 0, double? nativeLoopDelaySeconds = null)
+    {
+        int alignment = channels * sizeof(short);
+        if (channels is not (1 or 2) || rate <= 0 || sampleIndex < 1 || nativeVolume is < 0 or > 127 || loop && (loopStart < 0 || loopEnd <= loopStart || loopEnd > pcm.Length || loopStart % alignment != 0 || loopEnd % alignment != 0))
+        {
+            throw new InvalidDataException("FFVII cached sound requires its sample identity and supported PCM format.");
+        }
+        ReleaseCached(sampleIndex);
+        Voice voice = new(output, pcm, rate, channels, pan, gain, sampleIndex, loop, loopStart, loopEnd, fingerprint, resume, nativeVolume, nativeSampleRate == 0 ? rate : nativeSampleRate, 0, nativeLoopDelaySeconds, elapsedSeconds, 0, 0, 0);
+        voice.SetTempo(tempo);
+        cachedVoices.Add(sampleIndex, voice);
+    }
+
+    public void ReleaseCached(int sampleIndex)
+    {
+        if (sampleIndex < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(sampleIndex));
+        }
+        if (cachedVoices.Remove(sampleIndex, out Voice? voice))
+        {
+            voice.Dispose();
+        }
     }
 
     public bool RestoreVoice(PcmAudioOutput output, byte[] pcm, int rate, int channels, int sample, bool stream, bool loop, int start, int end, string fingerprint, Ff7SoundVoicePosition saved, int nativeSampleRate = 0, double? nativeLoopDelaySeconds = null)
     {
         int alignment = channels * sizeof(short);
         int terminal = (loop ? end : pcm.Length) / alignment;
-        if (saved.SoundId != sample || !saved.Fingerprint.Equals(fingerprint, StringComparison.OrdinalIgnoreCase) || saved.SampleRate != rate || saved.Channels != channels || saved.Loop != loop || saved.LoopStartFrames != (loop ? start / alignment : 0) || saved.LoopEndFrames != terminal || saved.PositionFrames < 0 || !double.IsFinite(saved.FractionalFrame) || saved.FractionalFrame is < 0 or >= 1 || (saved.PositionFrames > terminal || saved.PositionFrames == terminal && saved.LoopHandoffRemainingSeconds is null) || saved.NativeSampleRate != 0 && saved.NativeSampleRate != (nativeSampleRate == 0 ? rate : nativeSampleRate) || saved.LoopStarted && (!loop || start == 0 || saved.PositionFrames < start / alignment) || stream != (saved.Channel == 0))
+        if (saved.SoundId != sample || !saved.Fingerprint.Equals(fingerprint, StringComparison.OrdinalIgnoreCase) || saved.SampleRate != rate || saved.Channels != channels || saved.Loop != loop || saved.LoopStartFrames != (loop ? start / alignment : 0) || saved.LoopEndFrames != terminal || saved.PositionFrames < 0 || !double.IsFinite(saved.FractionalFrame) || saved.FractionalFrame is < 0 or >= 1 || (saved.PositionFrames > terminal || saved.PositionFrames == terminal && saved.LoopHandoffRemainingSeconds is null) || saved.NativeSampleRate != 0 && saved.NativeSampleRate != (nativeSampleRate == 0 ? rate : nativeSampleRate) || saved.LoopStarted && (!loop || start == 0 || saved.PositionFrames < start / alignment) || saved.Cached && saved.Channel != 0 || !saved.Cached && stream != (saved.Channel == 0))
         {
             return false;
         }
-        Play(output, pcm, rate, channels, stream, saved.Pan, saved.Gain, sample, loop, start, end, fingerprint, saved.Channel == 0 ? 1 : saved.Channel, saved, nativeVolume: saved.NativeVolume, nativeSampleRate: nativeSampleRate, nativeLoopDelaySeconds: nativeLoopDelaySeconds);
+        if (saved.Cached)
+        {
+            PlayCached(output, pcm, rate, channels, saved.Pan, saved.Gain, sample, loop, start, end, fingerprint, saved, saved.NativeVolume, nativeSampleRate, nativeLoopDelaySeconds);
+        }
+        else
+        {
+            Play(output, pcm, rate, channels, stream, saved.Pan, saved.Gain, sample, loop, start, end, fingerprint, saved.Channel == 0 ? 1 : saved.Channel, saved, nativeVolume: saved.NativeVolume, nativeSampleRate: nativeSampleRate, nativeLoopDelaySeconds: nativeLoopDelaySeconds);
+        }
         return true;
     }
 
@@ -92,11 +127,19 @@ internal sealed class Ff7SoundChannels(Func<double>? elapsedSeconds = null) : ID
                 Stop(pair.Key);
             }
         }
+        foreach (var pair in cachedVoices.ToArray())
+        {
+            pair.Value.Update(loopElapsedSeconds);
+            if (!paused && !pair.Value.Loop && !pair.Value.IsPlaying)
+            {
+                ReleaseCached(pair.Key);
+            }
+        }
     }
 
     public void Pause(bool paused)
     {
-        foreach (Voice voice in voices.Values)
+        foreach (Voice voice in AllVoices)
         {
             voice.Pause(paused);
         }
@@ -113,7 +156,7 @@ internal sealed class Ff7SoundChannels(Func<double>? elapsedSeconds = null) : ID
             return;
         }
         tempo = speed;
-        foreach (Voice voice in voices.Values)
+        foreach (Voice voice in AllVoices)
         {
             voice.SetTempo(speed);
         }
@@ -145,7 +188,7 @@ internal sealed class Ff7SoundChannels(Func<double>? elapsedSeconds = null) : ID
 
     public double NextHandoffSeconds()
     {
-        return voices.Values.Select(voice => voice.HandoffRemainingSeconds).DefaultIfEmpty(double.PositiveInfinity).Min();
+        return AllVoices.Select(voice => voice.HandoffRemainingSeconds).DefaultIfEmpty(double.PositiveInfinity).Min();
     }
 
     public bool IsLoopPlaying(int channel, int sample)
@@ -227,7 +270,7 @@ internal sealed class Ff7SoundChannels(Func<double>? elapsedSeconds = null) : ID
     public void RefreshGains(Func<int, int> outputGain)
     {
         ArgumentNullException.ThrowIfNull(outputGain);
-        foreach (Voice voice in voices.Values)
+        foreach (Voice voice in AllVoices)
         {
             voice.SetGain(outputGain(voice.NativeVolume), voice.NativeVolume);
         }
@@ -238,6 +281,10 @@ internal sealed class Ff7SoundChannels(Func<double>? elapsedSeconds = null) : ID
         foreach (int channel in voices.Keys.ToArray())
         {
             Stop(channel);
+        }
+        foreach (int sample in cachedVoices.Keys.ToArray())
+        {
+            ReleaseCached(sample);
         }
     }
 

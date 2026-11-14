@@ -27,6 +27,7 @@ public static partial class Ff7BattlePrimaryEffects
             ActorSounds = state.ActorSounds.ToArray(),
             BossDeathShakes = state.BossDeathShakes.ToArray(),
             SoundIds = state.SoundIds.ToArray(),
+            SoundReleases = state.SoundReleases.ToArray(),
             Hitmarks = state.Hitmarks.ToArray(),
             TargetReactions = state.TargetReactions.ToArray(),
             Bubbles = state.Bubbles with { Particles = state.Bubbles.Particles.ToArray() },

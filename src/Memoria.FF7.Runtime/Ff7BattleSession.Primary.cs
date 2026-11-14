@@ -8,6 +8,18 @@ public sealed partial class Ff7BattleSession
 
     private bool HasPrimaryPresentationCallbacks => state.PrimaryEffects?.HasCallbacks == true;
 
+    private Ff7BattleActionState StartPrimaryElectromag(Ff7BattleActionState action)
+    {
+        Ff7BattlePrimaryState previous = EnsurePrimaryEffects();
+        Ff7BattlePrimaryState primary = Ff7BattlePrimaryEffects.ScheduleElectromag(previous, action.Command.ActorSlot, action.Command.TargetMask, PrimaryContext());
+        state = state with { PrimaryEffects = primary };
+        foreach (Ff7BattlePrimaryPositionedSound cue in primary.PositionedSounds.Skip(previous.PositionedSounds.Count))
+        {
+            EmitPrimaryPositionedSound(cue);
+        }
+        return action with { ElectromagStarted = true, PrimaryCallbacksRunning = true };
+    }
+
     private Ff7BattlePrimaryContext PrimaryContext()
     {
         return new(SecondaryActorPoint, slot => new(0, (short)VisualPlacement(slot).Yaw, 0), CollisionRadius, random.NextCrt, slot => animations!.BoneCount(ActorModel(slot)), JointPoint, (slot, selector) => animations!.JointSelector(ActorModel(slot), selector), PrimaryWeaponPoint, LiveActorModelOutput, slot => (short)VisualPlacement(slot).Position.Z, slot => (short)HomePlacement(slot).Position.Z) { ActorDeathResources = animations?.ActorResources?.Death };
@@ -305,9 +317,16 @@ public sealed partial class Ff7BattleSession
         {
             return;
         }
-        if (primary.Slots is not { Count: Ff7BattlePrimaryEffects.Capacity } || primary.Draws is null || primary.SoundIds is null || primary.Hitmarks is null || primary.TargetReactions is null || primary.Bubbles?.Particles is not { Count: 200 } || primary.Bubbles.Particles.Any(particle => particle is { Age: < 0 or > 24 }) || primary.WaveGlobals is null || primary.EnergyBallGlobals is null || primary.WaveSparks is null || primary.PositionedSounds is null || primary.WaveSparks.Count > Ff7BattleSecondaryEffects.Capacity || primary.PositionedSounds.Any(cue => cue is null || cue.Actor != -1 && snapshot.Actors.All(actor => actor.Actor.Slot != cue.Actor) || (!cue.RawPan && cue.FallbackPan > 127 || cue.RawPan && cue.Actor != -1) || cue.Channel is < 1 or > 5) || primary.Tick < -1 || primary.Slots.Any(callback => callback is { Age: < 0 } || callback is { Owner: < -1 }) || primary.Draws.Any(draw => draw is null || draw.Slot is < 0 or >= Ff7BattlePrimaryEffects.Capacity) || primary.SilkLines?.Slots is not { Count: 200 } || primary.SilkLines.Direction is not (-1 or 1) || primary.SilkLines.Slots.Any(line => line is { Age: < 0 or > 9 }))
+        if (primary.Slots is not { Count: Ff7BattlePrimaryEffects.Capacity } || primary.Draws is null || primary.SoundIds is null || primary.SoundReleases is null || primary.SoundReleases.Any(release => release is null || release.QueueBank is < 0 or > 15) || primary.Hitmarks is null || primary.TargetReactions is null || primary.Bubbles?.Particles is not { Count: 200 } || primary.Bubbles.Particles.Any(particle => particle is { Age: < 0 or > 24 }) || primary.WaveGlobals is null || primary.EnergyBallGlobals is null || primary.WaveSparks is null || primary.PositionedSounds is null || primary.WaveSparks.Count > Ff7BattleSecondaryEffects.Capacity || primary.PositionedSounds.Any(cue => cue is null || cue.Actor != -1 && snapshot.Actors.All(actor => actor.Actor.Slot != cue.Actor) || (!cue.RawPan && cue.FallbackPan > 127 || cue.RawPan && cue.Actor != -1) || cue.Channel is < 1 or > 5) || primary.Tick < -1 || primary.Slots.Any(callback => callback is { Age: < 0 } || callback is { Owner: < -1 }) || primary.Draws.Any(draw => draw is null || draw.Slot is < 0 or >= Ff7BattlePrimaryEffects.Capacity) || primary.SilkLines?.Slots is not { Count: 200 } || primary.SilkLines.Direction is not (-1 or 1) || primary.SilkLines.Slots.Any(line => line is { Age: < 0 or > 9 }))
         {
             throw new InvalidDataException("FFVII primary presentation has invalid native slots or callback state.");
+        }
+        foreach (Ff7BattlePrimaryElectromagController controller in primary.Slots.OfType<Ff7BattlePrimaryElectromagController>())
+        {
+            if (controller.Age > 54 || controller.Source is < 0 or 3 or > 9 || snapshot.Actors.All(actor => actor.Actor.Slot != controller.Source) || (controller.Targets & ~0x3F7) != 0)
+            {
+                throw new InvalidDataException("FFVII Electromag has invalid native source, target or age state.");
+            }
         }
         ValidateTailLaserPrimary(primary, snapshot);
     }

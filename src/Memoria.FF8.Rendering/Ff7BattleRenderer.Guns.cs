@@ -16,6 +16,9 @@ public sealed partial class Ff7BattleRenderer
         {
             switch (draw.Kind)
             {
+                case Ff7BattleSecondaryDrawKind.Electromag:
+                    DrawElectromagSprite(renderer, state.ElectromagSprites[draw.Index], view);
+                    break;
                 case Ff7BattleSecondaryDrawKind.TailLaser:
                     DrawTailLaserSprite(renderer, state.TailLaserDraws[draw.Index], view);
                     break;

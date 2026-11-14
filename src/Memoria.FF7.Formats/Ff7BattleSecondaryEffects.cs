@@ -17,6 +17,8 @@ namespace Memoria.FF7.Formats;
 [JsonDerivedType(typeof(Ff7BattleLimitPreparationEmitter), "LimitPreparationEmitter")]
 [JsonDerivedType(typeof(Ff7BattleLimitPreparationMesh), "LimitPreparationMesh")]
 [JsonDerivedType(typeof(Ff7BattleWaveSpark), "WaveSpark")]
+[JsonDerivedType(typeof(Ff7BattleElectromagFragment), "ElectromagFragment")]
+[JsonDerivedType(typeof(Ff7BattleElectromagSpinningFragment), "ElectromagSpinningFragment")]
 [JsonDerivedType(typeof(Ff7BattleTailLaserSecondarySprite), "TailLaserSprite")]
 [JsonDerivedType(typeof(Ff7BattleTailLaserSecondarySpark), "TailLaserSpark")]
 public abstract record Ff7BattleSecondaryCallback
@@ -47,7 +49,8 @@ public enum Ff7BattleSecondaryDrawKind
     ScreenPulse,
     LimitPreparation,
     WaveSpark,
-    TailLaser
+    TailLaser,
+    Electromag
 }
 public sealed record Ff7BattleSecondaryDraw(Ff7BattleSecondaryDrawKind Kind, int Index);
 
@@ -65,6 +68,7 @@ public sealed record Ff7BattleSecondaryState
     public IReadOnlyList<Ff7BattleLimitPreparationDraw> LimitPreparations { get; init; } = [];
     public IReadOnlyList<Ff7BattleWaveSparkDraw> WaveSparks { get; init; } = [];
     public IReadOnlyList<Ff7BattleTailLaserSprite> TailLaserDraws { get; init; } = [];
+    public IReadOnlyList<Ff7BattleElectromagSpriteDraw> ElectromagSprites { get; init; } = [];
     public IReadOnlyList<Ff7BattleSecondaryDraw> DrawOrder { get; init; } = [];
     [JsonIgnore]
     public bool HasCallbacks => Slots.Any(slot => slot is not null);
@@ -72,6 +76,11 @@ public sealed record Ff7BattleSecondaryState
 
 public static partial class Ff7BattleSecondaryEffects
 {
+    public static Ff7BattleSecondaryState ScheduleCallback(Ff7BattleSecondaryState state, Ff7BattleSecondaryCallback callback)
+    {
+        ArgumentNullException.ThrowIfNull(callback);
+        return Schedule(state, callback);
+    }
     public const int Capacity = 60;
 
     public static Ff7BattleSecondaryState ScheduleGun(Ff7BattleSecondaryState state, int actor, int resolvedBone, short offset, byte delay, byte duration)
@@ -134,6 +143,7 @@ public static partial class Ff7BattleSecondaryEffects
         List<Ff7BattleLimitPreparationDraw> limitPreparations = [];
         List<Ff7BattleWaveSparkDraw> waveSparks = [];
         List<Ff7BattleTailLaserSprite> tailLaserDraws = [];
+        List<Ff7BattleElectromagSpriteDraw> electromagSprites = [];
         for (int cursor = 0; cursor < Capacity; cursor++)
         {
             switch (slots[cursor])
@@ -151,6 +161,16 @@ public static partial class Ff7BattleSecondaryEffects
                     {
                         drawOrder.Add(new(Ff7BattleSecondaryDrawKind.ScreenPulse, screenPulses.Count));
                         screenPulses.Add(new(250, 250, 250));
+                    }
+                    break;
+                case Ff7BattleElectromagFragment:
+                case Ff7BattleElectromagSpinningFragment:
+                    Ff7BattleElectromagSecondaryStep electromag = Ff7BattleElectromagEffect.AdvanceSecondary(slots[cursor]!);
+                    slots[cursor] = electromag.Callback;
+                    foreach (Ff7BattleElectromagSpriteDraw draw in electromag.Draws)
+                    {
+                        drawOrder.Add(new(Ff7BattleSecondaryDrawKind.Electromag, electromagSprites.Count));
+                        electromagSprites.Add(draw with { Slot = cursor });
                     }
                     break;
                 case Ff7BattleTailLaserSecondary tailLaser:
@@ -286,7 +306,7 @@ public static partial class Ff7BattleSecondaryEffects
 
         void Allocate(Ff7BattleSecondaryCallback callback) => Insert(slots, cursor, callback);
         }
-        return new() { Slots = slots, Muzzles = muzzles, Casings = casings, Sparks = sparks, Dust = dust, Hitmarks = hitmarks, SoundIds = sounds, ActorWrites = actorWrites, ScreenPulses = screenPulses, LimitPreparations = limitPreparations, WaveSparks = waveSparks, TailLaserDraws = tailLaserDraws, DrawOrder = drawOrder };
+        return new() { Slots = slots, Muzzles = muzzles, Casings = casings, Sparks = sparks, Dust = dust, Hitmarks = hitmarks, SoundIds = sounds, ActorWrites = actorWrites, ScreenPulses = screenPulses, LimitPreparations = limitPreparations, WaveSparks = waveSparks, TailLaserDraws = tailLaserDraws, ElectromagSprites = electromagSprites, DrawOrder = drawOrder };
     }
 
     private static Ff7BattleBraverPoint Add(Ff7BattleBraverPoint a, Ff7BattleBraverPoint b) => new((short)(a.X + b.X), (short)(a.Y + b.Y), (short)(a.Z + b.Z));

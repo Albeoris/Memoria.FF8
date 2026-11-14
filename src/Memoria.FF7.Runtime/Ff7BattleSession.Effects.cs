@@ -22,6 +22,7 @@ public sealed partial class Ff7BattleSession
                 0x04 when !action.LaserCannonStarted => StartLaserCannon(action),
                 0x13 when action.Rockets is null => StartPrimaryRocket(action),
                 0x16 when !action.BeamGunStarted => StartBeamGun(action),
+                0x19 when !action.ElectromagStarted => StartPrimaryElectromag(action),
                 0x15 when action.Smog is null => StartPrimarySmog(action),
                 0x2A when !action.WaveStarted => StartPrimaryWave(action),
                 0x2B when !action.EnergyBallStarted => StartPrimaryEnergyBall(action),

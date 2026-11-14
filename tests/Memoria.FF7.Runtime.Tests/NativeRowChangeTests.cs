@@ -7,6 +7,7 @@ internal static class NativeRowChangeTests
 {
     public static void Run()
     {
+        PrimaryTiming();
         Ff7BattleAttack record = new(255, 255, 2, 12, 65535, 334, 334, 7, 25, 0x22, 0, 255, 255, 0x19, 255, uint.MaxValue, 0x8000, 65535);
         Ff7BattleDamageActor stats = new(32, 32, 32, 32, 0, 0, 0, 0, 0);
         Ff7BattleActionVitals vitals = new(100, 100, 20, 20, 0);
@@ -184,14 +185,73 @@ internal static class NativeRowChangeTests
         }
         string reactionState = string.Join(";", animated.Capture().ActorModels.Select(model => $"slot{model.Slot}:action{model.Action:X},reaction{model.Reaction},ready{model.Ready},pending{model.PendingSince},pose{model.Pose}"));
         Check(seenReaction && seenContact && animated.Action is null, $"Original animated Electromag must publish literal row reactions and complete their idle handoff: reaction={seenReaction}, contact={seenContact}, action={animated.Action?.Command}, tick={animated.Tick}, lastHit={animated.LastHit}, models={reactionState}, prepared={JsonSerializer.Serialize(animated.Capture().Sounds?.PreparedImpacts)}, due={JsonSerializer.Serialize(animated.Capture().Sounds?.DueImpacts)}.");
+        Ff7BattleSoundReceipt[] effectSounds = animated.Capture().SoundRequests.Where(sound => sound.Sound is 371 or 124 or 250).ToArray();
+        Check(effectSounds.Count(sound => sound.ReleaseQueueBank is null && sound.PlayCached && sound.Sound == 371) == 1 && effectSounds.Count(sound => sound.ReleaseQueueBank is null && sound.PlayCached && sound.Sound == 124) == 1 && effectSounds.Count(sound => sound.ReleaseQueueBank is null && !sound.PlayCached && sound.Sound == 250) == 1, "Animated Electromag must publish both cached entry voices and its ordinary age25 voice exactly once.");
+        Check(effectSounds.Where(sound => sound.ReleaseQueueBank is not null).Select(sound => (sound.Sound, sound.ReleaseQueueBank)).SequenceEqual(new[] { ((ushort)371, (int?)15), ((ushort)124, (int?)15), ((ushort)250, (int?)15) }), "Animated Electromag must publish the three native resource releases once, preserving queue-bank ownership.");
         Equal(animated, animatedCold);
+        int soundCount = animated.Capture().SoundRequests.Length;
         for (int tick = 0; tick < 8; tick++)
         {
             animated.Advance(waitForCommand: true);
             animatedCold.Advance(waitForCommand: true);
         }
         Equal(animated, animatedCold);
+        Check(animated.Capture().SoundRequests.Length == soundCount, "Cold next callbacks must not replay Electromag entry, ordinary or release sound receipts.");
         Console.WriteLine("Native Electromag zero-power hit/RNG, row slot/layout guards, markers, guest/native publication, physical consumers and cold/next-battle continuation passed.");
+    }
+
+    private static void PrimaryTiming()
+    {
+        int warmRandom = 0;
+        int coldRandom = 0;
+        Ff7BattlePrimaryContext Context(Func<int> random) => new((_, _, _) => throw new InvalidOperationException("Electromag must not read its unobservable entry capture."), _ => default, _ => 0, random, JointPoint: (slot, _) => new(slot * 100, -500, 800));
+        Ff7BattlePrimaryState warm = Ff7BattlePrimaryEffects.ScheduleElectromag(new(), 4, 7, Context(() => ++warmRandom));
+        Check(warm.Slots[0] is Ff7BattlePrimaryElectromagController && warm.Slots[1] is Ff7BattlePrimaryStageFade, "Electromag must allocate its native main owner before the entry fade child.");
+        Check(warm.PositionedSounds.Select(sound => (sound.Sound, sound.PlayCached)).SequenceEqual(new[] { ((ushort)371, true), ((ushort)124, true) }), "Entry sounds must retain their direct cached-buffer owners.");
+        Ff7BattlePrimaryState cold = JsonSerializer.Deserialize<Ff7BattlePrimaryState>(JsonSerializer.Serialize(warm))!;
+        int contacts = 0;
+        int releases = 0;
+        for (int age = 0; age < 80; age++)
+        {
+            warm = Ff7BattlePrimaryEffects.Advance(warm, Context(() => ++warmRandom));
+            cold = Ff7BattlePrimaryEffects.Advance(cold, Context(() => ++coldRandom));
+            Check(JsonSerializer.Serialize(warm) == JsonSerializer.Serialize(cold) && warmRandom == coldRandom, "Electromag primary callback, visual RNG or receipt changed after JSON restore.");
+            Check(warm.TargetReactions.Count == (age == 35 ? 3 : 0) && warm.ImpactTargets == (age == 35 ? 7 : 0), "Electromag must publish its captured target mask once at native main age35.");
+            contacts += warm.TargetReactions.Count;
+            Check(warm.PositionedSounds.Count == (age == 25 ? 1 : 0) && warm.PositionedSounds.All(sound => sound.Sound == 250 && !sound.PlayCached), "Age25 sound must retain the ordinary duplicated-buffer path.");
+            Check(warm.SoundReleases.Count == (age == 54 ? 3 : 0), "Electromag must release cached resources exactly when its main increments to55.");
+            if (age == 54)
+            {
+                Check(warm.SoundReleases.Select(release => (release.Sound, release.QueueBank)).SequenceEqual(new[] { ((ushort)371, 15), ((ushort)124, 15), ((ushort)250, 15) }), "Cleanup must retain all three resource IDs and the native asynchronous queue-bank index.");
+            }
+            releases += warm.SoundReleases.Count;
+            Check(warm.Slots.OfType<Ff7BattlePrimaryElectromagController>().Count() == (age < 54 ? 1 : 0), "Electromag main must retire at new age55 without replaying its contacts.");
+            if (age is 24 or 34 or 53)
+            {
+                cold = JsonSerializer.Deserialize<Ff7BattlePrimaryState>(JsonSerializer.Serialize(warm))!;
+            }
+        }
+        Check(contacts == 3 && releases == 3 && !warm.HasCallbacks, "Electromag must finish all native callbacks with once-only reactions and resource releases.");
+        Ff7BattleSoundUpdate play = Ff7NativeBattleSound.Emit(Ff7BattleSoundState.Empty, 371, 64, playCached: true);
+        Ff7BattleSoundUpdate releaseSound = Ff7NativeBattleSound.Release(play.State, 371, 15);
+        Check(play.Sounds.Single().PlayCached && play.Sounds.Single().ReleaseQueueBank is null && releaseSound.Sounds.Single().ReleaseQueueBank == 15 && !releaseSound.Sounds.Single().PlayCached && releaseSound.State.Sequence == 2, "Native sound receipts must distinguish cached play from queue-barrier resource release.");
+        Ff7SoundVoicePosition cached = new(0, 371, new('A', 64), 22050, 1, 1, true, 0, 10, false, 0, 0) { Cached = true };
+        Ff7AudioPresentationState voices = new() { Sounds = [cached, cached with { SoundId = 124 }, cached with { Channel = 1, Cached = false }] };
+        voices.Validate();
+        Ff7AudioPresentationState restoredVoices = JsonSerializer.Deserialize<Ff7AudioPresentationState>(JsonSerializer.Serialize(voices))!;
+        restoredVoices.Validate();
+        Check(restoredVoices.Sounds.SequenceEqual(voices.Sounds) && !JsonSerializer.Serialize(cached with { Cached = false }).Contains("Cached"), "Cached sound ownership must survive JSON while historical absent flags remain ordinary voices.");
+        bool duplicateRejected = false;
+        try
+        {
+            (voices with { Sounds = [cached, cached] }).Validate();
+        }
+        catch (InvalidDataException)
+        {
+            duplicateRejected = true;
+        }
+        Check(duplicateRejected, "Cached voices must reject duplicate resource owners while allowing a same-ID independent channel voice.");
+
     }
 
     private static void Equal(Ff7BattleSession warm, Ff7BattleSession cold)
