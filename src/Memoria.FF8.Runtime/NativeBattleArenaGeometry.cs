@@ -63,7 +63,30 @@ public sealed class NativeBattleArenaHost(NativeBattleArenaGeometry geometry)
         return (stage.Groups[0].Flags & 2) == 0 ? primitiveIds.ToImmutableArray() : [];
     }
 
-    public NativeBattleArenaHost Fork() => new(Geometry);
+    public NativeBattleArenaHost Fork(bool preservePresentation = false)
+    {
+        NativeBattleArenaHost fork = new(Geometry);
+        if (preservePresentation)
+        {
+            foreach (var entry in replacements)
+            {
+                fork.replacements.Add(entry.Key, entry.Value);
+            }
+            foreach (var entry in captures)
+            {
+                fork.captures.Add(entry.Key, entry.Value);
+            }
+            foreach (var entry in captureRegions)
+            {
+                fork.captureRegions.Add(entry.Key, entry.Value);
+            }
+            foreach (var entry in deformationSurfaces)
+            {
+                fork.deformationSurfaces.Add(entry.Key, entry.Value);
+            }
+        }
+        return fork;
+    }
 
     public void ClearPresentation()
     {
@@ -91,6 +114,11 @@ public sealed class NativeBattleArenaHost(NativeBattleArenaGeometry geometry)
     public NativeBattleArenaCaptureMaterial ReadCapture(int nativeX, int nativeY)
     {
         return captureRegions.TryGetValue((nativeX, nativeY), out NativeBattleArenaCaptureMaterial? material) ? material : throw new NotSupportedException("The arena image region has no retained capture owner.");
+    }
+
+    public bool TryReadCapture(int nativeX, int nativeY, out NativeBattleArenaCaptureMaterial? material)
+    {
+        return captureRegions.TryGetValue((nativeX, nativeY), out material);
     }
 
     public void RefineSurface(NativeBattlePilotVisualIdentity owner, ImmutableArray<(Vector3 A, Vector3 B, Vector3 C)> controlTriangles)

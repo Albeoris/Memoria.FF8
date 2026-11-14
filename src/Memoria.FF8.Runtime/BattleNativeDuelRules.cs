@@ -13,7 +13,7 @@ public static class NativeBattleDuelRules
         {
             throw new InvalidDataException("Native Duel control requires FFFA with its original finisher6..9 or FFFC with effect0.");
         }
-        return new(241, actionId, -1, -1) { MagicId = effect, AttackType = 0, Power = 0, HitCount = 1, TargetFlags = null, AttackFlags = 3, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = ImmutableArray<byte>.Empty, SupplementalRecord = ImmutableArray<byte>.Empty };
+        return new(241, actionId, -1, -1) { PresentationSecondarySource = actionId == 65532, MagicId = effect, AttackType = 0, Power = 0, HitCount = 1, TargetFlags = null, AttackFlags = 3, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = ImmutableArray<byte>.Empty, SupplementalRecord = ImmutableArray<byte>.Empty };
     }
 
     public static byte InitialMoveSet(BattleNativeLimitDefinition rules, byte crisis)

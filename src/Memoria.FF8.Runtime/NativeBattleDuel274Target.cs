@@ -2,7 +2,10 @@ using System.Buffers.Binary;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleDuel274SelectedServices(NativeBattleDuel274ActorServices Actors, Func<int, NativeBattleGraphicsModel> ReadModel, Action<int, NativeBattleGraphicsModel> WriteModel, Func<int, NativeBattleModuleAnchor> ReadAnchor571400, Func<NativeBattleDuel274Frame, int, uint, NativeBattleDuel274Frame> Bind5022C0, Func<NativeBattleDuel274Frame, int, byte, NativeBattleDuel274Frame> Select505C00, Func<NativeBattleDuel274Frame, byte, NativeBattleDuel274Frame> Camera503520, Func<NativeBattleDuel274Frame, NativeBattleEffectFileRequest, NativeBattleDuel274Frame> QueueFile, Func<NativeBattleDuel274Frame, int, NativeBattleDuel274Frame> Contact506690, Func<NativeBattleDuel274Frame, uint, uint, NativeBattleDuel274Frame> Texture508630, Func<NativeBattleDuel274Frame, int, byte, NativeBattleDuel274Frame> DrawVariant, Action<int> Stage5713E0, Func<NativeBattleDuel274Frame, byte, NativeBattleDuel274Frame> Draw68D4B0);
+public sealed record NativeBattleDuel274SelectedServices(NativeBattleDuel274ActorServices Actors, Func<int, NativeBattleGraphicsModel> ReadModel, Action<int, NativeBattleGraphicsModel> WriteModel, Func<int, NativeBattleModuleAnchor> ReadAnchor571400, Func<NativeBattleDuel274Frame, int, uint, NativeBattleDuel274Frame> Bind5022C0, Func<NativeBattleDuel274Frame, int, byte, NativeBattleDuel274Frame> Select505C00, Func<NativeBattleDuel274Frame, byte, NativeBattleDuel274Frame> Camera503520, Func<NativeBattleDuel274Frame, NativeBattleEffectFileRequest, NativeBattleDuel274Frame> QueueFile, Func<NativeBattleDuel274Frame, int, NativeBattleDuel274Frame> Contact506690, Func<NativeBattleDuel274Frame, uint, uint, NativeBattleDuel274Frame> Texture508630, Func<NativeBattleDuel274Frame, int, byte, NativeBattleDuel274Frame> DrawVariant, Action<int> Stage5713E0, Func<NativeBattleDuel274Frame, byte, NativeBattleDuel274Frame> Draw68D4B0)
+{
+    public bool NativeCameraEnabled { get; init; } = true;
+}
 
 public static class NativeBattleDuel274Target
 {
@@ -54,8 +57,11 @@ public static class NativeBattleDuel274Target
             Store();
             frame = inputs.Select505C00(frame, actor, selector);
             task = frame.Effect.Pools[1].Slots[slot];
-            byte category = inputs.ReadModel(target).SequenceByte145 ?? throw new NotSupportedException("Native Duel camera selection requires its actual target BYTE145.");
-            frame = inputs.Camera503520(frame, unchecked((byte)(category + 16 * (selector - 2))));
+            if (inputs.NativeCameraEnabled)
+            {
+                byte category = inputs.ReadModel(target).SequenceByte145 ?? throw new NotSupportedException("Native Duel camera selection requires its actual target BYTE145.");
+                frame = inputs.Camera503520(frame, unchecked((byte)(category + 16 * (selector - 2))));
+            }
             task = frame.Effect.Pools[1].Slots[slot];
             task = task.WriteByte(17, resources.Read(checked(0x110E3E0u + selector), 1)[0]).WriteWord(12, 0);
             frame = NativeBattleDuel274Controller.WriteRootTransition(frame, 0, selector);
@@ -83,7 +89,7 @@ public static class NativeBattleDuel274Target
                 {
                     RestoreActor();
                     RestoreTarget();
-                    if (inputs.ReadModel(target).ModelId4 == 84)
+                    if (IsNativeModel(target, 84))
                     {
                         for (int index = 0; index < 3; index++)
                         {
@@ -158,6 +164,10 @@ public static class NativeBattleDuel274Target
         }
         return Result(0);
 
+        bool IsNativeModel(int index, byte modelId)
+        {
+            return inputs.Actors.IsNativeModel?.Invoke(index, modelId) ?? (inputs.ReadModel(index).ModelId4 ?? throw new NotSupportedException("Native Duel target positioning requires its actual BYTE4.")) == modelId;
+        }
         void SaveModels()
         {
             NativeBattleGraphicsModel actorModel = inputs.ReadModel(actor);
@@ -170,12 +180,11 @@ public static class NativeBattleDuel274Target
             task = task.WriteDword(48, Pack(targetTransform.Position28.X, targetTransform.Position28.Y)).WriteDword(52, Pack(targetTransform.Position28.Z, targetTransform.Vertical34));
             NativeBattleModuleAnchor anchor = inputs.ReadAnchor571400(target);
             task = task.WriteDword(40, Pack(anchor.X, anchor.Y)).WriteDword(44, Pack(anchor.Z, anchor.W));
-            byte modelId = targetModel.ModelId4 ?? throw new NotSupportedException("Native Duel target positioning requires its actual BYTE4.");
-            if (modelId == 140)
+            if (IsNativeModel(target, 140))
             {
                 task = task.WriteWord(44, unchecked((ushort)(Signed(task, 44) - 3200)));
             }
-            else if (modelId == 84)
+            else if (IsNativeModel(target, 84))
             {
                 for (int index = 0; index < 3; index++)
                 {

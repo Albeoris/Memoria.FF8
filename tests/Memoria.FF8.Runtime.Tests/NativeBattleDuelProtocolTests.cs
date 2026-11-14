@@ -87,6 +87,8 @@ public sealed class NativeBattleDuelProtocolTests
         Assert.Equal(0u, target.NativeCombatantFlags & 0x4000u);
         Assert.Equal(secondary ? (byte)actor.NativeIndex : (byte)255, packet.Secondary.ActorIndex);
         Assert.Equal(secondary ? (byte)1 : (byte)0, packet.Secondary.Flags2);
+        BattleNativeAction metadata = NativeBattleDuelRules.Control(actionId, actionId == 65530 ? (ushort)6 : (ushort)0);
+        Assert.Equal(packet.Secondary.ActorIndex != 255, metadata.PresentationSecondarySource);
         Assert.Equal(actionId != 65532, session.Capture().NativeActionScratch!.DeferredEffectsE00);
     }
 

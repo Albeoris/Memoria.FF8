@@ -57,7 +57,7 @@ internal sealed partial class CrossoverGuestHostActions
     private ImmutableArray<CrossoverNativeMagicTarget> PresentationTargets(IReadOnlyList<Ff7BattleGuestPhysicalHit> values, BattleNativeAction original)
     {
         int[] slots = values.Select(value => value.PreparedContact!.Invocation.TargetSlot).ToArray();
-        return CrossoverNativeMagicTarget.Bind(ActorSlot, slots, (slot, index) =>
+        return BindPresentationTargets(slots, (slot, index) =>
         {
             Ff7BattleGuestPreparedContact receipt = values.Single(value => value.PreparedContact!.Invocation.TargetSlot == slot).PreparedContact!;
             byte flags = PreparedContactFlags(original, receipt);

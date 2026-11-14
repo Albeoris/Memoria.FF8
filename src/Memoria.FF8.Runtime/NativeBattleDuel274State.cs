@@ -30,4 +30,7 @@ public sealed record NativeBattleDuel274Frame(NativeBattleEffectMemory Memory, N
 }
 public sealed record NativeBattleDuel274TaskStep(NativeBattleDuel274Frame Frame, NativeBattleEffectTaskPool Pool, int Result);
 
-public sealed record NativeBattleDuel274ActorServices(Func<int, ushort> ReadFlags, Action<int, ushort> WriteFlags, Func<int, uint> ReadLinkedModel140, Func<int, int> ResolveMinimum501FF0, Func<int, (short Maximum, short Minimum)> ReadBounds6DFD90);
+public sealed record NativeBattleDuel274ActorServices(Func<int, ushort> ReadFlags, Action<int, ushort> WriteFlags, Func<int, uint> ReadLinkedModel140, Func<int, int> ResolveMinimum501FF0, Func<int, (short Maximum, short Minimum)> ReadBounds6DFD90)
+{
+    public Func<int, byte, bool>? IsNativeModel { get; init; }
+}

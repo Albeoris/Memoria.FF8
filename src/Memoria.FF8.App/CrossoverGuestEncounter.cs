@@ -23,10 +23,12 @@ internal sealed class CrossoverGuestEncounter
     public CrossoverGuestItemInventory? Items { get; set; }
     public byte? OriginBattleSpeed { get; init; }
     public GameplayTuning ParameterTuning { get; init; } = new();
+    public CrossoverGuestLimitLearningSettlement LimitLearning { get; set; }
 
     public CrossoverGuestEncounter(CrossoverBattleRoster roster, NativeCharacterVitals origin, Ff7BattleSession host, NativeGlobalRandomState globalRandom, NativeCrtRandomState? crt, GameplaySaveEconomy? economy, CrossoverGuestEncounterSnapshot? saved)
     {
         this.roster = roster;
+        LimitLearning = new(roster.EncounterId);
         CrossoverBattleParticipant[] participants = roster.Guests.ToArray();
         int[] slots = participants.Select(guest => guest.HostSlot).ToArray();
         GlobalRandom = globalRandom;

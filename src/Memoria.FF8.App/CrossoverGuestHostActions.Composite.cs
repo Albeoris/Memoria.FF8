@@ -67,14 +67,14 @@ internal sealed partial class CrossoverGuestHostActions
     private CrossoverNativeMagicPresentationState BeginCompositePresentation(NativeBattleGraphicsModel source, Ff7BattleGuestInvocation invocation, BattleNativeAction original, IReadOnlyList<Ff7BattleGuestCompositeContact> contacts, CrossoverGunbladeHostPlacement placement)
     {
         int[] slots = contacts.Select(contact => contact.HitDescription.PreparedContact!.Invocation.TargetSlot).Distinct().Order().ToArray();
-        ImmutableArray<CrossoverNativeMagicTarget> targets = CrossoverNativeMagicTarget.Bind(ActorSlot, slots, (slot, index) => NativeContact(contacts.First(contact => contact.HitDescription.PreparedContact!.Invocation.TargetSlot == slot), index));
+        ImmutableArray<CrossoverNativeMagicTarget> targets = BindPresentationTargets(slots, (slot, index) => NativeContact(contacts.First(contact => contact.HitDescription.PreparedContact!.Invocation.TargetSlot == slot), index));
         ImmutableArray<CrossoverNativeMagicTarget> stream = contacts.Select(contact =>
         {
             int slot = contact.HitDescription.PreparedContact!.Invocation.TargetSlot;
             byte index = targets.Single(target => target.HostSlot == slot).Contact.ActorIndex;
             return new CrossoverNativeMagicTarget(slot, NativeContact(contact, index));
         }).ToImmutableArray();
-        return fireProgram.Begin(source with { Index = 0 }, stream[0].HostSlot, encounter.CrtRandom, stream[0].Contact, original, encounter.GlobalRandom, CreateArena(placement)) with { Targets = targets, Contacts = stream };
+        return fireProgram.Begin(source with { Index = 0 }, stream[0].HostSlot, encounter.CrtRandom, stream[0].Contact, original, encounter.GlobalRandom, CreateArena(placement), RetainedProcessOwner(original), ProcessParticipantBindings, RetainedProcessState(original)) with { Targets = targets, Contacts = stream };
 
         NativeBattleContactHalf NativeContact(Ff7BattleGuestCompositeContact contact, byte index)
         {

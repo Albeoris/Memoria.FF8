@@ -49,8 +49,15 @@ internal sealed record CrossoverNativeForeignTarget(int HostSlot, NativeBattleMo
             StatusFlags = NativeStatusFlags,
             BoneCount = Geometry.Bones.Length,
             Geometry = new(World, Anchors, faces) { Vertices = Geometry.Vertices.Select(LocalVertex).ToImmutableArray() },
-            Pose = new(poseWorld, Geometry.Bones.SelectMany(bone => new[] { bone.Start, bone.End }).Select(point => NativeBattleGfMatrices.Transform460840(inversePose, Word(Vector3.Transform(point, HostToOrigin)))).ToImmutableArray(), (selector, fraction) => NativeBattleGfMatrices.Transform460840(inversePose, ReadBone(selector, fraction))) { BoneParents = Geometry.BoneParents }
+            Pose = new(poseWorld, Geometry.Bones.SelectMany(bone => new[] { bone.Start, bone.End }).Select(point => NativeBattleGfMatrices.Transform460840(inversePose, Word(Vector3.Transform(point, HostToOrigin)))).ToImmutableArray(), (selector, fraction) => NativeBattleGfMatrices.Transform460840(inversePose, ReadBone(selector, fraction))) { BoneParents = Geometry.BoneParents, BoneMatrices = Geometry.BoneTransforms.Select(matrix => BoneMatrix(matrix * HostToOrigin)).ToImmutableArray() }
         };
+
+        NativeBattleActionMatrix BoneMatrix(Matrix4x4 matrix)
+        {
+            short Q(float value) => checked((short)NativePrecision53.RoundInteger(value * 4096));
+            NativeBattleActionMatrix world = new([Q(matrix.M11), Q(matrix.M21), Q(matrix.M31), Q(matrix.M12), Q(matrix.M22), Q(matrix.M32), Q(matrix.M13), Q(matrix.M23), Q(matrix.M33)], NativePrecision53.RoundInteger(matrix.M41), NativePrecision53.RoundInteger(matrix.M42), NativePrecision53.RoundInteger(matrix.M43), 4096);
+            return NativeBattleGfMatrices.Compose56C2F0(inversePose, world);
+        }
 
         NativeBattleVector ReadBone(byte selector, short fraction)
         {

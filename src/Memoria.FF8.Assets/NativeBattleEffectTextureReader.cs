@@ -27,11 +27,11 @@ public static partial class NativeBattleEffectTextureReader
         {
             int paletteX = (clut & 63) * 16;
             int paletteWords = depth == 0 ? 16 : 256;
-            if (paletteX + paletteWords > 1024)
+            int paletteOffset = 2 * (((clut & 0x7FFF) >> 6) * 1024 + paletteX);
+            if (paletteOffset > 1024 * 512 * 2 - paletteWords * 2)
             {
                 return false;
             }
-            int paletteOffset = 2 * (((clut & 0x7FFF) >> 6) * 1024 + paletteX);
             if (!HasSameVramRange(previous, current, paletteOffset, paletteWords * 2))
             {
                 return false;
@@ -229,11 +229,19 @@ public static partial class NativeBattleEffectTextureReader
 
         ushort Word(int x, int y)
         {
-            if (x is < 0 or >= 1024 || y is < 0 or >= 512)
+            int index = checked(y * 1024 + x);
+            if (x < 0 || y < 0 || index >= 1024 * 512 || !pcPalette && (x >= 1024 || y >= 512))
             {
-                throw new InvalidDataException("Native texture page or CLUT sample leaves1024x512 word VRAM.");
+                InvalidDataException error = new("Native texture page or CLUT sample leaves1024x512 word VRAM.");
+                error.Data["TexturePage"] = texturePage.ToString("X4");
+                error.Data["Clut"] = clut.ToString("X4");
+                error.Data["Region"] = $"{u},{v}/{width}x{height}";
+                error.Data["WordCoordinates"] = $"{x},{y}";
+                error.Data["WordOffset"] = index;
+                error.Data["PcPalette"] = pcPalette;
+                throw error;
             }
-            return state.ReadVramWord(x, y);
+            return state.ReadVramWord(index % 1024, index / 1024);
         }
     }
 }

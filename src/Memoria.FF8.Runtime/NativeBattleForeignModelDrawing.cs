@@ -55,7 +55,7 @@ public static partial class NativeBattleForeignModelDrawing
         return new(primitives.ToImmutable(), ditherIndex, projected);
     }
 
-    public static NativeBattleRawModelBodyDraw DrawBody(NativeBattleForeignModelGeometry geometry, NativeBattleActionMatrix basis, NativeBattleCameraProjection projection, uint color, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity identity, byte depthShift = 4, NativeBattleGeometryViewport? viewport = null, int tableBaseBucket = 17, short? depthCue = 0)
+    public static NativeBattleRawModelBodyDraw DrawBody(NativeBattleForeignModelGeometry geometry, NativeBattleActionMatrix basis, NativeBattleCameraProjection projection, uint color, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity identity, byte depthShift = 4, NativeBattleGeometryViewport? viewport = null, int tableBaseBucket = 17, short? depthCue = 0, bool pilotScreenSpace = false, bool pilotContinuous = true)
     {
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         ImmutableArray<byte> scratch = [];
@@ -66,7 +66,7 @@ public static partial class NativeBattleForeignModelDrawing
             NativeBattleForeignModelFace face = geometry.Faces[index];
             NativeBattleRawMesh triangle = face.Triangle();
             NativeBattlePilotVisualIdentity selected = identity with { Primitive = unchecked(identity.Primitive * 397 + index) };
-            NativeBattleRawModelBodyDraw draw = NativeBattleRawModelBodyDrawing.Draw5099D0(triangle, [basis], projection, color, 1, new byte[checked(triangle.Vertices.Length * 8)].ToImmutableArray(), colors, depthShift, viewport, tableBaseBucket, depthCue, selected);
+            NativeBattleRawModelBodyDraw draw = NativeBattleRawModelBodyDrawing.Draw5099D0(triangle, [basis], projection, color, 1, new byte[checked(triangle.Vertices.Length * 8)].ToImmutableArray(), colors, depthShift, viewport, tableBaseBucket, depthCue, selected, pilotScreenSpace, pilotContinuous);
             foreach (NativeBattleGfGeometryAttempt attempt in draw.Packets.Attempts)
             {
                 attempts.Add(attempt with { ByteOffsetRelative = checked(allocated + attempt.ByteOffsetRelative), Primitive = attempt.Primitive is { } primitive ? geometry.BindSurface(primitive, face, selected) : null });

@@ -93,7 +93,7 @@ public static class NativeBattleRinoa87Nodes
                 bank.WriteUInt32(0, 1);
             }
             NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
-            task = NativeBattleEffectNodeContext.Initialize(task, hierarchy.Read(task.ReadDword(16)), frame.Effect.Parameters ?? throw new NotSupportedException("Native779130 requires its original action parameters."), controller.Packets, controller.ReadModel, controller.ReadPoseSource, NativeBattleRinoa87NodeResources.Address);
+            task = NativeBattleEffectNodeContext.Initialize(task, hierarchy.Read(task.ReadDword(16)), frame.Effect.Parameters ?? throw new NotSupportedException("Native779130 requires its original action parameters."), controller.Packets, controller.ReadModel, controller.ReadPoseSource, NativeBattleRinoa87NodeResources.Address, readForeignBone: (index, selector) => NativeBattleEffectModelHelpers.ReadSemanticAnchor(controller.ReadForeignActorGeometry?.Invoke(index), selector));
             Store();
             bank.Publish(false);
             NativeBattleTaskOperation.AdmitCurrentRetainedMemoryStorage(data);

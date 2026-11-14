@@ -37,6 +37,14 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState DrawNativeEffectModel5099D0(NativeBattleGraphicsState graphics, int index, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int shadowTableBase, byte shadowDepthShift, byte bodyDepthShift = 4, uint? privateOrderingAddress = null, short? depthCue = null, uint? contextMaskAddress = null, bool prepareModel = true, bool drawShadow = true, bool drawLinked = true, uint? maskOverride = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, bool pilotScreenSpace = false, bool pilotContinuous = true, bool linkedOnly = false)
     {
         NativeBattleGraphicsModel model = graphics.Models[index];
+        if (ReadNativeGraphicsForeignModel(graphics, index) is { } foreign)
+        {
+            if (linkedOnly || maskOverride is not null and not uint.MaxValue)
+            {
+                throw new NotSupportedException("The host body drawing operation requires a complete posed material-bearing body.");
+            }
+            return DrawNativeForeignEffectModel5099D0(graphics, index, foreign, matrix, projection, shadowTableBase, shadowDepthShift, bodyDepthShift, privateOrderingAddress, depthCue, drawShadow, pilotIdentity, pilotScreenSpace, pilotContinuous);
+        }
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native effect body drawing requires its actual pose source.");
         NativeBattleGraphicsDefinition rules = definition.NativeGraphics ?? throw new NotSupportedException("Native effect body drawing requires its current graphics definition.");

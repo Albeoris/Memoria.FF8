@@ -47,6 +47,22 @@ public sealed class NativeBattlePcTextureUploadSourceTests
     }
 
     [Fact]
+    public void Indexed_upload_keeps_the_original_linear_palette_pointer_across_a_physical_row()
+    {
+        byte[] palette = new byte[512];
+        palette[34] = 31;
+        NativeBattleEffectTextureState state = State(0x1111, 0x1111).PublishVramSpan(2 * (32 * 1024 + 1008), palette);
+        using InMemoryResourceSource source = Source();
+        ResourceService resources = new(source);
+        RecordingResolver resolver = new();
+        resources.Prepare(resolver).Commit();
+        using NativeBattleEffectTextureSource textures = new(resources);
+        textures.Apply(new(4, 1), state, 0x91, 32 * 64 + 63, 0, 0, 4, 1);
+        TextureSourceUpload upload = Assert.Single(resolver.Contexts).NativeUpload!;
+        Assert.Equal(Enumerable.Repeat(new byte[] { 0, 0, 255, 127 }, 4).SelectMany(value => value).ToArray(), upload.Pixels.ToArray());
+    }
+
+    [Fact]
     public void UnsupportedDirectTextureDoesNotInventUploadMetadata()
     {
         using InMemoryResourceSource source = Source();

@@ -43,8 +43,7 @@ public sealed partial class BattleSession
         }
         NativeBattlePosedActor pose = foreign!.Pose ?? throw new NotSupportedException("The host actor cannot supply its actual posed bone segments.");
         NativeBattleGraphicsModel model = graphics.Models[index];
-        NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("The host pose has no current transform owner.");
-        return pose with { World = NativeBattleForeignPlacement.World(transform, model.Rotation12 ?? 0, model.Rotation14 ?? foreign.Facing, model.Rotation16 ?? 0) };
+        return pose with { World = NativeBattleGfMatrices.Compose56C2F0(NativeBattleForeignPlacement.Delta(foreign, model), pose.World) };
     }
 
     private (NativeBattleEffectMemory Memory, NativeBattleVector Point) ObserveNativeGraphicsBoneAnchor(NativeBattleEffectMemory memory, NativeBattleGraphicsState graphics, int index, byte selector, short fraction)

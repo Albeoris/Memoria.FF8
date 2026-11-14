@@ -6,6 +6,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record BattleNativeAction(byte Command, ushort ActionId, int KernelSection, int KernelIndex)
 {
     public bool PresentationOnly { get; init; }
+    public bool PresentationSecondarySource { get; init; }
     public byte? DispatchCommand { get; init; }
     public string? Name { get; init; }
     public byte? CrisisLevel { get; init; }

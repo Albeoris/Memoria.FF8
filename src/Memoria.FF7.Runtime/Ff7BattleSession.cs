@@ -280,7 +280,7 @@ public sealed partial class Ff7BattleSession
         _ => state.EntryMusicTrack
     };
     public bool ResultReady => !FormationTransitionReady && Outcome != Ff7BattleOutcome.Fighting && state.TerminalFrames >= TerminalDuration;
-    public int? ReadyPlayer => IntroActive || Outcome != Ff7BattleOutcome.Fighting || BeatRushSelecting ? null : state.Actors.FirstOrDefault(actor => actor.Actor.Slot < 3 && actor.AwaitingTurn && CanAct(actor) && !HasCompelledPlayerTurn(actor))?.Actor.Slot;
+    public int? ReadyPlayer => IntroActive || Outcome != Ff7BattleOutcome.Fighting || BeatRushSelecting ? null : state.Actors.FirstOrDefault(actor => actor.Actor.Slot < 3 && actor.AwaitingTurn && CanAct(actor) && GetGuestAttack(actor.Actor.Slot) is not IFf7BattleGuestProcess { ProcessActive: true } && !HasCompelledPlayerTurn(actor))?.Actor.Slot;
     public bool BeatRushSelecting => Outcome == Ff7BattleOutcome.Fighting && state.BeatRush is { Reel.Stopped: false };
     public Ff7BeatRushSlot? BeatRushVisible => state.BeatRush?.Reel.ReadVisibleSymbol(beatRushSymbols);
     public long RequestId => state.RequestId;
@@ -478,6 +478,10 @@ public sealed partial class Ff7BattleSession
             {
                 state = state with { Queue = Ff7BattleCommandQueue.Enqueue(state.Queue, new(3, slot, (byte)Ff7BattleCommand.Magic, 0x36, 0) { StatusCountdown = true }) };
             }
+            if (GetGuestAttack(slot) is IFf7BattleGuestProcess { ProcessActive: true })
+            {
+                continue;
+            }
             if (actor.AwaitingTurn)
             {
                 if (TryStageCompelledPlayerTurn(actor))
@@ -571,7 +575,7 @@ public sealed partial class Ff7BattleSession
             state = state with { Action = new(command, Tick, -1) };
             return;
         }
-        if (!CanAct(source) && command.Priority != 0 && command.CommandId != 0x23 && !command.StatusCountdown)
+        if (!CanAct(source) && command.Priority != 0 && command.CommandId != 0x23 && !command.StatusCountdown && !IsGuestProcessCleanup(command))
         {
             CancelGuestItem(command);
             ResetGauge(command.ActorSlot);

@@ -278,8 +278,8 @@ public sealed partial class BattleRenderer
                 uint coordinate = command.Words[coordinateWord];
                 uint color = command.Words[gouraud ? corner * stride : 0];
                 bool foreignMaterial = command.PilotGeometry?.ForeignSurface is not null && capturedSurface is null;
-                int mode = foreignMaterial ? 0 : resolved.DrawMode.BlendMode ?? throw new NotSupportedException("Native polygon diffuse color requires its executed ABR.");
-                NativeBattlePrimitiveColor diffuse = foreignMaterial ? colorState.Textured(color, false, 0, false) : textured ? colorState.Textured(color, semi, mode, (command.Opcode & 1) != 0) : colorState.Untextured(color, semi, mode);
+                int mode = foreignMaterial && !semi ? 0 : resolved.DrawMode.BlendMode ?? throw new NotSupportedException("Native polygon diffuse color requires its executed ABR.");
+                NativeBattlePrimitiveColor diffuse = foreignMaterial ? colorState.Textured(color, semi, mode, false) : textured ? colorState.Textured(color, semi, mode, (command.Opcode & 1) != 0) : colorState.Untextured(color, semi, mode);
                 uint uv = textured ? command.Words[coordinateWord + 1] : 0;
                 Vector2 coordinates = new((byte)uv, (byte)(uv >> 8));
                 if (capturedSurface is not null)
@@ -330,6 +330,11 @@ public sealed partial class BattleRenderer
                 }
                 ITriangleRenderer target = TriangleRenderer ?? throw new NotSupportedException("Foreign actor materials require the host triangle renderer.");
                 TriangleMaterial original = hostMaterial.Material with { ActorOpacity = actorOpacity };
+                if (semi)
+                {
+                    int nativeBlend = resolved.DrawMode.BlendMode ?? throw new NotSupportedException("Native host-material overlays require their original blend equation.");
+                    original = WithNativeActorOpacity(NativePrimitiveMaterial(original.Texture, nativeBlend, resolved.Pass, original.CentroidTextureSampling) with { Sampler = original.Sampler }, nativeBlend, actorOpacity);
+                }
                 TriangleVertex Vertex(PrimitiveVertex vertex, int corner) => new(new(vertex.X, vertex.Y), vertex.Z, vertex.ReciprocalW, foreign.Uv[corner], new Vector4(vertex.Color / 255, vertex.Alpha / 255) * foreign.Colors[corner]);
                 float area = (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
                 if (!hostMaterial.Cull || area >= 0)
@@ -838,25 +843,29 @@ public sealed partial class BattleRenderer
         if (TriangleRenderer is { } renderer)
         {
             static TriangleVertex Convert(PrimitiveVertex vertex) => new(new Vector2(vertex.X, vertex.Y), vertex.Z, vertex.ReciprocalW, vertex.Uv, new Vector4(vertex.Color / 255f, vertex.Alpha / 255f));
-            TriangleBlend equation = blend switch
-            {
-                -1 => TriangleBlend.Replace,
-                0 or 2 => TriangleBlend.Alpha,
-                1 => TriangleBlend.Add,
-                3 => TriangleBlend.AlphaAdd,
-                _ => throw new NotSupportedException("Unsupported native blend equation.")
-            };
-            float minimumAlpha = texture is null ? 0 : pass == 1 ? 112f / 255 : pass == 2 && blend == 0 ? 122f / 255 : 1f / 255;
-            TriangleMaterial material = new(texture, equation, TriangleDepthComparison.LessEqual, pass == 1, minimumAlpha, TriangleSampler.PointWrap)
-            {
-                // Covered MSAA edge samples must use UV inside the polygon; depth retains its center evaluation.
-                CentroidTextureSampling = centroidTextureSampling && texture is not null
-            };
+            TriangleMaterial material = NativePrimitiveMaterial(texture, blend, pass, centroidTextureSampling);
             material = WithNativeActorOpacity(material, blend, actorOpacity);
             renderer.Draw(Convert(a), Convert(b), Convert(c), material);
             return;
         }
         nativeTriangles.Add(new(a, b, c, texture, blend, pass, area, left, right, top, bottom, ActorOpacity: actorOpacity));
+    }
+
+    private static TriangleMaterial NativePrimitiveMaterial(PixelImage? texture, int blend, byte pass, bool centroidTextureSampling)
+    {
+        TriangleBlend equation = blend switch
+        {
+            -1 => TriangleBlend.Replace,
+            0 or 2 => TriangleBlend.Alpha,
+            1 => TriangleBlend.Add,
+            3 => TriangleBlend.AlphaAdd,
+            _ => throw new NotSupportedException("Unsupported native blend equation.")
+        };
+        float minimumAlpha = texture is null ? 0 : pass == 1 ? 112f / 255 : pass == 2 && blend == 0 ? 122f / 255 : 1f / 255;
+        return new(texture, equation, TriangleDepthComparison.LessEqual, pass == 1, minimumAlpha, TriangleSampler.PointWrap)
+        {
+            CentroidTextureSampling = centroidTextureSampling && texture is not null
+        };
     }
 
     private static TriangleMaterial WithNativeActorOpacity(TriangleMaterial material, int nativeBlend, float opacity)

@@ -18,9 +18,7 @@ public sealed class CrossoverRemainingCinematicTests(ITestOutputHelper output)
     {
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(directory) && !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR")), "Select both original game installations.");
-        using BattleAssets assets = new(directory!);
-        BattleNativeAction source = Assert.Single(assets.NativeActions, action => action.Name == name && (action.Command == 2 || action.Command == 15 && action.CrisisLevel == crisis || action.CharacterId is >= 6 and <= 10 && NativeBattleLimitRules.GuestActionId(action.CharacterId.Value) == action.ActionId));
-        byte character = source.Command == 2 ? (byte)0 : checked((byte)source.CharacterId!.Value);
+        byte character = OriginalSourceCharacter(directory!, name, crisis);
         using CrossoverCompositeActionTests.Fixture fixture = new(name, character, crisis);
         CrossoverCompositeActionTests.Result result = fixture.Execute(queuedRoundTrip: true);
         int[] targets = result.Contacts.Select(contact => contact.HitDescription.PreparedContact!.Invocation.TargetSlot).Distinct().Order().ToArray();
@@ -29,5 +27,12 @@ public sealed class CrossoverRemainingCinematicTests(ITestOutputHelper output)
         Assert.True(result.VisualCallbacks > 0);
         fixture.FollowWithFire();
         output.WriteLine($"{name}, original character {character}, crisis {crisis}: {result.Contacts.Length} individually settled contacts, {result.VisualCallbacks} native visual callbacks, queued JSON continuation, source/resource restoration, original process cleanup and following Fire completed.");
+    }
+
+    internal static byte OriginalSourceCharacter(string directory, string name, byte crisis)
+    {
+        using BattleAssets assets = new(directory);
+        BattleNativeAction source = Assert.Single(assets.NativeActions, action => action.Name == name && (action.Command == 2 || action.Command == 15 && action.CrisisLevel == crisis || action.CharacterId is >= 6 and <= 10 && NativeBattleLimitRules.GuestActionId(action.CharacterId.Value) == action.ActionId));
+        return source.Command == 2 ? (byte)0 : checked((byte)source.CharacterId!.Value);
     }
 }

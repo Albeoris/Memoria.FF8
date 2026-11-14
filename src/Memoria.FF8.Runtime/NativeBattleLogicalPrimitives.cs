@@ -1344,9 +1344,16 @@ public static class NativeBattleLogicalPasses
                 {
                     // A host material participates in ordering and depth, but owns no native page, palette or software command.
                     bool enabled = tables.FlaggedCommands[command.Opcode] == 0 || ((context?.LiveMode ?? drawFlags) & 1) != 0;
-                    if (pass == 1 && enabled && passes[pass][command.Opcode] != 0 && context?.HardwareEnabled != false)
+                    byte materialPass = (command.Opcode & 2) != 0 ? (byte)2 : (byte)1;
+                    if (pass == materialPass && enabled && passes[pass][command.Opcode] != 0 && context?.HardwareEnabled != false)
                     {
-                        executed.Add(new(command, ClearTextureSelection(mode), pass));
+                        NativeBattlePrimitiveDrawMode materialMode = ClearTextureSelection(mode);
+                        if (materialPass == 2 && (command.Opcode & 0xE4) == 0x24)
+                        {
+                            int pageWord = (command.Opcode & 16) != 0 ? 5 : 4;
+                            materialMode = materialMode with { TexturePage = (ushort)(command.Words[pageWord] >> 16) };
+                        }
+                        executed.Add(new(command, materialMode, pass));
                     }
                     continue;
                 }

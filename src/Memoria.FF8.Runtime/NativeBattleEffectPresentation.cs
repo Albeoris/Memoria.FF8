@@ -52,6 +52,13 @@ public sealed class NativeBattleEffectPresentation : IDisposable
         owner = BattleSession.CreateEffectPresentation(inputs);
     }
 
+    private NativeBattleEffectPresentation(BattleSession owner)
+    {
+        this.owner = owner;
+    }
+
+    public NativeBattleEffectPresentation Fork() => new(owner.ForkEffectPresentation());
+
     public NativeBattleGraphicsState Graphics => owner.NativeGraphics!;
     public NativeBattleEffectMemory Memory => owner.NativeEffectMemory!;
     public NativeCrtRandomState Random => owner.ReadEffectPresentationRandom();
@@ -59,6 +66,9 @@ public sealed class NativeBattleEffectPresentation : IDisposable
     public NativeBattleGraphicsModel Source => Graphics.Models[0];
     public NativeBattleGraphicsResource SourceResource => owner.ReadEffectPresentationSourceResource();
     public bool Invoked => owner.EffectPresentationInvoked;
+    public bool ServiceComplete => owner.ReadEffectPresentationServiceComplete();
+    public bool NativeBusy => owner.ReadEffectPresentationNativeBusy();
+    public byte Parameter81 => Graphics.OriginalEffect?.Parameters?.Parameter81 ?? throw new InvalidOperationException("The presentation has no invoked parameter owner.");
     public bool Complete => owner.EffectPresentationInvoked && Memory.ReadReturnedTask5044B0() == 0 && Graphics.ModuleEffects.Head is null && Graphics.Auxiliary.Head is null && !owner.HasPendingEffectPresentationEvents;
     public NativeBattleStageColor StageColor => owner.ReadEffectPresentationStageColor();
     public short StageColorDepth => StageColor.Depth;
@@ -67,12 +77,15 @@ public sealed class NativeBattleEffectPresentation : IDisposable
     public ImmutableArray<NativeBattleArenaReplacement> ArenaReplacements => owner.presentationArena?.Replacements ?? [];
     public NativeBattleUiServices Ui => Graphics.UiServices ?? throw new InvalidDataException("Native presentation lost its UI owner.");
     public NativeBattleStageState Stage => owner.NativeStage ?? throw new InvalidDataException("Native presentation lost its arena owner.");
+    public NativeBattleArenaHost? Arena => owner.presentationArena;
     public int? MusicGain => owner.ReadEffectPresentationMusicGain();
     public ImmutableArray<NativeBattleArenaPrimitiveId> SuppressedArenaPrimitives => owner.presentationArena?.SuppressedPrimitives(Stage) ?? [];
 
     public void Dispose() => owner.ReleaseEffectPresentation();
 
     public void Invoke(NativeBattleGraphicsModel source, NativeCrtRandomState random, NativeBattleEffectTextureState textures) => owner.InvokeEffectPresentation(source, random, textures);
+    public void PublishSource(NativeBattleGraphicsModel source) => owner.PublishEffectPresentationSource(source);
+    public void ReinvokeDirect(NativeBattleActionPacketsState packets, NativeBattleGraphicsModel source, NativeCrtRandomState random, NativeBattleEffectTextureState textures, NativeBattleEffectParameters parameters, ImmutableArray<NativeBattleForeignActor> foreignActors = default) => owner.ReinvokeEffectPresentationDirect(packets, source, random, textures, parameters, foreignActors);
     public void ReloadSourceResources() => owner.ReloadEffectPresentationSourceResources();
     public NativeBattleEffectPresentationStep CompleteInvocation() => owner.CompleteEffectPresentationInvocation();
     public int ReadSourceVariable(NativeBattleGraphicsModel source, byte variable) => owner.ReadEffectPresentationSourceVariable(source, variable);

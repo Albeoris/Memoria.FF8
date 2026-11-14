@@ -177,7 +177,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         }
     }
 
-    public float ViewTranslationY => (fire?.Presentation.ViewTranslationY ?? 0) * CrossoverGunbladeHostPlacement.OriginToHostScale;
+    public float ViewTranslationY => (PresentedFire?.Presentation.ViewTranslationY ?? 0) * CrossoverGunbladeHostPlacement.OriginToHostScale;
     public void BindForeignGeometry(Func<int, Ff7BattleActorGeometry> geometry)
     {
         ArgumentNullException.ThrowIfNull(geometry);
@@ -189,11 +189,11 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         capabilityVersion++;
     }
 
-    public bool SuppressForeignActor(int slot) => fire?.Presentation.SuppressedForeignSlots.Contains(slot) == true;
+    public bool SuppressForeignActor(int slot) => PresentedFire?.Presentation.SuppressedForeignSlots.Contains(slot) == true;
 
     public bool SuppressForeignShadow(int slot)
     {
-        if (fire is not { Presentation.Effect: { } effect } active)
+        if (PresentedFire is not { Presentation.Effect: { } effect } active)
         {
             return false;
         }
@@ -203,7 +203,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
 
     public Matrix4x4? ReadForeignPlacement(int hostSlot)
     {
-        if (fire is not { Presentation.Effect: { } effect } active)
+        if (PresentedFire is not { Presentation.Effect: { } effect } active)
         {
             return null;
         }
@@ -219,14 +219,14 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
     {
         get
         {
-            CrossoverFf8BattleActorVisual? visual = LimitVisual ?? (fire is { } current && attack.Visual is { } caster ? caster with { Model = current.Presentation.Cast.Model, OriginToHost = current.Placement.Matrix, BodyTextures = current.Presentation.BodyTextures, Textures = current.Presentation.Textures } : attack.Visual);
+            CrossoverFf8BattleActorVisual? visual = LimitVisual ?? (PresentedFire is { } current && attack.Visual is { } caster ? caster with { Model = current.Presentation.Cast.Model, OriginToHost = current.Placement.Matrix, BodyTextures = current.Presentation.BodyTextures, Textures = current.Presentation.Textures } : attack.Visual);
             int offset = host.RenderActorFloatOffset(ActorSlot);
             return visual is null || offset == 0 ? visual : visual with { OriginToHost = visual.OriginToHost * Matrix4x4.CreateTranslation(0, offset, 0), ShadowGroundOffsetY = offset };
         }
     }
-    public ImmutableArray<NativeBattleModuleDraw> Draws => fire?.Presentation.Draws ?? [];
-    public NativeBattleEffectTextureState? Textures => fire?.Presentation.Textures;
-    public CrossoverNativeEffectVisual? EffectVisual => LimitEffectVisual ?? (fire is { } current ? new(compositor, current.Presentation.Draws, current.Presentation.Textures, current.Placement.Matrix, CrossoverGunbladeHostPlacement.OriginToHostScale) { Ordering = current.Presentation.Ordering, Memory = current.Presentation.Memory, StageColor = current.Presentation.StageDepth is not 0 ? new(graphicsRules.SummonColors!, current.Presentation.StageColor.Depth, current.Presentation.StageColor.TargetRgb) : null } : attack.AttackEffectVisual(compositor));
+    public ImmutableArray<NativeBattleModuleDraw> Draws => PresentedFire?.Presentation.Draws ?? [];
+    public NativeBattleEffectTextureState? Textures => PresentedFire?.Presentation.Textures;
+    public CrossoverNativeEffectVisual? EffectVisual => LimitEffectVisual ?? (PresentedFire is { } current ? new(compositor, current.Presentation.Draws, current.Presentation.Textures, current.Placement.Matrix, CrossoverGunbladeHostPlacement.OriginToHostScale) { Ordering = current.Presentation.Ordering, Memory = current.Presentation.Memory, StageColor = current.Presentation.StageDepth is not 0 ? new(graphicsRules.SummonColors!, current.Presentation.StageColor.Depth, current.Presentation.StageColor.TargetRgb) : null } : attack.AttackEffectVisual(compositor));
     public string MagicName(ushort ability) => NativeAbility(ability).Name ?? throw new InvalidDataException("The original ability has no localized source name.");
     public ImmutableArray<NativeBattleModuleDraw> LastSounds { get; private set; } = [];
     public CrossoverGunbladeHostAttack Attack => attack;
@@ -270,7 +270,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         Ff7BattleGuestPhysicalHit description = CrossoverBattleAbilityRules.Describe(kit, mechanics, choice.AbilityLevel, choice.DamagePercent);
         if (ProcessActive && (sourceAction.Statuses1 & 0x2000000) != 0)
         {
-            description = description with { Attack = description.Attack with { HasStatusOperation = true, AlwaysHits = sourceAction.Hit == 255 }, ProcessOperation = new(sourceAction.Statuses1 & 0x2000000, sourceAction.StatusAttack) };
+            description = description with { Attack = description.Attack with { HasStatusOperation = true, AlwaysHits = sourceAction.StatusAttack == 255, GuestProcessBattleStatuses = sourceAction.Statuses1 & 0x2000000 }, ProcessOperation = new(sourceAction.Statuses1 & 0x2000000, sourceAction.StatusAttack) };
         }
         return angelWingCast && sourceAction.Command == 2 ? description with { Attack = description.Attack with { OriginDamageMultiplier = 5 } } : description;
     }
@@ -331,7 +331,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
             else
             {
                 ImmutableArray<CrossoverNativeMagicTarget> targets = PresentationTargets(preparedGroup.IsEmpty ? [hit] : preparedGroup, original);
-                program = fireProgram.Begin(model with { Index = 0 }, target.Slot, encounter.CrtRandom, targets[0].Contact, original, encounter.GlobalRandom, CreateArena(placement)) with { Targets = targets };
+                program = fireProgram.Begin(model with { Index = 0 }, target.Slot, encounter.CrtRandom, targets[0].Contact, original, encounter.GlobalRandom, CreateArena(placement), RetainedProcessOwner(original), ProcessParticipantBindings, RetainedProcessState(original)) with { Targets = targets };
             }
         }
         catch
@@ -342,7 +342,12 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
             }
             throw;
         }
+        processBackground = null;
         CommitProcessCost(original, target.Slot);
+        if (ProcessActive)
+        {
+            encounter.LimitLearning = encounter.LimitLearning.Dispatch(original);
+        }
         if (stockAction is not null)
         {
             encounter.Working = CrossoverBattleBridge.CommitStock(roster, reserved, stockAction);
@@ -415,7 +420,8 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
             {
                 throw new InvalidDataException("The mixed ability received multiple native callbacks in one host update.");
             }
-            bool sourceInvoked = current.Presentation.Effect?.Invoked == true;
+            bool sourceInvoked = current.Presentation.Effect?.Invoked == true && !current.Presentation.ReinvokePending;
+            bool sourceServiceComplete = current.Presentation.Effect?.ServiceComplete == true && !current.Presentation.ReinvokePending;
             CrossoverNativeMagicPresentationStep next = fireProgram.Advance(current.Presentation, () =>
             {
                 NativeBattleVector anchor = current.Placement.ResolvePosition(host.GuestEffectTargetAnchor(current.Invocation.TargetSlot));
@@ -427,9 +433,13 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
                 return new(point, point, 0, 0, scale);
             }, CrossoverNativeSpriteRenderer.Camera(host.RenderCameraOutput, current.Placement.Matrix), readForeignGeometry is null && encounter.GuestAt(current.Invocation.TargetSlot) is null ? null : () => ReadAbilityForeign(current.Placement, current.Invocation.TargetSlot),
                 readGroupForeign: readForeignGeometry is null && current.Presentation.BoundTargets.Any(target => encounter.GuestAt(target.HostSlot) is null) ? null : slot => ReadAbilityForeign(current.Placement, slot));
-            if (!sourceInvoked && next.State.Effect?.Invoked == true)
+            if (!sourceInvoked && next.State.Effect?.Invoked == true && !next.State.ReinvokePending)
             {
                 AcknowledgeProcessInvocation();
+            }
+            if (!sourceServiceComplete && next.State.Effect?.ServiceComplete == true && !next.State.ReinvokePending)
+            {
+                AcknowledgeProcessServiceCompletion();
             }
             current = current with { Presentation = next.State, ContactPublished = current.ContactPublished || next.Contact };
             foreach (NativeBattleForeignSequenceRequest sequence in next.Sequences)
@@ -477,7 +487,12 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         }
         current = current with { HostTick = hostTick, Subticks = clock.Subticks, HalfSubtick = clock.HalfSubtick };
         fire = current;
-        if (current.Presentation.Complete)
+        if (current.Presentation.Complete && ProcessActive && current.Presentation.Cast.RetainsProcess && current.Presentation.Effect is { Complete: false })
+        {
+            processBackground = current with { Presentation = current.Presentation with { ContinueBackground = true } };
+            fire = null;
+        }
+        else if (current.Presentation.Complete)
         {
             attack.ResumeStandingFromCast(current.Presentation.Cast.Model with { Index = ActorSlot }, hostTick, clock.Subticks, clock.HalfSubtick);
             current.Presentation.Effect?.Dispose();
@@ -491,6 +506,19 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         if ((statuses & 1) != 0)
         {
             angelWing = false;
+        }
+        if (processBackground is { } background)
+        {
+            fire = background;
+            processBackground = null;
+            Ff7BattleGuestAttackUpdate step = Advance(hostTick);
+            processBackground = fire;
+            fire = null;
+            if (step.Hit is not null || step.GroupHits.Count != 0 || step.CompositeContacts.Count != 0)
+            {
+                throw new InvalidDataException("An idle source Limit process cannot publish another numerical phase contact.");
+            }
+            return;
         }
         attack.AdvanceIdle(hostTick, statuses, reactionTick);
     }

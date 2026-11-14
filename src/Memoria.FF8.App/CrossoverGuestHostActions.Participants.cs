@@ -10,7 +10,7 @@ internal sealed partial class CrossoverGuestHostActions
 {
     public CrossoverNativeActorColor? ReadForeignColor(int slot)
     {
-        if (fire is not { Presentation.Effect: { } effect } active)
+        if (PresentedFire is not { Presentation.Effect: { } effect } active)
         {
             return null;
         }

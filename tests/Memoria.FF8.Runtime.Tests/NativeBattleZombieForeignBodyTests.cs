@@ -26,7 +26,8 @@ public sealed class NativeBattleZombieForeignBodyTests
         Assert.Equal(expected.Words.ToArray(), primitive.Words.ToArray());
         Assert.Equal(native.Staging.Read(temporary.Address, 24), actual.Staging.Read(temporary.Address, 24));
         Assert.Same(surface, primitive.PilotGeometry!.ForeignSurface);
-        Assert.Equal(new Vector3(-256, -256, 0), primitive.PilotGeometry.A);
+        Assert.True(primitive.PilotGeometry.ScreenSpace);
+        Assert.Equal(expected.PilotGeometry!.A, primitive.PilotGeometry.A);
         _ = NativeBattleTemporaryMemory.Release5082D0(actual.Staging, 24);
     }
 }

@@ -40,9 +40,13 @@ public sealed partial class BattleSession
         }, index => read().Models[index].ReadLinkedModelIndex140() is int linked ? NativeBattleDuel274Controller.Address(linked) : 0, index => NativeBattleDuel274Controller.Index(NativeBattleScanModelSelection.Minimum501FF0(NativeBattleScanPhysicalModels.Capture(read().Models), NativeBattleDuel274Controller.Address(index))), index =>
         {
             NativeBattleGraphicsState graphics = read();
+            if (ReadNativeGraphicsForeignModel(graphics, index) is { } foreign)
+            {
+                return NativeBattleForeignModelDrawing.VerticalBounds(foreign, point => NativeBattleGfMatrices.Transform460840(foreign.World, point).Y);
+            }
             NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
             return NativeBattleDiablos325Recipients.Bounds6DFD90(graphics.Models[index], resource.PoseSource ?? throw new NotSupportedException("Native Duel bounds require the actual current skeleton."), DiablosActorGeometry(resource, graphics.Models[index]));
-        });
+        }) { IsNativeModel = (index, modelId) => NativeGraphicsModelIs(read(), index, modelId) };
     }
 
     private NativeBattleGraphicsState AdvanceNativeDuel274(NativeBattleGraphicsState graphics)
@@ -76,7 +80,7 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Duel drawing requires its original color arithmetic.");
         NativeBattleDuel274ActorServices actors = NativeDuel274Actors(() => graphics, value => graphics = value);
         NativeBattleDuel274MoveInputs moves = new(index => graphics.Models[index], WriteModel, (index, bone) => ReadNativeGraphicsBone(graphics, index, checked((byte)bone), 0), ReadBoneMatrix, DrawEcho, CaptureEcho, SubmitEffect, DrawSprite, DrawSecondary, Contact, Flash, Sound);
-        NativeBattleDuel274SelectedServices selected = new(actors, index => graphics.Models[index], WriteModel, Anchor, Bind, Select, Camera, QueueFile, Contact, Texture, Variant, Stage, (current, amount) => SubmitEffect(current, NativeBattleDuel274Presentation.Screen(NativeBattleDuel274Screen.Draw68D4B0(amount), current.PilotIdentity)));
+        NativeBattleDuel274SelectedServices selected = new(actors, index => graphics.Models[index], WriteModel, Anchor, Bind, Select, Camera, QueueFile, Contact, Texture, Variant, Stage, (current, amount) => SubmitEffect(current, NativeBattleDuel274Presentation.Screen(NativeBattleDuel274Screen.Draw68D4B0(amount), current.PilotIdentity))) { NativeCameraEnabled = presentationHostCamera is null };
         NativeEffectMemory = memory;
         NativeFileStaging = staging.View;
         try

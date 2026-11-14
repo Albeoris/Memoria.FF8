@@ -16,6 +16,27 @@ internal sealed record CrossoverGuestCrtSettlement(NativeCrtRandomState? Origin,
 /// <summary>Stages an FFVII field continuation and FFVIII character update together from immutable source snapshots.</summary>
 internal static class CrossoverBattleVitalsSettlement
 {
+    internal static GameplaySaveComponentDocument ApplyLimitLearning(GameplaySaveComponentDocument original, GameplaySaveComponentDocument updated, CrossoverGuestLimitLearningSettlement limits, Guid encounter, IReadOnlyCollection<int> characters)
+    {
+        if (!limits.HasChanges)
+        {
+            return updated;
+        }
+        if (limits.EncounterId != encounter || (limits.SlotsSetMask & ~0x3F) != 0 || limits.ShotSetMask != 0 && (!characters.Contains(2) || original.Progression?.Collections.ShotAvailability != limits.ShotBefore || limits.ShotBefore is null) || limits.SlotsSetMask != 0 && (!characters.Contains(5) || original.Limits.SpecialMagicFlags != limits.SlotsBefore || limits.SlotsBefore is null))
+        {
+            throw new InvalidDataException("Source Limit learning settlement contradicts its original owner or encounter.");
+        }
+        if (limits.ShotSetMask != 0)
+        {
+            updated = updated with { Progression = updated.Progression! with { Collections = updated.Progression!.Collections with { ShotAvailability = (byte)(limits.ShotBefore!.Value | limits.ShotSetMask) } } };
+        }
+        if (limits.SlotsSetMask != 0)
+        {
+            updated = updated with { Limits = updated.Limits with { SpecialMagicFlags = (byte)(limits.SlotsBefore!.Value | limits.SlotsSetMask) } };
+        }
+        return updated;
+    }
+
     public static Ff7BattleGuestVitalsBinding ReadBinding(CombinedSessionSave source, CrossoverBattleRoster roster, NativeCharacterVitals installed, BattleAssets assets)
         => ReadBindings(source, roster, installed, assets).Single();
 
@@ -56,10 +77,10 @@ internal static class CrossoverBattleVitalsSettlement
         return PrepareResult(source, installation, installed, completed, presentation);
     }
 
-    public static CrossoverBattleVitalsSettlementResult PrepareResult(CombinedSessionSave source, Ff7Installation installation, NativeCharacterVitals installed, Ff7GuestBattleSettlementReceipt? completed = null, CrossoverGunbladeHostSnapshot? presentation = null, CrossoverGuestMagicSettlement? magic = null, CrossoverGuestItemSettlement? items = null, CrossoverGuestCrtSettlement? crt = null)
-        => PrepareResult(source, installation, installed, presentation is null ? [] : [presentation], completed, magic, items, crt);
+    public static CrossoverBattleVitalsSettlementResult PrepareResult(CombinedSessionSave source, Ff7Installation installation, NativeCharacterVitals installed, Ff7GuestBattleSettlementReceipt? completed = null, CrossoverGunbladeHostSnapshot? presentation = null, CrossoverGuestMagicSettlement? magic = null, CrossoverGuestItemSettlement? items = null, CrossoverGuestCrtSettlement? crt = null, CrossoverGuestLimitLearningSettlement? limits = null)
+        => PrepareResult(source, installation, installed, presentation is null ? [] : [presentation], completed, magic, items, crt, limits);
 
-    public static CrossoverBattleVitalsSettlementResult PrepareResult(CombinedSessionSave source, Ff7Installation installation, NativeCharacterVitals installed, IReadOnlyList<CrossoverGunbladeHostSnapshot> presentations, Ff7GuestBattleSettlementReceipt? completed = null, CrossoverGuestMagicSettlement? magic = null, CrossoverGuestItemSettlement? items = null, CrossoverGuestCrtSettlement? crt = null)
+    public static CrossoverBattleVitalsSettlementResult PrepareResult(CombinedSessionSave source, Ff7Installation installation, NativeCharacterVitals installed, IReadOnlyList<CrossoverGunbladeHostSnapshot> presentations, Ff7GuestBattleSettlementReceipt? completed = null, CrossoverGuestMagicSettlement? magic = null, CrossoverGuestItemSettlement? items = null, CrossoverGuestCrtSettlement? crt = null, CrossoverGuestLimitLearningSettlement? limits = null)
     {
         source.Validate();
         if (source is not { ActiveGame: SessionGame.Ff7, Ff7: { } host, Ff8Payload: { Length: > 0 } payload })
@@ -158,6 +179,10 @@ internal static class CrossoverBattleVitalsSettlement
                 throw new InvalidDataException("Guest attack CRT settlement requires its exact source and completed presentation.");
             }
             updated = updated with { Progression = updated.Progression! with { Clocks = updated.Progression!.Clocks with { CrtRandom = crt.Current } } };
+        }
+        if (limits is not null)
+        {
+            updated = ApplyLimitLearning(document, updated, limits, first.EncounterId, bindings.Select(binding => binding.OriginCharacter).ToArray());
         }
         using Ff7Session staged = Ff7Session.Restore(installation, host);
         bool returnsAfterDefeat = staged.Battle!.ReturnsAfterDefeat;

@@ -36,7 +36,7 @@ public sealed partial class BattleSession
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };
 
-        int BoneCount(int actor) => (NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Quick Shot requires its current target skeleton.")).BoneCount;
+        int BoneCount(int actor) => ReadNativeGraphicsBoneCount(graphics, actor);
 
         NativeBattleShot196Anchor Muzzle(int actor)
         {

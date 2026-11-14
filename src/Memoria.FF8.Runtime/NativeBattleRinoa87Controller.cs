@@ -4,7 +4,10 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleRinoa87Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleRinoa87State State);
 public sealed record NativeBattleRinoa87LeafStep(NativeBattleRinoa87Frame Frame, int Result);
-public sealed record NativeBattleRinoa87Inputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleRinoa87Frame, uint, NativeBattleRinoa87LeafStep> AdvanceLeaf, Func<NativeBattleRinoa87Frame, uint, NativeBattleRinoa87Frame> BeginTextureRelease);
+public sealed record NativeBattleRinoa87Inputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleRinoa87Frame, uint, NativeBattleRinoa87LeafStep> AdvanceLeaf, Func<NativeBattleRinoa87Frame, uint, NativeBattleRinoa87Frame> BeginTextureRelease)
+{
+    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeignActorGeometry { get; init; }
+}
 public sealed record NativeBattleRinoa87TargetInputs(NativeBattleRinoa87Inputs Controller, Func<NativeBattleRinoa87Frame, uint, NativeBattleRinoa87Frame> InitializeScene, Func<NativeBattleRinoa87Frame, ushort> ReadContactReady, Func<NativeBattleRinoa87Frame, ushort> ReadSceneComplete, Func<NativeBattleRinoa87Frame, int, NativeBattleRinoa87Frame> ApplyContact);
 
 /// <summary>773870/773A10's physical pools, node workspaces and eleven-state root.</summary>
@@ -74,7 +77,7 @@ public static class NativeBattleRinoa87Controller
             }
             bool odd = (task.ReadByte(92) & 1) != 0;
             current = current with { State = current.State with { PrimaryDrawCursor = checked(current.State.SourceArenaOffset + (odd ? 0 : 40960)), SecondaryDrawCursor = checked(current.State.SourceArenaOffset + (odd ? 40960 : 81920)) } };
-            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource);
+            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource, readForeign: inputs.ReadForeignActorGeometry);
             hierarchy = hierarchy.Write(address, task);
             switch (unchecked((sbyte)task.ReadByte(41)))
             {
@@ -173,12 +176,7 @@ public static class NativeBattleRinoa87Controller
             throw new InvalidDataException("Native773C70 requires its actual target task.");
         }
         NativeBattleRinoa87Inputs controller = inputs.Controller;
-        task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, Enumerable.Range(0, 7).Select(controller.ReadModel).ToArray(), controller.ReadPoseSource);
-        NativeBattleGraphicsModel model = controller.ReadModel(task.ReadByte(45));
-        NativeBattlePoseSource source = controller.ReadPoseSource(task.ReadByte(45));
-        NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native8DC870 requires the target's actual selected pose.");
-        NativeBattleDecodedPose pose = source.Sample(sequence.Pose ?? throw new NotSupportedException("Native8DC870 requires its pose index."), sequence.PoseFrame114 ?? throw new NotSupportedException("Native8DC870 requires its decoded frame."), sequence.PoseFlags109);
-        task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, pose);
+        task = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, Enumerable.Range(0, 7).Select(controller.ReadModel).ToArray(), controller.ReadPoseSource, controller.ReadForeignActorGeometry);
         hierarchy = hierarchy.Write(address, task);
         frame = frame with { Effect = frame.Effect with { Pools = hierarchy.Pools } };
         switch (unchecked((sbyte)task.ReadByte(41)))

@@ -210,12 +210,22 @@ public sealed partial class Ff7BattleSession
         return scale == 100 ? action : action with { DamageScalePercent = checked(action.DamageScalePercent * scale / 100) };
     }
 
+    private void StageGuestProcessAction(int slot, Ff7BattleGuestProcessAction action)
+    {
+        int count = action.OrdinaryMagic && action.Command == Ff7BattleCommand.Magic ? GuestMagicCastCounts(slot, action.Ability)[0] : 1;
+        long? invocation = count > 1 ? checked(state.NextMagicSequenceId + 1) : null;
+        int scale = count == 3 ? 75 : action.DamageScalePercent;
+        Ff7BattleCommandQueueState queue = Ff7BattleCommandQueue.StageReady(state.Queue, slot, (byte)action.Command, argument: action.Ability, targetMask: action.Targets, groupTarget: action.Group, guestAttack: true, guestAbility: action.Ability, magicSequenceId: invocation, magicDamageScalePercent: scale);
+        state = state with { Queue = queue };
+        if (invocation is long id)
+        {
+            Ff7BattleGuestMagicSequence sequence = new(slot, action.Ability, Enumerable.Repeat(action.Targets, count).ToImmutableArray(), action.Group, action.FreeMagic, 1) { InvocationId = id, DamageScalePercent = scale };
+            state = state with { NextMagicSequenceId = id, GuestMagicSequences = state.GuestMagicSequences.Add(sequence) };
+        }
+    }
+
     private void CompleteGuestMagic(Ff7BattleQueuedCommand command)
     {
-        if (CompleteGuestProcess(command))
-        {
-            return;
-        }
         Ff7BattleGuestMagicSequence? sequence = state.GuestMagicSequences.SingleOrDefault(sequence => MatchesMagicSequence(sequence, command));
         if (sequence is null && state.GuestMagicSequences.Any(sequence => sequence.ActorSlot == command.ActorSlot))
         {
@@ -223,7 +233,11 @@ public sealed partial class Ff7BattleSession
         }
         if (sequence is null || sequence.Next >= sequence.Targets.Length || !AdmitsMagicSequence(sequence))
         {
-            FinishTurn(command.ActorSlot);
+            CancelGuestMagicSequence(command.ActorSlot);
+            if (!CompleteGuestProcess(command))
+            {
+                FinishTurn(command.ActorSlot);
+            }
             return;
         }
         ushort targets = sequence.Targets[sequence.Next];

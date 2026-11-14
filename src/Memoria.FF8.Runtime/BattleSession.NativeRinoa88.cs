@@ -26,7 +26,7 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = rules.Rules.SummonColors ?? throw new NotSupportedException("Native Rinoa88 requires its actual color constants.");
         NativeCrtRandomState random = nativeCrtRandom ?? throw new NotSupportedException("Native Rinoa88 requires its retained CRT generator.");
         NativeBattleRinoa88Inputs controller = null!;
-        controller = new(nativeActionPackets, view, index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Rinoa88 requires its actual actor skeleton."), AdvanceLeaf, ReloadCommon);
+        controller = new(nativeActionPackets, view, index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Rinoa88 requires its actual actor skeleton."), AdvanceLeaf, ReloadCommon) { ReadForeignActorGeometry = actor => ReadNativeGraphicsForeignTarget(graphics, actor) };
         frame = NativeBattleRinoa88Controller.Advance(frame, controller);
         NativeEffectMemory = frame.Memory with { Rinoa88 = frame.State };
         nativeCrtRandom = random;

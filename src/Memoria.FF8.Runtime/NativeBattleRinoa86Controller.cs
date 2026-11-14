@@ -33,7 +33,10 @@ public sealed record NativeBattleRinoa86State([property: JsonRequired] int Sourc
 
 public sealed record NativeBattleRinoa86Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleRinoa86State State);
 public sealed record NativeBattleRinoa86LeafStep(NativeBattleRinoa86Frame Frame, int Result);
-public sealed record NativeBattleRinoa86Inputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleRinoa86Frame, uint, NativeBattleRinoa86LeafStep> AdvanceLeaf, Func<NativeBattleRinoa86Frame, uint, NativeBattleRinoa86Frame> BeginTextureRelease);
+public sealed record NativeBattleRinoa86Inputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleRinoa86Frame, uint, NativeBattleRinoa86LeafStep> AdvanceLeaf, Func<NativeBattleRinoa86Frame, uint, NativeBattleRinoa86Frame> BeginTextureRelease)
+{
+    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeignActorGeometry { get; init; }
+}
 public sealed record NativeBattleRinoa86TargetInputs(NativeBattleRinoa86Inputs Controller, Func<NativeBattleRinoa86Frame, uint, NativeBattleRinoa86Frame> InitializeScene, Func<NativeBattleRinoa86Frame, ushort> ReadContactReady, Func<NativeBattleRinoa86Frame, ushort> ReadSceneComplete, Func<NativeBattleRinoa86Frame, int, NativeBattleRinoa86Frame> ApplyContact);
 
 /// <summary>77F250/77F3E0's physical pools and eleven-state root. Private scene callbacks have their own required dispatcher.</summary>
@@ -104,7 +107,7 @@ public static class NativeBattleRinoa86Controller
             }
             bool odd = (task.ReadByte(92) & 1) != 0;
             current = current with { State = current.State with { PrimaryDrawCursor = checked(current.State.SourceArenaOffset + (odd ? 0 : 57344)), SecondaryDrawCursor = checked(current.State.SourceArenaOffset + (odd ? 57344 : 114688)) } };
-            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource);
+            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource, readForeign: inputs.ReadForeignActorGeometry);
             hierarchy = hierarchy.Write(address, task);
             switch (unchecked((sbyte)task.ReadByte(41)))
             {
@@ -197,12 +200,7 @@ public static class NativeBattleRinoa86Controller
             throw new InvalidDataException("Native77F5B0 requires its actual target task.");
         }
         NativeBattleRinoa86Inputs controller = inputs.Controller;
-        task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, Enumerable.Range(0, 7).Select(controller.ReadModel).ToArray(), controller.ReadPoseSource);
-        NativeBattleGraphicsModel model = controller.ReadModel(task.ReadByte(45));
-        NativeBattlePoseSource source = controller.ReadPoseSource(task.ReadByte(45));
-        NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native8DC870 requires the target's actual selected pose.");
-        NativeBattleDecodedPose pose = source.Sample(sequence.Pose ?? throw new NotSupportedException("Native8DC870 requires its pose index."), sequence.PoseFrame114 ?? throw new NotSupportedException("Native8DC870 requires its decoded frame."), sequence.PoseFlags109);
-        task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, pose);
+        task = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, Enumerable.Range(0, 7).Select(controller.ReadModel).ToArray(), controller.ReadPoseSource, controller.ReadForeignActorGeometry);
         hierarchy = hierarchy.Write(address, task);
         frame = frame with { Effect = frame.Effect with { Pools = hierarchy.Pools } };
         switch (unchecked((sbyte)task.ReadByte(41)))

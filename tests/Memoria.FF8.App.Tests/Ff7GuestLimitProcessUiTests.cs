@@ -14,9 +14,8 @@ public sealed class Ff7GuestLimitProcessUiTests
     {
         using CrossoverCompositeActionTests.Fixture fixture = new("Duel", 1, 4, nativeProcess: true);
         fixture.OpenNativeSelection();
+        fixture.AdvanceToNativeInput();
         CrossoverGuestHostActions provider = fixture.ProcessProvider;
-        BattleNativeDuelState duel = provider.DuelProcess!;
-        Set(provider, "mixedDuel", duel with { Phase = BattleNativeDuelPhase.Ready });
         Ff7Scene scene = Scene(fixture);
         KeyboardInput input = Get<KeyboardInput>(scene, "sharedInput");
         Set(input, "<HeldFieldButtons>k__BackingField", (ushort)0x20);
@@ -35,8 +34,8 @@ public sealed class Ff7GuestLimitProcessUiTests
     {
         using CrossoverCompositeActionTests.Fixture fixture = new("Shot", 2, 4, nativeProcess: true);
         fixture.OpenNativeSelection(0x0E00);
+        fixture.AdvanceToNativeInput();
         CrossoverGuestHostActions provider = fixture.ProcessProvider;
-        Set(provider, "mixedShot", provider.ShotProcess! with { Phase = BattleNativeShotPhase.Ready });
         Ff7Scene scene = Scene(fixture);
         KeyboardInput input = Get<KeyboardInput>(scene, "sharedInput");
         Set(input, "<GunbladeTriggerRequested>k__BackingField", true);
@@ -46,7 +45,7 @@ public sealed class Ff7GuestLimitProcessUiTests
         Set(scene, "semanticInput", new InputFrame(0, 0, false, true, false, false));
         Assert.True(Read(scene));
         Assert.Equal(BattleNativeShotPhase.Ending, provider.ShotProcess!.Phase);
-        Assert.Contains("3 ammo", Draw(scene).Texts);
+        Assert.Contains("2 ammo", Draw(scene).Texts);
     }
 
     [Fact]

@@ -51,7 +51,7 @@ public sealed class NativeBattleEffectTexturePaletteReuseTests
     {
         NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess();
         NativeBattlePcTextureWindowPixels retained = new(0, 1, 1, 1, [17, 2]);
-        InvalidDataException palette = Assert.Throws<InvalidDataException>(() => NativeBattleEffectTextureReader.DecodePcRegion(state, 0x80, 63, 0, 1, 3, 1, pixelWords: retained));
+        InvalidDataException palette = Assert.Throws<InvalidDataException>(() => NativeBattleEffectTextureReader.DecodePcRegion(state, 0x80, 0x7FFF, 0, 1, 3, 1, pixelWords: retained));
         Assert.Equal("Native texture page or CLUT sample leaves1024x512 word VRAM.", palette.Message);
         InvalidDataException word = Assert.Throws<InvalidDataException>(() => NativeBattleEffectTextureReader.DecodePcRegion(state, 0x80, 63, 0, 1, 3, 1, pixelWords: retained with { Data = [2, 2] }));
         Assert.Equal("Native cached texture sample leaves its retained pixel-word rectangle.", word.Message);
@@ -151,17 +151,17 @@ public sealed class NativeBattleEffectTexturePaletteReuseTests
     }
 
     [Fact]
-    public void Optional_receipt_never_reads_unused_out_of_row_CLUT_entries_and_used_invalid_entries_still_fail()
+    public void Optional_receipt_never_reads_unused_out_of_VRAM_CLUT_entries_and_used_invalid_entries_still_fail()
     {
         byte[] palette = new byte[32];
         palette[4] = 31;
-        NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = [new(2 * 1008, palette.ToImmutableArray()), new(2048, [2, 17])] };
-        PixelImage image = NativeBattleEffectTextureReader.DecodePcRegion(state, 0x80, 63, 0, 1, 1, 1, out NativeBattlePcPaletteReceipt? receipt);
+        NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = [new(2048, [2, 17]), new(2 * (1024 * 512 - 16), palette.ToImmutableArray())] };
+        PixelImage image = NativeBattleEffectTextureReader.DecodePcRegion(state, 0x80, 0x7FFF, 0, 1, 1, 1, out NativeBattlePcPaletteReceipt? receipt);
         Assert.Equal(new Rgba32(255, 0, 0, 127), image[0, 0]);
         Assert.NotNull(receipt);
         Assert.Equal(new NativeBattlePcPaletteEntry(2, 31), Assert.Single(receipt.Entries));
         Assert.True(receipt.Matches(state));
-        Assert.Throws<InvalidDataException>(() => NativeBattleEffectTextureReader.DecodePcRegion(state, 0x80, 63, 0, 1, 2, 1, out _));
+        Assert.Throws<InvalidDataException>(() => NativeBattleEffectTextureReader.DecodePcRegion(state, 0x80, 0x7FFF, 0, 1, 2, 1, out _));
     }
 
     [Theory]
@@ -236,10 +236,10 @@ public sealed class NativeBattleEffectTexturePaletteReuseTests
     {
         byte[] palette = new byte[32];
         palette[4] = 31;
-        NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = [new(2 * 1008, palette.ToImmutableArray()), new(2 * 1024, [2, 17])] };
-        PixelImage first = NativeBattleEffectTextureReader.DecodePcRegion(state, 0x80, 63, 0, 1, 1, 1);
+        NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = [new(2 * 1024, [2, 17]), new(2 * (1024 * 512 - 16), palette.ToImmutableArray())] };
+        PixelImage first = NativeBattleEffectTextureReader.DecodePcRegion(state, 0x80, 0x7FFF, 0, 1, 1, 1);
         Assert.Equal(new Rgba32(255, 0, 0, 127), first[0, 0]);
-        Assert.Throws<InvalidDataException>(() => NativeBattleEffectTextureReader.DecodePcRegion(state, 0x80, 63, 0, 1, 2, 1));
+        Assert.Throws<InvalidDataException>(() => NativeBattleEffectTextureReader.DecodePcRegion(state, 0x80, 0x7FFF, 0, 1, 2, 1));
         Assert.Throws<NotSupportedException>(() => NativeBattleEffectTextureReader.DecodePcRegion(state, 0x80, 63, 0, 1, 1, 1, 2));
     }
 }

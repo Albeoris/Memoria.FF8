@@ -93,5 +93,5 @@ public sealed partial class Ff7BattleSession
     }
 
     private Ff7BattleActionVitals GuestItemVitals(Ff7BattleActorState actor)
-        => new(actor.Actor.HitPoints, actor.Actor.MaxHitPoints, actor.Actor.MagicPoints, actor.Actor.MaxMagicPoints, actor.Actor.Statuses, (actor.Actor.Slot >= 4 ? ~Enemy(actor.Actor.Slot).NativeStatusMask : 0) | actor.StatusProtection) { OriginSavedStatuses = GetOriginSavedStatuses(actor.Actor.Slot) };
+        => new(actor.Actor.HitPoints, actor.Actor.MaxHitPoints, actor.Actor.MagicPoints, actor.Actor.MaxMagicPoints, actor.Actor.Statuses, (actor.Actor.Slot >= 4 ? ~Enemy(actor.Actor.Slot).NativeStatusMask : 0) | actor.StatusProtection) { OriginSavedStatuses = GetOriginSavedStatuses(actor.Actor.Slot), AbsoluteAddStatusImmunities = GuestAbsoluteAddStatusImmunities(actor.Actor.Slot) };
 }

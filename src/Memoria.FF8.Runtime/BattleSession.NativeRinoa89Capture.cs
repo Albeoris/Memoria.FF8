@@ -32,24 +32,34 @@ public sealed partial class BattleSession
             {
                 continue;
             }
-            NativeBattlePoseSource source = group.Source ?? throw new NotSupportedException("Native6FC0A0 requires the current stage skeleton.");
-            NativeBattleDecodedPose pose = source.Sample(group.Animation, group.Counter, group.PoseFlags);
-            group = group with { Matrices = NativeBattlePoseMatrices.ComposeStageCamera(NativeBattlePoseMatrices.StageBoneMatrices(source, pose), view, 0) };
             frame = frame with { Staging = frame.Staging.Write(context + 60, BitConverter.GetBytes(group.ColorFlags)).Write(context + 68, BitConverter.GetBytes(group.ColorDepth)) };
             int directory = checked((int)(0x14AF6E0 - NativeBattleRinoa89Resources.StaticAddress)) + index * 8;
             int bucket = BinaryPrimitives.ReadInt32LittleEndian(resources.StaticImage.Data.AsSpan().Slice(directory));
             byte shift = checked((byte)BinaryPrimitives.ReadInt32LittleEndian(resources.StaticImage.Data.AsSpan().Slice(directory + 4)));
-            ImmutableArray<NativeBattleRawMesh> meshes = RequireNativeStageGeometry().Where(mesh => mesh.StageGroup == index).ToImmutableArray();
             NativeBattlePrimitiveProcess process = frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native6FC0A0 requires its current renderer process.");
             var gate = process.Enter5099D0(definition.NativeGraphics?.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Native6FC0A0 requires its actual renderer capability."));
             frame = frame with { Memory = frame.Memory with { PrimitiveProcess = gate.Process } };
             if (gate.Draw)
             {
                 frame = frame with { Memory = frame.Memory with { PrimitiveProcess = gate.Process.PublishModelColor(group.ColorFlags) } };
-                (byte[] retained, _) = frame.Staging.ReadSnapshot(workspace, capacity);
-                NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, group.Matrices, projection, group.ColorFlags, uint.MaxValue, retained.ToImmutableArray(), colors, shift, new(0, 0, 320, 216), bucket, group.ColorDepth, pilotIdentity: NativeBattleRinoa89Visuals.Task(frame, NativeBattleRinoa89Controller.Body, primitive: 100 + index), pilotScreenSpace: true, pilotContinuous: false);
-                NativeBattleRinoa89CaptureStep written = NativeBattleRinoa89Capture.AppendCommon(frame, graphics.PrimitiveFrame!.Pending, drawn.Packets);
-                frame = written.Frame with { Staging = written.Frame.Staging.Write(workspace, drawn.ProjectedScratch.AsSpan().Slice(0, drawn.ProjectedBytesWritten)) };
+                NativeBattleGfGeometryBatch packets;
+                if (presentationArena is { } arena)
+                {
+                    packets = NativeBattleArenaBodyDrawing.Draw(arena.Geometry, view, projection, group.ColorFlags, colors, NativeBattleRinoa89Visuals.Task(frame, NativeBattleRinoa89Controller.Body, primitive: 100 + index), shift, bucket, group.ColorDepth);
+                }
+                else
+                {
+                    NativeBattlePoseSource source = group.Source ?? throw new NotSupportedException("Native6FC0A0 requires the current stage skeleton.");
+                    NativeBattleDecodedPose pose = source.Sample(group.Animation, group.Counter, group.PoseFlags);
+                    group = group with { Matrices = NativeBattlePoseMatrices.ComposeStageCamera(NativeBattlePoseMatrices.StageBoneMatrices(source, pose), view, 0) };
+                    ImmutableArray<NativeBattleRawMesh> meshes = RequireNativeStageGeometry().Where(mesh => mesh.StageGroup == index).ToImmutableArray();
+                    (byte[] retained, _) = frame.Staging.ReadSnapshot(workspace, capacity);
+                    NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, group.Matrices, projection, group.ColorFlags, uint.MaxValue, retained.ToImmutableArray(), colors, shift, new(0, 0, 320, 216), bucket, group.ColorDepth, pilotIdentity: NativeBattleRinoa89Visuals.Task(frame, NativeBattleRinoa89Controller.Body, primitive: 100 + index), pilotScreenSpace: true, pilotContinuous: false);
+                    frame = frame with { Staging = frame.Staging.Write(workspace, drawn.ProjectedScratch.AsSpan().Slice(0, drawn.ProjectedBytesWritten)) };
+                    packets = drawn.Packets;
+                }
+                NativeBattleRinoa89CaptureStep written = NativeBattleRinoa89Capture.AppendCommon(frame, graphics.PrimitiveFrame!.Pending, packets);
+                frame = written.Frame;
                 NativeBattlePrimitiveProcess published = frame.Memory.PrimitiveProcess!;
                 uint bank = published.PacketBank switch { "off_B6D070" => 0x1901018u, "off_B6D094" => 0x199B018u, _ => throw new NotSupportedException("Native6FC0A0 requires its actual COMMON bank.") };
                 frame = frame with { Memory = frame.Memory with { PrimitiveProcess = published.Publish50FDF0(checked(bank + (uint)published.PacketBuffer * (uint)published.CommonPacketNominalCapacity + (uint)published.ByteCursor!.Value), null) } };
@@ -58,7 +68,7 @@ public sealed partial class BattleSession
             stage = stage with { Groups = stage.Groups.SetItem(index, group with { Flags = (byte)(group.Flags & ~2) }) };
         }
         NativeStage = stage;
-        for (int index = 3; index < 7; index++)
+        foreach (int index in ReadPresentationSideActors(false))
         {
             NativeBattleGraphicsModel model = graphics.Models[index];
             if ((model.Flags0 & 2) == 0)
@@ -69,7 +79,8 @@ public sealed partial class BattleSession
             graphics = graphics with { Models = graphics.Models.SetItem(index, model) };
             NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Compose56C2F0(view, model.GeometryWorldMatrix ?? throw new NotSupportedException("Native6FC0A0 requires its actual retained enemy world matrix."));
             frame = frame with { Staging = NativeBattleRinoa89Capture.PublishMatrix56C2F0(frame.Staging, context, matrix) };
-            frame = frame with { Staging = frame.Staging.Write(context + 20, BitConverter.GetBytes(matrix.X)).Write(context + 24, BitConverter.GetBytes(matrix.Y)).Write(context + 28, BitConverter.GetBytes(matrix.Z)).Write(context + 36, BitConverter.GetBytes(workspace)).Write(context + 52, BitConverter.GetBytes((short)0)).Write(context + 54, BitConverter.GetBytes((short)0)).Write(context + 56, BitConverter.GetBytes((short)320)).Write(context + 58, BitConverter.GetBytes((short)216)).Write(context + 60, BitConverter.GetBytes(model.Color40 ?? throw new NotSupportedException("Native6FC0A0 requires its actual enemy color."))).Write(context + 64, BitConverter.GetBytes(model.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Native6FC0A0 requires its actual enemy object mask."))).Write(context + 72, new byte[4]) };
+            uint mask = NativeGraphicsUsesForeignPose(graphics, index) ? uint.MaxValue : model.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Native6FC0A0 requires its actual enemy object mask.");
+            frame = frame with { Staging = frame.Staging.Write(context + 20, BitConverter.GetBytes(matrix.X)).Write(context + 24, BitConverter.GetBytes(matrix.Y)).Write(context + 28, BitConverter.GetBytes(matrix.Z)).Write(context + 36, BitConverter.GetBytes(workspace)).Write(context + 52, BitConverter.GetBytes((short)0)).Write(context + 54, BitConverter.GetBytes((short)0)).Write(context + 56, BitConverter.GetBytes((short)320)).Write(context + 58, BitConverter.GetBytes((short)216)).Write(context + 60, BitConverter.GetBytes(model.Color40 ?? throw new NotSupportedException("Native6FC0A0 requires its actual enemy color."))).Write(context + 64, BitConverter.GetBytes(mask)).Write(context + 72, new byte[4]) };
             NativeEffectMemory = frame.Memory;
             NativeFileStaging = frame.Staging;
             short depth = BinaryPrimitives.ReadInt16LittleEndian(frame.Staging.Read(context + 68, 2));

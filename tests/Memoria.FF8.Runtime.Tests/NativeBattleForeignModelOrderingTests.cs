@@ -8,6 +8,29 @@ public sealed class NativeBattleForeignModelOrderingTests
 {
     private sealed record Material : INativeBattleForeignMaterial;
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void Semitransparent_host_material_uses_its_native_second_pass_and_blend_without_native_texture_sampling(int blend)
+    {
+        NativeBattleForeignSurface surface = new(new Material(), [Vector2.Zero, Vector2.UnitX, Vector2.UnitY], [Vector4.One, Vector4.One, Vector4.One]);
+        NativeBattlePilotVisualGeometry geometry = new(new(1, 1, 0, 1, 0), default, default, default, default, 3) { ForeignSurface = surface };
+        NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear().Prepend(20, new("host-body", 0, 0), Triangle((ushort)(blend << 5)).SetItem(1, 0x26808080), 0, [100, 100, 100, 0], pilotGeometry: geometry);
+        byte[] lengths = new byte[256];
+        lengths[0x26] = 7;
+        uint[] second = new uint[256];
+        second[0x26] = 1;
+        NativeBattlePrimitiveTables tables = new(lengths.ToImmutableArray(), new byte[256].ToImmutableArray(), new uint[256].ToImmutableArray(), new uint[256].ToImmutableArray(), second.ToImmutableArray());
+        var actual = NativeBattleLogicalPasses.Execute(ordering, tables, new(0), 1);
+        NativeBattleLogicalResolvedCommand command = Assert.Single(actual.Commands);
+        Assert.Equal((byte)2, command.Pass);
+        Assert.Equal(blend, command.DrawMode.BlendMode);
+        Assert.Null(command.DrawMode.TextureSelection);
+        Assert.Equal((ushort)0, actual.Final.TexturePage);
+    }
+
     [Fact]
     public void HostMaterialKeepsNativeDepthAndOrderWithoutPublishingANativeTexturePageOrCacheEntry()
     {

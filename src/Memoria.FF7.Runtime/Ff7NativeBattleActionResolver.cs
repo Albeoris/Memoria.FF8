@@ -5,6 +5,7 @@ namespace Memoria.FF7.Runtime;
 public readonly record struct Ff7BattleActionVitals(uint Hp, uint MaxHp, ushort Mp, ushort MaxMp, uint Statuses, uint StatusImmunities = 0)
 {
     public ushort OriginSavedStatuses { get; init; }
+    public uint AbsoluteAddStatusImmunities { get; init; }
 }
 
 public readonly record struct Ff7BattleActionReceipt(Ff7BattleActionVitals Source, Ff7BattleActionVitals Target, Ff7BattleDamageResult Damage, uint AddedStatuses, uint RemovedStatuses)
@@ -259,7 +260,7 @@ public static class Ff7NativeBattleActionResolver
             throw new NotSupportedException($"FFVII attack has unsupported additional effect or status mask 0x{mask:X8}.");
         }
         bool admittedStatus = mask != 0 && RollStatus(record!, action, random);
-        bool originOperation = action.GuestOriginBattleStatuses != 0 || action.ParameterOperation is not null || action.GuestOriginSavedStatuses != 0;
+        bool originOperation = action.GuestProcessBattleStatuses != 0 || action.GuestOriginBattleStatuses != 0 || action.ParameterOperation is not null || action.GuestOriginSavedStatuses != 0;
         if (!admittedStatus && !originOperation && action.Power == 0 && action.BaseDamage is null && action.FixedDamage is null && !action.SourceMissingHitPoints && action.FractionDenominator == 0 && action.Formula is not (0x00 or 0x50))
         {
             return new(source, target, new(true, false, 0), 0, 0);
@@ -478,7 +479,7 @@ public static class Ff7NativeBattleActionResolver
             immunity = 0;
         }
 
-        uint add = mode == 0 && (target.Statuses & Petrify) == 0 ? mask : 0;
+        uint add = mode == 0 && (target.Statuses & Petrify) == 0 ? mask & ~target.AbsoluteAddStatusImmunities : 0;
         uint remove = mode == 1 ? mask : 0;
         if ((formula >> 4) is 1 or 6 or 10 or 11)
         {
@@ -492,7 +493,7 @@ public static class Ff7NativeBattleActionResolver
         {
             remove |= Slow;
         }
-        uint toggle = mode == 2 ? mask : 0;
+        uint toggle = mode == 2 ? mask & ~(target.AbsoluteAddStatusImmunities & ~target.Statuses) : 0;
         return ((target.Statuses | (add & ~immunity)) & ~(remove & ~immunity)) ^ (toggle & ~immunity);
     }
 

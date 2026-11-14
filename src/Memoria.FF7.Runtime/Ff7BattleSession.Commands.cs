@@ -810,7 +810,7 @@ public sealed partial class Ff7BattleSession
         Ff7BattleAiActor native = target.Actor;
         uint immunity = (targetSlot >= 4 ? ~Enemy(targetSlot).NativeStatusMask : 0) | target.StatusProtection;
         Ff7BattleActionVitals sourceVitals = new(source.Actor.HitPoints, source.Actor.MaxHitPoints, source.Actor.MagicPoints, source.Actor.MaxMagicPoints, source.Actor.Statuses);
-        Ff7BattleActionVitals targetVitals = new(native.HitPoints, native.MaxHitPoints, native.MagicPoints, native.MaxMagicPoints, native.Statuses, immunity);
+        Ff7BattleActionVitals targetVitals = new(native.HitPoints, native.MaxHitPoints, native.MagicPoints, native.MaxMagicPoints, native.Statuses, immunity) { AbsoluteAddStatusImmunities = GuestAbsoluteAddStatusImmunities(targetSlot) };
         Ff7BattleActionReceipt result;
         if (preparedReceipt is { } prepared)
         {

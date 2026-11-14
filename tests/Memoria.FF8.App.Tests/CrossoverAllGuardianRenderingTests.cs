@@ -49,13 +49,27 @@ public sealed class CrossoverAllGuardianRenderingTests(ITestOutputHelper output)
         Run(name, false, targetSlot);
     }
 
-    private void Run(string name, bool friendly, int? targetSlot = null)
+    [Theory]
+    [InlineData("Apocalypse", (byte)0)]
+    [InlineData("Fire Breath", (byte)4)]
+    [InlineData("Ice Strike", (byte)4)]
+    [InlineData("Desperado", (byte)4)]
+    [InlineData("Massive Anchor", (byte)4)]
+    public void Original_cinematic_renders_the_actual_host_scene_completes_and_releases_before_following_Fire(string name, byte crisis)
+    {
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(directory), "Select the original game installation.");
+        byte character = CrossoverRemainingCinematicTests.OriginalSourceCharacter(directory!, name, crisis);
+        Run(name, false, character: character, crisis: crisis);
+    }
+
+    private void Run(string name, bool friendly, int? targetSlot = null, byte character = 0, byte crisis = 0)
     {
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR")) && !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR")), "Select both original game installations.");
         using GpuTestDevice device = new();
         using GpuTriangleRenderer gpu = new(device.Device);
         using CrossoverArenaSurfaceCapture capture = new(() => new GpuTriangleRenderer(device.Device));
-        using CrossoverCompositeActionTests.Fixture fixture = new(name, 0, 0, arenaCapture: capture);
+        using CrossoverCompositeActionTests.Fixture fixture = new(name, character, crisis, arenaCapture: capture);
         HashSet<(int Width, int Height)> visibleSizes = [];
         Dictionary<(int Width, int Height), int> maximumChanges = [];
         int eligibleCallbacks = 0;
@@ -111,7 +125,20 @@ public sealed class CrossoverAllGuardianRenderingTests(ITestOutputHelper output)
             foreach ((int width, int height) in new[] { (320, 240), (640, 360) })
             {
                 ValidatingRenderer validation = new(gpu);
-                renderer.Render(validation, width, height, frame);
+                try
+                {
+                    renderer.Render(validation, width, height, frame);
+                }
+                catch (Exception error)
+                {
+                    output.WriteLine($"{name}: render failure at actual host tick {host.Tick}, eligible visual callback {eligibleCallbacks}, {width}x{height}.");
+                    Exception cause = error.GetBaseException();
+                    foreach (object key in cause.Data.Keys)
+                    {
+                        output.WriteLine($"{key}: {cause.Data[key]}");
+                    }
+                    throw;
+                }
                 Microsoft.Xna.Framework.Color[] full = GpuTestDevice.Read(gpu.Target);
                 submittedTriangles += validation.Triangles;
                 renderer.Render(gpu, width, height, frame with { GuestEffectLayers = [], SuppressArenaPrimitives = new HashSet<NativeBattleArenaPrimitiveId>() });
@@ -130,15 +157,16 @@ public sealed class CrossoverAllGuardianRenderingTests(ITestOutputHelper output)
                     NativeBattleLogicalOrdering withoutOverlay = new(ordering.Table.ToImmutableArray(), ordering.Proxies.ToImmutableArray(), ordering.Packets.Select(packet => omitted.Contains(NativeBattlePrimitiveProcess.NormalizeCommonReference(packet.Reference)) ? packet with { Words = RemoveCommands(packet.Words) } : packet).ToImmutableArray(), ordering.ProxyCursor, ordering.TableBuffer, ordering.OtherTable?.ToImmutableArray());
                     NativeBattleEffectMemory memory = effect.Memory!;
                     gpu.Begin(width, height, new(0, 0, 0, 1), 0);
-                    effect.Draw(gpu, host.GuestRenderCameraOutput, width, height);
+                    int withWaveTriangles = effect.Draw(gpu, host.GuestRenderCameraOutput, width, height);
                     gpu.End();
                     Microsoft.Xna.Framework.Color[] withWave = GpuTestDevice.Read(gpu.Target);
                     gpu.Begin(width, height, new(0, 0, 0, 1), 0);
-                    effect.Renderer.DrawOrdering(gpu, withoutOverlay, memory.Textures!, width, height, effect.Scale, ReadControlPacket);
-                    effect.Renderer.Draw(gpu, effect.Draws, effect.Textures, CrossoverNativeSpriteRenderer.Camera(host.GuestRenderCameraOutput, effect.OriginToHost), width, height, effect.Scale);
+                    int withoutWaveTriangles = effect.Renderer.DrawOrdering(gpu, withoutOverlay, memory.Textures!, width, height, effect.Scale, ReadControlPacket);
+                    withoutWaveTriangles += effect.Renderer.Draw(gpu, effect.Draws, effect.Textures, CrossoverNativeSpriteRenderer.Camera(host.GuestRenderCameraOutput, effect.OriginToHost), width, height, effect.Scale);
                     gpu.End();
                     Microsoft.Xna.Framework.Color[] withoutWave = GpuTestDevice.Read(gpu.Target);
                     int overlayChanges = withWave.Where((pixel, index) => pixel.R != withoutWave[index].R || pixel.G != withoutWave[index].G || pixel.B != withoutWave[index].B).Count();
+                    Assert.True(withWaveTriangles > withoutWaveTriangles);
                     Assert.True(overlayChanges > 0, $"The original Zombie age45 overlay must affect host pixels at {width}x{height}.");
                     zombieOverlayRendered = true;
 
@@ -237,7 +265,7 @@ public sealed class CrossoverAllGuardianRenderingTests(ITestOutputHelper output)
 
         private static void AssertVertex(in TriangleVertex vertex)
         {
-            Assert.True(float.IsFinite(vertex.Position.X) && float.IsFinite(vertex.Position.Y) && float.IsFinite(vertex.Depth), "The original producer must submit finite host coordinates and depth.");
+            Assert.True(float.IsFinite(vertex.Position.X) && float.IsFinite(vertex.Position.Y) && float.IsFinite(vertex.Depth), $"The original producer must submit finite host coordinates and depth: {vertex}.");
             Assert.True(float.IsFinite(vertex.Uv.X) && float.IsFinite(vertex.Uv.Y), "The original producer must submit finite texture coordinates.");
             Assert.True(float.IsFinite(vertex.ReciprocalW), "The original producer must submit a finite perspective divisor.");
         }

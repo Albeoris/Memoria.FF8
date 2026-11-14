@@ -396,6 +396,20 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
             provider.ExecuteOperation(invocation.Argument, 4, () => throw new InvalidOperationException("Limit selection must use its source random owner."));
         }
 
+        public void AdvanceToNativeInput()
+        {
+            for (int tick = 0; tick < 12000; tick++)
+            {
+                if (provider.DuelProcess?.Phase == BattleNativeDuelPhase.Ready || provider.ShotProcess?.Phase == BattleNativeShotPhase.Ready || provider.SlotsChoosing)
+                {
+                    return;
+                }
+                host.Advance(waitForCommand: true);
+                Assert.True(host.GuestAbilityFailure is null, host.GuestAbilityFailure?.Reason);
+            }
+            throw new InvalidDataException("The original Limit process did not reach its native input acknowledgement.");
+        }
+
         public void SelectSlotsSpell(string name)
         {
             BattleNativeAction selected = assets.NativeActions.Single(action => action.Command == 16 && action.Name == name);
@@ -415,7 +429,7 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
             }
             Ff7BattleCommandOption invocation = Option(selection);
             Assert.Null(invocation.UnsupportedReason);
-            Assert.True(host.Submit(0, Ff7BattleCommand.Magic, invocation.Argument, 1 << 4));
+            Assert.True(host.Submit(0, Ff7BattleCommand.Magic, invocation.Argument, command is 16 or 19 ? (ushort)1 : (ushort)(1 << 4)));
             bool began = false;
             bool inputSeen = false;
             bool queuedMove = false;
@@ -423,8 +437,11 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
             int completedPhases = 0;
             ushort? previousPhase = null;
             HashSet<ushort> seenPhases = [];
+            NativeBattleEffectPresentation? nativeProcessOwner = null;
             byte? recipeMoveSet = null;
             bool desiredRecipeSubmitted = false;
+            short? initialDuelTimer = null;
+            short? remainingDuelTimer = null;
             for (int tick = 0; tick < 16000; tick++)
             {
                 if (provider.DuelProcess is { Phase: BattleNativeDuelPhase.Ready })
@@ -444,7 +461,7 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
                         if (pulse >= 2 * move.Buttons.Length)
                         {
                             queuedMove = true;
-                            desiredRecipeSubmitted = duelAction == move.ActionId;
+                            desiredRecipeSubmitted = duelAction is null || duelAction == move.ActionId;
                         }
                     }
                 }
@@ -474,6 +491,19 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
                 host.Advance(waitForCommand: true);
                 Assert.True(host.GuestAbilityFailure is null, host.GuestAbilityFailure?.Reason);
                 began |= provider.ProcessActive;
+                if (provider.DuelProcess is { } timer)
+                {
+                    initialDuelTimer ??= timer.InitialTimer;
+                    Assert.Equal(initialDuelTimer.Value, timer.InitialTimer);
+                    Assert.True(remainingDuelTimer is null || timer.RemainingTimer <= remainingDuelTimer.Value, $"The original Duel timer restarted at host tick {host.Tick}: {remainingDuelTimer} -> {timer.RemainingTimer} in {timer.Phase}.");
+                    remainingDuelTimer = timer.RemainingTimer;
+                }
+                CrossoverGuestFireHostState? presented = (CrossoverGuestFireHostState?)typeof(CrossoverGuestHostActions).GetProperty("PresentedFire", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(provider);
+                if ((command is 11 or 14) && presented?.Presentation.Effect is { } nativeEffect && presented.Presentation.Command != 239)
+                {
+                    nativeProcessOwner ??= nativeEffect;
+                    Assert.Same(nativeProcessOwner, nativeEffect);
+                }
                 if (provider.Invocation?.GuestAbility is ushort phase && previousPhase != phase)
                 {
                     previousPhase = phase;
@@ -492,9 +522,143 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
             }
             Assert.True(inputSeen || command == 19);
             Assert.True(completedPhases > 0);
+            Assert.False(provider.ProcessActive, $"Native Limit still owns its turn: Duel {provider.DuelProcess?.Phase} timer {provider.DuelProcess?.RemainingTimer}/{initialDuelTimer}; Shot {provider.ShotProcess?.Phase}; invocation {provider.Invocation}.");
             Assert.Null(provider.Invocation);
             Assert.Null(host.Action);
+        }
+
+        public void AssertProcessCancellation(bool acceptedShot)
+        {
+            OpenNativeSelection();
+            AdvanceToNativeInput();
+            Assert.IsType<NativeBattleEffectPresentation>(PresentedProcess()?.Presentation.Effect);
+            int beforeAmmo = provider.Capture().Items!.Slots.Single(item => item.ItemId == 101).Count;
+            if (acceptedShot)
+            {
+                provider.TriggerProcessShot();
+                Assert.Equal(beforeAmmo - 1, provider.Capture().Items!.Slots.Single(item => item.ItemId == 101).Count);
+            }
+            Ff7BattleSnapshot state = host.Capture();
+            state = state with
+            {
+                Actors = state.Actors.Select(actor => actor.Actor.Slot == 0 ? actor with
+                {
+                    Actor = actor.Actor with { HitPoints = 0, Statuses = actor.Actor.Statuses | 1 },
+                    Timers = Ff7NativeBattleStatusClock.Apply(actor.Timers, actor.Actor.Statuses, actor.Actor.Statuses | 1)
+                } : actor).ToArray()
+            };
+            typeof(Ff7BattleSession).GetField("state", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(host, state);
+            bool cancellationSeen = false;
+            HashSet<ushort> phases = [];
+            for (int tick = 0; tick < 16000; tick++)
+            {
+                host.Advance(waitForCommand: true);
+                Assert.True(host.GuestAbilityFailure is null, host.GuestAbilityFailure?.Reason);
+                cancellationSeen |= provider.ProcessCancelling;
+                if (provider.Invocation is { } invocation)
+                {
+                    phases.Add(invocation.GuestAbility);
+                }
+                if (!provider.ProcessActive && provider.Invocation is null && host.Action is null)
+                {
+                    break;
+                }
+            }
+            Assert.True(cancellationSeen);
             Assert.False(provider.ProcessActive);
+            Assert.Null(provider.Invocation);
+            Assert.Null(host.Action);
+            Assert.False(provider.HasProcessBackground);
+            Assert.DoesNotContain(host.Capture().Queue.Slots, entry => entry?.Command.ActorSlot == 0);
+            Assert.DoesNotContain(host.Capture().Queue.Ready, command => command?.ActorSlot == 0);
+            if (acceptedShot)
+            {
+                Assert.DoesNotContain((ushort)0xED00, phases);
+                Assert.Equal(beforeAmmo - 1, provider.Capture().Items!.Slots.Single(item => item.ItemId == 101).Count);
+                Assert.Single(provider.Capture().Items!.Ledger, debit => !debit.Refunded && debit.Selection.ItemId == 101);
+            }
+
+            CrossoverGuestFireHostState? PresentedProcess() => (CrossoverGuestFireHostState?)typeof(CrossoverGuestHostActions).GetProperty("PresentedFire", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(provider);
+        }
+
+        public void AssertRetainedPreflightIsolation()
+        {
+            OpenNativeSelection();
+            AdvanceToNativeInput();
+            CrossoverGuestFireHostState? retained = null;
+            for (int tick = 0; tick < 10000; tick++)
+            {
+                retained = (CrossoverGuestFireHostState?)typeof(CrossoverGuestHostActions).GetProperty("PresentedFire", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(provider);
+                if (retained?.Presentation.Effect is { ServiceComplete: true })
+                {
+                    break;
+                }
+                host.Advance(waitForCommand: true);
+                Assert.True(host.GuestAbilityFailure is null, host.GuestAbilityFailure?.Reason);
+            }
+            NativeBattleEffectPresentation effect = Assert.IsType<NativeBattleEffectPresentation>(retained?.Presentation.Effect);
+            string before = CaptureNative();
+            string working = JsonSerializer.Serialize(provider.WorkingStock);
+            BattleNativeDuelChoice choice = provider.DuelProcessChoices.First(choice => !choice.Finisher);
+            Assert.Null(provider.DuelProcessChoiceUnsupportedReason(choice));
+            Assert.Equal(before, CaptureNative());
+            Assert.Equal(working, JsonSerializer.Serialize(provider.WorkingStock));
+
+            string CaptureNative() => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(new BattleSnapshot { NativeGraphics = effect.Graphics, NativeEffectMemory = effect.Memory })) + JsonSerializer.Serialize(effect.Random) + JsonSerializer.Serialize(effect.Source);
+        }
+
+        public void ExecuteAngelWingTurns(uint repetitionStatus = 0, int expectedCasts = 1)
+        {
+            if (repetitionStatus != 0)
+            {
+                Ff7BattleSnapshot state = host.Capture() with { GuestOriginStatuses = [new(0, repetitionStatus)] };
+                typeof(Ff7BattleSession).GetField("state", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(host, state);
+            }
+            Ff7BattleCommandOption invocation = Option(0x1304);
+            Assert.Null(invocation.UnsupportedReason);
+            int fireStock = provider.WorkingStock.GetMagicCount(row, fire.ActionId);
+            Assert.True(host.Submit(0, Ff7BattleCommand.Magic, invocation.Argument, 1));
+            bool activated = false;
+            bool forced = false;
+            bool forcedContact = false;
+            HashSet<long> forcedInvocations = [];
+            for (int tick = 0; tick < 20000; tick++)
+            {
+                host.Advance();
+                Assert.True(host.GuestAbilityFailure is null, host.GuestAbilityFailure?.Reason);
+                activated |= provider.ProcessOwnsReadyTurn;
+                if (activated)
+                {
+                    Assert.Null(host.ReadyPlayer);
+                    Ff7BattleGuestPhysicalHit query = new(CrossoverGunbladeHostAttack.ProjectPhysicalSource(kit), new(0, 0, 255), 0);
+                    Assert.Equal(Ff7GuestBattleStatuses.ToHostStatuses(0x30, 0x4000), host.GuestContactContext(0, 0, query, false).TargetVitals.AbsoluteAddStatusImmunities);
+                }
+                if (host.Action is { Command.GuestAbility: var ability, GuestComposite: { } contacts } && ability == fire.ActionId)
+                {
+                    forced = true;
+                    forcedInvocations.Add(host.Action.StartedAt);
+                    Assert.All(contacts.Contacts, contact =>
+                    {
+                        Assert.Equal(5, contact.HitDescription.Attack.OriginDamageMultiplier);
+                        Assert.Equal(expectedCasts == 3 ? 75 : 100, contact.HitDescription.Attack.DamageScalePercent);
+                    });
+                    forcedContact |= contacts.NextContact > 0;
+                }
+                if (forced && forcedContact && provider.Invocation is null && host.Action is null && !provider.ProcessActive)
+                {
+                    break;
+                }
+            }
+            Assert.True(activated);
+            Assert.True(forced);
+            Assert.True(forcedContact);
+            Assert.Equal(expectedCasts, forcedInvocations.Count);
+            Assert.Empty(host.Capture().GuestMagicSequences);
+            Assert.Equal(fireStock, provider.WorkingStock.GetMagicCount(row, fire.ActionId));
+            provider.AdvanceIdle(host.Tick + 1, 1, null);
+            Assert.False(provider.ProcessOwnsReadyTurn);
+            Ff7BattleGuestPhysicalHit released = new(CrossoverGunbladeHostAttack.ProjectPhysicalSource(kit), new(0, 0, 255), 0);
+            Assert.Equal(0u, host.GuestContactContext(0, 0, released, false).TargetVitals.AbsoluteAddStatusImmunities);
         }
 
         private BattleNativeDuelChoice DuelRoute(byte initial, byte desired)
@@ -574,6 +738,10 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
 
         public void Dispose()
         {
+            if (nativeProcess)
+            {
+                provider.CancelAtTerminal();
+            }
             magic.Dispose();
             archive.Dispose();
             original.Dispose();

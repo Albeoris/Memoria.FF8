@@ -6,6 +6,16 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattlePosedActor(NativeBattleActionMatrix World, ImmutableArray<NativeBattleVector> Endpoints, Func<byte, short, NativeBattleVector> ReadLocalBone)
 {
     public ImmutableArray<int> BoneParents { get; init; } = [];
+    public ImmutableArray<NativeBattleActionMatrix> BoneMatrices { get; init; } = [];
+
+    public NativeBattleActionMatrix RequireBoneMatrix(int selector)
+    {
+        if (BoneMatrices.IsDefaultOrEmpty || BoneMatrices.Length != BoneParents.Length || (uint)selector >= (uint)BoneMatrices.Length)
+        {
+            throw new NotSupportedException("The host pose cannot supply the selected actual bone orientation.");
+        }
+        return NativeBattleGfMatrices.Compose56C2F0(World, BoneMatrices[selector]);
+    }
 
     public int RequireJointCount()
     {

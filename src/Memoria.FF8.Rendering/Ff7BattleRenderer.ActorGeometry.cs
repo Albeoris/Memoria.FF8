@@ -20,6 +20,7 @@ public sealed record Ff7BattleActorGeometry(ImmutableArray<Ff7BattleActorFace> F
     public ImmutableArray<NativeBattleForeignSurface> GuestSurfaces { get; init; } = [];
     public ImmutableArray<(Vector3 Start, Vector3 End)> Bones { get; init; } = [];
     public ImmutableArray<int> BoneParents { get; init; } = [];
+    public ImmutableArray<Matrix4x4> BoneTransforms { get; init; } = [];
 
     public IEnumerable<(Vector3 A, Vector3 B, Vector3 C)> FaceVertices()
         => GuestFaces.IsEmpty ? Faces.Select(face => (face.A, face.B, face.C)) : GuestFaces;
@@ -34,6 +35,7 @@ public sealed partial class Ff7BattleRenderer
         int part = 0;
         Ff7ModelMaterialState materialState = new();
         ImmutableArray<Vector3> skeleton = [];
+        ImmutableArray<Matrix4x4> boneTransforms = [];
         VisitActorGeometry(actor, (model, textures, transform) =>
         {
             int vertexStart = vertices.Count;
@@ -77,11 +79,11 @@ public sealed partial class Ff7BattleRenderer
                 }
             }
             part++;
-        }, points => skeleton = points);
-        return new(faces.ToImmutable(), skeleton) { Vertices = vertices.ToImmutable(), Bones = Enumerable.Range(0, (skeleton.Length - 1) / 2).Select(index => (skeleton[index * 2 + 1], skeleton[index * 2 + 2])).ToImmutableArray(), BoneParents = LoadActor(actor.ModelPrefix).Data.Bones.Select(bone => bone.Parent).ToImmutableArray() };
+        }, points => skeleton = points, transforms => boneTransforms = transforms);
+        return new(faces.ToImmutable(), skeleton) { Vertices = vertices.ToImmutable(), Bones = Enumerable.Range(0, (skeleton.Length - 1) / 2).Select(index => (skeleton[index * 2 + 1], skeleton[index * 2 + 2])).ToImmutableArray(), BoneParents = LoadActor(actor.ModelPrefix).Data.Bones.Select(bone => bone.Parent).ToImmutableArray(), BoneTransforms = boneTransforms };
     }
 
-    private void VisitActorGeometry(Ff7BattleActorVisual actor, Action<PcPolygonModel, IReadOnlyList<PcTexture>, Matrix4x4> visit, Action<ImmutableArray<Vector3>>? captureSkeleton = null)
+    private void VisitActorGeometry(Ff7BattleActorVisual actor, Action<PcPolygonModel, IReadOnlyList<PcTexture>, Matrix4x4> visit, Action<ImmutableArray<Vector3>>? captureSkeleton = null, Action<ImmutableArray<Matrix4x4>>? captureBones = null)
     {
         ActorModel resource = LoadActor(actor.ModelPrefix);
         Matrix4x4 world = Matrix4x4.CreateRotationY(actor.FacingRadians) * Matrix4x4.CreateTranslation(actor.Position);
@@ -92,6 +94,7 @@ public sealed partial class Ff7BattleRenderer
         BattleClipFrame frame = Frame(resource.GetClip(actor.ClipIndex, false, actor.Limit), actor.ClipFrame);
         Span<Matrix4x4> transforms = stackalloc Matrix4x4[resource.Data.Bones.Count];
         BattleRigidPose.WriteTransforms(resource.Data, frame, world, transforms, actor.ModelModifiers?.PoseTransform);
+        captureBones?.Invoke(transforms.ToArray().ToImmutableArray());
         if (captureSkeleton is not null)
         {
             ImmutableArray<Vector3>.Builder points = ImmutableArray.CreateBuilder<Vector3>();

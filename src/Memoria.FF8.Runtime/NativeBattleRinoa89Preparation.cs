@@ -3,7 +3,10 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleRinoa89PreparationServices(Func<int, NativeBattleGraphicsModel> ReadModel, Action<int, NativeBattleGraphicsModel> WriteModel, Func<int, NativeBattleModuleAnchor> ReadAnchor571400, ImmutableArray<byte> Targets, uint FirstContact, NativeBattleEffectOwnedModelResource Body, Func<NativeBattleRinoa89Frame, int, uint, NativeBattleRinoa89Frame> BindActor5022C0, Func<NativeBattleRinoa89Frame, int, byte, NativeBattleRinoa89Frame> SelectSequence505C00, Func<NativeBattleRinoa89Frame, NativeBattleRinoa89Frame> InitializeShards6FA3E0);
+public sealed record NativeBattleRinoa89PreparationServices(Func<int, NativeBattleGraphicsModel> ReadModel, Action<int, NativeBattleGraphicsModel> WriteModel, Func<int, NativeBattleModuleAnchor> ReadAnchor571400, ImmutableArray<byte> Targets, uint FirstContact, NativeBattleEffectOwnedModelResource Body, Func<NativeBattleRinoa89Frame, int, uint, NativeBattleRinoa89Frame> BindActor5022C0, Func<NativeBattleRinoa89Frame, int, byte, NativeBattleRinoa89Frame> SelectSequence505C00, Func<NativeBattleRinoa89Frame, NativeBattleRinoa89Frame> InitializeShards6FA3E0)
+{
+    public ImmutableArray<int>? PartyActors { get; init; }
+}
 
 public static partial class NativeBattleRinoa89Controller
 {
@@ -64,7 +67,7 @@ public static partial class NativeBattleRinoa89Controller
         task = caster.RotationPadding18 is ushort padding ? task.WriteWord(230, padding) : task.MarkPayloadUnknown(230, 2);
         services.WriteModel(actor, caster with { Rotation14 = 0 });
         frame = frame with { Staging = Dword(Dword(frame.Staging, 0x2556620, services.FirstContact), 0x25565F8, unchecked((ushort)centerX) | ((uint)unchecked((ushort)centerY) << 16)).Write(0x25565FC, BitConverter.GetBytes(maxZ)) };
-        for (int index = 0; index < 3; index++)
+        foreach (int index in services.PartyActors ?? [0, 1, 2])
         {
             NativeBattleGraphicsModel model = services.ReadModel(index);
             if ((model.Flags0 & 2) != 0)

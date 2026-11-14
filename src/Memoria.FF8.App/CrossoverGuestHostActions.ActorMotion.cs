@@ -6,7 +6,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestActorMo
 {
     public bool IsActorPosePaused(int slot)
     {
-        if (fire is not { Presentation.Effect: { } effect } active)
+        if (PresentedFire is not { Presentation.Effect: { } effect } active)
         {
             return false;
         }

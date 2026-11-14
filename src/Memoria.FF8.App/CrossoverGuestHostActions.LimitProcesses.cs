@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
+using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
@@ -13,11 +14,18 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
     private BattleNativeAction? processAction;
     private BattleNativeAction? nextProcessAction;
     private byte? pendingDuelFinisher;
+    private byte? pendingDuelOpening;
+    private CrossoverGuestFireHostState? processBackground;
+    private ImmutableArray<CrossoverNativeMagicParticipant> processParticipantBindings = [];
+    private CrossoverGuestFireHostState? PresentedFire => fire ?? processBackground;
+    public bool HasProcessBackground => processBackground is not null;
     private ushort processTarget;
     private bool processActionQueued;
     private bool mixedSlotsAccepted;
     private int mixedSlotsRemaining;
+    private int acceptedShotDebits;
     private bool mixedProcessActive;
+    private bool processCancelling;
     private bool angelWing;
     private bool angelWingCast;
     private bool angelWingFallback;
@@ -31,6 +39,8 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
     private long processRemainder;
 
     public bool ProcessActive => mixedProcessActive;
+    public bool ProcessCancelling => processCancelling;
+    public uint AbsoluteAddStatusImmunities => angelWing && host.Actors.Any(actor => actor.Actor.Slot == ActorSlot && actor.Actor.HitPoints > 0) ? Ff7GuestBattleStatuses.ToHostStatuses(0x30, 0x4000) : 0;
     public bool ProcessOwnsReadyTurn => angelWing;
     public BattleNativeDuelState? DuelProcess => mixedDuel;
     public BattleNativeShotState? ShotProcess => mixedShot;
@@ -52,9 +62,14 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
     public IReadOnlyList<BattleNativeDuelChoice> DuelProcessChoices => mixedDuel is { Phase: BattleNativeDuelPhase.Ready } duel ? NativeBattleDuelRules.Choices(kit.Limit, duel.MoveSetId, originLimitProgress!.DuelFlags, assets.NativeActions) : [];
     private bool IsProcessInvocation(ushort ability) => ProcessAbilities(ReadNativeAbilities()).Any(choice => choice.Key == ability && choice.NativeAction is null && choice.Command is 11 or 14 or 16 or 19);
 
+    public bool StartsLimitSelectionWithoutTarget(ushort ability) => IsProcessInvocation(ability) && ProcessAbilities(ReadNativeAbilities()).Any(choice => choice.Key == ability && choice.Command is 16 or 19);
+
+    private bool ProcessInvocationTargetIsLegal(ushort ability, int target) => !StartsLimitSelectionWithoutTarget(ability) || target == ActorSlot;
+
     public void BindLimitProcessOwners(byte? shotFlags, byte battleFlags)
     {
         sourceShotFlags = shotFlags;
+        encounter.LimitLearning = encounter.LimitLearning.Bind(shotFlags, originLimitProgress?.SpecialMagicFlags);
         sourceBattleFlags = battleFlags;
         capabilityVersion++;
     }
@@ -73,7 +88,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
             foreach (BattleNativeAction shot in assets.NativeActions.Where(action => action.Command == 14 && action.ActionId < 8))
             {
                 bool ammo = encounter.Items?.Slots.Any(stock => stock.ItemId == shot.ActionId + 101 && stock.Count != 0) == true;
-                if (ammo || sourceShotFlags is byte learned && (learned & (1 << shot.ActionId)) != 0)
+                if (ammo || encounter.LimitLearning.CurrentShot is byte learned && (learned & (1 << shot.ActionId)) != 0)
                 {
                     result.Add(new(CrossoverGuestAbilityCatalog.Key(14, shot.ActionId), 14, "Shot", shot.Name ?? "Shot", null, 1, null));
                 }
@@ -115,6 +130,10 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
         {
             return "Duel requires its source input options and automatic input random owner.";
         }
+        if (choice.Command == 14 && encounter.LimitLearning.ShotBefore is null)
+        {
+            return "Shot requires the original source learned-ammunition flags.";
+        }
         if (choice.Command == 14 && (encounter.Items?.Slots.Any(stock => stock.ItemId == 101 + (choice.Key & 255) && stock.Count != 0) != true))
         {
             return "No ammunition remains for this Shot selection.";
@@ -132,6 +151,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
         byte crisis = limitSelection!.Crisis;
         retainedProcessCrisis = crisis;
         processTarget = checked((ushort)(1 << target));
+        CaptureProcessParticipants(target);
         mixedProcessActive = true;
         processClock = host.Tick;
         processRemainder = 0;
@@ -142,7 +162,10 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
             byte moveSet = NativeBattleDuelRules.InitialMoveSet(kit.Limit, crisis);
             short timer = NativeBattleDuelRules.Timer(kit.Limit, crisis);
             mixedDuel = new(moveSet, processTarget, timer, timer, BattleNativeDuelPhase.Opening) { Ui = new(BattleTimedInputUiPhase.Opening) };
-            SelectProcessAction(241, NativeBattleDuelRules.ActionId(kit.Limit, moveSet));
+            byte opening = NativeBattleDuelRules.ActionId(kit.Limit, moveSet);
+            pendingDuelOpening = opening;
+            BattleNativeAction first = assets.NativeActions.Single(action => action.Command == 241 && action.ActionId == opening);
+            QueueProcessAction(first with { Command = 11, ActionId = 0, AttackType = 0, Power = 0, HitCount = 1, AttackFlags = 3, DamagePresentation = 0, Element = 0, Statuses0 = 0, Statuses1 = 0, CrisisLevel = crisis, Name = choice.Name }, true);
         }
         else if (choice.Command == 14)
         {
@@ -165,6 +188,45 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
         return choice.Name;
     }
 
+    private void CaptureProcessParticipants(int target)
+    {
+        List<CrossoverNativeMagicParticipant> bindings = [];
+        if (target != ActorSlot)
+        {
+            bindings.Add(new(target, 3));
+        }
+        foreach (int slot in ReadSceneParticipants())
+        {
+            if (slot == ActorSlot || bindings.Any(binding => binding.HostSlot == slot))
+            {
+                continue;
+            }
+            int index = Enumerable.Range(1, 6).FirstOrDefault(index => bindings.All(binding => binding.ActorIndex != index));
+            if (index == 0)
+            {
+                break;
+            }
+            bindings.Add(new(slot, index));
+        }
+        processParticipantBindings = bindings.ToImmutableArray();
+    }
+
+    private ImmutableArray<CrossoverNativeMagicParticipant> ProcessParticipantBindings => ProcessActive ? processParticipantBindings : [];
+
+    private byte ProcessActorIndex(int slot)
+    {
+        if (slot == ActorSlot)
+        {
+            return 0;
+        }
+        return checked((byte)(processParticipantBindings.SingleOrDefault(binding => binding.HostSlot == slot)?.ActorIndex ?? throw new NotSupportedException("The retained native process has no free physical model record for this host actor.")));
+    }
+
+    private ImmutableArray<CrossoverNativeMagicTarget> BindPresentationTargets(IReadOnlyList<int> slots, Func<int, byte, NativeBattleContactHalf> createContact)
+    {
+        return !ProcessActive ? CrossoverNativeMagicTarget.Bind(ActorSlot, slots, createContact) : slots.Select(slot => new CrossoverNativeMagicTarget(slot, createContact(slot, ProcessActorIndex(slot)))).ToImmutableArray();
+    }
+
     private void SelectProcessAction(byte command, ushort id)
     {
         BattleNativeAction action = assets.NativeActions.Single(action => action.Command == command && action.ActionId == id && (action.CrisisLevel is null || action.CrisisLevel == retainedProcessCrisis));
@@ -175,6 +237,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
 
     private void QueueProcessAction(BattleNativeAction action, bool presentationOnly = false)
     {
+        action = action with { DispatchCommand = action.Command };
         if (presentationOnly || action.AttackType == 0 && (action.Statuses1 & ~0x2000000u) == 0 && action.Statuses0 == 0)
         {
             action = action with { PresentationOnly = true };
@@ -242,7 +305,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
 
     public void AdvanceProcess(long hostTick)
     {
-        if (!mixedProcessActive)
+        if (!mixedProcessActive || processCancelling)
         {
             return;
         }
@@ -343,11 +406,22 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
 
     public void TriggerProcessShot()
     {
-        if (mixedShot is not { Phase: BattleNativeShotPhase.Ready, RemainingAmmo: > 0, RemainingTimer: > 0 } shot)
+        if (processCancelling || mixedShot is not { Phase: BattleNativeShotPhase.Ready, RemainingAmmo: > 0, RemainingTimer: > 0 } shot)
         {
             return;
         }
-        mixedShot = shot with { Phase = BattleNativeShotPhase.AwaitingEffect };
+        BattleNativeAction action = assets.NativeActions.Single(action => action.Command == 237 && action.ActionId == shot.ActionId);
+        if (ProcessActionUnsupportedReason(action) is { } unsupported)
+        {
+            ProcessFailure = unsupported;
+            return;
+        }
+        int target = System.Numerics.BitOperations.TrailingZeroCount((uint)processTarget);
+        ushort ammo = checked((ushort)(101 + shot.ActionId));
+        Ff7BattleGuestItemSelection selection = new(host.RequestId, host.Tick, ActorSlot, target, ammo);
+        encounter.Items = encounter.Items!.Reserve(selection).Complete(ActorSlot, target, ammo, false);
+        acceptedShotDebits++;
+        mixedShot = shot with { Phase = BattleNativeShotPhase.AwaitingEffect, RemainingAmmo = checked((byte)(shot.RemainingAmmo - 1)) };
         SelectProcessAction(237, shot.ActionId);
     }
 
@@ -386,7 +460,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
             return null;
         }
         processActionQueued = true;
-        return new(ProcessKey(action), targets, System.Numerics.BitOperations.PopCount((uint)targets) > 1);
+        return new(ProcessKey(action), targets, System.Numerics.BitOperations.PopCount((uint)targets) > 1) { OrdinaryMagic = action.Command == 2, FreeMagic = angelWingCast };
     }
 
     public string? DuelProcessChoiceUnsupportedReason(BattleNativeDuelChoice choice)
@@ -397,10 +471,19 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
 
     private string? ProcessActionUnsupportedReason(BattleNativeAction action)
     {
+        action = action with { DispatchCommand = action.Command };
+        if (NativeBattleLimitLearningRules.SlotsMask(action) != 0 && encounter.LimitLearning.SlotsBefore is null)
+        {
+            return "Special Slots magic requires the original source learned-spell flags.";
+        }
         BattleNativeAction mechanics = action with { Statuses1 = action.Statuses1 & ~0x2000000u };
         if (CrossoverBattleAbilityRules.UnsupportedReason(mechanics) is { } unsupported)
         {
             return unsupported;
+        }
+        if (action.Command is 237 or 238 or 241 && PresentedFire?.Presentation.Effect is { ServiceComplete: false })
+        {
+            return null;
         }
         byte flags = action.TargetFlags.GetValueOrDefault();
         int target = NativeBattleLimitRules.IsFixedAllyTarget(flags) ? ActorSlot : host.Actors.FirstOrDefault(actor => AbilityTargetIsLegal(flags, actor.Actor, host.GetOriginSavedStatuses(actor.Actor.Slot)) && ((flags & 0x30) == 0x20 || (actor.Actor.Slot >= 4) == ((flags & 0x40) != 0)))?.Actor.Slot ?? -1;
@@ -419,7 +502,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
             return processTarget;
         }
         int target = System.Numerics.BitOperations.TrailingZeroCount((uint)processTarget);
-        bool automatic = mixedSlots is not null || angelWingCast || mixedDuel is { Phase: BattleNativeDuelPhase.Finisher } && (flags & 0x30) != 0x10;
+        bool automatic = mixedSlots is not null || angelWingCast || kit.Limit.Command == 19 && action.Command == 19 || mixedDuel is { Phase: BattleNativeDuelPhase.Finisher } && (flags & 0x30) != 0x10;
         if (!automatic)
         {
             return AbilityTargetMask(action, target);
@@ -434,12 +517,55 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
         {
             return checked((ushort)candidates.Aggregate(0, (mask, actor) => mask | (1 << actor.Actor.Slot)));
         }
-        int selected = ProcessRandomByte() % candidates.Length;
-        if (mixedSlots is not null && !enemy && action.AttackType is 3 or 4 or 21 or 25 or 32)
+        if (mixedSlots is null)
         {
-            return checked((ushort)(1 << candidates.OrderBy(actor => actor.Actor.HitPoints).ThenBy(actor => actor.Actor.Slot == candidates[selected].Actor.Slot ? 0 : 1).ThenBy(actor => actor.Actor.Slot).First().Actor.Slot));
+            return checked((ushort)(1 << candidates[ProcessRandomByte() % candidates.Length].Actor.Slot));
         }
-        return checked((ushort)(1 << candidates[selected].Actor.Slot));
+        int initialTarget = candidates[ProcessRandomByte() % candidates.Length].Actor.Slot;
+        bool healing = !enemy && action.AttackType is 3 or 4 or 21 or 25 or 32;
+        bool statuses = action.AttackType is not (3 or 4 or 5 or 6 or 13 or 16 or 21 or 25 or 32) && (action.Statuses0 != 0 || action.Statuses1 != 0);
+        bool damaging = enemy && action.AttackType is 2 or 8 or 11 or 15 or 20 or 22 or 26 or 33;
+        if (!healing && !statuses && !damaging)
+        {
+            return checked((ushort)(1 << (initialTarget)));
+        }
+        int chosen = candidates.OrderBy(actor => damaging && ProcessTargetAbsorbs(action, actor.Actor.Slot) ? 1 : 0)
+            .ThenBy(actor => statuses ? ProcessSlotsStatusPriority(action, actor.Actor, enemy) : 0)
+            .ThenBy(actor => healing ? actor.Actor.HitPoints : 0)
+            .ThenBy(actor => actor.Actor.Slot == initialTarget ? 0 : 1)
+            .ThenBy(actor => actor.Actor.Slot)
+            .First().Actor.Slot;
+        return checked((ushort)(1 << chosen));
+    }
+
+    private bool ProcessTargetAbsorbs(BattleNativeAction action, int slot)
+    {
+        ushort hostElement = Ff7GuestBattleElements.ToHost((byte)(action.Element & -action.Element));
+        return host.GuestAbilityTarget(slot).Native?.Affinities.Any(affinity => affinity.Rate == 6 && (hostElement & (1 << affinity.Type)) != 0) == true;
+    }
+
+    private int ProcessSlotsStatusPriority(BattleNativeAction action, Ff7BattleAiActor target, bool considerImmunity)
+    {
+        ushort saved = Ff7GuestBattleStatuses.ToOrigin(target.Statuses, host.GetOriginSavedStatuses(target.Slot));
+        uint battle = Ff7GuestBattleStatuses.ToOriginBattle(target.Statuses) | host.GetOriginBattleStatuses(target.Slot);
+        ushort missingSaved = (ushort)(action.Statuses0 & ~saved & 0x7F);
+        uint missingBattle = action.Statuses1 & ~battle;
+        if (considerImmunity && action.StatusAttack != 255 && !ProcessSlotsHasSusceptibleStatus(action.Statuses0, action.Statuses1, target))
+        {
+            return 2;
+        }
+        if (missingSaved == 0 && missingBattle == 0)
+        {
+            return 1;
+        }
+        return !considerImmunity || action.StatusAttack == 255 || ProcessSlotsHasSusceptibleStatus(missingSaved, missingBattle, target) ? 0 : 2;
+    }
+
+    private bool ProcessSlotsHasSusceptibleStatus(ushort saved, uint battle, Ff7BattleAiActor target)
+    {
+        uint mapped = Ff7GuestBattleStatuses.ToHostStatuses(saved, battle);
+        uint immunity = host.GuestAbilityTarget(target.Slot).Native is { } native ? ~native.NativeStatusMask : 0;
+        return (mapped & ~immunity) != 0 || (battle & Ff7GuestBattleStatuses.SupportedOwnedOriginBattle) != 0;
     }
 
     public void ProcessActionCompleted(ushort ability)
@@ -454,12 +580,32 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
         {
             throw new InvalidDataException("The completed action belongs to a different native Limit phase.");
         }
+        if (processCancelling)
+        {
+            processAction = null;
+            nextProcessAction = null;
+            processActionQueued = false;
+            if (action.Command == 238 || action.ActionId == 65532)
+            {
+                CancelProcess();
+            }
+            else
+            {
+                PrepareProcessCancellation();
+            }
+            return;
+        }
         processAction = nextProcessAction;
         nextProcessAction = null;
         processActionQueued = false;
         if (mixedDuel is { } duel)
         {
-            if (action.ActionId == 65530 && pendingDuelFinisher is byte finisher)
+            if (action.Command == 11 && pendingDuelOpening is byte opening)
+            {
+                pendingDuelOpening = null;
+                SelectProcessAction(241, opening);
+            }
+            else if (action.ActionId == 65530 && pendingDuelFinisher is byte finisher)
             {
                 pendingDuelFinisher = null;
                 SelectProcessAction(239, finisher);
@@ -482,11 +628,14 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
             else if (shot.Phase == BattleNativeShotPhase.Ending || shot.RemainingAmmo == 0)
             {
                 mixedShot = shot with { Phase = BattleNativeShotPhase.Ending };
-                SelectProcessAction(238, shot.ActionId);
+                if (processAction is null)
+                {
+                    SelectProcessAction(238, shot.ActionId);
+                }
             }
-            else
+            else if (processAction is null && shot.Phase != BattleNativeShotPhase.Ready)
             {
-                mixedShot = shot with { Phase = BattleNativeShotPhase.Ready, Ui = new(BattleTimedInputUiPhase.Active) };
+                throw new InvalidDataException("The native Shot phase completed before its source invocation acknowledgement.");
             }
         }
         else if (mixedSlots is { } slots && --mixedSlotsRemaining > 0)
@@ -509,11 +658,61 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
         angelWing = true;
     }
 
+    public void RequestProcessCancellation()
+    {
+        if (!ProcessActive || processCancelling)
+        {
+            return;
+        }
+        processCancelling = true;
+        nextProcessAction = null;
+        pendingDuelFinisher = null;
+        pendingDuelOpening = null;
+        ProcessFailure = null;
+        if (mixedDuel is { } duel)
+        {
+            mixedDuel = duel with { Phase = BattleNativeDuelPhase.Finisher, Ui = new(BattleTimedInputUiPhase.Closing) };
+        }
+        if (mixedShot is { } shot)
+        {
+            mixedShot = shot with { Phase = BattleNativeShotPhase.Ending, Ui = new(BattleTimedInputUiPhase.Closing) };
+        }
+        if (Invocation is null)
+        {
+            processAction = null;
+            processActionQueued = false;
+            PrepareProcessCancellation();
+        }
+    }
+
+    private void PrepareProcessCancellation()
+    {
+        if (processBackground?.Presentation.Effect is null)
+        {
+            CancelProcess();
+            return;
+        }
+        if (mixedDuel is not null)
+        {
+            QueueProcessAction(NativeBattleDuelRules.Control(65532, 0), true);
+        }
+        else if (mixedShot is { } shot)
+        {
+            SelectProcessAction(238, shot.ActionId);
+        }
+        else
+        {
+            CancelProcess();
+        }
+    }
+
     public void CancelProcess()
     {
         mixedProcessActive = false;
+        processCancelling = false;
         mixedDuel = null;
         mixedShot = null;
+        acceptedShotDebits = 0;
         mixedSlots = null;
         mixedSlotsAccepted = false;
         angelWingCast = false;
@@ -521,6 +720,13 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
         processAction = null;
         nextProcessAction = null;
         pendingDuelFinisher = null;
+        pendingDuelOpening = null;
+        processParticipantBindings = [];
+        if (processBackground is { } background)
+        {
+            background.Presentation.Effect?.Dispose();
+            processBackground = null;
+        }
         processActionQueued = false;
         ProcessFailure = null;
         capabilityVersion++;
@@ -532,11 +738,18 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
         {
             mixedDuel = duel with { Phase = BattleNativeDuelPhase.Ready, InputRing = ImmutableArray.Create<ushort>(0, 0, 0, 0, 0, 0, 0, 0), InputCursor = 0, AutomaticCountdown = 120, PendingPulse = 0, Ui = new(BattleTimedInputUiPhase.Active) };
         }
+    }
+
+    private void AcknowledgeProcessServiceCompletion()
+    {
         if (mixedShot is { Phase: BattleNativeShotPhase.Opening or BattleNativeShotPhase.AwaitingEffect } shot && processAction?.Command is 14 or 237)
         {
             mixedShot = shot with { Phase = BattleNativeShotPhase.Ready, Ui = new(BattleTimedInputUiPhase.Active) };
         }
     }
+
+    private CrossoverNativeMagicPresentationState? RetainedProcessState(BattleNativeAction action) => ProcessActive && action.Command is 237 or 238 or 241 ? PresentedFire?.Presentation : null;
+    private NativeBattleEffectPresentation? RetainedProcessOwner(BattleNativeAction action) => RetainedProcessState(action)?.Effect;
 
     private byte ProcessRandomByte()
     {
@@ -556,6 +769,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
             return;
         }
         mixedProcessActive = true;
+        CaptureProcessParticipants(enemies[0]);
         processClock = host.Tick;
         processRemainder = 0;
         if (!inventory.Any(Eligible))
@@ -571,22 +785,44 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
         }
         SelectProcessAction(2, inventory[slot].SpellId);
         angelWingCast = true;
-        processTarget = checked((ushort)(1 << enemies[ProcessRandomByte() % enemies.Length]));
+        processTarget = checked((ushort)(1 << enemies[0]));
     }
 
     private void CommitProcessCost(BattleNativeAction action, int target)
     {
-        if (mixedShot is not { } shot || action.Command != 237)
+        if (mixedShot is null || action.Command != 237)
         {
             return;
         }
-        ushort ammo = checked((ushort)(101 + shot.ActionId));
-        Ff7BattleGuestItemSelection selection = new(host.RequestId, host.Tick, ActorSlot, target, ammo);
-        encounter.Items = encounter.Items!.Reserve(selection).Complete(ActorSlot, target, ammo, false);
-        mixedShot = shot with { RemainingAmmo = checked((byte)(shot.RemainingAmmo - 1)) };
+        if (acceptedShotDebits <= 0)
+        {
+            throw new InvalidDataException("The source Shot phase has no accepted ammunition debit.");
+        }
+        acceptedShotDebits--;
     }
 
     public bool IsPresentationOnly(ushort ability) => processAction is { PresentationOnly: true } action && ProcessKey(action) == ability;
+
+    public string? PresentationOnlyUnsupportedReason(ushort ability, int targetSlot)
+    {
+        if (attack.Visual is not { } visual)
+        {
+            return "The native source actor is not ready.";
+        }
+        try
+        {
+            BattleNativeAction action = NativeAbility(ability);
+            var source = host.VisualPlacement(ActorSlot);
+            CrossoverGunbladeHostPlacement placement = new(Ff7BattlePosition.FromVector(source.Position), source.Yaw);
+            NativeBattleContactHalf contact = NativeBattleContactHalf.FromScratch(ProcessActorIndex(targetSlot), 0, 1, 0, 0, 0, 0);
+            CrossoverNativeMagicPresentationState state = fireProgram.Begin(visual.Model with { Index = 0 }, targetSlot, encounter.CrtRandom, contact, action, encounter.GlobalRandom, CreateArena(placement), RetainedProcessOwner(action), ProcessParticipantBindings, RetainedProcessState(action));
+            return fireProgram.TryPreflight(state, () => ReadAbilityAnchor(placement, targetSlot), () => ReadAbilityTransform(placement, targetSlot), CrossoverNativeSpriteRenderer.Camera(host.RenderCameraOutput, placement.Matrix), readForeignGeometry is null && encounter.GuestAt(targetSlot) is null ? null : () => ReadAbilityForeign(placement, targetSlot), out string? reason, readGroupForeign: readForeignGeometry is null ? null : slot => ReadAbilityForeign(placement, slot)) ? null : reason;
+        }
+        catch (Exception error) when (error is NotSupportedException or InvalidDataException or InvalidOperationException or ArgumentException or OverflowException)
+        {
+            return error.Message;
+        }
+    }
 
     public void BeginPresentationOnly(Ff7BattleGuestInvocation invocation, Ff7BattlePlacement source, Ff7BattleGuestAttackTarget target)
     {
@@ -596,8 +832,9 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
             throw new InvalidOperationException("The native presentation-only phase has no ready source owner.");
         }
         CrossoverGunbladeHostPlacement placement = new(Ff7BattlePosition.FromVector(source.Position), source.Yaw);
-        NativeBattleContactHalf contact = NativeBattleContactHalf.FromScratch(target.Slot == ActorSlot ? (byte)0 : (byte)3, 0, 0, 0, 0, 0, 0);
-        CrossoverNativeMagicPresentationState presentation = fireProgram.Begin(visual.Model with { Index = 0 }, target.Slot, encounter.CrtRandom, contact, action, encounter.GlobalRandom, CreateArena(placement));
+        NativeBattleContactHalf contact = NativeBattleContactHalf.FromScratch(ProcessActorIndex(target.Slot), 0, 1, 0, 0, 0, 0);
+        CrossoverNativeMagicPresentationState presentation = fireProgram.Begin(visual.Model with { Index = 0 }, target.Slot, encounter.CrtRandom, contact, action, encounter.GlobalRandom, CreateArena(placement), RetainedProcessOwner(action), ProcessParticipantBindings, RetainedProcessState(action));
+        processBackground = null;
         NativeBattleGraphicsPresentationStep clock = NativeBattleGraphicsPresentationClock.Advance(0, false, TimeSpan.FromTicks(HostTime(invocation.StartedAt)));
         fire = new(invocation, invocation.StartedAt, clock.Subticks, clock.HalfSubtick, placement, target.CollisionRadius, new(CrossoverGunbladeHostAttack.ProjectPhysicalSource(kit), new(0, 0, 0), 0), null, presentation, false);
     }

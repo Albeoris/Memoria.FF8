@@ -18,7 +18,7 @@ public sealed class NativeBattleGuestTextureMotionTests
         BattleModel body = assets.LoadPlayer(modelId);
         Assert.NotNull(body.NativeTextureAnimations);
         Assert.Equal(expected, body.NativeTextureAnimations.Value.ToArray());
-        NativeBattleGraphicsResource resource = assets.ReadNativeGraphicsResource(new() { Id = "source", IsPlayer = true, ModelId = modelId, WeaponId = 0 });
+        NativeBattleGraphicsResource resource = assets.ReadNativeGraphicsResource(new() { Id = "source", IsPlayer = true, ModelId = modelId });
         Assert.NotNull(resource.TextureAnimations);
         Assert.Equal(expected, resource.TextureAnimations.Value.ToArray());
         resource.Validate();

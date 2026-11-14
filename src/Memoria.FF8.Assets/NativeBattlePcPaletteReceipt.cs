@@ -23,12 +23,13 @@ public sealed record NativeBattlePcPaletteReceipt(ushort Clut, ImmutableArray<Na
         int previous = -1;
         foreach (NativeBattlePcPaletteEntry entry in Entries)
         {
-            if (entry.Index <= previous || x + entry.Index >= 1024)
+            int word = checked(y * 1024 + x + entry.Index);
+            if (entry.Index <= previous || word >= 1024 * 512)
             {
                 throw new InvalidDataException("A native palette receipt requires ordered entries inside physical CLUT storage.");
             }
             previous = entry.Index;
-            if (state.ReadVramWord(x + entry.Index, y) != entry.Word)
+            if (state.ReadVramWord(word % 1024, word / 1024) != entry.Word)
             {
                 return false;
             }

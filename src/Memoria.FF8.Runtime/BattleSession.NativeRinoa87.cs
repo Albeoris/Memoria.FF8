@@ -25,7 +25,7 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = rules.Rules.SummonColors ?? throw new NotSupportedException("Native Rinoa87 requires its actual color constants.");
         NativeCrtRandomState random = nativeCrtRandom ?? throw new NotSupportedException("Native Rinoa87 requires its retained CRT generator.");
         NativeBattleRinoa87Inputs controller = null!;
-        controller = new(nativeActionPackets, view, index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Rinoa87 requires its actual actor skeleton."), AdvanceLeaf, ReloadCommon);
+        controller = new(nativeActionPackets, view, index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Rinoa87 requires its actual actor skeleton."), AdvanceLeaf, ReloadCommon) { ReadForeignActorGeometry = actor => ReadNativeGraphicsForeignTarget(graphics, actor) };
         frame = NativeBattleRinoa87Controller.Advance(frame, controller);
         NativeEffectMemory = frame.Memory with { Rinoa87 = frame.State };
         nativeCrtRandom = random;
@@ -146,7 +146,7 @@ public sealed partial class BattleSession
                     return current with { Effect = current.Effect with { Pools = particle.Hierarchy.Pools } };
                 case NativeBattleRinoa87CaptureGround capture:
                     NativeBattleModulePoolTask body = new NativeBattleEffectHierarchy(current.Effect.Pools).Read(capture.Body);
-                    return CaptureGround(current, new(unchecked((short)body.ReadWord(76)), 0, unchecked((short)body.ReadWord(80))));
+                    return CaptureGround(current, new(unchecked((short)body.ReadWord(76)), 0, unchecked((short)body.ReadWord(80))), NativeBattlePilotVisualLifetimes.Identity(87, body, -1));
                 case NativeBattleRinoa87PublishWorld matrix:
                     return current with { Memory = current.Memory with { SharedCustomMatrix = new(matrix.Matrix, Enumerable.Repeat(true, 32).ToImmutableArray()) } };
                 default:
@@ -161,7 +161,7 @@ public sealed partial class BattleSession
             return drawn.Frame;
         }
 
-        NativeBattleRinoa87Frame CaptureGround(NativeBattleRinoa87Frame current, NativeBattleVector point)
+        NativeBattleRinoa87Frame CaptureGround(NativeBattleRinoa87Frame current, NativeBattleVector point, NativeBattlePilotVisualIdentity captureOwner)
         {
             ImmutableArray<byte> mesh = resources.Meshes[0x155AA5C];
             int count = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(mesh.AsSpan().Slice(4));
@@ -182,12 +182,32 @@ public sealed partial class BattleSession
             }
             NativeBattleThundaga105Bounds bounds = new(new(minimum[0], minimum[1], minimum[2]), new(maximum[0], maximum[1], maximum[2]));
             NativeBattleThundaga105CaptureTransform capture = NativeBattleRinoa87GroundCapture.Transform778AB0(point, bounds, projection, unchecked((short)(NativeCamera?.FocalLength ?? throw new NotSupportedException("Native778AB0 requires its actual focal WORD."))));
+            NativeBattleArenaGeometry? surface = null;
+            if (presentationArena is { } arena)
+            {
+                surface = NativeBattleArenaSurfaceQueries.Select(arena.Geometry, point);
+                arena.Capture(captureOwner, surface, capture.Projection, 64, 64, 768, 384);
+            }
             NativeBattleGroundCaptureWrite captured = NativeBattleRinoa87GroundCapture.Append778AB0(current.Memory, Ordering(), DrawStage);
             StoreOrdering(captured.Ordering);
             return current with { Memory = captured.Memory };
 
             NativeBattleGroundCaptureWrite DrawStage(NativeBattleGroundCaptureWrite next)
             {
+                if (surface is not null)
+                {
+                    NativeBattleStageState hostStage = NativeStage ?? throw new NotSupportedException("Host ground capture requires its presentation visibility owner.");
+                    NativeBattleStageGroup hostGroup = hostStage.Groups[0];
+                    NativeBattlePrimitiveProcess hostProcess = next.Memory.PrimitiveProcess ?? throw new NotSupportedException("Host ground capture requires its renderer process.");
+                    var hostGate = hostProcess.Enter5099D0(rules.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Host ground capture requires its actual renderer capability."));
+                    if (!hostGate.Draw || (hostGroup.Flags & 1) == 0)
+                    {
+                        return next with { Memory = next.Memory with { PrimitiveProcess = hostGate.Process } };
+                    }
+                    NativeBattleGfGeometryBatch packets = NativeBattleArenaBodyDrawing.Draw(surface, capture.Matrix, capture.Projection, hostGroup.ColorFlags, colors, captureOwner, 16, 17, hostGroup.ColorDepth);
+                    NativeBattleCommonPacketWrite hostWritten = NativeBattleCommonPacketArena.Append(hostGate.Process.PublishModelColor(hostGroup.ColorFlags), next.Ordering, packets);
+                    return new(next.Memory with { PrimitiveProcess = hostWritten.Process }, hostWritten.Ordering);
+                }
                 NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native778AB0 requires its actual stage group1 owner.");
                 NativeBattleStageGroup group = stage.Groups[1];
                 if ((group.Flags & 1) == 0)
@@ -237,6 +257,10 @@ public sealed partial class BattleSession
 
         NativeBattleRinoa87Frame Append(NativeBattleRinoa87Frame current, NativeBattleGfGeometryBatch batch, bool common)
         {
+            if (presentationArena?.TryReadCapture(768, 384, out NativeBattleArenaCaptureMaterial? material) == true)
+            {
+                batch = NativeBattleArenaDrawing.BindCaptureRegion(batch, material!);
+            }
             if (common)
             {
                 NativeEffectMemory = current.Memory;

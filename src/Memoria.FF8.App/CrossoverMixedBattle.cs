@@ -27,7 +27,7 @@ internal sealed class CrossoverMixedBattle : IDisposable
     public IReadOnlyList<CrossoverGuestHostActions> Guests { get; }
     public CrossoverGuestHostActions Actions => Guests.Single();
     public CrossoverGunbladeHostAttack Attack => Actions.Attack;
-    public CrossoverGuestHostActions? ActiveGuest => Guests.SingleOrDefault(guest => guest.Invocation is not null);
+    public CrossoverGuestHostActions? ActiveGuest => Guests.SingleOrDefault(guest => guest.Invocation is not null) ?? Guests.FirstOrDefault(guest => guest.HasProcessBackground);
 
     public CrossoverMixedBattle(string directory, CombinedSessionSave source, Ff7BattleSession host)
     {
@@ -186,7 +186,7 @@ internal sealed class CrossoverMixedBattle : IDisposable
         CrossoverGuestMagicSettlement? magic = actions.NextOrdinal > 1 ? new(roster, actions.Stock, actions.OriginCrtRandom, actions.CrtRandom, actions.CommittedSpells!.Value, actions.LegacyBattleMaskContinuation) : null;
         CrossoverGuestItemSettlement? items = actions.Items is { Ledger.IsEmpty: false } inventory ? new(roster.EncounterId, inventory, actions.OriginCrtRandom, actions.CrtRandom) : null;
         CrossoverGuestCrtSettlement? crt = magic is null && items is null && actions.CrtRandom != (actions.OriginCrtRandom ?? NativeCrtRandomState.FromColdProcess()) ? new(actions.OriginCrtRandom, actions.CrtRandom) : null;
-        return CrossoverBattleVitalsSettlement.PrepareResult(source with { MixedBattlePayload = Capture() }, installation, game.ReadNewGameCharacterVitals(), presentations: Guests.Select(CaptureAttack).ToArray(), magic: magic, items: items, crt: crt);
+        return CrossoverBattleVitalsSettlement.PrepareResult(source with { MixedBattlePayload = Capture() }, installation, game.ReadNewGameCharacterVitals(), presentations: Guests.Select(CaptureAttack).ToArray(), magic: magic, items: items, crt: crt, limits: encounter.LimitLearning.HasChanges ? encounter.LimitLearning : null);
     }
 
     public void Dispose()

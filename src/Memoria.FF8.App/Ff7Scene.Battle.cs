@@ -409,6 +409,15 @@ internal sealed partial class Ff7Scene
             unavailableBattleCommand = option;
             return;
         }
+        if (mixedCombat?.GuestAt(owner)?.StartsLimitSelectionWithoutTarget(option.Argument) == true)
+        {
+            if (battle.Submit(owner, option.Command, option.Argument, checked((ushort)(1 << owner))))
+            {
+                selectedBattleCommand = null;
+                battleCommandPage = null;
+            }
+            return;
+        }
         selectedBattleCommand = option;
         BeginGuestMagicSelection(option);
         displayedGuestSmartPreview = null;

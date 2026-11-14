@@ -24,6 +24,7 @@ internal sealed partial class CrossoverGuestHostActions
         ArgumentNullException.ThrowIfNull(progress);
         progress.Validate();
         originLimitProgress = progress;
+        encounter.LimitLearning = encounter.LimitLearning.Bind(sourceShotFlags, progress.SpecialMagicFlags);
     }
 
     private IReadOnlyList<CrossoverGuestAbility> ReadNativeAbilities() => abilityCatalog.Read(encounter.Working, kit, originLimitProgress, limitSelection?.Crisis ?? 0);
@@ -117,7 +118,7 @@ internal sealed partial class CrossoverGuestHostActions
             {
                 if (IsProcessInvocation(choice.Key))
                 {
-                    result.Add(new(Ff7BattleCommand.Magic, choice.Key, choice.Name, 0x12, 1, ProcessInvocationUnsupportedReason(choice)) { Category = choice.Category, RequiresMagic = false });
+                    result.Add(new(Ff7BattleCommand.Magic, choice.Key, choice.Name, StartsLimitSelectionWithoutTarget(choice.Key) ? (byte)0x10 : (byte)0x12, 1, ProcessInvocationUnsupportedReason(choice)) { Category = choice.Category, RequiresMagic = false });
                     continue;
                 }
                 if (ProcessActive && processAction is { } activeProcess && ProcessKey(activeProcess) == choice.Key)
@@ -171,7 +172,7 @@ internal sealed partial class CrossoverGuestHostActions
     {
         if (command == Ff7BattleCommand.Magic && IsProcessInvocation(ability))
         {
-            return null;
+            return ProcessInvocationTargetIsLegal(ability, target.Slot) ? null : "This native Limit selects its own targets.";
         }
         if (command == Ff7BattleCommand.Magic && HandlesOperation(ability))
         {
@@ -197,7 +198,7 @@ internal sealed partial class CrossoverGuestHostActions
     {
         if (command == Ff7BattleCommand.Magic && IsProcessInvocation(ability))
         {
-            return ProcessInvocationUnsupportedReason(ReadOriginAbilities().Single(choice => choice.Key == ability)) is null;
+            return ProcessInvocationTargetIsLegal(ability, target.Slot) && ProcessInvocationUnsupportedReason(ReadOriginAbilities().Single(choice => choice.Key == ability)) is null;
         }
         if (command == Ff7BattleCommand.Magic && IsPresentationOnly(ability))
         {
@@ -342,11 +343,11 @@ internal sealed partial class CrossoverGuestHostActions
         {
             ushort mask = AbilityTargetMask(original, target);
             int[] slots = host.Actors.Where(actor => (mask & (1 << actor.Actor.Slot)) != 0).Select(actor => actor.Actor.Slot).Order().ToArray();
-            ImmutableArray<CrossoverNativeMagicTarget> targets = CrossoverNativeMagicTarget.Bind(ActorSlot, slots, (_, index) => contact with { ActorIndex = index });
+            ImmutableArray<CrossoverNativeMagicTarget> targets = BindPresentationTargets(slots, (_, index) => contact with { ActorIndex = index });
             ImmutableArray<CrossoverNativeMagicTarget> contacts = ((original.TargetFlags ?? throw new InvalidDataException("The original action has no target contract.")) & 2) != 0
                 ? Enumerable.Range(0, original.HitCount).Select(_ => targets.Single(selected => selected.HostSlot == target)).ToImmutableArray()
                 : Enumerable.Range(0, original.HitCount).SelectMany(_ => targets).ToImmutableArray();
-            CrossoverNativeMagicPresentationState state = fireProgram.Begin(visual.Model with { Index = 0 }, target, encounter.CrtRandom, targets[0].Contact, original, encounter.GlobalRandom, CreateArena(placement)) with { Targets = targets, Contacts = contacts };
+            CrossoverNativeMagicPresentationState state = fireProgram.Begin(visual.Model with { Index = 0 }, target, encounter.CrtRandom, targets[0].Contact, original, encounter.GlobalRandom, CreateArena(placement), RetainedProcessOwner(original), ProcessParticipantBindings, RetainedProcessState(original)) with { Targets = targets, Contacts = contacts };
             return fireProgram.TryPreflight(state,
                 () => ReadAbilityAnchor(placement, target),
                 () => ReadAbilityTransform(placement, target),

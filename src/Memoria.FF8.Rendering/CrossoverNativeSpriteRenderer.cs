@@ -113,7 +113,7 @@ public sealed class CrossoverNativeSpriteRenderer(NativeBattlePrimitiveTables ta
         return native.DrawnTriangles;
     }
 
-    private sealed class HostPass(ITriangleRenderer host, int width, int height, float originToHostScale) : ITriangleRenderer
+    private sealed class HostPass(ITriangleRenderer host, int width, int height, float originToHostScale) : ITriangleRenderer, ILineRenderer
     {
         public void Begin(int width, int height, Vector4 clearColor, float clearDepth = 1)
         {
@@ -125,8 +125,28 @@ public sealed class CrossoverNativeSpriteRenderer(NativeBattlePrimitiveTables ta
 
         public void Draw(in TriangleVertex a, in TriangleVertex b, in TriangleVertex c, in TriangleMaterial material)
         {
+            TriangleVertex first = Map(a);
+            TriangleVertex second = Map(b);
+            TriangleVertex third = Map(c);
+            if (Math.Max(first.Position.X, Math.Max(second.Position.X, third.Position.X)) < 0 || Math.Min(first.Position.X, Math.Min(second.Position.X, third.Position.X)) >= width || Math.Max(first.Position.Y, Math.Max(second.Position.Y, third.Position.Y)) < 0 || Math.Min(first.Position.Y, Math.Min(second.Position.Y, third.Position.Y)) >= height)
+            {
+                return;
+            }
             TriangleMaterial mapped = material with { DepthComparison = material.DepthComparison == TriangleDepthComparison.Always ? TriangleDepthComparison.Always : TriangleDepthComparison.GreaterEqual };
-            host.Draw(Map(a), Map(b), Map(c), mapped);
+            host.Draw(first, second, third, mapped);
+        }
+
+        public void DrawLine(in TriangleVertex a, in TriangleVertex b, in TriangleMaterial material)
+        {
+            TriangleVertex first = Map(a);
+            TriangleVertex second = Map(b);
+            if (Math.Max(first.Position.X, second.Position.X) < 0 || Math.Min(first.Position.X, second.Position.X) >= width || Math.Max(first.Position.Y, second.Position.Y) < 0 || Math.Min(first.Position.Y, second.Position.Y) >= height)
+            {
+                return;
+            }
+            ILineRenderer lines = host as ILineRenderer ?? throw new NotSupportedException("Mixed native lines require an ordered line-capable host renderer.");
+            TriangleMaterial mapped = material with { DepthComparison = material.DepthComparison == TriangleDepthComparison.Always ? TriangleDepthComparison.Always : TriangleDepthComparison.GreaterEqual };
+            lines.DrawLine(first, second, mapped);
         }
 
         private TriangleVertex Map(TriangleVertex source)

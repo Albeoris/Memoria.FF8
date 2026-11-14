@@ -93,12 +93,13 @@ public static partial class NativeBattleEffectTextureReader
             int paletteSize = depth == 0 ? 16 : depth == 1 ? 256 : 0;
             int paletteX = (clut & 63) * 16;
             int paletteY = (clut & 0x7FFF) >> 6;
+            int paletteStart = paletteY * 1024 + paletteX;
             Span<byte> palette = stackalloc byte[512];
-            if (replacement.PaletteWords.Length != paletteSize * 2 || paletteX + paletteSize > 1024)
+            if (replacement.PaletteWords.Length != paletteSize * 2 || paletteStart > 1024 * 512 - paletteSize)
             {
                 return false;
             }
-            state.ReadVramInto(2 * (paletteY * 1024 + paletteX), palette[..(paletteSize * 2)]);
+            state.ReadVramInto(2 * paletteStart, palette[..(paletteSize * 2)]);
             if (!palette[..(paletteSize * 2)].SequenceEqual(replacement.PaletteWords.AsSpan()))
             {
                 return false;

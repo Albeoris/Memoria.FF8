@@ -39,6 +39,7 @@ public readonly record struct Ff7BattleDamageAction(byte Formula, byte Power, by
     public bool SourceMissingHitPoints { get; init; }
     public int DamageScalePercent { get; init; } = 100;
     public int OriginDamageMultiplier { get; init; } = 1;
+    public uint GuestProcessBattleStatuses { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public int MinimumDamage { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]

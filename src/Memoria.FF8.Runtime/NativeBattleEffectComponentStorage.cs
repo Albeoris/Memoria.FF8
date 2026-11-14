@@ -3,6 +3,10 @@
 /// <summary>Detaches the native effect texture owner for an embedded action component.</summary>
 public static class NativeBattleEffectComponentStorage
 {
+    public static NativeBattleAuxiliaryState Capture(NativeBattleAuxiliaryState source) => NativeBattleStorageSnapshots.Capture(source);
+    public static NativeBattleAuxiliaryState Restore(NativeBattleAuxiliaryState source) => NativeBattleStorageSnapshots.Restore(source);
+    public static NativeBattleModuleState Capture(NativeBattleModuleState source) => NativeBattleStorageSnapshots.Capture(source);
+    public static NativeBattleModuleState Restore(NativeBattleModuleState source) => NativeBattleStorageSnapshots.Restore(source);
     public static NativeBattleEffectTextureState Capture(NativeBattleEffectTextureState source) => NativeBattleStorageSnapshots.Capture(source);
     public static NativeBattleEffectTextureState Restore(NativeBattleEffectTextureState source) => NativeBattleStorageSnapshots.Restore(source);
     public static NativeBattleOriginalEffectState Capture(NativeBattleOriginalEffectState source) => NativeBattleStorageSnapshots.Capture(source);

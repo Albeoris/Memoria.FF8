@@ -28,14 +28,16 @@ internal static class NativeBattlePcTextureUploadSource
         int paletteX = (clut & 63) * 16;
         int paletteY = (clut & 0x7FFF) >> 6;
         int paletteLength = depth == 0 ? 16 : 256;
-        if (paletteX + paletteLength > 1024 || paletteY >= 512)
+        int paletteStart = paletteY * 1024 + paletteX;
+        if (paletteStart > 1024 * 512 - paletteLength)
         {
             throw new InvalidDataException("Native indexed upload requires its bounded live CLUT.");
         }
         uint[] palette = new uint[paletteLength];
         for (int index = 0; index < palette.Length; index++)
         {
-            palette[index] = NativeBattlePcPalette.Decode467370(state.ReadVramWord(paletteX + index, paletteY));
+            int word = paletteStart + index;
+            palette[index] = NativeBattlePcPalette.Decode467370(state.ReadVramWord(word % 1024, word / 1024));
         }
         byte[] pixels = new byte[checked(width * height * 4)];
         for (int row = 0; row < height; row++)

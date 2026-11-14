@@ -100,6 +100,10 @@ public sealed partial class Ff7BattleSession
         {
             return Ff7BattleTurnAdvanceBoundary.Intro;
         }
+        if (guestAttacks.OfType<IFf7BattleGuestProcess>().Any(process => process.ProcessActive))
+        {
+            return Ff7BattleTurnAdvanceBoundary.LimitSelection;
+        }
         if (BeatRushSelecting)
         {
             return Ff7BattleTurnAdvanceBoundary.LimitSelection;

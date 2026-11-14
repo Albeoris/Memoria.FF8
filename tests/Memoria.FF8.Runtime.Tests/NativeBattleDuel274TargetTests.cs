@@ -104,6 +104,40 @@ public sealed class NativeBattleDuel274TargetTests
         Assert.Equal(new[] { "contact0", "texture" }, fixture.Calls);
     }
 
+    [Fact]
+    public void Host_target_keeps_actual_anchor_without_a_fabricated_native_identity_or_camera_category()
+    {
+        Fixture fixture = new(foreign: true);
+        NativeBattleDuel274TaskStep step = fixture.Advance(fixture.Frame);
+        NativeBattleModulePoolTask task = step.Pool.Slots[0];
+        Assert.Null(fixture.Models[3].ModelId4);
+        Assert.Null(fixture.Models[3].SequenceByte145);
+        Assert.Equal((ushort)100, task.ReadWord(40));
+        Assert.Equal((ushort)11, task.ReadWord(42));
+        Assert.Equal((ushort)102, task.ReadWord(44));
+        Assert.DoesNotContain(fixture.Calls, call => call.StartsWith("camera", StringComparison.Ordinal));
+        Assert.Equal(new[] { "bind", "sequence6", "file715", "draw6" }, fixture.Calls);
+    }
+
+    [Fact]
+    public void Missing_native_identity_remains_unsupported_without_an_explicit_foreign_role_owner()
+    {
+        Fixture fixture = new(foreign: true, foreignRoles: false);
+        Assert.Throws<NotSupportedException>(() => fixture.Advance(fixture.Frame));
+    }
+
+    [Theory]
+    [InlineData((byte)140, (short)-3098)]
+    [InlineData((byte)84, (short)-1898)]
+    public void Native_content_positioning_keeps_its_original_identity_contract(byte modelId, short expectedZ)
+    {
+        Fixture fixture = new();
+        fixture.Models[3] = fixture.Models[3] with { ModelId4 = modelId };
+        NativeBattleDuel274TaskStep step = fixture.Advance(fixture.Frame);
+        Assert.Equal(expectedZ, unchecked((short)step.Pool.Slots[0].ReadWord(44)));
+        Assert.All(fixture.Models.Take(3), model => Assert.Equal(modelId == 84 ? (short)1012 : (short)12, model.Transform!.Position28.Z));
+    }
+
     private static NativeBattleDuel274Frame Task(NativeBattleDuel274Frame frame, Func<NativeBattleModulePoolTask, NativeBattleModulePoolTask> update)
     {
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
@@ -118,8 +152,12 @@ public sealed class NativeBattleDuel274TargetTests
         private NativeBattleDuel274Resources Resources { get; }
         private NativeBattleDuel274SelectedServices Inputs { get; }
 
-        public Fixture()
+        public Fixture(bool foreign = false, bool foreignRoles = true)
         {
+            if (foreign)
+            {
+                Models[3] = Models[3] with { ModelId4 = null, SequenceByte145 = null };
+            }
             NativeBattleEffectTaskPool target = NativeBattleEffectTaskPool.Initialize(0x25084A8, NativeBattleEffectNodeMemory.ArenaAddress, 116, 1);
             (target, _) = target.Append(0x689AC0);
             target = NativeBattleTaskFixture.EditPool(target, data => data with { Slots = target.Slots.SetItem(0, target.Slots[0].WriteByte(15, 6).WriteByte(16, 1).WriteDword(20, NativeBattleDuel274Controller.Address(3))) });
@@ -137,6 +175,10 @@ public sealed class NativeBattleDuel274TargetTests
             data[checked((int)(0x110E3E6 - NativeBattleDuel274Resources.Address))] = 49;
             Resources = new(data.ToImmutableArray(), []);
             NativeBattleDuel274ActorServices actors = new(index => Models[index].Flags0, (index, flags) => Models[index] = Models[index] with { Flags0 = flags }, _ => 0, index => index, _ => throw new InvalidOperationException("Bounds are not re-read by the target."));
+            if (foreign && foreignRoles)
+            {
+                actors = actors with { IsNativeModel = (index, modelId) => index != 3 && Models[index].ModelId4 == modelId };
+            }
             Inputs = new(actors, index => Models[index], (index, model) => Models[index] = model, _ => new(100, 101, 102, 103), (current, index, row) =>
             {
                 Assert.Equal(0, index);
@@ -169,7 +211,7 @@ public sealed class NativeBattleDuel274TargetTests
             {
                 Calls.Add("draw" + selector);
                 return current;
-            }, _ => throw new InvalidOperationException("No transition is active."), (_, _) => throw new InvalidOperationException("No transition is active."));
+            }, _ => throw new InvalidOperationException("No transition is active."), (_, _) => throw new InvalidOperationException("No transition is active.")) { NativeCameraEnabled = !foreign };
         }
 
         public NativeBattleDuel274TaskStep Advance(NativeBattleDuel274Frame frame) => NativeBattleDuel274Target.AdvanceSelected689AC0(frame, 0, Resources, Inputs);

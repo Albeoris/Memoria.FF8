@@ -126,13 +126,13 @@ public sealed class NativeBattleContactFlagTests
             Combatants =
             [
                 new() { Id = "actor", Name = "Actor", IsPlayer = true, ModelId = 1, Attack = 1, Luck = 0, MaximumHp = 1000, CurrentHp = 1000 },
-                new() { Id = "target", Name = "Target", MaximumHp = 800, CurrentHp = 400, Defense = 255, NativeCombatantFlags = nativeFlags, NativeStatus0 = savedStatuses, NativeStatus1 = battleStatuses }
+                new() { Id = "target", Name = "Target", MaximumHp = 800, CurrentHp = 401, Defense = 255, NativeCombatantFlags = nativeFlags, NativeStatus0 = savedStatuses, NativeStatus1 = battleStatuses }
             ]
         }, BattleAtbMode.Normal);
         BattleNativeAction action = Action(7, 0) with { Power = 8, Critical = critical };
         NativeBattleContactPacket packet = Resolve(session, action);
         Assert.Equal(expectedDamage, packet.Primary.PresentedAmount);
-        Assert.Equal(400 - expectedDamage, session.Combatants.Single(actor => actor.Id == "target").CurrentHp);
+        Assert.Equal(401 - expectedDamage, session.Combatants.Single(actor => actor.Id == "target").CurrentHp);
         Assert.Equal(failed, (packet.Primary.HitFlags3 & 4) != 0);
     }
 

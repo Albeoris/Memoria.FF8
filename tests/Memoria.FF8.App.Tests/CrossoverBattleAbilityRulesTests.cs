@@ -250,7 +250,7 @@ public sealed class CrossoverBattleAbilityRulesTests
         Assert.Null(CrossoverBattleAbilityRules.UnsupportedReason(Action(2) with { HitCount = 2 }));
         for (byte type = 0; type <= 36; type++)
         {
-            if (type is not (1 or 2 or 3 or 4 or 5 or 6 or 8 or 9 or 11 or 15 or 20 or 21 or 22 or 25 or 26 or 27 or 29 or 32 or 35 or 36))
+            if (type is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or 11 or 15 or 20 or 21 or 22 or 25 or 26 or 27 or 29 or 32 or 35 or 36))
             {
                 unsupported.Add(Action(type));
             }

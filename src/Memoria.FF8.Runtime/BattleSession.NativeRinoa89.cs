@@ -29,7 +29,7 @@ public sealed partial class BattleSession
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Wishing Star requires its actual contact pointer.");
         int count = header.ReadByte(16) >> 3;
         ImmutableArray<byte> targets = Enumerable.Range(0, count).Select(index => nativeActionPackets.ReadContact(checked(first + index)).Primary.ActorIndex).ToImmutableArray();
-        NativeBattleRinoa89PreparationServices preparation = new(index => graphics.Models[index], WriteModel, index => ReadNativeModelAnchor(graphics, index), targets, checked(0x1D28344u + (uint)first * 24), body, Bind, Select, NativeBattleRinoa89Controller.InitializeShards6FA3E0);
+        NativeBattleRinoa89PreparationServices preparation = new(index => graphics.Models[index], WriteModel, index => ReadNativeModelAnchor(graphics, index), targets, checked(0x1D28344u + (uint)first * 24), body, Bind, Select, NativeBattleRinoa89Controller.InitializeShards6FA3E0) { PartyActors = ReadPresentationSideActors(true) };
         NativeBattleRinoa89BodyInputs inputs = new(resources, index => graphics.Models[index], WriteModel, Execute, ReadBone19, Contacts, Poll, Reload);
 
         int beamMesh = checked((int)(0x1497140 - NativeBattleRinoa89Resources.StaticAddress));
@@ -163,7 +163,7 @@ public sealed partial class BattleSession
                     return Particle(NativeBattleRinoa89MeshDrawing.DrawReturnBurst6FA780(current, mesh.Anchor.X, mesh.Anchor.Y, mesh.Anchor.Z, mesh.Age, view, projection, colors, resources, NativeBattleRinoa89Visuals.Task(current, NativeBattleRinoa89Controller.Body, primitive: 11)));
                 case NativeBattleRinoa89SpawnBeam beam:
                     NativeBattleEffectTaskPool beamPool = current.Effect.Pools.Single(pool => pool.DescriptorAddress == NativeBattleRinoa89Controller.Beams);
-                    NativeBattleRinoa89BeamBirth birth = beam.Wide ? NativeBattleRinoa89Controller.SpawnBeam6FD4D0(current, beamPool, beam.X, beam.Y, resources.Program(0x14A3EB0)) : NativeBattleRinoa89Controller.SpawnBeam6FDB80(current, beamPool, beam.X, beam.Y, resources.Program(0x14A3EB0));
+                    NativeBattleRinoa89BeamBirth birth = beam.Wide ? NativeBattleRinoa89Controller.SpawnBeam6FDB80(current, beamPool, beam.X, beam.Y, resources.Program(0x14A3EB0)) : NativeBattleRinoa89Controller.SpawnBeam6FD4D0(current, beamPool, beam.X, beam.Y, resources.Program(0x14A3EB0));
                     return birth.Frame with { Effect = birth.Frame.Effect with { Pools = birth.Frame.Effect.Pools.Select(pool => pool.DescriptorAddress == beamPool.DescriptorAddress ? birth.Pool : pool).ToImmutableArray() } };
                 case NativeBattleRinoa89Stars stars:
                     NativeBattleRinoa89StarDraw drawnStars = NativeBattleRinoa89StarDrawing.Draw6FCD50(current, view, projection, stars.Anchor.X, stars.Anchor.Y, stars.Anchor.Z, 0, 65536, true);
@@ -236,14 +236,22 @@ public sealed partial class BattleSession
                 }
                 int index = checked((int)(relative / 156));
                 NativeBattleGraphicsModel model = graphics.Models[index];
-                NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native6FD2D0 requires its actor skeleton.");
-                ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(model, source);
                 short selector = BinaryPrimitives.ReadInt16LittleEndian(reference.AsSpan(6));
-                if (selector < 0 || selector >= bones.Length)
+                NativeBattleActionMatrix matrix;
+                if (ReadNativeForeignPose(graphics, index) is { } foreign)
                 {
-                    throw new InvalidDataException("Native6FD2D0 selected a bone outside its actor skeleton.");
+                    matrix = foreign.RequireBoneMatrix(selector);
                 }
-                NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Compose56C2F0(model.GeometryWorldMatrix ?? throw new NotSupportedException("Native6FD2D0 requires its actor world matrix."), bones[selector]);
+                else
+                {
+                    NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native6FD2D0 requires its actor skeleton.");
+                    ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(model, source);
+                    if (selector < 0 || selector >= bones.Length)
+                    {
+                        throw new InvalidDataException("Native6FD2D0 selected a bone outside its actor skeleton.");
+                    }
+                    matrix = NativeBattleGfMatrices.Compose56C2F0(model.GeometryWorldMatrix ?? throw new NotSupportedException("Native6FD2D0 requires its actor world matrix."), bones[selector]);
+                }
                 point = NativeBattleGfMatrices.Transform460840(matrix, new(BinaryPrimitives.ReadInt16LittleEndian(reference), BinaryPrimitives.ReadInt16LittleEndian(reference.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(reference.AsSpan(4))));
             }
             NativeBattleEffectTaskPool pool = current.Effect.Pools.Single(bank => bank.DescriptorAddress == NativeBattleRinoa89Controller.Sprites);
@@ -258,20 +266,22 @@ public sealed partial class BattleSession
                 for (int index = 0; index < stage.Groups.Length; index++)
                 {
                     NativeBattleStageGroup group = stage.Groups[index];
-                    NativeBattlePoseSource source = group.Source ?? throw new NotSupportedException("Native5095B0 requires its stage skeleton.");
-                    NativeBattleDecodedPose pose = source.Sample(group.Animation, group.Counter, group.PoseFlags);
-                    group = group with { Matrices = NativeBattlePoseMatrices.ComposeStageCamera(NativeBattlePoseMatrices.StageBoneMatrices(source, pose), view, 0), Flags = (byte)((group.Flags & 1) != 0 ? group.Flags | 2 : group.Flags) };
+                    if (presentationArena is null)
+                    {
+                        NativeBattlePoseSource source = group.Source ?? throw new NotSupportedException("Native5095B0 requires its stage skeleton.");
+                        NativeBattleDecodedPose pose = source.Sample(group.Animation, group.Counter, group.PoseFlags);
+                        group = group with { Matrices = NativeBattlePoseMatrices.ComposeStageCamera(NativeBattlePoseMatrices.StageBoneMatrices(source, pose), view, 0) };
+                    }
+                    group = group with { Flags = (byte)((group.Flags & 1) != 0 ? group.Flags | 2 : group.Flags) };
                     stage = stage with { Groups = stage.Groups.SetItem(index, group) };
                 }
                 NativeStage = stage;
             }
-            int start = callback == 0x6FBE40 ? 0 : 3;
-            int end = callback == 0x6FBE40 ? 3 : 7;
             if (callback is not (0x6FBDE0 or 0x6FBE00 or 0x6FBE40 or 0x6FBE80))
             {
                 throw new NotSupportedException("Native Wishing Star selected an unknown visibility callback.");
             }
-            for (int index = start; index < end; index++)
+            foreach (int index in ReadPresentationSideActors(callback == 0x6FBE40))
             {
                 NativeBattleGraphicsModel model = graphics.Models[index];
                 if ((model.Flags0 & 2) == 0)
