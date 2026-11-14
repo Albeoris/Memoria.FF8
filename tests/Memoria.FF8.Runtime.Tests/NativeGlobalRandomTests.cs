@@ -5,6 +5,42 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeGlobalRandomTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Graphicsless_stage_camera_selection_belongs_to_legacy_nonexpanded_sessions(bool expanded)
+    {
+        NativeGlobalRandomState before = new(3);
+        NativeGlobalRandomState selected = before.Draw(out ushort roll);
+        BattleSession battle = new(new BattleDefinition
+        {
+            UsesExpandedRoster = expanded,
+            NativeGlobalRandom = before,
+            NativeStageCameraBank = new([0, 0]),
+            NativeStageCameraSelectors = [6, 7],
+            NativeStageCameraControl = [2],
+            NativeFlags = 0x80,
+            NativeEntry = new(0, 0),
+            Combatants = [new() { Id = "player", Name = "Player", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
+        }, BattleAtbMode.Normal);
+
+        Assert.Null(battle.NativeGraphics);
+        Assert.Equal((byte)0, battle.NativeEntryAdvantage);
+        NativeBattleCameraState camera = Assert.IsType<NativeBattleCameraState>(battle.NativeCamera);
+        if (expanded)
+        {
+            Assert.Equal(new NativeGlobalRandomChange(before, before, 0), battle.NativeGlobalRandomChange);
+            Assert.Null(camera.ControlCursor);
+            Assert.Equal(0, camera.Variables[0]);
+        }
+        else
+        {
+            Assert.Equal(new NativeGlobalRandomChange(before, selected, 1), battle.NativeGlobalRandomChange);
+            Assert.Equal(0, camera.ControlCursor);
+            Assert.Equal(6 + (roll & 1), camera.Variables[0]);
+        }
+    }
+
     [Fact]
     public void SavedGeneratorPreservesDwordOverflowAndFastAdvanceMatchesRepeatedCalls()
     {

@@ -151,7 +151,7 @@ public sealed partial class BattleSession
         if (initializeNativeAi)
         {
             RefreshNativeKnownMagicStocks();
-            if (definition.NativeGraphics is null)
+            if (!UsesExpandedRoster && definition.NativeGraphics is null)
             {
                 InitializeNativeStageCamera();
             }

@@ -19,7 +19,7 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         var (logicalDefinition, selected) = CreateDefinitions(game, assets, allyCount, enemyCount, authoredCount, expanded: true);
         BattleSession logical = new(logicalDefinition, BattleAtbMode.TurnBased);
         string before = LogicalState(logical);
-        ulong initialGlobalCalls = logical.NativeGlobalRandomChange!.Calls;
+        AssertUnselectedStageCamera(logical);
         ExpandedBattlePresentationProcess process = new(logical, selected);
         NativeBattleGraphicsRoster roster = logical.ReadExpandedPresentationRoster();
 
@@ -109,7 +109,7 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         Assert.Equal(prepared.Frame, process.PreparedPresentation.Frame);
         AssertCompletedModelOwners(process, roster, selected.NativeGraphics!);
         AssertRandomExchange(logical, process);
-        Assert.True(process.GlobalRandomCalls > initialGlobalCalls);
+        Assert.True(process.GlobalRandomCalls > 0);
         Assert.True(string.Equals(before, LogicalState(logical), StringComparison.Ordinal), "Presentation entry or idle changed the logical battle.");
     }
 
@@ -121,6 +121,8 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         var (logicalDefinition, selected) = CreateDefinitions(game, assets, 3, 4, 4, expanded: false);
         BattleSession native = new(selected, BattleAtbMode.TurnBased);
         BattleSession logical = new(logicalDefinition with { UsesExpandedRoster = true }, BattleAtbMode.TurnBased);
+        AssertUnselectedStageCamera(logical);
+        Assert.Equal(native.NativeEntryAdvantage, logical.NativeEntryAdvantage);
         var process = new ExpandedBattlePresentationProcess(logical, selected);
         EntryObservations nativeEntry = new();
         for (int callback = 0; callback < EntryBudget && native.NativeGraphics!.EntryLifecycle < 3; callback++)
@@ -277,6 +279,14 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         Assert.Equal(logical.CurrentCrtRandom, process.CurrentCrtRandom);
     }
 
+    private static void AssertUnselectedStageCamera(BattleSession logical)
+    {
+        NativeGlobalRandomChange initial = Assert.IsType<NativeGlobalRandomChange>(logical.NativeGlobalRandomChange);
+        Assert.Equal(0UL, initial.Calls);
+        Assert.Equal(initial.Before, initial.After);
+        Assert.Null(Assert.IsType<NativeBattleCameraState>(logical.NativeCamera).ControlCursor);
+    }
+
     internal static (BattleDefinition Logical, BattleDefinition Selected) CreateDefinitions(GameAssets game, BattleAssets assets, int allyCount, int enemyCount, int authoredCount, bool expanded)
     {
         BattleEncounter encounter = assets.LoadEncounter(7);
@@ -315,6 +325,9 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
             NativeEntry = new(0, 0),
             NativeGlobalRandom = new(0),
             NativeCrtRandom = new(1),
+            NativeStageCameraBank = stage.NativeCameraBank,
+            NativeStageCameraSelectors = [encounter.PrimaryCamera, encounter.AlternativeCamera],
+            NativeStageCameraControl = stage.NativeCameraControl,
             PersistentAiVariables = [1, 0, 0x1234, 0, 0, 0, 0, 0],
             Items = [new(1, 3)]
         };
@@ -347,9 +360,6 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
             NativeGlobalSoundProcess = music.SoundProcess,
             NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5),
             NativeStageSource = stage.NativeSource,
-            NativeStageCameraBank = stage.NativeCameraBank,
-            NativeStageCameraSelectors = [encounter.PrimaryCamera, encounter.AlternativeCamera],
-            NativeStageCameraControl = stage.NativeCameraControl,
             NativeSavedOptions = game.ReadNewGameInputConfiguration().Options,
             NativeInputButtonMap = game.ReadNewGameInputConfiguration().ButtonMap,
             LimitProgress = game.ReadNewGameLimitProgress(),
