@@ -26,7 +26,7 @@ public sealed partial class BattleSession
             NativeBattleTaskOperation.AcceptPublishedEffect(effect, NativeEffectMemory, ordering);
         }
     }
-    public bool NativeEntryReady => NativeGraphics?.EntryReady ?? true;
+    public bool NativeEntryReady => expandedPresentationProcess?.EntryReady ?? NativeGraphics?.EntryReady ?? true;
     public bool? NativeGraphicsLoading => NativeGraphics is null ? null : NativeGraphics.ModelLoadCount != 0;
     public int NativeEffectTaskCount => (NativeGraphics ?? throw new NotSupportedException("Native graphics completion requires its original effect task owner.")).Effects.PublishedCount;
 

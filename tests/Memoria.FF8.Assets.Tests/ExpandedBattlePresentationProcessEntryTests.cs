@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Reflection;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
 
@@ -7,6 +8,118 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class ExpandedBattlePresentationProcessEntryTests
 {
     private const int EntryBudget = 1200;
+
+    [Theory]
+    [InlineData(4, 5)]
+    [InlineData(11, 14)]
+    public void Attached_entry_and_waiting_frames_share_the_main_callback_and_timer_owner(int allyCount, int enemyCount)
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        var (logicalDefinition, selected) = CreateDefinitions(game, assets, allyCount, enemyCount, 4, expanded: true);
+        NativeExamTimerState initialTimer = NativeExamTimerState.FromColdProcess().SetRemaining(300).Display(4, 5);
+        logicalDefinition = logicalDefinition with { NativeExamTimerAtEntry = initialTimer };
+        BattleSession logical = new(logicalDefinition, BattleAtbMode.TurnBased);
+        ExpandedBattlePresentationProcess process = new(logical, selected);
+        string before = LogicalState(logical);
+        Assert.Null(logical.NativeExamTimer);
+        Assert.True(logical.NativeEntryReady);
+
+        logical.AttachExpandedPresentationProcess(process);
+
+        Assert.Same(process, logical.ExpandedPresentationProcess);
+        Assert.True(initialTimer.HasSameClock(logical.NativeExamTimer!));
+        Assert.True(logical.NativeExamTimer!.DisplayEnabled);
+        Assert.False(logical.NativeEntryReady);
+        Assert.Equal(0L, logical.NativeHostCallbacks);
+        Assert.Null(logical.NativeGraphics);
+
+        logical.Tick();
+
+        Assert.False(logical.NativeExamTimer!.DisplayEnabled);
+        Assert.Equal((ushort?)0, logical.NativeExamTimer.DisplayIntensity814);
+        Assert.Equal(1L, logical.NativeHostCallbacks);
+        Assert.Equal(logical.NativeHostCallbacks, process.Graphics.Callback);
+        Assert.Same(process.Timer, logical.NativeExamTimer);
+        for (int callback = 1; callback < EntryBudget && !logical.NativeEntryReady; callback++)
+        {
+            logical.Tick();
+            Assert.Equal(logical.NativeHostCallbacks, process.Graphics.Callback);
+        }
+
+        Assert.True(logical.NativeEntryReady);
+        Assert.Equal(0, logical.Frame);
+        Assert.Equal(before, LogicalState(logical));
+        AssertRandomExchange(logical, process);
+        Assert.Null(logical.NativeGraphics);
+        Assert.True(initialTimer.AdvanceCallbacks(NativeTimerCallbackKind.Battle, checked((int)process.Graphics.Callback)).HasSameClock(logical.NativeExamTimer!));
+        BattleSession candidate = BattleSession.Restore(logical.Capture());
+        Assert.Null(candidate.ExpandedPresentationProcess);
+        Assert.Equal(logical.NativeHostCallbacks, candidate.NativeHostCallbacks);
+        Assert.Equal(JsonSerializer.Serialize(logical.NativeExamTimer), JsonSerializer.Serialize(candidate.NativeExamTimer));
+
+        NativeBattlePreparedPresentation ready = Assert.IsType<NativeBattlePreparedPresentation>(logical.PreparedPresentation);
+        Assert.Same(process.PreparedPresentation, ready);
+        long beforeIdle = process.Graphics.Callback;
+        Assert.Contains(logical.Combatants, actor => actor.IsPlayer && actor.IsReady);
+        logical.Tick();
+        Assert.Equal(beforeIdle + 1, process.Graphics.Callback);
+        Assert.Equal(logical.NativeHostCallbacks, process.Graphics.Callback);
+        Assert.Same(process.PreparedPresentation, logical.PreparedPresentation);
+        Assert.True(logical.PreparedPresentation!.Version > ready.Version);
+        Assert.Equal(ready.Frame, logical.PreparedPresentation.Frame);
+        Assert.NotNull(process.LastFrameServices);
+
+        TimeSpan elapsed = TimeSpan.FromMilliseconds(125);
+        NativeBattleGraphicsPresentationStep expected = NativeBattleGraphicsPresentationClock.Advance(0, false, elapsed);
+        long beforeElapsed = process.Graphics.Callback;
+        logical.AdvanceNativeGraphicsPresentation(elapsed);
+        Assert.Equal(beforeElapsed + expected.Callbacks, process.Graphics.Callback);
+        Assert.Equal(expected.Subticks, process.Graphics.PresentationSubticks);
+        Assert.Equal(expected.HalfSubtick, process.Graphics.PresentationHalfSubtick);
+        logical.Tick();
+        Assert.Equal(beforeElapsed + expected.Callbacks, process.Graphics.Callback);
+        Assert.Equal(logical.NativeHostCallbacks, process.Graphics.Callback);
+        Assert.True(initialTimer.AdvanceCallbacks(NativeTimerCallbackKind.Battle, checked((int)process.Graphics.Callback)).HasSameClock(logical.NativeExamTimer!));
+    }
+
+    [Fact]
+    public void Attachment_and_reentrant_dispatch_reject_before_owner_or_clock_writes()
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        var (logicalDefinition, selected) = CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
+        logicalDefinition = logicalDefinition with { NativeExamTimerAtEntry = NativeExamTimerState.FromColdProcess().SetRemaining(300) };
+        BattleSession owner = new(logicalDefinition, BattleAtbMode.TurnBased);
+        BattleSession other = new(logicalDefinition, BattleAtbMode.TurnBased);
+        ExpandedBattlePresentationProcess process = new(owner, selected);
+        Assert.Throws<InvalidOperationException>(() => other.AttachExpandedPresentationProcess(process));
+        Assert.Null(other.NativeExamTimer);
+        Assert.Null(other.ExpandedPresentationProcess);
+        Assert.Equal(0L, other.NativeHostCallbacks);
+
+        owner.AttachExpandedPresentationProcess(process);
+        NativeExamTimerState? timer = owner.NativeExamTimer;
+        Assert.Throws<InvalidOperationException>(() => owner.AttachExpandedPresentationProcess(process));
+        Assert.Same(timer, owner.NativeExamTimer);
+
+        FieldInfo dispatching = typeof(BattleSession).GetField("dispatchingExpandedPresentation", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        dispatching.SetValue(owner, true);
+        NativeBattleGraphicsState graphics = process.Graphics;
+        Assert.Throws<InvalidOperationException>(owner.Tick);
+        Assert.Throws<InvalidOperationException>(() => owner.AdvanceNativeGraphicsPresentation(TimeSpan.FromSeconds(1)));
+        Assert.Equal(0L, owner.NativeHostCallbacks);
+        Assert.Same(timer, owner.NativeExamTimer);
+        Assert.Same(graphics, process.Graphics);
+        dispatching.SetValue(owner, false);
+
+        ExpandedBattlePresentationProcess late = new(other, selected);
+        late.Advance(other);
+        Assert.Throws<InvalidOperationException>(() => other.AttachExpandedPresentationProcess(late));
+        Assert.Null(other.NativeExamTimer);
+        Assert.Null(other.ExpandedPresentationProcess);
+        Assert.Equal(0L, other.NativeHostCallbacks);
+    }
 
     [Theory]
     [InlineData(4, 5, 4)]

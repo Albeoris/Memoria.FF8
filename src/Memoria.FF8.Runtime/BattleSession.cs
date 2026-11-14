@@ -219,6 +219,7 @@ public sealed partial class BattleSession
 
     public void Tick()
     {
+        RequireExpandedPresentationDispatchIdle();
         try
         {
             TickCore();
@@ -231,12 +232,15 @@ public sealed partial class BattleSession
 
     private void TickCore()
     {
-        if (NativeGraphics is not null)
+        if (NativeGraphics is not null || expandedPresentationProcess is not null)
         {
             if (!nativeGraphicsPresentationDriven)
             {
                 DispatchTurnBasedFrame();
-                AdvanceSkippedGuardianFormPresentation();
+                if (NativeGraphics is not null)
+                {
+                    AdvanceSkippedGuardianFormPresentation();
+                }
             }
             return;
         }
@@ -270,6 +274,16 @@ public sealed partial class BattleSession
     private bool HasAutomaticTurnWaiter => diagnosticReadinessActor is { } selected ? CanNativeBattleActorAct(selected) && !selected.IsBusy && !selected.IsReady : !combatants.Any(actor => actor.IsReady) && combatants.Any(actor => IsNativeBattleCapable(actor) && !actor.Suspended);
 
     private void DispatchTurnBasedFrame()
+    {
+        if (expandedPresentationProcess is { } process)
+        {
+            DispatchExpandedPresentationFrame(process);
+            return;
+        }
+        DispatchTurnBasedFrameCore();
+    }
+
+    private void DispatchTurnBasedFrameCore()
     {
         if (AdvanceExpandedGuardianFormEntry())
         {
@@ -1665,7 +1679,7 @@ public sealed partial class BattleSession
         NativeHostCallbacks = snapshot.NativeHostCallbacks;
         NativeExamTimer = snapshot.NativeExamTimer;
         NativeExamTimer?.Validate();
-        if (NativeExamTimer is not null && (definition.NativeExamTimerAtEntry is null || NativeHostCallbacks is null || NativeGraphics is null))
+        if (NativeExamTimer is not null && (definition.NativeExamTimerAtEntry is null || NativeHostCallbacks is null || NativeGraphics is null && !UsesExpandedRoster))
         {
             throw new InvalidDataException("Native timer snapshot lacks its declared graphical entry and executed host-callback owners.");
         }

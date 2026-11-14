@@ -34,6 +34,21 @@ public sealed class ExpandedBattlePresentationProcess
     internal NativeBattleModelTextureCache ModelTextureCache => presentation.NativeModelTextureCache!;
     internal long? ActiveActionToken => presentation.HostedActiveActionToken;
     internal long? LastStepActionToken { get; private set; }
+    internal NativeBattleModelLifecycleServices? LastFrameServices { get; private set; }
+
+    internal void RequireLogicalOwner(BattleSession owner)
+    {
+        if (!ReferenceEquals(logicalOwner, owner))
+        {
+            throw new InvalidOperationException("Hosted presentation requires its original logical battle owner.");
+        }
+    }
+
+    internal long AccumulateElapsed(TimeSpan elapsed)
+    {
+        RequireIdle();
+        return presentation.AccumulateHostedPresentationElapsed(elapsed);
+    }
 
     internal long BeginAction(NativeBattleActionHeaderPreparation header, ImmutableArray<NativeBattleContactPacket> contacts)
     {
@@ -63,14 +78,8 @@ public sealed class ExpandedBattlePresentationProcess
     internal NativeBattleModelLifecycleServices Advance(BattleSession logicalOwner, NativeExamTimerState? timerObservation = null)
     {
         ArgumentNullException.ThrowIfNull(logicalOwner);
-        if (!ReferenceEquals(this.logicalOwner, logicalOwner))
-        {
-            throw new InvalidOperationException("Hosted presentation must advance with its original logical battle owner.");
-        }
-        if (advancing)
-        {
-            throw new InvalidOperationException("A hosted presentation frame is already advancing.");
-        }
+        RequireLogicalOwner(logicalOwner);
+        RequireIdle();
 
         advancing = true;
         try
@@ -83,6 +92,7 @@ public sealed class ExpandedBattlePresentationProcess
                 presentation.RefreshHostedPreparedPresentation(logicalOwner, services);
                 LastStep = presentation.ReadAndClearHostedPresentationFrameOutputs();
                 LastStepActionToken = actionToken;
+                LastFrameServices = services;
                 return services;
             }
             finally
@@ -93,6 +103,14 @@ public sealed class ExpandedBattlePresentationProcess
         finally
         {
             advancing = false;
+        }
+    }
+
+    private void RequireIdle()
+    {
+        if (advancing)
+        {
+            throw new InvalidOperationException("A hosted presentation frame is already advancing.");
         }
     }
 }

@@ -10,6 +10,11 @@ public sealed partial class BattleSession
     /// <summary>Called at completed host/command boundaries. This composes presentation data, never a battle save.</summary>
     public void RefreshPreparedPresentation()
     {
+        if (expandedPresentationProcess is { } process)
+        {
+            PreparedPresentation = process.PreparedPresentation;
+            return;
+        }
         RefreshPreparedPresentation(this, null);
     }
 

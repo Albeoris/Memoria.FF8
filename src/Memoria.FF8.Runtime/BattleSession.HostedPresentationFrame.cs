@@ -6,6 +6,17 @@ public sealed partial class BattleSession
 {
     private NativeBattleModelLifecycleServices? hostedFrameServices;
 
+    internal long AccumulateHostedPresentationElapsed(TimeSpan elapsed)
+    {
+        if (!hostedBattlePresentation || NativeGraphics is not { } graphics)
+        {
+            throw new InvalidOperationException("Hosted cadence requires its initialized presentation process.");
+        }
+        NativeBattleGraphicsPresentationStep step = NativeBattleGraphicsPresentationClock.Advance(graphics.PresentationSubticks, graphics.PresentationHalfSubtick, elapsed);
+        NativeGraphics = graphics with { PresentationSubticks = step.Subticks, PresentationHalfSubtick = step.HalfSubtick };
+        return step.Callbacks;
+    }
+
     internal NativeBattleEffectPresentationStep ReadAndClearHostedPresentationFrameOutputs()
     {
         if (!hostedBattlePresentation)

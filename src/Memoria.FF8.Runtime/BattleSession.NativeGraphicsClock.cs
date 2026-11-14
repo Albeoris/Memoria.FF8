@@ -18,6 +18,17 @@ public sealed partial class BattleSession
         {
             ArgumentOutOfRangeException.ThrowIfNegative(budget.Ticks);
         }
+        if (expandedPresentationProcess is { } process)
+        {
+            RequireExpandedPresentationDispatchIdle();
+            long callbacks = process.AccumulateElapsed(elapsed);
+            nativeGraphicsPresentationDriven = true;
+            for (long count = callbacks; count > 0; count--)
+            {
+                DispatchTurnBasedFrame();
+            }
+            return;
+        }
         if (NativeGraphics is not { } graphics)
         {
             return;
