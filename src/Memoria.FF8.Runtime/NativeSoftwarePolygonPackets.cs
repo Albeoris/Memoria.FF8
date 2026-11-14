@@ -87,7 +87,14 @@ public static class NativeSoftwarePolygonPackets
     public static NativeSoftwarePolygonPacketDraw Draw(byte[] image, NativeSoftwarePolygonRasterState raster, NativeSoftwareTextureState texture, byte opcode, ReadOnlySpan<byte> packet, int coordinateShift, int drawOffsetX, int drawOffsetY, NativeSoftwareClipBounds bounds, NativeSoftwarePrimitiveTable table, NativeSoftwareReciprocalTable reciprocals)
     {
         ArgumentNullException.ThrowIfNull(image);
-        NativeSoftwarePolygonPacketResult adapted = Adapt(opcode, packet, coordinateShift, drawOffsetX, drawOffsetY, texture, table, image.Length);
+        return Draw(image, image, raster, texture, opcode, packet, coordinateShift, drawOffsetX, drawOffsetY, bounds, table, reciprocals);
+    }
+
+    public static NativeSoftwarePolygonPacketDraw Draw(byte[] framebuffer, byte[] textureImage, NativeSoftwarePolygonRasterState raster, NativeSoftwareTextureState texture, byte opcode, ReadOnlySpan<byte> packet, int coordinateShift, int drawOffsetX, int drawOffsetY, NativeSoftwareClipBounds bounds, NativeSoftwarePrimitiveTable table, NativeSoftwareReciprocalTable reciprocals)
+    {
+        ArgumentNullException.ThrowIfNull(framebuffer);
+        ArgumentNullException.ThrowIfNull(textureImage);
+        NativeSoftwarePolygonPacketResult adapted = Adapt(opcode, packet, coordinateShift, drawOffsetX, drawOffsetY, texture, table, textureImage.Length);
         if (adapted.Polygon is { } polygon)
         {
             NativeSoftwareTextureState prepared = adapted.Texture;
@@ -101,7 +108,7 @@ public static class NativeSoftwarePolygonPackets
                 int depth = (selected.Flags & 2) != 0 ? prepared.Depth ?? throw new NotSupportedException("Native textured polygon lacks its retained depth.") : 0;
                 int source = (selected.Flags & 2) != 0 ? prepared.TextureByteOffset ?? throw new NotSupportedException("Native textured polygon lacks its prepared texture pointer.") : 0;
                 int palette = (selected.Flags & 2) != 0 ? prepared.PaletteByteOffset ?? throw new NotSupportedException("Native textured polygon lacks its prepared palette pointer.") : 0;
-                raster = NativeSoftwarePolygonEdges.Rasterize463DF0(image, raster, selected, reciprocals, depth, source, palette);
+                raster = NativeSoftwarePolygonEdges.Rasterize463DF0(framebuffer, textureImage, raster, selected, reciprocals, depth, source, palette);
             }
         }
         return new(raster, adapted.Texture, adapted.Polygon, adapted.Depth3Diagnostic);

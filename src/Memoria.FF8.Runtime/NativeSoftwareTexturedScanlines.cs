@@ -12,6 +12,13 @@ public static class NativeSoftwareTexturedScanlines
     public static NativeSoftwareScanlineEdges Draw463BC0(byte[] image, NativeSoftwareScanlineEdges edges, NativeSoftwareReciprocalTable reciprocals, int startY, int rowCount, byte descriptorFlags, byte variant, int depth, int texturePageByteOffset, int paletteByteOffset)
     {
         ArgumentNullException.ThrowIfNull(image);
+        return Draw463BC0(image, image, edges, reciprocals, startY, rowCount, descriptorFlags, variant, depth, texturePageByteOffset, paletteByteOffset);
+    }
+
+    public static NativeSoftwareScanlineEdges Draw463BC0(byte[] framebuffer, byte[] textureImage, NativeSoftwareScanlineEdges edges, NativeSoftwareReciprocalTable reciprocals, int startY, int rowCount, byte descriptorFlags, byte variant, int depth, int texturePageByteOffset, int paletteByteOffset)
+    {
+        ArgumentNullException.ThrowIfNull(framebuffer);
+        ArgumentNullException.ThrowIfNull(textureImage);
         ArgumentNullException.ThrowIfNull(edges);
         NativeSoftwareVramSpan.ValidateDispatch(descriptorFlags, variant, depth);
         if (rowCount <= 0)
@@ -44,7 +51,7 @@ public static class NativeSoftwareTexturedScanlines
                 int v = Read(minimum, 0x10);
                 int du = NativePrecision53.RoundInteger(unchecked(Read(maximum, 0xC) - u) * (double)reciprocal);
                 int dv = NativePrecision53.RoundInteger(unchecked(Read(maximum, 0x10) - v) * (double)reciprocal);
-                NativeSoftwareVramSpan.WriteTextured(image, destinationRow, leftX, rightX, u, du, v, dv, texturePageByteOffset, paletteByteOffset, descriptorFlags, variant, depth);
+                NativeSoftwareVramSpan.WriteTextured(framebuffer, textureImage, destinationRow, leftX, rightX, u, du, v, dv, texturePageByteOffset, paletteByteOffset, descriptorFlags, variant, depth);
             }
             Advance(left, edges.Left.Step, 0xC);
             Advance(left, edges.Left.Step, 0x10);

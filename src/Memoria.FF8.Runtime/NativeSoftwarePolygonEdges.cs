@@ -54,6 +54,13 @@ public static class NativeSoftwarePolygonEdges
     public static NativeSoftwarePolygonRasterState Rasterize463DF0(byte[] image, NativeSoftwarePolygonRasterState state, NativeSoftwarePolygonDescriptor descriptor, NativeSoftwareReciprocalTable reciprocals, int depth, int texturePageByteOffset, int paletteByteOffset)
     {
         ArgumentNullException.ThrowIfNull(image);
+        return Rasterize463DF0(image, image, state, descriptor, reciprocals, depth, texturePageByteOffset, paletteByteOffset);
+    }
+
+    public static NativeSoftwarePolygonRasterState Rasterize463DF0(byte[] framebuffer, byte[] textureImage, NativeSoftwarePolygonRasterState state, NativeSoftwarePolygonDescriptor descriptor, NativeSoftwareReciprocalTable reciprocals, int depth, int texturePageByteOffset, int paletteByteOffset)
+    {
+        ArgumentNullException.ThrowIfNull(framebuffer);
+        ArgumentNullException.ThrowIfNull(textureImage);
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(descriptor);
         int count = descriptor.VertexCount;
@@ -63,12 +70,19 @@ public static class NativeSoftwarePolygonEdges
         }
         descriptor.ValidateLayout();
         state = state with { PublishedDescriptor = descriptor, PublishedClippedDescriptor = null };
-        return Rasterize(image, state, count, descriptor.Flags, descriptor.Variant, PackColor(descriptor.Data[8], descriptor.Data[9], descriptor.Data[10]), descriptor.Vertex, reciprocals, depth, texturePageByteOffset, paletteByteOffset);
+        return Rasterize(framebuffer, textureImage, state, count, descriptor.Flags, descriptor.Variant, PackColor(descriptor.Data[8], descriptor.Data[9], descriptor.Data[10]), descriptor.Vertex, reciprocals, depth, texturePageByteOffset, paletteByteOffset);
     }
 
     public static NativeSoftwarePolygonRasterState Rasterize463DF0(byte[] image, NativeSoftwarePolygonRasterState state, NativeSoftwareClippedPolygon descriptor, NativeSoftwareReciprocalTable reciprocals, int depth, int texturePageByteOffset, int paletteByteOffset)
     {
         ArgumentNullException.ThrowIfNull(image);
+        return Rasterize463DF0(image, image, state, descriptor, reciprocals, depth, texturePageByteOffset, paletteByteOffset);
+    }
+
+    public static NativeSoftwarePolygonRasterState Rasterize463DF0(byte[] framebuffer, byte[] textureImage, NativeSoftwarePolygonRasterState state, NativeSoftwareClippedPolygon descriptor, NativeSoftwareReciprocalTable reciprocals, int depth, int texturePageByteOffset, int paletteByteOffset)
+    {
+        ArgumentNullException.ThrowIfNull(framebuffer);
+        ArgumentNullException.ThrowIfNull(textureImage);
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(descriptor);
         if (descriptor.Vertices.IsDefault)
@@ -85,10 +99,10 @@ public static class NativeSoftwarePolygonEdges
             throw new InvalidDataException("Native clipped polygon requires its exact retained header fields.");
         }
         state = state with { PublishedDescriptor = null, PublishedClippedDescriptor = descriptor };
-        return Rasterize(image, state, count, descriptor.Flags, descriptor.Variant, PackColor(descriptor.HeaderTail[4], descriptor.HeaderTail[5], descriptor.HeaderTail[6]), descriptor.RasterVertex, reciprocals, depth, texturePageByteOffset, paletteByteOffset);
+        return Rasterize(framebuffer, textureImage, state, count, descriptor.Flags, descriptor.Variant, PackColor(descriptor.HeaderTail[4], descriptor.HeaderTail[5], descriptor.HeaderTail[6]), descriptor.RasterVertex, reciprocals, depth, texturePageByteOffset, paletteByteOffset);
     }
 
-    private static NativeSoftwarePolygonRasterState Rasterize(byte[] image, NativeSoftwarePolygonRasterState state, int count, byte flags, byte variant, uint color, Func<int, NativeSoftwareRasterVertex> vertex, NativeSoftwareReciprocalTable reciprocals, int depth, int texturePageByteOffset, int paletteByteOffset)
+    private static NativeSoftwarePolygonRasterState Rasterize(byte[] framebuffer, byte[] textureImage, NativeSoftwarePolygonRasterState state, int count, byte flags, byte variant, uint color, Func<int, NativeSoftwareRasterVertex> vertex, NativeSoftwareReciprocalTable reciprocals, int depth, int texturePageByteOffset, int paletteByteOffset)
     {
         RequireCurrent(state.Edges.Left);
         RequireCurrent(state.Edges.Right);
@@ -156,7 +170,7 @@ public static class NativeSoftwarePolygonEdges
             int rows = unchecked(nextY - startY);
             if (rows > 0)
             {
-                edges = textured ? NativeSoftwareTexturedScanlines.Draw463BC0(image, edges, reciprocals, startY, rows, flags, variant, depth, texturePageByteOffset, paletteByteOffset) : NativeSoftwareFlatScanlines.Draw463D50(image, edges, startY, rows, color);
+                edges = textured ? NativeSoftwareTexturedScanlines.Draw463BC0(framebuffer, textureImage, edges, reciprocals, startY, rows, flags, variant, depth, texturePageByteOffset, paletteByteOffset) : NativeSoftwareFlatScanlines.Draw463D50(framebuffer, edges, startY, rows, color);
             }
             startY = nextY;
         }

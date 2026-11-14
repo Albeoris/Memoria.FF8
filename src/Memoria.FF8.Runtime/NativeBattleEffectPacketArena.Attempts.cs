@@ -82,12 +82,12 @@ public static partial class NativeBattleEffectPacketArena
                         uint root = unchecked(orderingBase + (uint)(4 * primitive.Bucket));
                         rootOffset = NativeBattleWaterExecutionFields.ArenaOffset(root, 4);
                         uint previous = BinaryPrimitives.ReadUInt32LittleEndian(arena.ReadCurrent(rootOffset.Value, 4));
-                        links.PrependAddressed(previous, new(bank, 0, address), primitive.Words, flags20, primitive.VertexPayload4, moduleDraw, primitive.PilotGeometry, primitive.ScreenCoverage, primitive.SceneCapture);
+                        links.PrependAddressed(previous, new(bank, 0, address), primitive.Words, flags20, primitive.VertexPayload4, moduleDraw, primitive.PilotGeometry, primitive.ScreenCoverage, primitive.SceneCapture, modelTextureOwner: primitive.ModelTextureOwner);
                     }
                 }
                 else
                 {
-                    links.Prepend(primitive.Bucket, new(bank, 0, address), primitive.Words, flags20, primitive.VertexPayload4, moduleDraw, pilotGeometry: primitive.PilotGeometry, screenCoverage: primitive.ScreenCoverage, sceneCapture: primitive.SceneCapture);
+                    links.Prepend(primitive.Bucket, new(bank, 0, address), primitive.Words, flags20, primitive.VertexPayload4, moduleDraw, pilotGeometry: primitive.PilotGeometry, screenCoverage: primitive.ScreenCoverage, sceneCapture: primitive.SceneCapture, modelTextureOwner: primitive.ModelTextureOwner);
                 }
                 if (linked)
                 {

@@ -2,17 +2,24 @@ using System.Buffers.Binary;
 
 namespace Memoria.FF8.Runtime;
 
-/// <summary>463650's opaque8-bit indexed span over one explicit mutable image and prepared source pointers.</summary>
+/// <summary>Native textured spans over explicit destination and prepared texture sources.</summary>
 public static class NativeSoftwareVramSpan
 {
     public static void WriteTextured(byte[] image, int destinationRowByteOffset, int left, int right, int u1024, int stepU1024, int v1024, int stepV1024, int texturePageByteOffset, int paletteByteOffset, byte flags, byte variant, int depth)
     {
         ArgumentNullException.ThrowIfNull(image);
+        WriteTextured(image, image, destinationRowByteOffset, left, right, u1024, stepU1024, v1024, stepV1024, texturePageByteOffset, paletteByteOffset, flags, variant, depth);
+    }
+
+    public static void WriteTextured(byte[] framebuffer, byte[] textureImage, int destinationRowByteOffset, int left, int right, int u1024, int stepU1024, int v1024, int stepV1024, int texturePageByteOffset, int paletteByteOffset, byte flags, byte variant, int depth)
+    {
+        ArgumentNullException.ThrowIfNull(framebuffer);
+        ArgumentNullException.ThrowIfNull(textureImage);
         ValidateDispatch(flags, variant, depth);
         int mode = (flags & 4) == 0 ? 0 : variant;
         if (depth == 1 && mode is 0 or 3)
         {
-            WriteOpaque8Bit463650(image, destinationRowByteOffset, left, right, u1024, stepU1024, v1024, stepV1024, texturePageByteOffset, paletteByteOffset);
+            WriteOpaque8Bit463650(framebuffer, textureImage, destinationRowByteOffset, left, right, u1024, stepU1024, v1024, stepV1024, texturePageByteOffset, paletteByteOffset);
             return;
         }
         uint pointer = unchecked((uint)(destinationRowByteOffset + 2 * left));
@@ -26,13 +33,15 @@ public static class NativeSoftwareVramSpan
         while (mode == 1 ? pointer < end : pointer <= end)
         {
             int relative = unchecked((int)((uint)v & mask) + u) >> addressShift;
-            byte packed = ReadByte(unchecked((uint)(texturePageByteOffset + relative)));
-            ushort color = depth == 2 ? packed : ReadWord(unchecked((uint)(paletteByteOffset + 2 * (depth == 0 ? (packed >> ((u >> 8) & 4)) & 15 : packed))));
+            uint source = unchecked((uint)(texturePageByteOffset + relative));
+            RequireRange(textureImage, source, 1);
+            byte packed = textureImage[(int)source];
+            ushort color = depth == 2 ? packed : ReadWord(textureImage, unchecked((uint)(paletteByteOffset + 2 * (depth == 0 ? (packed >> ((u >> 8) & 4)) & 15 : packed))));
             if (color != 0)
             {
                 if (mode is 1 or 2)
                 {
-                    ushort previous = ReadWord(pointer);
+                    ushort previous = ReadWord(framebuffer, pointer);
                     int combined = 0;
                     foreach (int channelMask in ChannelMasks)
                     {
@@ -41,29 +50,23 @@ public static class NativeSoftwareVramSpan
                     }
                     color = unchecked((ushort)combined);
                 }
-                RequireRange(pointer, 2);
-                BinaryPrimitives.WriteUInt16LittleEndian(image.AsSpan((int)pointer, 2), color);
+                RequireRange(framebuffer, pointer, 2);
+                BinaryPrimitives.WriteUInt16LittleEndian(framebuffer.AsSpan((int)pointer, 2), color);
             }
             pointer = unchecked(pointer + 2);
             u = unchecked(u + stepU1024);
             v = unchecked(v + dv);
         }
 
-        byte ReadByte(uint address)
+        static ushort ReadWord(byte[] owner, uint address)
         {
-            RequireRange(address, 1);
-            return image[(int)address];
+            RequireRange(owner, address, 2);
+            return BinaryPrimitives.ReadUInt16LittleEndian(owner.AsSpan((int)address, 2));
         }
 
-        ushort ReadWord(uint address)
+        static void RequireRange(byte[] owner, uint address, int length)
         {
-            RequireRange(address, 2);
-            return BinaryPrimitives.ReadUInt16LittleEndian(image.AsSpan((int)address, 2));
-        }
-
-        void RequireRange(uint address, int length)
-        {
-            if ((ulong)address + (uint)length > (ulong)image.Length)
+            if ((ulong)address + (uint)length > (ulong)owner.Length)
             {
                 throw new NotSupportedException("Native textured span access leaves its supplied mutable memory owner.");
             }
@@ -83,6 +86,13 @@ public static class NativeSoftwareVramSpan
     public static void WriteOpaque8Bit463650(byte[] image, int destinationRowByteOffset, int left, int right, int u1024, int stepU1024, int v1024, int stepV1024, int texturePageByteOffset, int paletteByteOffset)
     {
         ArgumentNullException.ThrowIfNull(image);
+        WriteOpaque8Bit463650(image, image, destinationRowByteOffset, left, right, u1024, stepU1024, v1024, stepV1024, texturePageByteOffset, paletteByteOffset);
+    }
+
+    public static void WriteOpaque8Bit463650(byte[] framebuffer, byte[] textureImage, int destinationRowByteOffset, int left, int right, int u1024, int stepU1024, int v1024, int stepV1024, int texturePageByteOffset, int paletteByteOffset)
+    {
+        ArgumentNullException.ThrowIfNull(framebuffer);
+        ArgumentNullException.ThrowIfNull(textureImage);
         uint end = unchecked((uint)(destinationRowByteOffset + 2 * right));
         uint pointer = unchecked((uint)(destinationRowByteOffset + 2 * left));
         uint alignedEnd = end & 0xFFFFFFFCu;
@@ -125,23 +135,23 @@ public static class NativeSoftwareVramSpan
         {
             int relative = unchecked((v & 0x1FE00000) + u) >> 10;
             uint address = unchecked((uint)(texturePageByteOffset + relative));
-            RequireRange(address, 1);
-            byte index = image[(int)address];
+            RequireRange(textureImage, address, 1);
+            byte index = textureImage[(int)address];
             uint palette = unchecked((uint)(paletteByteOffset + 2 * index));
-            RequireRange(palette, 2);
-            ushort color = BinaryPrimitives.ReadUInt16LittleEndian(image.AsSpan((int)palette, 2));
+            RequireRange(textureImage, palette, 2);
+            ushort color = BinaryPrimitives.ReadUInt16LittleEndian(textureImage.AsSpan((int)palette, 2));
             u = unchecked(u + stepU1024);
             v = unchecked(v + dv);
             return color;
         }
         void Store(uint address, ushort color)
         {
-            RequireRange(address, 2);
-            BinaryPrimitives.WriteUInt16LittleEndian(image.AsSpan((int)address, 2), color);
+            RequireRange(framebuffer, address, 2);
+            BinaryPrimitives.WriteUInt16LittleEndian(framebuffer.AsSpan((int)address, 2), color);
         }
-        void RequireRange(uint address, int length)
+        static void RequireRange(byte[] owner, uint address, int length)
         {
-            if ((ulong)address + (uint)length > (ulong)image.Length)
+            if ((ulong)address + (uint)length > (ulong)owner.Length)
             {
                 throw new NotSupportedException("Native opaque8-bit span access leaves its explicitly supplied mutable memory owner.");
             }
