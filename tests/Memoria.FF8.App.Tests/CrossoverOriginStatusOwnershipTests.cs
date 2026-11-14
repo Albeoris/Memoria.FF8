@@ -1,5 +1,7 @@
 using System.Text.Json;
 using Memoria.FF7.Runtime;
+using Memoria.FF8.Assets;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
@@ -33,4 +35,23 @@ public sealed class CrossoverOriginStatusOwnershipTests
         Assert.Equal(JsonSerializer.Serialize(before.GuestOriginStatuses), JsonSerializer.Serialize(fixture.Host.Capture().GuestOriginStatuses));
         Assert.Equal(before.Actors.Single(actor => actor.Actor.Slot == slot).Actor.Statuses, fixture.Host.Actors.Single(actor => actor.Actor.Slot == slot).Actor.Statuses);
     }
+
+    [Fact]
+    public void Every_original_Rapture_and_Degenerator_crisis_record_keeps_its_removal_operation_unavailable()
+    {
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(directory), "Select the original FFVIII installation.");
+        using BattleAssets assets = new(directory!);
+        foreach (string name in new[] { "Rapture", "Degenerator" })
+        {
+            BattleNativeAction[] originals = assets.NativeActions.Where(action => action.Name == name).ToArray();
+            Assert.NotEmpty(originals);
+            Assert.All(originals, action =>
+            {
+                Assert.NotEqual(0u, action.Statuses1 & 0x10000u);
+                Assert.NotNull(CrossoverBattleAbilityRules.UnsupportedReason(action));
+            });
+        }
+    }
+
 }

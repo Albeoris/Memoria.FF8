@@ -4,6 +4,9 @@ public sealed record Ff7BattleQueuedCommand(byte Priority, int ActorSlot, byte C
 {
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public long? MagicSequenceId { get; init; }
+    public int MagicDamageScalePercent { get; init; } = 100;
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool MagicSelectionConfirmed { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public bool GuestAttack { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
@@ -101,11 +104,11 @@ public static class Ff7BattleCommandQueue
         return Insert(state, command);
     }
 
-    public static Ff7BattleCommandQueueState StageReady(Ff7BattleCommandQueueState state, int actorSlot, byte commandId, ushort argument = 0, ushort targetMask = 0, bool groupTarget = false, bool guestAttack = false, ushort guestAbility = 0, bool compelledAttack = false, long? magicSequenceId = null)
+    public static Ff7BattleCommandQueueState StageReady(Ff7BattleCommandQueueState state, int actorSlot, byte commandId, ushort argument = 0, ushort targetMask = 0, bool groupTarget = false, bool guestAttack = false, ushort guestAbility = 0, bool compelledAttack = false, long? magicSequenceId = null, int magicDamageScalePercent = 100)
     {
         ArgumentNullException.ThrowIfNull(state);
         state.Validate();
-        Ff7BattleQueuedCommand command = new(ReadyPriority(commandId), actorSlot, commandId, argument, targetMask, GroupTarget: groupTarget) { GuestAttack = guestAttack, GuestAbility = guestAbility, CompelledAttack = compelledAttack, MagicSequenceId = magicSequenceId };
+        Ff7BattleQueuedCommand command = new(ReadyPriority(commandId), actorSlot, commandId, argument, targetMask, GroupTarget: groupTarget) { GuestAttack = guestAttack, GuestAbility = guestAbility, CompelledAttack = compelledAttack, MagicSequenceId = magicSequenceId, MagicDamageScalePercent = magicDamageScalePercent };
         ValidateCommand(command);
         int nextWrite = (state.ReadyWrite + 1) % ReadyRingLength;
         if (nextWrite == state.ReadyRead)
@@ -175,7 +178,7 @@ public static class Ff7BattleCommandQueue
 
     internal static void ValidateCommand(Ff7BattleQueuedCommand? command)
     {
-        if (command is null || command.Priority >= PriorityCount || command.ActorSlot is < -1 or > 9 || command.Callback is >= 16 || command.MagicSequenceId is <= 0 || command.Message is not null && (command.CommandId != 0x21 || command.Message.Length == 0 || command.Message[^1] != 0xFF))
+        if (command is null || command.Priority >= PriorityCount || command.ActorSlot is < -1 or > 9 || command.Callback is >= 16 || command.MagicSequenceId is <= 0 || command.MagicDamageScalePercent is < 0 or > 100 || command.MagicDamageScalePercent != 100 && command.CommandId is not (2 or 0x20) || command.Message is not null && (command.CommandId != 0x21 || command.Message.Length == 0 || command.Message[^1] != 0xFF))
         {
             throw new InvalidDataException("FFVII battle command has invalid native fields.");
         }

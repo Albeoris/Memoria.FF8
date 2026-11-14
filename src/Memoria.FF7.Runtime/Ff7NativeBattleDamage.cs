@@ -155,7 +155,7 @@ public static class Ff7NativeBattleDamage
             throw new InvalidDataException("Battle damage operands must describe nonnegative damage and a valid fraction.");
         }
         action = BindSourceVitals(action, attacker.CurrentHitPoints, attacker.MaximumHitPoints);
-        if (action.DamageScalePercent is < 0 or > 1000)
+        if (action.DamageScalePercent is < 0 or > 100)
         {
             throw new InvalidDataException("Battle damage scaling requires a nonnegative bounded percentage.");
         }

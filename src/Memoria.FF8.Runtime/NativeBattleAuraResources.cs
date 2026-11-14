@@ -10,4 +10,8 @@ public sealed record NativeBattleAuraSprite(NativeBattleModuleDraw Draw) : Nativ
 public sealed record NativeBattleAuraSound(NativeBattleModuleSound Sound) : NativeBattleAuraOperation;
 public sealed record NativeBattleAuraContact(int Index) : NativeBattleAuraOperation;
 public sealed record NativeBattleAuraFade : NativeBattleAuraOperation;
-public sealed record NativeBattleAuraInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, NativeBattleSummonColors Colors, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleAuraFrame, NativeBattleAuraOperation, NativeBattleAuraFrame> Execute);
+public sealed record NativeBattleAuraInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, NativeBattleSummonColors Colors, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleAuraFrame, NativeBattleAuraOperation, NativeBattleAuraFrame> Execute)
+{
+    public Func<int, byte, short, NativeBattleVector>? ReadBone { get; init; }
+    public Func<int, NativeBattleModuleAnchor>? ReadAnchor { get; init; }
+}

@@ -6,8 +6,10 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeBattleAuraResourcesTests
 {
-    [Fact]
-    public void Original_Aura_runs_target_flames_glow_contact_and_restores_all_retained_bytes()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Original_Aura_runs_target_flames_glow_contact_and_restores_all_retained_bytes(bool hostPose)
     {
         using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleAuraResources resources = game.ReadNativeAuraResources();
@@ -21,22 +23,28 @@ public sealed class NativeBattleAuraResourcesTests
         NativeBattleAuraFrame frame = NativeBattleAuraController.Initialize(NativeBattleEffectMemory.FromColdProcess().BeginLoad(110), effect, resources, new(1));
         NativeBattleCameraProjection projection = new(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 4096, 4096), 216, 160, 108);
         NativeBattlePoseSource pose = new([], []);
-        NativeBattleGraphicsModel Model(int index) => new(index, 0) { Transform = new(new(0, 0, 0), new(0, -100, 0), 0, 0, 4096) };
+        NativeBattleGraphicsModel Model(int index) => new(index, hostPose ? (ushort)2 : (ushort)0) { Transform = new(new(0, 0, 0), new(0, -100, 0), 0, 0, 4096) };
         List<int> contacts = [];
         List<int> sounds = [];
         List<int> fades = [];
         List<int> glows = [];
         int allocations = 0;
         int now = 0;
+        int hostBoneReads = 0;
+        NativeBattleModuleAnchor hostSound = new(321, -654, 987, 45);
         NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear();
-        NativeBattleAuraInputs inputs = new(packets, projection, NativeBattleGteColorInterpolation.CodeConstants45F270, Model, _ => pose, (current, operation) =>
+        NativeBattleAuraInputs inputs = new(packets, projection, NativeBattleGteColorInterpolation.CodeConstants45F270, Model, _ => hostPose ? throw new InvalidOperationException("The host pose must not request a native skeleton or animation bank.") : pose, (current, operation) =>
         {
             switch (operation)
             {
                 case NativeBattleAuraContact:
                     contacts.Add(now);
                     return current;
-                case NativeBattleAuraSound:
+                case NativeBattleAuraSound sound:
+                    if (hostPose)
+                    {
+                        Assert.Equal(hostSound, sound.Sound.Anchor);
+                    }
                     sounds.Add(now);
                     return current;
                 case NativeBattleAuraFade:
@@ -59,7 +67,22 @@ public sealed class NativeBattleAuraResourcesTests
             }
             ordering = written.Ordering;
             return current with { Memory = written.Memory, Effect = current.Effect with { DrawArenaOffset = written.Cursor } };
-        });
+        })
+        {
+            ReadBone = hostPose ? (actor, selector, fraction) =>
+            {
+                Assert.Equal(3, actor);
+                Assert.Equal((byte)0xF1, selector);
+                Assert.Equal((short)0, fraction);
+                hostBoneReads++;
+                return new(123, -456, 789);
+            } : null,
+            ReadAnchor = hostPose ? actor =>
+            {
+                Assert.Equal(3, actor);
+                return hostSound;
+            } : null
+        };
         for (now = 1; now <= 100 && frame.Effect.ReturnedDescriptor != 0; now++)
         {
             ordering = NativeBattleLogicalOrdering.Clear();
@@ -86,6 +109,7 @@ public sealed class NativeBattleAuraResourcesTests
         Assert.Equal(0u, frame.Effect.ReturnedDescriptor);
         Assert.All(frame.Effect.Pools, pool => Assert.Null(pool.Head));
         Assert.True(allocations > 0);
+        Assert.Equal(hostPose, hostBoneReads > 0);
         Assert.Throws<NotSupportedException>(() => NativeBattleAuraResourcesReader.Read(new byte[128]));
     }
 }

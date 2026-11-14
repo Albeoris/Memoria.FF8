@@ -86,6 +86,13 @@ internal static class OriginMagicSequenceTests
                 Check(hits[0].Damage.Damage == (count == 3 ? nativeFullDamage * 75 / 100 : nativeFullDamage), "The first original spell contact must retain full Double damage and apply Triple's final 75 percent scale.");
             }
         }
+        foreach (int selected in new[] { 1, 2 })
+        {
+            Ff7BattleSession partial = fixture.Open(fixture.Ready(0, Triple));
+            Check(partial.SubmitMagicSequence(0, ability, Enumerable.Repeat((ushort)0x10, selected).ToArray()), "Explicit partial confirmation must retain the selected casts under Triple.");
+            List<Ff7BattleHit> hits = fixture.Complete(ref partial);
+            Check(hits.Count == selected && hits[0].Damage.Damage == nativeFullDamage * 75 / 100 && partial.Actors[0].Actor.MagicPoints == 100 - selected * cost, "A partially confirmed Triple must neither expand again nor lose its per-cast scale or MP ownership.");
+        }
         Ff7BattleSession wrongCount = fixture.Open(fixture.Ready(0, Double));
         string before = JsonSerializer.Serialize(wrongCount.Capture());
         Check(!wrongCount.SubmitMagicSequence(0, ability, new ushort[] { 0x10, 0x20, 0x10 }) && JsonSerializer.Serialize(wrongCount.Capture()) == before, "Double must reject a three-target submission without consuming readiness, MP or RNG.");
@@ -130,7 +137,7 @@ internal static class OriginMagicSequenceTests
         Ff7CharacterState[] characters = progress.Characters.ToArray();
         byte[] record = (byte[])characters[0].NativeRecord.Clone();
         record.AsSpan(64, 64).Fill(byte.MaxValue);
-        BinaryPrimitives.WriteUInt32LittleEndian(record.AsSpan(64), 0x48 | 1000u << 8);
+        BinaryPrimitives.WriteUInt32LittleEndian(record.AsSpan(64), 0x48 | 0xFFFFFFu << 8);
         characters[0] = characters[0] with { NativeRecord = record };
         Ff7Progress equipped = progress with { Characters = characters };
         Ff7BattleSpell spell = Ff7NativeBattleSpells.Read(characters[0], kernel).Single(value => value.Attack.DamageCalculation == 0x22 && (value.Attack.TargetFlags & 4) != 0 && (value.Attack.TargetFlags & 8) == 0);
@@ -139,8 +146,9 @@ internal static class OriginMagicSequenceTests
         setup = setup with { Actors = setup.Actors.Select(actor => actor.Actor.Slot == 0 ? actor with { Actor = actor.Actor with { MagicPoints = 300, MaxMagicPoints = 300 } } : actor).ToArray() };
         Ff7BattleSession battle = fixture.Open(setup);
         Ff7BattleCommandOption option = battle.Commands(0).Single(choice => choice.Command == Ff7BattleCommand.Magic && choice.Argument == spell.AttackId);
-        Check(!option.SelectSingle && option.GroupUses == 0 && option.ValidTargets == 0x30, "The original inherently grouped Magic fixture must target both opponents without any linked All uses.");
-        Check(battle.SubmitMagicSequence(0, spell.AttackId, new ushort[] { option.ValidTargets, option.ValidTargets }), "Double must admit two inherently grouped casts without an explicit All selection.");
+        ushort enemies = (ushort)(option.ValidTargets & 0x3F0);
+        Check(!option.SelectSingle && option.GroupUses == 0 && enemies == 0x30, "The original inherently grouped Magic fixture must select both opponents without any linked All uses.");
+        Check(battle.SubmitMagicSequence(0, spell.AttackId, new ushort[] { enemies, enemies }), "Double must admit two inherently grouped casts without an explicit All selection.");
         List<Ff7BattleHit> hits = fixture.Complete(ref battle);
         Check(hits.Select(hit => hit.Target).SequenceEqual(new[] { 5, 5 }) && hits.All(hit => hit.AttackId == spell.AttackId), "Both repeated inherently grouped casts must retain their complete native target group.");
         Check(battle.Actors.Where(actor => actor.Actor.Slot is 4 or 5).All(actor => actor.Actor.HitPoints < 30000) && battle.Actors[0].Actor.MagicPoints == 300 - 2 * spell.Attack.CastingCost, "Two inherently grouped casts must apply both groups and pay the original MP cost twice.");
@@ -164,6 +172,22 @@ internal static class OriginMagicSequenceTests
         List<Ff7BattleHit> hits = fixture.Complete(ref battle);
         Check(hits.Count == 3 && hits.All(hit => hit.Source == source && hit.Target == 0 && hit.AttackId == selected.Attack.Id), "An original nonphysical enemy Magic command must repeat from its caster's Triple owner.");
         Check(battle.Actors.Single(actor => actor.Actor.Slot == source).Actor.MagicPoints == 100 - 3 * selected.Attack.Data.CastingCost, "Original enemy Magic must pay its original MP cost once per actual cast.");
+        Ff7BattleQueuedCommand originalCommand = new(2, source, 0x20, (ushort)selected.Attack.Slot, 1, selected.Attack.Id);
+        Ff7BattleSnapshot duplicates = setup with
+        {
+            Actors = setup.Actors.Select(actor => actor.Actor.Slot == source ? actor with { Actor = actor.Actor with { MagicPoints = 300, MaxMagicPoints = 300 } } : actor).ToArray(),
+            Queue = Ff7BattleCommandQueue.Enqueue(Ff7BattleCommandQueue.Enqueue(Ff7BattleCommandQueueState.Create(), originalCommand), originalCommand)
+        };
+        Ff7BattleSession twice = fixture.Open(duplicates);
+        HashSet<long> occurrences = [];
+        List<Ff7BattleHit> repeated = fixture.Complete(ref twice, pendingSource: source, invocationIds: occurrences);
+        Check(repeated.Count == 6 && repeated.All(hit => hit.Source == source && hit.Target == 0 && hit.AttackId == selected.Attack.Id), "Two identical queued original enemy commands must each own their three Triple contacts.");
+        Check(occurrences.Count == 2 && twice.Capture().NextMagicSequenceId == 2, "Identical original commands must receive two distinct deterministic sequence occurrence IDs.");
+        Check(twice.Actors.Single(actor => actor.Actor.Slot == source).Actor.MagicPoints == 300 - 6 * selected.Attack.Data.CastingCost, "Both original occurrences must debit MP once for each of their six actual casts.");
+        Ff7BattleSession canceled = fixture.Open(duplicates);
+        List<Ff7BattleHit> remaining = fixture.Complete(ref canceled, snapshot => snapshot with { GuestOriginStatuses = [] }, pendingSource: source);
+        Check(remaining.Count == 2 && remaining.All(hit => hit.Source == source && hit.AttackId == selected.Attack.Id), "Losing Triple must cancel the active occurrence's remaining casts while preserving a separately queued identical original command.");
+        Check(canceled.Actors.Single(actor => actor.Actor.Slot == source).Actor.MagicPoints == 300 - 2 * selected.Attack.Data.CastingCost, "A separately queued original command must pay once after the earlier repetition owner is canceled.");
     }
 
     private sealed class Fixture(SceneFormation formation, Ff7Progress progress, IReadOnlyList<KernelSection> kernel, IReadOnlyList<short> modifiers)
@@ -188,7 +212,7 @@ internal static class OriginMagicSequenceTests
             };
         }
 
-        public List<Ff7BattleHit> Complete(ref Ff7BattleSession battle, Func<Ff7BattleSnapshot, Ff7BattleSnapshot>? afterFirstContact = null)
+        public List<Ff7BattleHit> Complete(ref Ff7BattleSession battle, Func<Ff7BattleSnapshot, Ff7BattleSnapshot>? afterFirstContact = null, int? pendingSource = null, ISet<long>? invocationIds = null)
         {
             Ff7BattleSession cold = Open(RoundTrip(battle.Capture()));
             List<Ff7BattleHit> hits = [];
@@ -211,7 +235,15 @@ internal static class OriginMagicSequenceTests
                     }
                 }
                 Ff7BattleSnapshot current = battle.Capture();
-                if (hits.Count > 0 && current.Action is null && current.GuestMagicSequences.IsEmpty)
+                foreach (Ff7BattleGuestMagicSequence sequence in current.GuestMagicSequences)
+                {
+                    if (sequence.InvocationId is long id)
+                    {
+                        invocationIds?.Add(id);
+                    }
+                }
+                bool sourcePending = pendingSource is int source && current.Queue.Ready.OfType<Ff7BattleQueuedCommand>().Concat(current.Queue.Slots.OfType<Ff7BattleQueueEntry>().Select(entry => entry.Command)).Any(command => command.ActorSlot == source && command.Priority >= 2 && command.CommandId is 2 or 0x20);
+                if (hits.Count > 0 && current.Action is null && current.GuestMagicSequences.IsEmpty && !sourcePending)
                 {
                     return hits;
                 }

@@ -161,6 +161,10 @@ if (args.Contains("--eyes-only", StringComparer.Ordinal))
 
 var tests = new (string Name, Action Run)[]
 {
+    ("origin Aura Limit gauge", OriginAuraLimitTests.Run),
+    ("origin source status ownership", OriginBattleStatusTests.Run),
+    ("origin Float posed presentation", OriginFloatPresentationTests.Run),
+    ("origin Magic repetition", OriginMagicSequenceTests.Run),
     ("native save bank projection and slot integrity", NativeSaveBankTests.Run),
     ("envelope preserves both game namespaces and exact FFVIII payload", EnvelopeRoundTrip),
     ("envelope corruption and missing active game rejected", InvalidEnvelope),

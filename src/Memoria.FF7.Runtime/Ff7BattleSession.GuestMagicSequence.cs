@@ -50,7 +50,8 @@ public sealed partial class Ff7BattleSession
     public bool SubmitMagicSequence(int slot, ushort ability, IReadOnlyList<ushort> targets, IReadOnlyList<bool>? groups = null)
     {
         ArgumentNullException.ThrowIfNull(targets);
-        if (targets.Count is < 1 or > 3 || groups is not null && groups.Count != targets.Count || state.GuestMagicSequences.Any(sequence => sequence.ActorSlot == slot) || !GuestMagicCastCounts(slot, ability).Contains(targets.Count))
+        int maximumCasts = GuestMagicCastCounts(slot, ability)[0];
+        if (targets.Count is < 1 or > 3 || groups is not null && groups.Count != targets.Count || state.GuestMagicSequences.Any(sequence => sequence.ActorSlot == slot) || targets.Count > maximumCasts)
         {
             return false;
         }
@@ -86,23 +87,26 @@ public sealed partial class Ff7BattleSession
         {
             return false;
         }
+        int damageScale = maximumCasts == 3 ? 75 : 100;
+        Ff7BattleQueuedCommand?[] ready = (Ff7BattleQueuedCommand?[])state.Queue.Ready.Clone();
+        Ff7BattleQueuedCommand first = ready[readyIndex] ?? throw new InvalidDataException("The submitted Magic sequence has no first queued cast.");
+        if (first.ActorSlot != slot || first.CommandId != (byte)Ff7BattleCommand.Magic || first.Argument != ability)
+        {
+            throw new InvalidDataException("The submitted Magic sequence lost its first command identity.");
+        }
+        ready[readyIndex] = first with { MagicDamageScalePercent = damageScale, MagicSelectionConfirmed = true };
+        state = state with { Queue = state.Queue with { Ready = ready } };
         if (targets.Count > 1)
         {
             long id = checked(state.NextMagicSequenceId + 1);
-            Ff7BattleQueuedCommand?[] ready = (Ff7BattleQueuedCommand?[])state.Queue.Ready.Clone();
-            Ff7BattleQueuedCommand first = ready[readyIndex] ?? throw new InvalidDataException("The submitted Magic sequence has no first queued cast.");
-            if (first.ActorSlot != slot || first.CommandId != (byte)Ff7BattleCommand.Magic || first.Argument != ability)
-            {
-                throw new InvalidDataException("The submitted Magic sequence lost its first command identity.");
-            }
-            ready[readyIndex] = first with { MagicSequenceId = id };
+            ready[readyIndex] = ready[readyIndex]! with { MagicSequenceId = id };
             Ff7BattleQueuedCommand? native = guest ? null : ready[readyIndex];
             Ff7BattleGuestMagicSequence sequence = new(slot, ability, targets.ToImmutableArray(), guest && !option.SelectSingle, singleCost, 1)
             {
                 InvocationId = id,
                 NativeCommand = native,
                 GroupSelections = targets.Select((_, index) => (groups?[index] ?? false) || guest && !option.SelectSingle).ToImmutableArray(),
-                DamageScalePercent = MagicCastCount(slot) == 3 ? 75 : 100
+                DamageScalePercent = damageScale
             };
             state = state with { Queue = state.Queue with { Ready = ready }, NextMagicSequenceId = id, GuestMagicSequences = state.GuestMagicSequences.Add(sequence) };
         }
@@ -125,7 +129,7 @@ public sealed partial class Ff7BattleSession
 
     private bool NativeMagicCanRepeat(Ff7BattleQueuedCommand command)
     {
-        if (command.GuestAttack || command.Priority < 2 || command.StatusCountdown || command.Reflected)
+        if (command.GuestAttack || command.Priority < 2 || command.StatusCountdown || command.Reflected || command.MagicSelectionConfirmed)
         {
             return false;
         }
@@ -173,7 +177,7 @@ public sealed partial class Ff7BattleSession
                 return false;
             }
             long id = checked(state.NextMagicSequenceId + 1);
-            command = command with { MagicSequenceId = id };
+            command = command with { MagicSequenceId = id, MagicDamageScalePercent = count == 3 ? 75 : 100 };
             state = state with
             {
                 NextMagicSequenceId = id,
@@ -202,7 +206,8 @@ public sealed partial class Ff7BattleSession
     private Ff7BattleDamageAction ApplyMagicSequenceDamage(Ff7BattleQueuedCommand command, Ff7BattleDamageAction action)
     {
         Ff7BattleGuestMagicSequence? sequence = state.GuestMagicSequences.SingleOrDefault(sequence => MatchesMagicSequence(sequence, command));
-        return sequence is null ? action : action with { DamageScalePercent = checked(action.DamageScalePercent * sequence.DamageScalePercent / 100) };
+        int scale = command.MagicDamageScalePercent != 100 ? command.MagicDamageScalePercent : sequence?.DamageScalePercent ?? 100;
+        return scale == 100 ? action : action with { DamageScalePercent = checked(action.DamageScalePercent * scale / 100) };
     }
 
     private void CompleteGuestMagic(Ff7BattleQueuedCommand command)
@@ -238,7 +243,7 @@ public sealed partial class Ff7BattleSession
                 FinishTurn(command.ActorSlot);
                 return;
             }
-            queue = Ff7BattleCommandQueue.StageReady(state.Queue, command.ActorSlot, command.CommandId, argument: sequence.Ability, targetMask: targets, groupTarget: group, guestAttack: true, guestAbility: sequence.Ability, magicSequenceId: sequence.InvocationId);
+            queue = Ff7BattleCommandQueue.StageReady(state.Queue, command.ActorSlot, command.CommandId, argument: sequence.Ability, targetMask: targets, groupTarget: group, guestAttack: true, guestAbility: sequence.Ability, magicSequenceId: sequence.InvocationId, magicDamageScalePercent: sequence.DamageScalePercent);
         }
         state = state with { Queue = queue, GuestMagicSequences = state.GuestMagicSequences.Replace(sequence, sequence with { Next = sequence.Next + 1 }) };
     }
@@ -312,6 +317,15 @@ public sealed partial class Ff7BattleSession
             {
                 throw new InvalidDataException("A saved magic sequence has no unique queued or active action.");
             }
+        }
+        IEnumerable<Ff7BattleQueuedCommand> ownedCommands = snapshot.Queue.Ready.OfType<Ff7BattleQueuedCommand>().Concat(snapshot.Queue.Slots.OfType<Ff7BattleQueueEntry>().Select(entry => entry.Command));
+        if (snapshot.Action is { } currentAction)
+        {
+            ownedCommands = ownedCommands.Append(currentAction.Command);
+        }
+        if (ownedCommands.Any(command => command.MagicSequenceId is { } id && !snapshot.GuestMagicSequences.Any(sequence => sequence.InvocationId == id && MatchesMagicSequence(sequence, command))))
+        {
+            throw new InvalidDataException("A queued magic continuation has no source occurrence owner.");
         }
     }
 }

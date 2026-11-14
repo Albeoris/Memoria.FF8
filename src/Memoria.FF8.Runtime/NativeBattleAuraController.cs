@@ -131,7 +131,7 @@ public static class NativeBattleAuraController
                 }
                 if (age == 0)
                 {
-                    NativeBattleModuleAnchor anchor = NativeBattlePoseMatrices.ReadAnchor(model, inputs.ReadPoseSource(actor));
+                    NativeBattleModuleAnchor anchor = inputs.ReadAnchor?.Invoke(actor) ?? NativeBattlePoseMatrices.ReadAnchor(model, inputs.ReadPoseSource(actor));
                     current = inputs.Execute(current, new NativeBattleAuraSound(new(resources.Sound, 0x101, anchor)));
                 }
                 if (age == 29)
@@ -182,7 +182,7 @@ public static class NativeBattleAuraController
 
         bool Available(int index) => pools[index].Slots.Any(task => (task.Flags & 1) == 0);
         void Store(int index, int slot, NativeBattleModulePoolTask task) => pools[index] = pools[index].WriteSlot(slot, task);
-        NativeBattleVector Bone(int actor) => NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(actor), inputs.ReadPoseSource(actor), 0xF1, 0);
+        NativeBattleVector Bone(int actor) => inputs.ReadBone?.Invoke(actor, 0xF1, 0) ?? NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(actor), inputs.ReadPoseSource(actor), 0xF1, 0);
         ushort Roll()
         {
             NativeCrtRandomState random = current.Random.Draw(out ushort value);
