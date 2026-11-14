@@ -61,9 +61,9 @@ public static class NativeBattleCinematicEntityPosition
         uint header = CoreDword(frame, 0x279744C);
         int[] sum = new int[3];
         int index = 0;
-        while (index < unchecked((sbyte)frame.Core.Read(header + 0x41, 1)[0]))
+        while (index < NativeBattleCinematicActorAccess.ReadCurrentCount(frame, signedNative: true, headerAddress: header))
         {
-            int actor = unchecked((sbyte)frame.Core.Read(header + 0x48u + (uint)index, 1)[0]);
+            int actor = unchecked((sbyte)NativeBattleCinematicActorAccess.ReadCurrentActor(frame, index, header));
             NativeBattleCinematicEntityAnchor selected = readAnchor(frame, actor, selector);
             frame = selected.Frame;
             sum[0] = unchecked(sum[0] + selected.Point.X);
@@ -72,7 +72,7 @@ public static class NativeBattleCinematicEntityPosition
             header = CoreDword(frame, 0x279744C);
             index++;
         }
-        int count = unchecked((sbyte)frame.Core.Read(header + 0x41, 1)[0]);
+        int count = NativeBattleCinematicActorAccess.ReadCurrentCount(frame, signedNative: true, headerAddress: header);
         ushort instruction = frame.ReadTemporaryWord(0x14A);
         for (int lane = 0; lane < 3; lane++)
         {
@@ -92,7 +92,7 @@ public static class NativeBattleCinematicEntityPosition
     public static NativeBattleWaterExecutionFrame WaitScaledBySlot140(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program)
     {
         byte actor = ReadSlot(frame, 0x1B, 1)[0];
-        byte scale = frame.Core.Read(CoreDword(frame, 0x279744C) + 0xCCu + actor, 1)[0];
+        byte scale = NativeBattleCinematicActorAccess.ReadActorOrdinal(frame, actor);
         ushort value = BinaryPrimitives.ReadUInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2));
         ushort product = unchecked((ushort)(scale * value));
         frame = frame.WriteTemporaryWord(0x13E, unchecked((ushort)(product << 7)));

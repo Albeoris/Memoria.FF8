@@ -18,7 +18,7 @@ public static class NativeBattleCinematicActorAnchorCommands
         if (opcode == 0xB4)
         {
             byte actor = ReadSlot(frame, 0x1B, 1)[0];
-            uint pointer = CoreDword(frame, unchecked(owner + 0x60 + 4u * actor));
+            uint pointer = NativeBattleCinematicActorAccess.ReadModelPointer(frame, actor, owner);
             NativeBattleCinematicBonePose pose = services.ReadPose(frame, pointer, true, false);
             frame = pose.Frame;
             int count = pose.BoneCount;
@@ -41,7 +41,7 @@ public static class NativeBattleCinematicActorAnchorCommands
         if (opcode == 0x60)
         {
             byte actor = ReadSlot(frame, 0x1B, 1)[0];
-            uint pointer = CoreDword(frame, unchecked(owner + 0x60 + 4u * actor));
+            uint pointer = NativeBattleCinematicActorAccess.ReadModelPointer(frame, actor, owner);
             NativeBattleWaterActorAnchorResult result = Anchor(pointer, false, false);
             frame = services.PublishInput(result.Frame, result.Frame.TemporaryFrame.Address + 0xC0);
             uint advance = 4;
@@ -69,7 +69,7 @@ public static class NativeBattleCinematicActorAnchorCommands
         if (opcode == 0xAD)
         {
             byte actor = ReadSlot(frame, 0x1B, 1)[0];
-            uint pointer = CoreDword(frame, unchecked(owner + 0x60 + 4u * actor));
+            uint pointer = NativeBattleCinematicActorAccess.ReadModelPointer(frame, actor, owner);
             bool linked = (instruction & 0x8000) != 0;
             NativeBattleWaterActorAnchorResult result = Anchor(pointer, true, linked);
             frame = result.Frame;
@@ -87,14 +87,14 @@ public static class NativeBattleCinematicActorAnchorCommands
         }
         else if (opcode == 0x6E)
         {
-            int count = unchecked((sbyte)frame.Core.Read(owner + 0x41, 1)[0]);
+            int count = NativeBattleCinematicActorAccess.ReadCurrentCount(frame, signedNative: true, headerAddress: owner);
             int x = 0;
             int y = 0;
             int z = 0;
             for (int index = 0; index < count; index++)
             {
-                int actor = unchecked((sbyte)frame.Core.Read(unchecked(owner + 0x48u + (uint)index), 1)[0]);
-                uint pointer = CoreDword(frame, unchecked(owner + 0x60u + (uint)(actor * 4)));
+                int actor = unchecked((sbyte)NativeBattleCinematicActorAccess.ReadCurrentActor(frame, index, owner));
+                uint pointer = NativeBattleCinematicActorAccess.ReadModelPointer(frame, actor, owner);
                 NativeBattleWaterActorAnchorResult result = Anchor(pointer, false, false);
                 frame = services.PublishInput(result.Frame, result.Frame.TemporaryFrame.Address + 0xC0);
                 x = unchecked(x + result.Anchor.X);

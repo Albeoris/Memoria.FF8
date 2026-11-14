@@ -138,6 +138,109 @@ public sealed class NativeBattleWaterHeaderTests
         Assert.Throws<InvalidDataException>(() => (cold with { Known = [] }).Validate());
     }
 
+    [Fact]
+    public void Hosted_capture_preserves_flags_fields_and_deduplicates_full_occurrence_stream()
+    {
+        ImmutableArray<NativeBattleGraphicsModel> old = HostedModels();
+        NativeBattleWaterHeader initial = HostedHeader(old);
+        NativeBattleWaterHeader header = NativeBattleWaterHeaderCapture.CacheRowsAA4B60(initial with { PresentationActors = initial.PresentationActors!.WithSavedActors([7, 24, 7]) }, old);
+        NativeBattleCinematicActorContext previous = header.PresentationActors!;
+        ImmutableArray<NativeBattleGraphicsModel> changed = old.Select(model => model with
+        {
+            Flags0 = (ushort)(0xAB00 + model.Index),
+            Rotation14 = -200,
+            Transform = model.Transform is { } transform ? transform with { Position28 = new(10, 20, 30) } : null
+        }).ToImmutableArray();
+        byte[] order = [24, 7, .. Enumerable.Range(0, 24).Where(row => row != 7).Select(row => (byte)row)];
+        ImmutableArray<byte> contacts = Enumerable.Range(0, 300).Select(index => order[index % order.Length]).Append(byte.MaxValue).ToImmutableArray();
+        var result = NativeBattleWaterHeaderCapture.CaptureAA4E90(header, Arena(), Bank, 1, 7, 5, 16, contacts, 300, changed);
+        NativeBattleCinematicActorContext actual = result.Header.PresentationActors!;
+
+        Assert.Equal(5, result.CurrentHeaderIndex);
+        Assert.Equal((byte)7, result.Header.Read(0x44, 1)[0]);
+        Assert.Equal((byte)25, result.Header.Read(0x41, 1)[0]);
+        Assert.Equal(order[..6], result.Header.Read(0x48, 6).ToArray());
+        Assert.Equal((byte)24, result.Arena.Read(Slot(1) + 0x1B, 1)[0]);
+        Assert.Equal(order, actual.CurrentActors.ToArray());
+        Assert.Equal((byte)24, actual.ReadFirstActor());
+        Assert.Equal(previous.SavedActors, actual.SavedActors);
+        Assert.Equal(previous.ContactCursor, actual.ContactCursor);
+        for (int row = 0; row < changed.Length; row++)
+        {
+            Assert.Equal(previous.ReadCachedActor(row) with { Flags0 = changed[row].Flags0 }, actual.ReadCachedActor(row));
+            Assert.Equal((byte)Array.IndexOf(order, (byte)row), actual.ReadActorOrdinal(row));
+            if (row < 7)
+            {
+                Assert.Equal(changed[row].Flags0, U16(result.Header, 0x4E + row * 2));
+                Assert.Equal(actual.ReadActorOrdinal(row), result.Header.Read(0xCC + row, 1)[0]);
+            }
+        }
+        Assert.Equal(header.Bytes[0xD3], result.Header.Bytes[0xD3]);
+        Assert.Equal(header.Bytes[0x60..0xC0].ToArray(), result.Header.Bytes[0x60..0xC0].ToArray());
+        Assert.Equal(header.Bytes[0xD8..].ToArray(), result.Header.Bytes[0xD8..].ToArray());
+
+        string json = NativeBattleTestSnapshots.Json(result.Header);
+        NativeBattleWaterHeader restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterHeader>(json)!;
+        Assert.Equal(json, NativeBattleTestSnapshots.Json(restored));
+        NativeBattleWaterHeader refreshed = NativeBattleWaterHeaderCapture.CacheRowsAA4B60(restored, changed);
+        NativeBattleCinematicActorContext updated = refreshed.PresentationActors!;
+        Assert.Equal(new NativeBattleVector(10, 20, 30), updated.ReadCachedActor(24).Position28);
+        Assert.Equal((short)-200, updated.ReadCachedActor(24).Rotation14);
+        Assert.Equal(actual.CurrentActors.ToArray(), updated.CurrentActors.ToArray());
+        Assert.Equal(actual.ActorOrdinals.ToArray(), updated.ActorOrdinals.ToArray());
+        Assert.Equal(actual.ReadSavedActors().ToArray(), updated.ReadSavedActors().ToArray());
+        Assert.Equal(actual.ContactCursor, updated.ContactCursor);
+        Assert.Equal(new short[] { 10, 20, 30 }, Words(refreshed, 0x84, 3));
+        Assert.Equal(restored.Bytes[0x7C], refreshed.Bytes[0x7C]);
+    }
+
+    [Fact]
+    public void Hosted_zero_contacts_use_explicit_first_actor_without_changing_ordinals_or_saved_list()
+    {
+        ImmutableArray<NativeBattleGraphicsModel> models = HostedModels();
+        NativeBattleWaterHeader header = HostedHeader(models);
+        var result = NativeBattleWaterHeaderCapture.CaptureAA4E90(header, Arena(), Bank, 0, 7, 0, 24, default, 0, models);
+        Assert.Equal((byte)0, result.Header.Read(0x41, 1)[0]);
+        Assert.Equal((byte)24, result.Header.Read(0x48, 1)[0]);
+        Assert.Equal((byte)24, result.Arena.Read(Slot(0) + 0x1B, 1)[0]);
+        NativeBattleCinematicActorContext actual = result.Header.PresentationActors!;
+        Assert.Empty(actual.CurrentActors);
+        Assert.Equal((byte)24, actual.ReadFirstActor());
+        Assert.Null(actual.SavedActors);
+        Assert.Equal(header.PresentationActors!.ActorOrdinals, actual.ActorOrdinals);
+        Assert.Equal(header.Bytes[0xCC..0xD3].ToArray(), result.Header.Bytes[0xCC..0xD3].ToArray());
+    }
+
+    [Fact]
+    public void Capture_rejects_invalid_counts_and_hosted_unbound_rows()
+    {
+        ImmutableArray<NativeBattleGraphicsModel> models = HostedModels();
+        NativeBattleWaterHeader header = HostedHeader(models, hole: 6);
+        Assert.Throws<InvalidDataException>(() => NativeBattleWaterHeaderCapture.CaptureAA4E90(header, Arena(), Bank, 0, 6, 0, 24, [], 0, models));
+        Assert.Throws<InvalidDataException>(() => NativeBattleWaterHeaderCapture.CaptureAA4E90(header, Arena(), Bank, 0, 7, 0, 6, [], 0, models));
+        Assert.Throws<InvalidDataException>(() => NativeBattleWaterHeaderCapture.CaptureAA4E90(header, Arena(), Bank, 0, 7, 0, 24, [6], 1, models));
+        Assert.Throws<InvalidDataException>(() => NativeBattleWaterHeaderCapture.CaptureAA4E90(header, Arena(), Bank, 0, 7, 0, 24, [24], 2, models));
+        Assert.Throws<InvalidDataException>(() => NativeBattleWaterHeaderCapture.CaptureAA4E90(header, Arena(), Bank, 0, 7, 0, 24, [], -1, models));
+        Assert.Throws<InvalidDataException>(() => NativeBattleWaterHeaderCapture.CaptureAA4E90(header, Arena(), Bank, 0, 7, 0, 24, [], NativeBattleContactAddress.MaximumRowCount + 1, models));
+        Assert.Throws<InvalidDataException>(() => NativeBattleWaterHeaderCapture.CaptureAA4E90(header, Arena(), Bank, 0, 7, 0, 24, [], 0, models.RemoveAt(24)));
+        Assert.Throws<InvalidDataException>(() => NativeBattleWaterHeaderCapture.CacheRowsAA4B60(header, models.SetItem(24, new(23, 0))));
+        Assert.Throws<NotSupportedException>(() => NativeBattleWaterHeaderCapture.CaptureAA4E90(Warm(), Arena(), Bank, 0, 0, 0, 0, [], -1, Models()));
+        Assert.Throws<NotSupportedException>(() => NativeBattleWaterHeaderCapture.CaptureAA4E90(Warm(), Arena(), Bank, 0, 0, 0, 0, Enumerable.Repeat((byte)0, 256).ToImmutableArray(), 256, Models()));
+    }
+
+    private static ImmutableArray<NativeBattleGraphicsModel> HostedModels()
+    {
+        ImmutableArray<NativeBattleGraphicsModel> native = Models();
+        return [.. native, .. Enumerable.Range(7, 18).Select(row => native[row % native.Length] with { Index = row })];
+    }
+
+    private static NativeBattleWaterHeader HostedHeader(ImmutableArray<NativeBattleGraphicsModel> models, int? hole = null)
+    {
+        NativeBattleGraphicsRoster roster = new(Enumerable.Range(0, models.Length).Select(row => row == hole ? null : new NativeBattleGraphicsActor($"actor-{row}", row % 2 == 0)).ToImmutableArray());
+        NativeBattleCinematicActorContext actors = NativeBattleCinematicActorContext.FromGraphics(roster, models).CaptureCurrentContacts([24, 7], 0).WithContactCursor(49);
+        return Warm() with { PresentationActors = actors };
+    }
+
     private static readonly NativeBattleWaterSlotBank Bank = new(0x1000, 0x1000, 8, 0x1058);
     private static int Slot(int index) => 0x1000 + 0x58 + index * 0x100;
     private static NativeBattleEffectArena Arena()

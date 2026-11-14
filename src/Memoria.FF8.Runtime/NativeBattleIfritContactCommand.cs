@@ -26,18 +26,18 @@ public static class NativeBattleIfritContactCommand
         uint manager = CoreDword(frame, 0x27973EC);
         uint action = CoreDword(frame, unchecked(manager + 0xCC));
         uint contacts = BinaryPrimitives.ReadUInt32LittleEndian(ReadAction(unchecked(action + 8), 4));
-        int count = unchecked((sbyte)ReadAction(unchecked(action + 0x10), 1)[0]);
+        int count = NativeBattleCinematicContacts.ReadCount(frame, action, services.ReadActionBytes, services.ActionPackets, signedNative: true);
         if ((instruction & 0xF000) == 0x8000)
         {
             for (int index = 0; index < count; index++)
             {
-                frame = services.ApplyContact506690(frame, unchecked(contacts + (uint)(0x18 * index)));
+                frame = services.ApplyContact506690(frame, NativeBattleCinematicContacts.Offset(contacts, index, services.ActionPackets));
             }
         }
         else if (savedActorSelection && instruction >> 12 == 1)
         {
             uint header = CoreDword(frame, 0x279744C);
-            int saved = unchecked((sbyte)frame.Core.Read(unchecked(header + 0x17A), 1)[0]);
+            int saved = NativeBattleCinematicActorAccess.ReadSavedCount(frame, signedNative: true, headerAddress: header);
             if (saved == 0)
             {
                 ApplyFirst(contacts, ReadSlot(frame, 0x1B, 1)[0]);
@@ -46,7 +46,7 @@ public static class NativeBattleIfritContactCommand
             {
                 for (int index = saved; index > 0; index--)
                 {
-                    byte wanted = frame.Core.Read(unchecked(header + 0x173u + (uint)index), 1)[0];
+                    byte wanted = NativeBattleCinematicActorAccess.ReadSavedActor(frame, index - 1, header);
                     uint currentContacts = BinaryPrimitives.ReadUInt32LittleEndian(ReadAction(unchecked(action + 8), 4));
                     ApplyFirst(currentContacts, wanted);
                 }
@@ -62,7 +62,7 @@ public static class NativeBattleIfritContactCommand
         {
             for (int index = 0; index < count; index++)
             {
-                uint contact = unchecked(first + (uint)(0x18 * index));
+                uint contact = NativeBattleCinematicContacts.Offset(first, index, services.ActionPackets);
                 if (ReadAction(contact, 1)[0] == wanted)
                 {
                     frame = services.ApplyContact506690(frame, contact);
@@ -71,14 +71,6 @@ public static class NativeBattleIfritContactCommand
             }
         }
 
-        byte[] ReadAction(uint address, int length)
-        {
-            if (address >= NativeBattleEffectNodeMemory.ArenaAddress && (long)address - NativeBattleEffectNodeMemory.ArenaAddress <= NativeBattleEffectArena.Length - length)
-            {
-                return frame.Arena.Read(ArenaOffset(address, length), length);
-            }
-            byte[] bytes = services.ReadActionBytes(frame, address, length);
-            return bytes is not null && bytes.Length == length ? bytes : throw new InvalidDataException("Native cinematic contact read requires its exact addressed action-packet extent.");
-        }
+        byte[] ReadAction(uint address, int length) => NativeBattleCinematicContacts.ReadBytes(frame, address, length, services.ReadActionBytes);
     }
 }

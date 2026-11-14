@@ -93,11 +93,19 @@ public sealed class NativeBattleCinematicActorContextTests
         NativeBattleScriptedEffectMemory core = NativeBattleScriptedEffectMemory.FromColdProcess().Write(NativeBattleScriptedEffectMemory.Address + 0x44, [2]);
         NativeBattleCinematicActorContext context = Create().CaptureCurrentContacts([24, 7], 0).WithSavedActors([]).WithContactCursor(48);
         NativeBattleWaterHeader header = core.ReadHeader() with { PresentationActors = context };
-        NativeBattleWaterHeader cached = NativeBattleWaterHeaderCapture.CacheRowsAA4B60(header, Models(7));
-        Assert.Same(context, cached.PresentationActors);
+        ImmutableArray<NativeBattleGraphicsModel> models = Models();
+        models = models.SetItem(24, models[24] with { Rotation14 = -123 });
+        NativeBattleWaterHeader cached = NativeBattleWaterHeaderCapture.CacheRowsAA4B60(header, models);
+        NativeBattleCinematicActorContext cachedContext = cached.PresentationActors!;
+        Assert.Equal(context.ReadCachedActor(24) with { Rotation14 = -123 }, cachedContext.ReadCachedActor(24));
+        Assert.Equal(context.CurrentActors, cachedContext.CurrentActors);
+        Assert.Equal(context.FirstActor, cachedContext.FirstActor);
+        Assert.Equal(context.SavedActors, cachedContext.SavedActors);
+        Assert.Equal(context.ActorOrdinals, cachedContext.ActorOrdinals);
+        Assert.Equal(context.ContactCursor, cachedContext.ContactCursor);
         NativeBattleScriptedEffectMemory published = core.WithHeader(cached);
         Assert.Null(core.PresentationActors);
-        Assert.Same(context, published.ReadHeader().PresentationActors);
+        Assert.Same(cachedContext, published.ReadHeader().PresentationActors);
 
         NativeBattleScriptedEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleScriptedEffectMemory>(NativeBattleTestSnapshots.Json(published))!;
         restored.Validate();
@@ -108,7 +116,7 @@ public sealed class NativeBattleCinematicActorContextTests
         Assert.Empty(restoredContext.ReadSavedActors());
         Assert.Equal((byte)24, restoredContext.ReadFirstActor());
         Assert.Equal((byte)1, restoredContext.ReadActorOrdinal(7));
-        Assert.Equal(context.ReadCachedActor(24), restoredContext.ReadCachedActor(24));
+        Assert.Equal(cachedContext.ReadCachedActor(24), restoredContext.ReadCachedActor(24));
         NativeBattleWaterHeader changed = restoredHeader with { PresentationActors = restoredContext.WithCurrentActors([7, 7]).WithContactCursor(49) };
         NativeBattleCinematicActorContext next = restored.WithHeader(changed).PresentationActors!;
         Assert.Equal(new byte[] { 7, 7 }, next.CurrentActors);

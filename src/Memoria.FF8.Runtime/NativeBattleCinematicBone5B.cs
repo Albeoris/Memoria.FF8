@@ -28,7 +28,7 @@ public static class NativeBattleCinematicBone5B
         if (physical)
         {
             byte actor = ReadSlot(frame, 0x1B, 1)[0];
-            source = CoreDword(frame, unchecked(CoreDword(frame, 0x279744C) + 0x60u + 4u * actor));
+            source = NativeBattleCinematicActorAccess.ReadModelPointer(frame, actor);
         }
         else
         {

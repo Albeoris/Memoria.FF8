@@ -43,10 +43,43 @@ public sealed record NativeBattleWaterHeaderCaptureResult(NativeBattleWaterHeade
 
 public static class NativeBattleWaterHeaderCapture
 {
-    public static NativeBattleWaterHeaderCaptureResult CaptureAA4E90(NativeBattleWaterHeader header, NativeBattleEffectArena arena, NativeBattleWaterSlotBank bank, int slotIndex, byte caster, int currentHeaderIndex, byte firstHeaderFirstActor, ImmutableArray<byte> currentContacts, byte contactCount, ImmutableArray<NativeBattleGraphicsModel> graphics)
+    public static NativeBattleWaterHeaderCaptureResult CaptureAA4E90(NativeBattleWaterHeader header, NativeBattleEffectArena arena, NativeBattleWaterSlotBank bank, int slotIndex, byte caster, int currentHeaderIndex, byte firstHeaderFirstActor, ImmutableArray<byte> currentContacts, int contactCount, ImmutableArray<NativeBattleGraphicsModel> graphics)
     {
+        if (header.PresentationActors is { } hosted)
+        {
+            if ((uint)currentHeaderIndex >= NativeBattleActionPacketsState.HeaderCapacity || contactCount is < 0 or > NativeBattleContactAddress.MaximumRowCount ||
+                contactCount > 0 && (currentContacts.IsDefault || currentContacts.Length < contactCount))
+            {
+                throw new InvalidDataException("Hosted header capture requires its actual selected header and contact occurrences.");
+            }
+            _ = hosted.ReadCachedActor(caster);
+            NativeBattleCinematicActorContext captured = hosted.RefreshFlags(graphics).CaptureCurrentContacts(contactCount == 0 ? [] : currentContacts[..contactCount], firstHeaderFirstActor);
+            HeaderWriter hostedWriter = new(header);
+            hostedWriter.Byte(0x44, caster);
+            hostedWriter.Byte(0x48, captured.ReadFirstActor());
+            for (int row = 0; row < NativeBattleGraphicsModelAddress.NativeRowCount; row++)
+            {
+                hostedWriter.Word(0x4E + 2 * row, unchecked((short)graphics[row].Flags0));
+            }
+            for (int ordinal = 0; ordinal < captured.CurrentActors.Length; ordinal++)
+            {
+                byte actor = captured.CurrentActors[ordinal];
+                if (ordinal < 6)
+                {
+                    hostedWriter.Byte(0x48 + ordinal, actor);
+                }
+                if (actor < NativeBattleGraphicsModelAddress.NativeRowCount)
+                {
+                    hostedWriter.Byte(0xCC + actor, checked((byte)ordinal));
+                }
+            }
+            arena = arena.Write(bank.SlotOffset(arena, slotIndex) + 0x1B, [captured.ReadFirstActor()]);
+            hostedWriter.Byte(0x41, checked((byte)captured.CurrentActors.Length));
+            return new(hostedWriter.Freeze() with { PresentationActors = captured }, arena, currentHeaderIndex);
+        }
         ValidateRows(graphics);
-        if (caster >= 7 || currentHeaderIndex < 0 || currentHeaderIndex >= NativeBattleActionPacketsState.HeaderCapacity || firstHeaderFirstActor >= 7 || contactCount > 0 && (currentContacts.IsDefault || currentContacts.Length < contactCount))
+        if (caster >= 7 || currentHeaderIndex < 0 || currentHeaderIndex >= NativeBattleActionPacketsState.HeaderCapacity || firstHeaderFirstActor >= 7 ||
+            contactCount is < 0 or > byte.MaxValue || contactCount > 0 && (currentContacts.IsDefault || currentContacts.Length < contactCount))
         {
             throw new NotSupportedException("Native header capture requires its actual caster, selected header and contact owners.");
         }
@@ -83,8 +116,12 @@ public static class NativeBattleWaterHeaderCapture
 
     public static NativeBattleWaterHeader CacheRowsAA4B60(NativeBattleWaterHeader header, ImmutableArray<NativeBattleGraphicsModel> graphics)
     {
-        ValidateRows(graphics);
         HeaderWriter writer = new(header);
+        NativeBattleCinematicActorContext? cached = header.PresentationActors?.RefreshCache(graphics);
+        if (cached is null)
+        {
+            ValidateRows(graphics);
+        }
         for (int index = 0; index < 7; index++)
         {
             NativeBattleGraphicsModel model = graphics[index];
@@ -103,7 +140,7 @@ public static class NativeBattleWaterHeaderCapture
             writer.Word(0x124 + 8 * index, transform?.Scale148.Z);
             writer.Word(0x126 + 8 * index, transform?.Scale154);
         }
-        return writer.Freeze();
+        return writer.Freeze() with { PresentationActors = cached };
     }
 
     private static void ValidateRows(ImmutableArray<NativeBattleGraphicsModel> graphics)

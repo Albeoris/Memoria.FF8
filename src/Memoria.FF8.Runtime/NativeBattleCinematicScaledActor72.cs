@@ -12,7 +12,7 @@ public static class NativeBattleCinematicScaledActor72
     {
         uint header = CoreDword(frame, 0x279744C);
         byte actor = ReadSlot(frame, 0x1B, 1)[0];
-        uint address = CoreDword(frame, unchecked(header + 0x60u + actor * 4u));
+        uint address = NativeBattleCinematicActorAccess.ReadModelPointer(frame, actor, header);
         if (BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xC4, 4)) == 0)
         {
             frame = WriteSlotDword(frame, 0xC4, uint.MaxValue);
@@ -51,9 +51,10 @@ public static class NativeBattleCinematicScaledActor72
         updated = services.ReadActor(frame, address);
         NativeBattleModelTransform transform = updated.Transform ?? throw new NotSupportedException("Native scaled cinematic actor positioning requires its retained transform owner.");
         frame = services.WriteActor(frame, address, updated with { Transform = transform with { Position28 = positionNext } });
-        uint scaleAddress = unchecked(CoreDword(frame, 0x279744C) + 0x120u + actor * 8u);
+        uint scaleHeader = CoreDword(frame, 0x279744C);
         int scale = unchecked((short)SlotWord(frame, 0x90));
-        NativeBattleVector modelScale = new(unchecked((short)(unchecked((short)CoreWord(frame, scaleAddress) * scale) / 4096)), unchecked((short)(unchecked((short)CoreWord(frame, scaleAddress + 2) * scale) / 4096)), unchecked((short)(unchecked((short)CoreWord(frame, scaleAddress + 4) * scale) / 4096)));
+        NativeBattleVector cachedScale = NativeBattleCinematicActorAccess.ReadScale(frame, actor, scaleHeader);
+        NativeBattleVector modelScale = new(unchecked((short)(cachedScale.X * scale / 4096)), unchecked((short)(cachedScale.Y * scale / 4096)), unchecked((short)(cachedScale.Z * scale / 4096)));
         updated = services.ReadActor(frame, address);
         frame = services.WriteActor(frame, address, updated with { Transform = transform with { Position28 = positionNext, Scale148 = modelScale } });
         if ((SlotWord(frame, 0x4A) & 1) != 0)
@@ -63,11 +64,7 @@ public static class NativeBattleCinematicScaledActor72
         updated = services.ReadActor(frame, address);
         return services.WriteActor(frame, address, updated with { Flags0 = (ushort)(updated.Flags0 & 0xEFFF) });
 
-        NativeBattleVector HeaderAngles()
-        {
-            uint current = unchecked(CoreDword(frame, 0x279744C) + 0xD8u + actor * 8u);
-            return new(unchecked((short)CoreWord(frame, current)), unchecked((short)CoreWord(frame, current + 2)), unchecked((short)CoreWord(frame, current + 4)));
-        }
+        NativeBattleVector HeaderAngles() => NativeBattleCinematicActorAccess.ReadRotation(frame, actor);
 
         NativeBattleActionMatrix StoreRotation(NativeBattleVector angles)
         {

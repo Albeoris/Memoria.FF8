@@ -6,25 +6,39 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Branches on the first matching current contact's result flags or the participant's battle status.</summary>
 public static class NativeBattleCinematicContactBranch46
 {
-    public static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, Func<NativeBattleWaterExecutionFrame, uint, int, byte[]> readAction, Func<NativeBattleWaterExecutionFrame, byte, uint> readBattleStatus)
+    public static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, Func<NativeBattleWaterExecutionFrame, uint, int, byte[]> readAction, Func<NativeBattleWaterExecutionFrame, byte, uint> readBattleStatus, NativeBattleActionPacketsState? packets = null)
     {
         uint manager = CoreDword(frame, 0x27973EC);
         uint action = CoreDword(frame, unchecked(manager + 0xCC));
         byte participant = ReadSlot(frame, 0x1B, 1)[0];
+        bool hosted = packets?.PresentationRoster is not null;
+        int? hostedMode = hosted ? ReadMode() : null;
+        if (hostedMode == 4)
+        {
+            return Advance((readBattleStatus(frame, participant) & 0x2000) != 0);
+        }
         uint contact = BinaryPrimitives.ReadUInt32LittleEndian(Read(unchecked(action + 8), 4));
-        int count = Read(unchecked(action + 0x10), 1)[0];
-        for (int index = 0; index < count; index++)
+        int count = NativeBattleCinematicContacts.ReadCount(frame, action, readAction, packets, signedNative: false);
+        uint first = contact;
+        int index = 0;
+        for (; index < count; index++)
         {
             if (Read(contact, 1)[0] == participant)
             {
                 break;
             }
-            contact = unchecked(contact + 0x18);
+            if (!hosted || index + 1 < count)
+            {
+                contact = NativeBattleCinematicContacts.Offset(first, index + 1, packets);
+            }
         }
-        uint modeAddress = unchecked(CoreDword(frame, 0x27973B8) + 0x4A);
-        ushort raw = modeAddress >= frame.TemporaryFrame.Address && (long)modeAddress - frame.TemporaryFrame.Address <= 0x17E ? frame.ReadTemporaryWord(checked((int)(modeAddress - frame.TemporaryFrame.Address))) : BinaryPrimitives.ReadUInt16LittleEndian(frame.Core.Read(modeAddress, 2));
+        if (hosted && index == count)
+        {
+            throw new InvalidDataException("Hosted cinematic contact branch has no contact for the current actor.");
+        }
+        int mode = hostedMode ?? ReadMode();
         byte flags = Read(unchecked(contact + 3), 1)[0];
-        bool branch = (raw >> 9) switch
+        bool branch = mode switch
         {
             1 => (flags & 4) != 0,
             2 => (Read(unchecked(contact + 2), 1)[0] & 8) != 0,
@@ -32,17 +46,21 @@ public static class NativeBattleCinematicContactBranch46
             4 => (readBattleStatus(frame, participant) & 0x2000) != 0,
             _ => (flags & 4) == 0
         };
-        uint advance = branch ? unchecked((uint)(int)BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2))) : 4u;
-        return NativeBattleScriptedCommandReads.Advance(frame, advance);
+        return Advance(branch);
 
-        byte[] Read(uint address, int length)
+        int ReadMode()
         {
-            if (address >= NativeBattleEffectNodeMemory.ArenaAddress && (long)address - NativeBattleEffectNodeMemory.ArenaAddress <= NativeBattleEffectArena.Length - length)
-            {
-                return frame.Arena.Read(ArenaOffset(address, length), length);
-            }
-            byte[] bytes = readAction(frame, address, length);
-            return bytes is not null && bytes.Length == length ? bytes : throw new InvalidDataException("Native cinematic contact branch requires its exact current addressed packet bytes.");
+            uint address = unchecked(CoreDword(frame, 0x27973B8) + 0x4A);
+            ushort raw = address >= frame.TemporaryFrame.Address && (long)address - frame.TemporaryFrame.Address <= 0x17E ? frame.ReadTemporaryWord(checked((int)(address - frame.TemporaryFrame.Address))) : BinaryPrimitives.ReadUInt16LittleEndian(frame.Core.Read(address, 2));
+            return raw >> 9;
         }
+
+        NativeBattleWaterExecutionFrame Advance(bool taken)
+        {
+            uint amount = taken ? unchecked((uint)(int)BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2))) : 4u;
+            return NativeBattleScriptedCommandReads.Advance(frame, amount);
+        }
+
+        byte[] Read(uint address, int length) => NativeBattleCinematicContacts.ReadBytes(frame, address, length, readAction);
     }
 }

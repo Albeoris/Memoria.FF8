@@ -13,7 +13,7 @@ public static class NativeBattleCinematicActorClone48
     {
         uint header = CoreDword(frame, 0x279744C);
         byte actorIndex = ReadSlot(frame, 0x1B, 1)[0];
-        uint actor = CoreDword(frame, unchecked(header + 0x60u + 4u * actorIndex));
+        uint actor = NativeBattleCinematicActorAccess.ReadModelPointer(frame, actorIndex, header);
         uint clone = SlotDword(0xBC);
         if (clone == 0)
         {
@@ -51,16 +51,14 @@ public static class NativeBattleCinematicActorClone48
         uint selected = services.ResolveNode(frame, unchecked((ushort)SignedWord(SlotDword(0xB8))));
         actorIndex = ReadSlot(frame, 0x1B, 1)[0];
         header = CoreDword(frame, 0x279744C);
-        uint capturedRotation = unchecked(header + 0xD8u + 8u * actorIndex);
-        NativeBattleVector angles = new(unchecked((short)(CoreWord(frame, capturedRotation) - SignedSlot(0xA8) + SignedWord(selected + 0x8C))), unchecked((short)(SignedWord(selected + 0x8E) - SignedSlot(0xAA) + CoreWord(frame, capturedRotation + 2))), unchecked((short)(SignedWord(selected + 0x98) - SignedSlot(0xAC) + CoreWord(frame, capturedRotation + 4))));
+        NativeBattleVector angles = new(unchecked((short)(NativeBattleCinematicActorAccess.ReadRotationWord(frame, actorIndex, 0, header) - SignedSlot(0xA8) + SignedWord(selected + 0x8C))), unchecked((short)(SignedWord(selected + 0x8E) - SignedSlot(0xAA) + NativeBattleCinematicActorAccess.ReadRotationWord(frame, actorIndex, 1, header))), unchecked((short)(SignedWord(selected + 0x98) - SignedSlot(0xAC) + NativeBattleCinematicActorAccess.ReadRotationWord(frame, actorIndex, 2, header))));
         frame = frame.WriteTemporaryWord(0x80, unchecked((ushort)angles.X)).WriteTemporaryWord(0x82, unchecked((ushort)angles.Y)).WriteTemporaryWord(0x84, unchecked((ushort)angles.Z));
         (frame, NativeBattleActionMatrix relative) = NativeBattleWaterMatrixCommands.BuildRotationB65590(frame, angles, 1);
         NativeBattleVector selectedAngles = new(SignedWord(selected + 0x8C), SignedWord(selected + 0x8E), SignedWord(selected + 0x90));
         NativeBattleActionMatrix selectedRotation = NativeBattleGfMatrices.Euler56CD50(selectedAngles);
         StoreRotation(0xA0, selectedRotation);
         NativeBattleActionMatrix positioned = selectedRotation with { X = SignedWord(selected + 0x94), Y = SignedWord(selected + 0x96), Z = SignedWord(selected + 0x98) };
-        uint capturedPosition = unchecked(header + 0x84u + 8u * actorIndex);
-        NativeBattleVector difference = new(unchecked((short)(CoreWord(frame, capturedPosition) - SignedSlot(0xC0))), unchecked((short)(CoreWord(frame, capturedPosition + 2) - SignedSlot(0xC2))), unchecked((short)(CoreWord(frame, capturedPosition + 4) - SignedSlot(0xC4))));
+        NativeBattleVector difference = new(unchecked((short)(NativeBattleCinematicActorAccess.ReadPositionWord(frame, actorIndex, 0, header) - SignedSlot(0xC0))), unchecked((short)(NativeBattleCinematicActorAccess.ReadPositionWord(frame, actorIndex, 1, header) - SignedSlot(0xC2))), unchecked((short)(NativeBattleCinematicActorAccess.ReadPositionWord(frame, actorIndex, 2, header) - SignedSlot(0xC4))));
         frame = frame.WriteTemporaryWord(0xC0, unchecked((ushort)difference.X)).WriteTemporaryWord(0xC2, unchecked((ushort)difference.Y)).WriteTemporaryWord(0xC4, unchecked((ushort)difference.Z));
         frame = services.PublishInput(frame, frame.TemporaryFrame.Address + 0xC0);
         NativeBattleFullMacVertex translated = NativeBattleGfMatrices.TransformMac460840(positioned, difference);

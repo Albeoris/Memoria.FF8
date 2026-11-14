@@ -18,7 +18,7 @@ public sealed partial class BattleSession
         uint payload = SlotDword(0xB8);
         byte actorIndex = ReadSlot(frame, 0x1B, 1)[0];
         uint header = CoreDword(frame, 0x279744C);
-        uint actorAddress = CoreDword(frame, header + 0x60u + 4u * actorIndex);
+        uint actorAddress = NativeBattleCinematicActorAccess.ReadModelPointer(frame, actorIndex, header);
         if (actorIndex >= graphics.Models.Length || actorAddress != NativeBattleGraphicsModelAddress.Encode(actorIndex))
         {
             throw new NotSupportedException("Native cinematic monster drawing requires its actual physical actor directory.");

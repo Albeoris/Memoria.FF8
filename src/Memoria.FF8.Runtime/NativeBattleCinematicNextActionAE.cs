@@ -26,7 +26,7 @@ public static class NativeBattleCinematicNextActionAE
         return NativeBattleScriptedCommandReads.Advance(frame, 4);
     }
 
-    public static NativeBattleWaterExecutionFrame CaptureCurrent(NativeBattleWaterExecutionFrame frame, int resourceLength, Func<NativeBattleWaterExecutionFrame, uint, int, byte[]> readActionBytes, ImmutableArray<NativeBattleGraphicsModel> graphics)
+    public static NativeBattleWaterExecutionFrame CaptureCurrent(NativeBattleWaterExecutionFrame frame, int resourceLength, Func<NativeBattleWaterExecutionFrame, uint, int, byte[]> readActionBytes, ImmutableArray<NativeBattleGraphicsModel> graphics, NativeBattleActionPacketsState? packets = null)
     {
         uint manager = CoreDword(frame, 0x27973EC);
         uint parameters = CoreDword(frame, manager + 0xC0);
@@ -38,11 +38,11 @@ public static class NativeBattleCinematicNextActionAE
         uint firstContacts = Dword(first + 8);
         byte firstActor = Read(firstContacts, 1)[0];
         uint contacts = Dword(selected + 8);
-        byte count = Read(selected + 0x10, 1)[0];
+        int count = NativeBattleCinematicContacts.ReadCount(frame, selected, readActionBytes, packets, signedNative: false);
         ImmutableArray<byte>.Builder actors = ImmutableArray.CreateBuilder<byte>(count);
         for (int index = 0; index < count; index++)
         {
-            actors.Add(Read(unchecked(contacts + (uint)(24 * index)), 1)[0]);
+            actors.Add(Read(NativeBattleCinematicContacts.Offset(contacts, index, packets), 1)[0]);
         }
         if (CoreDword(frame, 0x279744C) != NativeBattleScriptedEffectMemory.Address || selected < 0x1D280C4 || (selected - 0x1D280C4) % 20 != 0 || (selected - 0x1D280C4) / 20 >= NativeBattleActionPacketsState.HeaderCapacity)
         {
@@ -55,14 +55,6 @@ public static class NativeBattleCinematicNextActionAE
 
         uint Dword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4));
 
-        byte[] Read(uint address, int length)
-        {
-            if (address >= NativeBattleEffectNodeMemory.ArenaAddress && (long)address - NativeBattleEffectNodeMemory.ArenaAddress <= NativeBattleEffectArena.Length - length)
-            {
-                return frame.Arena.Read(ArenaOffset(address, length), length);
-            }
-            byte[] result = readActionBytes(frame, address, length);
-            return result is not null && result.Length == length ? result : throw new InvalidDataException("Native cinematic action capture requires its exact addressed parameter, header and contact bytes.");
-        }
+        byte[] Read(uint address, int length) => NativeBattleCinematicContacts.ReadBytes(frame, address, length, readActionBytes);
     }
 }

@@ -150,7 +150,7 @@ public static partial class NativeBattleEffect312Late
         {
             uint action = frame.State.ReadDword(0x2240EB8);
             uint targets = Dword(ReadBytes(frame, Dword(ReadBytes(frame, action + 4, 4), 0) + 8, 4), 0);
-            frame = inputs.Execute(frame, new NativeBattleEffect312Contact506690(unchecked(targets + (uint)(hit * 24))));
+            frame = inputs.Execute(frame, new NativeBattleEffect312Contact506690(NativeBattleCinematicContacts.Offset(targets, hit, inputs.HostedActionPackets)));
         }
         return new(frame, 2);
     }

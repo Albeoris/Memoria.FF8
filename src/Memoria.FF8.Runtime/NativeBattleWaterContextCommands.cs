@@ -1,8 +1,12 @@
+using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleWaterContextServices(Func<NativeBattleWaterExecutionFrame, uint, uint> ReadLinkedModelPointer, Func<NativeBattleWaterExecutionFrame, uint, uint> ResolveRing501FF0, Func<NativeBattleWaterExecutionFrame, uint, int, byte[]> ReadActionBytes, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> ApplyContact506690, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> ApplyCamera50A730, Func<NativeBattleWaterExecutionFrame, int, short, uint, NativeBattleWaterExecutionFrame> WriteStageColor);
+public sealed record NativeBattleWaterContextServices(Func<NativeBattleWaterExecutionFrame, uint, uint> ReadLinkedModelPointer, Func<NativeBattleWaterExecutionFrame, uint, uint> ResolveRing501FF0, Func<NativeBattleWaterExecutionFrame, uint, int, byte[]> ReadActionBytes, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> ApplyContact506690, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> ApplyCamera50A730, Func<NativeBattleWaterExecutionFrame, int, short, uint, NativeBattleWaterExecutionFrame> WriteStageColor)
+{
+    public NativeBattleActionPacketsState? ActionPackets { get; init; }
+}
 
 /// <summary>Selected current actor context, contact, camera and stage-color operations.</summary>
 public static class NativeBattleWaterContextCommands
@@ -56,6 +60,10 @@ public static class NativeBattleWaterContextCommands
             return frame;
         }
         int actor = ReadSlot(frame, 0x1B, 1)[0];
+        if (NativeBattleCinematicActorAccess.ReadContext(frame) is { } context)
+        {
+            return ExecuteHostedRing(frame, services, context, mode, actor);
+        }
         if (actor >= 7)
         {
             throw new NotSupportedException("Native ring context leaves its seven physical graphics rows.");
@@ -89,6 +97,34 @@ public static class NativeBattleWaterContextCommands
             frame = CoreByte(frame, unchecked(header + 0x48), minimum);
             frame = CoreByte(frame, unchecked(header + 0x41), 1);
         }
+        return NativeBattleScriptedCommandReads.Advance(frame, 2);
+    }
+
+    private static NativeBattleWaterExecutionFrame ExecuteHostedRing(NativeBattleWaterExecutionFrame frame, NativeBattleWaterContextServices services, NativeBattleCinematicActorContext context, int mode, int actor)
+    {
+        uint header = NativeBattleScriptedEffectMemory.Address;
+        uint model = context.ReadCachedActor(actor).ModelAddress;
+        if (services.ReadLinkedModelPointer(frame, model) == 0)
+        {
+            NativeBattleScriptedEffectMemory unlinked = frame.Core.Write(header + 0x17A, [0]);
+            frame = frame with { Core = unlinked with { PresentationActors = context.WithSavedActors([]) } };
+            return NativeBattleScriptedCommandReads.Advance(frame, 2);
+        }
+
+        ImmutableArray<byte> saved = mode == 0 ? [(byte)actor] : context.CurrentActors;
+        uint minimumPointer = services.ResolveRing501FF0(frame, model);
+        if (!NativeBattleGraphicsModelAddress.TryDecode(minimumPointer, out int minimum, context.Roster.ActorCount))
+        {
+            throw new InvalidDataException("Hosted ring context requires an aligned model in its captured graphics bank.");
+        }
+        NativeBattleCinematicActorContext updated = context.WithSavedActors(saved).WithCurrentActors([(byte)minimum]);
+        NativeBattleScriptedEffectMemory core = frame.Core.Write(header + 0x17A, [checked((byte)saved.Length)]);
+        if (!saved.IsEmpty)
+        {
+            core = core.Write(header + 0x174, saved.AsSpan()[..Math.Min(saved.Length, 6)]);
+        }
+        core = core.Write(header + 0x48, [(byte)minimum]).Write(header + 0x41, [1]);
+        frame = frame with { Core = core with { PresentationActors = updated }, Arena = frame.Arena.Write(SlotOffset(frame, 0x1B, 1), [(byte)minimum]) };
         return NativeBattleScriptedCommandReads.Advance(frame, 2);
     }
 

@@ -15,7 +15,7 @@ public static class NativeBattleCinematicActorMeshMask8D
         int operand = BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2));
         uint header = CoreDword(frame, 0x279744C);
         byte index = ReadSlot(frame, 0x1B, 1)[0];
-        uint actor = CoreDword(frame, unchecked(header + 0x60u + 4u * index));
+        uint actor = NativeBattleCinematicActorAccess.ReadModelPointer(frame, index, header);
         uint mask = readMask(actor);
         uint selected = unchecked((uint)operand);
         publishMask(actor, (instruction & 0x8000) != 0 ? mask & ~selected : mask | selected);

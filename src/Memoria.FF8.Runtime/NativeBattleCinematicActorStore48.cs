@@ -9,7 +9,7 @@ public static class NativeBattleCinematicActorStore48
     {
         uint header = CoreDword(frame, 0x279744C);
         byte index = ReadSlot(frame, 0x1B, 1)[0];
-        uint address = CoreDword(frame, unchecked(header + 0x60 + index * 4u));
+        uint address = NativeBattleCinematicActorAccess.ReadModelPointer(frame, index, header);
         NativeBattleGraphicsModel actor = readActor(address);
         actor = actor with { Flags0 = (ushort)(actor.Flags0 | 0x1000) };
         writeActor(address, actor);
@@ -44,14 +44,14 @@ public static class NativeBattleCinematicActorStore48
         }
         frame = frame.WriteTemporaryDword(0xFC, color);
         uint header = CoreDword(frame, 0x279744C);
-        uint address = CoreDword(frame, unchecked(header + 0x60 + ReadSlot(frame, 0x1B, 1)[0] * 4u));
+        uint address = NativeBattleCinematicActorAccess.ReadModelPointer(frame, ReadSlot(frame, 0x1B, 1)[0], header);
         writeActor(address, readActor(address) with { Color40 = color });
         return NativeBattleScriptedCommandReads.Advance(frame, 2);
     }
     public static NativeBattleWaterExecutionFrame BranchScale49(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, Func<uint, NativeBattleGraphicsModel> readActor)
     {
         uint header = CoreDword(frame, 0x279744C);
-        uint address = CoreDword(frame, unchecked(header + 0x60 + ReadSlot(frame, 0x1B, 1)[0] * 4u));
+        uint address = NativeBattleCinematicActorAccess.ReadModelPointer(frame, ReadSlot(frame, 0x1B, 1)[0], header);
         short scale = (readActor(address).Transform ?? throw new NotSupportedException("Native actor scale branch requires its current transform owner.")).Scale38;
         short boundary = BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2));
         bool reached = (frame.ReadTemporaryWord(0x14A) & 0xFE00) == 0 ? scale <= boundary : scale >= boundary;

@@ -9,7 +9,7 @@ public static class NativeBattleCinematicActorResourceAB
     {
         byte actor = frame.Arena.Read(SlotOffset(frame, 0x1B, 1), 1)[0];
         uint owner = CoreDword(frame, 0x279744C);
-        uint model = CoreDword(frame, unchecked(owner + 0x60 + 4u * actor));
+        uint model = NativeBattleCinematicActorAccess.ReadModelPointer(frame, actor, owner);
         uint row;
         (frame, row) = NativeBattleWaterParticleCommands.AllocateB656E0(frame, 32);
         frame = bind(frame, model, row);

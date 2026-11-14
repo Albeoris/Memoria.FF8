@@ -11,7 +11,16 @@ public sealed partial class BattleSession
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Native actor animation requires its current CPU resource owner.");
         NativeBattleFileStaging staging = NativeFileStaging ?? throw new NotSupportedException("Native actor animation requires its current staging owner.");
         uint existing = BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xBC, 4));
-        uint actorAddress = existing == 0 ? CoreDword(frame, CoreDword(frame, 0x279744C) + 0x60u + 4u * ReadSlot(frame, 0x1B, 1)[0]) : Dword(frame, existing + 0xC);
+        uint actorAddress;
+        if (existing == 0)
+        {
+            uint header = CoreDword(frame, 0x279744C);
+            actorAddress = NativeBattleCinematicActorAccess.ReadModelPointer(frame, ReadSlot(frame, 0x1B, 1)[0], header);
+        }
+        else
+        {
+            actorAddress = Dword(frame, existing + 0xC);
+        }
         int actorIndex = NativeEffect301Actor(graphics, actorAddress);
         NativeBattleGraphicsModel actor = graphics.Models[actorIndex];
         NativeBattleResourcePointer[]? fields = null;

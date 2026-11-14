@@ -17,7 +17,7 @@ public static class NativeBattleCinematicShadow71
         }
         uint header = CoreDword(frame, 0x279744C);
         byte index = ReadSlot(frame, 0x1B, 1)[0];
-        uint actor = CoreDword(frame, unchecked(header + 0x60u + 4u * index));
+        uint actor = NativeBattleCinematicActorAccess.ReadModelPointer(frame, index, header);
         ushort flags = services.ReadActorFlags(actor);
         if ((instruction & 0x8000) != 0)
         {

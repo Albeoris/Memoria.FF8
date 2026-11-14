@@ -28,7 +28,7 @@ public static class NativeBattleBrothersTargetCommand
             return WriteCoreDword(frame, 0x2797450, unchecked(CoreDword(frame, 0x2797450) + (uint)displacement));
         }
         uint header = CoreDword(frame, 0x279744C);
-        if (frame.Core.Read(header + 0x48, 1)[0] == 3)
+        if (NativeBattleCinematicActorAccess.ReadCurrentActor(frame, 0, header) == 3)
         {
             services.WriteFlag(0);
             return NativeBattleScriptedCommandReads.Advance(frame, 4);

@@ -13,7 +13,7 @@ public sealed partial class BattleSession
         uint manager = CoreDword(frame, 0x27973EC);
         uint payload = Slot32(0xB8);
         byte actorIndex = ReadSlot(frame, 0x1B, 1)[0];
-        uint actorAddress = CoreDword(frame, CoreDword(frame, 0x279744C) + 0x60u + actorIndex * 4u);
+        uint actorAddress = NativeBattleCinematicActorAccess.ReadModelPointer(frame, actorIndex);
         if (actorIndex >= graphics.Models.Length || actorAddress != NativeBattleGraphicsModelAddress.Encode(actorIndex))
         {
             throw new NotSupportedException("Native actor dissolve requires its actual physical actor directory.");

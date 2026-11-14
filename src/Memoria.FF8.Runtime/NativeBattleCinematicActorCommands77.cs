@@ -40,6 +40,6 @@ public static class NativeBattleCinematicActorCommands77
     {
         byte slot = ReadSlot(frame, 0x1B, 1)[0];
         uint directory = CoreDword(frame, 0x279744C);
-        return CoreDword(frame, unchecked(directory + 0x60u + 4u * slot));
+        return NativeBattleCinematicActorAccess.ReadModelPointer(frame, slot, directory);
     }
 }

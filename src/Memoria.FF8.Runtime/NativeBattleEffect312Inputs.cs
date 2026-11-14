@@ -26,6 +26,9 @@ public sealed record NativeBattleEffect312Inputs(
 {
     [System.Text.Json.Serialization.JsonIgnore]
     public bool CapturePresentation { get; init; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattleActionPacketsState? HostedActionPackets { get; init; }
 }
 
 public abstract record NativeBattleEffect312Operation

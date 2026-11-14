@@ -17,7 +17,7 @@ public static class NativeBattleCinematicActorAnimation2C
         {
             uint header = CoreDword(frame, 0x279744C);
             byte actorIndex = ReadSlot(frame, 0x1B, 1)[0];
-            uint actor = CoreDword(frame, unchecked(header + 0x60u + actorIndex * 4u));
+            uint actor = NativeBattleCinematicActorAccess.ReadModelPointer(frame, actorIndex, header);
             NativeBattleCinematicActorAnimation2CSource source = services.CaptureActor(actor);
             if (source.Skeleton.Length == 0 || source.Skeleton.Length != checked(16 + source.Skeleton[0] * 48))
             {

@@ -6,7 +6,7 @@ public sealed partial class BattleSession
 {
     private NativeBattleCinematicEntityAnchor ReadNativeCinematicEntityAnchor(NativeBattleWaterExecutionFrame frame, NativeBattleGraphicsState graphics, int actorIndex, short selector)
     {
-        uint pointer = CoreDword(frame, unchecked(CoreDword(frame, 0x279744C) + 0x60u + (uint)(4 * actorIndex)));
+        uint pointer = NativeBattleCinematicActorAccess.ReadModelPointer(frame, actorIndex);
         if (actorIndex < 0 || actorIndex >= graphics.Models.Length || pointer != ActorPointer(actorIndex))
         {
             throw new NotSupportedException("Native cinematic entity anchor requires its actual physical actor row.");

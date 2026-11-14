@@ -15,7 +15,7 @@ public sealed partial class BattleSession
         NativeBattlePilotVisualIdentity visualIdentity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, visualBank));
         uint manager = CoreDword(frame, 0x27973EC);
         byte actorIndex = ReadSlot(frame, 0x1B, 1)[0];
-        uint actorAddress = CoreDword(frame, CoreDword(frame, 0x279744C) + 0x60u + 4u * actorIndex);
+        uint actorAddress = NativeBattleCinematicActorAccess.ReadModelPointer(frame, actorIndex);
         if (actorIndex >= graphics.Models.Length || actorAddress != NativeBattleGraphicsModelAddress.Encode(actorIndex))
         {
             throw new NotSupportedException("Native actor glow requires its actual physical actor row.");

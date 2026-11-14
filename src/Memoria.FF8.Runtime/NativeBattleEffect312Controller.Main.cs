@@ -208,6 +208,6 @@ public static partial class NativeBattleEffect312Controller
 
     private static int ContactIndexMain(NativeBattleEffect312Frame frame, int actor, NativeBattleEffect312Inputs inputs)
     {
-        return NativeBattleEffect312Contacts.Find(frame.State.ReadDword(ParametersGlobal), actor, (address, length) => inputs.ReadPhysical(frame, address, length));
+        return NativeBattleEffect312Contacts.Find(frame.State.ReadDword(ParametersGlobal), actor, (address, length) => inputs.ReadPhysical(frame, address, length), inputs.HostedActionPackets);
     }
 }

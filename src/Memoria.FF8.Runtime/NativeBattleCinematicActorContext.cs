@@ -136,24 +136,47 @@ public sealed record NativeBattleCinematicActorContext(
 
     public NativeBattleCinematicActorContext RefreshCache(ImmutableArray<NativeBattleGraphicsModel> models) => this with { CachedActors = CaptureRows(Roster, models) };
 
+    public NativeBattleCinematicActorContext RefreshFlags(ImmutableArray<NativeBattleGraphicsModel> models)
+    {
+        Validate();
+        ValidateModelBank(Roster, models);
+        ImmutableArray<NativeBattleCinematicActorCache?>.Builder cached = CachedActors.ToBuilder();
+        for (int row = 0; row < models.Length; row++)
+        {
+            if (cached[row] is { } actor)
+            {
+                cached[row] = actor with { Flags0 = models[row].Flags0 };
+            }
+        }
+        return this with { CachedActors = cached.MoveToImmutable() };
+    }
+
     private static ImmutableArray<NativeBattleCinematicActorCache?> CaptureRows(NativeBattleGraphicsRoster roster, ImmutableArray<NativeBattleGraphicsModel> models)
+    {
+        ValidateModelBank(roster, models);
+        ImmutableArray<NativeBattleCinematicActorCache?>.Builder cached = ImmutableArray.CreateBuilder<NativeBattleCinematicActorCache?>(models.Length);
+        for (int row = 0; row < models.Length; row++)
+        {
+            NativeBattleGraphicsModel model = models[row];
+            NativeBattleModelTransform? transform = model.Transform;
+            cached.Add(roster.Rows[row] is null ? null : new(NativeBattleGraphicsModelAddress.Encode(row), model.Flags0, transform?.Position28, transform?.Vertical34, model.Rotation12, model.Rotation14, model.Rotation16, transform?.Scale148, transform?.Scale154));
+        }
+        return cached.MoveToImmutable();
+    }
+
+    private static void ValidateModelBank(NativeBattleGraphicsRoster roster, ImmutableArray<NativeBattleGraphicsModel> models)
     {
         if (models.IsDefault || models.Length != roster.ActorCount)
         {
             throw new InvalidDataException("Hosted cinematic cache requires the complete graphics bank.");
         }
-        ImmutableArray<NativeBattleCinematicActorCache?>.Builder cached = ImmutableArray.CreateBuilder<NativeBattleCinematicActorCache?>(models.Length);
         for (int row = 0; row < models.Length; row++)
         {
-            NativeBattleGraphicsModel model = models[row];
-            if (model is null || model.Index != row)
+            if (models[row] is not { } model || model.Index != row)
             {
                 throw new InvalidDataException("Hosted cinematic cache requires graphics models in row order.");
             }
-            NativeBattleModelTransform? transform = model.Transform;
-            cached.Add(roster.Rows[row] is null ? null : new(NativeBattleGraphicsModelAddress.Encode(row), model.Flags0, transform?.Position28, transform?.Vertical34, model.Rotation12, model.Rotation14, model.Rotation16, transform?.Scale148, transform?.Scale154));
         }
-        return cached.MoveToImmutable();
     }
 
     private void ValidateList(ImmutableArray<byte> actors)

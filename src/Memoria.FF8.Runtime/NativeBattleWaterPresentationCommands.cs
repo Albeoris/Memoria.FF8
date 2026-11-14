@@ -51,7 +51,7 @@ public static class NativeBattleWaterPresentationCommands
                 uint header = CoreDword(frame, 0x279744C);
                 for (int lane = 0; lane < 3; lane++)
                 {
-                    short position = unchecked((short)CoreWord(frame, unchecked(header + 0x84u + (uint)(8 * actor + 2 * lane))));
+                    short position = NativeBattleCinematicActorAccess.ReadPositionWord(frame, actor, lane, header);
                     frame = WriteSlotDword(frame, 0x5C + 4 * lane, unchecked((uint)(position << 16)));
                 }
                 frame = Update(frame);
@@ -60,8 +60,8 @@ public static class NativeBattleWaterPresentationCommands
             case 0x45:
                 int flagActor = Actor(frame);
                 uint flagHeader = CoreDword(frame, 0x279744C);
-                uint actorPointer = CoreDword(frame, unchecked(flagHeader + 0x60u + (uint)(4 * flagActor)));
-                int prior = unchecked((short)CoreWord(frame, unchecked(flagHeader + 0x4Eu + (uint)(2 * flagActor))));
+                uint actorPointer = NativeBattleCinematicActorAccess.ReadModelPointer(frame, flagActor, flagHeader);
+                int prior = unchecked((short)NativeBattleCinematicActorAccess.ReadCachedFlags0(frame, flagActor, flagHeader));
                 int mask = unchecked((short)Word(unchecked(pc + 2)));
                 int mode = instruction >> 12;
                 if (mode != 0 && mode != 1 && mode != 8)
@@ -133,7 +133,7 @@ public static class NativeBattleWaterPresentationCommands
     private static int Actor(NativeBattleWaterExecutionFrame frame)
     {
         int actor = ReadSlot(frame, 0x1B, 1)[0];
-        return actor < 7 ? actor : throw new NotSupportedException("Native cached actor access leaves its seven physical rows.");
+        return actor < NativeBattleCinematicActorAccess.ActorCapacity(frame) ? actor : throw new NotSupportedException("Native cached actor access leaves its graphics bank.");
     }
 
     private static NativeBattleWaterExecutionFrame SlotByte(NativeBattleWaterExecutionFrame frame, int offset, byte value) => frame with { Arena = frame.Arena.Write(SlotOffset(frame, offset, 1), new byte[] { value }) };

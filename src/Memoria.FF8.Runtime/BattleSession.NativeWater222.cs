@@ -19,7 +19,7 @@ public sealed partial class BattleSession
         NativeBattleWaterInitializationResource second = WaterResource(effect, resources, 1);
         NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[parameters.HeaderIndex7C];
         ImmutableArray<byte> contacts = WaterContacts(header);
-        NativeBattleWaterInitializationInputs inputs = new(first, second, NativeBattleWater222Controller.CreateTemporaryFrame(WaterTemporaryAddress), WaterParametersAddress, WaterHeadersAddress + (uint)(20 * parameters.HeaderIndex7C), 0x186C84C, parameters.Actor78, parameters.HeaderIndex7C, contacts[0], contacts, header.ReadByte(0x10), header.ReadByte(0x11), graphics.Models);
+        NativeBattleWaterInitializationInputs inputs = new(first, second, NativeBattleWater222Controller.CreateTemporaryFrame(WaterTemporaryAddress), WaterParametersAddress, WaterHeadersAddress + (uint)(20 * parameters.HeaderIndex7C), 0x186C84C, parameters.Actor78, parameters.HeaderIndex7C, contacts[0], contacts, header.ReadContactCount(), header.ReadByte(0x11), graphics.Models);
         NativeBattleWater222Frame initialized = NativeBattleWater222Controller.InitializeA9B200(new(RequireWaterMemory(), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Water requires its retained CRT state.")), resources, inputs);
         NativeEffectMemory = initialized.Memory;
         nativeCrtRandom = initialized.Random;
@@ -38,9 +38,9 @@ public sealed partial class BattleSession
         NativeBattlePrimitiveProcess process = RequireWaterMemory().PrimitiveProcess ?? throw new NotSupportedException("Native Water requires its COMMON packet bank.");
         uint common = checked((uint)(process.ByteCursor ?? throw new NotSupportedException("Native Water COMMON cursor is unknown.")));
         NativeBattleWaterCallbackInput input = new(resources, checked((ushort)graphics.Flags), MatrixBytes(view), 0, common, focal);
-        NativeBattleWaterPresentationServices presentation = new((_, pointer) => graphics.Models[PhysicalActor(pointer)].Flags0, (current, pointer, flags) =>
+        NativeBattleWaterPresentationServices presentation = new((_, pointer) => graphics.Models[PhysicalActor(pointer, graphics.Models.Length)].Flags0, (current, pointer, flags) =>
         {
-            int index = PhysicalActor(pointer);
+            int index = PhysicalActor(pointer, graphics.Models.Length);
             graphics = graphics with { Models = graphics.Models.SetItem(index, graphics.Models[index] with { Flags0 = flags }) };
             return current;
         }, (current, address, argument, pan) =>
@@ -51,9 +51,9 @@ public sealed partial class BattleSession
         });
         NativeBattleWaterContextServices context = new((_, pointer) =>
         {
-            int? linked = graphics.Models[PhysicalActor(pointer)].ReadLinkedModelIndex140();
+            int? linked = graphics.Models[PhysicalActor(pointer, graphics.Models.Length)].ReadLinkedModelIndex140();
             return linked is int index ? ActorPointer(index) : 0;
-        }, (_, pointer) => ActorPointer(NativeBattleModelRings.Walk(graphics.Models, PhysicalActor(pointer)).Min()), (_, address, length) => ReadAction(address, length), (current, address) =>
+        }, (_, pointer) => ActorPointer(NativeBattleModelRings.Walk(graphics.Models, PhysicalActor(pointer, graphics.Models.Length)).Min()), (_, address, length) => ReadAction(address, length), (current, address) =>
         {
             PublishMemory(current);
             ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
@@ -69,8 +69,8 @@ public sealed partial class BattleSession
             NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native Water requires its four stage groups.");
             NativeStage = stage with { Groups = stage.Groups.SetItem(index, stage.Groups[index] with { ColorDepth = depth, ColorFlags = color }) };
             return current;
-        });
-        NativeBattleWaterInstructionServices instructions = new(ResolveProgram, presentation, context, (_, address) => ParameterByte(address), (_, pointer) => graphics.Models[PhysicalActor(pointer)], ActorAnchor, (_, _, address) => address == WaterParametersAddress ? WaterHeadersAddress + (uint)(20 * parameters.HeaderIndex7C) : throw new NotSupportedException("Native Water parameter base does not identify its current action."), (_, _, address, _) => CaptureInputs(address), _ => RequireTextures(), (current, textures) =>
+        }) { ActionPackets = nativeActionPackets.PresentationRoster is not null ? nativeActionPackets : null };
+        NativeBattleWaterInstructionServices instructions = new(ResolveProgram, presentation, context, (_, address) => ParameterByte(address), (_, pointer) => graphics.Models[PhysicalActor(pointer, graphics.Models.Length)], ActorAnchor, (_, _, address) => address == WaterParametersAddress ? WaterHeadersAddress + (uint)(20 * parameters.HeaderIndex7C) : throw new NotSupportedException("Native Water parameter base does not identify its current action."), (_, _, address, _) => CaptureInputs(address), _ => RequireTextures(), (current, textures) =>
         {
             NativeEffectMemory = RequireWaterMemory() with { Textures = textures };
             return current;
@@ -158,7 +158,7 @@ public sealed partial class BattleSession
         NativeBattleWaterExecutionFrame ReadMemory(NativeBattleWaterExecutionFrame current) => current with { Core = RequireWaterMemory().ScriptedEffects!, Arena = RequireWaterMemory().Arena! };
         NativeBattleWaterActorAnchorSource ActorAnchor(NativeBattleWaterExecutionFrame current, uint pointer)
         {
-            int index = PhysicalActor(pointer);
+            int index = PhysicalActor(pointer, graphics.Models.Length);
             if (presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true)
             {
                 NativeBattleGraphicsModel model = graphics.Models[index];
@@ -173,7 +173,7 @@ public sealed partial class BattleSession
             int index = HeaderIndex(address);
             NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[index];
             NativeBattleActionHeaderSlot first = nativeActionPackets.Headers[parameters.HeaderIndex7C];
-            return new(parameters.Actor78, index, WaterContacts(first)[0], WaterContacts(header), header.ReadByte(0x10), graphics.Models);
+            return new(parameters.Actor78, index, WaterContacts(first)[0], WaterContacts(header), header.ReadContactCount(), graphics.Models);
         }
         byte ParameterByte(uint address)
         {
@@ -303,11 +303,11 @@ public sealed partial class BattleSession
     private ImmutableArray<byte> WaterContacts(NativeBattleActionHeaderSlot header)
     {
         int start = header.FirstContactIndex ?? throw new NotSupportedException("Native Water header has no actual contact owner.");
-        return Enumerable.Range(0, header.ReadByte(0x10)).Select(index => nativeActionPackets.ReadContact(start + index).Primary.ActorIndex).ToImmutableArray();
+        return Enumerable.Range(0, header.ReadContactCount()).Select(index => nativeActionPackets.ReadContact(start + index).Primary.ActorIndex).ToImmutableArray();
     }
-    private static int PhysicalActor(uint pointer)
+    private static int PhysicalActor(uint pointer, int actorCount)
     {
-        return NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex) ? actorIndex : throw new NotSupportedException("Native Water actor pointer leaves its physical model bank.");
+        return NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, actorCount) ? actorIndex : throw new NotSupportedException("Native Water actor pointer leaves its physical model bank.");
     }
     private static uint ActorPointer(int index) => NativeBattleGraphicsModelAddress.Encode(index);
     private int ContactIndex(uint address)

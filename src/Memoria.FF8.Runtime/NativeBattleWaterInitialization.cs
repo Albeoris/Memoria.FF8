@@ -4,8 +4,8 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleWaterInitializationResource(int ArenaOffset, int Length, uint Address);
-public sealed record NativeBattleWaterInitializationInputs(NativeBattleWaterInitializationResource Resource0, NativeBattleWaterInitializationResource Resource1, NativeBattleWaterTemporaryFrame TemporaryFrame, uint ActionParametersAddress, uint HeaderBaseAddress, uint InitializationDirectoryAddress, byte Caster, int CurrentHeaderIndex, byte FirstHeaderFirstActor, ImmutableArray<byte> Contacts, byte ContactCount, byte FirstHeaderCount, ImmutableArray<NativeBattleGraphicsModel> Graphics);
-public sealed record NativeBattleWaterResetCaptureInputs(byte Caster, int CurrentHeaderIndex, byte FirstHeaderFirstActor, ImmutableArray<byte> Contacts, byte ContactCount, ImmutableArray<NativeBattleGraphicsModel> Graphics);
+public sealed record NativeBattleWaterInitializationInputs(NativeBattleWaterInitializationResource Resource0, NativeBattleWaterInitializationResource Resource1, NativeBattleWaterTemporaryFrame TemporaryFrame, uint ActionParametersAddress, uint HeaderBaseAddress, uint InitializationDirectoryAddress, byte Caster, int CurrentHeaderIndex, byte FirstHeaderFirstActor, ImmutableArray<byte> Contacts, int ContactCount, byte FirstHeaderCount, ImmutableArray<NativeBattleGraphicsModel> Graphics);
+public sealed record NativeBattleWaterResetCaptureInputs(byte Caster, int CurrentHeaderIndex, byte FirstHeaderFirstActor, ImmutableArray<byte> Contacts, int ContactCount, ImmutableArray<NativeBattleGraphicsModel> Graphics);
 public sealed record NativeBattleWaterResetResult(NativeBattleScriptedEffectMemory Core, NativeBattleEffectArena Arena, NativeBattleWaterTemporaryFrame TemporaryFrame, NativeBattleWaterSlotBank SlotBank, int CurrentHeaderIndex);
 public sealed record NativeBattleWaterInitialPoolRequest(uint DescriptorAddress, uint BankAddress, int Stride, int Capacity, uint Callback);
 public sealed record NativeBattleWaterInitializationResult(NativeBattleScriptedEffectMemory Core, NativeBattleEffectArena Arena, NativeBattleWaterSlotBank SlotBank, NativeBattleWaterTemporaryFrame TemporaryFrame, int CurrentHeaderIndex, NativeBattleWaterInitialPoolRequest PoolRequest);
@@ -169,6 +169,10 @@ public static class NativeBattleWaterInitialization
         StoreDword(header + 0x14, 0);
         StoreWord(header + 0x38, 8);
         StoreByte(header + 0x3A, 0);
+        if (core.PresentationActors is { } presentationActors)
+        {
+            core = core with { PresentationActors = presentationActors.WithContactCursor(0) };
+        }
         StoreByte(0x2798219, 0);
         StoreByte(0x2798218, 0xFF);
         temporaryFrame.WriteByte(0x145, 0);

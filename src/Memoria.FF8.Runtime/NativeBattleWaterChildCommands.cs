@@ -8,14 +8,14 @@ public static class NativeBattleWaterChildCommands
     public static NativeBattleWaterExecutionFrame Execute5D(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleWaterSlotBank bank, uint incomingEcx, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> updateSelected)
     {
         uint header = NativeBattleWaterExecutionFields.CoreDword(frame, 0x279744C);
-        int count = unchecked((sbyte)frame.Core.Read(unchecked(header + 0x41), 1)[0]);
+        int count = NativeBattleCinematicActorAccess.ReadCurrentCount(frame, signedNative: true, headerAddress: header);
         for (int index = 0; index < count; index++)
         {
             frame = Spawn(frame, program, bank, incomingEcx, updateSelected);
             uint temporary = NativeBattleWaterExecutionFields.CoreDword(frame, 0x2797624);
             header = NativeBattleWaterExecutionFields.CoreDword(frame, 0x279744C);
             uint pointer = frame.ReadTemporaryDword(0xFC);
-            byte actor = frame.Core.Read(unchecked(header + 0x48 + (uint)index), 1)[0];
+            byte actor = NativeBattleCinematicActorAccess.ReadCurrentActor(frame, index, header);
             frame = WriteAddressedByte(frame, unchecked(pointer + 0x1B), actor);
             incomingEcx = (temporary & 0xFFFFFF00) | actor;
             frame = NativeBattleWaterExecutionFields.WriteCoreDword(frame, 0x2797450, unchecked(NativeBattleWaterExecutionFields.CoreDword(frame, 0x2797450) - 4));

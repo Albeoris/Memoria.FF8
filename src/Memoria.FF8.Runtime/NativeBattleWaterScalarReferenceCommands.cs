@@ -31,12 +31,12 @@ public static class NativeBattleWaterScalarReferenceCommands
                 return CopyMotion(frame, program, services.ResolveSlot, services.CachePosition, services.UpdateSelected);
             case 0x75:
                 int actorIndex = ReadSlot(frame, 0x1B, 1)[0];
-                if ((uint)actorIndex >= 7)
+                if ((uint)actorIndex >= NativeBattleCinematicActorAccess.ActorCapacity(frame))
                 {
                     throw new NotSupportedException("Native scalar height leaves its seven captured actor rows.");
                 }
                 uint header = CoreDword(frame, 0x279744C);
-                uint actorPointer = CoreDword(frame, unchecked(header + 0x60 + (uint)(actorIndex * 4)));
+                uint actorPointer = NativeBattleCinematicActorAccess.ReadModelPointer(frame, actorIndex, header);
                 NativeBattleGraphicsModel actor = services.ReadActor(frame, actorPointer);
                 int height = (actor.Transform ?? throw new NotSupportedException("Native scalar height requires its actual actor Scale38.")).Scale38;
                 if ((instruction & 0x200) != 0)

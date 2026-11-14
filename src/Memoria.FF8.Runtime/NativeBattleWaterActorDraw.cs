@@ -17,24 +17,25 @@ public static partial class NativeBattleWaterActorDraw
 {
     public static NativeBattleWaterActorDrawResult Draw26A9C340(NativeBattleWaterExecutionFrame frame, ImmutableArray<NativeBattleGraphicsModel> models, NativeBattleWaterActorPoseServices services, NativeBattleCameraProjection projection, short dqa, int dqb, uint orderingTablePointer, Func<uint, int> resolveActualOtBucket, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        if (models.IsDefault || models.Length != 7 || models.Where((model, index) => model is null || model.Index != index).Any())
+        int actorCapacity = NativeBattleCinematicActorAccess.ActorCapacity(frame);
+        if (models.IsDefault || models.Length != actorCapacity || models.Where((model, index) => model is null || model.Index != index).Any())
         {
-            throw new InvalidDataException("Native actor drawing requires its seven current physical graphics rows.");
+            throw new InvalidDataException("Native actor drawing requires its current indexed graphics bank.");
         }
         int index = ReadSlot(frame, 0x1B, 1)[0];
-        if ((uint)index >= 7)
+        if ((uint)index >= actorCapacity)
         {
             throw new NotSupportedException("Native actor drawing leaves its captured graphics-row directory.");
         }
         uint header = CoreDword(frame, 0x279744C);
-        if (CoreDword(frame, checked(header + 0x60 + (uint)(4 * index))) != NativeBattleGraphicsModelAddress.Encode(index))
+        if (NativeBattleCinematicActorAccess.ReadModelPointer(frame, index, header) != NativeBattleGraphicsModelAddress.Encode(index))
         {
             throw new NotSupportedException("Native actor drawing requires its actual captured physical graphics row.");
         }
         NativeBattleGraphicsModel actor = models[index];
         NativeBattleModelTransform transform = actor.Transform ?? throw new NotSupportedException("Native actor placement requires its current position owner.");
-        NativeBattleVector cachedPosition = CoreVector(frame, checked(header + 0x84 + (uint)(8 * index)));
-        NativeBattleVector cachedRotation = CoreVector(frame, checked(header + 0xD8 + (uint)(8 * index)));
+        NativeBattleVector cachedPosition = NativeBattleCinematicActorAccess.ReadPosition(frame, index, header);
+        NativeBattleVector cachedRotation = NativeBattleCinematicActorAccess.ReadRotation(frame, index, header);
         if (BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xC4, 4)) == 0)
         {
             frame = SlotDword(frame, 0xC4, uint.MaxValue);
@@ -116,7 +117,6 @@ public static partial class NativeBattleWaterActorDraw
         return Vector(bytes);
     }
 
-    private static NativeBattleVector CoreVector(NativeBattleWaterExecutionFrame frame, uint address) => Vector(frame.Core.Read(address, 6));
     private static NativeBattleVector Vector(ReadOnlySpan<byte> bytes) => new(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes.Slice(2)), BinaryPrimitives.ReadInt16LittleEndian(bytes.Slice(4)));
 
     private static NativeBattleActionMatrix ReadMatrix(NativeBattleWaterExecutionFrame frame, uint address)

@@ -28,7 +28,7 @@ public static class NativeBattleCinematicActorSelector64
         else
         {
             uint owner = CoreDword(frame, 0x279744C);
-            actor = frame.Core.Read(unchecked(owner + 0x48), 1)[0];
+            actor = NativeBattleCinematicActorAccess.ReadCurrentActor(frame, 0, owner);
         }
         frame = frame with { Arena = frame.Arena.Write(SlotOffset(frame, 0x1B, 1), [actor]) };
         return NativeBattleScriptedCommandReads.Advance(frame, size);

@@ -11,7 +11,7 @@ public static class NativeBattleCinematicActorRotation72
         ArgumentNullException.ThrowIfNull(readExternal);
         uint header = CoreDword(frame, 0x279744C);
         byte actor = ReadSlot(frame, 0x1B, 1)[0];
-        uint source = CoreDword(frame, unchecked(header + 0x60 + (uint)(actor * 4)));
+        uint source = NativeBattleCinematicActorAccess.ReadModelPointer(frame, actor, header);
         for (int lane = 0; lane < 3; lane++)
         {
             short value = BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Address(frame, unchecked(source + 0xC + (uint)(lane * 2)), 2, readExternal));

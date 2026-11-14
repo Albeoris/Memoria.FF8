@@ -39,7 +39,7 @@ public static class NativeBattleKiros262Trail
         }
         uint owner = CoreDword(frame, 0x279744C);
         byte actor = ReadSlot(frame, 0x1B, 1)[0];
-        uint model = CoreDword(frame, unchecked(owner + 0x60 + actor * 4u));
+        uint model = NativeBattleCinematicActorAccess.ReadModelPointer(frame, actor, owner);
         NativeBattleKiros262Tip tip = services.ReadTip(frame, model, ArenaWord(payload));
         frame = tip.Frame;
         int length = unchecked((short)SlotWord(frame, 0x94));
