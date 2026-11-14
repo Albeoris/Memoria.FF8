@@ -167,10 +167,15 @@ internal sealed partial class Ff7Scene
             UpdateAudio();
             return;
         }
-        bool escapeHeld = (Ff7ControlButtons.FromShared(sharedInput.HeldFieldButtons) & 0x0C) == 0x0C;
+        bool escapeHeld = IsBattleEscapeHeld(sharedInput.HeldFieldButtons);
         ReadMixedTrigger();
         AdvanceBattleTime(gameTime, battle, escapeHeld);
         ShowGuestAbilityFailure(battle);
+    }
+
+    internal static bool IsBattleEscapeHeld(ushort sharedButtons)
+    {
+        return (sharedButtons & 0x03) == 0x03;
     }
 
     private bool ReadUnavailableBattleCommand()

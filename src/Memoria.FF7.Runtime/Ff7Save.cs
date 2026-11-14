@@ -122,12 +122,12 @@ public sealed record Ff7SessionSave
             bool hasOwner = World is { } world
                 ? world.BattleState?.Pending is { } occurrence && occurrence.Id == Battle.RequestId && occurrence.Formation == initialFormation
                 : Process.GlobalCommand == Ff7GlobalCommand.Battle && Process.GlobalRequestId == Battle.RequestId && Process.Receipts.Any(receipt => receipt.Request.Id == Battle.RequestId && receipt.Request.Command is FieldBattleCommand command && command.Formation == initialFormation && !receipt.Reply.Completed);
-            if (!hasOwner || Progress.CompletedBattles.Any(receipt => receipt.FieldGeneration == FieldGeneration && receipt.RequestId == Battle.RequestId))
+            if (!hasOwner || Progress.CompletedBattles.Any(receipt => receipt.FieldGeneration == FieldGeneration && receipt.RequestId == Battle.RequestId) || Progress.WorldBattleResults.Any(receipt => receipt.FieldGeneration == FieldGeneration && receipt.RequestId == Battle.RequestId))
             {
                 throw new InvalidDataException("The FFVII battle snapshot requires its matching unfinished encounter owner.");
             }
         }
-        if (World?.BattleState?.Pending is { } pending && Progress.CompletedBattles.Any(receipt => receipt.FieldGeneration == FieldGeneration && receipt.RequestId == pending.Id))
+        if (World?.BattleState?.Pending is { } pending && (Progress.CompletedBattles.Any(receipt => receipt.FieldGeneration == FieldGeneration && receipt.RequestId == pending.Id) || Progress.WorldBattleResults.Any(receipt => receipt.FieldGeneration == FieldGeneration && receipt.RequestId == pending.Id)))
         {
             throw new InvalidDataException("An FFVII world encounter has already been settled.");
         }
@@ -266,6 +266,10 @@ public sealed record CombinedSessionSave
         if (receipt.Outcome is not (Ff7BattleOutcome.Escaped or Ff7BattleOutcome.Defeat))
         {
             return false;
+        }
+        if (Ff7!.Progress.WorldBattleResults.Any(host => host.FieldGeneration == receipt.FieldGeneration && host.RequestId == receipt.RequestId && host.Formation == receipt.FormationId && host.Outcome == receipt.Outcome))
+        {
+            return true;
         }
         if (Ff7!.FieldGeneration > receipt.FieldGeneration)
         {

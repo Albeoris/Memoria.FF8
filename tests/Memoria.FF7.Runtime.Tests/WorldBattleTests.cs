@@ -61,10 +61,16 @@ internal static class WorldBattleTests
         }
         Check(returning.ConfirmBattleEscape(), "World escape did not restore its exact suspended world.");
         Check(!returning.ConfirmBattleEscape() && returning.World!.PendingBattle is null && returning.Progress.BattleEscapes == 1, "Escape return published twice or kept the occurrence pending.");
+        Ff7WorldBattleResultReceipt resultReceipt = returning.Progress.WorldBattleResults.Single();
+        Check(resultReceipt == new Ff7WorldBattleResultReceipt(during.FieldGeneration, escaped.RequestId, escaped.FormationId, Ff7BattleOutcome.Escaped), "World escape did not commit its exact encounter result identity.");
+        TestGuestSettlement(returning.Capture(), resultReceipt);
+        Reject(() => (during with { Progress = during.Progress with { WorldBattleResults = [resultReceipt] } }).Validate());
+        Reject(() => (during with { Battle = null, Progress = during.Progress with { WorldBattleResults = [resultReceipt] } }).Validate());
         Ff7WorldProcess resumed = returning.World!.Process;
         Check(JsonSerializer.Serialize(resumed.Entities) == JsonSerializer.Serialize(initial.Entities) && resumed.Tick == initial.Tick && resumed.Vm.System == initial.Vm.System with { Calls = resumed.Vm.System.Calls }, "World escape changed the retained actor placement or system PC.");
         using Ff7Session restored = Ff7Session.Restore(installation, RoundTrip(returning));
         Check(Snapshot(restored) == Snapshot(returning), "Cold restore after battle return replayed the world occurrence.");
+        Check(restored.Progress.WorldBattleResults.Single() == resultReceipt && !restored.ConfirmBattleEscape(), "Cold world return lost or repeated its result receipt.");
 
         Ff7BattleSnapshot victory = during.Battle! with
         {
@@ -339,6 +345,42 @@ internal static class WorldBattleTests
     }
 
     private static string Snapshot(Ff7Session session) => JsonSerializer.Serialize(session.Capture());
+
+    private static void TestGuestSettlement(Ff7SessionSave host, Ff7WorldBattleResultReceipt result)
+    {
+        string hash = new('0', 64);
+        Ff7GuestBattleSettlementReceipt guest = new(Guid.NewGuid(), result.FieldGeneration, result.RequestId, result.Formation, 0, 0, hash, hash, 100, hash) { Outcome = result.Outcome };
+        CombinedSessionSave combined = new() { ActiveGame = SessionGame.Ff7, Ff7 = host, Ff8Payload = [1], Ff8PayloadFormat = "fixture", GuestBattleSettlements = [guest] };
+        using MemoryStream encoded = new();
+        CombinedSessionCodec.Write(encoded, combined);
+        encoded.Position = 0;
+        CombinedSessionSave restored = CombinedSessionCodec.Read(encoded);
+        Check(restored.Ff7!.Progress.WorldBattleResults.Single() == result, "Combined codec lost the completed world owner.");
+        Reject(() => (combined with { GuestBattleSettlements = [guest with { RequestId = guest.RequestId + 1 }] }).Validate());
+        Reject(() => (combined with { GuestBattleSettlements = [guest with { FormationId = (guest.FormationId + 1) % 1024 }] }).Validate());
+        Reject(() => (combined with { GuestBattleSettlements = [guest with { Outcome = Ff7BattleOutcome.Defeat }] }).Validate());
+        Reject(() => (combined with { Ff7 = host with { Progress = host.Progress with { WorldBattleResults = [] } } }).Validate());
+        Reject(() => (host.Progress with { WorldBattleResults = [result, result] }).Validate());
+        Reject(() => (host.Progress with { WorldBattleResults = [result with { Outcome = Ff7BattleOutcome.Fighting }] }).Validate());
+        System.Text.Json.Nodes.JsonObject oldProgress = JsonSerializer.SerializeToNode(host.Progress)!.AsObject();
+        oldProgress.Remove(nameof(Ff7Progress.WorldBattleResults));
+        Ff7Progress compatible = oldProgress.Deserialize<Ff7Progress>()!;
+        compatible.Validate();
+        Check(compatible.WorldBattleResults.Length == 0 && compatible.BattleEscapes == host.Progress.BattleEscapes && compatible.NextEncounterRequestId == host.Progress.NextEncounterRequestId, "Absent world receipts changed old-save progress or encounter allocation.");
+    }
+
+    private static void Reject(Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (InvalidDataException)
+        {
+            return;
+        }
+        throw new InvalidOperationException("An invalid world battle result or guest settlement was accepted.");
+    }
 
     private static Ff7SessionSave RoundTrip(Ff7Session session) => JsonSerializer.Deserialize<Ff7SessionSave>(Snapshot(session))!;
 

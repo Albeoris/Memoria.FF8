@@ -275,6 +275,10 @@ public sealed partial class Ff7Session
             return false;
         }
         world.ValidateBattleOwner(battle.RequestId);
+        if (battle.Outcome != Ff7BattleOutcome.Victory)
+        {
+            result = result with { WorldBattleResults = [.. result.WorldBattleResults, new(FieldGeneration, battle.RequestId, battle.Formation.FormationId, battle.Outcome)] };
+        }
         if (occurrence.FieldReturnSelector is ushort selector && battle.Outcome == Ff7BattleOutcome.Victory)
         {
             FieldVariables exitVariables = new(world.CaptureNativeWorldExit(), new byte[256]);

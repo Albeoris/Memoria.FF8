@@ -14,6 +14,7 @@ public sealed record Ff7VictoryMateriaGrowth(int CharacterId, string CharacterNa
 public sealed record Ff7VictoryItem(int ItemId, int Accepted, int Rejected);
 public sealed record Ff7VictoryProjection(Ff7Progress Progress, Ff7BattleReward Reward, IReadOnlyList<Ff7VictoryCharacterGrowth> Characters, IReadOnlyList<Ff7VictoryMateriaGrowth> Materia, IReadOnlyList<Ff7VictoryItem> Items);
 public sealed record Ff7BattleReceipt(long FieldGeneration, long RequestId, ushort Formation, Ff7BattleReward Reward);
+public sealed record Ff7WorldBattleResultReceipt(long FieldGeneration, long RequestId, int Formation, Ff7BattleOutcome Outcome);
 
 /// <summary>FFVII progression has no FFVIII character, item, variable or reward identifiers.</summary>
 public sealed record Ff7Progress
@@ -41,6 +42,7 @@ public sealed record Ff7Progress
     public Ff7BattleRngState? BattleRng { get; init; }
     public string DebugVictoryPolicy { get; init; } = "instant-defeat-v1";
     public Ff7BattleReceipt[] CompletedBattles { get; init; } = [];
+    public Ff7WorldBattleResultReceipt[] WorldBattleResults { get; init; } = [];
 
     public Ff7Progress AddGil(uint amount)
     {
@@ -59,7 +61,7 @@ public sealed record Ff7Progress
         {
             throw new NotSupportedException("The FFVII automatic victory policy is unsupported.");
         }
-        if (InitialKernelData is null || InitialKernelData.Length == 0 || Characters is null || Party is not { Length: 3 } || Inventory is null || Materia is null || CompletedBattles is null)
+        if (InitialKernelData is null || InitialKernelData.Length == 0 || Characters is null || Party is not { Length: 3 } || Inventory is null || Materia is null || CompletedBattles is null || WorldBattleResults is null)
         {
             throw new InvalidDataException("FFVII progression is missing required owners.");
         }
@@ -74,6 +76,10 @@ public sealed record Ff7Progress
         if (CompletedBattles.Any(receipt => receipt.FieldGeneration < 0 || receipt.RequestId < 1 || receipt.Reward is null) || CompletedBattles.Select(receipt => (receipt.FieldGeneration, receipt.RequestId)).Distinct().Count() != CompletedBattles.Length)
         {
             throw new InvalidDataException("FFVII battle receipts are invalid.");
+        }
+        if (WorldBattleResults.Any(receipt => receipt is null || receipt.FieldGeneration < 0 || receipt.RequestId < 1 || receipt.Formation is < 0 or > 1023 || receipt.Outcome is not (Ff7BattleOutcome.Victory or Ff7BattleOutcome.Escaped or Ff7BattleOutcome.Defeat)) || WorldBattleResults.Select(receipt => (receipt.FieldGeneration, receipt.RequestId)).Distinct().Count() != WorldBattleResults.Length)
+        {
+            throw new InvalidDataException("FFVII world battle result receipts are invalid.");
         }
         _ = Ff7NativeMateriaInventory.Normalize(Materia);
     }
