@@ -9,7 +9,9 @@ internal sealed record NativeBattleModelActorFacts(string ActorId, bool IsParty,
     internal int? MaximumHp { get; init; }
 }
 
-internal abstract record NativeBattleModelLifecycleReceipt(int Row, string ActorId);
+internal abstract record NativeBattlePresentationReceipt;
+internal sealed record NativeBattlePresentationContactReceived(NativeBattleContactPacket Packet) : NativeBattlePresentationReceipt;
+internal abstract record NativeBattleModelLifecycleReceipt(int Row, string ActorId) : NativeBattlePresentationReceipt;
 internal sealed record NativeBattleModelParticipantReleased(int Row, string ActorId) : NativeBattleModelLifecycleReceipt(Row, ActorId);
 internal sealed record NativeBattleModelParticipantSuspended(int Row, string ActorId, byte Sequence) : NativeBattleModelLifecycleReceipt(Row, ActorId);
 internal sealed record NativeBattleModelTextPublished(int Row, string ActorId, string Text, int Value, BattleTextIdentity? TextIdentity) : NativeBattleModelLifecycleReceipt(Row, ActorId);
@@ -17,13 +19,17 @@ internal sealed record NativeBattleModelTriggerRegistered(int Row, string ActorI
 
 internal sealed class NativeBattleModelLifecycleServices(ImmutableArray<NativeBattleModelActorFacts?> facts)
 {
-    private readonly ImmutableArray<NativeBattleModelLifecycleReceipt>.Builder receipts = ImmutableArray.CreateBuilder<NativeBattleModelLifecycleReceipt>();
+    private readonly ImmutableArray<NativeBattlePresentationReceipt>.Builder receipts = ImmutableArray.CreateBuilder<NativeBattlePresentationReceipt>();
 
     internal ImmutableArray<NativeBattleModelActorFacts?> Facts { get; } = facts;
 
-    internal ImmutableArray<NativeBattleModelLifecycleReceipt> ReadReceipts() => receipts.ToImmutable();
+    internal ImmutableArray<NativeBattleModelLifecycleReceipt> ReadReceipts() => receipts.OfType<NativeBattleModelLifecycleReceipt>().ToImmutableArray();
+
+    internal ImmutableArray<NativeBattlePresentationReceipt> ReadOrderedReceipts() => receipts.ToImmutable();
 
     internal void Emit(NativeBattleModelLifecycleReceipt receipt) => receipts.Add(receipt);
+
+    internal void EmitContact(NativeBattleContactPacket packet) => receipts.Add(new NativeBattlePresentationContactReceived(packet));
 
     internal void Validate(NativeBattleGraphicsRoster roster, NativeBattleGraphicsState graphics)
     {
