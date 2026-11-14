@@ -18,11 +18,18 @@ public sealed partial class Ff7MidgarAutoPlayPolicy
     private bool TryChooseShinraDeparture(Ff7AutoplayDriver driver, string field, int story, out Ff7AutoplayInput input)
     {
         input = default;
-        if (field == "blin68_2" && story == 278 && session.Host.Process.Dialogues.Any(dialogue => dialogue is { Text: 30, Completed: false, AwaitingInput: true }))
+        int? confirmationText = (field, story) switch
         {
-            if ((session.Machine.Input.Held & 0x20) == 0)
+            ("blin68_2", 278) => 30,
+            ("blin70_3", 314) => 97,
+            _ => null
+        };
+        if (confirmationText is int text && session.Host.Process.Dialogues.Any(dialogue => dialogue.Text == text && !dialogue.Completed && dialogue.AwaitingInput))
+        {
+            ushort button = text == 97 ? (ushort)0x0800 : (ushort)0x20;
+            if ((session.Machine.Input.Held & button) == 0)
             {
-                input = new(Held: 0x20);
+                input = new(Held: button);
             }
             return true;
         }
@@ -53,6 +60,11 @@ public sealed partial class Ff7MidgarAutoPlayPolicy
         if (field == "blin70_2" && story is >= 284 and <= 305
             || field == "blin70_3" && story is >= 305 and < 323)
         {
+            Ff7FieldProcess roof = session.Host.Process;
+            if (field == "blin70_3" && story == 320 && !roof.PlayerLocked && roof.Actors.SingleOrDefault(actor => actor.PlayerControlled) is { } cloud && !session.Host.HasScriptedMotion(cloud))
+            {
+                input = driver.Gateway(266);
+            }
             return true;
         }
         if (story is < 302 or > 320 || field is not ("blin67_1" or "blin671b" or "blin673b" or "blin68_1" or "blin69_1" or "blin70_1" or "eleout"))
@@ -70,21 +82,16 @@ public sealed partial class Ff7MidgarAutoPlayPolicy
                 ("blin673b", 302) when (ReadFlags(0xE2) & 0x80) == 0 => driver.TalkTo(4, run: false),
                 ("blin673b", 302) => driver.Gateway(257, 271, run: false),
                 ("blin68_1", 302) => driver.Gateway(264),
-                ("blin69_1", 302) => ApproachShinraRoofStairs(driver, player),
+                ("blin69_1", 302) => driver.Gateway(266, 2, run: false),
+                ("blin70_1", 302) => driver.Approach(new Vector3(360, 40, 4), 211, run: false),
                 ("blin70_1", 305) => driver.Gateway(268),
-                ("blin69_1", 311) => ApproachLineWithConfirm(driver, 16),
+                ("blin70_1", 320) => driver.Gateway(session.Field.Triggers.Gateways.First(gateway => gateway is { DestinationField: 264, DestinationTriangle: 309 }), run: false),
+                ("blin69_1", 311) => ApproachLineWithConfirm(driver, 16, 171),
                 ("eleout", 311) => ApproachLineWithConfirm(driver, 7),
                 ("blin69_1", 320) when process.Actors.Any(actor => actor is { Entity: 5, TalkEnabled: true }) => driver.TalkTo(5, run: false),
                 _ => default
             };
         }
         return true;
-    }
-
-    private static Ff7AutoplayInput ApproachShinraRoofStairs(Ff7AutoplayDriver driver, Ff7Actor player)
-    {
-        return player.Triangle is 328 or 329
-            ? driver.Steer(new Vector3(-400, 800, 320), run: false)
-            : driver.Approach(new Vector3(-338, 800, 323), 328, run: false);
     }
 }

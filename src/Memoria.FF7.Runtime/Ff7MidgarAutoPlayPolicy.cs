@@ -69,9 +69,9 @@ public sealed partial class Ff7MidgarAutoPlayPolicy(Ff7Session session)
         {
             return true;
         }
-        if (field == "blin1" && story == 326)
+        if (field == "blin1" && story is 326 or 332)
         {
-            if (session.Host.Process.Tick != 0 && !session.Host.Process.PlayerLocked && session.Host.Process.Lines.Any(line => line.Entity == 19 && line.Enabled == 1))
+            if (story == 326 && session.Host.Process.Tick != 0 && !session.Host.Process.PlayerLocked && session.Host.Process.Lines.Any(line => line.Entity == 19 && line.Enabled == 1))
             {
                 input = ApproachLine(driver, 19, 8);
             }

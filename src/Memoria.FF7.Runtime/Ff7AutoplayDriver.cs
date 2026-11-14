@@ -63,7 +63,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         return Gateway(session.Field.Triggers.Gateways.Single(gateway => gateway.DestinationField == destinationField && gateway.DestinationTriangle == destinationTriangle), run);
     }
 
-    private Ff7AutoplayInput Gateway(PcFieldGateway gateway, bool run)
+    internal Ff7AutoplayInput Gateway(PcFieldGateway gateway, bool run)
     {
         plannedGateway = gateway;
         try

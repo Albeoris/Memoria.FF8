@@ -65,7 +65,7 @@ internal sealed partial class Ff7Scene
         sharedInput.TextEntryEnabled = error is null && namingMenus?.IsTypingName == true;
         sharedInput.NamingNavigationEnabled = error is null && namingMenus?.IsOpen == true;
         semanticInput = sharedInput.Read(keys, pad, acceptsInput);
-        if (sharedInput.PauseRequested && !HighwayDeparturePrompt && playerMenu?.IsCapturingControls != true)
+        if (sharedInput.PauseRequested && !ScriptedStartPrompt && playerMenu?.IsCapturingControls != true)
         {
             userPaused = !userPaused;
             SetAudioPaused(userPaused);
@@ -90,8 +90,9 @@ internal sealed partial class Ff7Scene
         }
     }
 
-    private bool HighwayDeparturePrompt => Session is { Field.Name: "blackbgb", Highway: null, Battle: null } session
-        && session.Host.Process.Dialogues.Any(dialogue => dialogue is { Text: 6, Completed: false });
+    private bool ScriptedStartPrompt => Session is { Highway: null, Battle: null } session
+        && session.Host.Process.Dialogues.Any(dialogue => !dialogue.Completed
+            && (session.Field.Name, dialogue.Text) is ("blackbgb", 6) or ("blin70_3", 97) or ("blin70_3", 98));
 }
 
 internal static class Ff7ControlButtons
