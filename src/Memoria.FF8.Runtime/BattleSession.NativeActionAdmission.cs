@@ -18,41 +18,58 @@ public sealed partial class BattleSession
         return native.AttackType is 17 or 19 && command.NativeSpecial is { Failed: true };
     }
 
-    private NativeBattleActionHeaderPreparation BuildNativeActionHeaderPreparation(BattleCombatant actor, BattleActionPresentation command, BattleNativeAction native, bool miniMogFailed)
+    internal NativeBattleActionHeaderPreparation BuildExpandedActionHeaderPreparation(BattleActionPresentation command, BattleNativeAction native, bool miniMogFailed = false)
     {
+        if (!UsesExpandedRoster)
+        {
+            throw new InvalidOperationException("Expanded action header preparation requires an expanded roster.");
+        }
+        BattleCombatant actor = GetActor(command.ActorId);
+        byte row = RequireExpandedPresentationRow(ReadExpandedPresentationRoster(), actor);
+        if (command.NativeGraphic is { } graphic)
+        {
+            byte sequence = ResolveNativeDispatchSequence(actor, 252, command.NativeSequence ?? 0, 1, hostedPresentation: true);
+            return new(row, 252, sequence, -1, 1, graphic.MagicId, null);
+        }
+        return BuildNativeActionHeaderPreparation(actor, command, native, miniMogFailed, row);
+    }
+
+    private NativeBattleActionHeaderPreparation BuildNativeActionHeaderPreparation(BattleCombatant actor, BattleActionPresentation command, BattleNativeAction native, bool miniMogFailed, byte? presentationActor = null)
+    {
+        byte actorIndex = presentationActor ?? checked((byte)actor.EncodeNativeSlot());
         if (miniMogFailed)
         {
             NativeBattleActionDataReference title = new(0x47EBD0, 38) { FormattedText = definition.NativeCommandNames.ElementAtOrDefault(38) };
-            return new(checked((byte)actor.EncodeNativeSlot()), 0, 10, -1, 9, 0, title);
+            return new(actorIndex, 0, 10, -1, 9, 0, title);
         }
         if (NativeMagicInvocationSilenced(actor, command, native))
         {
             NativeBattleActionDataReference title = new(0x47E970, native.ActionId) { FormattedText = native.Name };
-            return new(checked((byte)actor.EncodeNativeSlot()), 0, 10, -1, 9, 0, title);
+            return new(actorIndex, 0, 10, -1, 9, 0, title);
         }
         if (NativeSpecialInvocationFailed(command, native))
         {
             ushort message = native.AttackType == 17 ? (ushort)50 : (ushort)112;
             NativeBattleActionDataReference title = new(0x47EC70, message) { FormattedText = NativeBattleGlobalText(message) };
-            return new(checked((byte)actor.EncodeNativeSlot()), 0, 10, -1, 9, 0, title);
+            return new(actorIndex, 0, 10, -1, 9, 0, title);
         }
         if (command.IndependentGuardian?.FailureMessage is not null)
         {
             BattleActionDefinition item = FindAction(BattleAbility.Item, command.ActionId);
             NativeBattleActionDataReference title = new(0x47EA30, checked((ushort)command.ActionId)) { FormattedText = item.NativeAction?.Name ?? item.Name };
-            return new(checked((byte)actor.EncodeNativeSlot()), 0, 10, -1, 9, 0, title);
+            return new(actorIndex, 0, 10, -1, 9, 0, title);
         }
         if (command.NativeDraw is { } draw)
         {
             byte drawCommand = draw.Failed ? (byte)0 : (byte)6;
-            byte drawSequence = draw.Failed ? (byte)10 : ResolveNativeDispatchSequence(actor, command.DrawCast ? (byte)9 : (byte)10, command.NativeSequence ?? 0, native.ActionId);
+            byte drawSequence = draw.Failed ? (byte)10 : ResolveNativeDispatchSequence(actor, command.DrawCast ? (byte)9 : (byte)10, command.NativeSequence ?? 0, native.ActionId, hostedPresentation: presentationActor.HasValue);
             ushort drawAction = draw.Failed ? (ushort)9 : draw.Selection;
             ushort drawEffect = draw.Failed ? (ushort)0 : command.DrawCast ? native.MagicId : (ushort)15;
             NativeBattleActionDataReference drawTitle = command.DrawCast && !draw.Failed ? new(0x495280, 0) { FormattedText = NativeDrawResultText(actor, draw, true) } : new(0x47EBD0, 6) { FormattedText = definition.NativeCommandNames.ElementAtOrDefault(6) };
-            return new(checked((byte)actor.EncodeNativeSlot()), drawCommand, drawSequence, -1, drawAction, drawEffect, drawTitle);
+            return new(actorIndex, drawCommand, drawSequence, -1, drawAction, drawEffect, drawTitle);
         }
         byte original = NativeHeaderCommand(actor, command, native);
-        byte sequence = ResolveNativeDispatchSequence(actor, original, command.NativeSequence ?? 0, native.ActionId);
+        byte sequence = ResolveNativeDispatchSequence(actor, original, command.NativeSequence ?? 0, native.ActionId, hostedPresentation: presentationActor.HasValue);
         ushort action = original == 14 ? checked((ushort)(native.ActionId + 101)) : native.ActionId;
         ushort effect = original is 0 or 1 or 12 or 28 ? (ushort)0 : native.MagicId;
         sbyte camera = -1;
@@ -142,17 +159,17 @@ public sealed partial class BattleSession
         {
             data = data with { FormattedText = ResolveNativeActionHeaderName(data, native) };
         }
-        return new(checked((byte)actor.EncodeNativeSlot()), original, sequence, camera, action, effect, data);
+        return new(actorIndex, original, sequence, camera, action, effect, data);
     }
 
-    private byte ResolveNativeDispatchSequence(BattleCombatant actor, byte command, byte supplied, ushort action)
+    private byte ResolveNativeDispatchSequence(BattleCombatant actor, byte command, byte supplied, ushort action, bool hostedPresentation = false)
     {
         byte sequence = supplied;
         if (actor.GuardianFormVitals is not null && command is 1 or 12 or 28 && GetGuardianForm(actor.Id) is { } form)
         {
             sequence = GuardianFormResources(form.GuardianForceId).PhysicalSequence;
         }
-        if (actor.EncodeNativeSlot() < 3 && actor.GuardianFormVitals is null)
+        if ((hostedPresentation ? actor.IsPlayer : actor.EncodeNativeSlot() < 3) && actor.GuardianFormVitals is null)
         {
             sequence = NativeBattleActionGraphics.ResolvePlayerSequence(command, supplied, action, definition.NativeCommandSequences);
         }
