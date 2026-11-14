@@ -74,7 +74,7 @@ internal sealed partial class Ff7Scene
     {
         return option.Command switch
         {
-            Ff7BattleCommand.Summon => $"{option.Cost} MP  ?{option.RemainingUses}",
+            Ff7BattleCommand.Summon => $"{option.Cost} MP  ×{option.RemainingUses}",
             Ff7BattleCommand.Magic when !guest => option.Cost > 0 ? $"{option.Cost} MP" : "",
             Ff7BattleCommand.Magic or Ff7BattleCommand.Item => option.Cost.ToString(),
             _ => ""

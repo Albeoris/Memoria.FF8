@@ -48,6 +48,10 @@ public sealed partial class Ff7MidgarAutoPlayPolicy(Ff7Session session)
         input = default;
         string field = session.Field.Name;
         int story = session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0);
+        if (TryChooseShinraDeparture(driver, field, story, out input))
+        {
+            return true;
+        }
         if (field == "blackbgc" && story is 239 or 245)
         {
             return true;

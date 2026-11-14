@@ -26,14 +26,13 @@ internal static class NativeMinigameTests
         Ff7Installation installation = Ff7Installation.Discover(directory);
         using Ff7Session initial = Ff7Session.NewGame(installation);
         FieldVariables variables = new(initial.Machine.Variables.CopyPersistent(), new byte[256]);
-        variables.WriteWord(FieldBank.Persistent0Word, 0, 326);
-        variables.WriteByte(FieldBank.Persistent1Byte, 0xA7, 4);
+        variables.WriteWord(FieldBank.Persistent0Word, 0, 320);
         Ff7Progress progress = PrepareMotorballParty(initial.Progress) with { Party = [3, 1, 4] };
         for (int index = 0; index < progress.Party.Length; index++)
         {
             variables.WriteByte(FieldBank.Persistent1Byte, (byte)(9 + index), (byte)progress.Party[index]);
         }
-        Ff7NativeSaveSlot slot = Ff7NativeSaveCodec.ExportField(progress, variables.CopyPersistent(), 234, 1672, 882, 141, 252);
+        Ff7NativeSaveSlot slot = Ff7NativeSaveCodec.ExportField(progress, variables.CopyPersistent(), 264, -349, 16, 233, 0);
         using Ff7Session session = Ff7Session.Restore(installation, Ff7NativeSaveCodec.Import(slot, installation));
         Ff7AutoplayDriver driver = new(session);
         Ff7MidgarAutoPlayPolicy policy = new(session);
