@@ -20,6 +20,7 @@ public sealed record Ff7BattleGuestPhysicalHit(Ff7BattleDamageActor Source, Ff7B
 {
     public Ff7BattleGuestPreparedContact? PreparedContact { get; init; }
     public Ff7BattleGuestItemEffect? ItemEffect { get; init; }
+    public Ff7BattleGuestProcessOperation? ProcessOperation { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public byte? ElementPercent { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
@@ -180,6 +181,10 @@ public sealed partial class Ff7BattleSession
         }
         command = command with { TargetMask = RedirectNativeSuccessorTargets(command.TargetMask, Mask(state.Actors.Where(actor => (actor.Actor.Conditions & 8) != 0))) };
         Ff7BattleGuestInvocation invocation = GuestInvocation(command, Tick);
+        if (DispatchGuestPresentationOnly(command, guest, invocation))
+        {
+            return true;
+        }
         if (command.CommandId == (byte)Ff7BattleCommand.Magic && !(guest is IFf7BattleGuestOperation operationOwner && operationOwner.HandlesOperation(command.GuestAbility)) && guest is IFf7BattleGuestCompositeActions composite && composite.DescribeCompositeAction(command.GuestAbility) is { } program)
         {
             DispatchGuestCompositeAction(command, guest, composite, program, invocation);
@@ -318,6 +323,11 @@ public sealed partial class Ff7BattleSession
     private void AdvanceActiveGuestAttack(Ff7BattleActionState active)
     {
         IFf7BattleGuestAttack guest = RequireGuestAttack(active.Command);
+        if (active.GuestPresentationOnly)
+        {
+            AdvanceGuestPresentationOnly(active, guest);
+            return;
+        }
         if (active.GuestComposite is not null)
         {
             AdvanceGuestCompositeAction(active, guest);
@@ -432,6 +442,14 @@ public sealed partial class Ff7BattleSession
                 Replace(source with { Actor = source.Actor with { HitPoints = receipt.Source.Hp, MagicPoints = receipt.Source.Mp, Statuses = receipt.Source.Statuses } });
             }
             PublishHit(command, target, attack, receipt);
+            if (!prepared.Receipt.Damage.Missed && hit.ProcessOperation is { } operation)
+            {
+                if (RequireGuestAttack(command) is not IFf7BattleGuestProcess { ProcessActive: true } process || !operation.Supported)
+                {
+                    throw new InvalidDataException("The process execution operation has no active source owner.");
+                }
+                process.ApplyProcessOperation(command.GuestAbility, targetSlot, operation);
+            }
             if ((receipt.RemovedStatuses & Ff7NativeBattleActionResolver.Death) != 0 && state.ActorModels.Length != 0)
             {
                 ReplaceActorModel(ActorModelState(targetSlot) with { PresentedKnockedOut = false });
@@ -487,7 +505,12 @@ public sealed partial class Ff7BattleSession
 
     private static void ValidateGuestMagic(ushort ability, Ff7BattleGuestPhysicalHit hit)
     {
-        if (ability == 0 || hit.Attack.Formula is not (0x00 or 0x04 or 0x11 or 0x22 or 0x23 or 0x24 or 0x25 or 0x26 or 0x37 or 0x47 or 0x50 or 0xB1) || hit.Attack.HasStatusOperation != (hit.StatusRecord is not null || hit.Attack.ParameterOperation is not null || hit.Attack.GuestOriginSavedStatuses != 0) || (hit.Attack.GuestOriginSavedStatuses & ~Ff7OriginSavedStatusRules.Supported) != 0 || hit.StatusRecord is { } record && ((record.StatusMask & ~Ff7GuestBattleStatuses.SupportedHost) != 0 || record.AdditionalEffect != byte.MaxValue || (record.SpecialFlags & 0x10) == 0))
+        uint supportedStatuses = Ff7GuestBattleStatuses.SupportedHost;
+        if (Ff7NativeBattleStatuses.ReadRecordMode(hit.StatusRecord) == 1)
+        {
+            supportedStatuses |= Ff7NativeBattleStatuses.SupportedRecordStatuses;
+        }
+        if (ability == 0 || hit.Attack.Formula is not (0x00 or 0x04 or 0x11 or 0x22 or 0x23 or 0x24 or 0x25 or 0x26 or 0x37 or 0x47 or 0x50 or 0xB1) || hit.Attack.HasStatusOperation != (hit.StatusRecord is not null || hit.Attack.ParameterOperation is not null || hit.Attack.GuestOriginSavedStatuses != 0 || hit.ProcessOperation is not null) || hit.ProcessOperation is { Supported: false } || (hit.Attack.GuestOriginSavedStatuses & ~Ff7OriginSavedStatusRules.Supported) != 0 || hit.StatusRecord is { } record && ((record.StatusMask & ~supportedStatuses) != 0 || record.AdditionalEffect != byte.MaxValue || (record.SpecialFlags & 0x10) == 0))
         {
             throw new NotSupportedException("The guest action requires a supported shared damage and status operation.");
         }

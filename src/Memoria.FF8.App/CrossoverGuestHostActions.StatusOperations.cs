@@ -7,7 +7,7 @@ internal sealed partial class CrossoverGuestHostActions
 {
     private string? SourceStatusTargetUnsupportedReason(BattleNativeAction action, int target)
     {
-        uint operations = action.Statuses1 & ~(Ff7GuestBattleStatuses.SupportedOriginBattle | Ff7GuestBattleStatuses.SupportedOwnedOriginBattle | Ff7GuestBattleStatuses.OriginDefenseReduction | 0x8000u);
+        uint operations = action.Statuses1 & ~((ProcessActive ? 0x2000000u : 0) | Ff7GuestBattleStatuses.SupportedOriginBattle | Ff7GuestBattleStatuses.SupportedOwnedOriginBattle | Ff7GuestBattleStatuses.OriginDefenseReduction | 0x8000u);
         if (operations == 0 || action.AttackType is 27 or 29 or 35)
         {
             return null;

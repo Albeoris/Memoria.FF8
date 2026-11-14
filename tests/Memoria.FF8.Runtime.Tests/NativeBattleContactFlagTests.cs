@@ -112,6 +112,30 @@ public sealed class NativeBattleContactFlagTests
         }
     }
 
+    [Theory]
+    [InlineData(0u, 0u, (ushort)0, (byte)0, 200, false)]
+    [InlineData(0u, 0x20u, (ushort)0, (byte)0, 100, false)]
+    [InlineData(0u, 0u, (ushort)0x40, (byte)0, 100, false)]
+    [InlineData(0u, 0u, (ushort)0, (byte)255, 400, false)]
+    [InlineData(0x10000u, 0u, (ushort)0, (byte)0, 0, true)]
+    public void Physical_current_hp_fraction_preserves_modifiers_and_original_fraction_immunity_receipt(uint nativeFlags, uint battleStatuses, ushort savedStatuses, byte critical, int expectedDamage, bool failed)
+    {
+        BattleSession session = new(new BattleDefinition
+        {
+            NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
+            Combatants =
+            [
+                new() { Id = "actor", Name = "Actor", IsPlayer = true, ModelId = 1, Attack = 1, Luck = 0, MaximumHp = 1000, CurrentHp = 1000 },
+                new() { Id = "target", Name = "Target", MaximumHp = 800, CurrentHp = 400, Defense = 255, NativeCombatantFlags = nativeFlags, NativeStatus0 = savedStatuses, NativeStatus1 = battleStatuses }
+            ]
+        }, BattleAtbMode.Normal);
+        BattleNativeAction action = Action(7, 0) with { Power = 8, Critical = critical };
+        NativeBattleContactPacket packet = Resolve(session, action);
+        Assert.Equal(expectedDamage, packet.Primary.PresentedAmount);
+        Assert.Equal(400 - expectedDamage, session.Combatants.Single(actor => actor.Id == "target").CurrentHp);
+        Assert.Equal(failed, (packet.Primary.HitFlags3 & 4) != 0);
+    }
+
     private static BattleSession FixedRecoverySession(bool playerActor, BattleNativePlayerStatRules? rules, bool zombie)
     {
         return new(new BattleDefinition

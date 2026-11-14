@@ -50,14 +50,7 @@ public sealed partial class BattleSession
         }
     }
 
-    private static BattleNativeAction CreateNativeDuelControl241(ushort actionId, ushort effect)
-    {
-        if (actionId == 65530 ? effect is < 6 or > 9 : actionId != 65532 || effect != 0)
-        {
-            throw new InvalidDataException("Native Duel control requires FFFA with its original finisher6..9 or FFFC with effect0.");
-        }
-        return new(241, actionId, -1, -1) { MagicId = effect, AttackType = 0, Power = 0, HitCount = 1, TargetFlags = null, AttackFlags = 3, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = ImmutableArray<byte>.Empty, SupplementalRecord = ImmutableArray<byte>.Empty };
-    }
+    private static BattleNativeAction CreateNativeDuelControl241(ushort actionId, ushort effect) => NativeBattleDuelRules.Control(actionId, effect);
 
     private BattleNativeAction ValidateNativeDuelControl241(BattleCombatant actor, int? headerIndex, BattleNativeAction native)
     {

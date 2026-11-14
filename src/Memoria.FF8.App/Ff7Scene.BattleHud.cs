@@ -34,7 +34,10 @@ internal sealed partial class Ff7Scene
         }
 
         DrawBattleParty(canvas, theme, layout, textScale, battle);
-        if (battle.BeatRushSelecting)
+        if (DrawGuestLimitProcess(canvas, theme, layout, textScale))
+        {
+        }
+        else if (battle.BeatRushSelecting)
         {
             DrawBattleChoices(canvas, theme, layout, textScale, "BEAT RUSH", [new(battle.BeatRushVisible!.Value.ToString()), new("Confirm to stop")], 0);
         }

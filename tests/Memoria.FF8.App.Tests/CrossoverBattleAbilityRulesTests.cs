@@ -29,6 +29,7 @@ public sealed class CrossoverBattleAbilityRulesTests
     [InlineData(4, 0x26, false, true, false, 10)]
     [InlineData(5, 0x24, false, true, false, 4)]
     [InlineData(6, 0x24, false, true, false, 32)]
+    [InlineData(7, 0x11, true, false, false, 28)]
     [InlineData(8, 0x23, false, false, false, 72)]
     [InlineData(9, 0x11, true, false, false, 28)]
     [InlineData(11, 0x22, false, false, false, 16)]
@@ -68,6 +69,7 @@ public sealed class CrossoverBattleAbilityRulesTests
     [InlineData(4)]
     [InlineData(5)]
     [InlineData(6)]
+    [InlineData(7)]
     [InlineData(8)]
     [InlineData(9)]
     [InlineData(11)]
@@ -425,6 +427,66 @@ public sealed class CrossoverBattleAbilityRulesTests
         Assert.Null(CrossoverBattleAbilityRules.Describe(Kit(), action).StatusRecord);
         Ff7BattleGuestPhysicalHit hit = CrossoverBattleAbilityRules.Describe(Kit(), action with { Hit = 1 });
         Assert.False(Resolve(hit, new(100, 100, 0, 0, 0), new(9000, 9000, 0, 0, 0), targetLevel: 99, magicEvade: 100).Damage.Missed);
+    }
+
+    [Fact]
+    public void Original_full_source_dispel_removes_both_host_and_source_dispellable_categories_without_changing_identity()
+    {
+        using BattleAssets assets = new(TestResources.GameDirectory);
+        BattleNativeAction action = Assert.Single(assets.NativeActions, action => action.Command == 2 && action.Name == "Dispel");
+        Assert.Equal(Ff7GuestBattleStatuses.DispellableOriginBattle, action.Statuses1);
+        Ff7BattleGuestPhysicalHit hit = CrossoverBattleAbilityRules.Describe(Kit(), action);
+        Assert.Equal(Ff7NativeBattleStatuses.BeneficialDispelMask, hit.StatusRecord!.StatusMask);
+        Assert.Equal(hit, CrossoverBattleAbilityRules.Describe(Kit(), action with { Name = "Another identity", ActionId = 201, MagicId = 511 }));
+        uint removable = Ff7NativeBattleStatuses.BeneficialDispelMask & ~Ff7NativeBattleStatuses.Resist;
+        Ff7BattleActionVitals target = new(100, 100, 0, 0, removable | Ff7NativeBattleActionResolver.Poison);
+        Ff7BattleRng random = new(new byte[3988], new(new byte[8]));
+        Ff7BattleActionReceipt receipt = Ff7NativeBattleActionResolver.ResolveGuestContact(hit.Source, new(100, 100, 0, 0, 0), new(10, 10, 10, 0, 0, 0, 0, 0, 0), target, hit.Attack, hit.StatusRecord, random, originBattleStatuses: Ff7GuestBattleStatuses.SupportedOwnedOriginBattle | Ff7GuestBattleStatuses.OriginCurse);
+        Assert.False(receipt.Damage.Missed);
+        Assert.Equal(Ff7NativeBattleActionResolver.Poison, receipt.Target.Statuses);
+        Assert.Equal(Ff7GuestBattleStatuses.SupportedOwnedOriginBattle, receipt.RemovedOriginBattleStatuses);
+        Ff7BattleGuestPhysicalHit narrow = CrossoverBattleAbilityRules.Describe(Kit(), action with { Statuses1 = 0x20 });
+        Assert.Equal(Ff7NativeBattleStatuses.Barrier, narrow.StatusRecord!.StatusMask);
+    }
+
+    [Fact]
+    public void Physical_fraction_family_projects_current_hp_and_original_record_without_identity_gates()
+    {
+        using BattleAssets assets = new(TestResources.GameDirectory);
+        BattleNativeAction original = Assert.Single(assets.NativeActions, action => action.Command == 241 && action.ActionId == 5);
+        Assert.Equal((byte)7, original.AttackType);
+        Ff7BattleGuestPhysicalHit hit = CrossoverBattleAbilityRules.Describe(Kit(), original);
+        Assert.Equal((byte)0x11, hit.Attack.Formula);
+        Assert.True(hit.Attack.UsePhysicalStats);
+        Assert.False(hit.Attack.SuppressCritical);
+        Assert.Equal(original.Power, hit.Attack.FractionNumerator);
+        Assert.Equal(16, hit.Attack.FractionDenominator);
+        Assert.Equal(hit, CrossoverBattleAbilityRules.Describe(Kit(), original with { Command = 236, ActionId = 65500, MagicId = 511, Name = "Different identity" }));
+    }
+
+    [Theory]
+    [InlineData(0u, false, 0u, 1, 400)]
+    [InlineData(Ff7NativeBattleStatuses.Barrier, false, 0u, 1, 200)]
+    [InlineData(Ff7NativeBattleStatuses.MagicBarrier, false, 0u, 1, 400)]
+    [InlineData(0u, true, 0u, 1, 800)]
+    [InlineData(0u, false, 0x100u, 1, 0)]
+    [InlineData(0u, false, 0x200u, 1, 400)]
+    [InlineData(0u, false, 0u, 5, 2000)]
+    public void Physical_fraction_uses_host_modifiers_and_immunity_without_damage_variance(uint statuses, bool critical, uint conditions, int multiplier, int expected)
+    {
+        Ff7BattleDamageAction action = CrossoverBattleAbilityRules.Describe(Kit(), Action(7) with { Power = 8 }).Attack with { AlwaysHits = true, SuppressCritical = true, ForceCritical = critical, OriginDamageMultiplier = multiplier };
+        Ff7BattleDamageActor target = new(10, 10, 10, 0, 0, 0, 0, 512, 512, Statuses: statuses, CurrentHitPoints: 800, MaximumHitPoints: 1000) { NativeConditions = conditions };
+        Ff7BattleRng first = new(new byte[3988], new(new byte[8]));
+        Ff7BattleRng second = new(Enumerable.Repeat((byte)255, 3988).ToArray(), new(new byte[8]));
+        Assert.Equal(expected, Ff7NativeBattleDamage.Resolve(KitSource(), target, action, first).Damage);
+        Assert.Equal(expected, Ff7NativeBattleDamage.Resolve(KitSource(), target, action, second).Damage);
+        Ff7BattleDamageActor large = target with { CurrentHitPoints = 10000, MaximumHitPoints = 10000 };
+        if (multiplier == 5)
+        {
+            Assert.Equal(9999, Ff7NativeBattleDamage.Resolve(KitSource(), large, action, first).Damage);
+        }
+
+        static Ff7BattleDamageActor KitSource() => new(10, 1, 1, 0, 0, 0, 0, 0, 0);
     }
 
     private static Ff7BattleActionReceipt Resolve(Ff7BattleGuestPhysicalHit hit, Ff7BattleActionVitals source, Ff7BattleActionVitals target, byte targetLevel = 10, ushort magicDefense = 0, byte magicEvade = 0)

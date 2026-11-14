@@ -112,9 +112,10 @@ internal sealed class CrossoverMixedBattle : IDisposable
                 attack.GlobalRandom = encounter.GlobalRandom;
                 attack.PrepareStanding(host.VisualPlacement(binding.HostSlot));
                 encounter.GlobalRandom = attack.GlobalRandom;
-                ushort? limitOptions = kit.CharacterId == 0 ? document.Limits.Options ?? game.ReadNewGameLimitProgress().Options978 : null;
+                ushort? limitOptions = document.Limits.Options ?? game.ReadNewGameLimitProgress().Options978;
                 CrossoverGuestHostActions actions = new(roster, kit, attack, host, game, assets, encounter, saved.Actions, limitOptions, limitUiRandom);
                 actions.BindLimitProgress(document.Limits);
+                actions.BindLimitProcessOwners(document.Progression?.Collections.ShotAvailability, document.Progression?.Story.BattleFlags?.Value ?? game.ReadNewGameSavedBattleFlags().Value);
                 host.BindGuestAttack(actions);
                 guests.Add(actions);
             }

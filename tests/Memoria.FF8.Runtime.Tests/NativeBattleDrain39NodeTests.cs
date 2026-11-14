@@ -32,6 +32,22 @@ public sealed class NativeBattleDrain39NodeTests
     }
 
     [Fact]
+    public void Original_node_context_reads_host_semantic_bones_without_native_pose_lookup()
+    {
+        var fixture = Fixture();
+        NativeBattleDrain39ControllerInputs inputs = fixture.Inputs with
+        {
+            ReadForeignActorGeometry = actor => new(new((short)(actor * 10), -700, 30), new((short)(actor * 20), -300, 40), 0, new(default, default)),
+            ReadPoseSource = _ => throw new InvalidOperationException("The host has no source-game skeleton.")
+        };
+        NativeBattleDrain39NodeStep result = Advance(fixture.Frame, fixture.Address, Resources(), inputs);
+        NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(result.Frame.Effect.Pools).Read(fixture.Address);
+        Assert.Equal(unchecked((uint)(40 << 16)), task.ReadDword(0x34 + 0x1E4));
+        Assert.Equal(unchecked((uint)(60 << 16)), task.ReadDword(0x34 + 0xD4));
+        Assert.Equal(unchecked((uint)(30 << 16)), task.ReadDword(0x34 + 0x114));
+    }
+
+    [Fact]
     public void Signed_delay_does_not_materialize_the_bank_and_completion_waits_for_owned_children()
     {
         var fixture = Fixture();

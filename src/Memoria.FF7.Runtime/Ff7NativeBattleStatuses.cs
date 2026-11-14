@@ -19,6 +19,13 @@ public static class Ff7NativeBattleStatuses
     public const uint DeathForce = 0x10000000;
     public const uint Resist = 0x20000000;
     public const uint Imprisoned = 0x80000000;
+    public const uint BeneficialDispelMask = 0x30178700;
+
+    public static bool RemovesBeneficialStatuses(Ff7BattleAttack? record)
+    {
+        return ReadRecordMode(record) == 1 && (ReadRecordMask(record) & BeneficialDispelMask) == BeneficialDispelMask;
+    }
+
     public const uint SupportedRecordStatuses = Confusion | Silence | SlowNumb | Regen | Barrier | MagicBarrier | Reflect | Shield | DeathSentence | Peerless | Paralysis | DeathForce | Resist | Imprisoned;
 
     public static uint ReadRecordMask(Ff7BattleAttack? record)

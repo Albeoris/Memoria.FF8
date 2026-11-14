@@ -21,7 +21,7 @@ public sealed record NativeBattleHoly175CaptureWrite(NativeBattlePrimitiveProces
 
 public static class NativeBattleHoly175CapturePackets
 {
-    public static NativeBattleHoly175CaptureWrite Write5D29E0(NativeBattlePrimitiveProcess process, NativeBattleLogicalOrdering ordering, NativeBattleStageState stage, ImmutableArray<NativeBattleRawMesh> geometry, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleHoly175Resources resources, NativeBattleHoly175CaptureMemory retained)
+    public static NativeBattleHoly175CaptureWrite Write5D29E0(NativeBattlePrimitiveProcess process, NativeBattleLogicalOrdering ordering, NativeBattleStageState stage, ImmutableArray<NativeBattleRawMesh> geometry, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleHoly175Resources resources, NativeBattleHoly175CaptureMemory retained, Func<NativeBattleHoly175CaptureStage>? captureStage = null)
     {
         using IDisposable sceneCapture = NativeBattleSceneCapture.Begin(NativeBattleSceneCaptureKind.Source, 576, 256, height: 232, paddingTop: 8, paddingBottom: 8, projectionOffsetY: 8);
         process.Validate();
@@ -53,7 +53,7 @@ public static class NativeBattleHoly175CapturePackets
         int restoreEnd = alternate[0x18] != 0 ? 36 : 24;
         AppendProduced(restore, 64, 4123, restoreEnd);
 
-        NativeBattleHoly175CaptureStage drawn = NativeBattleHoly175CaptureGeometry.Draw5D29E0(stage, geometry, pairs.ToImmutable(), view, projection, colors);
+        NativeBattleHoly175CaptureStage drawn = captureStage?.Invoke() ?? NativeBattleHoly175CaptureGeometry.Draw5D29E0(stage, geometry, pairs.ToImmutable(), view, projection, colors);
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocation = 0;
         foreach (NativeBattleGeometryPrimitive primitive in drawn.Packets)

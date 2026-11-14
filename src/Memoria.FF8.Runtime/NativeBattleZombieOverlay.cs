@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleZombieOverlayDraw(NativeBattleFileStaging Staging, NativeBattleGfGeometryBatch Packets);
 
-public static class NativeBattleZombieOverlay
+public static partial class NativeBattleZombieOverlay
 {
     public static NativeBattleProjectedVertex Project(NativeBattleModuleDepthCueVertex vertex, short originX, ImmutableArray<short> wave, short phase, short amplitude)
     {

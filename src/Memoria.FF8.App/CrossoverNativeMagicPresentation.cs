@@ -144,7 +144,7 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
                 probe = Advance(probe, readTargetAnchor, readTargetTransform, projection, readForeign, readGroupForeign).State;
                 if (probe.Complete)
                 {
-                    reason = probe.PublishedContacts == probe.BoundContacts.Length ? null : "The native presentation did not publish every planned contact occurrence.";
+                    reason = probe.Action?.PresentationOnly == true || probe.PublishedContacts == probe.BoundContacts.Length ? null : "The native presentation did not publish every planned contact occurrence.";
                     return reason is null;
                 }
             }
@@ -288,8 +288,8 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
                 random = current.Random;
                 draws = draws.AddRange(current.Graphics.ModuleDraws.Where(draw => draw.Kind != NativeBattleModuleDrawKind.Sound));
             }
-            contact |= !next.Contacts.IsEmpty;
-            foreach (int ordinal in ReadContactOrdinals(source.BoundContacts, previousOrdinals.AddRange(contactOrdinals), next.Contacts))
+            contact |= !action.PresentationOnly && !next.Contacts.IsEmpty;
+            foreach (int ordinal in action.PresentationOnly ? [] : ReadContactOrdinals(source.BoundContacts, previousOrdinals.AddRange(contactOrdinals), next.Contacts))
             {
                 CrossoverNativeMagicTarget target = source.BoundContacts[ordinal];
                 published |= (ushort)(1 << target.HostSlot);
@@ -318,6 +318,7 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
                 Arena = source.Arena,
                 SceneContext = readSceneContext?.Invoke() ?? new(NativeBattleSummonFloorMode.BelowTargetPlane, NativeBattleTargetBoundsMode.AllContacts) { MirroredSurfaceMode = NativeBattleMirroredSurfaceMode.InitialCapture },
                 RibbonProjectionPolicy = NativeBattleRibbonProjectionPolicy.IndependentGeometricRuns,
+                ModelTransformPolicy = NativeBattleEffectModelTransformPolicy.HostActorRelative,
                 DeferInvocation = defer,
                 PartyActorCount = readPartyActorCount?.Invoke() ?? (readParticipants is null ? null : source.Participants.Length + 1),
                 InitialMusicGain = 127

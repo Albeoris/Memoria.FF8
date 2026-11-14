@@ -30,7 +30,7 @@ internal sealed partial class CrossoverGuestHostActions
 
     private IReadOnlyList<CrossoverGuestAbility> ReadOriginAbilities()
     {
-        IReadOnlyList<CrossoverGuestAbility> choices = ReadIntegratedAbilities(ReadNativeAbilities());
+        IReadOnlyList<CrossoverGuestAbility> choices = ProcessAbilities(ReadIntegratedAbilities(ReadNativeAbilities()));
         if (host.GuestMagicPrepaidAbility(ActorSlot) is ushort prepaid && !choices.Any(choice => choice.Key == prepaid))
         {
             BattleNativeAction action = kit.Spells.Single(action => action.ActionId == prepaid);
@@ -115,6 +115,17 @@ internal sealed partial class CrossoverGuestHostActions
             List<Ff7BattleGuestAbility> result = [];
             foreach (CrossoverGuestAbility choice in ReadOriginAbilities())
             {
+                if (IsProcessInvocation(choice.Key))
+                {
+                    result.Add(new(Ff7BattleCommand.Magic, choice.Key, choice.Name, 0x12, 1, ProcessInvocationUnsupportedReason(choice)) { Category = choice.Category, RequiresMagic = false });
+                    continue;
+                }
+                if (ProcessActive && processAction is { } activeProcess && ProcessKey(activeProcess) == choice.Key)
+                {
+                    byte processFlags = activeProcess.TargetFlags.GetValueOrDefault();
+                    result.Add(new(Ff7BattleCommand.Magic, choice.Key, choice.Name, CrossoverBattleAbilityRules.HostTargetFlags(processFlags), 1) { Category = "Limit", RequiresMagic = false, AllTargets = (processFlags & 0x30) == 0x20 });
+                    continue;
+                }
                 if (HandlesOperation(choice.Key))
                 {
                     bool available = host.Actors.Any(actor => actor.Actor.Slot >= 4 && actor.Actor.HitPoints > 0 && OperationAvailable(choice.Key, actor.Actor.Slot));
@@ -158,6 +169,10 @@ internal sealed partial class CrossoverGuestHostActions
 
     public string? TargetUnsupportedReason(Ff7BattleCommand command, ushort ability, Ff7BattleGuestAttackTarget target)
     {
+        if (command == Ff7BattleCommand.Magic && IsProcessInvocation(ability))
+        {
+            return null;
+        }
         if (command == Ff7BattleCommand.Magic && HandlesOperation(ability))
         {
             return OperationAvailable(ability, target.Slot) ? null : "The selected operation is unavailable for this target.";
@@ -180,6 +195,14 @@ internal sealed partial class CrossoverGuestHostActions
 
     public bool SupportsAbility(Ff7BattleCommand command, ushort ability, Ff7BattleGuestAttackTarget target)
     {
+        if (command == Ff7BattleCommand.Magic && IsProcessInvocation(ability))
+        {
+            return ProcessInvocationUnsupportedReason(ReadOriginAbilities().Single(choice => choice.Key == ability)) is null;
+        }
+        if (command == Ff7BattleCommand.Magic && IsPresentationOnly(ability))
+        {
+            return true;
+        }
         if (command == Ff7BattleCommand.Magic && HandlesOperation(ability))
         {
             return OperationAvailable(ability, target.Slot);
@@ -259,7 +282,8 @@ internal sealed partial class CrossoverGuestHostActions
         {
             return "This ability requires its native command selection process.";
         }
-        if ((CrossoverBattleAbilityRules.UnsupportedReason(original) ?? TargetingUnsupportedReason(original)) is { } unsupported)
+        BattleNativeAction mechanics = ProcessActive ? original with { Statuses1 = original.Statuses1 & ~0x2000000u } : original;
+        if ((CrossoverBattleAbilityRules.UnsupportedReason(mechanics) ?? TargetingUnsupportedReason(original)) is { } unsupported)
         {
             return unsupported;
         }

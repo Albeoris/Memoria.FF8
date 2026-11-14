@@ -28,7 +28,7 @@ internal static class CrossoverBattleAbilityRules
         {
             return "This command requires its native invocation process.";
         }
-        if (action.AttackType is not (1 or 2 or 3 or 4 or 5 or 6 or 8 or 9 or 11 or 15 or 20 or 21 or 22 or 25 or 26 or 27 or 29 or 32 or 35 or 36))
+        if (action.AttackType is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or 11 or 15 or 20 or 21 or 22 or 25 or 26 or 27 or 29 or 32 or 35 or 36))
         {
             return $"Native attack type {action.AttackType} requires a combat operation that the bridge cannot represent.";
         }
@@ -48,7 +48,7 @@ internal static class CrossoverBattleAbilityRules
         {
             throw new NotSupportedException(reason);
         }
-        bool physical = action.AttackType is 1 or 9 or 36;
+        bool physical = action.AttackType is 1 or 7 or 9 or 36;
         bool healing = IsHealing(action.AttackType);
         bool revive = action.AttackType is 5 or 6;
         bool fraction = action.AttackType is 5 or 6 or 8 or 20 or 21 or 32;
@@ -63,6 +63,10 @@ internal static class CrossoverBattleAbilityRules
             throw new InvalidDataException("A level-conditioned attack requires a nonzero target level divisor.");
         }
         uint statuses = revive ? Ff7NativeBattleActionResolver.Death : IgnoresStatuses(action.AttackType) ? 0 : Ff7GuestBattleStatuses.ToHostStatuses(action.Statuses0, action.Statuses1);
+        if (healing && (action.Statuses1 & Ff7GuestBattleStatuses.DispellableOriginBattle) == Ff7GuestBattleStatuses.DispellableOriginBattle)
+        {
+            statuses |= Ff7NativeBattleStatuses.BeneficialDispelMask;
+        }
         byte formula = physical ? (byte)0x11 : fixedDamage ? (byte)0x26 : fraction ? (byte)(action.AttackType == 8 ? 0x23 : 0x24) : healing ? (byte)0x25 : (byte)0x22;
         // The shared profile preserves the original opening magic/healing calibration across all source powers.
         int power = fraction ? action.Power * 2 : physical ? CrossoverGunbladeHostAttack.ProjectPhysicalPower(action.Power, 2) : action.Power * (healing ? 5 : 8) / 18;
@@ -98,8 +102,8 @@ internal static class CrossoverBattleAbilityRules
                 35 => 1,
                 _ => null
             },
-            FractionNumerator = action.AttackType == 20 ? level : 0,
-            FractionDenominator = action.AttackType == 20 ? (action.PowerModifier ?? 0) - (action.LevelModifier ?? 0) + 100 : 0,
+            FractionNumerator = action.AttackType == 7 ? action.Power : action.AttackType == 20 ? level : 0,
+            FractionDenominator = action.AttackType == 7 ? 16 : action.AttackType == 20 ? (action.PowerModifier ?? 0) - (action.LevelModifier ?? 0) + 100 : 0,
             GuestDrainStatusAttack = !healing && !IgnoresStatuses(action.AttackType) && (action.Statuses1 & 0x8000) != 0 ? action.StatusAttack : (byte)0,
             GuestOriginBattleStatuses = originStatuses,
             GuestOriginSavedStatuses = originSavedStatuses,

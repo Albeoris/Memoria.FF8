@@ -44,7 +44,8 @@ public sealed partial class BattleSession
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Holy warp requires its current ordering table.");
             NativeBattleHoly175WarpFrame source = new(state.Warp, current.Memory.Arena ?? throw new NotSupportedException("Native Holy warp requires its private packet arena."), current.Effect.DrawArenaOffset ?? throw new NotSupportedException("Native Holy warp requires its current private cursor."), primitive.Pending);
             NativeBattleHoly175WarpDraw step = NativeBattleHoly175WarpDrawing.Advance5D2BC0(source, animationFrame, current.Memory.PrimitiveProcess?.Buffer80 ?? throw new NotSupportedException("Native Holy warp requires its actual buffer selector."), color, graphics.Flags, unchecked((short)(Projection().FocalLength ?? throw new NotSupportedException("Native Holy warp requires its retained H WORD."))), state.WarpTextured ?? throw new NotSupportedException("Native Holy warp requires its actual textured-draw gate."), state.WarpAlive ?? throw new NotSupportedException("Native Holy warp requires its actual alive gate."), Projection());
-            graphics = graphics with { PrimitiveFrame = primitive with { Pending = step.Frame.Ordering } };
+            NativeBattleLogicalOrdering ordering = presentationArena is { } arena ? NativeBattleArenaDrawing.BindCaptureRegion(step.Frame.Ordering, arena.ReadCapture(576, 256)) : step.Frame.Ordering;
+            graphics = graphics with { PrimitiveFrame = primitive with { Pending = ordering } };
             return current with { Memory = current.Memory with { Arena = step.Frame.PrivateArena, Holy175 = state with { Warp = step.Frame.State, WarpAlive = step.WarpAlive } }, Effect = current.Effect with { DrawArenaOffset = step.Frame.PrivateCursor } };
         }
 
@@ -124,7 +125,15 @@ public sealed partial class BattleSession
                     NativeBattleHoly175State state = current.Memory.Holy175!;
                     NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Holy capture requires its initialized ordering table.");
                     NativeBattleHoly175CaptureMemory retained = new(state.BlackPackets.Read(0, 48).ToImmutableArray(), state.CaptureOffsetX, state.CaptureOffsetY);
-                    NativeBattleHoly175CaptureWrite captured = NativeBattleHoly175CapturePackets.Write5D29E0(current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Holy capture requires its common packet owner."), primitive.Pending, NativeStage ?? throw new NotSupportedException("Native Holy capture requires its current stage."), RequireNativeStageGeometry(), View(), Projection(), colors, resources, retained);
+                    NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native Holy capture requires its current stage.");
+                    NativeBattleHoly175CaptureStage CaptureHostSurface()
+                    {
+                        NativeBattleArenaHost arena = presentationArena!;
+                        NativeBattleCameraProjection captureProjection = Projection() with { View = View(), OffsetX = 160, OffsetY = 116 };
+                        arena.Capture(new(175, 0, 0, 0, 0), arena.Geometry, captureProjection, 320, 232, 576, 256);
+                        return new(stage, []);
+                    }
+                    NativeBattleHoly175CaptureWrite captured = NativeBattleHoly175CapturePackets.Write5D29E0(current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Holy capture requires its common packet owner."), primitive.Pending, stage, presentationArena is null ? RequireNativeStageGeometry() : [], View(), Projection(), colors, resources, retained, presentationArena is null ? null : CaptureHostSurface);
                     NativeStage = captured.Stage;
                     graphics = graphics with { PrimitiveFrame = primitive with { Pending = captured.Ordering } };
                     return current with { Memory = current.Memory with { PrimitiveProcess = captured.Process, Holy175 = state with { BlackPackets = state.BlackPackets.Write(0, captured.Memory.BlackPackets.AsSpan()), CaptureOffsetX = captured.Memory.OffsetX, CaptureOffsetY = captured.Memory.OffsetY } } };

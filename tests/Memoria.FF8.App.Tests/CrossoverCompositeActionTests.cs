@@ -93,7 +93,7 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
         private readonly Ff7Progress progress;
         private readonly NativeCharacterVitals origin;
         private readonly CrossoverFf8BattleKit kit;
-        private readonly GameplaySaveLimitProgress learned;
+        private GameplaySaveLimitProgress learned;
         private readonly CrossoverBattleRoster roster;
         private readonly CrossoverGuestAbility ability;
         private readonly BattleNativeAction action;
@@ -102,6 +102,7 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
         private readonly int row;
         private readonly byte crisis;
         private readonly bool separateLinkedRig;
+        private readonly bool nativeProcess;
         private readonly CrossoverArenaSurfaceCapture? arenaCapture;
         private Ff7BattleSession host;
         private CrossoverGunbladeHostAttack attack = null!;
@@ -110,12 +111,13 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
         public int SourceMaximumHp => kit.MaximumHitPoints;
         public int NativeHitCount => action.HitCount;
 
-        public Fixture(string name, byte character, byte crisis, int? deadTarget = null, CrossoverArenaSurfaceCapture? arenaCapture = null, bool soloGuestParty = false, bool damagedAllies = false, int? sourceHP = null)
+        public Fixture(string name, byte character, byte crisis, int? deadTarget = null, CrossoverArenaSurfaceCapture? arenaCapture = null, bool soloGuestParty = false, bool damagedAllies = false, int? sourceHP = null, bool nativeProcess = false)
         {
             string? ff8 = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
             string? ff7 = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
             Assert.SkipUnless(!string.IsNullOrWhiteSpace(ff8) && !string.IsNullOrWhiteSpace(ff7), "Select both original game installations.");
             this.crisis = crisis;
+            this.nativeProcess = nativeProcess;
             this.arenaCapture = arenaCapture;
             game = new(ff8!);
             assets = new(ff8!);
@@ -152,9 +154,9 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
             }
             kit = CrossoverFf8BattleKit.Read(origin, assets, character);
             separateLinkedRig = assets.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = kit.CharacterId, WeaponId = kit.Weapon }).LinkedPoseSource is not null;
-            learned = GameplaySaveLimitProgress.Capture(game.ReadNewGameLimitProgress()) with { BlueMagicFlags = ushort.MaxValue };
+            learned = GameplaySaveLimitProgress.Capture(game.ReadNewGameLimitProgress()) with { BlueMagicFlags = ushort.MaxValue, DuelFlags = ushort.MaxValue, AngeloFlags = 255 };
             ability = Assert.Single(CrossoverGuestAbilityCatalog.Read(assets, origin, kit, learned, crisis), item => item.Name == name);
-            action = Assert.IsType<BattleNativeAction>(ability.NativeAction);
+            action = nativeProcess ? fire : Assert.IsType<BattleNativeAction>(ability.NativeAction);
             Ff7Installation installation = Ff7Installation.Discover(ff7!);
             original = Ff7Session.NewGame(installation);
             archive = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
@@ -239,11 +241,17 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
             Assert.Contains(CrossoverGuestAbilityCatalog.Read(assets, origin, kit, learned, crisis), choice => choice.Key == ability.Key);
         }
 
-        public Result Execute(bool queuedRoundTrip = false, Action<Ff7BattleRenderer, Ff7BattleSession, CrossoverGuestHostActions>? observe = null)
+        public Result Execute(bool queuedRoundTrip = false, Action<Ff7BattleRenderer, Ff7BattleSession, CrossoverGuestHostActions>? observe = null, int? targetSlot = null)
         {
             Ff7BattleCommandOption option = Option();
             Assert.True(option.UnsupportedReason is null, option.UnsupportedReason);
             ushort targets = (ushort)((option.CandidateTargets ?? option.ValidTargets) & (option.DefaultsToEnemies ? 0x3F0 : 7));
+            if (targetSlot is int selected)
+            {
+                ushort selectedMask = checked((ushort)(1 << selected));
+                Assert.NotEqual(0, (option.CandidateTargets ?? option.ValidTargets) & selectedMask);
+                targets = option.SelectSingle && option.GroupUses == 0 ? selectedMask : (ushort)((option.CandidateTargets ?? option.ValidTargets) & (selected < 3 ? 7 : 0x3F0));
+            }
             if (option.SelectSingle && option.GroupUses == 0)
             {
                 targets = (ushort)(targets & -targets);
@@ -379,6 +387,143 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
             Assert.Equal(3, provider.WorkingStock.GetMagicCount(row, fire.ActionId));
         }
 
+        public Ff7BattleSession ProcessHost => host;
+        public CrossoverGuestHostActions ProcessProvider => provider;
+        public void OpenNativeSelection(ushort? selection = null)
+        {
+            Ff7BattleCommandOption invocation = Option(selection);
+            Assert.Null(invocation.UnsupportedReason);
+            provider.ExecuteOperation(invocation.Argument, 4, () => throw new InvalidOperationException("Limit selection must use its source random owner."));
+        }
+
+        public void SelectSlotsSpell(string name)
+        {
+            BattleNativeAction selected = assets.NativeActions.Single(action => action.Command == 16 && action.Name == name);
+            typeof(CrossoverGuestHostActions).GetField("mixedSlots", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(provider, new BattleNativeSlotsRoll(checked((byte)selected.ActionId), 1));
+        }
+
+        public void ExecuteNativeProcess(byte command, ushort? selection = null, bool automaticDuel = false, byte? angeloFlags = null, byte? duelAction = null)
+        {
+            if (automaticDuel)
+            {
+                typeof(CrossoverGuestHostActions).GetField("limitOptions", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(provider, (ushort)2);
+            }
+            if (angeloFlags is byte learnedAngelo)
+            {
+                learned = learned with { AngeloFlags = learnedAngelo };
+                provider.BindLimitProgress(learned);
+            }
+            Ff7BattleCommandOption invocation = Option(selection);
+            Assert.Null(invocation.UnsupportedReason);
+            Assert.True(host.Submit(0, Ff7BattleCommand.Magic, invocation.Argument, 1 << 4));
+            bool began = false;
+            bool inputSeen = false;
+            bool queuedMove = false;
+            int pulse = 0;
+            int completedPhases = 0;
+            ushort? previousPhase = null;
+            HashSet<ushort> seenPhases = [];
+            byte? recipeMoveSet = null;
+            bool desiredRecipeSubmitted = false;
+            for (int tick = 0; tick < 16000; tick++)
+            {
+                if (provider.DuelProcess is { Phase: BattleNativeDuelPhase.Ready })
+                {
+                    inputSeen = true;
+                    BattleNativeDuelChoice move = duelAction is byte desired ? DuelRoute(provider.DuelProcess!.MoveSetId, desired) : provider.DuelProcessChoices.First(choice => choice.Learned);
+                    if (recipeMoveSet != provider.DuelProcess!.MoveSetId && !desiredRecipeSubmitted)
+                    {
+                        queuedMove = false;
+                        pulse = 0;
+                        recipeMoveSet = provider.DuelProcess.MoveSetId;
+                    }
+                    if (!queuedMove && !automaticDuel && !desiredRecipeSubmitted)
+                    {
+                        provider.SetProcessButtons((pulse & 1) == 0 ? move.Buttons[pulse / 2] : (ushort)0);
+                        pulse++;
+                        if (pulse >= 2 * move.Buttons.Length)
+                        {
+                            queuedMove = true;
+                            desiredRecipeSubmitted = duelAction == move.ActionId;
+                        }
+                    }
+                }
+                if (provider.SlotsChoosing)
+                {
+                    inputSeen = true;
+                    provider.RerollProcessSlots();
+                    Assert.NotNull(provider.SlotsProcess);
+                    if (provider.SlotsCastUnsupportedReason is null)
+                    {
+                        provider.AcceptProcessSlots();
+                    }
+                }
+                if (provider.ShotProcess is { Phase: BattleNativeShotPhase.Ready })
+                {
+                    inputSeen = true;
+                    if (!queuedMove)
+                    {
+                        provider.TriggerProcessShot();
+                        queuedMove = true;
+                    }
+                    else
+                    {
+                        provider.FinishProcessShot();
+                    }
+                }
+                host.Advance(waitForCommand: true);
+                Assert.True(host.GuestAbilityFailure is null, host.GuestAbilityFailure?.Reason);
+                began |= provider.ProcessActive;
+                if (provider.Invocation?.GuestAbility is ushort phase && previousPhase != phase)
+                {
+                    previousPhase = phase;
+                    seenPhases.Add(phase);
+                    completedPhases++;
+                }
+                if (began && !provider.ProcessActive && provider.Invocation is null && host.Action is null)
+                {
+                    break;
+                }
+            }
+            Assert.True(began);
+            if (duelAction is byte expectedMove)
+            {
+                Assert.Contains((ushort)(((expectedMove >= 6 ? 239 : 241) << 8) | expectedMove), seenPhases);
+            }
+            Assert.True(inputSeen || command == 19);
+            Assert.True(completedPhases > 0);
+            Assert.Null(provider.Invocation);
+            Assert.Null(host.Action);
+            Assert.False(provider.ProcessActive);
+        }
+
+        private BattleNativeDuelChoice DuelRoute(byte initial, byte desired)
+        {
+            Queue<(byte MoveSet, BattleNativeDuelChoice? First)> pending = new();
+            HashSet<byte> visited = [];
+            pending.Enqueue((initial, null));
+            while (pending.TryDequeue(out var state))
+            {
+                if (!visited.Add(state.MoveSet))
+                {
+                    continue;
+                }
+                foreach (BattleNativeDuelChoice choice in NativeBattleDuelRules.Choices(kit.Limit, state.MoveSet, learned.DuelFlags, assets.NativeActions))
+                {
+                    BattleNativeDuelChoice first = state.First ?? choice;
+                    if (choice.ActionId == desired)
+                    {
+                        return first;
+                    }
+                    if (!choice.Finisher)
+                    {
+                        pending.Enqueue((choice.MoveSetId, first));
+                    }
+                }
+            }
+            throw new InvalidDataException($"No native Duel recipe route reaches source action {desired}.");
+        }
+
         private Ff7BattleSession Create(Ff7BattleSnapshot? saved = null) => new(formation, progress, kernel, executable.NativeMateriaStatModifiers, 1, requestFlags: 4, snapshot: saved, animations: animations);
 
         private void Bind(CrossoverGunbladeHostSnapshot? caster = null, CrossoverGuestHostActionsSnapshot? saved = null)
@@ -388,18 +533,32 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
             {
                 attack.PrepareStanding(host.VisualPlacement(0));
             }
-            provider = new(roster, kit, origin, NativeCrtRandomState.FromColdProcess(), attack, host, game, assets, saved);
+            GameplaySaveEconomy? economy = nativeProcess ? GameplaySaveEconomy.Capture(game.ReadNewGameEconomy()) : null;
+            if (economy is not null)
+            {
+                NativeItemStock[] items = economy.Items.ToArray();
+                for (int item = 101; item <= 108; item++)
+                {
+                    NativeBattleItemStockRules.Add(items, item, 3);
+                }
+                economy = economy with { Items = items };
+            }
+            provider = new(roster, kit, origin, NativeCrtRandomState.FromColdProcess(), attack, host, game, assets, saved, originEconomy: economy, originLimitOptions: nativeProcess ? (ushort)0 : null, originLimitUiRandom: nativeProcess ? NativePlaytimeState.FromColdProcess().CreateBattleUiRandom() : null);
             provider.BindLimitProgress(learned);
+            if (nativeProcess)
+            {
+                provider.BindLimitProcessOwners(255, 0x20);
+            }
             MethodInfo actorVisual = typeof(Ff7Scene).GetMethod("BattleActorVisual", BindingFlags.Static | BindingFlags.NonPublic)!;
             provider.BindForeignGeometry(slot => renderer.CaptureActorGeometry((Ff7BattleActorVisual)actorVisual.Invoke(null, [host, host.Actors.Single(actor => actor.Actor.Slot == slot)])!));
             provider.BindArena(renderer.CaptureArenaGeometry, arenaCapture is null ? null : arenaCapture.Resolve);
             host.BindGuestAttack(provider);
         }
 
-        private Ff7BattleCommandOption Option()
+        private Ff7BattleCommandOption Option(ushort? selection = null)
         {
             typeof(CrossoverGuestHostActions).GetField("limitSelection", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(provider, new CrossoverNativeRenzokukenSelection(NativeBattleRandomState.Initialize(0), host.Tick, crisis));
-            return Assert.Single(host.Commands(0), choice => choice.Command == Ff7BattleCommand.Magic && choice.Argument == ability.Key);
+            return Assert.Single(host.Commands(0), choice => choice.Command == Ff7BattleCommand.Magic && choice.Argument == (selection ?? ability.Key));
         }
 
         private void Ready()

@@ -337,14 +337,8 @@ public static class Ff7NativeBattleActionResolver
         {
             RemovedOriginSavedStatuses = (ushort)(target.OriginSavedStatuses & ~nextTarget.OriginSavedStatuses & Ff7OriginSavedStatusRules.Supported),
             OffensiveRevival = offensiveRevival,
-            RemovedOriginBattleStatuses = admittedStatus && IsBeneficialStatusDispel(record) && (action.IsItem || (target.Statuses & (Resist | Peerless)) == 0 || record is { SpecialFlags: var dispelFlags } && (dispelFlags & 0x80) == 0) ? originBattleStatuses & Ff7GuestBattleStatuses.SupportedOwnedOriginBattle : 0
+            RemovedOriginBattleStatuses = admittedStatus && Ff7NativeBattleStatuses.RemovesBeneficialStatuses(record) && ((target.Statuses & Peerless) == 0 && (action.IsItem || (target.Statuses & Resist) == 0) || record is { SpecialFlags: var dispelFlags } && (dispelFlags & 0x80) == 0) ? originBattleStatuses & Ff7GuestBattleStatuses.SupportedOwnedOriginBattle : 0
         };
-    }
-
-    private static bool IsBeneficialStatusDispel(Ff7BattleAttack? record)
-    {
-        const uint beneficialDispelStatuses = 0x30178700;
-        return Ff7NativeBattleStatuses.ReadRecordMode(record) == 1 && (ReadStatusMask(record) & beneficialDispelStatuses) == beneficialDispelStatuses;
     }
 
     internal static Ff7BattleDamageAction ApplyFacingEffect(Ff7BattleDamageAction action, Ff7BattleAttack? record, uint targetConditions)

@@ -38,6 +38,7 @@ public readonly record struct Ff7BattleDamageAction(byte Formula, byte Power, by
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public bool SourceMissingHitPoints { get; init; }
     public int DamageScalePercent { get; init; } = 100;
+    public int OriginDamageMultiplier { get; init; } = 1;
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public int MinimumDamage { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
@@ -155,7 +156,7 @@ public static class Ff7NativeBattleDamage
             throw new InvalidDataException("Battle damage operands must describe nonnegative damage and a valid fraction.");
         }
         action = BindSourceVitals(action, attacker.CurrentHitPoints, attacker.MaximumHitPoints);
-        if (action.DamageScalePercent is < 0 or > 100)
+        if (action.DamageScalePercent is < 0 or > 100 || action.OriginDamageMultiplier is < 1 or > 5)
         {
             throw new InvalidDataException("Battle damage scaling requires a nonnegative bounded percentage.");
         }
@@ -170,6 +171,7 @@ public static class Ff7NativeBattleDamage
         }
         uint? fractionBasis = action.Formula switch
         {
+            0x11 or 0xB1 when action.FractionDenominator != 0 => action.TargetsMagicPoints ? target.CurrentMagicPoints : target.CurrentHitPoints,
             0x23 => action.TargetsMagicPoints ? target.CurrentMagicPoints : target.CurrentHitPoints,
             0x04 or 0x24 => action.TargetsMagicPoints ? target.MaximumMagicPoints : target.MaximumHitPoints,
             _ => 0
@@ -198,7 +200,7 @@ public static class Ff7NativeBattleDamage
         {
             critical = action.Formula == 0x11 && hit && !action.SuppressCritical && CriticalHit(attacker, target, random);
             critical |= action.ForceCritical;
-            damage = PhysicalDamage(attacker, target, action, critical);
+            damage = PhysicalDamage(attacker, target, action, critical, fractionBasis!.Value);
         }
         else if (action.Formula == 0x6D)
         {
@@ -213,7 +215,7 @@ public static class Ff7NativeBattleDamage
         {
             damage = Math.Max(action.MinimumDamage, damage);
         }
-        if (action.Formula is not (0x04 or 0x23 or 0x24 or 0x26 or 0x6D))
+        if (action.Formula is not (0x04 or 0x23 or 0x24 or 0x26 or 0x6D) && !(physical && action.FractionDenominator != 0))
         {
             damage = Math.Max(1, damage * (3841 + random.NextByte()) >> 12);
         }
@@ -243,6 +245,7 @@ public static class Ff7NativeBattleDamage
         {
             elementalDamage = elementalDamage * (100 + action.GuestElementAdjustment) / 100;
         }
+        elementalDamage = checked(elementalDamage * action.OriginDamageMultiplier);
         int limit = action.TargetsMagicPoints ? 999 : 9999;
         damage = Math.Clamp(elementalDamage, -limit, limit);
         bool nullified = immune || (action.Affinity & Ff7BattleDamageAffinity.Nullify) != 0 && action.GuestElementPercent is null or 100;
@@ -325,13 +328,13 @@ public static class Ff7NativeBattleDamage
         return evadeRoll >= target.MagicEvade && hitRoll < ApplyFury(accuracy, attacker.Statuses) + attacker.Level - target.Level / 2;
     }
 
-    private static int PhysicalDamage(Ff7BattleDamageActor attacker, Ff7BattleDamageActor target, Ff7BattleDamageAction action, bool critical)
+    private static int PhysicalDamage(Ff7BattleDamageActor attacker, Ff7BattleDamageActor target, Ff7BattleDamageAction action, bool critical, uint fractionBasis)
     {
         int attack = ApplyModifier(attacker.Attack, attacker.AttackModifier);
         int defense = action.IgnoreDefense ? 0 : Math.Min(512, ApplyModifier(target.Defense, target.DefenseModifier));
         int level = attacker.Level;
         int basis = attack + (attack * level / 32) * ((attack + level) / 32);
-        int damage = basis * (512 - defense) * action.Power / 8192;
+        int damage = action.FractionDenominator != 0 ? checked((int)((long)fractionBasis * action.FractionNumerator / action.FractionDenominator)) : basis * (512 - defense) * action.Power / 8192;
         if (critical)
         {
             damage *= 2;

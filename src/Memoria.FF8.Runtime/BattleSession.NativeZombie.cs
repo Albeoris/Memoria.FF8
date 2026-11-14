@@ -89,8 +89,7 @@ public sealed partial class BattleSession
                     Mark(actor, true);
                 }
                 NativeBattleGraphicsModel model = graphics.Models[actor];
-                NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Zombie requires its actual target skeleton.");
-                NativeBattleModuleAnchor anchor = NativeBattlePoseMatrices.ReadAnchor(model, pose);
+                NativeBattleModuleAnchor anchor = ReadNativeModelAnchor(graphics, actor);
                 task = task.WriteWord(20, unchecked((ushort)anchor.X)).WriteWord(22, unchecked((ushort)anchor.Y)).WriteWord(24, unchecked((ushort)anchor.Z)).WriteWord(26, unchecked((ushort)anchor.W));
                 short size = model.Transform?.Scale38 ?? throw new NotSupportedException("Native Zombie requires its current signed target size WORD.");
                 int reach = (size >> 1) + 2048;

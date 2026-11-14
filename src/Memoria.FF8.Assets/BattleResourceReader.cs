@@ -71,7 +71,7 @@ internal static partial class BattleResourceReader
             TextureSourceAddresses = textures.Select((texture, index) => TextureAddress(name, index, 0, texture.Tim)).ToArray(),
             NativePoseSource = new(bytes.AsSpan(offsets[0], 16 + boneCount * 48).ToArray().ToImmutableArray(), bytes.AsSpan(offsets[2], offsets.Where(offset => offset > offsets[2]).DefaultIfEmpty(bytes.Length).Min() - offsets[2]).ToArray().ToImmutableArray()),
             NativeActionCameraBank = cameraSection >= 0 && offsets[cameraSection] != offsets[cameraSection + 1] ? new(bytes.AsSpan(offsets[cameraSection], offsets[cameraSection + 1] - offsets[cameraSection]).ToArray().ToImmutableArray()) : null,
-            NativeTextureAnimations = offsets.Length is 7 or 8 or 11 ? bytes.AsSpan(offsets[3], offsets[4] - offsets[3]).ToArray().ToImmutableArray() : null,
+            NativeTextureAnimations = bytes.AsSpan(offsets[3], offsets[4] - offsets[3]).ToArray().ToImmutableArray(),
             NativeBodyTexturePack = bodyTextureSection >= 0 ? new(name + ":body-textures", bytes.AsSpan(offsets[bodyTextureSection], bodyTextureEnd - offsets[bodyTextureSection]).ToArray().ToImmutableArray()) : null,
             Sequences = name.StartsWith("c0m", StringComparison.OrdinalIgnoreCase) ? Sequences(bytes, offsets, 4) : offsets.Length is 9 or 10 ? Sequences(bytes, offsets, 5) : null
         };

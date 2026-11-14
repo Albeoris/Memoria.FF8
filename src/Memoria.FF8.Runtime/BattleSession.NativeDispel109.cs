@@ -32,8 +32,11 @@ public sealed partial class BattleSession
         {
             ObserveTargetInitialize6CF687 = () =>
             {
-                (NativeBattleStackBytes bytes, int offset) = readScaledOperand();
-                publishScaledOperand(bytes.StoreUInt32(offset, 0x6CF68C, 0x6CF687, "Dispel target workspace initializer"));
+                if (presentationModelTransformPolicy == NativeBattleEffectModelTransformPolicy.NativeCallerScratch)
+                {
+                    (NativeBattleStackBytes bytes, int offset) = readScaledOperand();
+                    publishScaledOperand(bytes.StoreUInt32(offset, 0x6CF68C, 0x6CF687, "Dispel target workspace initializer"));
+                }
             }
         };
         NativeBattleDispel109Frame frame = NativeBattleDispel109Controller.Advance6CF540(new(NativeEffectMemory ?? throw new NotSupportedException("Native Dispel requires its retained process memory."), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Dispel requires its CRT stream.")), resources, inputs);
@@ -82,8 +85,7 @@ public sealed partial class BattleSession
             {
                 return current;
             }
-            (NativeBattleStackBytes bytes, int offset) = readScaledOperand();
-            bool scaled = bytes.IsNonzero(offset);
+            bool scaled = NativeBattleEffectModelTransforms.ActorRelative(presentationModelTransformPolicy, readScaledOperand);
             NativeBattleTemporaryAllocation temporary = NativeBattleTemporaryMemory.Allocate5082B0(NativeFileStaging ?? throw new NotSupportedException("Native Dispel requires its retained temporary owner."), 88);
             NativeBattleDispel109Draw drawn = NativeBattleDispel109Geometry.Draw6CF9A0(current, task, node, scaled, resources, projection, colors, temporary.Staging, temporary.Address, NativeBattlePilotVisualLifetimes.Identity(109, task, node.ResourceOffset));
             NativeFileStaging = NativeBattleTemporaryMemory.Release5082D0(drawn.Staging ?? throw new InvalidDataException("Native Dispel drawing lost its physical temporary bytes."), 88);

@@ -202,6 +202,15 @@ public sealed partial class Ff7BattleSession
     {
         foreach (Ff7BattleActorModelState model in state.ActorModels)
         {
+            if (IsGuestActorPosePaused(model.Slot))
+            {
+                if (model.Pose is null && !model.Reaction)
+                {
+                    long started = model.IdleStarted ?? PresentationTick - IdlePresentationFrame(model.Slot);
+                    ReplaceActorModel(model with { IdleStarted = Math.Min(PresentationTick, checked(started + 1)) });
+                }
+                continue;
+            }
             if (model.Motion is { WrapHorizontalPosition: true } motion)
             {
                 Ff7BattleMotion advanced = motion.Advance();
@@ -219,7 +228,7 @@ public sealed partial class Ff7BattleSession
         foreach (int slot in state.ActorModels.Where(model => model.Slot >= minimum && model.Slot < maximum).Select(model => model.Slot).Order())
         {
             Ff7BattleActorModelState previous = ActorModelState(slot);
-            if (!previous.Reaction || previous.PendingSince >= PresentationTick)
+            if (IsGuestActorPosePaused(slot) || !previous.Reaction || previous.PendingSince >= PresentationTick)
             {
                 continue;
             }

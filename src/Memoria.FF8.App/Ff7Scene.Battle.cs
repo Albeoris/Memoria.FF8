@@ -123,6 +123,12 @@ internal sealed partial class Ff7Scene
             UpdateAudio();
             return;
         }
+        if (ReadGuestLimitProcess())
+        {
+            AdvanceBattleTime(gameTime, battle, escapeHeld: false);
+            ShowGuestAbilityFailure(battle);
+            return;
+        }
         if (CurrentBattleAtbMode == BattleAtbMode.TurnBased && sharedInput.BattleAdvanceTurnRequested)
         {
             battle.AdvanceTurn();

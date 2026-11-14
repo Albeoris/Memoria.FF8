@@ -212,6 +212,10 @@ public sealed partial class Ff7BattleSession
 
     private void CompleteGuestMagic(Ff7BattleQueuedCommand command)
     {
+        if (CompleteGuestProcess(command))
+        {
+            return;
+        }
         Ff7BattleGuestMagicSequence? sequence = state.GuestMagicSequences.SingleOrDefault(sequence => MatchesMagicSequence(sequence, command));
         if (sequence is null && state.GuestMagicSequences.Any(sequence => sequence.ActorSlot == command.ActorSlot))
         {

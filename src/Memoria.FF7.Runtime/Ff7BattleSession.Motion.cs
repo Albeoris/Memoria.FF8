@@ -68,6 +68,10 @@ public sealed partial class Ff7BattleSession
     {
         Ff7BattleActorState actor = Actor(slot);
         Ff7BattleActorModelState? modelState = state.ActorModels.SingleOrDefault(model => model.Slot == slot);
+        if (IsGuestActorPosePaused(slot) && modelState?.Render is { } held)
+        {
+            return (held.Clip, held.Frame);
+        }
         if (modelState?.Pose is { ClipIndex: >= 0 } modelPose)
         {
             return (modelPose.ClipIndex, modelPose.ClipFrame);

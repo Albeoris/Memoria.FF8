@@ -97,6 +97,11 @@ internal static class CrossoverGuestAbilityCatalog
             choices.Add(Choice(action, "Limit", 1));
             return;
         }
+        if (command is 11 or 14 or 16 or 19)
+        {
+            choices.Add(new(Key(command, 0), command, "Limit", readCommand(command).Name, null, 1, null));
+            return;
+        }
         string reason = command switch
         {
             5 => "Renzokuken requires its native trigger and finisher selection process.",

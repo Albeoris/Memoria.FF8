@@ -93,7 +93,14 @@ public sealed class CrossoverGuestAbilityCatalogTests
         Assert.Equal(command, choice.Command);
         Assert.Equal("Limit", choice.Category);
         Assert.Null(choice.NativeAction);
-        Assert.False(string.IsNullOrWhiteSpace(choice.RuleUnsupportedReason));
+        if (command == 5)
+        {
+            Assert.False(string.IsNullOrWhiteSpace(choice.RuleUnsupportedReason));
+        }
+        else
+        {
+            Assert.Null(choice.RuleUnsupportedReason);
+        }
     }
 
     [Fact]

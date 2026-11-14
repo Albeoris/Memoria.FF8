@@ -27,6 +27,8 @@ public sealed record Ff7BattleActorState(int Identity, Ff7BattleAiActor Actor, u
 }
 public sealed record Ff7BattleActionState(Ff7BattleQueuedCommand Command, long StartedAt, int Animation, bool Applied = false, BattleActionPoseState? Pose = null, Ff7BattleTargetCallbacks? Reactions = null, Ff7BattleMotion? Motion = null, Ff7BattleFireState? Fire = null, Ff7BattleIceState? Ice = null, Ff7BattleBoltState? Bolt = null, Ff7BattleCureState? Cure = null, Ff7BattleBraverState? Braver = null)
 {
+    public bool GuestPresentationOnly { get; init; }
+
     public ushort GuestAppliedTargets { get; init; }
     public int? FacingYaw { get; init; }
     public Ff7BattleReactionState? TargetReactions { get; init; }
@@ -362,6 +364,7 @@ public sealed partial class Ff7BattleSession
         {
             BeginCameraPresentation();
         }
+        AdvanceGuestProcesses();
         AdvanceGuestAttack();
         if (presentationDue)
         {
@@ -657,6 +660,10 @@ public sealed partial class Ff7BattleSession
 
     private void FinishTurn(int slot)
     {
+        if (GetGuestAttack(slot) is IFf7BattleGuestProcess { ProcessActive: true })
+        {
+            return;
+        }
         CancelGuestMagicSequence(slot);
         if (!state.Queue.Slots.Any(entry => entry?.Command.ActorSlot == slot && entry.Command.Priority >= 2 && entry.Command.CommandId != 0x23))
         {

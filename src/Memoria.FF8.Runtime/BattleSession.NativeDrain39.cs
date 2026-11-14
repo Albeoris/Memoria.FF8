@@ -25,7 +25,7 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native851510 requires its prior projection registers.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native851510 requires the previously published1D97778 matrix.");
         NativeBattleDrain39Frame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native851510 requires retained effect memory."), effect, (effect.Binding.Effect == 56 ? effect.Absorb56 : effect.Drain39) ?? throw new NotSupportedException("The siphon family requires its executed module state."));
-        NativeBattleDrain39ControllerInputs inputs = new(nativeActionPackets, view, index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Drain39 anchors require the original model pose source.")) { ApplyContact = ApplyContact, PackedCamera = NativeCamera!.CapturePackedView1D97778() };
+        NativeBattleDrain39ControllerInputs inputs = new(nativeActionPackets, view, index => graphics.Models[index], index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Drain39 anchors require the original model pose source.")) { ApplyContact = ApplyContact, PackedCamera = NativeCamera!.CapturePackedView1D97778(), ReadForeignActorGeometry = actor => ReadNativeGraphicsForeignTarget(graphics, actor) };
         NativeBattleDrain39ControllerStep step = NativeBattleDrain39Controller.Advance851510(frame, inputs, resources, (current, address) =>
         {
             NativeEffectMemory = current.Memory;

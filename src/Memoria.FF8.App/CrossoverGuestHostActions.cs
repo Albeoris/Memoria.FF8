@@ -61,6 +61,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
     {
         this.roster = roster;
         this.kit = kit;
+        angelWing = (kit.Statuses.Battle & 0x2000000) != 0;
         this.assets = assets;
         abilityCatalog = new((working, currentKit, limits, crisis) => CrossoverGuestAbilityCatalog.Read(assets, working, currentKit, limits, crisis));
         this.encounter = encounter;
@@ -264,7 +265,14 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
             throw new InvalidOperationException("The FFVIII guest has no available stock for this original spell.");
         }
         CrossoverGuestAbility choice = ReadOriginAbilities().Single(choice => choice.Key == ability);
-        return CrossoverBattleAbilityRules.Describe(kit, NativeAbility(ability), choice.AbilityLevel, choice.DamagePercent);
+        BattleNativeAction sourceAction = NativeAbility(ability);
+        BattleNativeAction mechanics = ProcessActive ? sourceAction with { Statuses1 = sourceAction.Statuses1 & ~0x2000000u } : sourceAction;
+        Ff7BattleGuestPhysicalHit description = CrossoverBattleAbilityRules.Describe(kit, mechanics, choice.AbilityLevel, choice.DamagePercent);
+        if (ProcessActive && (sourceAction.Statuses1 & 0x2000000) != 0)
+        {
+            description = description with { Attack = description.Attack with { HasStatusOperation = true, AlwaysHits = sourceAction.Hit == 255 }, ProcessOperation = new(sourceAction.Statuses1 & 0x2000000, sourceAction.StatusAttack) };
+        }
+        return angelWingCast && sourceAction.Command == 2 ? description with { Attack = description.Attack with { OriginDamageMultiplier = 5 } } : description;
     }
 
     public void PrepareMagic(Ff7BattleGuestPhysicalHit value)
@@ -303,7 +311,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         CrossoverBattleAction? stockAction = null;
         NativeCharacterVitals reserved = encounter.Working;
         bool prepaidMagic = host.GuestMagicPrepaidAbility(ActorSlot) == invocation.GuestAbility;
-        if (original.Command == 2 && !IsDrawCast(invocation.GuestAbility) && !prepaidMagic)
+        if (original.Command == 2 && !angelWingCast && !IsDrawCast(invocation.GuestAbility) && !prepaidMagic)
         {
             CrossoverBattleAbilityId ability = new(SessionGame.Ff8, CrossoverBattleAbilityKind.Spell, original.ActionId);
             CrossoverBattleActorId targetId = roster.Participants.Single(participant => participant.HostSlot == target.Slot).Combat;
@@ -334,6 +342,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
             }
             throw;
         }
+        CommitProcessCost(original, target.Slot);
         if (stockAction is not null)
         {
             encounter.Working = CrossoverBattleBridge.CommitStock(roster, reserved, stockAction);
@@ -406,6 +415,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
             {
                 throw new InvalidDataException("The mixed ability received multiple native callbacks in one host update.");
             }
+            bool sourceInvoked = current.Presentation.Effect?.Invoked == true;
             CrossoverNativeMagicPresentationStep next = fireProgram.Advance(current.Presentation, () =>
             {
                 NativeBattleVector anchor = current.Placement.ResolvePosition(host.GuestEffectTargetAnchor(current.Invocation.TargetSlot));
@@ -417,6 +427,10 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
                 return new(point, point, 0, 0, scale);
             }, CrossoverNativeSpriteRenderer.Camera(host.RenderCameraOutput, current.Placement.Matrix), readForeignGeometry is null && encounter.GuestAt(current.Invocation.TargetSlot) is null ? null : () => ReadAbilityForeign(current.Placement, current.Invocation.TargetSlot),
                 readGroupForeign: readForeignGeometry is null && current.Presentation.BoundTargets.Any(target => encounter.GuestAt(target.HostSlot) is null) ? null : slot => ReadAbilityForeign(current.Placement, slot));
+            if (!sourceInvoked && next.State.Effect?.Invoked == true)
+            {
+                AcknowledgeProcessInvocation();
+            }
             current = current with { Presentation = next.State, ContactPublished = current.ContactPublished || next.Contact };
             foreach (NativeBattleForeignSequenceRequest sequence in next.Sequences)
             {
@@ -445,7 +459,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
             {
                 QueueSound(hostTick, CrossoverGuestAudioKind.Module, sound, current.Placement.Matrix);
             }
-            if (next.Contact)
+            if (next.Contact && current.Presentation.Action?.PresentationOnly != true)
             {
                 if (!current.CompositePrepared.IsEmpty)
                 {
@@ -472,10 +486,18 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         return new(hit, fire is null) { GroupHits = groupHits, CompositeContacts = compositeContacts };
     }
 
-    public void AdvanceIdle(long hostTick, uint statuses, long? reactionTick) => attack.AdvanceIdle(hostTick, statuses, reactionTick);
+    public void AdvanceIdle(long hostTick, uint statuses, long? reactionTick)
+    {
+        if ((statuses & 1) != 0)
+        {
+            angelWing = false;
+        }
+        attack.AdvanceIdle(hostTick, statuses, reactionTick);
+    }
 
     public void CancelAtTerminal()
     {
+        CancelProcess();
         limit = null;
         if (fire is { } current)
         {

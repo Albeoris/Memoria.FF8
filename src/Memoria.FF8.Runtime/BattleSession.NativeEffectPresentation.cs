@@ -8,6 +8,7 @@ public sealed partial class BattleSession
     internal NativeBattleArenaHost? presentationArena;
     private NativeBattleEffectSceneContext? presentationSceneContext;
     private NativeBattleRibbonProjectionPolicy presentationRibbonProjectionPolicy;
+    private NativeBattleEffectModelTransformPolicy presentationModelTransformPolicy;
     private NativeBattleGraphicsResource? presentationSourceResource;
     private bool presentationFirstAdvance = true;
     private NativeBattleCameraState? presentationHostCamera;
@@ -33,6 +34,11 @@ public sealed partial class BattleSession
             throw new InvalidDataException("The presentation ribbon projection policy is unsupported.");
         }
         presentationRibbonProjectionPolicy = inputs.RibbonProjectionPolicy;
+        if (!Enum.IsDefined(inputs.ModelTransformPolicy))
+        {
+            throw new InvalidDataException("The presentation model transform policy is unsupported.");
+        }
+        presentationModelTransformPolicy = inputs.ModelTransformPolicy;
         presentationPartyActorCount = inputs.PartyActorCount;
         combatants = [];
         byId = new(StringComparer.Ordinal);

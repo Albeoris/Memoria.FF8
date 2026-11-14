@@ -161,6 +161,27 @@ public sealed class NativeBattleDrain39ControllerTests
         Assert.Contains(frame.Effect.Pools[4].Slots, task => task.Callback == 0x8568A0);
     }
 
+    [Fact]
+    public void Foreign_target_bounds_and_anchors_reach_original_controller_without_native_pose_rows()
+    {
+        var fixture = Fixture();
+        NativeBattleEffectActorGeometry geometry = new(new(10, -700, 30), new(20, -300, 40), 50, new(new(-90, -700, -40), new(130, 0, 60)));
+        NativeBattleDrain39ControllerInputs inputs = fixture.Inputs with
+        {
+            ReadForeignActorGeometry = _ => geometry,
+            ReadPoseSource = _ => throw new InvalidOperationException("The host has no source-game skeleton.")
+        };
+        NativeBattleDrain39Frame frame = fixture.Frame;
+        for (int callback = 0; callback < 4; callback++)
+        {
+            frame = NativeBattleDrain39Controller.Advance851510(frame, inputs, Resources(), (current, _) => new(current, 0)).Frame;
+        }
+        NativeBattleModulePoolTask target = Assert.Single(frame.Effect.Pools[1].Slots.Where(task => task.Callback == 0x851830));
+        Assert.Equal((short)-700, unchecked((short)target.ReadWord(0x42)));
+        Assert.Equal((short)-90, unchecked((short)target.ReadWord(0x48)));
+        Assert.Equal((short)130, unchecked((short)target.ReadWord(0x50)));
+    }
+
     internal static NativeBattleDrain39Resources Resources(ushort effect = 39) => new(new("skipped-camera-registration", []), 0x49433, [], [], []) { Effect = effect };
 
     [Fact]

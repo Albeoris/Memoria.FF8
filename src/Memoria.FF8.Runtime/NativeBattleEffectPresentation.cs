@@ -23,6 +23,7 @@ public sealed record NativeBattleEffectPresentationInputs(BattleDefinition Resou
     public NativeBattleArenaHost? Arena { get; init; }
     public NativeBattleEffectSceneContext? SceneContext { get; init; }
     public NativeBattleRibbonProjectionPolicy RibbonProjectionPolicy { get; init; } = NativeBattleRibbonProjectionPolicy.NativeCallerScratch;
+    public NativeBattleEffectModelTransformPolicy ModelTransformPolicy { get; init; } = NativeBattleEffectModelTransformPolicy.NativeCallerScratch;
     public bool DeferInvocation { get; init; }
     public int? PartyActorCount { get; init; }
     public int? InitialMusicGain { get; init; }

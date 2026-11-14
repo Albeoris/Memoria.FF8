@@ -31,7 +31,7 @@ public static class NativeBattleDrain39Nodes
                 {
                     RequireBank();
                     NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
-                    task = NativeBattleEffectNodeContext.Initialize(task, hierarchy.Read(task.ReadDword(0x10)), frame.Effect.Parameters!, inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource, profile.DirectoryAddress);
+                    task = NativeBattleEffectNodeContext.Initialize(task, hierarchy.Read(task.ReadDword(0x10)), frame.Effect.Parameters!, inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource, profile.DirectoryAddress, readForeignBone: (actor, selector) => NativeBattleEffectModelHelpers.ReadSemanticAnchor(inputs.ReadForeignActorGeometry?.Invoke(actor), selector));
                     WriteTask(task);
                     AdvanceContext();
                     task = ReadTask();

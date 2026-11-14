@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Reflection;
 using System.Text.Json;
 using Memoria.Battles;
 using Memoria.FF7.Formats;
@@ -28,7 +29,7 @@ internal static class OriginFloatPresentationTests
         Ff7BattleFloatPresentation wrapped = Ff7BattleSession.AdvanceOriginFloat(new(255, 0, 0, 0), 4, true);
         Check(wrapped.Phase == 0 && wrapped.Offset == Ff7BattleSession.HostFloatOffset(255), "Float must wrap the original unsigned timer after sampling it.");
         Installed();
-        Console.WriteLine("PASS original Float hover arithmetic, cadence, actor and bone placement, cure and JSON continuation.");
+        Console.WriteLine("PASS original Float hover arithmetic, cadence, actor and bone placement, cure, foreign pose lease and JSON continuation.");
     }
 
     private static void Installed()
@@ -82,6 +83,68 @@ internal static class OriginFloatPresentationTests
             live.Advance(waitForCommand: true);
         }
         Check(live.Capture().ActorModels.All(model => model.Float is null && model.Render!.FloatOffset == 0), "Removing applied Float must release only its presentation owner.");
+        Ff7BattleSession paused = Create(floating);
+        Ff7BattleSession reference = Create(floating);
+        for (int tick = 0; tick < 4; tick++)
+        {
+            paused.Advance(waitForCommand: true);
+            reference.Advance(waitForCommand: true);
+        }
+        int target = paused.Actors.First(actor => actor.Actor.Slot >= 4).Actor.Slot;
+        PoseLease lease = new(target);
+        AttachLease(paused, lease);
+        (int Clip, int Frame) held = paused.RenderActorPose(target);
+        Ff7BattleActorModelState before = paused.Capture().ActorModels.Single(model => model.Slot == target);
+        for (int tick = 0; tick < 80; tick++)
+        {
+            paused.Advance(waitForCommand: true);
+            Check(paused.VisualPose(target) == held && paused.RenderActorPose(target) == held, "The active host pose lease must freeze live geometry and published body poses together.");
+        }
+        Ff7BattleActorModelState after = paused.Capture().ActorModels.Single(model => model.Slot == target);
+        Check(after.Float!.Phase != before.Float!.Phase && after.Render!.Modifiers.Visible == before.Render!.Modifiers.Visible, "A pose lease must preserve the independently owned Float clock and model visibility.");
+        Ff7BattleSnapshot saved = JsonSerializer.Deserialize<Ff7BattleSnapshot>(JsonSerializer.Serialize(paused.Capture()))!;
+        Ff7BattleSession restoredPaused = Create(saved);
+        PoseLease restoredLease = new(target);
+        AttachLease(restoredPaused, restoredLease);
+        paused.Advance(waitForCommand: true);
+        restoredPaused.Advance(waitForCommand: true);
+        Check(JsonSerializer.Serialize(paused.Capture()) == JsonSerializer.Serialize(restoredPaused.Capture()), "The held clock must restore from its existing idle origin and rendered pose without adding a required save field.");
+        lease.Paused = false;
+        restoredLease.Paused = false;
+        for (int tick = 0; tick < 4; tick++)
+        {
+            reference.Advance(waitForCommand: true);
+            paused.Advance(waitForCommand: true);
+            restoredPaused.Advance(waitForCommand: true);
+        }
+        Check(paused.RenderActorPose(target) == reference.RenderActorPose(target), "Releasing the pose lease must resume one ordinary callback without catching up the held idle interval.");
+        Check(JsonSerializer.Serialize(paused.Capture()) == JsonSerializer.Serialize(restoredPaused.Capture()), "Lease release must continue identically after JSON restoration.");
+    }
+
+    private static void AttachLease(Ff7BattleSession session, PoseLease lease)
+    {
+        IFf7BattleGuestAttack?[] providers = (IFf7BattleGuestAttack?[])typeof(Ff7BattleSession).GetField("guestAttacks", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(session)!;
+        providers[0] = lease;
+    }
+
+    private sealed class PoseLease(int slot) : IFf7BattleGuestAttack, IFf7BattleGuestActorMotion
+    {
+        public bool Paused { get; set; } = true;
+        public bool IsActorPosePaused(int actor) => Paused && actor == slot;
+        public int ActorSlot => 0;
+        public Guid EncounterId => Guid.Empty;
+        public Ff7BattleGuestInvocation? Invocation => null;
+        public long HostTick => 0;
+        public bool ContactPublished => false;
+        public bool Supports(Ff7BattleGuestAttackTarget target) => false;
+        public void Begin(Ff7BattleGuestInvocation invocation, Ff7BattlePlacement source, Ff7BattleGuestAttackTarget target)
+        {
+            throw new NotSupportedException();
+        }
+        public Ff7BattleGuestAttackUpdate Advance(long hostTick) => new(null, false);
+        public void AdvanceIdle(long hostTick, uint statuses, long? reactionTick)
+        {
+        }
     }
 
     private static void Check(bool condition, string message)

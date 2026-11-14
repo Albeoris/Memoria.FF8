@@ -5,6 +5,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleDrain39ControllerInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource)
 {
     public NativeBattlePackedMatrix32? PackedCamera { get; init; }
+    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeignActorGeometry { get; init; }
     public Func<NativeBattleDrain39Frame, int, NativeBattleDrain39Frame>? ApplyContact { get; init; }
 }
 public sealed record NativeBattleDrain39LeafStep(NativeBattleDrain39Frame Frame, int Result);
@@ -78,7 +79,7 @@ public static class NativeBattleDrain39Controller
             }
             bool odd = (task.ReadWord(0x5C) & 1) != 0;
             current = current with { State = current.State with { PrimaryDrawCursor = checked(current.State.SourceArenaOffset + (odd ? 0 : 0x6000)), SecondaryDrawCursor = checked(current.State.SourceArenaOffset + (odd ? 0x6000 : 0xC000)) } };
-            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource);
+            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource, readForeign: inputs.ReadForeignActorGeometry);
             state = state.Write(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {
@@ -182,11 +183,7 @@ public static class NativeBattleDrain39Controller
             {
                 throw new NotSupportedException("Native Drain child pool has an unsupported callback.");
             }
-            task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource);
-            NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadByte(0x2D));
-            NativeBattleSequenceState pose = model.SequenceState ?? throw new NotSupportedException("Native8DC870 requires the target's current decoded pose.");
-            NativeBattlePoseSource source = inputs.ReadPoseSource(task.ReadByte(0x2D));
-            task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, source.Sample(pose.Pose ?? throw new NotSupportedException("Native8DC870 requires its selected pose."), pose.PoseFrame114 ?? throw new NotSupportedException("Native8DC870 requires its decoded frame."), pose.PoseFlags109));
+            task = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource, inputs.ReadForeignActorGeometry);
             state = state.Write(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {

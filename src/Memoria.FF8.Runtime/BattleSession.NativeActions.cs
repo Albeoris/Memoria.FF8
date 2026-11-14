@@ -1,4 +1,4 @@
-﻿namespace Memoria.FF8.Runtime;
+namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
@@ -408,6 +408,10 @@ public sealed partial class BattleSession
                 MarkNativeContactFlags(0, 2);
             }
             int vitality = native.AttackType == 36 ? 0 : EffectiveNativeDefense(recipient, recipient.Defense, true);
+            if (native.AttackType == 7 && (recipient.NativeCombatantFlags & 0x10000) != 0)
+            {
+                MarkNativeContactFlags(0, 4);
+            }
             damage = native.AttackType switch
             {
                 7 => (recipient.NativeCombatantFlags & 0x10000) != 0 ? 0 : native.Power * recipient.CurrentHp / 16,

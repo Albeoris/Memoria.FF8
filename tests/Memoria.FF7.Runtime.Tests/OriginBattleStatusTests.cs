@@ -35,11 +35,14 @@ internal static class OriginBattleStatusTests
         Check(cured.RemovedOriginBattleStatuses == supported && cured.AddedOriginBattleStatuses == 0, "A source cure removes only the explicit approved status mask and preserves unrelated source state.");
         Ff7BattleAttack dispel = new(255, 0, 0, 0, 0, 0, 0, 0, 0, 0x22, 0, 0, 127, 255, 0, 0x30178700, 0, ushort.MaxValue);
         Ff7BattleDamageAction native = Ff7BattleDamageAction.FromAttack(dispel) with { AlwaysHits = true };
-        Ff7BattleActionReceipt Native(Ff7BattleAttack record, uint statuses = 0)
-            => Ff7NativeBattleActionResolver.Resolve(stats, living, stats, living with { Statuses = statuses }, native, record, Random(), originBattleStatuses: supported | 0x10000);
+        Ff7BattleActionReceipt Native(Ff7BattleAttack record, uint statuses = 0, bool item = false)
+            => Ff7NativeBattleActionResolver.Resolve(stats, living, stats, living with { Statuses = statuses }, native with { IsItem = item }, record, Random(), originBattleStatuses: supported | 0x10000);
         Check(Native(dispel).RemovedOriginBattleStatuses == supported, "Native beneficial Dispel must remove approved applied source statuses, preserving unknown source bits.");
         Check(Native(dispel with { StatusMask = 0x170000 }).RemovedOriginBattleStatuses == 0 && Native(dispel with { StatusMask = 8 }).RemovedOriginBattleStatuses == 0, "Debarrier and harmful-status cures must not acquire the broader beneficial source dispel operation.");
         Check(Native(dispel, Ff7NativeBattleStatuses.Resist).RemovedOriginBattleStatuses == 0 && Native(dispel, Ff7NativeBattleStatuses.Peerless).RemovedOriginBattleStatuses == 0, "The pre-contact native immunity owner must also protect source statuses during a native dispel.");
+        Check(Native(dispel, Ff7NativeBattleStatuses.Resist, true).RemovedOriginBattleStatuses == supported && Native(dispel, Ff7NativeBattleStatuses.Peerless, true).RemovedOriginBattleStatuses == 0, "Item status removal bypasses Resist but retains native Peerless immunity for both status owners.");
+        Check(Native(dispel with { SpecialFlags = (ushort)(ushort.MaxValue & ~0x80) }, Ff7NativeBattleStatuses.Peerless).RemovedOriginBattleStatuses == supported, "The original ignore-immunity flag must remove the source beneficial category through the same operation.");
+        Check(Ff7NativeBattleStatuses.RemovesBeneficialStatuses(dispel) && !Ff7NativeBattleStatuses.RemovesBeneficialStatuses(dispel with { StatusChange = 63 }), "The beneficial removal category requires cure mode; additions with the same mask are not a dispel.");
         Check(RoundTrip(applied).AddedOriginBattleStatuses == supported && RoundTrip(cured).RemovedOriginBattleStatuses == supported, "Source application and cure receipts must survive real JSON serialization.");
         InstalledClock();
         Console.WriteLine("PASS approved origin status ownership, resistance, reapplication, cure, exclusivity, native Dispel and JSON clocks.");

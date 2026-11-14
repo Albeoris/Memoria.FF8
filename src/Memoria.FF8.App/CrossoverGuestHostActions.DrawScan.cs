@@ -49,7 +49,7 @@ internal sealed partial class CrossoverGuestHostActions
         return choices;
     }
 
-    public bool HandlesOperation(ushort ability) => (ability & 0xFF00) == DrawStockKey || ability == 50 && host.Actors.Any(actor => actor.Actor.Slot >= 4 && host.EnemyExtension(actor.Actor.Slot) is not null);
+    public bool HandlesOperation(ushort ability) => IsProcessInvocation(ability) || (ability & 0xFF00) == DrawStockKey || ability == 50 && host.Actors.Any(actor => actor.Actor.Slot >= 4 && host.EnemyExtension(actor.Actor.Slot) is not null);
 
     private static bool IsDrawCast(ushort ability) => (ability & 0xFC00) == 0xD000;
     private static int DrawSource(ushort ability) => 4 + ((ability & 0x3FF) >> 6);
@@ -86,6 +86,10 @@ internal sealed partial class CrossoverGuestHostActions
 
     private bool OperationAvailable(ushort ability, int target)
     {
+        if (IsProcessInvocation(ability))
+        {
+            return ProcessInvocationUnsupportedReason(ReadOriginAbilities().Single(choice => choice.Key == ability)) is null;
+        }
         if (target < 4 || host.EnemyExtension(target) is not { } profile || !host.Actors.Any(actor => actor.Actor.Slot == target && actor.Actor.HitPoints > 0 && (actor.Actor.Conditions & 8) != 0))
         {
             return false;
@@ -100,6 +104,10 @@ internal sealed partial class CrossoverGuestHostActions
 
     public string ExecuteOperation(ushort ability, int targetSlot, Func<byte> nextRandomByte)
     {
+        if (IsProcessInvocation(ability))
+        {
+            return StartProcess(ability, targetSlot);
+        }
         completedDrawStock = null;
         if (!OperationAvailable(ability, targetSlot))
         {

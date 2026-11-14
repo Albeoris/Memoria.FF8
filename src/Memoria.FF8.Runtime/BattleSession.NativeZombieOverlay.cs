@@ -7,6 +7,10 @@ public sealed partial class BattleSession
 {
     private (NativeBattleGraphicsState Graphics, NativeBattleOriginalEffectState Effect) DrawNativeZombieOverlay(NativeBattleGraphicsState graphics, int index, int age, int reach, NativeBattleZombieResources resources, NativeBattleCameraProjection projection, NativeBattleOriginalEffectState effect, NativeBattlePilotVisualIdentity identity)
     {
+        if (ReadNativeGraphicsForeignModel(graphics, index) is { } foreign)
+        {
+            return DrawNativeForeignZombieOverlay(graphics, index, age, reach, resources, projection, effect, identity, foreign);
+        }
         var parameters = NativeBattleZombieDrawing.OverlayParameters(age, reach);
         NativeBattleGraphicsModel model = graphics.Models[index];
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
