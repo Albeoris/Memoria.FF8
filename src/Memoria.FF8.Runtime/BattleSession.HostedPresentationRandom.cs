@@ -25,6 +25,11 @@ public sealed partial class BattleSession
     internal void ImportHostedPresentationRandom(BattleSession logicalOwner)
     {
         ValidateHostedPresentationRandomOwner(logicalOwner);
+        CopyHostedPresentationRandomFrom(logicalOwner);
+    }
+
+    internal void CopyHostedPresentationRandomFrom(BattleSession logicalOwner)
+    {
         nativeCrtRandom = logicalOwner.nativeCrtRandom;
         nativeGlobalRandom = logicalOwner.nativeGlobalRandom;
         nativeGlobalRandomCalls = logicalOwner.nativeGlobalRandomCalls;
@@ -33,8 +38,6 @@ public sealed partial class BattleSession
     internal void ExportHostedPresentationRandom(BattleSession logicalOwner)
     {
         // A failed native callback can already have consumed process RNG. Export must not revalidate or replace that failure.
-        logicalOwner.nativeCrtRandom = nativeCrtRandom;
-        logicalOwner.nativeGlobalRandom = nativeGlobalRandom;
-        logicalOwner.nativeGlobalRandomCalls = nativeGlobalRandomCalls;
+        logicalOwner.CopyHostedPresentationRandomFrom(this);
     }
 }

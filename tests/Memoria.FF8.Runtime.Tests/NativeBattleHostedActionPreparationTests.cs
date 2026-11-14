@@ -110,6 +110,39 @@ public sealed class NativeBattleHostedActionPreparationTests
         Assert.Equal(1L, session.PublishHostedAction(first));
     }
 
+    [Fact]
+    public void Before_core_can_replace_stale_admission_but_graphics_services_block_admission()
+    {
+        BattleSession session = Fixture();
+        BattleSession logical = new(Definition(), BattleAtbMode.TurnBased);
+        BattleSession.PreparedHostedAction stale = session.PrepareHostedAction(Header, [Contact]);
+        bool ran = false;
+
+        NotSupportedException missingIo = Assert.Throws<NotSupportedException>(() => session.AdvanceHostedBattlePresentationFrame(logical, null, () =>
+        {
+            ran = true;
+            Assert.Throws<InvalidOperationException>(() => session.ValidatePreparedHostedAction(stale));
+            BattleSession.PreparedHostedAction prepared = session.PrepareHostedAction(Header, [Contact]);
+            NativeBattleGraphicsRoster roster = session.NativeGraphics!.PresentationRoster!;
+            Field("hostedFrameServices").SetValue(session, logical.CaptureExpandedModelLifecycleServices(roster));
+            try
+            {
+                Assert.Throws<InvalidOperationException>(() => session.PrepareHostedAction(Header, [Contact]));
+                Assert.Throws<InvalidOperationException>(() => session.PublishHostedAction(prepared));
+            }
+            finally
+            {
+                Field("hostedFrameServices").SetValue(session, null);
+            }
+            Assert.Equal(1L, session.PublishHostedAction(prepared));
+        }));
+
+        Assert.True(ran);
+        Assert.Contains("482590", missingIo.Message);
+        Assert.Equal(1L, session.HostedActiveActionToken);
+        Assert.Null(Field("hostedFrameServices").GetValue(session));
+    }
+
     private static BattleDefinition Definition(string allyId = "ally") => new()
     {
         UsesExpandedRoster = true,

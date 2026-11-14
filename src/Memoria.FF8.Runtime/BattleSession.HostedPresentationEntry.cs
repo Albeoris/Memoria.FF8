@@ -84,11 +84,6 @@ public sealed partial class BattleSession
         return new(logicalOwner, presentationResources);
     }
 
-    internal NativeBattleModelLifecycleServices AdvanceHostedBattlePresentationFrame(BattleSession logicalOwner, NativeExamTimerState? timerObservation)
-    {
-        return AdvanceHostedBattlePresentation(logicalOwner, timerObservation);
-    }
-
     private ImmutableArray<NativeBattleModelEntryFacts?> CaptureHostedEntryFacts(NativeBattleGraphicsRoster roster)
     {
         NativeBattleModelEntryFacts?[] facts = new NativeBattleModelEntryFacts?[roster.ActorCount];

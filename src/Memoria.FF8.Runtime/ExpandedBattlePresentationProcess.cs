@@ -75,7 +75,7 @@ public sealed class ExpandedBattlePresentationProcess
         return presentation.IsHostedActionComplete(token);
     }
 
-    internal NativeBattleModelLifecycleServices Advance(BattleSession logicalOwner, NativeExamTimerState? timerObservation = null)
+    internal NativeBattleModelLifecycleServices Advance(BattleSession logicalOwner, NativeExamTimerState? timerObservation = null, Action? beforeCore = null)
     {
         ArgumentNullException.ThrowIfNull(logicalOwner);
         RequireLogicalOwner(logicalOwner);
@@ -88,12 +88,26 @@ public sealed class ExpandedBattlePresentationProcess
             try
             {
                 long? actionToken = ActiveActionToken;
-                NativeBattleModelLifecycleServices services = presentation.AdvanceHostedBattlePresentationFrame(logicalOwner, timerObservation ?? logicalOwner.NativeExamTimer);
+                NativeBattleModelLifecycleServices services = presentation.AdvanceHostedBattlePresentationFrame(logicalOwner, timerObservation ?? logicalOwner.NativeExamTimer, beforeCore is null ? null : DispatchBeforeCore);
                 presentation.RefreshHostedPreparedPresentation(logicalOwner, services);
                 LastStep = presentation.ReadAndClearHostedPresentationFrameOutputs();
                 LastStepActionToken = actionToken;
                 LastFrameServices = services;
                 return services;
+
+                void DispatchBeforeCore()
+                {
+                    presentation.ExportHostedPresentationRandom(logicalOwner);
+                    try
+                    {
+                        beforeCore();
+                        actionToken = ActiveActionToken;
+                    }
+                    finally
+                    {
+                        presentation.CopyHostedPresentationRandomFrom(logicalOwner);
+                    }
+                }
             }
             finally
             {

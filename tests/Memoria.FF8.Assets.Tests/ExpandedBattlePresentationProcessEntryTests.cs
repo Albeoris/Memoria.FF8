@@ -21,7 +21,7 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         logicalDefinition = logicalDefinition with { NativeExamTimerAtEntry = initialTimer };
         BattleSession logical = new(logicalDefinition, BattleAtbMode.TurnBased);
         ExpandedBattlePresentationProcess process = new(logical, selected);
-        string before = LogicalState(logical);
+        string before = LogicalState(logical, excludeCommittedAudio: true);
         Assert.Null(logical.NativeExamTimer);
         Assert.True(logical.NativeEntryReady);
 
@@ -49,7 +49,22 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
 
         Assert.True(logical.NativeEntryReady);
         Assert.Equal(0, logical.Frame);
-        Assert.Equal(before, LogicalState(logical));
+        Assert.Equal(before, LogicalState(logical, excludeCommittedAudio: true));
+        Assert.NotEmpty(logical.Events);
+        Assert.All(logical.Events, item =>
+        {
+            Assert.Equal(0, item.Frame);
+            Assert.True(IsCommittedAudio(item), $"Unexpected entry event {item.Kind}.");
+            if (item.Kind == "NativeMusicCommand")
+            {
+                Assert.NotNull(item.NativeMusicCommand);
+            }
+            else
+            {
+                Assert.NotNull(item.NativeModuleSound);
+                Assert.Equal(item.Kind == "NativeSequenceSound", item.NativeSound is not null);
+            }
+        });
         AssertRandomExchange(logical, process);
         Assert.Null(logical.NativeGraphics);
         Assert.True(initialTimer.AdvanceCallbacks(NativeTimerCallbackKind.Battle, checked((int)process.Graphics.Callback)).HasSameClock(logical.NativeExamTimer!));
@@ -373,16 +388,18 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         return (model.Sequence, model.SequenceFrame, model.SequenceState?.Offset46, model.SequenceState?.PoseFrame114);
     }
 
-    internal static string LogicalState(BattleSession logical)
+    internal static string LogicalState(BattleSession logical, bool excludeCommittedAudio = false)
     {
         BattleSnapshot data = logical.Capture();
         return JsonSerializer.Serialize(new
         {
-            data.Frame, data.Combatants, data.NativeItemInventory, data.NativeGil, data.Events, data.ScriptedRewards, data.NativeRewardItems,
+            data.Frame, data.Combatants, data.NativeItemInventory, data.NativeGil, Events = excludeCommittedAudio ? data.Events.Where(item => !IsCommittedAudio(item)).ToArray() : data.Events, data.ScriptedRewards, data.NativeRewardItems,
             data.Random, data.NativeBattleUiRandom, data.NativeAiVariables, data.PersistentAiVariables,
             data.QueuedActions, data.ActiveAction, data.Outcome, data.NativeScriptState
         });
     }
+
+    private static bool IsCommittedAudio(BattleEvent item) => item.Kind is "NativeModuleSound" or "NativeSequenceSound" or "NativeMusicCommand";
 
     internal static void AssertRandomExchange(BattleSession logical, ExpandedBattlePresentationProcess process)
     {

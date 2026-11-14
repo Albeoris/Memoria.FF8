@@ -35,9 +35,9 @@ public sealed partial class BattleSession
         return step;
     }
 
-    private NativeBattleModelLifecycleServices AdvanceHostedBattlePresentation(BattleSession logicalOwner, NativeExamTimerState? timerObservation)
+    internal NativeBattleModelLifecycleServices AdvanceHostedBattlePresentationFrame(BattleSession logicalOwner, NativeExamTimerState? timerObservation, Action? beforeCore = null)
     {
-        if (hostedFrameServices is not null)
+        if (hostedFrameServices is not null || nativePreRootStack is not null)
         {
             throw new InvalidOperationException("A hosted battle frame is already advancing.");
         }
@@ -56,12 +56,22 @@ public sealed partial class BattleSession
         BeginNativeFrameStack();
         try
         {
-            hostedFrameServices = services;
+            if (beforeCore is null)
+            {
+                hostedFrameServices = services;
+            }
             for (int pre = 0; pre < 3; pre++)
             {
                 AdvanceHostedUiPublication();
             }
             nativePreCoreUiStack = false;
+            if (beforeCore is not null)
+            {
+                beforeCore();
+                services = logicalOwner.CaptureExpandedModelLifecycleServices(roster);
+                services.Validate(roster, NativeGraphics!);
+                hostedFrameServices = services;
+            }
 
             if (NativeGraphics is { EntryLifecycle: 3 } entered)
             {

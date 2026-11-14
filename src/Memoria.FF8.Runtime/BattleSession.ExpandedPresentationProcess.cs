@@ -37,17 +37,8 @@ public sealed partial class BattleSession
         try
         {
             AdvanceNativeHostTime();
-            if (process.EntryReady && Outcome == BattleOutcome.Active)
-            {
-                DispatchTurnBasedFrameCore();
-            }
-
+            process.Advance(this, NativeExamTimer, DispatchExpandedCore);
             NativeExamTimerState? timer = NativeExamTimer;
-            for (int poll = 0; poll < 3; poll++)
-            {
-                AdvanceExpandedPresentedVitals4B0500();
-            }
-            process.Advance(this, timer);
             NativeExamTimerState? presentedTimer = process.Timer;
             if (timer is null ? presentedTimer is not null : presentedTimer is null || !presentedTimer.HasSameClock(timer))
             {
@@ -57,6 +48,18 @@ public sealed partial class BattleSession
             ApplyExpandedHostedFrameReceipts(process.LastFrameServices!, process.LastStepActionToken);
             AdvanceExpandedPresentedVitals4B0500();
             RefreshPreparedPresentation();
+
+            void DispatchExpandedCore()
+            {
+                for (int poll = 0; poll < 3; poll++)
+                {
+                    AdvanceExpandedPresentedVitals4B0500();
+                }
+                if (process.EntryReady && Outcome == BattleOutcome.Active)
+                {
+                    DispatchTurnBasedFrameCore();
+                }
+            }
         }
         finally
         {

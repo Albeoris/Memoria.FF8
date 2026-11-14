@@ -64,6 +64,63 @@ public sealed class NativeBattleHostedPresentationRandomTests
     }
 
     [Fact]
+    public void Before_core_sees_three_polls_and_graphics_uses_its_current_owner_facts()
+    {
+        BattleSession owner = CreateLogical();
+        BattleSession child = CreateChild(owner, [0xC3, 17, 0xE5, 0, 2]);
+        NativeBattleGraphicsState graphics = child.NativeGraphics!;
+        SetProperty(child, nameof(BattleSession.NativeGraphics), graphics with { UiServices = NativeBattleUiServices.Initialize().QueuePublication(3) });
+        ExpandedBattlePresentationProcess process = CreateFacade(owner, child);
+        NativeGlobalRandomState expected = GlobalStart.Draw(out ushort mainDraw).Draw(out ushort childDraw);
+
+        NativeBattleModelLifecycleServices services = process.Advance(owner, beforeCore: () =>
+        {
+            Assert.Equal(3u, process.Graphics.UiServices!.Counter);
+            Assert.True(process.Graphics.UiServices.Frame33);
+            Assert.Equal(0, process.Graphics.Callback);
+            Assert.Null(ReadField(child, "hostedFrameServices"));
+            Assert.Throws<InvalidOperationException>(() => process.Advance(owner));
+            Assert.Throws<InvalidOperationException>(() => child.AdvanceHostedBattlePresentationFrame(owner, null));
+            Assert.Equal(mainDraw, DrawGlobal(owner));
+            owner.Combatants[0].CurrentHp = 1;
+        });
+
+        Assert.Equal(4u, process.Graphics.UiServices!.Counter);
+        Assert.False(process.Graphics.UiServices.Frame33);
+        Assert.Equal(1, process.Graphics.Callback);
+        Assert.Equal(1, services.Facts[0]!.CurrentHp);
+        Assert.Same(services, process.LastFrameServices);
+        Assert.Equal((short)childDraw, process.Camera.Variables[0]);
+        AssertStreams(owner, process, expected, 2, CrtStart);
+    }
+
+    [Fact]
+    public void Failed_before_core_preserves_main_draws_and_its_original_exception()
+    {
+        BattleSession owner = CreateLogical();
+        BattleSession child = CreateChild(owner, [2]);
+        NativeBattleGraphicsState graphics = child.NativeGraphics!;
+        SetProperty(child, nameof(BattleSession.NativeGraphics), graphics with { UiServices = NativeBattleUiServices.Initialize() });
+        ExpandedBattlePresentationProcess process = CreateFacade(owner, child);
+        InvalidOperationException injected = new("Main callback failed after drawing.");
+
+        Assert.Same(injected, Assert.Throws<InvalidOperationException>(() => process.Advance(owner, beforeCore: () =>
+        {
+            DrawGlobal(owner);
+            DrawCrt(owner);
+            throw injected;
+        })));
+
+        Assert.Equal(3u, process.Graphics.UiServices!.Counter);
+        Assert.Equal(0, process.Graphics.Callback);
+        Assert.Null(process.LastFrameServices);
+        Assert.Null(ReadField(child, "hostedFrameServices"));
+        AssertStreams(owner, process, GlobalStart.Advance(1), 1, CrtStart.Draw(out _));
+        process.Advance(owner);
+        Assert.Equal(1, process.Graphics.Callback);
+    }
+
+    [Fact]
     public void Failed_camera_callback_exports_consumed_random_without_publishing_a_frame()
     {
         BattleSession owner = CreateLogical();
