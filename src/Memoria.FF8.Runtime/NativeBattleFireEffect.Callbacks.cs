@@ -15,8 +15,9 @@ public static partial class NativeBattleFireEffect
     {
         effect.Validate();
         inputs.Packets.Validate();
+        ValidatePacketRoster(effect, inputs.Packets);
         NativeBattleEffectParameters parameters = effect.Parameters ?? throw new InvalidDataException("Native Fire callbacks require their50AFC0 parameters.");
-        ImmutableArray<int> completion = effect.FireModelCompletion ?? throw new NotSupportedException("Native Fire requires its original seven DEE360 completion DWORDs.");
+        ImmutableArray<int> completion = effect.FireModelCompletion ?? throw new NotSupportedException("Native Fire requires its retained DEE360 completion DWORDs.");
         NativeCrtRandomState random = inputs.CrtRandom;
         ImmutableArray<NativeBattleModuleDraw>.Builder draws = ImmutableArray.CreateBuilder<NativeBattleModuleDraw>();
         ImmutableArray<int>.Builder contacts = ImmutableArray.CreateBuilder<int>();
@@ -42,7 +43,7 @@ public static partial class NativeBattleFireEffect
                 if (Word(task, 34) == 12 && sequence + 1 <= inputs.Packets.Headers[parameters.HeaderIndex7C].ReadByte(17))
                 {
                     NativeBattleActionHeaderSlot following = Header(sequence + 1);
-                    bool multiple = following.ReadByte(16) > 1;
+                    bool multiple = following.ReadContactCount() > 1;
                     (pool, int nextSlot) = pool.Append(multiple ? 0x629990u : 0x62A380u);
                     NativeBattleModulePoolTask next = pool.Slots[nextSlot].WriteWord(12, 0).WriteWord(14, unchecked((ushort)(sequence + 1))).WriteWord(34, 0);
                     if (!multiple)
@@ -54,12 +55,12 @@ public static partial class NativeBattleFireEffect
                 task = task.WriteWord(34, unchecked((ushort)(Word(task, 34) + 1)));
                 bool single = task.Callback == 0x62A380;
                 int model = single ? Word(task, 32) : -1;
-                if (single && ((uint)model >= 7 || completion[model] == 0 && phase == 0))
+                if (single && ((uint)model >= (uint)completion.Length || effect.PresentationRoster is { } roster && roster.Rows[model] is null))
                 {
-                    if ((uint)model >= 7)
-                    {
-                        throw new InvalidDataException("Native62A380 target index leaves the seven graphics models.");
-                    }
+                    throw new InvalidDataException("Native62A380 target index lacks its bound graphics model.");
+                }
+                if (single && completion[model] == 0 && phase == 0)
+                {
                     return new(Put(pool, slot, task), 0);
                 }
                 if (single && phase == 0)
@@ -69,7 +70,7 @@ public static partial class NativeBattleFireEffect
                 if (phase == 1)
                 {
                     NativeBattleActionHeaderSlot header = Header(sequence);
-                    int count = single ? 4 : header.ReadByte(16);
+                    int count = single ? 4 : header.ReadContactCount();
                     int first = single ? 0 : FirstContact(header);
                     for (int index = 0; index < count; index++)
                     {
@@ -100,7 +101,7 @@ public static partial class NativeBattleFireEffect
                 {
                     NativeBattleActionHeaderSlot header = Header(sequence);
                     int first = FirstContact(header);
-                    int count = single ? 1 : header.ReadByte(16);
+                    int count = single ? 1 : header.ReadContactCount();
                     for (int index = 0; index < count; index++)
                     {
                         contacts.Add(first + index);

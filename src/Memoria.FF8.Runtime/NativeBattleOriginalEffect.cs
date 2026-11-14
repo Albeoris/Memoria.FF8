@@ -115,9 +115,9 @@ public sealed partial record NativeBattleOriginalEffectState([property: JsonRequ
         {
             pool.Validate();
         }
-        if (FireModelCompletion is { } completion && (completion.IsDefault || completion.Length != 7))
+        if (FireModelCompletion is { } completion && (completion.IsDefault || completion.Length != (roster?.ActorCount ?? NativeBattleGraphicsModelAddress.NativeRowCount)))
         {
-            throw new InvalidDataException("Native6298A0 requires its seven DEE360 completion DWORDs.");
+            throw new InvalidDataException("Native6298A0 requires one DEE360 completion DWORD per owned graphics row.");
         }
     }
 

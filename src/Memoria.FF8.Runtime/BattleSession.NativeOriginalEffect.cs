@@ -1108,6 +1108,14 @@ public sealed partial class BattleSession
                 NativeEffectMemory = memory with { Textures = textures };
                 NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native Fire camera registration requires its actual camera owner.")).RegisterControlResource(textures.Animation);
             }
+            if (effect.PresentationRoster is not null)
+            {
+                NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new InvalidDataException("Hosted Fire requires its effect task storage owner.");
+                int capacity = NativeBattleFireEffect.RequiredChildCapacity(effect, nativeActionPackets);
+                (memory, uint bank) = NativeBattlePresentationTaskStorage.Reserve(memory, effect, NativeBattleFireEffect.ChildStride, capacity);
+                NativeEffectMemory = memory;
+                return graphics with { OriginalEffect = NativeBattleFireEffect.InitializePools(effect, nativeActionPackets, bank) };
+            }
             return graphics with { OriginalEffect = NativeBattleFireEffect.InitializePools(effect, nativeActionPackets) };
         }
         if (effect.Binding.Entry == 0x700C10)

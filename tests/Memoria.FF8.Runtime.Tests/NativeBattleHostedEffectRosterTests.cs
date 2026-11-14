@@ -58,7 +58,8 @@ public sealed class NativeBattleHostedEffectRosterTests
         Assert.Throws<InvalidDataException>(() => effect.Validate(new(roster.Rows.SetItem(7, new("replacement", true)))));
         Assert.Throws<InvalidDataException>(() => effect.Validate(new(roster.Rows.SetItem(7, new("ally", false)))));
         Assert.Throws<InvalidDataException>((Graphics(new(roster.Rows.SetItem(24, null))) with { OriginalEffect = effect }).Validate);
-        Assert.Throws<InvalidDataException>((effect with { FireModelCompletion = Enumerable.Repeat(0, 25).ToImmutableArray() }).Validate);
+        (effect with { FireModelCompletion = Enumerable.Repeat(0, 25).ToImmutableArray() }).Validate();
+        Assert.Throws<InvalidDataException>((effect with { FireModelCompletion = Enumerable.Repeat(0, 26).ToImmutableArray() }).Validate);
     }
 
     [Fact]
