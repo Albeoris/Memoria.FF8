@@ -57,6 +57,21 @@ public sealed partial class Ff7BattleSession
                 }
             });
         }
+        if (state.AiMasks is null)
+        {
+            RefreshNativeAiMasks();
+        }
+        Ff7BattleAiMasks masks = state.AiMasks!.Value;
+        ushort allocated = Ff7BattleAiCallbacks.ProjectMasks(state.Actors.Select(actor => actor.Actor).ToArray(), NativeImprisonedType).Allocated;
+        if (masks.Allocated != allocated || ((masks.Targetable | masks.ScriptActive | masks.KnockedOut | masks.ExcludedOpponents | masks.TurnEligible) & ~allocated) != 0)
+        {
+            throw new InvalidDataException("Native battle AI masks reference an unallocated actor.");
+        }
+    }
+
+    private void RefreshNativeAiMasks()
+    {
+        state = state with { AiMasks = Ff7BattleAiCallbacks.ProjectMasks(state.Actors.Select(actor => actor.Actor).ToArray(), NativeImprisonedType) };
     }
 
     private void FlushFormationAi()
@@ -74,7 +89,7 @@ public sealed partial class Ff7BattleSession
                 continue;
             }
             Ff7BattleAiActor[] actors = state.Actors.Select(actor => actor.Actor).ToArray();
-            Ff7BattleAiMasks masks = Ff7BattleAiCallbacks.ProjectMasks(actors, NativeImprisonedType);
+            Ff7BattleAiMasks masks = state.AiMasks!.Value;
             Ff7BattleAiResult result = Ff7BattleAi.Run(Data.FormationScripts[callback].Span, new(3, actors, masks.Targetable, masks.KnockedOut, masks.ExcludedOpponents, callback, QueuePriority: 0, GlobalMemory: state.AiGlobalMemory, SaveBank1: state.AiSaveBank1), state.FormationAiMemory ?? [], Data, random, kernel[1].Data);
             state = state with { FormationAiMemory = result.LocalMemory, AiGlobalMemory = result.GlobalMemory.ToArray() };
             ApplyNativeSaveWrites(result);

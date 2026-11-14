@@ -170,6 +170,12 @@ if (args.Contains("--character-names-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--chocobo-capture-ai-only", StringComparer.Ordinal))
+{
+    ChocoboCaptureAiTests.Run();
+    return 0;
+}
+
 if (args.Contains("--stables-radius-only", StringComparer.Ordinal))
 {
     NativeStablesRadiusTests.Run();
@@ -425,6 +431,7 @@ var tests = new (string Name, Action Run)[]
     ("native opening flashback party storage and equipment", FlashbackPartyTests.Run),
     ("native opening request reward suppression", RewardSuppressionTests.Run),
     ("native opening character display names", CharacterDisplayNameTests.Run),
+    ("native chocobo capture AI mask timing and cold continuation", ChocoboCaptureAiTests.Run),
     ("native stable word-radius initialization and cold continuation", NativeStablesRadiusTests.Run),
     ("native music status, finite timing and local changes", NativeMusicStatusTests.Run),
     ("native model color transition", NativeColorTransitionTests.Run),

@@ -86,6 +86,8 @@ public sealed record Ff7BattleSnapshot(long RequestId, int FormationId, byte Lay
     public Ff7ResolvedEnemyExtension[]? EnemyExtensions { get; init; }
     public byte[]? AiGlobalMemory { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7BattleAiMasks? AiMasks { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public byte[]? PartyAiAliases { get; init; }
     public byte[]? AiSaveBank1 { get; init; }
     public byte[]? AiSaveBankDirty { get; init; }
@@ -235,6 +237,7 @@ public sealed partial class Ff7BattleSession
             InvokeAi(enemy.FormationSlot + 4, 0);
         }
         FlushFormationAi();
+        RefreshNativeAiMasks();
         Ff7BattleAiMasks masks = Ff7BattleAiCallbacks.ProjectMasks(state.Actors.Select(actor => actor.Actor).ToArray(), NativeImprisonedType);
         if (previousFormation is null)
         {
@@ -387,6 +390,7 @@ public sealed partial class Ff7BattleSession
             PublishSoundScreenPositions();
             FinishCameraPresentation();
         }
+        RefreshNativeAiMasks();
         if (Outcome != Ff7BattleOutcome.Fighting)
         {
             return;
@@ -614,7 +618,7 @@ public sealed partial class Ff7BattleSession
     {
         Ff7BattleActorState actor = Actor(slot);
         Ff7BattleAiActor[] actors = state.Actors.Select(candidate => candidate.Actor).ToArray();
-        Ff7BattleAiMasks masks = Ff7BattleAiCallbacks.ProjectMasks(actors, NativeImprisonedType);
+        Ff7BattleAiMasks masks = state.AiMasks!.Value;
         Ff7BattleAiContext context = new(slot, actors, masks.Targetable, masks.KnockedOut, masks.ExcludedOpponents, callback, GlobalMemory: state.AiGlobalMemory, SaveBank1: state.AiSaveBank1);
         if (slot < 3)
         {

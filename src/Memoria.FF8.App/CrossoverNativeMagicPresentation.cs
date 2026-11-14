@@ -90,6 +90,25 @@ internal sealed record CrossoverNativeMagicPresentationStep(CrossoverNativeMagic
     public ImmutableArray<NativeBattleForeignSequenceRequest> Sequences { get; init; } = [];
 }
 
+internal sealed class CrossoverNativePreflightParticipants
+{
+    private readonly Dictionary<(int Slot, int Index), NativeBattleForeignActor> actors = [];
+
+    internal static NativeBattleForeignActor Read(CrossoverNativePreflightParticipants? snapshot, int slot, int index, Func<NativeBattleForeignActor> read)
+    {
+        if (snapshot is null)
+        {
+            return read();
+        }
+        if (!snapshot.actors.TryGetValue((slot, index), out NativeBattleForeignActor? actor))
+        {
+            actor = read();
+            snapshot.actors.Add((slot, index), actor);
+        }
+        return actor;
+    }
+}
+
 /// <summary>Original command casting and the shared FFVIII effect dispatcher on the host presentation clock.</summary>
 internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBattleGraphicsResource resource, BattleAssets battle, Func<ImmutableArray<int>>? readParticipants = null, Func<int, int, NativeBattleForeignActor>? readParticipantGeometry = null, Func<NativeBattleEffectSceneContext>? readSceneContext = null, Func<int>? readPartyActorCount = null, ImmutableArray<BattleNativeRenzokukenResource> sourcePrograms = default)
 {
@@ -171,11 +190,12 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
     {
         NativeBattleEffectPresentation? retained = source.Effect?.Fork();
         CrossoverNativeMagicPresentationState probe = source with { Cast = retained is null ? source.Cast : source.Cast with { Model = retained.Source }, Auxiliary = retained is null ? source.Auxiliary : NativeBattleEffectComponentStorage.Restore(NativeBattleEffectComponentStorage.Capture(source.Auxiliary)), Modules = retained is null ? source.Modules : NativeBattleEffectComponentStorage.Restore(NativeBattleEffectComponentStorage.Capture(source.Modules)), Effect = retained, Arena = retained?.Arena ?? source.Arena?.Fork(), Textures = retained?.Memory.Textures ?? NativeBattleEffectComponentStorage.Restore(NativeBattleEffectComponentStorage.Capture(source.Textures)) };
+        CrossoverNativePreflightParticipants participants = new();
         try
         {
             for (int callback = 0; callback < MaximumProbeCallbacks; callback++)
             {
-                probe = Advance(probe, readTargetAnchor, readTargetTransform, projection, readForeign, readGroupForeign).State;
+                probe = Advance(probe, readTargetAnchor, readTargetTransform, projection, readForeign, readGroupForeign, participants).State;
                 if (probe.Complete)
                 {
                     reason = probe.Action?.PresentationOnly == true || probe.PublishedContacts == probe.BoundContacts.Length ? null : "The native presentation did not publish every planned contact occurrence.";
@@ -198,6 +218,11 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
     }
 
     public CrossoverNativeMagicPresentationStep Advance(CrossoverNativeMagicPresentationState source, Func<NativeBattleModuleAnchor> readTargetAnchor, Func<NativeBattleModelTransform> readTargetTransform, NativeBattleCameraProjection? projection = null, Func<CrossoverNativeForeignTarget>? readForeign = null, Func<int, CrossoverNativeForeignTarget>? readGroupForeign = null)
+    {
+        return Advance(source, readTargetAnchor, readTargetTransform, projection, readForeign, readGroupForeign, null);
+    }
+
+    private CrossoverNativeMagicPresentationStep Advance(CrossoverNativeMagicPresentationState source, Func<NativeBattleModuleAnchor> readTargetAnchor, Func<NativeBattleModelTransform> readTargetTransform, NativeBattleCameraProjection? projection, Func<CrossoverNativeForeignTarget>? readForeign, Func<int, CrossoverNativeForeignTarget>? readGroupForeign, CrossoverNativePreflightParticipants? participants)
     {
         if (source.Complete)
         {
@@ -389,13 +414,16 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
                 Func<CrossoverNativeForeignTarget>? geometry = readGroupForeign is not null ? () => readGroupForeign(target.HostSlot) : readForeign;
                 if (geometry is not null)
                 {
-                    CrossoverNativeForeignTarget foreign = geometry();
-                    actors.Add(foreign.ToActor(target.Contact.ActorIndex) with { ReadGeometry = () => foreign.Anchors });
+                    actors.Add(CrossoverNativePreflightParticipants.Read(participants, target.HostSlot, target.Contact.ActorIndex, () =>
+                    {
+                        CrossoverNativeForeignTarget foreign = geometry();
+                        return foreign.ToActor(target.Contact.ActorIndex) with { ReadGeometry = () => foreign.Anchors };
+                    }));
                     continue;
                 }
                 if (readParticipantGeometry is not null)
                 {
-                    actors.Add(readParticipantGeometry(target.HostSlot, target.Contact.ActorIndex));
+                    actors.Add(CrossoverNativePreflightParticipants.Read(participants, target.HostSlot, target.Contact.ActorIndex, () => readParticipantGeometry(target.HostSlot, target.Contact.ActorIndex)));
                     continue;
                 }
                 NativeBattleModuleAnchor anchor = readTargetAnchor();
@@ -404,8 +432,7 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
             }
             foreach (CrossoverNativeMagicParticipant participant in source.BoundParticipants.Where(participant => source.BoundTargets.All(target => target.HostSlot != participant.HostSlot)))
             {
-                NativeBattleForeignActor foreign = (readParticipantGeometry ?? throw new NotSupportedException("The host has no geometry owner for its other presentation participants."))(participant.HostSlot, participant.ActorIndex);
-                actors.Add(foreign);
+                actors.Add(CrossoverNativePreflightParticipants.Read(participants, participant.HostSlot, participant.ActorIndex, () => (readParticipantGeometry ?? throw new NotSupportedException("The host has no geometry owner for its other presentation participants."))(participant.HostSlot, participant.ActorIndex)));
             }
             return actors.ToImmutable();
         }
