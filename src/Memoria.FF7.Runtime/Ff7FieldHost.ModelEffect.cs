@@ -10,12 +10,17 @@ public sealed partial class Ff7FieldHost
         Ff7Actor actor = GetActor(entity);
         if (command.Wait)
         {
-            bool completed = (actor.ModelEffect?.Completed ?? true) && (actor.PartVisibility?.Completed ?? true) && !actor.NativeEyeControlPending && actor.NativeColorOffset?.Pending != true;
+            bool completed = (actor.ModelEffect?.Completed ?? true) && (actor.PartVisibility?.Completed ?? true) && !actor.NativeEyeControlPending && actor.NativeColorOffset?.Pending != true && actor.NativeColorTransition?.Pending != true;
             if (completed)
             {
                 SetActor(entity, current => current with { ModelEffect = null });
             }
             return new(completed);
+        }
+        if (command.Operation != 6 && actor.NativeColorTransition is { Pending: true } pendingTransition)
+        {
+            SetActor(entity, current => current with { NativeColorTransition = pendingTransition with { Request = null } });
+            actor = GetActor(entity);
         }
         if (command.Operation == 0)
         {
@@ -49,6 +54,21 @@ public sealed partial class Ff7FieldHost
                 SetActor(entity, current => current with { AutomaticBlinkDisabled = true, NativeEyeControlPending = true });
             }
             SetActor(entity, current => current with { NativeColorOffset = current.NativeColorOffset is null ? null : current.NativeColorOffset with { Pending = false } });
+            return new(true);
+        }
+        if (command.Operation == 6)
+        {
+            if (actor.ModelEffect is { Restored: false } || actor.PartVisibility is { Completed: false })
+            {
+                throw new NotSupportedException("Native color transitions replacing a pending topology effect require its material restoration contract.");
+            }
+            byte[] payload = command.Payload ?? throw new InvalidDataException("Native model color transitions require their original payload.");
+            if (payload.Length == 0 || command.Mode != payload[0])
+            {
+                throw new InvalidDataException("The native model color transition differs from its decoded mode.");
+            }
+            Ff7NativeColorTransitionState transition = Ff7NativeColorTransition.Request(actor.NativeColorTransition, payload);
+            SetActor(entity, current => current with { NativeColorTransition = transition, NativeColorOffset = current.NativeColorOffset is null ? null : current.NativeColorOffset with { Pending = false }, NativeEyeControlPending = false, ModelEffect = null });
             return new(true);
         }
         if (command.Operation == 2)
@@ -107,7 +127,7 @@ public sealed partial class Ff7FieldHost
 
     private void AdvanceModelEffects()
     {
-        if (!Process.Actors.Any(actor => actor.ModelEffect is not null || actor.PartVisibility is { Completed: false } || actor.NativeEyeControlPending || actor.NativeColorOffset is { Pending: true }))
+        if (!Process.Actors.Any(actor => actor.ModelEffect is not null || actor.PartVisibility is { Completed: false } || actor.NativeEyeControlPending || actor.NativeColorOffset is { Pending: true } || actor.NativeColorTransition is { Pending: true }))
         {
             return;
         }
@@ -116,7 +136,7 @@ public sealed partial class Ff7FieldHost
             : field.Cameras[0];
         Process = Process with
         {
-            Actors = Process.Actors.Select(actor => actor with
+            Actors = Process.Actors.Select(actor => AdvanceColorTransition(actor, ModelEffectDepth(actor, camera) < 3840)).Select(actor => actor with
             {
                 ModelEffect = actor.ModelEffect is null ? null : Ff7NativeModelEffect.Advance(actor.ModelEffect, ModelEffectDepth(actor, camera) < 3840),
                 PartVisibility = actor.PartVisibility is null ? null : Ff7NativePartVisibility.Advance(actor.PartVisibility, ModelEffectDepth(actor, camera) < 3840, fieldId ?? throw new NotSupportedException("Native part visibility requires its original field identity.")),
@@ -124,6 +144,21 @@ public sealed partial class Ff7FieldHost
                 NativeEyeControlPending = actor.NativeEyeControlPending && ModelEffectDepth(actor, camera) >= 3840
             }).ToArray()
         };
+    }
+
+    private static Ff7Actor AdvanceColorTransition(Ff7Actor actor, bool eligible)
+    {
+        if (actor.NativeColorTransition is not Ff7NativeColorTransitionState transition)
+        {
+            return actor;
+        }
+        (Ff7NativeColorTransitionState state, short[]? sample) = Ff7NativeColorTransition.Advance(transition, eligible);
+        Ff7NativeColorOffsetState? offset = actor.NativeColorOffset;
+        if (sample is not null)
+        {
+            offset = Ff7NativeColorOffset.Advance((offset ?? new()) with { RequestedRed = sample[0], RequestedGreen = sample[1], RequestedBlue = sample[2], Pending = true }, true);
+        }
+        return actor with { NativeColorTransition = state, NativeColorOffset = offset };
     }
 
     internal static int ModelEffectDepth(Ff7Actor actor, PcFieldCamera camera)

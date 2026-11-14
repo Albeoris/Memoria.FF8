@@ -22,6 +22,8 @@ public sealed record Ff7Actor
     public Ff7NativeModelEffectState? ModelEffect { get; init; }
     public Ff7NativePartVisibilityState? PartVisibility { get; init; }
     public Ff7NativeColorOffsetState? NativeColorOffset { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7NativeColorTransitionState? NativeColorTransition { get; init; }
     public bool AutomaticBlinkDisabled { get; init; }
     public byte NativeEyeLeft { get; init; }
     public byte NativeEyeRight { get; init; }
@@ -280,6 +282,7 @@ public sealed record Ff7FieldProcess
         {
             actor.ModelEffect?.Validate();
             actor.NativeColorOffset?.Validate();
+            actor.NativeColorTransition?.Validate();
             actor.PartVisibility?.Validate();
             if (actor.NativeEyeLeft > 2 || actor.NativeEyeRight > 2)
             {
