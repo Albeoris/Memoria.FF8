@@ -1,5 +1,3 @@
-using Memoria.FF7.Events;
-
 namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7MidgarAutoPlayPolicy
