@@ -116,6 +116,10 @@ public sealed partial record NativeBattleGraphicsState([property: JsonRequired] 
             throw new InvalidDataException("Native506CF0 stage has no initialized4A94D0 UI service owner; migrate the standalone snapshot explicitly.");
         }
         PresentationRoster?.Validate();
+        if (ActionGraphics is { PresentationTargets: not null } actionGraphics)
+        {
+            actionGraphics.ValidatePresentationTargets(PresentationRoster);
+        }
         if (ActionContext is { PresentationTargets: { } targets, PresentationSourceTargets: { } sourceTargets } geometry)
         {
             NativeBattleGraphicsRoster geometryRoster = PresentationRoster ?? throw new InvalidDataException("Hosted action geometry requires its explicit presentation roster.");

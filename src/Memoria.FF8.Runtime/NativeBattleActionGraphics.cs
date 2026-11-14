@@ -13,9 +13,48 @@ public sealed record NativeBattleActionGraphicsState([property: JsonRequired] in
     public ushort? ReflectionWatchdog4A { get; init; }
     public ushort? CastingWatchdog8E { get; init; }
     public NativeBattleGuardianServiceState? Guardian { get; init; }
-    public byte? FirstHeaderTargetCount { get; init; }
+    public int? FirstHeaderTargetCount { get; init; }
     public byte? IndependentSummonPartyMask6C { get; init; }
     public byte? ActorSelector56 { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleGraphicsActorSet? PresentationTargets { get; init; }
+
+    [JsonIgnore]
+    public NativeBattleGraphicsActorSet TargetActors
+    {
+        get
+        {
+            if (PresentationTargets is not { } targets)
+            {
+                return NativeBattleGraphicsActorSet.FromNative(TargetMask);
+            }
+            if (targets.NativePhysicalBits != TargetMask)
+            {
+                throw new InvalidDataException("Hosted action graphics target set contradicts its native physical mask.");
+            }
+            return targets;
+        }
+    }
+
+    internal void ValidatePresentationTargets(NativeBattleGraphicsRoster? roster)
+    {
+        if (roster is null || FirstHeaderTargetCount is < 0 or > NativeBattleContactAddress.MaximumRowCount)
+        {
+            throw new InvalidDataException("Hosted action graphics require an explicit roster and valid first-header contact count.");
+        }
+        NativeBattleActionGeometry.ValidatePresentationRows(roster, ActorIndex, default, TargetActors);
+        ValidateRetainedRow(FirstTarget);
+        ValidateRetainedRow(CoverSource);
+
+        void ValidateRetainedRow(byte? row)
+        {
+            if (row is byte index && (index >= roster.ActorCount || roster.Rows[index] is null))
+            {
+                throw new InvalidDataException($"Hosted action graphics require a bound actor at row {index}.");
+            }
+        }
+    }
 }
 public sealed record NativeBattleGuardianServiceState(byte HiddenPartyMask47, byte CameraSelector4E, ushort Control44, byte? Neighbor70 = null);
 public sealed record NativeBattleActionServiceSelection(uint Callback, uint SetGraphicsFlags = 0, byte? Sequence = null);
@@ -98,7 +137,7 @@ public static class NativeBattleActionGraphics
         byte actor = first.ReadByte(0);
         int firstContact = first.FirstContactIndex ?? throw new NotSupportedException("Native50BF90 requires its actual header contact pointer.");
         int groups = first.ReadByte(17) + 1;
-        NativeBattlePhysicalTargets targets = default;
+        NativeBattleGraphicsActorSet targets = default;
         ushort cover = 0;
         byte? source = previous?.CoverSource;
         byte flags = 0;
@@ -110,7 +149,7 @@ public static class NativeBattleActionGraphics
                 throw new NotSupportedException("Native50BF90 repeated header crosses into an unowned adjacent arena.");
             }
             NativeBattleActionHeaderSlot header = packets.Headers[index];
-            int count = header.ReadByte(16);
+            int count = header.ReadContactCount();
             if (count == 0)
             {
                 continue;
@@ -119,7 +158,7 @@ public static class NativeBattleActionGraphics
             for (int target = 0; target < count; target++)
             {
                 NativeBattleContactHalf half = packets.ReadContact(checked(contact + target)).Primary;
-                targets = targets.Add(NativeBattleSlots.Decode(half.ActorIndex));
+                targets = targets.Add(half.ActorIndex);
                 if ((half.HitFlags3 & 8) != 0)
                 {
                     source = (byte)(half.HitFlags3 >> 6);
@@ -131,10 +170,15 @@ public static class NativeBattleActionGraphics
                 }
             }
         }
-        byte firstCount = first.ReadByte(16);
+        int firstCount = first.ReadContactCount();
         byte? firstTarget = firstCount != 0 ? packets.ReadContact(firstContact).Primary.ActorIndex : previous?.FirstTarget;
         NativeBattleActionServiceSelection selection = SelectService(first);
-        return new(headerIndex, actor, firstContact, targets.Bits, cover, source, firstTarget, flags, first.Data, selection.Callback) { ActorSelector56 = actor, FirstHeaderTargetCount = first.ReadByte(16) };
+        return new(headerIndex, actor, firstContact, targets.NativePhysicalBits, cover, source, firstTarget, flags, first.Data, selection.Callback)
+        {
+            ActorSelector56 = actor,
+            FirstHeaderTargetCount = firstCount,
+            PresentationTargets = packets.PresentationRoster is null ? null : targets
+        };
     }
 
     public static NativeBattleActionServiceSelection SelectService(NativeBattleActionHeaderSlot header)
@@ -142,7 +186,7 @@ public static class NativeBattleActionGraphics
         byte command = header.ReadByte(1);
         if (command == 0)
         {
-            return new(header.ReadByte(16) != 0 ? 0x50BD80u : 0x50BD00u);
+            return new(header.ReadContactCount() != 0 ? 0x50BD80u : 0x50BD00u);
         }
         if (command is 0x26 or 0xF4 or 0xFE)
         {

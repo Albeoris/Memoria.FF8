@@ -17,6 +17,29 @@ public sealed class NativeBattleActionGraphicsTests
         Assert.Equal(0, NativeBattleActionGraphics.ReadFirstHeaderTargetCount5044B0(NativeBattleActionGraphics.Normalize(Prepare(1), 0, action)));
     }
 
+    [Fact]
+    public void Native_normalization_retains_its_legacy_json_shape()
+    {
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[32 * 20], new byte[49 * 24]);
+        (packets, _) = packets.Prepare(new(0, 0, 13, -1, 0, 0, null));
+        (packets, _) = packets.AppendContact(Contact(3, 0x30, 0x48));
+        (packets, _) = packets.Publish(1);
+        NativeBattleActionGraphicsState action = NativeBattleActionGraphics.Normalize(packets, 0);
+        string json = JsonSerializer.Serialize(action);
+        using JsonDocument document = JsonDocument.Parse(json);
+        Assert.False(document.RootElement.TryGetProperty(nameof(NativeBattleActionGraphicsState.PresentationTargets), out _));
+        Assert.False(document.RootElement.TryGetProperty(nameof(NativeBattleActionGraphicsState.TargetActors), out _));
+        Assert.Equal(1, document.RootElement.GetProperty(nameof(NativeBattleActionGraphicsState.FirstHeaderTargetCount)).GetInt32());
+        Assert.Equal((ushort)8, action.TargetMask);
+        Assert.True(action.TargetActors.IsSingle(3));
+        Assert.Equal((ushort)2, action.CoverMask);
+        Assert.Equal((byte)1, action.CoverSource);
+        Assert.Equal((byte)3, action.FirstTarget);
+        Assert.Equal((byte)2, action.HitFlags);
+        Assert.Equal(0x50BD80u, action.Callback);
+        Assert.Equal(action, JsonSerializer.Deserialize<NativeBattleActionGraphicsState>(json));
+    }
+
     [Theory]
     [InlineData(33)]
     [InlineData(45)]

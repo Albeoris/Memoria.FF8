@@ -9,6 +9,9 @@ public sealed record NativeBattleWaterHeader([property: JsonRequired] ImmutableA
 {
     public const int Length = 0x17C;
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleCinematicActorContext? PresentationActors { get; init; }
+
     public static NativeBattleWaterHeader FromColdProcess() => new(new byte[Length].ToImmutableArray(), Enumerable.Repeat(true, Length).ToImmutableArray());
     public static NativeBattleWaterHeader Unknown() => new(new byte[Length].ToImmutableArray(), new bool[Length].ToImmutableArray());
 
@@ -18,6 +21,7 @@ public sealed record NativeBattleWaterHeader([property: JsonRequired] ImmutableA
         {
             throw new InvalidDataException("Native header capture requires its complete byte and validity owners.");
         }
+        PresentationActors?.Validate();
     }
 
     public ImmutableArray<byte> Read(int offset, int count)
@@ -114,12 +118,14 @@ public static class NativeBattleWaterHeaderCapture
     {
         private readonly byte[] bytes;
         private readonly bool[] known;
+        private readonly NativeBattleCinematicActorContext? presentationActors;
 
         public HeaderWriter(NativeBattleWaterHeader header)
         {
             header.Validate();
             bytes = header.Bytes.ToArray();
             known = header.Known.ToArray();
+            presentationActors = header.PresentationActors;
         }
 
         public void Byte(int offset, byte value)
@@ -140,6 +146,6 @@ public static class NativeBattleWaterHeaderCapture
             Array.Fill(known, true, offset, 4);
         }
 
-        public NativeBattleWaterHeader Freeze() => new(bytes.ToImmutableArray(), known.ToImmutableArray());
+        public NativeBattleWaterHeader Freeze() => new(bytes.ToImmutableArray(), known.ToImmutableArray()) { PresentationActors = presentationActors };
     }
 }

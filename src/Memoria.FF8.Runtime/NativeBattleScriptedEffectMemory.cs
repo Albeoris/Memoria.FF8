@@ -9,6 +9,9 @@ public sealed record NativeBattleScriptedEffectMemory([property: JsonRequired] N
     public const uint Address = 0x2797068;
     public const int Length = 0x1BB0;
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleCinematicActorContext? PresentationActors { get; init; }
+
     public static NativeBattleScriptedEffectMemory FromColdProcess() => new(NativeBattleEffectArena.Clear());
     public static NativeBattleScriptedEffectMemory Unknown() => new(NativeBattleEffectArena.Clear().MarkUnknown(0, Length));
 
@@ -16,6 +19,7 @@ public sealed record NativeBattleScriptedEffectMemory([property: JsonRequired] N
     {
         Core.Validate();
         Core.ValidateExtent(Length);
+        PresentationActors?.Validate();
     }
 
     public byte[] Read(uint address, int length)
@@ -48,7 +52,7 @@ public sealed record NativeBattleScriptedEffectMemory([property: JsonRequired] N
     {
         Validate();
         (byte[] bytes, bool[] known) = Snapshot(0, NativeBattleWaterHeader.Length);
-        return new(bytes.ToImmutableArray(), known.ToImmutableArray());
+        return new(bytes.ToImmutableArray(), known.ToImmutableArray()) { PresentationActors = PresentationActors };
     }
 
     public NativeBattleScriptedEffectMemory Copy(uint sourceAddress, uint destinationAddress, int length)
@@ -73,7 +77,8 @@ public sealed record NativeBattleScriptedEffectMemory([property: JsonRequired] N
     public NativeBattleScriptedEffectMemory WithHeader(NativeBattleWaterHeader header)
     {
         header.Validate();
-        return WriteSnapshot(Address, header.Bytes.AsSpan(), header.Known.AsSpan());
+        NativeBattleScriptedEffectMemory result = WriteSnapshot(Address, header.Bytes.AsSpan(), header.Known.AsSpan());
+        return ReferenceEquals(result.PresentationActors, header.PresentationActors) ? result : result with { PresentationActors = header.PresentationActors };
     }
 
     private NativeBattleScriptedEffectMemory WriteSnapshot(uint address, ReadOnlySpan<byte> bytes, ReadOnlySpan<bool> known)
