@@ -1,3 +1,4 @@
+using System.Globalization;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
 
@@ -18,6 +19,12 @@ internal sealed partial class BattleHudElement : UiElement
     private string[] drawnTargetIds = [];
     private int? requestedTargetListStart;
     private string? lastDrawnTargetId;
+    private UiRect targetHelpBounds;
+    private BattleHudPartyList partyList;
+    private string[] drawnPartyIds = [];
+    private string? lastDrawnPartySelection;
+    private int? requestedPartyStart;
+    private bool drewExpandedParty;
     private float Top => Layout.Top;
 
     public BattleHudElement(BattleHudController controller)
@@ -65,6 +72,7 @@ internal sealed partial class BattleHudElement : UiElement
 
     private void DrawPresentation(IUiCanvas canvas, UiTheme theme)
     {
+        drewExpandedParty = false;
         if (controller.CardSlotsOwnsInput)
         {
             if (controller.SlotsCards is { } cards && controller.Session.PendingSlotsDeal is { } deal)
@@ -110,6 +118,10 @@ internal sealed partial class BattleHudElement : UiElement
         bool canAttack = !controller.CommandMenuHidden && selectedActor is not null && session.Outcome == BattleOutcome.Active;
         IReadOnlyList<BattleCombatant> party = controller.Party;
         bool compactParty = party.Count >= 4;
+        if (party.Count > 4 && !controller.CommandMenuHidden)
+        {
+            DrawExpandedParty(canvas, theme, party, selectedActor, canAttack);
+        }
         IReadOnlyList<string> choices = controller.SelectingTarget ? [] : controller.ChoiceLabels;
         string caption = session.Outcome != BattleOutcome.Active ? controller.SystemText("battle.hud.result", "RESULT") : controller.SelectingTarget ? controller.SystemText("battle.hud.target", "TARGET") : controller.SelectingGuardianFormAction ? controller.SystemText("battle.hud.guardian-action", "GF ACTION") : controller.SelectingNativeSlots ? controller.SystemText("battle.hud.slots", "SLOTS") : controller.SelectingAction ? controller.CommandLabel(controller.SelectedCommand) : controller.SystemText("battle.hud.command", "COMMAND");
         IReadOnlyList<BattleActionDefinition> actions = !controller.SelectingTarget && controller.SelectingAction && !controller.ShowingDrawList && !controller.ShowingMagicList && !controller.SelectingNativeSlots && !controller.SelectingGuardianFormAction && !controller.HasGuardianFormCommands ? controller.ActionChoices : [];
@@ -155,6 +167,10 @@ internal sealed partial class BattleHudElement : UiElement
         if (controller.NativeSlotsLabel is { } slotsLabel)
         {
             CommandWidth = Math.Clamp(38 + canvas.MeasureText(slotsLabel, fontSize * Scale, 4096 * Scale).Width / Scale, 194, 440);
+        }
+        if (party.Count > 4 && !controller.SelectingAction)
+        {
+            CommandWidth = 194;
         }
         int rows = controller.SelectingTarget ? controller.VisibleTargets.Count : choices.Count;
         float captionSize = UiTheme.DefaultCaptionFontSize * Scale * controller.TextScale;
@@ -218,43 +234,11 @@ internal sealed partial class BattleHudElement : UiElement
             }
         }
 
-        foreach ((BattleCombatant actor, BattleHudPartyRow row) in VisiblePartyRows(party))
+        if (party.Count <= 4)
         {
-            BattleGuardianForceCast? cast = session.GuardianForceCasts.FirstOrDefault(cast => cast.ActorId == actor.Id);
-            BattleGuardianForceVital? gf = cast is null ? null : session.GuardianForces.Single(gf => gf.Id == cast.Command.ActionId);
-            BattleGuardianFormState? form = session.GetGuardianForm(actor.Id);
-            string label = gf is not null ? controller.GuardianForceDisplayName(gf.Id) : form is not null ? controller.GuardianForceDisplayName(form.GuardianForceId) : actor.Name;
-            BattlePresentedVital presented = session.ReadDisplayedVital(actor.Id, gf?.Id);
-            int hp = presented.HitPoints;
-            int maximumHp = presented.MaximumHitPoints;
-            bool shownAlive = hp > 0;
-            float gauge = cast is null ? actor.Atb / (float)BattleSession.AtbMaximum : cast.InitialTicks == 0 ? 1 : 1 - cast.RemainingTicks / (float)cast.InitialTicks;
-            BattleVitalAppearance appearance = session.ReadVitalAppearance(actor.Id, gf?.Id);
-            UiColor nameColor = appearance.NameKnockedOut ? new(148, 148, 164) : new(238, 238, 238);
-            UiColor hpColor = appearance.HitPointsKnockedOut ? new(255, 41, 24) : appearance.Critical ? new(255, 255, 123) : new(255, 255, 255);
-            if (canAttack && selectedActor?.Id == actor.Id)
+            foreach ((BattleCombatant actor, BattleHudPartyRow row) in VisiblePartyRows(party))
             {
-                int phase = (int)(controller.BattlePresentationSeconds * controller.BattleCallbackRate % 16);
-                int shade = ((phase < 8 ? phase : 15 - phase) + 2) << 4;
-                // Native name/HP glyphs share a 16-frame triangle; 128 is neutral texture modulation.
-                nameColor = BattleHudLayout.Modulate(nameColor, shade);
-                hpColor = BattleHudLayout.Modulate(hpColor, shade);
-            }
-            Layout.DrawVitals(canvas, label, hp, maximumHp, row.Top, controller.TextScale, nameColor, hpColor, compactHeight: compactParty ? row.VitalHeight : null);
-            BattleStatusPresentation statuses = session.ReadStatusPresentation(actor.Id);
-            DrawGauge(canvas, Layout.AtbGauge(row.Top, row.GaugeOffset), gauge, cast is null && actor.IsReady, shownAlive, cast is not null, (AtbVisualStatus)((statuses.Battle >> 1) & 7));
-            DrawStatuses(canvas, theme, statuses, 520, row.Top + row.StatusOffset, compactParty && form is { Phase: BattleGuardianFormPhase.Active } ? 382 : 414, row.StatusTextScale);
-            if (form is { Phase: BattleGuardianFormPhase.Active })
-            {
-                string timer = controller.FormatSystemText("battle.hud.remaining-seconds", "{0}s", controller.GuardianFormSeconds(form.RemainingTicks));
-                if (compactParty)
-                {
-                    canvas.Text(timer, 11 * row.StatusTextScale * Scale, Rect(906, row.Top + row.StatusOffset, 28, row.Height - row.StatusOffset), theme.Foreground);
-                }
-                else
-                {
-                    Text(canvas, theme, timer, 906, row.Top - 5, 42, 18, 12);
-                }
+                DrawPartyMember(canvas, theme, actor, row, compactParty, selectedActor, canAttack);
             }
         }
         if (canAttack && controller.ShowingDrawList)
@@ -270,6 +254,145 @@ internal sealed partial class BattleHudElement : UiElement
             Text(canvas, theme, controller.SystemText("battle.hud.trigger", "TRIGGER!"), 372, 100, 280, 48, 30);
         }
     }
+
+    private void DrawPartyMember(IUiCanvas canvas, UiTheme theme, BattleCombatant actor, BattleHudPartyRow row, bool compactParty, BattleCombatant? selectedActor, bool canAttack, UiRect expandedRow = default)
+    {
+        BattleSession session = controller.Session;
+        BattleGuardianForceCast? cast = session.GuardianForceCasts.FirstOrDefault(cast => cast.ActorId == actor.Id);
+        BattleGuardianForceVital? gf = cast is null ? null : session.GuardianForces.Single(gf => gf.Id == cast.Command.ActionId);
+        BattleGuardianFormState? form = session.GetGuardianForm(actor.Id);
+        string label = gf is not null ? controller.GuardianForceDisplayName(gf.Id) : form is not null ? controller.GuardianForceDisplayName(form.GuardianForceId) : actor.Name;
+        BattlePresentedVital presented = session.ReadDisplayedVital(actor.Id, gf?.Id);
+        int hp = presented.HitPoints;
+        int maximumHp = presented.MaximumHitPoints;
+        bool shownAlive = hp > 0;
+        float gauge = cast is null ? actor.Atb / (float)BattleSession.AtbMaximum : cast.InitialTicks == 0 ? 1 : 1 - cast.RemainingTicks / (float)cast.InitialTicks;
+        BattleVitalAppearance appearance = session.ReadVitalAppearance(actor.Id, gf?.Id);
+        UiColor nameColor = appearance.NameKnockedOut ? new(148, 148, 164) : new(238, 238, 238);
+        UiColor hpColor = appearance.HitPointsKnockedOut ? new(255, 41, 24) : appearance.Critical ? new(255, 255, 123) : new(255, 255, 255);
+        if (canAttack && selectedActor?.Id == actor.Id)
+        {
+            int phase = (int)(controller.BattlePresentationSeconds * controller.BattleCallbackRate % 16);
+            int shade = ((phase < 8 ? phase : 15 - phase) + 2) << 4;
+            // Native name/HP glyphs share a 16-frame triangle; 128 is neutral texture modulation.
+            nameColor = BattleHudLayout.Modulate(nameColor, shade);
+            hpColor = BattleHudLayout.Modulate(hpColor, shade);
+        }
+        BattleStatusPresentation statuses = session.ReadStatusPresentation(actor.Id);
+        bool showTimer = form is { Phase: BattleGuardianFormPhase.Active };
+        bool ready = cast is null && actor.IsReady;
+        AtbVisualStatus gaugeStatus = (AtbVisualStatus)((statuses.Battle >> 1) & 7);
+        if (expandedRow.IsEmpty)
+        {
+            Layout.DrawVitals(canvas, label, hp, maximumHp, row.Top, controller.TextScale, nameColor, hpColor, compactHeight: compactParty ? row.VitalHeight : null);
+            DrawGauge(canvas, Layout.AtbGauge(row.Top, row.GaugeOffset), gauge, ready, shownAlive, cast is not null, gaugeStatus);
+            if (compactParty)
+            {
+                canvas.PushClip(Rect(520, row.Top + row.StatusOffset, 414, row.Height - row.StatusOffset));
+            }
+            DrawStatuses(canvas, theme, statuses, 520, row.Top + row.StatusOffset, compactParty && showTimer ? 382 : 414, row.StatusTextScale);
+            if (compactParty)
+            {
+                canvas.PopClip();
+            }
+        }
+        else
+        {
+            UiRect gaugeBounds = DrawExpandedVitals(canvas, expandedRow, label, hp, maximumHp, nameColor, hpColor);
+            DrawGauge(canvas, gaugeBounds, gauge, ready, shownAlive, cast is not null, gaugeStatus);
+            DrawStatuses(canvas, theme, statuses, expandedRow.X + 8, row.Top + row.StatusOffset, expandedRow.Width - (showTimer ? 68 : 16), row.StatusTextScale);
+        }
+        if (showTimer)
+        {
+            string timer = controller.FormatSystemText("battle.hud.remaining-seconds", "{0}s", controller.GuardianFormSeconds(form!.RemainingTicks));
+            if (!expandedRow.IsEmpty)
+            {
+                canvas.AlignedText(timer, 11 * row.StatusTextScale * Scale, Rect(expandedRow.Right - 60, row.Top + row.StatusOffset, 52, row.Height - row.StatusOffset), theme.Foreground, UiAlignment.End);
+            }
+            else if (compactParty)
+            {
+                canvas.Text(timer, 11 * row.StatusTextScale * Scale, Rect(906, row.Top + row.StatusOffset, 28, row.Height - row.StatusOffset), theme.Foreground);
+            }
+            else
+            {
+                Text(canvas, theme, timer, 906, row.Top - 5, 42, 18, 12);
+            }
+        }
+    }
+
+    private void DrawExpandedParty(IUiCanvas canvas, UiTheme theme, IReadOnlyList<BattleCombatant> party, BattleCombatant? selectedActor, bool canAttack)
+    {
+        string[] ids = party.Select(actor => actor.Id).ToArray();
+        bool sameParty = drawnPartyIds.SequenceEqual(ids);
+        string? selectedId = selectedActor?.Id;
+        bool sameLayout = partyList.TwoColumns == (controller.TextScale <= 1.2f);
+        int selectedIndex = sameParty && sameLayout && lastDrawnPartySelection == selectedId ? -1 : Array.IndexOf(ids, selectedId);
+        partyList = BattleHudPartyList.Measure(canvas, Layout, ids.Length, controller.TextScale, sameParty ? requestedPartyStart ?? partyList.Start : 0, selectedIndex);
+        requestedPartyStart = null;
+        lastDrawnPartySelection = selectedId;
+        drawnPartyIds = ids;
+        drewExpandedParty = true;
+
+        UiRect panel = ScaleRect(partyList.Panel);
+        canvas.Fill(panel, new UiColor(theme.BorderDark.R, theme.BorderDark.G, theme.BorderDark.B, 178));
+        for (int index = partyList.Start; index < partyList.End; index++)
+        {
+            UiRect bounds = partyList.Row(index);
+            BattleHudPartyRow row = new(bounds.Y, bounds.Height, partyList.VitalHeight, partyList.VitalHeight, partyList.TwoColumns ? 1 : controller.TextScale, 5);
+            DrawPartyMember(canvas, theme, party[index], row, true, selectedActor, canAttack, bounds);
+        }
+        if (partyList.Scrolls)
+        {
+            UiRect previous = partyList.PreviousPage;
+            UiRect next = partyList.NextPage;
+            canvas.AlignedText("▲", 16 * Scale, ScaleRect(previous), partyList.Start == 0 ? theme.Muted : theme.Foreground, UiAlignment.Center);
+            canvas.AlignedText("▼", 16 * Scale, ScaleRect(next), partyList.End == partyList.TotalCount ? theme.Muted : theme.Foreground, UiAlignment.Center);
+            string range = controller.FormatSystemText("battle.hud.party-range", "{0}–{1} / {2}", partyList.Start + 1, partyList.End, partyList.TotalCount);
+            canvas.AlignedText(range, 16 * Scale, Rect(previous.Right, previous.Y, next.X - previous.Right, previous.Height), theme.Foreground, UiAlignment.Center);
+        }
+    }
+
+    private UiRect DrawExpandedVitals(IUiCanvas canvas, UiRect row, string name, int hp, int maximumHp, UiColor nameColor, UiColor hpColor)
+    {
+        float height = partyList.VitalHeight;
+        float font = partyList.FontSize * Scale;
+        float gaugeWidth = partyList.TwoColumns ? 80 : 150;
+        float gaugeX = row.Right - 8 - gaugeWidth;
+        string current = hp.ToString(CultureInfo.InvariantCulture);
+        string maximum = maximumHp.ToString(CultureInfo.InvariantCulture);
+        float currentTextWidth = canvas.MeasureText(current, font, float.PositiveInfinity).Width / Scale + 2;
+        float currentWidth = Math.Max(50, currentTextWidth);
+        float maximumWidth = Math.Max(50, canvas.MeasureText(maximum, font, float.PositiveInfinity).Width / Scale + 2);
+        float maximumX = gaugeX - 12 - maximumWidth;
+        float separatorX = maximumX - 14;
+        float currentX = separatorX - currentWidth;
+        UiRect nameBounds = Rect(row.X + 8, row.Y, currentX - row.X - 14, height);
+        canvas.Text(FitPartyName(canvas, name, font, nameBounds.Width), font, nameBounds, nameColor, UiAlignment.Start, UiTextFlow.SingleLine);
+        canvas.Text(current, font, Rect(separatorX - currentTextWidth, row.Y, currentTextWidth, height), hpColor);
+        canvas.AlignedText("/", font, Rect(separatorX, row.Y, 14, height), new UiColor(255, 255, 255), UiAlignment.Center);
+        canvas.Text(maximum, font, Rect(maximumX, row.Y, maximumWidth, height), new UiColor(255, 255, 255));
+        return Rect(gaugeX, row.Y + (height - 12) / 2, gaugeWidth, 12);
+    }
+
+    private static string FitPartyName(IUiCanvas canvas, string name, float font, float width)
+    {
+        if (canvas.MeasureText(name, font, float.PositiveInfinity).Width <= width)
+        {
+            return name;
+        }
+        int[] characters = StringInfo.ParseCombiningCharacters(name);
+        for (int index = characters.Length - 1; index > 0; index--)
+        {
+            string shortened = name[..characters[index]] + "…";
+            if (canvas.MeasureText(shortened, font, float.PositiveInfinity).Width <= width)
+            {
+                return shortened;
+            }
+        }
+        return "…";
+    }
+
+    private UiRect ScaleRect(UiRect rectangle) => Rect(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height);
 
     private IEnumerable<(BattleCombatant Actor, BattleHudPartyRow Row)> VisiblePartyRows(IReadOnlyList<BattleCombatant> party)
     {
@@ -367,7 +490,8 @@ internal sealed partial class BattleHudElement : UiElement
             canvas.AlignedText(range, 16 * Scale, Rect(previous.Right, previous.Y, next.X - previous.Right, previous.Height), theme.Foreground, UiAlignment.Center);
         }
         float helpY = panel.Y - helpGap - helpPanelHeight;
-        theme.Panel(canvas, Rect(54, helpY, 440, helpPanelHeight));
+        targetHelpBounds = Rect(54, helpY, 440, helpPanelHeight);
+        theme.Panel(canvas, targetHelpBounds);
         Text(canvas, theme, controller.TargetActionCaption, 68, helpY + 7, 412, actionHeight, 20);
         Text(canvas, theme, help, 68, helpY + 7 + actionHeight + 4, 412, helpHeight, 15, true);
     }
@@ -587,13 +711,48 @@ internal sealed partial class BattleHudElement : UiElement
         }
         else if (controller.Session.Outcome == BattleOutcome.Active && controller.NativeDuelState is null)
         {
-            foreach ((BattleCombatant actor, BattleHudPartyRow row) in VisiblePartyRows(controller.Party))
+            IReadOnlyList<BattleCombatant> party = controller.Party;
+            if (party.Count > 4)
+            {
+                ClickExpandedParty(x, y);
+                return;
+            }
+            foreach ((BattleCombatant actor, BattleHudPartyRow row) in VisiblePartyRows(party))
             {
                 if (Layout.PartyRowBounds(row).Contains(x, y))
                 {
                     controller.SelectParty(actor.Id);
                     return;
                 }
+            }
+        }
+    }
+
+    private void ClickExpandedParty(float x, float y)
+    {
+        if (!drewExpandedParty || controller.SelectingTarget && targetHelpBounds.Contains(x, y))
+        {
+            return;
+        }
+        if (partyList.Scrolls)
+        {
+            if (ScaleRect(partyList.PreviousPage).Contains(x, y))
+            {
+                requestedPartyStart = Math.Max(0, partyList.Start - partyList.VisibleCount);
+                return;
+            }
+            if (ScaleRect(partyList.NextPage).Contains(x, y))
+            {
+                requestedPartyStart = Math.Min(partyList.TotalCount - partyList.VisibleCount, partyList.Start + partyList.VisibleCount);
+                return;
+            }
+        }
+        for (int index = partyList.Start; index < partyList.End; index++)
+        {
+            if (ScaleRect(partyList.Row(index)).Contains(x, y))
+            {
+                controller.SelectParty(drawnPartyIds[index]);
+                return;
             }
         }
     }

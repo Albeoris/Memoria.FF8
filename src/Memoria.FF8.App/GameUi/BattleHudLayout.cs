@@ -4,6 +4,57 @@ namespace Memoria.FF8.GameUi;
 
 internal readonly record struct BattleHudPartyRow(float Top, float Height, float VitalHeight, float StatusOffset, float StatusTextScale, float GaugeOffset);
 
+internal readonly record struct BattleHudPartyList(UiRect Panel, int Start, int VisibleCount, int TotalCount, int RowsPerColumn, float VitalHeight, float StatusHeight, float FontSize)
+{
+    public const float Left = 244;
+    private const float ColumnWidth = 336;
+    private const float ColumnGap = 18;
+    private const float Padding = 12;
+    internal const float FooterHeight = 28;
+    public int End => Start + VisibleCount;
+    public bool Scrolls => VisibleCount < TotalCount;
+    public bool TwoColumns => RowsPerColumn < VisibleCount;
+    public UiRect PreviousPage => new(Panel.X + Padding, Panel.Bottom - FooterHeight - 4, 44, FooterHeight);
+    public UiRect NextPage => new(Panel.Right - Padding - 44, PreviousPage.Y, 44, FooterHeight);
+
+    public UiRect Row(int index)
+    {
+        int offset = index - Start;
+        float height = VitalHeight + StatusHeight;
+        float x = Panel.X + offset / RowsPerColumn * (ColumnWidth + ColumnGap);
+        return new(x, Panel.Y + Padding + offset % RowsPerColumn * height, TwoColumns ? ColumnWidth : Panel.Width, height);
+    }
+
+    public static BattleHudPartyList Measure(IUiCanvas canvas, BattleHudLayout layout, int count, float textScale, int previousStart, int selectedIndex)
+    {
+        const float width = 2 * ColumnWidth + ColumnGap;
+        const float bottom = 660;
+        if (textScale <= 1.2f)
+        {
+            int rows = (count + 1) / 2;
+            float height = rows * 34 + 2 * Padding;
+            return new(new(Left, bottom - height, width, height), 0, count, count, rows, 22, 12, 18 * textScale);
+        }
+
+        const float maximumHeight = 240;
+        float fontSize = 22 * textScale;
+        float vitalHeight = Math.Max(30, canvas.MeasureText("Mg", fontSize * layout.Scale, float.PositiveInfinity).Height / layout.Scale);
+        float statusHeight = Math.Max(12, canvas.MeasureText("Mg", 11 * textScale * layout.Scale, float.PositiveInfinity).Height / layout.Scale);
+        int visible = Math.Clamp((int)((maximumHeight - 2 * Padding) / (vitalHeight + statusHeight)), 1, count);
+        if (visible < count)
+        {
+            visible = Math.Max(1, (int)((maximumHeight - 2 * Padding - FooterHeight) / (vitalHeight + statusHeight)));
+        }
+        int start = Math.Clamp(previousStart, 0, count - visible);
+        if (selectedIndex >= 0)
+        {
+            start = Math.Clamp(start, Math.Max(0, selectedIndex - visible + 1), Math.Min(selectedIndex, count - visible));
+        }
+        float panelHeight = Math.Min(maximumHeight, 2 * Padding + visible * (vitalHeight + statusHeight) + (visible < count ? FooterHeight : 0));
+        return new(new(Left, bottom - panelHeight, width, panelHeight), start, visible, count, visible, vitalHeight, statusHeight, fontSize);
+    }
+}
+
 internal readonly record struct BattleHudTargetList(UiRect Panel, float RowHeight, float ContentOffset, int Start, int VisibleCount, int TotalCount)
 {
     public bool Scrolls => TotalCount > 4;
@@ -71,17 +122,8 @@ internal readonly record struct BattleHudLayout(UiRect Bounds)
         {
             return new(PartyTop + index * PartyRowHeight, PartyRowHeight, 30, 25, textScale, 11);
         }
-        if (count == 4)
-        {
-            const float height = 3 * PartyRowHeight / 4;
-            return new(PartyTop + index * height, height, 16.5f, 16.5f, 1, 5);
-        }
-        // Reserve the top of the HUD for the battle message even with eleven rows.
-        float rowTextScale = Math.Min(1.65f, textScale);
-        float statusHeight = Math.Max(12, 11 * rowTextScale);
-        float vitalHeight = Math.Max(26, 20 * rowTextScale);
-        float rowHeight = vitalHeight + statusHeight;
-        return new(660 - (count - index) * rowHeight, rowHeight, vitalHeight, vitalHeight, rowTextScale, 11);
+        const float height = 3 * PartyRowHeight / 4;
+        return new(PartyTop + index * height, height, 18, 18, 1, 5);
     }
 
     public UiRect PartyRowBounds(BattleHudPartyRow row) => Rect(PartyLeft, row.Top, PartyWidth, row.Height);
