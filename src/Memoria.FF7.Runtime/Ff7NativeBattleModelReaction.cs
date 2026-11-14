@@ -2,6 +2,9 @@ namespace Memoria.FF7.Runtime;
 
 public static class Ff7NativeBattleModelReaction
 {
+    public static short? RowChangeSelector(int slot, byte battleType, uint conditions, bool toggle)
+        => toggle && slot is >= 0 and < 3 && battleType <= 2 ? (short)(0x31 + ((conditions >> 6) & 1)) : null;
+
     public static short Select(bool player, byte hurtAction, byte playerHurtIndex, IReadOnlyList<byte>? playerHurtActions, byte power, uint previousStatuses, bool missed, int numericalDamage, bool magicPoints, bool revived, bool newlyKnockedOut)
     {
         short selected = power == 0 ? (short)0x33 : player ? (short)8 : (short)2;

@@ -23,6 +23,10 @@ public enum Ff7BattleDamageAffinity : byte
 
 public readonly record struct Ff7BattleDamageAction(byte Formula, byte Power, byte Accuracy, bool LongRange = false, bool BackAttack = false, byte BackAttackMultiplier = 16, bool Split = false, bool ForceCritical = false, bool Healing = false, bool CanBeBlinded = false, Ff7BattleDamageAffinity Affinity = Ff7BattleDamageAffinity.Normal, bool UsePhysicalStats = false, bool IgnoreDefense = false, bool HasStatusOperation = false, bool AddsStatuses = false, bool TargetsMagicPoints = false)
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool HasNativeTargetEffect { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool NativeReflectPending { get; init; }
     public bool SuppressCritical { get; init; }
     public bool Reflectable { get; init; }
     public ushort NativeElements { get; init; }
@@ -171,7 +175,7 @@ public static class Ff7NativeBattleDamage
             return new(true, false, 0);
         }
         bool hasDamage = action.Power != 0 || action.BaseDamage is not null || action.FixedDamage is not null || action.FractionDenominator != 0;
-        if (!hasDamage && !action.HasStatusOperation)
+        if (!hasDamage && !action.HasStatusOperation && !action.HasNativeTargetEffect)
         {
             return new(true, false, 0);
         }

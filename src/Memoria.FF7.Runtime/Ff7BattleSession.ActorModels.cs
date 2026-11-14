@@ -331,6 +331,7 @@ public sealed partial class Ff7BattleSession
                         ResetActorFacing(previous.Slot);
                         break;
                     case 0xEE:
+                    case 0xFE:
                     case 0xFF:
                         model = ActorModelState(previous.Slot);
                         ReplaceActorModel(model with { Action = Actor(model.Slot).Actor.IdleAction, Pose = null, Ready = true, IdleStarted = PresentationTick, Reaction = false, ReactionKnockedOut = false, LinkedAction = false, Motion = null });

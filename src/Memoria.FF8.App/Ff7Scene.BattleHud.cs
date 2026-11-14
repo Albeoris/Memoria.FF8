@@ -413,11 +413,15 @@ internal sealed partial class Ff7Scene
         System.Numerics.Vector3 anchor = mixedCombat?.GuestAt(hit.Target)?.Visual is { } guest
             ? CrossoverFf8BattleActorRenderer.EffectAnchor(guest)
             : battle.GuestEffectTargetAnchor(hit.Target);
-        DrawBattleDamagePopup(canvas, theme.Foreground, scale, sceneBounds, battle.GuestRenderCameraOutput, anchor, hit.Damage, battle.Tick - hit.Tick, hit.NativeResultMarker);
+        DrawBattleDamagePopup(canvas, theme.Foreground, scale, sceneBounds, battle.GuestRenderCameraOutput, anchor, hit.Damage, battle.Tick - hit.Tick, hit.NativeResultMarker, hit.SuppressNumericPopup);
     }
 
-    internal static void DrawBattleDamagePopup(IUiCanvas canvas, UiColor foreground, float scale, Rectangle sceneBounds, SceneCameraPlacement camera, System.Numerics.Vector3 anchor, Ff7BattleDamageResult damage, long age, int? nativeResultMarker = null)
+    internal static void DrawBattleDamagePopup(IUiCanvas canvas, UiColor foreground, float scale, Rectangle sceneBounds, SceneCameraPlacement camera, System.Numerics.Vector3 anchor, Ff7BattleDamageResult damage, long age, int? nativeResultMarker = null, bool suppressNumericPopup = false)
     {
+        if (suppressNumericPopup)
+        {
+            return;
+        }
         if (Ff7BattleRenderer.ProjectWorldPoint(camera, sceneBounds.Width, sceneBounds.Height, anchor) is not { } position)
         {
             return;

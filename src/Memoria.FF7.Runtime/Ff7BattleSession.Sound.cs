@@ -38,7 +38,7 @@ public sealed partial class Ff7BattleSession
             ReplaceActorModel(ActorModelState(target) with { PresentedKnockedOut = (previous.Actor.Statuses & 1) != 0 });
         }
         bool revived = (previous.Actor.Statuses & 1) != 0 && (receipt.Target.Statuses & 1) == 0;
-        short modelAction = Ff7NativeBattleModelReaction.Select(target < 3, previous.Actor.HurtAction, hurtIndex, animations.ActorResources?.PlayerHurtActions, damageAction.Power, previous.Actor.Statuses, receipt.Damage.Missed, receipt.Damage.Damage, damageAction.TargetsMagicPoints, revived, (receipt.AddedStatuses & 1) != 0);
+        short modelAction = Ff7NativeBattleModelReaction.RowChangeSelector(target, Ff7NativeAtb.BattleTypeForLayout(Layout), previous.Actor.Conditions, receipt.ToggleTargetRow) ?? Ff7NativeBattleModelReaction.Select(target < 3, previous.Actor.HurtAction, hurtIndex, animations.ActorResources?.PlayerHurtActions, damageAction.Power, previous.Actor.Statuses, receipt.Damage.Missed, receipt.Damage.Damage, damageAction.TargetsMagicPoints, revived, (receipt.AddedStatuses & 1) != 0);
         Ff7BattleImpactPresentation impact = ReadImpactPresentation(command, target, source, receipt.Damage, record) with { ModelAction = modelAction, PostActionKnockedOut = (receipt.Target.Statuses & 1) != 0 };
         Ff7BattleSoundState sounds = state.Sounds ?? Ff7BattleSoundState.Empty;
         state = state with { Sounds = sounds with { PreparedImpacts = [.. sounds.PreparedImpacts.Where(previous => previous.Target != target), impact] } };

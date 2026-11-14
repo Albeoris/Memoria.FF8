@@ -70,6 +70,8 @@ public sealed record Ff7BattleActionState(Ff7BattleQueuedCommand Command, long S
 }
 public sealed record Ff7BattleHit(int Source, int Target, ushort AttackId, Ff7BattleDamageResult Damage, long Tick)
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool SuppressNumericPopup { get; init; }
     public int? NativeResultMarker { get; init; }
 }
 public sealed record Ff7BattleReaction(int Slot, long Tick);

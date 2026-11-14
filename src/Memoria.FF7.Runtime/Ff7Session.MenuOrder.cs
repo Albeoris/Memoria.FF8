@@ -50,11 +50,6 @@ public sealed partial class Ff7Session
             PublishFieldParty(Progress with { Party = members });
             return true;
         }
-        if (GuestFieldVitals?.StoryCharacters.Contains(characterId) == true)
-        {
-            return false;
-        }
-
         Ff7CharacterState[] characters = (Ff7CharacterState[])Progress.Characters.Clone();
         int index = Array.FindIndex(characters, character => character.Id == characterId);
         byte[] record = (byte[])characters[index].NativeRecord.Clone();

@@ -200,6 +200,12 @@ if (args.Contains("--native-fury-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--native-row-change-only", StringComparer.Ordinal))
+{
+    NativeRowChangeTests.Run();
+    return 0;
+}
+
 if (args.Contains("--enemy-withdrawal-only", StringComparer.Ordinal))
 {
     NativeEnemyWithdrawalTests.Run();
@@ -485,6 +491,7 @@ var tests = new (string Name, Action Run)[]
     ("native guest fury ownership and cold continuation", NativeGuestFuryTests.Run),
     ("native fury producer, opposition and cold continuation", NativeFuryTests.Run),
     ("native enemy withdrawal effect and cold continuation", NativeEnemyWithdrawalTests.Run),
+    ("native row change effect and cold continuation", NativeRowChangeTests.Run),
     ("native chocobo capture AI mask timing and cold continuation", ChocoboCaptureAiTests.Run),
     ("native stable word-radius initialization and cold continuation", NativeStablesRadiusTests.Run),
     ("native music status, finite timing and local changes", NativeMusicStatusTests.Run),

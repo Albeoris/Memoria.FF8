@@ -45,7 +45,7 @@ public sealed partial class Ff7BattleSession
                     int slot = actor.Actor.Slot;
                     Ff7BattleActionVitals source = vitals[command.ActorSlot];
                     Ff7BattleActionVitals target = vitals[slot];
-                    Ff7BattleDamageAction attack = ProjectGuestOutgoingAttack(slot, description);
+                    Ff7BattleDamageAction attack = ProjectGuestOutgoingAttack(slot, description) with { NativeReflectPending = (exhausted & 1 << slot) == 0 && (target.Statuses & Ff7NativeBattleStatuses.Reflect) != 0 };
                     Ff7BattleActionReceipt receipt;
                     if (guest || GetGuestProjection(slot) is not null)
                     {

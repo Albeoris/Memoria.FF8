@@ -860,6 +860,11 @@ public sealed partial class Ff7BattleSession
             state = state with { WithdrawnMask = (ushort)(state.WithdrawnMask.GetValueOrDefault() | 1 << targetSlot) };
         }
         Ff7BattleAiActor native = target.Actor with { CoveredCharacter = byte.MaxValue };
+        if (Ff7NativeBattleModelReaction.RowChangeSelector(targetSlot, Ff7NativeAtb.BattleTypeForLayout(Layout), native.Conditions, result.ToggleTargetRow) is short rowSelector)
+        {
+            result = result with { NativeResultMarker = (sbyte)rowSelector };
+            native = native with { Conditions = native.Conditions ^ 0x40u };
+        }
         byte gauge = target.LimitGauge;
         if (targetSlot < 3 && (result.Target.Statuses & 1) != 0)
         {
@@ -881,7 +886,7 @@ public sealed partial class Ff7BattleSession
         ushort originSaved = (ushort)((GetOriginSavedStatuses(targetSlot) | result.AddedOriginSavedStatuses) & ~result.RemovedOriginSavedStatuses & Ff7OriginSavedStatusRules.Supported);
         Replace(target with { Actor = native, Timers = timers, LimitGauge = gauge, ParameterStatus = parameter, ParameterStatusInitialized = true, OriginSavedStatuses = originSaved });
         ApplyGuestOriginContact(targetSlot, result);
-        state = state with { LastHit = new(command.ActorSlot, targetSlot, command.AttackId ?? command.Argument, result.Damage, Tick) { NativeResultMarker = result.NativeResultMarker } };
+        state = state with { LastHit = new(command.ActorSlot, targetSlot, command.AttackId ?? command.Argument, result.Damage, Tick) { NativeResultMarker = result.NativeResultMarker, SuppressNumericPopup = result.SuppressNumericPopup } };
         if (runCounters && !result.Damage.Missed)
         {
             PublishActorCounters(command, native, (result.AddedStatuses & 1) != 0, action.NativePhysicalCategory ?? action.UsePhysicalStats);
@@ -952,17 +957,16 @@ public sealed partial class Ff7BattleSession
             Ff7BattleAiActor native = actor.Actor;
             int index = Array.FindIndex(updated, character => character.Id == Ff7NativeCharacterIdentity.RecordId(actor.Identity));
             Ff7CharacterState original = updated[index];
-            byte[] record = (byte[])original.NativeRecord.Clone();
-            record[31] = (byte)((record[31] & ~Ff7GuestBattleStatuses.SupportedNativeOnly) | (native.Statuses & Ff7GuestBattleStatuses.SupportedNativeOnly));
+            Ff7CharacterState projected = Ff7NativeBattlePartyRecord.ProjectStatusesAndRow(original, native);
+            byte[] record = projected.NativeRecord;
             if (IsGuestVitalsSlot(actor.Actor.Slot))
             {
-                updated[index] = original with { NativeRecord = record };
+                updated[index] = projected;
                 continue;
             }
             record[15] = actor.LimitGauge;
             BinaryPrimitives.WriteUInt16LittleEndian(record.AsSpan(44), checked((ushort)native.HitPoints));
             BinaryPrimitives.WriteUInt16LittleEndian(record.AsSpan(48), native.MagicPoints);
-            record[32] = (byte)((record[32] & ~1) | ((native.Conditions & 0x40) != 0 ? 0 : 1));
             updated[index] = original with { NativeRecord = record, HitPoints = (int)native.HitPoints, MagicPoints = native.MagicPoints };
         }
         return progress with { Characters = updated, Inventory = (Ff7InventorySlot[])state.Inventory.Clone(), BattleRng = random.Capture(), PartyAiAliases = state.PartyAiAliases?.ToArray() };

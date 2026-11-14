@@ -136,6 +136,15 @@ public sealed class BattleActionSequence
                 index = alternateRowIndex - 1;
                 continue;
             }
+            if (opcode == 0xFE)
+            {
+                if (state.WaitFrames == 0 && index + 1 < instructions.Count && instructions[index + 1].Opcode == 0xC0)
+                {
+                    events.Add(instruction);
+                    return new(state with { NextInstruction = 0, ClipIndex = instructions[0].Opcode, ClipFrame = 0, WaitFrames = 0, Completed = true, TerminalOpcode = opcode, MissingClip = null }, events.AsReadOnly());
+                }
+                continue;
+            }
             events.Add(instruction);
             if (opcode == 0xC0)
             {

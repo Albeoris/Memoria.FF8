@@ -67,15 +67,17 @@ internal sealed partial class Ff7Scene
     }
 
     private IReadOnlyList<MenuEntry> ReadNativeOrder(MenuController menu, Ff7CharacterState first)
+        => ReadNativeOrderEntries(menu.Data.Characters, Session!.Progress, first.Id);
+
+    internal static IReadOnlyList<MenuEntry> ReadNativeOrderEntries(IEnumerable<MenuCharacter> characters, Ff7Progress progress, int selectedCharacter)
     {
-        return menu.Data.Characters.Where(character => character.InParty).Select(character =>
+        return characters.Where(character => character.InParty).Select(character =>
         {
             int id = NativeMenuCharacterId(character.Id);
-            bool same = id == first.Id;
-            bool guest = IsGuestStoryCharacter(id);
-            string row = guest ? "FFVIII guest" : (Session!.Progress.Characters.Single(candidate => candidate.Id == id).NativeRecord[32] & 1) == 0 ? "Back" : "Front";
-            string help = !same ? "Swap the two party slots." : guest ? "This guest does not have an FFVII battle row." : "Switch this character's front/back row.";
-            return new MenuEntry(character.Id, $"{character.Name}   {row}", help, Action: new("ff7-order-apply", character.Id), Enabled: !same || !guest);
+            bool same = id == selectedCharacter;
+            string row = (progress.Characters.Single(candidate => candidate.Id == id).NativeRecord[32] & 1) == 0 ? "Back" : "Front";
+            string help = !same ? "Swap the two party slots." : "Switch this character's front/back row.";
+            return new MenuEntry(character.Id, $"{character.Name}   {row}", help, Action: new("ff7-order-apply", character.Id));
         }).ToArray();
     }
 

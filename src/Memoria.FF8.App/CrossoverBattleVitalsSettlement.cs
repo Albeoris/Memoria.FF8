@@ -142,12 +142,12 @@ internal static class CrossoverBattleVitalsSettlement
             Ff7BattleAiActor projected = battle.Actors.Single(actor => actor.Actor.Slot == binding.HostSlot && actor.Identity == binding.StoryCharacter).Actor;
             ushort maximumHp = CrossoverGuestRecord.MaximumHitPoints(finalStock, row, binding.OriginCharacter);
             ushort hp = checked((ushort)projected.HitPoints);
-            if (maximumHp != (slot.Projection?.MaximumHp ?? binding.MaximumHp) || projected.MaxHitPoints != maximumHp || hp > maximumHp || (projected.Statuses & ~Ff7GuestBattleStatuses.SupportedHost) != 0 || (hp == 0) != ((projected.Statuses & 1) != 0))
+            if (maximumHp != (slot.Projection?.MaximumHp ?? binding.MaximumHp) || projected.MaxHitPoints != maximumHp || hp > maximumHp || (projected.Statuses & ~(Ff7GuestBattleStatuses.SupportedHost | Ff7GuestBattleStatuses.SupportedNativeOnly)) != 0 || (hp == 0) != ((projected.Statuses & 1) != 0))
             {
                 throw new InvalidDataException("Guest settlement requires consistent HP and mapped statuses for every admitted slot.");
             }
             rows[row] = rows[row] with { HitPoints = new(hp, hp), Status = Ff7GuestBattleStatuses.ToOrigin(projected.Statuses, original.Records[row].Status) };
-            guests.Add(new(binding.StoryCharacter, row, hp, CharacterHash(host, binding.StoryCharacter)));
+            guests.Add(new(binding.StoryCharacter, row, hp, ExpectedCharacterHash(host.Progress.Characters.Single(character => character.Id == binding.StoryCharacter), projected)));
         }
         GameplaySaveComponentDocument updated = document with { Characters = characters with { Records = rows } };
         if (magic is not null)
@@ -236,6 +236,9 @@ internal static class CrossoverBattleVitalsSettlement
 
     private static string CharacterHash(Ff7SessionSave host, int storyCharacter)
         => Hash(JsonSerializer.SerializeToUtf8Bytes(host.Progress.Characters.Single(character => character.Id == storyCharacter)));
+
+    internal static string ExpectedCharacterHash(Ff7CharacterState original, Ff7BattleAiActor actor)
+        => Hash(JsonSerializer.SerializeToUtf8Bytes(Ff7NativeBattlePartyRecord.ProjectStatusesAndRow(original, actor)));
 
     private static string Hash(byte[] payload) => Convert.ToHexString(SHA256.HashData(payload));
 
