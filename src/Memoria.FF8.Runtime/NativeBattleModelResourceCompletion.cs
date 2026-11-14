@@ -112,12 +112,38 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
         }
         return AnimationFrames.ReadGuest(checked(start + offset), length);
     }
-    public static NativeBattleModelCpuResources Unknown() => new(NativeBattleModelCpuBanks.Unknown(), Enumerable.Range(0, 11).Select(_ => NativeBattleModelCpuResourceRow.Unknown()).ToImmutableArray());
+    public static NativeBattleModelCpuResources Unknown() => new(NativeBattleModelCpuBanks.Unknown(), Enumerable.Range(0, NativeBattleModelResourceRowAddress.NativeRowCount).Select(_ => NativeBattleModelCpuResourceRow.Unknown()).ToImmutableArray());
     public static NativeBattleModelCpuResources FromColdProcess(string executableHash = NativeFieldRuntimeProfile.FF8EnExecutableHash)
     {
         ImmutableDictionary<int, NativeBattleModelCpuReference?> pointers = new[] { 8, 12, 16, 20, 24, 28, 32, 40, 44, 48 }.ToImmutableDictionary(offset => offset, _ => (NativeBattleModelCpuReference?)null);
         NativeBattlePartyCpuLayout layout = NativeBattlePartyCpuLayout.ForImage(executableHash);
-        return Unknown() with { EnemyResources = ImmutableDictionary<int, NativeBattleModelCpuBank>.Empty, Cpu = NativeBattleModelCpuBanks.Unknown(layout), Palettes = NativeBattleModelCpuBank.Unknown().Write(0, new byte[0xC00]), Rows = Enumerable.Range(0, 11).Select(_ => new NativeBattleModelCpuResourceRow(pointers)).ToImmutableArray() };
+        return Unknown() with { EnemyResources = ImmutableDictionary<int, NativeBattleModelCpuBank>.Empty, Cpu = NativeBattleModelCpuBanks.Unknown(layout), Palettes = NativeBattleModelCpuBank.Unknown().Write(0, new byte[0xC00]), Rows = Enumerable.Range(0, NativeBattleModelResourceRowAddress.NativeRowCount).Select(_ => new NativeBattleModelCpuResourceRow(pointers)).ToImmutableArray() };
+    }
+
+    public NativeBattleModelCpuResources WithPresentationRoster(NativeBattleGraphicsRoster roster)
+    {
+        ArgumentNullException.ThrowIfNull(roster);
+        Validate();
+        NativeBattleModelCpuBanks cpu = Cpu.WithPresentationRoster(roster);
+        int capacity = NativeBattleModelResourceRowAddress.CapacityForRoster(roster);
+        if (Rows.Length >= capacity)
+        {
+            return ReferenceEquals(cpu, Cpu) ? this : this with { Cpu = cpu };
+        }
+
+        ImmutableArray<NativeBattleModelCpuResourceRow>.Builder rows = ImmutableArray.CreateBuilder<NativeBattleModelCpuResourceRow>(capacity);
+        rows.AddRange(Rows);
+        while (rows.Count < capacity)
+        {
+            rows.Add(NativeBattleModelCpuResourceRow.Unknown());
+        }
+        return this with { Cpu = cpu, Rows = rows.MoveToImmutable() };
+    }
+
+    internal static bool HasResourceRowExtent(NativeBattleModelCpuBanks cpu, ImmutableArray<NativeBattleModelCpuResourceRow> rows)
+    {
+        int maximum = cpu.PresentationRoster is null ? NativeBattleModelResourceRowAddress.NativeRowCount : NativeBattleModelResourceRowAddress.MaximumRowCount;
+        return !rows.IsDefault && rows.Length >= NativeBattleModelResourceRowAddress.NativeRowCount && rows.Length <= maximum;
     }
 
     /// <summary>Invalidated resource rows retain physical bytes, but no derived extent belongs to the next load.</summary>
@@ -144,9 +170,9 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
         {
             throw new InvalidDataException("Native palette and legacy diagnostic animation storage requires its fixed physical capacity.");
         }
-        if (Cpu.Banks.IsDefault || Cpu.Banks.Length != 3 || Rows.IsDefault || Rows.Length != 11 || Rows.Any(row => row is null) || AnimationPointers.Any(item => item.Key < 0 || item.Key >= 96 || item.Value is < 0 || item.Value >= AnimationFrames.Capacity))
+        if (Cpu.Banks.IsDefault || Cpu.Banks.Length != 3 || !HasResourceRowExtent(Cpu, Rows) || Rows.Any(row => row is null) || AnimationPointers.Any(item => item.Key < 0 || item.Key >= 96 || item.Value is < 0 || item.Value >= AnimationFrames.Capacity))
         {
-            throw new InvalidDataException("Native model CPU resources require their three banks and eleven physical row aliases.");
+            throw new InvalidDataException("Model CPU resources require three native banks and the resource row extent authorized by their roster.");
         }
         RequireAnimationSourceOwners();
         foreach ((int header, NativeBattleModelAnimationCopy source) in AnimationSources)
@@ -166,7 +192,7 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
         {
             _ = bank.Read(0, 0);
         }
-        if (EnemyCursor is < 0 || EnemyLinkedSlots > 7 || LastModel142Row is < 0 or >= 11 || Rows.Any(row => row.PrivateLength4 < 0 || row.SharedLength8 < 0 || row.Lengths.Any(item => item.Value < 0) || row.Fields.Any(field => field.Value is { } reference && !HasValidRowReference(reference))))
+        if (EnemyCursor is < 0 || EnemyLinkedSlots > 7 || (LastModel142Row is int lastRow && (uint)lastRow >= (uint)Rows.Length) || Rows.Any(row => row.PrivateLength4 < 0 || row.SharedLength8 < 0 || row.Lengths.Any(item => item.Value < 0) || row.Fields.Any(field => field.Value is { } reference && !HasValidRowReference(reference))))
         {
             throw new InvalidDataException("Native model resource row points outside its known logical bank.");
         }
@@ -272,9 +298,9 @@ public static class NativeBattleModelResourceCopies
 
     public static NativeBattleModelResourceCompletion Complete(NativeBattleModelResourceBind bind, NativeBattleModelCpuBanks cpu, ImmutableArray<NativeBattleModelCpuResourceRow> rows, int bodyRow, int? linkedRow)
     {
-        if (rows.IsDefault || rows.Length != 11 || (uint)bodyRow >= 11 || cpu.Banks.IsDefault || cpu.Banks.Length != 3 || linkedRow is < 0 or >= 11)
+        if (!NativeBattleModelCpuResources.HasResourceRowExtent(cpu, rows) || (uint)bodyRow >= (uint)rows.Length || cpu.Banks.IsDefault || cpu.Banks.Length != 3 || (linkedRow is int linkedAlias && (uint)linkedAlias >= (uint)rows.Length))
         {
-            throw new InvalidDataException("Native resource completion requires the actual eleven resource rows and three party CPU banks.");
+            throw new InvalidDataException("Model resource completion requires body and linked aliases within its actual resource row extent.");
         }
         cpu.Validate();
         NativeBattleModelLoadTask task = bind.Task;
