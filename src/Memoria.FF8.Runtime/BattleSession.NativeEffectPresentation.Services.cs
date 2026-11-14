@@ -6,6 +6,10 @@ public sealed partial class BattleSession
 {
     private ImmutableArray<int> ReadRequiredPresentationPartyActors()
     {
+        if (NativeGraphics?.PresentationRoster is { } roster)
+        {
+            return NativeBattlePresentationPartyRows.Resolve(roster, presentationPartyActorCount);
+        }
         return NativeBattlePresentationPartyRows.Resolve(presentationSourceIndex, presentationSourceModelId, presentationSourceIsParty, hostedGuardianFormMode,
             presentationNativeTargets?.Values, presentationForeignActors?.Values, presentationPartyActorCount);
     }
@@ -49,7 +53,20 @@ public sealed partial class BattleSession
     private void InitializeEffectPresentationServices(NativeBattleEffectParameters parameters)
     {
         NativeBattleActionGraphicsState action = NativeBattleActionGraphics.Normalize(nativeActionPackets, parameters.HeaderIndex7C, NativeGraphics?.ActionGraphics) with { UseActionCamera = false };
-        NativeGraphics = PrepareEffectPresentationGeometry(NativeGraphics! with { ActionGraphics = action }, parameters.Actor78, parameters.TargetMask7A);
+        NativeBattleGraphicsState graphics = NativeGraphics! with { ActionGraphics = action };
+        if (graphics.PresentationRoster is { } roster)
+        {
+            NativeBattleEffectMemory geometryMemory = NativeEffectMemory!;
+            NativeBattleActionGeometryGlobals globals = geometryMemory.ActionGeometryGlobals ?? NativeBattleActionGeometryGlobals.Unknown();
+            NativeBattleGraphicsActorSet targets = parameters.TargetActors;
+            graphics = NativeBattleActionGeometryRules.PrepareGeometry50D300(graphics, parameters.Actor78, targets, targets, globals, ReadNativeGraphicsBone);
+            NativeEffectMemory = geometryMemory with { CameraAliases = (geometryMemory.CameraAliases ?? NativeBattleCameraAliases.Unknown()).Observe50D300(parameters.Actor78, targets, roster), ActionGeometryGlobals = globals.Observe50D300(graphics.ActionContext!) };
+            NativeGraphics = graphics;
+        }
+        else
+        {
+            NativeGraphics = PrepareEffectPresentationGeometry(graphics, parameters.Actor78, parameters.TargetMask7A);
+        }
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new InvalidDataException("Native presentation lost its initialized process owner.");
         if (memory.PrimitiveProcess is { Software: { } software } process)
         {

@@ -104,18 +104,25 @@ public sealed partial record NativeBattleGraphicsState([property: JsonRequired] 
             throw new InvalidDataException("Saved GF camera restoration requires a positive focal length.");
         }
         ActionContext?.Validate();
-        OriginalEffect?.Validate();
+        OriginalEffect?.Validate(PresentationRoster);
         UiServices?.Validate();
         TriggerWidget?.Validate();
-        if (PendingTriggerSoundActorIndex is >= 7)
-        {
-            throw new InvalidDataException("Native trigger sound requires its physical AB actor owner.");
-        }
         if ((Flags & 8) != 0 && UiServices is null)
         {
             throw new InvalidDataException("Native506CF0 stage has no initialized4A94D0 UI service owner; migrate the standalone snapshot explicitly.");
         }
         PresentationRoster?.Validate();
+        if (PendingTriggerSoundActorIndex is byte soundActor)
+        {
+            if (PresentationRoster is { } soundRoster)
+            {
+                RequireBoundPresentationRow(soundRoster, soundActor);
+            }
+            else if (soundActor >= NativeBattleGraphicsModelAddress.NativeRowCount)
+            {
+                throw new InvalidDataException("Native trigger sound requires its physical AB actor owner.");
+            }
+        }
         if (ActionGraphics is { PresentationTargets: not null } actionGraphics)
         {
             actionGraphics.ValidatePresentationTargets(PresentationRoster);
@@ -171,7 +178,23 @@ public sealed partial record NativeBattleGraphicsState([property: JsonRequired] 
         }
         foreach (NativeBattleContactPacket packet in PendingContacts)
         {
-            packet.Validate();
+            packet.Validate(actorCount);
+            if (PresentationRoster is { } contactRoster)
+            {
+                RequireBoundPresentationRow(contactRoster, packet.Primary.ActorIndex);
+                if (packet.Secondary.ActorIndex != byte.MaxValue)
+                {
+                    RequireBoundPresentationRow(contactRoster, packet.Secondary.ActorIndex);
+                }
+            }
+        }
+    }
+
+    private static void RequireBoundPresentationRow(NativeBattleGraphicsRoster roster, byte actor)
+    {
+        if (actor >= roster.ActorCount || roster.Rows[actor] is null)
+        {
+            throw new InvalidDataException($"Hosted graphics require a bound actor at row {actor}.");
         }
     }
 }

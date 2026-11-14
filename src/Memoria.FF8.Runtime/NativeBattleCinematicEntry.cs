@@ -20,7 +20,9 @@ public static class NativeBattleCinematicEntry
         RequireBinding(profile, effect);
         effect.Validate();
         directories.Validate();
-        if (presentationOnly ? effect.Parameters is not null || inputs.Caster >= 3 || inputs.Contacts.Length != 1 || inputs.Contacts[0] != inputs.Caster : effect.Parameters is not { } parameters || inputs.Caster != parameters.Actor78 || inputs.CurrentHeaderIndex != parameters.HeaderIndex7C)
+        NativeBattleCinematicActorContext? actorContext = memory.ScriptedEffects?.PresentationActors;
+        bool isPartyCaster = actorContext is null ? inputs.Caster < 3 : inputs.Caster < actorContext.Roster.ActorCount && actorContext.Roster.Rows[inputs.Caster]?.IsParty == true;
+        if (presentationOnly ? effect.Parameters is not null || !isPartyCaster || inputs.Contacts.Length != 1 || inputs.Contacts[0] != inputs.Caster : effect.Parameters is not { } parameters || inputs.Caster != parameters.Actor78 || inputs.CurrentHeaderIndex != parameters.HeaderIndex7C)
         {
             throw new InvalidDataException("Native cinematic entry requires its actual invocation positioning owner.");
         }

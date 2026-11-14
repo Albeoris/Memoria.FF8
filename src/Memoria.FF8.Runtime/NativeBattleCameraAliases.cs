@@ -6,13 +6,18 @@ namespace Memoria.FF8.Runtime;
 /// <summary>50D300's retained actor BYTE and last selected target BYTE, consumed independently by50D790.</summary>
 public sealed record NativeBattleCameraAliases([property: JsonRequired] byte? Actor1D99B95, [property: JsonRequired] byte? Target1D99AAA)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleGraphicsRoster? PresentationRoster { get; init; }
+
     public static NativeBattleCameraAliases FromColdProcess() => new(0, 0);
 
     public static NativeBattleCameraAliases Unknown() => new(null, null);
 
     public void Validate()
     {
-        if (Actor1D99B95 >= 7 || Target1D99AAA >= 7)
+        PresentationRoster?.Validate();
+        int capacity = PresentationRoster?.ActorCount ?? NativeBattleGraphicsModelAddress.NativeRowCount;
+        if (Actor1D99B95 >= capacity || Target1D99AAA >= capacity)
         {
             throw new InvalidDataException("Native camera aliases require their actual physical model BYTEs.");
         }
@@ -27,14 +32,33 @@ public sealed record NativeBattleCameraAliases([property: JsonRequired] byte? Ac
         return this with { Actor1D99B95 = actor, Target1D99AAA = targetMask == 0 ? Target1D99AAA : checked((byte)BitOperations.Log2(targetMask)) };
     }
 
+    public NativeBattleCameraAliases Observe50D300(byte actor, NativeBattleGraphicsActorSet targets, NativeBattleGraphicsRoster roster)
+    {
+        roster.Validate();
+        NativeBattleActionGeometry.ValidatePresentationRows(roster, actor, default, targets);
+        NativeBattleCameraAliases observed = this with
+        {
+            PresentationRoster = roster,
+            Actor1D99B95 = actor,
+            Target1D99AAA = targets.IsEmpty ? Target1D99AAA : checked((byte)targets.HighestRow)
+        };
+        observed.Validate();
+        return observed;
+    }
+
     public byte Resolve50D790(byte reference)
     {
         Validate();
-        return (reference >> 4) switch
+        byte row = (reference >> 4) switch
         {
             9 => Actor1D99B95 ?? throw new NotSupportedException("Native50D790 requires its retained actor BYTE; migrate the needed older snapshot explicitly."),
             10 => Target1D99AAA ?? throw new NotSupportedException("Native50D790 requires its retained target BYTE; migrate the needed older snapshot explicitly."),
             _ => throw new ArgumentOutOfRangeException(nameof(reference))
         };
+        if (PresentationRoster is { } roster)
+        {
+            _ = roster[row];
+        }
+        return row;
     }
 }

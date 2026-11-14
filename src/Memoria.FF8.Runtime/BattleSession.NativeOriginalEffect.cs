@@ -4,7 +4,7 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsState BeginNativeOriginalEffect(NativeBattleGraphicsState graphics, ushort effect, bool destination21DFEC0 = false)
     {
-        NativeBattleOriginalEffectState selected = NativeBattleOriginalEffects.Select(effect, definition.NativeEffectCatalog);
+        NativeBattleOriginalEffectState selected = NativeBattleOriginalEffects.Select(effect, definition.NativeEffectCatalog) with { PresentationRoster = graphics.PresentationRoster };
         selected = NativeBattleEffectResourceResolver.MaterializeSelected(selected, nativeEffectResourceResolver);
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native50AF20 requires its retained571870 allocator owner; migrate the standalone snapshot explicitly.");
         memory = memory.RetainReturnedTaskOnModuleLoad(graphics.OriginalEffect);
@@ -23,7 +23,12 @@ public sealed partial class BattleSession
 
     private NativeBattleEffectParameters CreateNativeOriginalEffectParameters(NativeBattleActionGraphicsState context, byte parameterFlags = 0)
     {
-        return new(context.ActorIndex, (byte)(context.HitFlags | parameterFlags), context.TargetMask, context.HeaderIndex, 0, 0) { Parameter80 = NativeEffectMemory?.Parameter80, Parameter82 = NativeEffectMemory?.Parameter82 };
+        return new(context.ActorIndex, (byte)(context.HitFlags | parameterFlags), context.TargetMask, context.HeaderIndex, 0, 0)
+        {
+            Parameter80 = NativeEffectMemory?.Parameter80,
+            Parameter82 = NativeEffectMemory?.Parameter82,
+            PresentationTargets = context.PresentationTargets
+        };
     }
 
     private NativeBattleGraphicsState InvokeNativeOriginalEffect(NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context, byte parameterFlags = 0)
@@ -36,7 +41,8 @@ public sealed partial class BattleSession
     private static NativeBattleGraphicsState PrepareNativeOriginalEffectActor(NativeBattleGraphicsState graphics, byte actorIndex)
     {
         NativeBattleGraphicsModel actor = graphics.Models[actorIndex];
-        return graphics with { Models = graphics.Models.SetItem(actorIndex, actor with { Rotation12 = 0, Rotation14 = actorIndex >= 3 ? (short)2048 : (short)0, Rotation16 = 0 }) };
+        bool isParty = graphics.PresentationRoster is null ? actorIndex < 3 : graphics.IsPartyActor(actorIndex);
+        return graphics with { Models = graphics.Models.SetItem(actorIndex, actor with { Rotation12 = 0, Rotation14 = isParty ? (short)0 : (short)2048, Rotation16 = 0 }) };
     }
 
     private NativeBattleGraphicsState InvokeNativeOriginalEffect(NativeBattleGraphicsState graphics, bool assignReturnedTask = true)

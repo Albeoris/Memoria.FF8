@@ -4,6 +4,16 @@ namespace Memoria.FF8.Runtime;
 
 internal static class NativeBattlePresentationPartyRows
 {
+    internal static ImmutableArray<int> Resolve(NativeBattleGraphicsRoster roster, int? expectedPartyCount)
+    {
+        ImmutableArray<int> party = roster.PartyRows.ToImmutableArray();
+        if (expectedPartyCount is int expected && party.Length != expected)
+        {
+            throw new NotSupportedException("The native party presentation operation exceeds the host's available physical model bank.");
+        }
+        return party;
+    }
+
     internal static ImmutableArray<int> Resolve(int sourceIndex, byte? sourceModelId, bool? sourceIsParty, GuardianFormInvocationMode? guardianFormMode,
         IEnumerable<NativeBattleEffectModelBinding>? nativeTargets, IEnumerable<NativeBattleForeignActor>? foreignActors, int? expectedPartyCount)
     {

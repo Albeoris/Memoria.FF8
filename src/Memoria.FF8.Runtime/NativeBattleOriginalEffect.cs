@@ -68,11 +68,38 @@ public sealed partial record NativeBattleOriginalEffectState([property: JsonRequ
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleFiragaState? Firaga { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleGraphicsRoster? PresentationRoster { get; init; }
+
     public void Validate()
     {
-        if (SelectedIndex is < 0 or >= 400 || Binding is null || Binding.Effect is < 1 or > 400 || Binding.Entry == 0 || Pools.IsDefault || Pools.Any(pool => pool is null) || ResourcePointers.IsDefault || ResourcePointers.Any(pointer => pointer is null || pointer.ArenaOffset is < 0 or > NativeBattleEffectArena.Length) || DrawArenaOffset is < 0 or >= NativeBattleEffectArena.Length || Parameters is { } parameters && (parameters.Actor78 >= 7 || parameters.HeaderIndex7C is < 0 or >= NativeBattleActionPacketsState.HeaderCapacity) || ReturnedDescriptor is > 0 && !Pools.Any(pool => pool.DescriptorAddress == ReturnedDescriptor))
+        Validate(null);
+    }
+
+    public void Validate(NativeBattleGraphicsRoster? inheritedRoster)
+    {
+        PresentationRoster?.Validate();
+        inheritedRoster?.Validate();
+        if (PresentationRoster is { } owned && inheritedRoster is not null && !owned.Rows.SequenceEqual(inheritedRoster.Rows))
+        {
+            throw new InvalidDataException("The effect presentation roster differs from its graphics roster.");
+        }
+        NativeBattleGraphicsRoster? roster = PresentationRoster ?? inheritedRoster;
+        if (SelectedIndex is < 0 or >= 400 || Binding is null || Binding.Effect is < 1 or > 400 || Binding.Entry == 0 || Pools.IsDefault || Pools.Any(pool => pool is null) || ResourcePointers.IsDefault || ResourcePointers.Any(pointer => pointer is null || pointer.ArenaOffset is < 0 or > NativeBattleEffectArena.Length) || DrawArenaOffset is < 0 or >= NativeBattleEffectArena.Length || Parameters is { } parameters && ((roster is null && parameters.Actor78 >= 7) || parameters.HeaderIndex7C is < 0 or >= NativeBattleActionPacketsState.HeaderCapacity) || ReturnedDescriptor is > 0 && !Pools.Any(pool => pool.DescriptorAddress == ReturnedDescriptor))
         {
             throw new InvalidDataException("Native effect service lacks its selected entry, parameter block or returned physical task descriptor.");
+        }
+        if (Parameters is { } current)
+        {
+            current.ValidatePresentationTargets();
+            if (roster is not null)
+            {
+                NativeBattleActionGeometry.ValidatePresentationRows(roster, current.Actor78, default, current.TargetActors);
+            }
+            else if (current.PresentationTargets is { } targets)
+            {
+                targets.ValidateCapacity(NativeBattleGraphicsModelAddress.NativeRowCount);
+            }
         }
         if (Binding.InitializerResources is not null || Binding.InitializerAssets is not null)
         {
