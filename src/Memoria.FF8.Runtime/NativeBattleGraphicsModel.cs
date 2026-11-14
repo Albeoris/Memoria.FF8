@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Owned fields of one156-byte native graphics model, distinct from the208-byte battle participant.</summary>
@@ -101,11 +103,43 @@ public static class NativeBattleGraphicsModels
         {
             throw new InvalidDataException("Native graphics sequence locals require seven physical eight-WORD rows.");
         }
-        return Enumerable.Range(0, 7).Select(index =>
+        NativeBattleGraphicsModel[] bank = new NativeBattleGraphicsModel[NativeBattleGraphicsModelAddress.NativeRowCount];
+        for (int row = 0; row < bank.Length; row++)
         {
-            NativeBattleGraphicsModel model = new(index, 0) { Color40 = retainedColors40?[index], StatusTimers = retainedStatusTimers?[index] ?? System.Collections.Immutable.ImmutableArray.CreateRange(new byte?[32]), GeometryWorldMatrix = retainedWorldMatrices64?[index], SequenceState = retainedSequenceLocals is { } sequenceLocals ? new() { Locals = sequenceLocals[index] } : null };
-            return retainedTransformRows is { } rows ? rows[index].Restore502340(model) : model;
-        }).ToArray();
+            bank[row] = ClearRow(row, retainedColors40?[row], retainedStatusTimers?[row], retainedWorldMatrices64?[row], retainedTransformRows?[row], retainedSequenceLocals?[row]);
+        }
+        return bank;
+    }
+
+    public static NativeBattleGraphicsModel[] ClearPresentationBank(NativeBattleGraphicsRoster roster, ImmutableArray<NativeBattleModelRetainedFields>? retainedTransformRows = null)
+    {
+        ArgumentNullException.ThrowIfNull(roster);
+        roster.Validate();
+        NativeBattleGraphicsModel[] bank = ClearBank(retainedTransformRows: retainedTransformRows);
+        if (bank.Length == roster.ActorCount)
+        {
+            return bank;
+        }
+
+        int nativeCount = bank.Length;
+        Array.Resize(ref bank, roster.ActorCount);
+        for (int row = nativeCount; row < bank.Length; row++)
+        {
+            bank[row] = ClearRow(row, null, null, null, null, null);
+        }
+        return bank;
+    }
+
+    private static NativeBattleGraphicsModel ClearRow(int index, uint? color, ImmutableArray<byte?>? statusTimers, NativeBattleActionMatrix? worldMatrix, NativeBattleModelRetainedFields? transform, ImmutableArray<short?>? sequenceLocals)
+    {
+        NativeBattleGraphicsModel model = new(index, 0)
+        {
+            Color40 = color,
+            StatusTimers = statusTimers ?? ImmutableArray.CreateRange(new byte?[32]),
+            GeometryWorldMatrix = worldMatrix,
+            SequenceState = sequenceLocals is { } locals ? new() { Locals = locals } : null
+        };
+        return transform is null ? model : transform.Restore502340(model);
     }
 
     public static NativeBattleGraphicsModel CompleteLoad(NativeBattleGraphicsModel model, byte modelId, uint projectedStatusFlags, ref NativeGlobalRandomState random, byte? information246 = null)

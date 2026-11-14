@@ -76,6 +76,22 @@ public sealed partial record NativeBattleGraphicsState([property: JsonRequired] 
 
     public bool PresentationHalfSubtick { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleGraphicsRoster? PresentationRoster { get; init; }
+
+    public bool IsPartyActor(int row)
+    {
+        if (PresentationRoster is { } roster)
+        {
+            return roster[row].IsParty;
+        }
+        if ((uint)row >= NativeBattleGraphicsModelAddress.NativeRowCount)
+        {
+            throw new ArgumentOutOfRangeException(nameof(row));
+        }
+        return row < NativeBattleSlots.AllyCount;
+    }
+
     public void Validate()
     {
         GuardianFormPresentation?.Validate();
@@ -99,9 +115,21 @@ public sealed partial record NativeBattleGraphicsState([property: JsonRequired] 
         {
             throw new InvalidDataException("Native506CF0 stage has no initialized4A94D0 UI service owner; migrate the standalone snapshot explicitly.");
         }
-        if (Models.IsDefault || Models.Length != 7 || ActorIds.IsDefault || ActorIds.Length != 7 || Callback < 0 || PresentationSubticks is < 0 or >= TimeSpan.TicksPerSecond || ModelLoadCount < 0 || EntryGatePhase > 2 || EntryBarrierCompletion is not (0 or 255) || EntryLifecycle > 4 || EntryBarrierPacket is < 0 or >= 30 || Descriptors is null || PendingContacts.IsDefault || Models.Where((model, index) => model is null || model.Index != index).Any())
+        PresentationRoster?.Validate();
+        int actorCount = PresentationRoster?.ActorCount ?? NativeBattleGraphicsModelAddress.NativeRowCount;
+        if (Models.IsDefault || Models.Length != actorCount || ActorIds.IsDefault || ActorIds.Length != actorCount || Callback < 0 || PresentationSubticks is < 0 or >= TimeSpan.TicksPerSecond || ModelLoadCount < 0 || EntryGatePhase > 2 || EntryBarrierCompletion is not (0 or 255) || EntryLifecycle > 4 || EntryBarrierPacket is < 0 or >= 30 || Descriptors is null || PendingContacts.IsDefault || Models.Where((model, index) => model is null || model.Index != index).Any())
         {
-            throw new InvalidDataException("Native graphics state requires seven physical model owners and valid callback gates.");
+            throw new InvalidDataException(PresentationRoster is null ? "Native graphics state requires seven physical model owners and valid callback gates." : "Hosted graphics state requires one model per presentation roster row and valid callback gates.");
+        }
+        if (PresentationRoster is { } roster)
+        {
+            for (int row = 0; row < actorCount; row++)
+            {
+                if (!string.Equals(ActorIds[row], roster.Rows[row]?.ActorId, StringComparison.Ordinal))
+                {
+                    throw new InvalidDataException($"Hosted graphics actor ID differs from its presentation binding at row {row}.");
+                }
+            }
         }
         foreach (NativeBattleGraphicsModel model in Models)
         {
