@@ -43,6 +43,8 @@ public sealed record Ff7Progress
     public string DebugVictoryPolicy { get; init; } = "instant-defeat-v1";
     public Ff7BattleReceipt[] CompletedBattles { get; init; } = [];
     public Ff7WorldBattleResultReceipt[] WorldBattleResults { get; init; } = [];
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public byte[]? PartyAiAliases { get; init; }
 
     public Ff7Progress AddGil(uint amount)
     {
@@ -53,6 +55,10 @@ public sealed record Ff7Progress
     {
         Clock?.Validate();
         BattleRng?.Validate();
+        if (PartyAiAliases is { Length: not Ff7KernelBattleAi.IdentityCount })
+        {
+            throw new InvalidDataException("FFVII party AI aliases require their complete native table.");
+        }
         if (Encounters is null || NextEncounterRequestId < 1L << 60)
         {
             throw new InvalidDataException("FFVII encounter continuation is invalid.");

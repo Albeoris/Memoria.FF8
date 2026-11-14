@@ -246,7 +246,7 @@ public sealed partial class Ff7BattleSession
         if (sequence.NativeCommand is { } native)
         {
             Ff7BattleAttack record = native.CommandId == 0x20 ? Data.Attacks.Single(attack => attack.Slot == native.Argument && attack.Id == native.AttackId).Data : command.ActorSlot < 3 ? NativeBattleSpells(command.ActorSlot).Single(spell => spell.AttackId == command.Argument).Attack : ReadKernelAttack(command.Argument);
-            if (record.CastingCost > Actor(command.ActorSlot).Actor.MagicPoints || group && command.ActorSlot < 3 && (Actor(command.ActorSlot).AllUses?.GetValueOrDefault(checked((byte)command.Argument)) ?? 0) == 0)
+            if ((Actor(command.ActorSlot).Actor.Conditions & 0x400) == 0 && record.CastingCost > Actor(command.ActorSlot).Actor.MagicPoints || group && command.ActorSlot < 3 && (Actor(command.ActorSlot).AllUses?.GetValueOrDefault(checked((byte)command.Argument)) ?? 0) == 0)
             {
                 FinishTurn(command.ActorSlot);
                 return;

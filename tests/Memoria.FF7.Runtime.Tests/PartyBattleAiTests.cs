@@ -36,7 +36,73 @@ internal static class PartyBattleAiTests
             }
         }
         Check(restored && battle.LastHit?.Source == automatic.Actor.Slot, "Original party AI did not select and execute its own native turn.");
+        TestFlashbackFieldEncounters(progress, kernel, executable, installation);
         Console.WriteLine("Original party AI initialization, source selectors, affinity/debug operands and automatic turn/JSON continuation passed.");
+    }
+
+    private static void TestFlashbackFieldEncounters(Ff7Progress progress, IReadOnlyList<KernelSection> kernel, Ff7PcExecutableData executable, Ff7Installation installation)
+    {
+        using LgpArchive fields = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.FieldArchive).Path);
+        HashSet<ushort> selected = [];
+        foreach (string field in new[] { "mtnvl3", "mtnvl4", "nvdun2" })
+        {
+            PcFieldFile resource = PcFieldFile.ReadCompressed(fields.ReadEntry(fields.Find(field).Single()));
+            IReadOnlyList<PcFieldEncounterTable> tables = PcFieldEncounterTable.Read(resource.GetSection(PcFieldSectionKind.Encounters).Span);
+            ushort[] formations = tables.Where(table => table.Enabled).SelectMany(table => table.Standard.Concat(table.Special)).Where(encounter => encounter.Frequency > 0).Select(encounter => encounter.Formation).Distinct().Order().ToArray();
+            Check(formations.Length > 0, $"Original {field} has no weighted enabled encounter entries.");
+            selected.UnionWith(formations);
+            Console.WriteLine($"Original {field} weighted formation set: {string.Join(", ", formations)}.");
+        }
+        IReadOnlyList<SceneFormation> scenes = SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path));
+        Ff7Progress party = progress with { Party = [9, 10, 255] };
+        foreach (ushort id in selected.Order())
+        {
+            SceneFormation formation = scenes.Single(formation => formation.FormationId == id);
+            Ff7BattleSession warm = new(formation, party, kernel, executable.NativeMateriaStatModifiers, id + 1);
+            Ff7BattleSession cold = Restore(warm);
+            int source = warm.Actors.Single(actor => actor.Identity == 10).Actor.Slot;
+            Check((warm.Actors.Single(actor => actor.Actor.Slot == source).Actor.Conditions & 0x710) == 0x710, $"Original field formation {id} lost native party initialization.");
+            bool midActionRestored = false;
+            bool hit = false;
+            for (int tick = 0; tick < 8000; tick++)
+            {
+                Check(warm.ReadyPlayer != source, $"Original field formation {id} exposed its automatic actor as a manual choice.");
+                warm.Advance();
+                cold.Advance();
+                if (!midActionRestored && warm.Action?.Command.ActorSlot == source)
+                {
+                    Equal($"Original field formation {id} changed initialization or its first native party action through cold restore.");
+                    cold = Restore(warm);
+                    midActionRestored = true;
+                }
+                hit |= warm.LastHit?.Source == source;
+                if (hit && warm.Action is null)
+                {
+                    break;
+                }
+            }
+            Check(midActionRestored && hit && warm.Action is null, $"Original field formation {id} did not finish a native party turn.");
+            Equal($"Original field formation {id} changed its party turn across a live JSON restore.");
+            cold = Restore(warm);
+            for (int callback = 0; callback < 8; callback++)
+            {
+                warm.Advance();
+                cold.Advance();
+            }
+            Equal($"Original field formation {id} changed its next callbacks after a completed party turn.");
+
+            Ff7BattleSession Restore(Ff7BattleSession sourceBattle)
+            {
+                Ff7BattleSnapshot snapshot = JsonSerializer.Deserialize<Ff7BattleSnapshot>(JsonSerializer.Serialize(sourceBattle.Capture()))!;
+                return new(formation, party, kernel, executable.NativeMateriaStatModifiers, id + 1, snapshot: snapshot);
+            }
+
+            void Equal(string message)
+            {
+                Check(JsonSerializer.Serialize(warm.Capture()) == JsonSerializer.Serialize(cold.Capture()), message);
+            }
+        }
+        Console.WriteLine($"Original flashback field tables: {selected.Count} distinct formations initialized and completed native party turns with cold continuation.");
     }
 
     private static void TestInterpreter(SceneBattleData data, IReadOnlyList<KernelSection> kernel, Ff7BattleSession battle)

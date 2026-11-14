@@ -128,7 +128,7 @@ public sealed partial class Ff7BattleSession
             int target = invocation.TargetSlot;
             if (current.CounterPending)
             {
-                PublishEnemyCounters(active.Command, Actor(target).Actor, current.KnockedOut, physical: true);
+                PublishActorCounters(active.Command, Actor(target).Actor, current.KnockedOut, physical: true);
             }
             if (current.KnockedOut)
             {

@@ -28,6 +28,7 @@ public sealed partial class Ff7BattleSession
             Queue = queue with { Slots = slots },
             Inventory = previous.Inventory.ToArray(),
             AiGlobalMemory = globals,
+            PartyAiAliases = previous.PartyAiAliases?.ToArray() ?? state.PartyAiAliases,
             AiSaveBank1 = previous.AiSaveBank1,
             AiSaveBankDirty = previous.AiSaveBankDirty,
             GlobalStatusClock = previous.GlobalStatusClock

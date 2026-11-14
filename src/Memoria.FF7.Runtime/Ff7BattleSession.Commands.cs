@@ -134,7 +134,7 @@ public sealed partial class Ff7BattleSession
         }
         foreach (Ff7BattleSpell spell in NativeBattleSpells(slot))
         {
-            if (spell.Attack.CastingCost <= actor.Actor.MagicPoints && (actor.Actor.Statuses & 0x80) == 0)
+            if (CanSpendCastingCost(actor, spell.Attack))
             {
                 commands.Add(Option(Ff7BattleCommand.Magic, spell.AttackId, spell.Attack.TargetFlags, spell.Attack.CastingCost) with { GroupUses = actor.AllUses?.GetValueOrDefault(spell.AttackId) ?? 0 });
             }
@@ -142,7 +142,7 @@ public sealed partial class Ff7BattleSession
         foreach (Ff7BattleSummon summon in NativeBattleSummons(slot))
         {
             int uses = SummonUses(actor, summon);
-            if (summon.AttackId == 0x38 && uses > 0 && summon.Attack.CastingCost <= actor.Actor.MagicPoints && (actor.Actor.Statuses & 0x80) == 0 && HasChocoMogResources)
+            if (summon.AttackId == 0x38 && uses > 0 && CanSpendCastingCost(actor, summon.Attack) && HasChocoMogResources)
             {
                 Ff7BattleCommandOption option = Option(Ff7BattleCommand.Summon, summon.AttackId, summon.Attack.TargetFlags, summon.Attack.CastingCost);
                 commands.Add(option with { AllTargets = true, RemainingUses = uses });
@@ -302,6 +302,12 @@ public sealed partial class Ff7BattleSession
         {
             state = state with { Queue = Ff7BattleCommandQueue.StageReady(state.Queue, selection.Slot, (byte)Ff7BattleCommand.Limit, 0x95, selection.Targets) };
         }
+    }
+
+    private static bool CanSpendCastingCost(Ff7BattleActorState actor, Ff7BattleAttack record)
+    {
+        Ff7BattleActionVitals vitals = new(actor.Actor.HitPoints, actor.Actor.MaxHitPoints, actor.Actor.MagicPoints, actor.Actor.MaxMagicPoints, actor.Actor.Statuses);
+        return Ff7NativeBattleActionResolver.TrySpendCastingCost(vitals, record, out _, actor.Actor.Conditions);
     }
 
     private static Ff7BattleQueuedCommand ResolveEnemyCommand(Ff7BattleQueuedCommand command)
@@ -724,7 +730,7 @@ public sealed partial class Ff7BattleSession
                 ValidateGuestIncoming(command, guestSlot, record);
             }
         }
-        if (record is not null && !Ff7NativeBattleActionResolver.TrySpendCastingCost(sourceVitals, record, out sourceVitals))
+        if (record is not null && !Ff7NativeBattleActionResolver.TrySpendCastingCost(sourceVitals, record, out sourceVitals, source.Actor.Conditions))
         {
             return;
         }
@@ -872,13 +878,13 @@ public sealed partial class Ff7BattleSession
         Replace(target with { Actor = native, Timers = timers, LimitGauge = gauge, ParameterStatus = parameter, ParameterStatusInitialized = true, OriginSavedStatuses = originSaved });
         ApplyGuestOriginContact(targetSlot, result);
         state = state with { LastHit = new(command.ActorSlot, targetSlot, command.AttackId ?? command.Argument, result.Damage, Tick) { NativeResultMarker = result.NativeResultMarker } };
-        if (runCounters && targetSlot >= 4 && !result.Damage.Missed)
+        if (runCounters && !result.Damage.Missed)
         {
-            PublishEnemyCounters(command, native, (result.AddedStatuses & 1) != 0, action.NativePhysicalCategory ?? action.UsePhysicalStats);
+            PublishActorCounters(command, native, (result.AddedStatuses & 1) != 0, action.NativePhysicalCategory ?? action.UsePhysicalStats);
         }
     }
 
-    private void PublishEnemyCounters(Ff7BattleQueuedCommand command, Ff7BattleAiActor target, bool knockedOut, bool physical, bool typed = true)
+    private void PublishActorCounters(Ff7BattleQueuedCommand command, Ff7BattleAiActor target, bool knockedOut, bool physical, bool typed = true)
     {
         int targetSlot = target.Slot;
         ushort bit = (ushort)(1 << targetSlot);
@@ -950,7 +956,7 @@ public sealed partial class Ff7BattleSession
             record[32] = (byte)((record[32] & ~1) | ((native.Conditions & 0x40) != 0 ? 0 : 1));
             updated[index] = original with { NativeRecord = record, HitPoints = (int)native.HitPoints, MagicPoints = native.MagicPoints };
         }
-        return progress with { Characters = updated, Inventory = (Ff7InventorySlot[])state.Inventory.Clone(), BattleRng = random.Capture() };
+        return progress with { Characters = updated, Inventory = (Ff7InventorySlot[])state.Inventory.Clone(), BattleRng = random.Capture(), PartyAiAliases = state.PartyAiAliases?.ToArray() };
     }
 
     internal Ff7VictoryProjection ProjectVictory(Ff7Progress progress, long fieldGeneration)

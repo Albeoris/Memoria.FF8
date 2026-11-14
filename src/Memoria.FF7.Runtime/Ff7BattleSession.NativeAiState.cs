@@ -7,7 +7,7 @@ public sealed partial class Ff7BattleSession
 {
     private void RestoreNativeAiState(byte[]? initialSaveBank1, uint initialGil, bool fresh = false)
     {
-        if (state.AiGlobalMemory is { Length: not 64 } || state.AiSaveBank1 is { Length: not 256 } || initialSaveBank1 is { Length: not 256 } || state.FormationAiMemory is { Length: not Ff7BattleAi.LocalMemorySize } || state.AiSaveBankDirty?.Distinct().Count() != state.AiSaveBankDirty?.Length)
+        if (state.AiGlobalMemory is { Length: not 64 } || state.AiSaveBank1 is { Length: not 256 } || initialSaveBank1 is { Length: not 256 } || state.FormationAiMemory is { Length: not Ff7BattleAi.LocalMemorySize } || state.PartyAiAliases is not { Length: Ff7KernelBattleAi.IdentityCount } || state.AiSaveBankDirty?.Distinct().Count() != state.AiSaveBankDirty?.Length)
         {
             throw new InvalidDataException("Native battle AI memory has an invalid shape.");
         }
@@ -130,7 +130,7 @@ public sealed partial class Ff7BattleSession
         globals[1] = byte.MaxValue;
         BinaryPrimitives.WriteUInt16LittleEndian(globals.AsSpan(0x2A), ushort.MaxValue);
         state = state with { AiGlobalMemory = globals };
-        PublishEnemyCounters(command, Actor(source).Actor, false, false, typed: false);
+        PublishActorCounters(command, Actor(source).Actor, false, false, typed: false);
     }
 
     private Ff7BattleDamageAffinity ResolveNativeEnemyAffinity(int slot, ushort elements)

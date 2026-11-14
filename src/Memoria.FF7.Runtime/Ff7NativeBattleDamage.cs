@@ -82,6 +82,11 @@ public readonly record struct Ff7BattleDamageResult(bool Missed, bool Critical, 
 /// <summary>Resolves the supported native per-target damage calculations against the battle random stream.</summary>
 public static class Ff7NativeBattleDamage
 {
+    public static bool IsConditionImmune(Ff7BattleDamageActor target, Ff7BattleDamageAction action)
+    {
+        uint condition = (action.NativePhysicalCategory ?? action.UsePhysicalStats) ? 0x100U : 0x200U;
+        return (target.NativeConditions & condition) != 0;
+    }
     private const uint Sadness = 0x10;
     private const uint Fury = 0x20;
     private const uint Frog = 0x800;
@@ -230,7 +235,7 @@ public static class Ff7NativeBattleDamage
             affinity |= Ff7BattleDamageAffinity.Nullify;
         }
         action = action with { Affinity = action.IgnoreNativeAffinity ? Ff7BattleDamageAffinity.Normal : Ff7NativeBattleStatuses.ShieldAffinity(target.Statuses, action.NativeElements, action.IsItem, affinity) };
-        bool immune = (target.NativeConditions & ((action.NativePhysicalCategory ?? action.UsePhysicalStats) ? 0x100U : 0x200U)) != 0;
+        bool immune = IsConditionImmune(target, action);
         int elementalDamage = immune ? 0 : ApplyAffinity(damage, action.Affinity);
         bool zombie = Ff7OriginSavedStatusRules.IsZombie(target.OriginSavedStatuses);
         bool zombieHoly = zombie && (action.NativeElements & 0x100) != 0 && !action.Healing && !action.IgnoreNativeAffinity;

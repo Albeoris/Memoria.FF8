@@ -85,6 +85,8 @@ public sealed record Ff7BattleSnapshot(long RequestId, int FormationId, byte Lay
     public long NextMagicSequenceId { get; init; }
     public Ff7ResolvedEnemyExtension[]? EnemyExtensions { get; init; }
     public byte[]? AiGlobalMemory { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public byte[]? PartyAiAliases { get; init; }
     public byte[]? AiSaveBank1 { get; init; }
     public byte[]? AiSaveBankDirty { get; init; }
     public byte[]? FormationAiMemory { get; init; }
@@ -200,7 +202,8 @@ public sealed partial class Ff7BattleSession
         if (snapshot is not null)
         {
             ValidateSnapshot(snapshot, requestId, initialActors);
-            state = CopySnapshot(snapshot with { NativeBattleSpeed = nativeBattleSpeed });
+            byte[] aliases = snapshot.PartyAiAliases ?? progress.PartyAiAliases ?? Ff7KernelBattleAi.RestoreDeclaredAliases(kernel[2].Data, snapshot.Actors.Where(actor => actor.Actor.Slot < 3).Select(actor => actor.Identity));
+            state = CopySnapshot(snapshot with { NativeBattleSpeed = nativeBattleSpeed, PartyAiAliases = aliases });
             RestoreGuestStatusProjection();
             RestoreNativeAiState(initialSaveBank1, progress.Gil);
             RefreshGuestSpeedDenominator();
@@ -216,6 +219,7 @@ public sealed partial class Ff7BattleSession
         byte layout = Ff7NativeAtb.ResolveLayout(formation.Layout, formation.BattleFlags, (requestFlags & 4) != 0);
         Ff7BattleAiActor[] setup = Ff7NativeAtb.ApplyFormationConditions(layout, initialActors.Select(actor => actor.Actor).ToArray(), Data);
         state = new(requestId, formation.FormationId, layout, 0, initialActors.Select((actor, index) => actor with { Actor = setup[index] }).ToArray(), random.Capture(), Ff7BattleCommandQueueState.Create(), (Ff7InventorySlot[])progress.Inventory.Clone(), Escape: Ff7NativeBattleEscape.Start(formation, Ff7NativeAtb.BattleTypeForLayout(layout)), RequestFlags: requestFlags, RequestMode: requestMode, EntryMusicTrack: musicTrack) { BigShotChargeRotation = bigShotChargeRotation, BigShotCounterRotation = bigShotCounterRotation, SearchScopeScaleCounter = searchScopeScaleCounter, SilkDirection = silkDirection, EnemyExtensions = resolvedExtensions, NativeBattleSpeed = nativeBattleSpeed };
+        state = state with { PartyAiAliases = progress.PartyAiAliases?.ToArray() ?? Ff7KernelBattleAi.InitialAliases() };
         state = state with { GuestProjectedBattleMask = Ff7GuestBattleStatuses.SupportedOriginBattle };
         if (previousFormation is not null)
         {
@@ -546,9 +550,9 @@ public sealed partial class Ff7BattleSession
         }
         if (command.Priority != 0)
         {
-            foreach (SceneBattleEnemy enemy in Data.Enemies)
+            foreach (Ff7BattleActorState actor in state.Actors.OrderBy(actor => actor.Actor.Slot).ToArray())
             {
-                InvokeAi(enemy.FormationSlot + 4, 7);
+                InvokeAi(actor.Actor.Slot, 7);
             }
         }
         if (command.CommandId == 0x21)
@@ -612,11 +616,24 @@ public sealed partial class Ff7BattleSession
         Ff7BattleAiActor[] actors = state.Actors.Select(candidate => candidate.Actor).ToArray();
         Ff7BattleAiMasks masks = Ff7BattleAiCallbacks.ProjectMasks(actors, NativeImprisonedType);
         Ff7BattleAiContext context = new(slot, actors, masks.Targetable, masks.KnockedOut, masks.ExcludedOpponents, callback, GlobalMemory: state.AiGlobalMemory, SaveBank1: state.AiSaveBank1);
+        if (slot < 3)
+        {
+            context = context with { ScriptIdentity = Ff7KernelBattleAi.ResolveIdentity(actor.Identity, state.PartyAiAliases!) };
+        }
         Ff7BattleAiResult result = slot < 3
-            ? Ff7BattleAi.Run(Ff7KernelBattleAi.ReadScript(kernel[2].Data, actor.Identity, callback).Span, context, actor.AiMemory, Data, random, kernel[1].Data)
+            ? Ff7BattleAi.Run(Ff7KernelBattleAi.ReadScript(kernel[2].Data, context.ScriptIdentity, callback).Span, context, actor.AiMemory, Data, random, kernel[1].Data)
             : Ff7BattleAi.RunActorCallback(context, actor.AiMemory, Data, random, kernel[1].Data);
         Replace(actor with { AiMemory = result.LocalMemory });
         state = state with { AiGlobalMemory = result.GlobalMemory.ToArray() };
+        if (result.PartyAliasWrites.Count > 0)
+        {
+            byte[] aliases = state.PartyAiAliases!.ToArray();
+            foreach ((int identity, byte alias) in result.PartyAliasWrites)
+            {
+                aliases[identity] = alias;
+            }
+            state = state with { PartyAiAliases = aliases };
+        }
         ApplyNativeSaveWrites(result);
         ApplyNativeAiTransfers(result.TransferUpdates);
         if (callback < 8)
@@ -772,6 +789,7 @@ public sealed partial class Ff7BattleSession
             Actors = source.Actors.Select(actor => actor with { AiMemory = (byte[])actor.AiMemory.Clone(), AllUses = actor.AllUses is null ? null : new(actor.AllUses), SummonUses = actor.SummonUses is null ? null : new(actor.SummonUses) }).ToArray(),
             Inventory = (Ff7InventorySlot[])source.Inventory.Clone(),
             AiGlobalMemory = source.AiGlobalMemory?.ToArray(),
+            PartyAiAliases = source.PartyAiAliases?.ToArray(),
             AiSaveBank1 = source.AiSaveBank1?.ToArray(),
             AiSaveBankDirty = source.AiSaveBankDirty?.ToArray(),
             FormationAiMemory = source.FormationAiMemory?.ToArray(),

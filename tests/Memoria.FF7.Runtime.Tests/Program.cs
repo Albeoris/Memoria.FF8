@@ -170,6 +170,18 @@ if (args.Contains("--character-names-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--condition-consumers-only", StringComparer.Ordinal))
+{
+    NativeConditionConsumerTests.Run();
+    return 0;
+}
+
+if (args.Contains("--party-ai-alias-only", StringComparer.Ordinal))
+{
+    PartyAiAliasTests.Run();
+    return 0;
+}
+
 if (args.Contains("--world-battle-only", StringComparer.Ordinal))
 {
     WorldBattleTests.Run();
@@ -389,6 +401,8 @@ var tests = new (string Name, Action Run)[]
     ("native opening flashback party storage and equipment", FlashbackPartyTests.Run),
     ("native opening request reward suppression", RewardSuppressionTests.Run),
     ("native opening character display names", CharacterDisplayNameTests.Run),
+    ("native opening condition costs and status immunity", NativeConditionConsumerTests.Run),
+    ("native opening party AI aliases and counters", PartyAiAliasTests.Run),
     ("native opening action transactions and Limit reel", NativeBattleActionTests.Run),
     ("native Cross-slash action and settlement", NativeBattleCrossSlashTests.Run),
     ("native Mindblow action and settlement", NativeBattleMindblowTests.Run),

@@ -8,7 +8,10 @@ public sealed record Ff7BattleAiActor(int Slot, uint Statuses, uint Conditions, 
 {
     public byte? ElementReaction { get; init; }
 }
-public sealed record Ff7BattleAiContext(int ActorSlot, IReadOnlyList<Ff7BattleAiActor> Actors, ushort EligibleMask, ushort KnockedOutMask, ushort ExcludedOpponentMask = 0, byte Callback = 1, byte? QueuePriority = null, byte[]? GlobalMemory = null, byte[]? SaveBank1 = null);
+public sealed record Ff7BattleAiContext(int ActorSlot, IReadOnlyList<Ff7BattleAiActor> Actors, ushort EligibleMask, ushort KnockedOutMask, ushort ExcludedOpponentMask = 0, byte Callback = 1, byte? QueuePriority = null, byte[]? GlobalMemory = null, byte[]? SaveBank1 = null)
+{
+    public int ScriptIdentity { get; init; } = -1;
+}
 public sealed record Ff7BattleAiCommand(int ActorSlot, byte CommandId, ushort AttackId, int SceneAttackSlot, ushort TargetMask, byte[]? Message = null, byte Callback = 1, byte Priority = 2);
 public sealed record Ff7BattleAiTransfer(int SourceSlot, int DestinationSlot);
 public sealed record Ff7BattleAiResult(byte[] LocalMemory, Ff7BattleAiCommand[] Commands, Ff7BattleAiActor[] ActorUpdates)
@@ -16,6 +19,7 @@ public sealed record Ff7BattleAiResult(byte[] LocalMemory, Ff7BattleAiCommand[] 
     public byte[] GlobalMemory { get; init; } = [];
     public Ff7BattleAiTransfer[] TransferUpdates { get; init; } = [];
     public IReadOnlyDictionary<byte, byte> SaveBank1Writes { get; init; } = new Dictionary<byte, byte>();
+    public IReadOnlyDictionary<int, byte> PartyAliasWrites { get; init; } = new Dictionary<int, byte>();
 }
 
 /// <summary>Runs a single native enemy AI callback. The encounter owns the input projections and RNG.</summary>
@@ -111,6 +115,7 @@ public static class Ff7BattleAi
         private readonly byte[] global;
         private readonly List<Ff7BattleAiTransfer> transferUpdates = new();
         private readonly Dictionary<byte, byte> saveBank1Writes = new();
+        private readonly Dictionary<int, byte> partyAliasWrites = new();
         private ushort updatedActors;
         private ushort target;
         private int stackBytes;
@@ -232,6 +237,17 @@ public static class Ff7BattleAi
                         break;
                     case 0x73:
                         return Complete();
+                    case 0x75:
+                        byte alias = unchecked((byte)Pop().At(0));
+                        if (context.ScriptIdentity >= 0)
+                        {
+                            if (context.ScriptIdentity >= Ff7KernelBattleAi.IdentityCount)
+                            {
+                                throw new InvalidDataException("FFVII party AI alias write exceeds its native table.");
+                            }
+                            partyAliasWrites[context.ScriptIdentity] = alias;
+                        }
+                        break;
                     case 0x80:
                         if (!Peek().IsAddress)
                         {
@@ -299,7 +315,7 @@ public static class Ff7BattleAi
                     changed.Add(actors[slot]!);
                 }
             }
-            return new(local, commands.ToArray(), changed.ToArray()) { GlobalMemory = global.ToArray(), TransferUpdates = transferUpdates.ToArray(), SaveBank1Writes = new Dictionary<byte, byte>(saveBank1Writes) };
+            return new(local, commands.ToArray(), changed.ToArray()) { GlobalMemory = global.ToArray(), TransferUpdates = transferUpdates.ToArray(), SaveBank1Writes = new Dictionary<byte, byte>(saveBank1Writes), PartyAliasWrites = new Dictionary<int, byte>(partyAliasWrites) };
         }
 
         private void Branch(byte opcode)

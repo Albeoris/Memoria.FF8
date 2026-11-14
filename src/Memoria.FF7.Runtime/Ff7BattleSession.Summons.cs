@@ -27,7 +27,7 @@ public sealed partial class Ff7BattleSession
         }
         int uses = SummonUses(source, summon);
         Ff7BattleActionVitals vitals = new(source.Actor.HitPoints, source.Actor.MaxHitPoints, source.Actor.MagicPoints, source.Actor.MaxMagicPoints, source.Actor.Statuses);
-        if (uses <= 0 || (source.Actor.Statuses & 0x80) != 0 || !Ff7NativeBattleActionResolver.TrySpendCastingCost(vitals, summon.Attack, out vitals))
+        if (uses <= 0 || !Ff7NativeBattleActionResolver.TrySpendCastingCost(vitals, summon.Attack, out vitals, source.Actor.Conditions))
         {
             return null;
         }

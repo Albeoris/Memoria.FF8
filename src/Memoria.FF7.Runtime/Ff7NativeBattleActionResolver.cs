@@ -10,6 +10,7 @@ public readonly record struct Ff7BattleActionVitals(uint Hp, uint MaxHp, ushort 
 
 public readonly record struct Ff7BattleActionReceipt(Ff7BattleActionVitals Source, Ff7BattleActionVitals Target, Ff7BattleDamageResult Damage, uint AddedStatuses, uint RemovedStatuses)
 {
+    internal uint NativePendingStatuses { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public sbyte? NativeResultMarker { get; init; }
     public uint AddedOriginBattleStatuses { get; init; }
@@ -71,10 +72,14 @@ public static class Ff7NativeBattleActionResolver
         return !dead || record is { SpecialFlags: var flags } && (flags & 0x900) != 0x900;
     }
 
-    public static bool TrySpendCastingCost(Ff7BattleActionVitals source, Ff7BattleAttack record, out Ff7BattleActionVitals remaining)
+    public static bool TrySpendCastingCost(Ff7BattleActionVitals source, Ff7BattleAttack record, out Ff7BattleActionVitals remaining, uint sourceConditions = 0)
     {
         ArgumentNullException.ThrowIfNull(record);
         remaining = source;
+        if ((sourceConditions & 0x400) != 0)
+        {
+            return true;
+        }
         if (record.CastingCost > source.Mp || (record.CastingCost != 0 && (source.Statuses & 0x80) != 0))
         {
             return false;
@@ -115,6 +120,8 @@ public static class Ff7NativeBattleActionResolver
         }
         sourceStats = sourceStats with { OriginSavedStatuses = (ushort)(sourceStats.OriginSavedStatuses | source.OriginSavedStatuses | originSourceStatuses) };
         targetStats = targetStats with { OriginSavedStatuses = (ushort)(targetStats.OriginSavedStatuses | target.OriginSavedStatuses | originTargetStatuses) };
+        source = source with { OriginSavedStatuses = sourceStats.OriginSavedStatuses };
+        target = target with { OriginSavedStatuses = targetStats.OriginSavedStatuses };
         Ff7BattleActionReceipt receipt = ResolveCore(sourceStats, source, targetStats, target, action, record, random, sameActor, true, originStatusResistances, originBattleStatuses);
         if (receipt.Damage.Missed)
         {
@@ -212,7 +219,7 @@ public static class Ff7NativeBattleActionResolver
                 }
             }
         }
-        return receipt with
+        Ff7BattleActionReceipt settled = receipt with
         {
             Source = nextSource,
             Target = sameActor ? nextSource : receipt.Target,
@@ -224,9 +231,29 @@ public static class Ff7NativeBattleActionResolver
             AddedParameterStatus = addedParameter,
             RemovedParameterStatus = removedParameter
         };
+        return ApplyConditionImmunity(source, targetStats, target, action, settled);
     }
 
     private static Ff7BattleActionReceipt ResolveCore(Ff7BattleDamageActor sourceStats, Ff7BattleActionVitals source, Ff7BattleDamageActor targetStats, Ff7BattleActionVitals target, Ff7BattleDamageAction action, Ff7BattleAttack? record, Ff7BattleRng random, bool sameActor, bool guestContact, IReadOnlyList<byte>? originStatusResistances, uint originBattleStatuses = 0)
+    {
+        source = source with { OriginSavedStatuses = (ushort)(source.OriginSavedStatuses | sourceStats.OriginSavedStatuses) };
+        target = target with { OriginSavedStatuses = (ushort)(target.OriginSavedStatuses | targetStats.OriginSavedStatuses) };
+        Ff7BattleActionReceipt receipt = ResolveCoreTransaction(sourceStats, source, targetStats, target, action, record, random, sameActor, guestContact, originStatusResistances, originBattleStatuses);
+        return guestContact ? receipt : ApplyConditionImmunity(source, targetStats, target, action, receipt);
+    }
+
+    private static Ff7BattleActionReceipt ApplyConditionImmunity(Ff7BattleActionVitals source, Ff7BattleDamageActor targetStats, Ff7BattleActionVitals target, Ff7BattleDamageAction action, Ff7BattleActionReceipt receipt)
+    {
+        if (!Ff7NativeBattleDamage.IsConditionImmune(targetStats, action))
+        {
+            return receipt with { NativePendingStatuses = 0 };
+        }
+        bool pendingStatuses = (receipt.NativePendingStatuses | receipt.AddedStatuses | receipt.RemovedStatuses | receipt.AddedOriginBattleStatuses | receipt.RemovedOriginBattleStatuses | receipt.AddedOriginSavedStatuses | receipt.RemovedOriginSavedStatuses | receipt.RemovedParameterStatus) != 0 || receipt.AddedParameterStatus is not null;
+        bool missed = receipt.Damage.Missed || pendingStatuses || (action.NativeElements & 8) != 0;
+        return new(source, target, new(missed, false, 0), 0, 0);
+    }
+
+    private static Ff7BattleActionReceipt ResolveCoreTransaction(Ff7BattleDamageActor sourceStats, Ff7BattleActionVitals source, Ff7BattleDamageActor targetStats, Ff7BattleActionVitals target, Ff7BattleDamageAction action, Ff7BattleAttack? record, Ff7BattleRng random, bool sameActor, bool guestContact, IReadOnlyList<byte>? originStatusResistances, uint originBattleStatuses)
     {
         ArgumentNullException.ThrowIfNull(random);
         sourceStats = sourceStats with { OriginSavedStatuses = (ushort)(sourceStats.OriginSavedStatuses | source.OriginSavedStatuses) };
@@ -305,7 +332,7 @@ public static class Ff7NativeBattleActionResolver
         {
             admittedMask = Ff7GuestBattleStatuses.ResistIncoming(admittedMask, target.Statuses, originStatusResistances, random);
         }
-        uint statuses = ApplyStatuses(target, targetStats.IsEnemy, targetStats.NativeConditions, record, action.Formula, admittedMask, mode, guestContact, action.IsItem);
+        uint statuses = ApplyStatuses(target, targetStats.IsEnemy, targetStats.NativeConditions, record, action.Formula, admittedMask, mode, guestContact, action.IsItem, out uint pendingStatuses);
         if (!action.RequiresKnockedOutTarget && (target.Statuses & (Petrify | Peerless)) != 0)
         {
             damage = damage with { Damage = 0 };
@@ -336,6 +363,7 @@ public static class Ff7NativeBattleActionResolver
         }
         return new(nextSource, nextTarget, damage, nextTarget.Statuses & ~target.Statuses, target.Statuses & ~nextTarget.Statuses)
         {
+            NativePendingStatuses = pendingStatuses,
             RemovedOriginSavedStatuses = (ushort)(target.OriginSavedStatuses & ~nextTarget.OriginSavedStatuses & Ff7OriginSavedStatusRules.Supported),
             OffensiveRevival = offensiveRevival,
             RemovedOriginBattleStatuses = admittedStatus && Ff7NativeBattleStatuses.RemovesBeneficialStatuses(record) && ((target.Statuses & Peerless) == 0 && (action.IsItem || (target.Statuses & Resist) == 0) || record is { SpecialFlags: var dispelFlags } && (dispelFlags & 0x80) == 0) ? originBattleStatuses & Ff7GuestBattleStatuses.SupportedOwnedOriginBattle : 0
@@ -447,7 +475,7 @@ public static class Ff7NativeBattleActionResolver
         return roll < threshold;
     }
 
-    private static uint ApplyStatuses(Ff7BattleActionVitals target, bool enemy, uint conditions, Ff7BattleAttack? record, byte formula, uint mask, int mode, bool guestContact, bool item)
+    private static uint ApplyStatuses(Ff7BattleActionVitals target, bool enemy, uint conditions, Ff7BattleAttack? record, byte formula, uint mask, int mode, bool guestContact, bool item, out uint pendingStatuses)
     {
         uint immunity = target.StatusImmunities;
         if (!item && (target.Statuses & Resist) != 0)
@@ -479,7 +507,8 @@ public static class Ff7NativeBattleActionResolver
             immunity = 0;
         }
 
-        uint add = mode == 0 && (target.Statuses & Petrify) == 0 ? mask & ~target.AbsoluteAddStatusImmunities : 0;
+        uint proposedAdd = mode == 0 && (target.Statuses & Petrify) == 0 ? mask : 0;
+        uint add = proposedAdd & ~target.AbsoluteAddStatusImmunities;
         uint remove = mode == 1 ? mask : 0;
         if ((formula >> 4) is 1 or 6 or 10 or 11)
         {
@@ -493,7 +522,9 @@ public static class Ff7NativeBattleActionResolver
         {
             remove |= Slow;
         }
-        uint toggle = mode == 2 ? mask & ~(target.AbsoluteAddStatusImmunities & ~target.Statuses) : 0;
+        uint proposedToggle = mode == 2 ? mask : 0;
+        uint toggle = proposedToggle & ~(target.AbsoluteAddStatusImmunities & ~target.Statuses);
+        pendingStatuses = proposedAdd | remove | proposedToggle;
         return ((target.Statuses | (add & ~immunity)) & ~(remove & ~immunity)) ^ (toggle & ~immunity);
     }
 
