@@ -4,7 +4,7 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsResource NativeActionResource(NativeBattleGraphicsState graphics, int index)
     {
-        if (presentationSourceResource is not null && index == 0 || presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true && foreign.NativeResource is not null)
+        if (presentationSourceResource is not null && index == presentationSourceIndex || presentationNativeTargets?.ContainsKey(index) == true || presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true && foreign.NativeResource is not null)
         {
             return NativeGraphicsPoseResource(graphics, index);
         }

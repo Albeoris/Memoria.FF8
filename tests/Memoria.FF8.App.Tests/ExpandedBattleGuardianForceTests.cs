@@ -19,6 +19,23 @@ public sealed class ExpandedBattleGuardianForceTests
         }
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(7)]
+    [InlineData(9)]
+    [InlineData(10)]
+    [InlineData(11)]
+    [InlineData(13)]
+    public void InstalledGuardianSummonsFinishTheirNativeModulesOnAnExpandedRoster(int guardianId)
+    {
+        using BattleAssets assets = new(TestResources.GameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
+        BattleActionDefinition action = Assert.Single(assets.ActionDefinitions, candidate => candidate.Ability == BattleAbility.GuardianForce && candidate.Id == guardianId);
+        Assert.NotNull(RunGuardianForce(assets, action with { NativeGuardianBoostAvailable = false }, presentationGame: game));
+    }
+
     [Fact]
     public void IncomingDamageUsesTheChargingGuardiansHpAndCancelsItsCast()
     {
@@ -27,7 +44,7 @@ public sealed class ExpandedBattleGuardianForceTests
         Assert.Equal(0, RunGuardianForce(assets, action, shieldInterruption: true));
     }
 
-    internal static int? RunGuardianForce(BattleAssets assets, BattleActionDefinition action, bool shieldInterruption = false)
+    internal static int? RunGuardianForce(BattleAssets assets, BattleActionDefinition action, bool shieldInterruption = false, GameAssets? presentationGame = null)
     {
         BattleNativeAction native = Assert.IsType<BattleNativeAction>(action.NativeAction);
         ushort guardianHp = shieldInterruption ? (ushort)1 : (ushort)300;
@@ -36,7 +53,8 @@ public sealed class ExpandedBattleGuardianForceTests
             Id = $"party-{row}",
             Name = $"Ally {row}",
             IsPlayer = true,
-            ModelId = row,
+            ModelId = row == 10 && presentationGame is not null ? 0 : row,
+            WeaponId = row == 10 && presentationGame is not null ? 0 : null,
             CurrentHp = 4000,
             MaximumHp = 8000,
             NativeDeathCount = 0,
@@ -54,6 +72,7 @@ public sealed class ExpandedBattleGuardianForceTests
         {
             Id = $"enemy-{row}",
             Name = $"Enemy {row}",
+            ModelId = 2,
             CurrentHp = 4000,
             MaximumHp = 8000,
             NativeStatusResistances = new byte[40],
@@ -72,8 +91,16 @@ public sealed class ExpandedBattleGuardianForceTests
             GuardianForces = [new(action.Id, guardianHp, 300) { KillCount = 0, DeathCount = 0 }],
             NativeBattleSpeed = 0,
             NativeFieldBattleRules = 0,
+            NativeBattleUiRandom = presentationGame is null ? null : NativePlaytimeState.FromColdProcess().CreateBattleUiRandom(),
+            NativeGlobalRandom = presentationGame is null ? null : new(0),
+            NativeGlobalSoundProcess = presentationGame is null ? null : NativeGlobalSoundProcess.FromBufferlessColdProcess(),
+            NativeCommonEffectTexture = presentationGame?.ReadNativeCommonEffectTexture(),
             NativeStatusRules = assets.ReadNativeStatusRules(0)
         }, BattleAtbMode.Normal);
+        if (presentationGame is not null)
+        {
+            GameWorld.AttachExpandedEffects(battle, presentationGame, assets);
+        }
         if (!battle.SupportsExpandedAction(action))
         {
             return null;
@@ -85,11 +112,15 @@ public sealed class ExpandedBattleGuardianForceTests
         {
             battle.QueueAttack(party[0].Id, caster.Id);
         }
-        for (int tick = 0; tick < 240 && caster.IsBusy; tick++)
+        int tickLimit = presentationGame is null ? 240 : 1200;
+        bool sawModule = false;
+        for (int tick = 0; tick < tickLimit && caster.IsBusy; tick++)
         {
             battle.Tick();
+            sawModule |= battle.ExpandedEffect?.Graphics.OriginalEffect?.RequestedEffect == native.MagicId;
         }
         Assert.False(caster.IsBusy, action.Name);
+        Assert.Equal(presentationGame is not null, sawModule);
         BattleEvent[] contacts = battle.Events.Where(entry => entry.Kind == "EffectContact" && entry.ActorId == caster.Id && entry.Ability == BattleAbility.GuardianForce).ToArray();
         if (shieldInterruption)
         {
@@ -105,7 +136,14 @@ public sealed class ExpandedBattleGuardianForceTests
         Assert.Equal(contacts.Length, contacts.Select(contact => contact.TargetId).Distinct().Count());
         if (action.AllTargets)
         {
-            Assert.Equal((action.Allies ? party : enemies).Select(actor => actor.Id), contacts.Select(contact => contact.TargetId));
+            IEnumerable<string> expected = (action.Allies ? party : enemies).Select(actor => actor.Id);
+            IEnumerable<string?> actual = contacts.Select(contact => contact.TargetId);
+            if (presentationGame is not null)
+            {
+                expected = expected.Order(StringComparer.Ordinal);
+                actual = actual.Order(StringComparer.Ordinal);
+            }
+            Assert.Equal(expected, actual);
         }
         else
         {
@@ -168,7 +206,9 @@ public sealed class ExpandedBattleGuardianForceTests
             records[row] = records[row] with { HitPoints = new(hp, hp), Status = 0 };
         }
         NativeGuardianForceVital[] guardians = vitals.GuardianForces.ToArray();
-        guardians[guardianId] = guardians[guardianId] with { Flags = 1 };
+        int boostBit = Assert.Single(Enumerable.Range(19, 9), index => (vitals.Definitions.GuardianForceModifiers[index - 19].Flags & 1) != 0);
+        NativeGuardianForceVital selectedGuardian = guardians[guardianId];
+        guardians[guardianId] = selectedGuardian with { Flags = 1, LearnedBank = selectedGuardian.LearnedBank with { High = selectedGuardian.LearnedBank.High | (1UL << boostBit) } };
         guardians[guardianId] = guardians[guardianId] with { HitPoints = vitals.Definitions.GuardianForceMaximum(guardianId, guardians[guardianId]) };
         session.SetCharacterVitals(vitals with { GuardianForces = guardians });
         string source = world.Events.Capture().GetProperty("ProgramHash").GetString()!;
@@ -221,6 +261,9 @@ public sealed class ExpandedBattleGuardianForceTests
             BattleSession restored = Assert.IsType<BattleSession>(resumedWorld.Battle);
             Assert.Equal(charge, Assert.Single(restored.GuardianForceCasts));
             bool sawEntry = false;
+            bool pressedBoost = false;
+            ushort boostPercent = 0;
+            bool sawOrdinaryModule = false;
             HashSet<NativeBattleCameraPose> entryCameras = [];
             BattleScenePresentation presentation = new(world.BattleResources, battle.ReadDefinition(), true);
             bool renderedEntry = false;
@@ -232,6 +275,18 @@ public sealed class ExpandedBattleGuardianForceTests
                 {
                     world.ApplyBattleInput(new(BattleInputKind.Tick));
                     resumedWorld.ApplyBattleInput(new(BattleInputKind.Tick));
+                    sawOrdinaryModule |= !transform && battle.ExpandedEffect?.Graphics.OriginalEffect?.RequestedEffect == summon.NativeAction!.MagicId;
+                    if (!transform && battle.NativeGuardianBoost is { Phase: 4, Window: 1 } && !pressedBoost)
+                    {
+                        Assert.Equal((ushort)0, battle.NativeGuardianBoost.Percent);
+                        foreach ((BattleSession current, GameWorld host) in new[] { (battle, world), (restored, resumedWorld) })
+                        {
+                            current.AdvanceComponentGuardianBoostPresentation(TimeSpan.Zero, 0x100);
+                            host.ApplyBattleInput(new(BattleInputKind.GuardianBoost));
+                        }
+                        pressedBoost = true;
+                    }
+                    boostPercent = Math.Max(boostPercent, battle.NativeGuardianBoost?.Percent ?? 0);
                     if (transform && battle.ExpandedEffect is { } entrance)
                     {
                         sawEntry = true;
@@ -342,6 +397,9 @@ public sealed class ExpandedBattleGuardianForceTests
             }
             else
             {
+                Assert.True(pressedBoost);
+                Assert.True(sawOrdinaryModule);
+                Assert.Equal((ushort)76, boostPercent);
                 Assert.Equal(battle.Events, restored.Events);
             }
             Assert.Equal(battle.Combatants.Select(actor => actor.CurrentHp), restored.Combatants.Select(actor => actor.CurrentHp));

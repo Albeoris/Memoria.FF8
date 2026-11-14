@@ -69,7 +69,9 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
             string[] admissionBlockers = [];
             try
             {
-                EnemyScenarioScriptedAction[] reactions = scripts.Where(script => script.Callback == 2).ToArray();
+                bool towerStoryEffect = effect.Effect is 17 or 18 or 110;
+                bool authoredControl = towerStoryEffect || effect.Effect == 248;
+                EnemyScenarioScriptedAction[] reactions = scripts.Where(script => script.Callback == 2 && !authoredControl).ToArray();
                 if (reactions.Length > 0)
                 {
                     firstBlockerStage = "enemy-reaction-execution";
@@ -81,13 +83,25 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                         Assert.True(enemyReaction.Status is "native" or "logical", enemyReaction.Detail);
                     }
                 }
-                EnemyScenarioScriptedAction[] deaths = scripts.Where(script => script.Callback == 3).ToArray();
+                EnemyScenarioScriptedAction[] deaths = scripts.Where(script => script.Callback == 3 && !authoredControl).ToArray();
                 if (deaths.Length > 0)
                 {
                     firstBlockerStage = "enemy-death-execution";
                     enemyDeath = RunDiscoveredEnemyDeath(directory, field, assets, effect, deaths, probeEnemies);
                 }
-                if (effect.Effect == OchuDrawEffect)
+                if (towerStoryEffect)
+                {
+                    firstBlockerStage = "tower-story-execution";
+                    RunInstalledTowerEffect(directory, field, game, effect.Effect);
+                    (status, detail) = ("native-story", "The original Tower battle completed this effect through its authored trigger on the three-player, four-enemy-slot host.");
+                }
+                else if (effect.Effect == 248)
+                {
+                    firstBlockerStage = "original-reserve-execution";
+                    RunInstalledExpandedReserveGraphics(directory, field, game, assets);
+                    (status, detail) = ("native-original-slots", "The expanded party triggered the native reserve cinematic in formation 164, with the scene's authored enemy slots.");
+                }
+                else if (effect.Effect == OchuDrawEffect)
                 {
                     firstBlockerStage = "enemy-draw-contact";
                     (status, detail) = RunExpandedEnemyDraw(directory, field, assets, 530);
@@ -97,6 +111,11 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                     firstBlockerStage = "player-draw-stock-execution";
                     RunInstalledDrawStock(directory, field, assets, effect.Effect);
                     (status, detail) = ("native", "The original Draw Stock command consumed the installed effect and published one logical source contact.");
+                }
+                else if (effect.Effect == 9)
+                {
+                    firstBlockerStage = "doom-expiration-execution";
+                    (status, detail) = RunExpandedDoomExpiration(directory, field);
                 }
                 else if (player is not null)
                 {
@@ -202,6 +221,11 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                     firstBlockerStage = "enemy-turn-execution";
                     (status, detail, firstBlockerStage) = RunCactuarTurn(directory, field, effect, scripts);
                 }
+                else if (probeEnemies && effect.Effect == 138)
+                {
+                    firstBlockerStage = "enemy-turn-execution";
+                    (status, detail, firstBlockerStage) = RunExpandedSalivaTurn(directory, field, effect, scripts);
+                }
                 else if (probeEnemies && effect.Effect is 19 or 47 or 49 or 60 or 126 or 129 or 135 or 155 or 166 or 172 or 213 or 219 or 235 or 257 or 258 or 285 or 313 or 320 or 323)
                 {
                     firstBlockerStage = "enemy-turn-execution";
@@ -241,6 +265,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                 firstBlockerStage = status switch
                 {
                     "native" => null,
+                    "native-story" or "native-original-slots" => "expanded-physical-scene",
                     "logical" => "native-presentation",
                     _ => firstBlockerStage
                 };
@@ -266,7 +291,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
             using FileStream report = new(reportPath, FileMode.CreateNew, FileAccess.Write);
             JsonSerializer.Serialize(report, new { Allies = 11, Enemies = 11, CatalogCount = catalog.Length, TestedCount = results.Count, ProbedEnemyRoutes = probeEnemies, Counts = counts, Results = results, EnemyDiscoveryIssues = enemies.Issues }, new JsonSerializerOptions { WriteIndented = true });
         }
-        output.WriteLine($"Installed effects: {results.Count}/{catalog.Length} checked, {counts.GetValueOrDefault("native")} native, {counts.GetValueOrDefault("logical")} logical, {counts.GetValueOrDefault("blocked")} blocked, {counts.GetValueOrDefault("failed")} failed.");
+        output.WriteLine($"Installed effects: {results.Count}/{catalog.Length} checked, {counts.GetValueOrDefault("native")} native, {counts.GetValueOrDefault("native-original-slots")} native on original enemy slots, {counts.GetValueOrDefault("native-story")} native story, {counts.GetValueOrDefault("logical")} logical, {counts.GetValueOrDefault("blocked")} blocked, {counts.GetValueOrDefault("failed")} failed.");
         if (failures.Count != 0)
         {
             Assert.Fail(string.Join(Environment.NewLine, failures));
@@ -274,7 +299,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         Assert.True(selectedEffects is not null || counts.GetValueOrDefault("native") > 0, "The installed expanded host did not present any catalog effect.");
         if (requireFull)
         {
-            Assert.True(counts.GetValueOrDefault("blocked") == 0 && counts.GetValueOrDefault("logical") == 0, $"The installed catalog still has {counts.GetValueOrDefault("blocked")} unexecuted and {counts.GetValueOrDefault("logical")} logic-only effects in 11x11.");
+            Assert.True(counts.GetValueOrDefault("blocked") == 0 && counts.GetValueOrDefault("logical") == 0 && counts.GetValueOrDefault("native-story") == 0 && counts.GetValueOrDefault("native-original-slots") == 0, $"The installed catalog still has {counts.GetValueOrDefault("blocked")} unexecuted, {counts.GetValueOrDefault("logical")} logic-only, {counts.GetValueOrDefault("native-story")} story-host and {counts.GetValueOrDefault("native-original-slots")} original-enemy-slot effects outside native 11x11 coverage.");
         }
     }
 

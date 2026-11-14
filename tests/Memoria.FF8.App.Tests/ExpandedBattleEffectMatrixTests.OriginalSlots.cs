@@ -8,11 +8,201 @@ namespace Memoria.FF8.App.Tests;
 public sealed partial class ExpandedBattleEffectMatrixTests
 {
     [Fact]
+    public void InstalledTowerEntrancePublishesPhysicalSequenceBeforeWedgeActivation()
+    {
+        string directory = TestResources.GameDirectory;
+        Assert.SkipUnless(Directory.Exists(directory), "Installed original battle resources are required.");
+        using GameAssets assets = new(directory);
+        using GameWorld world = new(new GameSession(PrepareField(directory)), directory);
+        world.EnsureField();
+        BattleSession battle = StartNativeFormation(world, assets, 29);
+        BattleCombatant biggs = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.ModelId == 74);
+        BattleCombatant wedge = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.ModelId == 73);
+        BattleCombatant party = battle.Combatants.First(actor => actor.IsPlayer);
+        Assert.True(wedge.Suspended);
+        biggs.CurrentHp = 1;
+        party.Atb = BattleSession.AtbMaximum;
+        battle.QueueAttack(party.Id, biggs.Id);
+        BattleSnapshot? queued = null;
+        for (int callback = 0; callback < 240 && queued is null; callback++)
+        {
+            battle.Tick();
+            BattleSnapshot current = battle.Capture();
+            if (current.NativeActionPackets!.Headers.Any(header => header.FirstContactIndex is not null && header.ReadByte(1) == 0 && NativeBattleActionGraphics.Word(header, 4) == 3))
+            {
+                queued = current;
+            }
+        }
+        Assert.NotNull(queued);
+        NativeBattleActionHeaderSlot entrance = Assert.Single(queued.NativeActionPackets!.Headers, header => header.FirstContactIndex is not null && header.ReadByte(1) == 0 && NativeBattleActionGraphics.Word(header, 4) == 3);
+        Assert.Equal((byte)3, entrance.ReadByte(0));
+        Assert.Equal((byte)0, entrance.ReadByte(2));
+        Assert.Equal((ushort)0, NativeBattleActionGraphics.Word(entrance, 6));
+        Assert.Equal((byte)1, entrance.ReadByte(16));
+        NativeBattleContactPacket contact = queued.NativeActionPackets.ReadContact(entrance.FirstContactIndex!.Value);
+        Assert.Equal((byte)4, contact.Primary.ActorIndex);
+        Assert.Equal((byte)0, contact.Primary.Sequence);
+        Assert.Equal((ushort)0, contact.Primary.Amount6);
+        Assert.Equal((byte)1, contact.Primary.Flags2);
+        Assert.True(wedge.Suspended);
+        Assert.DoesNotContain(battle.Events, item => item.Kind == "Activated" && item.ActorId == wedge.Id);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(queued))!);
+        restored.AttachNativeEffectResourceResolver(effect => assets.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
+        for (int callback = 0; callback < 240 && wedge.Suspended; callback++)
+        {
+            battle.Tick();
+            restored.Tick();
+        }
+        Assert.False(wedge.Suspended);
+        Assert.Single(battle.Events, item => item.Kind == "Activated" && item.ActorId == wedge.Id);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+    }
+
+    [Theory]
+    [InlineData(110)]
+    [InlineData(17)]
+    [InlineData(18)]
+    public void InstalledTowerRunsAuthoredEffectOnTheOriginalBattleHost(ushort effect)
+    {
+        string directory = TestResources.GameDirectory;
+        Assert.SkipUnless(Directory.Exists(directory), "Installed original battle resources are required.");
+        using GameAssets assets = new(directory);
+        RunInstalledTowerEffect(directory, PrepareField(directory), assets, effect);
+    }
+
+    private static void RunInstalledTowerEffect(string directory, GameState field, GameAssets assets, ushort requestedEffect)
+    {
+        using GameWorld world = new(new GameSession(field), directory, expandedBattleAllyCount: 11, sharedAssets: assets);
+        world.EnsureField();
+        BattleSession battle = StartNativeFormation(world, assets, 29);
+        Assert.False(battle.UsesExpandedRoster);
+        Assert.All(battle.Combatants.Where(actor => actor.Slot is not null), actor => Assert.InRange(actor.EncodeNativeSlot(), 0, 6));
+        BattleCombatant biggs = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.ModelId == 74);
+        BattleCombatant wedge = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.ModelId == 73);
+        BattleCombatant party = battle.Combatants.First(actor => actor.IsPlayer);
+        Strike(biggs);
+        for (int callback = 0; callback < 480 && (wedge.Suspended || battle.ActiveAction is not null || battle.QueuedActions.Count != 0); callback++)
+        {
+            battle.Tick();
+        }
+        Assert.True(biggs.IsAlive && !wedge.Suspended);
+        Assert.Null(battle.ActiveAction);
+        Assert.Empty(battle.QueuedActions);
+        Strike(biggs);
+        WaitForRelease(110);
+        if (requestedEffect == 110)
+        {
+            return;
+        }
+
+        WaitForRelease(17);
+        Assert.False(biggs.IsActive);
+        Assert.False(wedge.IsActive);
+        if (requestedEffect == 17)
+        {
+            return;
+        }
+
+        BattleCombatant elvoret = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.ModelId == 91 && actor.IsActive);
+        for (int callback = 0; callback < 480 && (battle.ActiveAction is not null || battle.QueuedActions.Count != 0); callback++)
+        {
+            battle.Tick();
+        }
+        Strike(elvoret);
+        WaitForRelease(18);
+
+        void Strike(BattleCombatant target)
+        {
+            target.CurrentHp = 1;
+            party.Atb = BattleSession.AtbMaximum;
+            battle.QueueAttack(party.Id, target.Id);
+        }
+
+        void WaitForRelease(ushort effectId)
+        {
+            bool invoked = false;
+            for (int callback = 0; callback < 1200; callback++)
+            {
+                battle.Tick();
+                if (battle.NativeGraphics?.OriginalEffect is { } effect && effect.Binding.Effect == effectId)
+                {
+                    invoked |= effect.ReturnedDescriptor is > 0;
+                    if (invoked && effect.ReturnedDescriptor == 0)
+                    {
+                        return;
+                    }
+                }
+            }
+            Assert.Fail($"Original Tower effect {effectId} did not complete (invoked={invoked}).");
+        }
+    }
+
+
+    [Fact]
+    public void InstalledNativeFormation164RunsAuthoredReserveGraphics()
+    {
+        string directory = TestResources.GameDirectory;
+        Assert.SkipUnless(Directory.Exists(directory), "Installed original battle resources are required.");
+        using GameAssets assets = new(directory);
+        GameSession session = new(PrepareField(directory));
+        using GameWorld world = new(session, directory);
+        world.EnsureField();
+        BattleSession battle = StartNativeFormation(world, assets, 164);
+        BattleCombatant owner = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.IsActive);
+        BattleCombatant attacker = battle.Combatants.First(actor => actor.IsPlayer);
+        owner.CurrentHp = owner.MaximumHp / 10 + 1;
+        attacker.Atb = BattleSession.AtbMaximum;
+        battle.QueueAttack(attacker.Id, owner.Id);
+        bool invoked = false;
+        bool packets = false;
+        for (int callback = 0; callback < 1200; callback++)
+        {
+            battle.Tick();
+            if (battle.NativeGraphics?.OriginalEffect is not { Binding.Effect: 248 } effect)
+            {
+                continue;
+            }
+            if (effect.Parameters is { } parameters)
+            {
+                invoked = true;
+                Assert.Equal((byte)5, parameters.Actor78);
+            }
+            packets |= !effect.PresentationPackets.IsEmpty;
+            if (invoked && effect.ReturnedDescriptor == 0)
+            {
+                Assert.True(packets);
+                return;
+            }
+        }
+        Assert.Fail($"Original 248 did not complete (invoked={invoked}, packets={packets}).");
+    }
+
+    private static BattleSession StartNativeFormation(GameWorld world, GameAssets assets, ushort formation)
+    {
+        BattleDefinition definition = world.CreateEncounterBattle(formation);
+        NativeBattleMusicEntryPreparation music = NativeBattleMusicEntry.Prepare52CE30(formation, definition.NativeFlags, new(1, null, null, null, 0, null), 5, -1, NativeGlobalSoundProcess.FromBufferlessColdProcess(), new NativeMusicCatalog(TestResources.GameDirectory).ReadBattleEntryResources());
+        BattleSession battle = GameWorld.CreateLiveBattleSession(definition with { NativeMusicProcess = music.MusicProcess, NativeGlobalSoundProcess = music.SoundProcess }, BattleAtbMode.TurnBased);
+        battle.AttachNativeEffectResourceResolver(effect => assets.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
+        for (int callback = 0; callback < 480 && !battle.NativeEntryReady; callback++)
+        {
+            battle.Tick();
+        }
+        Assert.True(battle.NativeEntryReady);
+        return battle;
+    }
+
+    [Fact]
     public void InstalledDirectGraphicsQueuesFromAnAuthoredReserveAfterTheOriginalHpTrigger()
     {
         string directory = TestResources.GameDirectory;
+        using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
-        using GameWorld world = StartBattle(directory, PrepareField(directory), 164, useAreaEnemyRoster: true);
+        RunInstalledExpandedReserveGraphics(directory, PrepareField(directory), game, assets);
+    }
+
+    private static void RunInstalledExpandedReserveGraphics(string directory, GameState field, GameAssets game, BattleAssets assets)
+    {
+        using GameWorld world = StartBattle(directory, field, 164, useAreaEnemyRoster: true);
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         Assert.True(battle.ReadDefinition().UsesOriginalEnemySlots);
         BattleCombatant owner = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.IsActive);
@@ -44,11 +234,25 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         Assert.Contains(battle.Events, entry => entry.Kind == "Activated" && entry.ActorId == caster.Id);
         int hp = caster.CurrentHp;
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
-        for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
+        GameWorld.AttachExpandedEffects(restored, game, assets);
+        BattleScenePresentation presentation = new(world.BattleResources, battle.ReadDefinition(), true);
+        bool packets = false;
+        for (int frame = 0; frame < 1200 && battle.ActiveAction is not null; frame++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
             restored.Tick();
+            if (battle.ExpandedEffect is { } effect)
+            {
+                Assert.Equal(caster.Slot!.Value.Position + 3, effect.Source.Index);
+                Assert.NotNull(restored.ExpandedEffect);
+                if (!packets && !effect.Graphics.OriginalEffect!.PresentationPackets.IsEmpty)
+                {
+                    Assert.NotEmpty(presentation.Render(battle, 320, 224));
+                    packets = true;
+                }
+            }
         }
+        Assert.True(packets);
         BattleEvent contact = Assert.Single(battle.Events, entry => entry.Kind == "EffectContact" && entry.ActorId == caster.Id && entry.TargetId == caster.Id);
         Assert.Equal(0, contact.Amount);
         Assert.Equal(hp, caster.CurrentHp);

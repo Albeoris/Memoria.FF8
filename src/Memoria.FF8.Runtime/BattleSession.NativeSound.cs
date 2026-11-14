@@ -24,6 +24,11 @@ public sealed partial class BattleSession
 
     private void PublishNativeSequenceSound(NativeBattleGraphicsState graphics, NativeBattleGraphicsModel model, BattleCombatant actor, NativeBattleSequenceCue cue)
     {
+        PublishNativeSequenceSound(graphics, model, actor.Id, cue);
+    }
+
+    private void PublishNativeSequenceSound(NativeBattleGraphicsState graphics, NativeBattleGraphicsModel model, string actorId, NativeBattleSequenceCue cue)
+    {
         graphics = graphics with { Models = graphics.Models.SetItem(model.Index, model) };
         NativeBattleSequenceSound source = new(checked((byte)cue.First), cue.Kind == NativeBattleSequenceCueKind.ActorSound, checked((byte)cue.Second), checked((ushort)cue.Third)) { OverrideOnContact4 = cue.OverrideSoundOnContact4 };
         NativeBattleModuleSound? sound = NativeBattleSequenceAudio.Resolve505AB0(source, model.Index, graphics.ActionGraphics?.FirstTarget,
@@ -33,7 +38,7 @@ public sealed partial class BattleSession
             definition.NativeGraphics?.Rules.ActorSounds1120, source.OverrideOnContact4 ? nativeActionPackets.ReadActiveContact().Primary.HitFlags3 : null);
         if (sound is not null)
         {
-            PublishNativeModuleSound(sound, actor.Id, source);
+            PublishNativeModuleSound(sound, actorId, source);
         }
     }
 }

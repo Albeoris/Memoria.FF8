@@ -16,7 +16,7 @@ public sealed class NativeBattleEffectContactBridge<TRecipient> where TRecipient
     {
         ArgumentNullException.ThrowIfNull(targets);
         this.targets = targets.ToImmutableArray();
-        if (this.targets.IsEmpty || this.targets.Any(target => target.Recipient is null || target.Packet?.Primary is null || !NativeBattleSlots.Contains(target.Packet.Primary.ActorIndex) || target.Packet.Secondary?.ActorIndex is not (0 or 255)) ||
+        if (this.targets.IsEmpty || this.targets.Any(target => target.Recipient is null || target.Packet?.Primary is null || !NativeBattleSlots.Contains(target.Packet.Primary.ActorIndex) || target.Packet.Secondary is null || target.Packet.Secondary.ActorIndex != 255 && !NativeBattleSlots.Contains(target.Packet.Secondary.ActorIndex)) ||
             this.targets.Select(target => target.Recipient).Distinct().Count() != this.targets.Length ||
             this.targets.Select(target => target.Packet.Primary.ActorIndex).Distinct().Count() != this.targets.Length)
         {
@@ -26,10 +26,14 @@ public sealed class NativeBattleEffectContactBridge<TRecipient> where TRecipient
 
     public int Count => targets.Length;
 
-    public (NativeBattleActionPacketsState Packets, ushort TargetMask) Prepare(byte command, byte sequence, ushort action, ushort effect)
+    public (NativeBattleActionPacketsState Packets, ushort TargetMask) Prepare(byte command, byte sequence, ushort action, ushort effect, byte source = 0)
     {
+        if (targets.Any(target => target.Packet.Secondary.ActorIndex != 255 && target.Packet.Secondary.ActorIndex != source))
+        {
+            throw new InvalidDataException("The effect action's secondary contact requires its bound source row.");
+        }
         NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[NativeBattleActionPacketsState.HeaderCapacity * 20], new byte[NativeBattleActionPacketsState.ContactCapacity * 24]);
-        (packets, _) = packets.Prepare(new(0, command, sequence, -1, action, effect, null));
+        (packets, _) = packets.Prepare(new(source, command, sequence, -1, action, effect, null));
         NativeBattlePhysicalTargets mask = default;
         foreach (var target in targets)
         {

@@ -81,10 +81,14 @@ public sealed partial class BattleSession
                     {
                         throw new NotSupportedException("Effect20 requires its original actor ring owner.");
                     }
+                    if (presentationNativeTargets is not null)
+                    {
+                        presentationActivationSequences.Add(6);
+                    }
                     graphics = ScheduleNativeRingSequence505C00(graphics, 6, ring.Count);
                     return current;
                 case NativeBattleEffect20Activate activation:
-                    graphics = QueueNativeDescriptor(graphics, 113, 0x487670, checked((ushort)activation.Actor));
+                    graphics = QueueEffectPresentationActivation(graphics, activation.Actor);
                     return current;
                 case NativeBattleEffect20BodyDraw body:
                     (graphics, current) = DrawNativeEffect20Body(graphics, current, body.Address);

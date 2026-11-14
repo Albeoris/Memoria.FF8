@@ -188,6 +188,7 @@ public sealed partial class BattleSession
         if (!expandedGuardianFormSkipRequested && expandedEffect?.CanSkipGuardianFormFinisher == true)
         {
             expandedGuardianFormSkipRequested = true;
+            SettleGuardianFormSkipBoost();
             return true;
         }
         if (!CanSkipGuardianFormFinisher)
@@ -206,13 +207,20 @@ public sealed partial class BattleSession
         {
             return;
         }
-        bool enabled = (NativeGraphics?.UiServices?.Flags942 & 1) != 0;
+        bool enabled = UsesExpandedRoster ? expandedGuardianBoostInputEnabled : (NativeGraphics?.UiServices?.Flags942 & 1) != 0;
         NativeBattleGuardianBoostStep completed = NativeBattleGuardianBoostSkip.Complete(widget, enabled, nativeBattleUiRandom);
         nativeGuardianBoost = completed.Widget;
         nativeBattleUiRandom = completed.Random;
         if (completed.RecomputePercent is byte percent)
         {
-            RecomputeNativeGuardianContacts(percent);
+            if (expandedGuardianSummonTargets is not null)
+            {
+                CommitExpandedGuardianSummon(percent);
+            }
+            else
+            {
+                RecomputeNativeGuardianContacts(percent);
+            }
         }
     }
 

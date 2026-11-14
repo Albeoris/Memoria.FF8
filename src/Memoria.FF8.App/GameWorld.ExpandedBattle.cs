@@ -42,19 +42,45 @@ internal sealed partial class GameWorld
         Dictionary<(string Id, int? FormModel), NativeBattleGraphicsResource> actorResources = [];
         active.AttachExpandedEffectFactory((caster, action, sequence, contacts, formMode) =>
         {
+            bool guardianSummon = action is { Command: 254, KernelSection: 2 } && formMode is null;
+            bool activatesActor = definition.UsesOriginalEnemySlots && action is { Command: 8, KernelSection: 3, ActionId: 287, MagicId: 20 };
+            bool originalGraphic = activatesActor || action.Command == 252 && definition.UsesOriginalEnemySlots;
             int? casterForm = formMode == GuardianFormInvocationMode.EntryOnly ? BattleGuardianFormProfiles.Find(active.GetGuardianForm(caster.Id)!.GuardianForceId)!.ModelId : active.GetGuardianFormVisual(caster.Id);
             NativeBattleGraphicsResource sourceResource = GetResource(caster.Id, casterForm);
-            (NativeBattleGraphicsModel source, NativeBattleEffectTextureState textures) = NativeEffectActorTextures.Allocate(CreateModel(caster, sourceResource, casterForm), sourceResource);
+            byte sourceIndex = originalGraphic ? PhysicalIndex(caster) : (byte)0;
+            (NativeBattleGraphicsModel source, NativeBattleEffectTextureState textures) = NativeEffectActorTextures.Allocate(CreateModel(caster, sourceResource, casterForm) with { Index = sourceIndex }, sourceResource);
             ushort occupiedSlots = source.TextureAllocationMask.GetValueOrDefault();
             ImmutableArray<NativeBattleEffectModelBinding>.Builder nativeTargets = ImmutableArray.CreateBuilder<NativeBattleEffectModelBinding>();
             ImmutableArray<NativeBattleForeignActor>.Builder foreignTargets = ImmutableArray.CreateBuilder<NativeBattleForeignActor>();
-            foreach (ExpandedBattleContact contact in contacts.Where(contact => contact.RecipientId != caster.Id))
+            if (originalGraphic)
+            {
+                foreach (BattleCombatant participant in active.Combatants.Where(actor => actor != caster && actor.Slot is { } slot && (!actor.IsPlayer || slot.Position < 3)))
+                {
+                    NativeBattleGraphicsResource resource = GetResource(participant.Id, null);
+                    NativeBattleGraphicsModel model = CreateModel(participant, resource, null) with { Index = PhysicalIndex(participant) };
+                    if (!participant.IsActive)
+                    {
+                        model = model with { Flags0 = 0 };
+                    }
+                    else if (!participant.IsPlayer && participant.ModelId == caster.ModelId)
+                    {
+                        model = model with { BodyTextureSlots = source.BodyTextureSlots, LinkedTextureSlots = source.LinkedTextureSlots, TextureAllocationMask = source.TextureAllocationMask };
+                    }
+                    else
+                    {
+                        (model, textures) = NativeEffectActorTextures.Allocate(model, resource, textures, occupiedSlots);
+                        occupiedSlots |= model.TextureAllocationMask.GetValueOrDefault();
+                    }
+                    nativeTargets.Add(new(participant.Id, model, resource) { CanActivate = activatesActor && participant.IsActive && participant is { Hidden: true, Suspended: true, Untargetable: true } });
+                }
+            }
+            foreach (ExpandedBattleContact contact in contacts.Where(contact => !originalGraphic && contact.RecipientId != caster.Id))
             {
                 int? recipientForm = active.GetGuardianFormVisual(contact.RecipientId);
                 NativeBattleGraphicsResource resource = GetResource(contact.RecipientId, recipientForm);
                 BattleCombatant recipient = active.Combatants.Single(actor => actor.Id == contact.RecipientId);
                 NativeBattleGraphicsModel target = CreateModel(recipient, resource, recipientForm) with { Index = contact.Contact.ActorIndex };
-                if (action is { Command: 6, KernelSection: -1 } || action.MagicId is 1 or 25 or 39 or 50 or 139 || definition.NativeEffectCatalog.Any(binding => binding.Effect == action.MagicId && binding.Entry == NativeBattleLaserEye71Profile.Entry))
+                if (action is { Command: 6, KernelSection: -1 } or { Command: 8, KernelSection: 3, ActionId: 175 } || action.MagicId is 1 or 25 or 39 or 50 or 139 || definition.NativeEffectCatalog.Any(binding => binding.Effect == action.MagicId && binding.Entry == NativeBattleLaserEye71Profile.Entry))
                 {
                     (target, textures) = NativeEffectActorTextures.Allocate(target, resource, textures, occupiedSlots);
                     occupiedSlots |= target.TextureAllocationMask.GetValueOrDefault();
@@ -69,6 +95,10 @@ internal sealed partial class GameWorld
                     {
                         Facing = target.Transform.Angle36,
                         BoneCount = targetPose.BoneCount,
+                        CanReact = guardianSummon,
+                        AtStandingPose = guardianSummon ? target.Sequence is 0 or 1 : null,
+                        StatusFlags = target.Flags8,
+                        IsParty = recipient.IsPlayer,
                         Geometry = new(target.GeometryWorldMatrix!, anchors, [])
                     });
                 }
@@ -77,10 +107,14 @@ internal sealed partial class GameWorld
             (textures, _) = textures.EnqueueTim505E30(new(common.Name, common.Data));
             textures = textures.Drain505D20(NativeBattleEffectMemory.FromColdProcess().Arena).State;
             NativeBattleEffectContactBridge<string> bridge = new(contacts.Select(contact => (contact.RecipientId, contact.Packet)));
-            (NativeBattleActionPacketsState packets, ushort mask) = bridge.Prepare(action.Command, sequence, action.ActionId, action.MagicId);
+            (NativeBattleActionPacketsState packets, ushort mask) = bridge.Prepare(action.Command, sequence, action.ActionId, action.MagicId, sourceIndex);
+            NativeBattleGraphicsBinding sourceBinding = new(caster.Id, source.ModelId4!.Value, sourceResource);
+            ImmutableArray<NativeBattleGraphicsBinding> modelBindings = activatesActor
+                ? [sourceBinding, .. nativeTargets.Select(target => new NativeBattleGraphicsBinding(target.ActorId, target.Model.ModelId4!.Value, target.Resource))]
+                : [sourceBinding];
             BattleDefinition resources = definition with
             {
-                NativeGraphics = new(rules, [new(caster.Id, 0, sourceResource)], [])
+                NativeGraphics = new(rules, modelBindings, [])
                 {
                     PrimitiveTables = tables,
                     SoftwarePrimitiveTable = softwareTable,
@@ -89,15 +123,23 @@ internal sealed partial class GameWorld
                 NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([action.MagicId]),
                 NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory()
             };
-            NativeBattleEffectCameraMode cameraMode = formMode is null ? NativeBattleEffectCameraMode.HostPoseWithEffectTranslation : NativeBattleEffectCameraMode.NativeCinematic;
-            return new(new(resources, source, sourceResource, packets, new(0, 0, mask, 0, 0, 0) { Parameter80 = 0, Parameter82 = 0 }, action.MagicId, textures, NativeCrtRandomState.FromColdProcess(), projection, foreignTargets.ToImmutable())
+            NativeBattleEffectCameraMode cameraMode = formMode is not null || guardianSummon || originalGraphic ? NativeBattleEffectCameraMode.NativeCinematic : NativeBattleEffectCameraMode.HostPoseWithEffectTranslation;
+            byte parameterFlags = action.Command == 247 ? (byte)1 : (byte)0;
+            return new(new(resources, source, sourceResource, packets, new(sourceIndex, parameterFlags, mask, 0, 0, 0) { Parameter80 = 0, Parameter82 = 0 }, action.MagicId, textures, NativeCrtRandomState.FromColdProcess(), projection, foreignTargets.ToImmutable())
             {
                 CameraMode = cameraMode,
                 HostCameraPose = pose,
                 GuardianFormMode = formMode,
+                GuardianSummon = guardianSummon,
                 NativeTargets = nativeTargets.ToImmutable()
             });
         });
+
+        static byte PhysicalIndex(BattleCombatant actor)
+        {
+            BattleRosterSlot slot = actor.Slot ?? throw new InvalidDataException("The original graphic requires its allocated actor row.");
+            return checked((byte)(actor.IsPlayer ? slot.Position : slot.Position + 3));
+        }
 
         NativeBattleGraphicsResource GetResource(string id, int? formModel)
         {
@@ -122,6 +164,7 @@ internal sealed partial class GameWorld
             short scale = formModel is null ? (short)4096 : unchecked((short)(System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(poseSource.Skeleton.AsSpan().Slice(2)) * 4));
             int modelId = formModel ?? actor.ModelId;
             bool characterModel = actor.IsPlayer && formModel is null;
+            BattleStatusPresentation status = active.ReadStatusPresentation(actor.Id);
             NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(new(0, 0)
             {
                 Transform = new(position, position, 0, actor.IsPlayer ? (short)0 : (short)2048, scale),
@@ -131,8 +174,8 @@ internal sealed partial class GameWorld
                 SequenceState = new() { Locals = NativeBattleSequenceState.ColdProcessLocals() }
             }, checked((byte)(characterModel ? modelId : modelId + 16)), 0, ref random, characterModel ? null : assets.ReadEnemyNativeInformation246(modelId));
             // Use the first installed idle pose, independently of model initialization scripts.
-            model = NativeBattleGraphicsModels.SelectSequence(model with { Rotation14 = model.Transform!.Angle36 }, characterModel ? (byte)1 : (byte)0);
-            model = model with { SequenceState = model.SequenceState! with { Pose = 0, PoseFrame114 = 1, DecodedPose = poseSource.Sample(0, 1, 0) } };
+            model = NativeBattleGraphicsModels.SelectSequence(model with { Rotation14 = model.Transform!.Angle36, Flags8 = rules.Project(status.Saved, status.Battle) }, characterModel ? (byte)1 : (byte)0);
+            model = model with { SequenceState = model.SequenceState! with { Pose = 0, PoseFrame114 = 1, PoseLimit115 = resource.AnimationFrames[0], DecodedPose = poseSource.Sample(0, 1, 0) } };
             model = NativeBattleBodyBoneMatrices.Publish508C90(model, poseSource);
             model = NativeBattlePoseMatrices.PublishShadowBounds5086F0(model, resource.PoseSource!);
             return model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, resource.PoseSource!) };

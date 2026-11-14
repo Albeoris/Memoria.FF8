@@ -311,7 +311,7 @@ public sealed partial class BattleSession
     private void QueueExpandedAiAction(BattleCombatant actor, byte command, ushort id, byte sequence, BattleAiRecipients? recipients)
     {
         BattleNativeAction native = FindNativeCommandAction(actor, command, id);
-        if (!NativeBattleExpandedAi.SupportsAction(native))
+        if (!NativeBattleExpandedAi.SupportsAction(native, UsesOriginalEnemySlots))
         {
             throw new NotSupportedException($"Expanded AI command {command}/{id} requires an unsupported combat service.");
         }

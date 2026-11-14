@@ -1,9 +1,84 @@
+using System.Collections.Immutable;
+
 namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
     private sealed record ExpandedGuardianFormEntry(string ActorId, long InvocationId, NativeBattleEffectPresentation Effect);
     private ExpandedGuardianFormEntry? expandedGuardianFormEntry;
+    private BattleCombatant[]? expandedGuardianSummonTargets;
+
+    // TODO(TD-009): Only modules whose reached services fit the hosted graphics bank can acquire it.
+    private static bool CanPresentExpandedGuardianSummon(BattleNativeAction action)
+    {
+        return action is { Command: 254, KernelSection: 2, KernelIndex: 0 or 1 or 2 or 7 or 9 or 10 or 11 or 13 };
+    }
+
+    private void BeginExpandedGuardianSummon(BattleCombatant caster, BattleActionPresentation command, BattleCombatant[] targets)
+    {
+        BattleNativeAction action = command.NativeAction!;
+        byte row = targets.Length == 1 ? (byte)NativeBattleSlots.AllyCount : (byte)1;
+        ImmutableArray<ExpandedBattleContact> layout = targets.Select(target =>
+        {
+            byte index = target != caster && row < NativeBattleSlots.Count ? row++ : (byte)0;
+            RefreshNativePresentationStatus(target);
+            (ushort saved, uint status) = NativeContactStatusMirror(target);
+            return new ExpandedBattleContact(target.Id, new(new(index, 0, 0, 0, saved, 0, status), new(255, 0, 0, 0, 0, 0, 0)));
+        }).ToImmutableArray();
+        nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = true, GuardianFormulaE1E = false, GuardianBoostPercent = 0, EventLane = 2, Command = action.Command, Action = action.ActionId };
+        BeginExpandedEffect(caster, command, action, command.NativeSequence ?? 1, layout);
+        expandedGuardianSummonTargets = targets;
+        expandedGuardianBoostInputEnabled = false;
+        nativeGuardianBoost = CreateNativeGuardianBoost(action.ActionId);
+        ActiveAction = command with { Phase = BattleActionPhase.Recovery, RemainingFrames = 1 };
+    }
+
+    private void AdvanceExpandedGuardianBoost()
+    {
+        if (expandedEffect?.IsGuardianSummon == true && nativeGuardianBoost is not null)
+        {
+            AdvanceNativeGuardianBoostWidget(true, expandedGuardianBoostInputEnabled);
+        }
+    }
+
+    private void CommitExpandedGuardianSummon(byte percent)
+    {
+        BattleActionPresentation command = expandedEffectCommand!;
+        BattleCombatant caster = GetActor(command.ActorId);
+        BattleActionDefinition action = FindAction(BattleAbility.GuardianForce, command.ActionId);
+        BattleNativeAction native = command.NativeAction!;
+        nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = false, GuardianFormulaE1E = true, GuardianBoostPercent = percent };
+        resolvingNativeAction = command;
+        BeginNativeReactionBatch();
+        nativeActionCommitDepth++;
+        ImmutableArray<ExpandedBattleContact> contacts;
+        try
+        {
+            deferringExpandedImpacts = true;
+            (contacts, _) = ResolveExpandedHitPlan(caster, command, action, native, [expandedGuardianSummonTargets!], presentsNativeEffect: true);
+            CompleteNativeOrdinaryCommand(caster, command);
+            if (CompleteNativeActionInventory(caster, command, false))
+            {
+                nativeAffinityAction = native;
+                CompleteGuardianForceAffinity(caster, command);
+            }
+            CompleteNativeActionStatuses(caster);
+        }
+        finally
+        {
+            deferringExpandedImpacts = false;
+            nativeActionCommitDepth--;
+            resolvingNativeAction = null;
+        }
+        expandedGuardianSummonTargets = null;
+        if (contacts.Length != expandedExpectedContacts)
+        {
+            throw new InvalidDataException("The expanded summon lost an admitted contact while its presentation owned battle time.");
+        }
+        SetExpandedEffectContacts(contacts);
+        expandedEffect!.ReplaceHostedContacts(expandedModelContacts.Select(contact => contact.Packet));
+        FlushExpandedEnemyReactions();
+    }
 
     private void BeginExpandedGuardianFormEntry(BattleCombatant actor, BattleGuardianFormState form)
     {

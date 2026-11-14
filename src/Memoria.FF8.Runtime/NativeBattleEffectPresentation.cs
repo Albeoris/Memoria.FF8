@@ -31,10 +31,14 @@ public sealed record NativeBattleEffectPresentationInputs(BattleDefinition Resou
     public NativeBattleEffectCameraMode CameraMode { get; init; }
     public NativeBattleCameraPose? HostCameraPose { get; init; }
     public GuardianFormInvocationMode? GuardianFormMode { get; init; }
+    public bool GuardianSummon { get; init; }
     public ImmutableArray<NativeBattleEffectModelBinding> NativeTargets { get; init; } = [];
 }
 
-public sealed record NativeBattleEffectModelBinding(string ActorId, NativeBattleGraphicsModel Model, NativeBattleGraphicsResource Resource);
+public sealed record NativeBattleEffectModelBinding(string ActorId, NativeBattleGraphicsModel Model, NativeBattleGraphicsResource Resource)
+{
+    public bool CanActivate { get; init; }
+}
 
 public enum NativeBattleEffectCameraMode
 {
@@ -51,9 +55,12 @@ public enum NativeBattleForeignSequenceKind
 
 public sealed record NativeBattleForeignSequenceRequest(int ActorIndex, NativeBattleForeignSequenceKind Kind);
 
+public sealed record NativeBattleEffectActivation(string ActorId, int PhysicalIndex);
+
 public sealed record NativeBattleEffectPresentationStep(ImmutableArray<NativeBattleContactPacket> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds)
 {
     public ImmutableArray<NativeBattleForeignSequenceRequest> Sequences { get; init; } = [];
+    public ImmutableArray<NativeBattleEffectActivation> Activations { get; init; } = [];
 }
 
 /// <summary>Runs the current native effect dispatcher without owning combat, inventory, rewards or host time.</summary>
@@ -81,19 +88,21 @@ public sealed class NativeBattleEffectPresentation : IDisposable
     public NativeBattleEffectMemory Memory => owner.NativeEffectMemory!;
     public NativeCrtRandomState Random => owner.ReadEffectPresentationRandom();
     public NativeGlobalRandomState? GlobalRandom => owner.ReadEffectPresentationGlobalRandom();
-    public NativeBattleGraphicsModel Source => Graphics.Models[0];
+    public NativeBattleGraphicsModel Source => owner.ReadEffectPresentationSource();
     public NativeBattleGraphicsResource SourceResource => owner.ReadEffectPresentationSourceResource();
     public bool Invoked => owner.EffectPresentationInvoked;
     public bool ServiceComplete => owner.ReadEffectPresentationServiceComplete();
     public bool NativeBusy => owner.ReadEffectPresentationNativeBusy();
     public byte Parameter81 => Graphics.OriginalEffect?.Parameters?.Parameter81 ?? throw new InvalidOperationException("The presentation has no invoked parameter owner.");
-    public bool Complete => owner.EffectPresentationInvoked && owner.EffectPresentationExecutionComplete && Memory.ReadReturnedTask5044B0() == 0 && Graphics.ModuleEffects.Head is null && Graphics.Auxiliary.Head is null && !owner.HasPendingEffectPresentationEvents;
+    public bool Complete => owner.EffectPresentationInvoked && owner.EffectPresentationExecutionComplete && Memory.ReadReturnedTask5044B0() == 0 && Graphics.ModuleEffects.Head is null && Graphics.Auxiliary.Head is null && !owner.HasPendingEffectPresentationEvents && !owner.HasPendingEffectPresentationActivations;
     public NativeBattleStageColor StageColor => owner.ReadEffectPresentationStageColor();
+    public NativeBattleSummonColors StageColorRules => owner.ReadEffectPresentationStageColorRules();
     public short StageColorDepth => StageColor.Depth;
     public short ViewTranslationY => owner.NativeCamera?.ViewTranslationScratch?.Y ?? 0;
     public NativeBattleCameraPose? CinematicCamera => owner.ReadHostedCinematicCamera();
     public bool IsGuardianFormCinematic => owner.IsHostedGuardianFormCinematic;
-    public bool HidesHostStage => IsGuardianFormCinematic && Stage.Groups.All(group => (group.Flags & 2) == 0);
+    internal bool IsGuardianSummon => owner.IsHostedGuardianSummon;
+    public bool HidesHostStage => (IsGuardianFormCinematic || IsGuardianSummon) && Stage.Groups.All(group => (group.Flags & 2) == 0);
     public bool ReachedGuardianFormLanding => owner.ReachedHostedGuardianFormLanding();
     internal bool CanSkipGuardianFormFinisher => owner.CanSkipHostedGuardianFormFinisher;
     public NativeBattleActionMatrix ForeignPlacement(int index) => owner.ReadEffectPresentationForeignPlacement(index);
@@ -111,6 +120,7 @@ public sealed class NativeBattleEffectPresentation : IDisposable
     public void PublishSource(NativeBattleGraphicsModel source) => owner.PublishEffectPresentationSource(source);
     public void ReinvokeDirect(NativeBattleActionPacketsState packets, NativeBattleGraphicsModel source, NativeCrtRandomState random, NativeBattleEffectTextureState textures, NativeBattleEffectParameters parameters, ImmutableArray<NativeBattleForeignActor> foreignActors = default) => owner.ReinvokeEffectPresentationDirect(packets, source, random, textures, parameters, foreignActors);
     public void ReloadSourceResources() => owner.ReloadEffectPresentationSourceResources();
+    internal void ReplaceHostedContacts(IEnumerable<NativeBattleContactPacket> packets) => owner.ReplaceHostedEffectContacts(packets);
     public NativeBattleEffectPresentationStep CompleteInvocation() => owner.CompleteEffectPresentationInvocation();
     public int ReadSourceVariable(NativeBattleGraphicsModel source, byte variable) => owner.ReadEffectPresentationSourceVariable(source, variable);
     public void WriteSourceVariable(byte variable, int value) => owner.WriteEffectPresentationSourceVariable(variable, value);

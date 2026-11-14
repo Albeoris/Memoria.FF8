@@ -38,7 +38,7 @@ public sealed partial class BattleSession
 
     internal int ReadEffectPresentationSourceVariable(NativeBattleGraphicsModel source, byte variable)
     {
-        return ReadNativeGraphicsSequenceVariable(NativeGraphics! with { Models = NativeGraphics!.Models.SetItem(0, source) }, 0, variable);
+        return ReadNativeGraphicsSequenceVariable(NativeGraphics! with { Models = NativeGraphics!.Models.SetItem(presentationSourceIndex, source) }, presentationSourceIndex, variable);
     }
 
     internal void WriteEffectPresentationSourceVariable(byte variable, int value) => WriteNativeGraphicsSequenceVariable(variable, value);
@@ -47,9 +47,9 @@ public sealed partial class BattleSession
     {
         NativeBattleGraphicsState graphics = NativeGraphics!;
         int target = graphics.ActionContext?.TargetIndex ?? throw new NotSupportedException("Native presentation target writes require their current50D300 target identity.");
-        graphics = graphics with { Models = graphics.Models.SetItem(0, source) };
+        graphics = graphics with { Models = graphics.Models.SetItem(presentationSourceIndex, source) };
         NativeGraphics = graphics with { Models = graphics.Models.SetItem(target, NativeBattleActionGraphics.WriteSequenceTarget5048E0(graphics.Models[target], variable, value)) };
-        return NativeGraphics.Models[0];
+        return ReadEffectPresentationSource();
     }
 
     internal ushort NextEffectPresentationGlobalRandom() => NextNativeGlobalRandom();

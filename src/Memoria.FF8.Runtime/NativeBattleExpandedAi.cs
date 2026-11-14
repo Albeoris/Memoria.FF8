@@ -17,7 +17,7 @@ public static class NativeBattleExpandedAi
             blockers?.Add("program-layout");
             return ExpandedAiAdmission.RequiresUnsupportedService;
         }
-        HashSet<(byte Command, ushort Id)> supported = actions.Where(SupportsAction).Select(action => (action.Command, action.ActionId)).ToHashSet();
+        HashSet<(byte Command, ushort Id)> supported = actions.Where(action => SupportsAction(action, originalEnemySlots)).Select(action => (action.Command, action.ActionId)).ToHashSet();
         NativeBattleAiAbility berserk = program.Abilities[16 * program.LevelBand];
         ExpandedAiAdmission admission = SupportsCommand(berserk.Command, berserk.Id) ? ExpandedAiAdmission.Supported : ExpandedAiAdmission.RequiresUnsupportedService;
         if (admission != ExpandedAiAdmission.Supported)
@@ -275,7 +275,7 @@ public static class NativeBattleExpandedAi
         }
     }
 
-    internal static bool SupportsAction(BattleNativeAction action)
+    internal static bool SupportsAction(BattleNativeAction action, bool originalEnemySlots)
     {
         if (action is { Command: 4, KernelSection: 2, AttackType: 4, TargetFlags: byte flags })
         {
@@ -283,7 +283,8 @@ public static class NativeBattleExpandedAi
             return (flags & 3) == 0 && ExpandedBattleActionRules.SupportsContacts(action);
         }
         return action.Command is 2 or 8 && ExpandedBattleActionRules.SupportsEnemyContacts(action) && action.AttackType is not (5 or 6) &&
-            ((action.TargetFlags.GetValueOrDefault() & 3) == 0 || action is { Command: 2, ActionId: 16 });
+            ((action.TargetFlags.GetValueOrDefault() & 3) == 0 || action is { Command: 2, ActionId: 16 } ||
+             originalEnemySlots && action is { Command: 8, AttackType: 0, Power: 0, Statuses0: 0, Statuses1: 0, AttackFlags: 3, HitCount: 1 } && (action.TargetFlags.GetValueOrDefault() & 3) == 1);
     }
 
     private static int ReadWord(byte[] script, int offset) => script[offset] | script[offset + 1] << 8;

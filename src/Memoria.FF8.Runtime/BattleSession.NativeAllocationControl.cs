@@ -54,6 +54,10 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState CompleteNativeActivation(NativeBattleGraphicsState graphics, int index)
     {
+        if (presentationNativeTargets is not null)
+        {
+            return CompleteEffectPresentationActivation(graphics, index);
+        }
         BattleCombatant actor = combatants.Single(candidate => candidate.EncodeNativeSlot() == index);
         actor.NativeCombatantFlags &= ~0xC2u;
         QueueNativeParticipantInitialization(actor);

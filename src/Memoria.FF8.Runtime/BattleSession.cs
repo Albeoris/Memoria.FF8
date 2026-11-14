@@ -235,7 +235,7 @@ public sealed partial class BattleSession
         }
     }
 
-    private bool HasPendingTurn => nativeScriptState.WaitCounters.Length != 0 || QueuedActions.Count != 0 || ActiveAction is not null || nativeTimedAction is not null || nativeActionScratch.ComponentCompletion is not null || NativeScriptAllocationPending || NativeGraphics is { Requests.IsEmpty: false } || NativeGraphics is { Descriptors.Queue.IsEmpty: false };
+    private bool HasPendingTurn => nativeScriptState.WaitCounters.Length != 0 || QueuedActions.Count != 0 || ActiveAction is not null || nativeTimedAction is not null || nativeActionScratch.ComponentCompletion is not null || NativeScriptAllocationPending || NativeGraphics is { Requests.IsEmpty: false } || NativeGraphics is { Descriptors.Queue.IsEmpty: false } || HasPendingExpandedDoom;
 
     private bool HasGuardianForceTimeBoundary => guardianForceCasts.Values.Any(cast => cast.RemainingTicks == 0 || (byId[cast.ActorId].NativeStatus1 & 0x80000000) == 0);
 
@@ -315,12 +315,13 @@ public sealed partial class BattleSession
         }
         // Logical time runs on owned state so a bounded failure cannot publish partially advanced gauges or effects.
         BattleSession candidate = Restore(Capture(), handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler));
+        candidate.retainExpandedDoomForHost = HasExpandedDoomPresentation;
         candidate.StopTurnAdvance();
         return BoundedBattleAdvance.Run<BattleSession, int>(candidate, maxFrames,
             (next, count) =>
             {
                 HashSet<string> becameReady = next.AdvanceTurnBasedTime(explicitAdvance: true);
-                return !next.CanExplicitlyAdvanceTurn || becameReady.Overlaps(waiting) || next.combatants.Any(actor => waiting.Contains(actor.Id) && actor.IsReady) || next.HasGuardianForceTimeBoundary ? count : null;
+                return !next.CanExplicitlyAdvanceTurn || becameReady.Overlaps(waiting) || next.combatants.Any(actor => waiting.Contains(actor.Id) && actor.IsReady) || next.HasGuardianForceTimeBoundary || next.HasPendingExpandedDoom ? count : null;
             },
             (next, count) =>
             {
@@ -553,7 +554,7 @@ public sealed partial class BattleSession
             return becameReady;
         }
         // TODO(TD-009): Components without the raw descriptor bank retain the existing gauge clock.
-        bool clockAdmitted = UsesRealTimeBattleClock && (!UsesExpandedRoster || !ExpandedTimedLimitOwnsInput) && (HasNativeUiServiceClock ? nativeBattleClock!.AtbAdmitted != 0 : nativeBattleClock is null || NativeGraphics is null || AdmitNativeBattleClock(true, false));
+        bool clockAdmitted = UsesRealTimeBattleClock && expandedEffect?.IsGuardianSummon != true && (!UsesExpandedRoster || !ExpandedTimedLimitOwnsInput) && (HasNativeUiServiceClock ? nativeBattleClock!.AtbAdmitted != 0 : nativeBattleClock is null || NativeGraphics is null || AdmitNativeBattleClock(true, false));
         if (clockAdmitted)
         {
             AdvanceBattleTime(becameReady, !HasNativeUiServiceClock);
@@ -621,6 +622,10 @@ public sealed partial class BattleSession
         }
         if (ActiveAction is null)
         {
+            if (UsesExpandedRoster && TryDispatchPendingExpandedDoom())
+            {
+                return;
+            }
             if (NativeGraphics is { Requests.IsEmpty: false } && !HasCurrentNativeQueuedPresentation())
             {
                 return;

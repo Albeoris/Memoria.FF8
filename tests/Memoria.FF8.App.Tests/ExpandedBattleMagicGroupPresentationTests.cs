@@ -6,9 +6,10 @@ namespace Memoria.FF8.App.Tests;
 public sealed class ExpandedBattleMagicGroupPresentationTests
 {
     [Theory]
-    [InlineData(0x20000u, 2)]
-    [InlineData(0x40000u, 3)]
-    public void InstalledRepeatedFirePlaysEachEffectAgainstItsSelectedRosterSlot(uint status, int count)
+    [InlineData(0x20000u, 2, false)]
+    [InlineData(0x40000u, 3, false)]
+    [InlineData(0x20000u, 2, true)]
+    public void InstalledRepeatedFirePlaysEachEffectAgainstItsSelectedRosterSlot(uint status, int count, bool reflect)
     {
         string directory = TestResources.GameDirectory;
         using BattleAssets assets = new(directory);
@@ -29,6 +30,10 @@ public sealed class ExpandedBattleMagicGroupPresentationTests
         Assert.Null(battle.ActiveAction);
         caster.NativeStatus1 |= status;
         string[] targets = new[] { "enemy-10", "enemy-7", "enemy-9" }[..count];
+        if (reflect)
+        {
+            battle.Combatants.Single(actor => actor.Id == targets[0]).NativeStatus1 |= 0x80;
+        }
         int before = battle.Events.Count;
         battle.QueueAction(caster.Id, targets[0], BattleAbility.Magic, fire.Id, magicTargets: targets);
 
@@ -46,10 +51,17 @@ public sealed class ExpandedBattleMagicGroupPresentationTests
 
         Assert.False(caster.IsBusy);
         Assert.Null(battle.ExpandedEffect);
-        Assert.Equal(count, presentations.Count);
+        Assert.Equal(count + (reflect ? 1 : 0), presentations.Count);
         Assert.All(presentations, effect => Assert.True(effect.Complete));
         BattleEvent[] events = battle.Events.Skip(before).Where(entry => entry.ActorId == caster.Id).ToArray();
-        Assert.Equal(targets, events.Where(entry => entry.Kind == "EffectContact").Select(entry => entry.TargetId));
+        string?[] recipients = events.Where(entry => entry.Kind == "EffectContact").Select(entry => entry.TargetId).ToArray();
+        if (reflect)
+        {
+            Assert.StartsWith("party-", recipients[1]);
+            Assert.Single(events, entry => entry.Kind == "Reflect" && entry.TargetId == targets[0]);
+            recipients = [recipients[0], .. recipients.Skip(2)];
+        }
+        Assert.Equal(targets, recipients);
         Assert.Single(events, entry => entry.Kind == "ActionComplete");
         Assert.Empty(caster.MagicStocks);
         Assert.Empty(battle.Capture().MagicVitals!.MagicSystem.Reservations);

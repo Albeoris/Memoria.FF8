@@ -2,6 +2,16 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
+    private bool retainExpandedDoomForHost;
+    private bool HasExpandedDoomPresentation => UsesExpandedRoster && (expandedEffectFactory is not null || retainExpandedDoomForHost);
+
+    private bool HasPendingExpandedDoom => HasExpandedDoomPresentation && combatants.Any(IsPendingDoomExpiration);
+
+    private static bool IsPendingDoomExpiration(BattleCombatant actor)
+    {
+        return actor.IsActive && (NativeSavedStatusBits(actor) & 5) == 0 && actor.NativeStatusTimers[10] is <= 0 and not -1111;
+    }
+
     private void DispatchNativeStatusTimers()
     {
         //47CCB0 rechecks1D27B00 after action dispatch, even when the earlier4842B0 pass admitted DEB.
@@ -54,6 +64,11 @@ public sealed partial class BattleSession
                     actor.NativeStatusTimers[bit] = unchecked((short)(timer - decrement));
                     continue;
                 }
+                if (bit == 10 && HasExpandedDoomPresentation)
+                {
+                    // The action lane admits finished countdowns in roster order before its next command.
+                    continue;
+                }
                 uint expiringStatuses = NativeBattleStatusBits(actor);
                 actor.NativeStatusTimers[bit] = -1111;
                 actor.NativeStatus1 &= ~mask;
@@ -90,6 +105,48 @@ public sealed partial class BattleSession
                 }
             }
         }
+    }
+
+    private bool TryDispatchPendingExpandedDoom()
+    {
+        if (expandedEffectFactory is null || ExpandedEffect is not null || nativeBattleClock is { ActionPause: not 0 } || NativeScriptAllocationPaused)
+        {
+            return false;
+        }
+        BattleCombatant? actor = combatants.FirstOrDefault(IsPendingDoomExpiration);
+        if (actor is null)
+        {
+            return false;
+        }
+
+        // 483470 -> 4877F0 callback 5 -> 48D200 command 246 / action 43 / effect 9.
+        actor.NativeStatusTimers[10] = -1111;
+        actor.NativeStatus1 &= ~0x400u;
+        StoreNativeActionMemory(actor, actor, BattleAbility.EnemyAbility, 246, 43, 0, 3);
+        nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = false, EventLane = 0, Command = 246, Action = 43 };
+        BattleNativeAction action = new(246, 43, -1, -1) { Name = "Doom", MagicId = 9, AttackType = 0, Power = 0, HitCount = 1, TargetFlags = null, AttackFlags = 3, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = [], SupplementalRecord = [] };
+        BattleActionPresentation command = new(actor.Id, actor.Id, BattleActionPhase.Recovery, 1, BattleAbility.EnemyAbility, action.ActionId)
+        {
+            NativeAction = action,
+            NativeQueuedCommand = action.Command,
+            NativeSequence = 0
+        };
+        actor.NativeRemainingHits = 1;
+        BattleActionDefinition definition = new(BattleAbility.EnemyAbility, action.ActionId, action.Name!, BattleActionEffect.Native, 0, true) { NativeAction = action };
+        BattleActionPresentation? previous = resolvingNativeAction;
+        NativeBattleContactPacket packet;
+        resolvingNativeAction = command;
+        try
+        {
+            packet = ResolveInstalledNativeHitWithContact(actor, actor, command, definition, action, 255, presentationRow: 0);
+        }
+        finally
+        {
+            resolvingNativeAction = previous;
+        }
+        BeginExpandedEffect(actor, command, action, 0, [new(actor.Id, packet)]);
+        ActiveAction = command;
+        return true;
     }
 
     private void ApplyDiagnosticPeriodicStatus(BattleCombatant actor, int bit, short timer, int decrement, short timerAfter, int amount, bool damage, string source, uint? battleStatuses = null)

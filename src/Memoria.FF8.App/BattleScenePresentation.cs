@@ -319,7 +319,10 @@ internal sealed partial class BattleScenePresentation
         NativeBattlePreparedPrimitiveFrame? overlay = session.ExpandedEscapeScreenFade is byte fade
             ? NativeBattleOutcomeCallbacks.PrepareFade501D10(fade, assets.ReadNativePrimitiveTables())
             : session.ExpandedEffect?.Overlay;
-        byte[] pixels = renderer!.Render(stage, actors, selectedCamera ?? throw new InvalidOperationException("The original camera has not published its first pose."), effect: overlay, effectTextures: session.ExpandedEffect?.Memory.Textures, effectTextureSource: assets.EffectTextureSource, drawStage: session.ExpandedEffect?.HidesHostStage != true);
+        NativeBattleEffectPresentation? expanded = session.ExpandedEffect;
+        NativeBattleStageColor color = expanded?.StageColor ?? default;
+        NativeBattleSummonColors? stageColorRules = color.Depth == 0 ? null : expanded!.StageColorRules;
+        byte[] pixels = renderer!.Render(stage, actors, selectedCamera ?? throw new InvalidOperationException("The original camera has not published its first pose."), effect: overlay, effectTextures: expanded?.Memory.Textures, effectTextureSource: assets.EffectTextureSource, drawStage: expanded?.HidesHostStage != true, stageColor: color, stageColorRules: stageColorRules);
         return pixels;
     }
 

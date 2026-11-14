@@ -3,6 +3,7 @@ namespace Memoria.FF8.Runtime;
 public sealed partial class BattleSession
 {
     private NativeBattleGuardianBoost? nativeGuardianBoost;
+    private bool expandedGuardianBoostInputEnabled;
     public NativeBattleGuardianBoost? NativeGuardianBoost => nativeGuardianBoost;
 
     public bool PressNativeGuardianBoost()
@@ -60,7 +61,14 @@ public sealed partial class BattleSession
         nativeGuardianBoost = step.Unregister ? null : step.Widget with { PendingPress = false };
         if (step.RecomputePercent is byte percent)
         {
-            RecomputeNativeGuardianContacts(percent);
+            if (expandedGuardianSummonTargets is not null)
+            {
+                CommitExpandedGuardianSummon(percent);
+            }
+            else
+            {
+                RecomputeNativeGuardianContacts(percent);
+            }
         }
     }
 
@@ -112,6 +120,11 @@ public sealed partial class BattleSession
         }
         if (NativeGraphics is not null || nativeGuardianBoost is not { } widget)
         {
+            return;
+        }
+        if (UsesExpandedRoster)
+        {
+            expandedGuardianBoostInputEnabled = (heldButtons & 0x100) != 0;
             return;
         }
         // TODO(TD-009): Map admitted battle presentation callbacks to30Hz; raw widgets continue using actual Frame33/Flags942.

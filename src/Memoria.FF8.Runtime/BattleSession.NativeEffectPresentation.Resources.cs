@@ -11,27 +11,27 @@ public sealed partial class BattleSession
         NativeModelCpuResources ??= NativeBattleModelCpuResources.FromColdProcess() with { ScratchMaximum = 0 };
         NativeModelTextureCache ??= NativeBattleModelTextureCache.Initialize508260(NativeBattleModelTextureCache.FromColdProcess());
         NativeEffectIoResult = 0;
-        NativeBattleGraphicsModel source = graphics.Models[0];
+        NativeBattleGraphicsModel source = graphics.Models[presentationSourceIndex];
         byte model = source.ModelId4 ?? throw new NotSupportedException("Native presentation resource loading requires its source model identity.");
         if (model >= 16)
         {
             throw new NotSupportedException("Native presentation source loading requires an original party body and linked resource catalog.");
         }
         NativeBattleGraphicsModel loading = source with { Flags0 = (ushort)(source.Flags0 & ~2), FileSelector128 = source.FileSelector128 ?? resource.LinkedFileSelector128, FileSelector129 = source.FileSelector129 ?? resource.BodyFileSelector129, ActiveResourceRow100 = null, OriginalResourceRow104 = null, ActiveStagedResourceRow100 = null, LinkedStagedResourceRow = null, TextureResourceIndex = null, LinkedTextureResourceIndex = null, ResourceMagicId = null, ResourceRenzokukenTargetBank = null, ActiveAnimationDirectory = null, ActiveAnimationBank = null };
-        graphics = graphics with { Models = graphics.Models.SetItem(0, loading) };
+        graphics = graphics with { Models = graphics.Models.SetItem(presentationSourceIndex, loading) };
         Load(model);
         Load(checked((ushort)(0x1000 + model)));
-        loading = graphics.Models[0];
+        loading = graphics.Models[presentationSourceIndex];
         loading = loading with { Flags0 = source.Flags0, OriginalResourceRow104 = loading.ActiveResourceRow100 };
         if (preserveSelectedProgram && source.ResourceMagicId is not null)
         {
             loading = loading with { ResourceMagicId = source.ResourceMagicId, ResourceRenzokukenTargetBank = source.ResourceRenzokukenTargetBank, ActiveAnimationDirectory = source.ActiveAnimationDirectory, ActiveAnimationBank = source.ActiveAnimationBank };
         }
-        return graphics with { Models = graphics.Models.SetItem(0, loading) };
+        return graphics with { Models = graphics.Models.SetItem(presentationSourceIndex, loading) };
 
         void Load(ushort request)
         {
-            QueueNativeModelResource507080(graphics, request, 0);
+            QueueNativeModelResource507080(graphics, request, checked((byte)presentationSourceIndex));
             while (NativeModelLoader!.Task is not null)
             {
                 PumpNativeFileIo482590();

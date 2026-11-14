@@ -289,6 +289,14 @@ public sealed partial class BattleSession
             ApplyDamage(actor, recipient, 0, action.Name, counterEligible: false, publishDamage: false);
             return;
         }
+        if (native.Command == 246 && native.ActionId == 43 && actor == recipient)
+        {
+            // 48FE20 case F6 sets KO and emits a zero-amount death contact through 494410.
+            MarkNativeContactFlags(1, 0);
+            recipient.NativeStatus0 |= 1;
+            ApplyDamage(actor, recipient, 0, action.Name, counterEligible: false, publishDamage: false, cause: EncounterHpCause.DeathStatus);
+            return;
+        }
         if (ResolveNativeGraphicHit(actor, recipient, native) || ResolveNativePostActionHit(actor, recipient, native))
         {
             return;

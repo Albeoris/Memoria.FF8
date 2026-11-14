@@ -91,10 +91,10 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
                 return Play(clips, progress * Length(clips), offset, approachTarget);
             }
         }
-        BattleEvent? damage = CurrentModelEvents(session).LastOrDefault(item => (item.Kind is "Damage" or "EffectDamage") && item.Amount > 0 && item.TargetId == actor.Id && BattleImpactPresentation.IsImpact(session, item));
+        BattleEvent? damage = CurrentModelEvents(session).LastOrDefault(item => item.TargetId == actor.Id && (item.Kind == "EffectModelSequence" || (item.Kind is "Damage" or "EffectDamage") && item.Amount > 0 && BattleImpactPresentation.IsImpact(session, item)));
         if (damage is not null)
         {
-            int[] clips = Sequence(4).Animations.ToArray();
+            int[] clips = Sequence(damage.Kind == "EffectModelSequence" ? damage.Amount : 4).Animations.ToArray();
             double age = Age(session, damage);
             if (clips.Length != 0 && age < Length(clips))
             {
@@ -194,6 +194,7 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
             {
                 "Windup" when item.ActorId == definition.Id => CommandSequence(item.Ability, item.NativeSequence),
                 "Defeated" when item.TargetId == definition.Id => 3,
+                "EffectModelSequence" when item.TargetId == definition.Id => item.Amount,
                 "Damage" or "EffectDamage" when item.TargetId == definition.Id && item.Amount > 0 && BattleImpactPresentation.IsImpact(session, item) => 4,
                 "Outcome" when definition.IsPlayer && session.Outcome == BattleOutcome.Victory && sequences.Contains(17) => 17,
                 _ => 0

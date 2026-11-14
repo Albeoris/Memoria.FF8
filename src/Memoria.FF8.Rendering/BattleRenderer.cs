@@ -87,7 +87,7 @@ public sealed partial class BattleRenderer
         return float.IsFinite(screen.X) && float.IsFinite(screen.Y);
     }
 
-    public byte[] Render(BattleStage stage, IReadOnlyList<BattleActorDraw> actors, BattleCamera? camera = null, TimeSpan? animationClock = null, NativeBattlePreparedPrimitiveFrame? effect = null, NativeBattleEffectTextureState? effectTextures = null, INativeBattleEffectTextureSource? effectTextureSource = null, bool drawStage = true)
+    public byte[] Render(BattleStage stage, IReadOnlyList<BattleActorDraw> actors, BattleCamera? camera = null, TimeSpan? animationClock = null, NativeBattlePreparedPrimitiveFrame? effect = null, NativeBattleEffectTextureState? effectTextures = null, INativeBattleEffectTextureSource? effectTextureSource = null, bool drawStage = true, NativeBattleStageColor stageColor = default, NativeBattleSummonColors? stageColorRules = null)
     {
         Begin(camera ?? BattleCamera.NativeInitial);
         TriangleRenderer?.Begin(Width, Height, new Vector4(17f / 255, 20f / 255, 29f / 255, 1), 0);
@@ -95,7 +95,7 @@ public sealed partial class BattleRenderer
         {
             foreach (BattleMesh mesh in stage.Meshes)
             {
-                Draw(mesh, mesh.Vertices.Select(vertex => vertex.Position).ToArray(), stage.Textures, 1, stagePages: stage.NativePages, animationClock: animationClock);
+                Draw(mesh, mesh.Vertices.Select(vertex => vertex.Position).ToArray(), stage.Textures, 1, stagePages: stage.NativePages, animationClock: animationClock, stageColor: stageColor, stageColorRules: stageColorRules);
             }
         }
         foreach (BattleActorDraw actor in actors.Where(actor => actor.Visible))
@@ -199,7 +199,7 @@ public sealed partial class BattleRenderer
         }
     }
 
-    private void Draw(BattleMesh mesh, Vector3[] positions, IReadOnlyList<PixelImage> textures, float opacity, NativeBattleModelTextureBinding? nativeBinding = null, NativeBattleEffectTextureState? nativeTextures = null, IReadOnlyList<NativeBattleTextureReplacement>? replacements = null, Dictionary<(ushort Page, ushort Clut), PixelImage>? replacementPages = null, IReadOnlyDictionary<(ushort Page, ushort Clut), Memoria.FF8.Resources.AssetHandle<Memoria.FF8.Resources.TextureValue>>? stagePages = null, TimeSpan? animationClock = null)
+    private void Draw(BattleMesh mesh, Vector3[] positions, IReadOnlyList<PixelImage> textures, float opacity, NativeBattleModelTextureBinding? nativeBinding = null, NativeBattleEffectTextureState? nativeTextures = null, IReadOnlyList<NativeBattleTextureReplacement>? replacements = null, Dictionary<(ushort Page, ushort Clut), PixelImage>? replacementPages = null, IReadOnlyDictionary<(ushort Page, ushort Clut), Memoria.FF8.Resources.AssetHandle<Memoria.FF8.Resources.TextureValue>>? stagePages = null, TimeSpan? animationClock = null, NativeBattleStageColor stageColor = default, NativeBattleSummonColors? stageColorRules = null)
     {
         Vector3[] transformed = positions.Select(position => Vector3.Transform(position, view)).ToArray();
         foreach (BattleFace face in mesh.Faces)
@@ -223,7 +223,17 @@ public sealed partial class BattleRenderer
             }
             Vector2 textureScale = material is null ? ResourceTextureList.PhysicalScale(textures, face.Texture) : new Vector2(texture.Width / 256f, texture.Height / 256f);
             Vector2[] uv = material?.Uv ?? face.Uv;
-            Vertex At(int index) => new(transformed[face.Vertices[index]], uv[index] * textureScale, face.VertexColors?[index] ?? Vector4.One);
+            Vertex At(int index)
+            {
+                Vector4 color = face.VertexColors?[index] ?? Vector4.One;
+                if (stageColorRules is not null)
+                {
+                    uint rgb = (uint)MathF.Round(255 * color.X) | ((uint)MathF.Round(255 * color.Y) << 8) | ((uint)MathF.Round(255 * color.Z) << 16);
+                    uint tinted = stageColorRules.Interpolate(rgb, stageColor.Depth, stageColor.TargetRgb);
+                    color = new((byte)tinted / 255f, (byte)(tinted >> 8) / 255f, (byte)(tinted >> 16) / 255f, color.W);
+                }
+                return new(transformed[face.Vertices[index]], uv[index] * textureScale, color);
+            }
             // Native50FDF0/510680 accepts positive projected winding for both triangles and quads.
             // The camera-space plane test is equivalent before near clipping; use the original first three corners.
             Vector3 first = At(0).Position;

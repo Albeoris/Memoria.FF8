@@ -240,11 +240,9 @@ public sealed partial class BattleSession
                         _ = ReadAiByte(code, ref pc);
                         break;
                     case 27:
-                        int entranceIndex = ReadAiByte(code, ref pc) + 3;
-                        int sequence = ReadAiByte(code, ref pc);
-                        BattleCombatant activation = FindNativeActor(entranceIndex);
-                        Log("NativeSequence", actor.Id, activation.Id, sequence, $"Native entrance sequence {sequence}.");
-                        ActivateNativeParticipant(activation);
+                        int entranceIndex = ReadAiByte(code, ref pc) + NativeBattleSlots.AllyCount;
+                        byte entranceSequence = checked((byte)ReadAiByte(code, ref pc));
+                        QueueNativeEnemyEntrance(actor, FindNativeActor(entranceIndex), entranceSequence);
                         break;
                     case 29:
                         int removal = ReadAiByte(code, ref pc);

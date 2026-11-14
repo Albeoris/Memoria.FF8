@@ -4,7 +4,7 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsResource NativeGraphicsPoseResource(NativeBattleGraphicsState graphics, int index)
     {
-        NativeBattleGraphicsResource? presentedResource = index == 0 ? presentationSourceResource : null;
+        NativeBattleGraphicsResource? presentedResource = index == presentationSourceIndex ? presentationSourceResource : null;
         if (presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true)
         {
             presentedResource = foreign.NativeResource ?? throw new NotSupportedException($"Host actor slot {index} cannot supply a native FFVIII skeleton, animation bank or textured body resource required by the selected effect.");

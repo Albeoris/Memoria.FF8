@@ -4,6 +4,38 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
+    private void QueueNativeEnemyEntrance(BattleCombatant actor, BattleCombatant target, byte sequence)
+    {
+        if (NativeGraphics is not { } graphics)
+        {
+            // TODO(TD-009): Logical-only components retain the participant activation without driving the physical sequence VM.
+            Log("NativeSequence", actor.Id, target.Id, sequence, $"Native entrance sequence {sequence}.");
+            ActivateNativeParticipant(target);
+            return;
+        }
+        byte targetIndex = checked((byte)target.EncodeNativeSlot());
+        if (target.IsPlayer || (NativeSavedStatusBits(target) & 1) != 0 || graphics.ActorIds[targetIndex] != target.Id)
+        {
+            throw new NotSupportedException("Native entrance requires the live, loaded physical enemy selected by the script.");
+        }
+        // 487DF0 selects command 0/id 3. 48FE20 writes ADC from the second operand and suppresses action memory with DF5.
+        (nativeActionPackets, int header) = nativeActionPackets.Prepare(new(checked((byte)actor.EncodeNativeSlot()), 0, 0, -1, 3, 0, null));
+        target.NativeCombatantFlags &= ~0x4000u;
+        target.LastNativeHealing = 1;
+        StoreNativeAttackClass(target, 3);
+        RefreshNativePresentationStatus(target);
+        (ushort saved, uint battle) = NativeContactStatusMirror(target);
+        NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(sequence, 1, 0, 3, 255);
+        (nativeActionPackets, _) = nativeActionPackets.AppendContact(new(new(targetIndex, presentation.Sequence, presentation.Flags2, presentation.HitFlags3, saved, 0, battle), new(255, 0, 0, 0, 0, 0, 0)));
+        (nativeActionPackets, _) = nativeActionPackets.Publish(1);
+        nativeActionScratch = nativeActionScratch with { LastPublishedTargetCountE05 = 1 };
+        BeginNativeBattleActionPause();
+        graphics = QueueNativeDescriptor(graphics, 112, 0);
+        graphics = QueueNativeDescriptor(graphics, 104, checked(0x1D280C4u + (uint)header * 20));
+        graphics = QueueNativeDescriptor(graphics, 113, 0x487670, targetIndex);
+        NativeGraphics = QueueNativeDescriptor(graphics, 10, 0x47DD90);
+    }
+
     private void ResolveNativeGraphicCommand(BattleCombatant actor, BattleActionPresentation command, BattleNativeGraphicCommand graphic)
     {
         NativeBattleActionProductionContext context = nativeProductionContext ?? throw new NotSupportedException("Native command252 requires its original485610 dispatch context.");

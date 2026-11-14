@@ -4,9 +4,10 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private sealed record ExpandedMagicCastPresentation(BattleActionPresentation Cast, ImmutableArray<ExpandedBattleContact> Contacts, bool UsesNativeEffect, BattleActionPresentation? Reflection, ImmutableArray<ExpandedBattleContact> ReflectedContacts);
+    private sealed record ExpandedMagicCastPresentation(BattleActionPresentation Cast, ImmutableArray<ExpandedBattleContact> Contacts, bool UsesNativeEffect);
 
     private Queue<ExpandedMagicCastPresentation>? expandedMagicPresentation;
+    private string expandedMagicCompletionMessage = "Repeated magic completed.";
 
     public static bool CanSelectEitherTargetSide(BattleActionDefinition action)
     {
@@ -197,11 +198,11 @@ public sealed partial class BattleSession
                 BattleActionPresentation cast = command with { TargetId = target.Id, ExpandedMagicTargets = null, NativeMagicCastMode = 0, NativeAction = native };
                 resolvingNativeAction = cast;
                 nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = false, EventLane = 2, Command = 2, Action = native.ActionId };
-                bool presentsNativeEffect = reflected is null && expandedEffectFactory is not null && ExpandedBattleActionRules.HasNativeSpellPresentation(native, hitPlan[0].Length);
+                bool presentsNativeEffect = expandedEffectFactory is not null && ExpandedBattleActionRules.HasNativeSpellPresentation(native, hitPlan[0].Length);
                 deferringExpandedImpacts = presentsNativeEffect;
                 (ImmutableArray<ExpandedBattleContact> contacts, BattleCombatant? reflector) = ResolveExpandedHitPlan(actor, cast, action, native, hitPlan, presentsNativeEffect);
                 deferringExpandedImpacts = false;
-                (BattleActionPresentation? reflection, ImmutableArray<ExpandedBattleContact> reflectedContacts) = ResolveExpandedReflection(actor, cast, action, reflector, reflected);
+                (BattleActionPresentation? reflection, ImmutableArray<ExpandedBattleContact> reflectedContacts, bool presentsReflection) = ResolveExpandedReflection(actor, cast, action, reflector, reflected);
                 completed++;
                 bool continueAffinity = true;
                 if (!singleCost)
@@ -218,7 +219,11 @@ public sealed partial class BattleSession
                 {
                     CommitExpandedEnemyDraw(first.RecipientId, ref pendingEnemyDraw);
                 }
-                presentations.Enqueue(new(cast, contacts, presentsNativeEffect && !contacts.IsEmpty, reflection, reflectedContacts));
+                presentations.Enqueue(new(cast, contacts, presentsNativeEffect && !contacts.IsEmpty));
+                if (reflection is not null)
+                {
+                    presentations.Enqueue(new(reflection, reflectedContacts, presentsReflection && !reflectedContacts.IsEmpty));
+                }
                 if (!continueAffinity)
                 {
                     break;
@@ -249,6 +254,7 @@ public sealed partial class BattleSession
         }
 
         expandedMagicPresentation = presentations;
+        expandedMagicCompletionMessage = "Repeated magic completed.";
         ActiveAction = command with { Phase = BattleActionPhase.Recovery, RemainingFrames = 1, MagicReservationId = null };
         AdvanceExpandedMagicPresentation(ActiveAction);
     }
@@ -264,13 +270,9 @@ public sealed partial class BattleSession
                 return;
             }
             PublishExpandedImpacts(cast, presentation.Contacts);
-            if (presentation.Reflection is { } reflection)
-            {
-                PublishExpandedImpacts(reflection, presentation.ReflectedContacts);
-            }
         }
         expandedMagicPresentation = null;
-        CompleteActionPresentation(group, "Repeated magic completed.");
+        CompleteActionPresentation(group, expandedMagicCompletionMessage);
     }
 
     private bool SpendExpandedMagicGroupStock(BattleCombatant actor, int spell, string? reservationId, int completed)

@@ -84,6 +84,10 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                 return ("blocked", $"Formation {formation} remains on its original battle host because the expanded host cannot execute all required encounter services.");
             }
             BattleCombatant caster = Assert.Single(battle.Combatants, actor => actor.Id == casterId);
+            if (effect == 335 && !AdvanceAuthoredModelActivation(world, battle, out _))
+            {
+                return ("blocked", "The original formation 63 death action did not activate its authored model.");
+            }
             if (effect == 337 && !AdvanceSorceressAllocations(world, battle, targetModel))
             {
                 return ("blocked", "The original Sorceress allocations did not reach the last model after their lethal contacts.");

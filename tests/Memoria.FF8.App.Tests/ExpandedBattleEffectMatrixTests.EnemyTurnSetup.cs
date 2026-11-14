@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.BattleEffects;
 using Memoria.FF8.Runtime;
@@ -28,6 +29,80 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         {
             Assert.Contains(setup.UsesDemi ? "genuine Demi setup" : "genuine Attack setup", result.Detail);
         }
+    }
+
+    [Fact]
+    public void Installed_Saliva_turn_executes_the_original_dispatch()
+    {
+        string directory = TestResources.GameDirectory;
+        using GameAssets game = new(directory);
+        using BattleAssets assets = new(directory);
+        NativeBattleEffectBinding effect = Assert.Single(game.ReadNativeEffectCatalog(), binding => binding.Effect == 138);
+        EnemyScenarioScriptedAction[] scripts = ScenarioEnemyDiscovery.Discover(assets).ScriptedActions.Where(script => script.NativeEffectId == effect.Effect).ToArray();
+        EnemyRouteResult result = RunExpandedSalivaTurn(directory, PrepareField(directory), effect, scripts);
+        Assert.True(result.Status == "native", result.Detail);
+        Assert.Contains("Formation 378,", result.Detail);
+        Assert.Contains("c0m044", result.Detail);
+        Assert.Contains("callback 1, command 8/175, sequence 16, 1 contact(s)", result.Detail);
+    }
+
+    private static EnemyRouteResult RunExpandedSalivaTurn(string directory, GameState field, NativeBattleEffectBinding effect, EnemyScenarioScriptedAction[] scripts)
+    {
+        const ushort formation = 378;
+        field = field with { GameplayPreferences = field.GameplayPreferences with { Tuning = field.GameplayPreferences.Tuning with { MaximumDamage = 4 } } };
+        GameSession original = null!;
+        using GameWorld entry = StartBattle(directory, field, formation, captureSession: session => original = session, nativeSeed: 0);
+        BattleSession current = Assert.IsType<BattleSession>(entry.Battle);
+        BattleCombatant owner = current.Combatants.First(actor => !actor.IsPlayer && actor.ModelId == 44 && current.GetCombatantDefinition(actor.Id).NativeAi?.LevelBand < HigherEnemyBand);
+        int band = current.GetCombatantDefinition(owner.Id).NativeAi!.LevelBand;
+        EnemyScenarioScriptedAction[] matching = scripts.Where(script => script.ModelId == owner.ModelId && script.LevelBand == band && script is { Callback: 1, Offset: 0x64, Command: 8, ActionId: 175, Sequence: 16 }).ToArray();
+        Assert.NotEmpty(matching);
+        int before = current.Events.Count;
+        bool entered = false;
+        for (int turn = 0; turn < 24 && !entered; turn++)
+        {
+            if (!current.Combatants.Any(actor => actor.IsPlayer && actor.IsReady))
+            {
+                entry.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
+            }
+            BattleCombatant? attacker = current.Combatants.FirstOrDefault(actor => actor.IsPlayer && actor.IsReady);
+            if (attacker is not null)
+            {
+                entry.ApplyBattleInput(new(BattleInputKind.Attack) { ActorId = attacker.Id, TargetId = owner.Id });
+            }
+            for (int frame = 0; frame < 100 && current.Outcome == BattleOutcome.Active; frame++)
+            {
+                entry.ApplyBattleInput(new(BattleInputKind.Tick));
+                entered |= current.ActiveAction is { NativeAiCallbackStage: 2, NativeQueuedCommand: 8, ActionId: 172 } reaction && reaction.ActorId == owner.Id;
+                if (current.ActiveAction is null && current.QueuedActions.Count == 0)
+                {
+                    break;
+                }
+            }
+        }
+        Assert.True(entered, $"{owner.Id} never entered its original reaction phase after physical hits.");
+        Assert.Null(current.ActiveAction);
+        Assert.Empty(current.QueuedActions);
+        Assert.True(current.Events.Skip(before).Count(item => item is { Kind: "Damage", Ability: BattleAbility.Attack } && item.TargetId == owner.Id) >= 3);
+        GameState state = original.PrepareSnapshot();
+        BattleSnapshot snapshot = Assert.IsType<BattleSnapshot>(state.Battle);
+        Assert.Equal(1u, snapshot.Combatants.Single(actor => actor.Id == owner.Id).NativeParticipant!.Variables[0]);
+        BattleCombatantSnapshot[] combatants = snapshot.Combatants.Select(actor =>
+        {
+            bool ready = actor.Id == owner.Id;
+            NativeBattleAtbState? gauge = actor.NativeAtb;
+            return actor with { Atb = ready ? BattleSession.AtbMaximum : 0, NativeAtb = gauge is null ? null : gauge with { Current = ready ? gauge.Maximum : 0 }, LimitTurnCrisis = null };
+        }).ToArray();
+        // The callback returns when the first byte is divisible by three. Its Saliva branch then needs an even byte.
+        NativeBattleRandomState random = NativeBattleRandomState.ForecastPhase(3);
+        string checkpoint = TestResources.ArtifactFile($"{Guid.NewGuid():N}.battle.json");
+        File.WriteAllText(checkpoint, JsonSerializer.Serialize(state with { Battle = snapshot with { Combatants = combatants, Random = random } }));
+        using GameWorld world = new(new(GameSession.Load(checkpoint)), directory, expandedBattleEnemyCount: 11);
+        world.EnsureField();
+        BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
+        world.ApplyBattleInput(new(BattleInputKind.SetMode, Mode: BattleAtbMode.Normal));
+        EnemyRouteResult result = ObserveEnemyCast(world, battle, effect, new() { [owner.Id] = matching });
+        return result with { Detail = $"Formation {formation}, genuine hit reaction, ready actor {owner.Id}, battle RNG phase 3: {result.Detail}" };
     }
 
     private static EnemyAttackSetup? HpTurnSetup(int effect) => effect switch
