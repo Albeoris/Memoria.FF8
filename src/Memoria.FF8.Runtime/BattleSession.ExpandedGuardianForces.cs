@@ -82,7 +82,7 @@ public sealed partial class BattleSession
 
     private void BeginExpandedGuardianFormEntry(BattleCombatant actor, BattleGuardianFormState form)
     {
-        if (expandedEffectFactory is null)
+        if (expandedPresentationHost is null)
         {
             CompleteGuardianFormEntry(actor.Id, form.InvocationId);
             return;
@@ -95,7 +95,7 @@ public sealed partial class BattleSession
         NativeBattleContactPacket positioning = new(new(0, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0));
         try
         {
-            expandedGuardianFormEntry = new(actor.Id, form.InvocationId, expandedEffectFactory(this, actor, summon, 0, [new(actor.Id, positioning)], GuardianFormInvocationMode.EntryOnly));
+            expandedGuardianFormEntry = new(actor.Id, form.InvocationId, expandedPresentationHost.PrepareEffect(this, actor, summon, 0, [new(actor.Id, positioning)], GuardianFormInvocationMode.EntryOnly));
         }
         catch
         {

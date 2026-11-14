@@ -25,6 +25,7 @@ internal sealed partial class BattleScenePresentation
     private readonly Dictionary<(string ActorId, ushort MagicId), (BattleRenzokukenModels Models, BattleAnimationPresentation Animation)> renzokukenModels = [];
     private readonly BattleImpactTimeline impactTimeline = new();
     private readonly BattleCamera? camera;
+    private readonly ExpandedBattleSceneFrameBuilder? previewSceneFrames;
     private BattleCamera? renderedCamera;
     private BattleRenderer? renderer;
     private NativeBattlePreparedPrimitiveFrame? renderedPrimitiveFrame;
@@ -60,11 +61,7 @@ internal sealed partial class BattleScenePresentation
         BattleEncounter? encounter = useEncounter && definition.EncounterId is int id ? assets.LoadEncounter(id) : null;
         if (definition.UsesExpandedRoster)
         {
-            int actorCount = definition.UsesOriginalEnemySlots && definition.AddedEnemySources is { Count: > 0 }
-                ? definition.Combatants.Count(actor => actor.InitialActive)
-                : definition.Combatants.Length;
-            BattleStageCamera expandedCamera = GameWorld.ExpandedBattleCamera(actorCount);
-            camera = BattleCamera.FromNative(expandedCamera) with { FieldOfView = 2 * MathF.Atan(108f / expandedCamera.FocalLength), VerticalCenter = 0.5f };
+            previewSceneFrames = new(assets);
         }
         else if (definition.NativeGraphics is null)
         {
@@ -76,16 +73,17 @@ internal sealed partial class BattleScenePresentation
             }
             camera = BattleCamera.FromNative(introduction);
         }
-        for (int index = 0; index < party.Length; index++)
+        if (!definition.UsesExpandedRoster)
         {
-            positions[party[index].Id] = definition.UsesExpandedRoster ? ExpandedPosition(index, party.Length, true) : BattleFormationPresentation.PartyPosition(index, party.Length);
-        }
-        for (int index = 0; index < enemies.Length; index++)
-        {
-            BattleCombatantDefinition actor = enemies[index];
-            positions[actor.Id] = definition.UsesOriginalEnemySlots && definition.AddedEnemySources is { } added && actor.SceneSlot is int sceneSlot && added.ContainsKey(sceneSlot)
-                ? ScenePosition(ExpandedBattleFormation.AddedEnemyPosition(sceneSlot, added.Count))
-                : definition.UsesExpandedRoster && !definition.UsesOriginalEnemySlots ? ExpandedPosition(index, enemies.Length, false) : encounter is null ? BattleFormationPresentation.DebugEnemyPosition(index, enemies.Length) : encounter.Slots.Single(slot => slot.Slot == (actor.SceneSlot ?? throw new NotSupportedException("An original battle participant requires its scene slot identity."))).Position;
+            for (int index = 0; index < party.Length; index++)
+            {
+                positions[party[index].Id] = BattleFormationPresentation.PartyPosition(index, party.Length);
+            }
+            for (int index = 0; index < enemies.Length; index++)
+            {
+                BattleCombatantDefinition actor = enemies[index];
+                positions[actor.Id] = encounter is null ? BattleFormationPresentation.DebugEnemyPosition(index, enemies.Length) : encounter.Slots.Single(slot => slot.Slot == (actor.SceneSlot ?? throw new NotSupportedException("An original battle participant requires its scene slot identity."))).Position;
+            }
         }
         foreach (BattleCombatantDefinition actor in definition.Combatants.Where(actor => actor.InitialActive))
         {
@@ -93,14 +91,13 @@ internal sealed partial class BattleScenePresentation
         }
     }
 
-    private static Vector3 ExpandedPosition(int index, int count, bool ally)
+    private static BattleCamera ReadExpandedCamera(NativeBattleCameraPose pose, NativeBattleCameraProjection projection)
     {
-        return ScenePosition(ExpandedBattleFormation.Position(index, count, ally));
-    }
-
-    private static Vector3 ScenePosition(NativeBattleVector position)
-    {
-        return new Vector3(position.X, -position.Y, -position.Z) / 100f;
+        int focal = projection.FocalLength ?? throw new InvalidDataException("Expanded battle camera requires its published focal length.");
+        short centerX = projection.OffsetX ?? throw new InvalidDataException("Expanded battle camera requires its published horizontal center.");
+        short centerY = projection.OffsetY ?? throw new InvalidDataException("Expanded battle camera requires its published vertical center.");
+        return BattleCamera.FromNative(new(new(pose.Eye.X, pose.Eye.Y, pose.Eye.Z), new(pose.Target.X, pose.Target.Y, pose.Target.Z), focal), pose.Roll)
+            with { VerticalCenter = centerY / 240f, HorizontalCenter = centerX / 320f };
     }
 
     internal BattleCamera Camera => renderedCamera ?? camera ?? throw new InvalidOperationException("The original camera has not published its first pose.");
@@ -259,11 +256,25 @@ internal sealed partial class BattleScenePresentation
                     : renderer.RenderNativePilotPrimitiveFrame(prepared, pilotNext, pilotAlpha, selectedCamera, primitiveCapabilities, replacements.Count == 0 ? null : replacements, uiFrame is null ? null : assets.ReadNativePcUiIcons().Resolve, assets.EffectTextureSource);
             }
         }
-        if (session.ExpandedEffect?.CinematicCamera is { FocalLength: > 0 } cinematicCamera)
+        ExpandedBattleSceneFrame? expandedFrame = null;
+        if (session.UsesExpandedRoster)
         {
-            selectedCamera = BattleCamera.FromNative(new(new(cinematicCamera.Eye.X, cinematicCamera.Eye.Y, cinematicCamera.Eye.Z), new(cinematicCamera.Target.X, cinematicCamera.Target.Y, cinematicCamera.Target.Z), cinematicCamera.FocalLength.Value), cinematicCamera.Roll) with { FieldOfView = 2 * MathF.Atan(108f / cinematicCamera.FocalLength.Value), VerticalCenter = 0.5f };
+            expandedFrame = session.ExpandedPresentationHost is { } host
+                ? host.ReadSceneFrame(session) ?? throw new InvalidDataException("Expanded battle presentation host did not supply its scene frame.")
+                : previewSceneFrames!.ReadSceneFrame(session);
+            foreach ((string id, NativeBattleVector position) in expandedFrame.Positions)
+            {
+                positions[id] = ExpandedBattleSceneFrameBuilder.ScenePosition(position);
+            }
+            selectedCamera = ReadExpandedCamera(expandedFrame.Camera, expandedFrame.Projection);
         }
-        else if (selectedCamera is { } baseCamera && session.ExpandedEffect is { ViewTranslationY: not 0 } effectCamera)
+        if (session.ExpandedEffect is { Projection: { } effectProjection } hostedEffect)
+        {
+            NativeBattleCameraPose basePose = hostedEffect.CinematicCamera ?? hostedEffect.InitialHostCameraPose
+                ?? throw new InvalidDataException("Expanded battle effect lacks its held host camera pose.");
+            selectedCamera = ReadExpandedCamera(basePose, effectProjection);
+        }
+        if (selectedCamera is { } baseCamera && session.ExpandedEffect is { CinematicCamera: null, ViewTranslationY: not 0 } effectCamera)
         {
             Vector3 forward = Vector3.Normalize(baseCamera.Target - baseCamera.Eye);
             Vector3 right = Vector3.Normalize(Vector3.Cross(forward, Vector3.UnitY));
@@ -276,9 +287,12 @@ internal sealed partial class BattleScenePresentation
         foreach (BattleCombatant actor in session.Combatants.Where(actor => !definitions.ContainsKey(actor.Id)))
         {
             BattleCombatantDefinition allocated = session.GetCombatantDefinition(actor.Id);
-            BattleCombatantDefinition prototype = definitions.Values.First(candidate => !candidate.IsPlayer && candidate.SceneSlot == allocated.SceneSlot);
+            BattleCombatantDefinition? prototype = expandedFrame is null ? definitions.Values.First(candidate => !candidate.IsPlayer && candidate.SceneSlot == allocated.SceneSlot) : null;
             definitions.Add(actor.Id, allocated);
-            positions.Add(actor.Id, positions[prototype.Id]);
+            if (prototype is not null)
+            {
+                positions.Add(actor.Id, positions[prototype.Id]);
+            }
         }
         foreach (BattleCombatant actor in session.Combatants)
         {

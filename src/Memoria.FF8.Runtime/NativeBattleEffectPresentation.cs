@@ -77,6 +77,7 @@ public sealed class NativeBattleEffectPresentation : IDisposable
         owner = BattleSession.CreateEffectPresentation(inputs);
         projection = inputs.Projection;
         actors = inputs.ForeignActors;
+        InitialHostCameraPose = inputs.HostCameraPose;
     }
 
     private NativeBattleEffectPresentation(BattleSession owner)
@@ -102,6 +103,8 @@ public sealed class NativeBattleEffectPresentation : IDisposable
     public short StageColorDepth => StageColor.Depth;
     public short ViewTranslationY => owner.NativeCamera?.ViewTranslationScratch?.Y ?? 0;
     public NativeBattleCameraPose? CinematicCamera => owner.ReadHostedCinematicCamera();
+    public NativeBattleCameraPose? InitialHostCameraPose { get; }
+    public NativeBattleCameraProjection? Projection => owner.NativeCamera?.Projection;
     public bool IsGuardianFormCinematic => owner.IsHostedGuardianFormCinematic;
     internal bool IsGuardianSummon => owner.IsHostedGuardianSummon;
     public bool HidesHostStage => (IsGuardianFormCinematic || IsGuardianSummon) && Stage.Groups.All(group => (group.Flags & 2) == 0);

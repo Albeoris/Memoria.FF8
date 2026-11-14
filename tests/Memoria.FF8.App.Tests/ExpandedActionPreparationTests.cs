@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Reflection;
 using System.Text.Json;
 using Memoria.FF8.Assets;
+using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Tests;
 
@@ -10,7 +11,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed class ExpandedActionPreparationTests
 {
     private static readonly MethodInfo AdvanceExpandedAction = typeof(BattleSession).GetMethod("AdvanceExpandedAction", BindingFlags.Instance | BindingFlags.NonPublic)!;
-    private static readonly FieldInfo EffectFactory = typeof(BattleSession).GetField("expandedEffectFactory", BindingFlags.Instance | BindingFlags.NonPublic)!;
+    private static readonly FieldInfo PresentationHost = typeof(BattleSession).GetField("expandedPresentationHost", BindingFlags.Instance | BindingFlags.NonPublic)!;
 
     [Fact]
     public void InstantVictoryReleasesCommittedIfritFireAndRestoresTheHumanActor()
@@ -67,7 +68,7 @@ public sealed class ExpandedActionPreparationTests
         BattleDefinition definition = CreateFireDefinition(game, assets, doubleCast: true);
         BattleSession live = new(definition, BattleAtbMode.TurnBased);
         GameWorld.AttachExpandedEffects(live, game, assets);
-        var factory = Assert.IsType<Func<BattleSession, BattleCombatant, BattleNativeAction, byte, ImmutableArray<ExpandedBattleContact>, GuardianFormInvocationMode?, NativeBattleEffectPresentation>>(EffectFactory.GetValue(live));
+        IExpandedBattlePresentationHost host = Assert.IsAssignableFrom<IExpandedBattlePresentationHost>(live.ExpandedPresentationHost);
         BattleCombatant[] actors = live.Combatants.ToArray();
         NativeBattleEffectPresentation? first = null;
         NativeBattleGraphicsState? beforeDisposal = null;
@@ -87,10 +88,13 @@ public sealed class ExpandedActionPreparationTests
                 beforeDisposal = first!.Graphics;
                 throw failure;
             }
-            first = factory(owner, caster, native, sequence, contacts, mode);
+            first = host.PrepareEffect(owner, caster, native, sequence, contacts, mode);
+            ExpandedBattleSceneFrame frame = Assert.IsType<ExpandedBattleSceneFrame>(host.ReadSceneFrame(owner));
+            Assert.Equal(frame.Camera, first.InitialHostCameraPose);
+            Assert.Equal(frame.Positions[caster.Id], first.Source.Transform!.Position28);
             return first;
         };
-        EffectFactory.SetValue(live, wrapped);
+        PresentationHost.SetValue(live, new ObservedHost(host, wrapped));
         QueueFire(live, doubleCast: true);
         before = Snapshot(live);
         long resets = live.DiagnosticResetCount;
@@ -124,7 +128,12 @@ public sealed class ExpandedActionPreparationTests
 
         Advance(control);
         Advance(live);
-        Assert.NotNull(live.ExpandedEffect);
+        NativeBattleEffectPresentation effect = Assert.IsType<NativeBattleEffectPresentation>(live.ExpandedEffect);
+        ExpandedBattleSceneFrame frame = Assert.IsType<ExpandedBattleSceneFrame>(live.ExpandedPresentationHost!.ReadSceneFrame(live));
+        Assert.Equal(frame.Camera, effect.InitialHostCameraPose);
+        Assert.Equal(frame.Projection, effect.Projection);
+        Assert.Equal(frame.Positions[actors[0].Id], effect.Source.Transform!.Position28);
+        AssertEffectCameraFollowsPublishedProjection(assets, definition, live, effect);
         Assert.Equal(2, Stock(live));
         int hitPointsAfterCommit = actors[1].CurrentHp;
         for (int callback = 0; callback < 500 && live.ActiveAction is not null; callback++)
@@ -155,10 +164,12 @@ public sealed class ExpandedActionPreparationTests
         BattleNativeAction fire = Assert.Single(assets.NativeActions, action => action is { Command: 2, ActionId: 1 });
         NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals().ChangeMagicStock(0, fire.ActionId, 3, MagicOperationReason.ScriptReward, out _);
         int weapon = assets.WeaponDefinitions.First(entry => entry.CharacterId == 0).Id;
+        BattleEncounter encounter = assets.LoadEncounter(7);
         return new()
         {
             UsesExpandedRoster = true,
-            StageId = 0,
+            StageId = encounter.StageId,
+            EncounterId = encounter.Id,
             MagicVitals = vitals,
             NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
             NativeModuleResources = game.ReadNativeBattleModuleResources(),
@@ -173,6 +184,42 @@ public sealed class ExpandedActionPreparationTests
                 new() { Id = "enemy-b", Name = "Enemy B", ModelId = 1, MaximumHp = 60000, CurrentHp = 60000, Speed = 1 }
             ]
         };
+    }
+
+    private static void AssertEffectCameraFollowsPublishedProjection(BattleAssets assets, BattleDefinition definition, BattleSession battle, NativeBattleEffectPresentation effect)
+    {
+        BattleScenePresentation scene = new(assets, definition, useEncounter: true);
+        _ = scene.Render(battle, 640, 448);
+        BattleCamera initial = scene.Camera;
+        BattleSession presenter = (BattleSession)typeof(NativeBattleEffectPresentation).GetField("owner", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(effect)!;
+        FieldInfo cameraState = typeof(BattleSession).GetField("nativeCamera", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        NativeBattleCameraState original = Assert.IsType<NativeBattleCameraState>(presenter.NativeCamera);
+        NativeBattleCameraProjection published = original.Projection! with { OffsetX = 147, OffsetY = 92, FocalLength = 300 };
+        try
+        {
+            // Synthetic renderer-consumption unit check. Fire itself holds the host camera.
+            cameraState.SetValue(presenter, original with { Projection = published });
+            Assert.Equal(published, effect.Projection);
+            _ = scene.Render(battle, 640, 448);
+            Assert.Equal(147 / 320f, scene.Camera.HorizontalCenter);
+            Assert.Equal(92 / 240f, scene.Camera.VerticalCenter);
+            Assert.Equal(2 * MathF.Atan(120f / 300), scene.Camera.FieldOfView);
+            Assert.Equal(initial.Eye, scene.Camera.Eye);
+        }
+        finally
+        {
+            cameraState.SetValue(presenter, original);
+        }
+    }
+
+    private sealed class ObservedHost(IExpandedBattlePresentationHost host, Func<BattleSession, BattleCombatant, BattleNativeAction, byte, ImmutableArray<ExpandedBattleContact>, GuardianFormInvocationMode?, NativeBattleEffectPresentation> prepare) : IExpandedBattlePresentationHost
+    {
+        public ExpandedBattleSceneFrame? ReadSceneFrame(BattleSession owner) => host.ReadSceneFrame(owner);
+
+        public NativeBattleEffectPresentation PrepareEffect(BattleSession owner, BattleCombatant caster, BattleNativeAction action, byte sequence, ImmutableArray<ExpandedBattleContact> contacts, GuardianFormInvocationMode? mode)
+        {
+            return prepare(owner, caster, action, sequence, contacts, mode);
+        }
     }
 
     private static void QueueFire(BattleSession battle, bool doubleCast)

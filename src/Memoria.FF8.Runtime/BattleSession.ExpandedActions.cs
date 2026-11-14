@@ -9,7 +9,6 @@ public sealed record ExpandedBattleContact(string RecipientId, NativeBattleConta
 
 public sealed partial class BattleSession
 {
-    private Func<BattleSession, BattleCombatant, BattleNativeAction, byte, ImmutableArray<ExpandedBattleContact>, GuardianFormInvocationMode?, NativeBattleEffectPresentation>? expandedEffectFactory;
     private NativeBattleEffectPresentation? expandedEffect;
     private BattleActionPresentation? expandedEffectCommand;
     private NativeBattleEffectContactBridge<string>? expandedContactBridge;
@@ -37,15 +36,6 @@ public sealed partial class BattleSession
         }
         ExpandedBattleContact? target = expandedModelContacts.FirstOrDefault(contact => contact.RecipientId == actorId);
         return target is not null && expandedEffect.ReplacesHostModel(target.Contact.ActorIndex);
-    }
-
-    public void AttachExpandedEffectFactory(Func<BattleSession, BattleCombatant, BattleNativeAction, byte, ImmutableArray<ExpandedBattleContact>, GuardianFormInvocationMode?, NativeBattleEffectPresentation> factory)
-    {
-        if (!UsesExpandedRoster || expandedEffectFactory is not null)
-        {
-            throw new InvalidOperationException("The expanded battle presentation owner is unavailable or already attached.");
-        }
-        expandedEffectFactory = factory;
     }
 
     public bool SupportsExpandedAction(BattleActionDefinition action)
@@ -152,7 +142,7 @@ public sealed partial class BattleSession
             ActiveAction = command with { RemainingFrames = command.RemainingFrames - 1 };
             return;
         }
-        if (expandedEffectFactory is null)
+        if (expandedPresentationHost is null)
         {
             CommitExpandedAction(command);
         }
@@ -283,7 +273,7 @@ public sealed partial class BattleSession
             recipients = [recipient];
             command = command with { TargetId = recipient.Id };
         }
-        if (command is { Ability: BattleAbility.GuardianForce, GuardianFormInvocation: null } && expandedEffectFactory is not null && action.NativeGuardianBoostAvailable.HasValue && nativeBattleUiRandom is not null && CanPresentExpandedGuardianSummon(native))
+        if (command is { Ability: BattleAbility.GuardianForce, GuardianFormInvocation: null } && expandedPresentationHost is not null && action.NativeGuardianBoostAvailable.HasValue && nativeBattleUiRandom is not null && CanPresentExpandedGuardianSummon(native))
         {
             BeginExpandedGuardianSummon(actor, command with { NativeAction = native }, recipients);
             return;
@@ -309,7 +299,7 @@ public sealed partial class BattleSession
         }
 
         int firstHitRecipientCount = hitPlan[0].Length;
-        bool presentsNativeEffect = expandedEffectFactory is not null && (command.GuardianFormInvocation?.Mode == GuardianFormInvocationMode.FinisherWithoutEntry ||
+        bool presentsNativeEffect = expandedPresentationHost is not null && (command.GuardianFormInvocation?.Mode == GuardianFormInvocationMode.FinisherWithoutEntry ||
             stockDraw is not null && command.NativeDraw is { Failed: false } ||
             spellPresentation && ExpandedBattleActionRules.HasNativeSpellPresentation(native, firstHitRecipientCount) ||
             command.Ability == BattleAbility.LimitBreak && CanPresentExpandedLimit(native, firstHitRecipientCount) ||
@@ -486,7 +476,7 @@ public sealed partial class BattleSession
     {
         int nativeContactLimit = NativeBattleSlots.Count - 1;
         ImmutableArray<ExpandedBattleContact> presented = contacts.Length > nativeContactLimit ? contacts[..nativeContactLimit] : contacts;
-        return expandedEffectFactory!(this, actor, action, sequence, presented, command.GuardianFormInvocation?.Mode);
+        return expandedPresentationHost!.PrepareEffect(this, actor, action, sequence, presented, command.GuardianFormInvocation?.Mode);
     }
 
     private void BeginExpandedEffect(BattleCombatant actor, BattleActionPresentation command, BattleNativeAction action, byte sequence, ImmutableArray<ExpandedBattleContact> contacts, NativeBattleEffectPresentation? prepared = null)
@@ -554,7 +544,7 @@ public sealed partial class BattleSession
         NativeBattleActionScratch sourceScratch = nativeActionScratch;
         resolvingNativeAction = command;
         nativeActionScratch = nativeActionScratch with { Command = 247, Action = reflected.ActionId };
-        bool presentsNativeEffect = expandedEffectFactory is not null && ExpandedBattleActionRules.HasNativeSpellPresentation(reflected, reflectionPlan[0].Length);
+        bool presentsNativeEffect = expandedPresentationHost is not null && ExpandedBattleActionRules.HasNativeSpellPresentation(reflected, reflectionPlan[0].Length);
         try
         {
             deferringExpandedImpacts = presentsNativeEffect;

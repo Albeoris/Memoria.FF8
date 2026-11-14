@@ -1,6 +1,7 @@
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.GameUi;
+using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
@@ -82,9 +83,12 @@ public sealed class ExpandedBattleGuardianForceTests
         {
             party[0] = party[0] with { InitialAtb = BattleSession.AtbMaximum };
         }
+        BattleEncounter? presentationEncounter = presentationGame is null ? null : assets.LoadEncounter(7);
         BattleSession battle = new(new()
         {
             UsesExpandedRoster = true,
+            StageId = presentationEncounter?.StageId,
+            EncounterId = presentationEncounter?.Id,
             Combatants = [.. party, .. enemies],
             ActionDefinitions = [action],
             NativeActions = [native],
@@ -114,13 +118,28 @@ public sealed class ExpandedBattleGuardianForceTests
         }
         int tickLimit = presentationGame is null ? 240 : 1200;
         bool sawModule = false;
+        bool sawCinematicCamera = false;
         for (int tick = 0; tick < tickLimit && caster.IsBusy; tick++)
         {
             battle.Tick();
             sawModule |= battle.ExpandedEffect?.Graphics.OriginalEffect?.RequestedEffect == native.MagicId;
+            if (!sawCinematicCamera && battle.ExpandedEffect is { CinematicCamera: { } pose, Projection: { } projection })
+            {
+                BattleScenePresentation scene = new(assets, battle.ReadDefinition(), useEncounter: true);
+                _ = scene.Render(battle, 640, 448);
+                BattleCamera expected = BattleCamera.FromNative(new(new(pose.Eye.X, pose.Eye.Y, pose.Eye.Z), new(pose.Target.X, pose.Target.Y, pose.Target.Z), projection.FocalLength!.Value), pose.Roll);
+                Assert.Equal(expected.Eye, scene.Camera.Eye);
+                Assert.Equal(expected.Target, scene.Camera.Target);
+                Assert.Equal(expected.NativeRoll, scene.Camera.NativeRoll);
+                Assert.Equal(expected.FieldOfView, scene.Camera.FieldOfView);
+                Assert.Equal(projection.OffsetX!.Value / 320f, scene.Camera.HorizontalCenter);
+                Assert.Equal(projection.OffsetY!.Value / 240f, scene.Camera.VerticalCenter);
+                sawCinematicCamera = true;
+            }
         }
         Assert.False(caster.IsBusy, action.Name);
         Assert.Equal(presentationGame is not null, sawModule);
+        Assert.Equal(presentationGame is not null, sawCinematicCamera);
         BattleEvent[] contacts = battle.Events.Where(entry => entry.Kind == "EffectContact" && entry.ActorId == caster.Id && entry.Ability == BattleAbility.GuardianForce).ToArray();
         if (shieldInterruption)
         {

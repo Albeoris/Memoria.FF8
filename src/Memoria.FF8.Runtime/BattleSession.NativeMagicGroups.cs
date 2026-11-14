@@ -201,7 +201,7 @@ public sealed partial class BattleSession
                 BattleActionPresentation cast = command with { TargetId = target.Id, ExpandedMagicTargets = null, NativeMagicCastMode = 0, NativeAction = native };
                 resolvingNativeAction = cast;
                 nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = false, EventLane = 2, Command = 2, Action = native.ActionId };
-                bool presentsNativeEffect = expandedEffectFactory is not null && ExpandedBattleActionRules.HasNativeSpellPresentation(native, hitPlan[0].Length);
+                bool presentsNativeEffect = expandedPresentationHost is not null && ExpandedBattleActionRules.HasNativeSpellPresentation(native, hitPlan[0].Length);
                 deferringExpandedImpacts = presentsNativeEffect;
                 (ImmutableArray<ExpandedBattleContact> contacts, BattleCombatant? reflector) = ResolveExpandedHitPlan(actor, cast, action, native, hitPlan, presentsNativeEffect);
                 deferringExpandedImpacts = false;

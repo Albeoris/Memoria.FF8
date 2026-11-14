@@ -8,6 +8,7 @@ namespace Memoria.FF8.Rendering;
 public readonly record struct BattleCamera(Vector3 Eye, Vector3 Target, float FieldOfView = 0.8f, float VerticalCenter = 0.5f)
 {
     public short NativeRoll { get; init; }
+    public float HorizontalCenter { get; init; } = 0.5f;
     // Original B8B7F0/B8B800 bootstrap tuple,500541/500560 focal512,500900 projection center(160,108).
     // The live scene selects its installed introduction endpoint instead of this bootstrap view.
     public static BattleCamera NativeInitial => FromNative(new BattleStageCamera(new Vector3(10000, -3000, 5000), new Vector3(0, -500, 0), 512));
@@ -41,6 +42,7 @@ public sealed partial class BattleRenderer
     private readonly float[] depth;
     private Matrix4x4 view;
     private float focal;
+    private float centerX;
     private float centerY;
     private bool sceneProjectionReady;
     private readonly record struct Vertex(Vector3 Position, Vector2 Uv, Vector4 Color);
@@ -83,7 +85,7 @@ public sealed partial class BattleRenderer
             screen = default;
             return false;
         }
-        screen = new Vector2((ProjectionBounds.X + ProjectionBounds.Width * 0.5f) - transformed.X * focal / transformed.Z, centerY + transformed.Y * focal / transformed.Z);
+        screen = new Vector2(centerX - transformed.X * focal / transformed.Z, centerY + transformed.Y * focal / transformed.Z);
         return float.IsFinite(screen.X) && float.IsFinite(screen.Y);
     }
 
@@ -142,7 +144,7 @@ public sealed partial class BattleRenderer
     {
         sceneProjectionReady = true;
         actorBounds.Clear();
-        if (camera.Eye == camera.Target || camera.FieldOfView <= 0 || camera.FieldOfView >= MathF.PI || camera.VerticalCenter is <= 0 or >= 1)
+        if (camera.Eye == camera.Target || camera.FieldOfView <= 0 || camera.FieldOfView >= MathF.PI || camera.VerticalCenter is <= 0 or >= 1 || !float.IsFinite(camera.HorizontalCenter))
         {
             throw new ArgumentOutOfRangeException(nameof(camera));
         }
@@ -151,6 +153,7 @@ public sealed partial class BattleRenderer
         Matrix4x4 roll = Matrix4x4.CreateRotationZ(-camera.NativeRoll * (2 * MathF.PI / 4096));
         view = roll * Matrix4x4.CreateLookAt(Vector3.Transform(camera.Eye, roll), Vector3.Transform(camera.Target, roll), Vector3.UnitY);
         focal = ProjectionBounds.Height / (2 * MathF.Tan(camera.FieldOfView / 2));
+        centerX = ProjectionBounds.X + ProjectionBounds.Width * camera.HorizontalCenter;
         centerY = ProjectionBounds.Y + ProjectionBounds.Height * camera.VerticalCenter;
         if (TriangleRenderer is null)
         {
@@ -282,7 +285,7 @@ public sealed partial class BattleRenderer
     private Screen Project(Vertex vertex)
     {
         float inverse = -1 / vertex.Position.Z;
-        return new Screen((ProjectionBounds.X + ProjectionBounds.Width * 0.5f) + vertex.Position.X * focal * inverse, centerY - vertex.Position.Y * focal * inverse, inverse, vertex.Uv * inverse, vertex.Color * inverse);
+        return new Screen(centerX + vertex.Position.X * focal * inverse, centerY - vertex.Position.Y * focal * inverse, inverse, vertex.Uv * inverse, vertex.Color * inverse);
     }
 
     private static float Edge(Screen a, Screen b, float x, float y) => (b.X - a.X) * (y - a.Y) - (b.Y - a.Y) * (x - a.X);

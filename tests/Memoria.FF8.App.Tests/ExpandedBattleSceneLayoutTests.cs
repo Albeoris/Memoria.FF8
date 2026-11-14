@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using Memoria.FF8.Assets;
 using Memoria.FF8.GameUi;
+using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Tests;
 using Memoria.FF8.Ui;
@@ -10,6 +11,89 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class ExpandedBattleSceneLayoutTests
 {
+    [Theory]
+    [InlineData(3, 4)]
+    [InlineData(4, 5)]
+    [InlineData(6, 8)]
+    [InlineData(11, 14)]
+    public void RenderInstalledProductionFramingAcrossAuthoredStages(int partyCount, int enemyCount)
+    {
+        string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_EXPANDED_SCENE_OUTPUT");
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(output), "Set MEMORIA_FF8_EXPANDED_SCENE_OUTPUT for the optional scene renders.");
+        string directory = TestResources.GameDirectory;
+        using GameAssets game = new(directory);
+        using BattleAssets assets = new(directory);
+        foreach (int formation in new[] { 7, 40, 62 })
+        {
+            BattleEncounter encounter = assets.LoadEncounter(formation);
+            BattleDefinition definition = CreateDefinitionForEncounter(assets, partyCount, enemyCount, encounter);
+            BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+            if (partyCount > 3)
+            {
+                GameWorld.AttachExpandedEffects(battle, game, assets);
+            }
+            BattleScenePresentation scene = new(assets, definition, useEncounter: true);
+            const int width = 1280;
+            const int height = 720;
+            UiRect viewport = new(0, 0, width, height);
+            BattleHudController hud = new(battle, battle.QueueAttack, () => { }, () => battle.AdvanceTurn());
+            hud.AdvancePresentation(TimeSpan.FromSeconds(6.1 / hud.BattleCallbackRate));
+            UiView view = hud.BuildView();
+            view.Resize(width, height);
+            using SKBitmap bitmap = new(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
+            using BattlePreviewCanvas canvas = new(bitmap, directory);
+            canvas.DrawRgba(scene.Render(battle, width, height), width, height, viewport);
+            view.Draw(canvas, new UiTheme());
+            Directory.CreateDirectory(output!);
+            bitmap.SavePng(Path.Combine(output!, $"battle-{partyCount}x{enemyCount}-stage{encounter.StageId}-{width}x{height}.png"));
+
+            Assert.Equal(0, battle.Frame);
+            if (partyCount == 3)
+            {
+                Assert.Null(battle.ExpandedPresentationHost);
+                BattleStageCamera authored = assets.LoadStage(encounter.StageId).IntroductionCameras[encounter.PrimaryCamera & 0xF7];
+                Assert.Equal(BattleCamera.FromNative(authored), scene.Camera);
+                continue;
+            }
+            ExpandedBattleSceneFrame frame = Assert.IsType<ExpandedBattleSceneFrame>(battle.ExpandedPresentationHost!.ReadSceneFrame(battle));
+            Assert.Equal(frame.Projection.OffsetY!.Value / 240f, scene.Camera.VerticalCenter);
+            Assert.Equal(frame.Projection.OffsetX!.Value / 320f, scene.Camera.HorizontalCenter);
+            Assert.Equal(2 * MathF.Atan(120f / frame.Projection.FocalLength!.Value), scene.Camera.FieldOfView);
+            BattleCombatant[] active = battle.Combatants.Where(actor => actor.IsActive && !actor.Hidden).ToArray();
+            Assert.Equal(partyCount + enemyCount, active.Length);
+            PixelBounds projection = ViewportLayout.Fit(320, 240, width, height);
+            float safeLeft = projection.X + projection.Width * 8 / 320f;
+            float safeRight = projection.X + projection.Width * 312 / 320f;
+            float safeTop = projection.Y + projection.Height * 8 / 240f;
+            float safeBottom = projection.Y + projection.Height * (partyCount <= 4 ? 516 : 408) / 672f;
+            const float tolerance = 0.01f;
+            int[] clipLengths = active.Select(actor =>
+            {
+                BattleModel body = actor.IsPlayer ? assets.LoadPlayer(actor.ModelId, actor.Costume) : assets.LoadEnemy(actor.ModelId);
+                return body.Animations[0].Frames.Count;
+            }).Distinct().ToArray();
+            float[] phases = clipLengths.SelectMany(length => new[] { length / 2f, length - 1f, length - 0.5f, length }).Append(0).Distinct().Order().ToArray();
+            float previousPhase = 0;
+            foreach (float phase in phases)
+            {
+                if (phase > previousPhase)
+                {
+                    scene.AdvancePresentation(TimeSpan.FromSeconds((phase - previousPhase) * 2 / BattleSession.FramesPerSecond));
+                    _ = scene.Render(battle, width, height);
+                    previousPhase = phase;
+                }
+                // Actor bounds are recorded for bodies; renderer does not associate weapon meshes with actor IDs.
+                foreach (BattleCombatant actor in active)
+                {
+                    UiRect bounds = Assert.IsType<UiRect>(scene.GetActorBounds(actor.Id, viewport));
+                    Assert.True(!bounds.IsEmpty && bounds.X >= safeLeft - tolerance && bounds.Right <= safeRight + tolerance && bounds.Y >= safeTop - tolerance && bounds.Bottom <= safeBottom + tolerance,
+                        $"Stage {encounter.StageId}, {partyCount}x{enemyCount}, phase {phase}, {actor.Id} ({actor.Name}): body {bounds}; safe edges ({safeLeft:F2}, {safeTop:F2})–({safeRight:F2}, {safeBottom:F2}).");
+                }
+            }
+            Assert.Equal(0, battle.Frame);
+        }
+    }
+
     [Theory]
     [InlineData(640, 448)]
     [InlineData(1280, 720)]
@@ -107,8 +191,7 @@ public sealed class ExpandedBattleSceneLayoutTests
 
     private static BattleDefinition CreateDefinition(BattleAssets assets, int partyCount, int enemyCount)
     {
-        const int donorFormation = 136;
-        BattleEnemyPlacement donor = Assert.Single(assets.LoadEncounter(donorFormation).Enemies);
+        BattleEnemyPlacement donor = Assert.Single(assets.LoadEncounter(136).Enemies);
         HashSet<int> installedModels = assets.EnemyModelIds.ToHashSet();
         HashSet<int> installedStages = assets.StageIds.ToHashSet();
         BattleEncounter encounter = Enumerable.Range(0, assets.FormationCount).Select(assets.LoadEncounter)
@@ -116,6 +199,13 @@ public sealed class ExpandedBattleSceneLayoutTests
                 candidate.Enemies.All(placement => installedModels.Contains(placement.ModelId) && !placement.Hidden && !placement.Untargetable && !placement.InitiallySuspended))
             .OrderByDescending(candidate => candidate.Enemies.Count(placement => placement.ModelId == donor.ModelId))
             .First(candidate => assets.LoadStage(candidate.StageId).IntroductionCameras.ContainsKey(candidate.PrimaryCamera & 0xF7));
+        return CreateDefinitionForEncounter(assets, partyCount, enemyCount, encounter);
+    }
+
+    internal static BattleDefinition CreateDefinitionForEncounter(BattleAssets assets, int partyCount, int enemyCount, BattleEncounter encounter)
+    {
+        const int donorFormation = 136;
+        BattleEnemyPlacement donor = Assert.Single(assets.LoadEncounter(donorFormation).Enemies);
         BattleCombatantDefinition[] party = Enumerable.Range(0, partyCount).Select(character => new BattleCombatantDefinition
         {
             Id = $"party-{character}",

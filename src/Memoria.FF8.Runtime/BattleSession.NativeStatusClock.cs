@@ -3,7 +3,7 @@ namespace Memoria.FF8.Runtime;
 public sealed partial class BattleSession
 {
     private bool retainExpandedDoomForHost;
-    private bool HasExpandedDoomPresentation => UsesExpandedRoster && (expandedEffectFactory is not null || retainExpandedDoomForHost);
+    private bool HasExpandedDoomPresentation => UsesExpandedRoster && (expandedPresentationHost is not null || retainExpandedDoomForHost);
 
     private bool HasPendingExpandedDoom => HasExpandedDoomPresentation && combatants.Any(IsPendingDoomExpiration);
 
@@ -109,7 +109,7 @@ public sealed partial class BattleSession
 
     private bool TryDispatchPendingExpandedDoom()
     {
-        if (expandedEffectFactory is null || ExpandedEffect is not null || nativeBattleClock is { ActionPause: not 0 } || NativeScriptAllocationPaused)
+        if (expandedPresentationHost is null || ExpandedEffect is not null || nativeBattleClock is { ActionPause: not 0 } || NativeScriptAllocationPaused)
         {
             return false;
         }

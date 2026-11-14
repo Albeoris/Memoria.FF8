@@ -7,7 +7,7 @@ public sealed partial class BattleSession
         BattleSnapshot before = Capture();
         IBattleStatusEffectHandler[] customHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
         BattleSession candidate = Restore(before, customHandlers);
-        candidate.expandedEffectFactory = expandedEffectFactory;
+        candidate.expandedPresentationHost = expandedPresentationHost;
         candidate.nativeAffinityAction = nativeAffinityAction;
         try
         {
