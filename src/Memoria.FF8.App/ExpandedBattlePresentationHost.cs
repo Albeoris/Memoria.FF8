@@ -14,6 +14,30 @@ internal sealed class ExpandedBattlePresentationHost(GameAssets game, BattleAsse
 
     public ExpandedBattleSceneFrame ReadSceneFrame(BattleSession owner) => sceneFrames.ReadSceneFrame(owner);
 
+    internal ExpandedBattlePresentationProcess CreateProcess(BattleSession owner)
+    {
+        BattleDefinition definition = owner.ReadDefinition();
+        NativeBattleGraphicsRoster roster = owner.ReadExpandedPresentationRoster();
+        ImmutableDictionary<string, NativeBattleVector> positions = sceneFrames.ReadPositions(owner);
+        ImmutableArray<NativeBattleGraphicsActor> actors = roster.Rows.OfType<NativeBattleGraphicsActor>().ToImmutableArray();
+        var combatants = owner.Combatants.ToDictionary(actor => actor.Id, StringComparer.Ordinal);
+        ImmutableArray<NativeBattleGraphicsBinding> bindings = actors.Select(binding =>
+        {
+            BattleCombatant actor = combatants[binding.ActorId];
+            byte modelId = checked((byte)(binding.IsParty ? actor.ModelId : actor.ModelId + 16));
+            return new NativeBattleGraphicsBinding(actor.Id, modelId, GetResource(owner, actor, null)) { InitialPosition = positions[actor.Id] };
+        }).ToImmutableArray();
+        ImmutableArray<string> loadOrder = actors.OrderBy(actor => actor.IsParty).Select(actor => actor.ActorId).ToImmutableArray();
+        NativeBattleGraphicsDefinition graphics = new(rules, bindings, loadOrder)
+        {
+            PrimitiveTables = tables,
+            SoftwarePrimitiveTable = softwareTable,
+            PrimitiveCapabilities = NativeBattlePrimitiveCapabilities.PrimaryRgba8(),
+            PcUiIcons = assets.ReadNativePcUiIcons().Binding
+        };
+        return new(owner, definition with { NativeGraphics = graphics });
+    }
+
     public NativeBattleEffectPresentation PrepareEffect(BattleSession owner, BattleCombatant caster, BattleNativeAction action, byte sequence, ImmutableArray<ExpandedBattleContact> contacts, GuardianFormInvocationMode? formMode)
     {
         BattleDefinition definition = owner.ReadDefinition();

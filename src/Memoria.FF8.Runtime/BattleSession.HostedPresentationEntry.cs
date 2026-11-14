@@ -53,6 +53,7 @@ public sealed partial class BattleSession
         random = NativeBattleRandomState.Initialize(0);
         nativeCrtRandom = definition.NativeCrtRandom;
         nativeGlobalRandom = definition.NativeGlobalRandom;
+        nativeEffectResourceResolver = logicalOwner.nativeEffectResourceResolver;
         NativeEntryAdvantage = logicalOwner.NativeEntryAdvantage;
         NativeCamera = NativeBattleCameraState.Initialize();
         NativeGlobalSoundProcess = definition.NativeGlobalSoundProcess;

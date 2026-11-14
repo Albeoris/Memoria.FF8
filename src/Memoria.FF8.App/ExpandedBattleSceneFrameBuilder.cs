@@ -9,7 +9,8 @@ namespace Memoria.FF8;
 internal sealed class ExpandedBattleSceneFrameBuilder(BattleAssets assets)
 {
     private sealed record Layout(int EncounterId, int StageId, int AllyCount, int EnemyCount, bool OriginalSlots, ImmutableSortedDictionary<int, BattleEnemyRosterSource>? Added);
-    private readonly record struct ActorLayout(string Id, bool IsPlayer, BattleRosterSlot? Slot, int? SceneSlot, bool IsActive, bool Hidden, int? Form, int Model, int Costume, int? Weapon);
+    private readonly record struct ActorPlacement(string Id, bool IsParty, BattleRosterSlot? Slot, int? SceneSlot);
+    private readonly record struct ActorLayout(ActorPlacement Placement, bool IsActive, bool Hidden, int? Form, int Model, int Costume, int? Weapon);
     private sealed record IdleBody(ImmutableArray<Vector3> Vertices, float StandingGround);
 
     private readonly ConditionalWeakTable<BattleSession, Layout> layouts = new();
@@ -22,7 +23,7 @@ internal sealed class ExpandedBattleSceneFrameBuilder(BattleAssets assets)
     internal ExpandedBattleSceneFrame ReadSceneFrame(BattleSession owner)
     {
         Layout layout = layouts.GetValue(owner, ReadLayout);
-        ActorLayout[] actors = owner.Combatants.Select(actor => new ActorLayout(actor.Id, actor.IsPlayer, actor.Slot, actor.SceneSlot, actor.IsActive, actor.Hidden,
+        ActorLayout[] actors = owner.Combatants.Select(actor => new ActorLayout(Placement(actor), actor.IsActive, actor.Hidden,
             owner.GetGuardianFormVisual(actor.Id), actor.ModelId, actor.Costume, actor.WeaponId)).ToArray();
         if (previousFrame is not null && layout == previousLayout && actors.AsSpan().SequenceEqual(previousActors))
         {
@@ -37,24 +38,38 @@ internal sealed class ExpandedBattleSceneFrameBuilder(BattleAssets assets)
             throw new NotSupportedException($"Stage {stage.Id} camera {cameraId} requires an unsupported native endpoint resolver.");
         }
 
-        var positions = ImmutableDictionary.CreateBuilder<string, NativeBattleVector>(StringComparer.Ordinal);
+        ImmutableDictionary<string, NativeBattleVector> positions = ReadPositions(actors.Select(actor => actor.Placement), layout, encounter);
         List<Vector3> vertices = [];
         foreach (ActorLayout actor in actors)
         {
-            NativeBattleVector position = Position(actor, layout, encounter);
-            positions.Add(actor.Id, position);
-            if (actor.IsPlayer || actor.IsActive && !actor.Hidden)
+            if (actor.Placement.IsParty || actor.IsActive && !actor.Hidden)
             {
-                AddIdleBody(actor, position, vertices);
+                AddIdleBody(actor, positions[actor.Placement.Id], vertices);
             }
         }
-        int activeEnemies = actors.Count(actor => !actor.IsPlayer && actor.IsActive);
+        int activeEnemies = actors.Count(actor => !actor.Placement.IsParty && actor.IsActive);
         ExpandedBattleFrame fitted = ExpandedBattleFraming.Fit(camera, 0, vertices, layout.AllyCount, Math.Max(1, activeEnemies));
-        ExpandedBattleSceneFrame frame = new(fitted.Pose, fitted.Projection, positions.ToImmutable());
+        ExpandedBattleSceneFrame frame = new(fitted.Pose, fitted.Projection, positions);
         previousLayout = layout;
         previousActors = actors;
         previousFrame = frame;
         return frame;
+    }
+
+    internal ImmutableDictionary<string, NativeBattleVector> ReadPositions(BattleSession owner)
+    {
+        Layout layout = layouts.GetValue(owner, ReadLayout);
+        return ReadPositions(owner.Combatants.Where(actor => actor.Slot.HasValue).Select(Placement), layout, assets.LoadEncounter(layout.EncounterId));
+    }
+
+    private static ActorPlacement Placement(BattleCombatant actor)
+    {
+        return new(actor.Id, actor.IsPlayer, actor.Slot, actor.SceneSlot);
+    }
+
+    private static ImmutableDictionary<string, NativeBattleVector> ReadPositions(IEnumerable<ActorPlacement> actors, Layout layout, BattleEncounter encounter)
+    {
+        return actors.ToImmutableDictionary(actor => actor.Id, actor => Position(actor, layout, encounter), StringComparer.Ordinal);
     }
 
     private static Layout ReadLayout(BattleSession owner)
@@ -66,9 +81,9 @@ internal sealed class ExpandedBattleSceneFrameBuilder(BattleAssets assets)
         return new(encounterId, stageId, allyCount, definition.Combatants.Length - allyCount, definition.UsesOriginalEnemySlots, definition.AddedEnemySources);
     }
 
-    private static NativeBattleVector Position(ActorLayout actor, Layout layout, BattleEncounter encounter)
+    private static NativeBattleVector Position(ActorPlacement actor, Layout layout, BattleEncounter encounter)
     {
-        if (!actor.IsPlayer && layout.OriginalSlots)
+        if (!actor.IsParty && layout.OriginalSlots)
         {
             if (actor.SceneSlot is not int sceneSlot)
             {
@@ -82,15 +97,16 @@ internal sealed class ExpandedBattleSceneFrameBuilder(BattleAssets assets)
                 ?? throw new InvalidDataException($"Original enemy scene slot {sceneSlot} lacks its authored position.");
         }
         int position = actor.Slot?.Position ?? throw new InvalidDataException("Expanded actor has no roster position.");
-        return ExpandedBattleFormation.Position(position, actor.IsPlayer ? layout.AllyCount : layout.EnemyCount, actor.IsPlayer);
+        return ExpandedBattleFormation.Position(position, actor.IsParty ? layout.AllyCount : layout.EnemyCount, actor.IsParty);
     }
 
     private void AddIdleBody(ActorLayout actor, NativeBattleVector position, List<Vector3> vertices)
     {
-        BattleModel model = actor.Form is int form ? assets.LoadEnemy(form) : actor.IsPlayer ? assets.LoadPlayer(actor.Model, actor.Costume)
+        bool isParty = actor.Placement.IsParty;
+        BattleModel model = actor.Form is int form ? assets.LoadEnemy(form) : isParty ? assets.LoadPlayer(actor.Model, actor.Costume)
             : actor.Model == -1 ? (debugBody ??= BattleDebugModels.CreateDummy()) : assets.LoadEnemy(actor.Model);
         IdleBody body = idleBodies.GetValue(model, ReadIdleBody);
-        Matrix4x4 transform = Matrix4x4.CreateRotationY(actor.IsPlayer ? MathF.PI : 0) * Matrix4x4.CreateTranslation(ScenePosition(position) - Vector3.UnitY * body.StandingGround);
+        Matrix4x4 transform = Matrix4x4.CreateRotationY(isParty ? MathF.PI : 0) * Matrix4x4.CreateTranslation(ScenePosition(position) - Vector3.UnitY * body.StandingGround);
         foreach (Vector3 vertex in body.Vertices)
         {
             vertices.Add(Vector3.Transform(vertex, transform));
