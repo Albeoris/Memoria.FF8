@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-/// <summary>Maps the ordered recipients of one action to temporary rows in its effect presentation.</summary>
+/// <summary>Maps the ordered contact occurrences of one action to recipients and temporary model rows.</summary>
 public sealed class NativeBattleEffectContactBridge<TRecipient> where TRecipient : notnull
 {
     private readonly ImmutableArray<(TRecipient Recipient, NativeBattleContactPacket Packet)> targets;
@@ -15,12 +15,29 @@ public sealed class NativeBattleEffectContactBridge<TRecipient> where TRecipient
     public NativeBattleEffectContactBridge(IEnumerable<(TRecipient Recipient, NativeBattleContactPacket Packet)> targets)
     {
         ArgumentNullException.ThrowIfNull(targets);
-        this.targets = targets.ToImmutableArray();
-        if (this.targets.IsEmpty || this.targets.Any(target => target.Recipient is null || target.Packet?.Primary is null || !NativeBattleSlots.Contains(target.Packet.Primary.ActorIndex) || target.Packet.Secondary is null || target.Packet.Secondary.ActorIndex != 255 && !NativeBattleSlots.Contains(target.Packet.Secondary.ActorIndex)) ||
-            this.targets.Select(target => target.Recipient).Distinct().Count() != this.targets.Length ||
-            this.targets.Select(target => target.Packet.Primary.ActorIndex).Distinct().Count() != this.targets.Length)
+        this.targets = targets.Take(NativeBattleActionPacketsState.ContactCapacity + 1).ToImmutableArray();
+        if (this.targets.IsEmpty || this.targets.Length > NativeBattleActionPacketsState.ContactCapacity)
         {
-            throw new InvalidDataException("An effect action requires a distinct recipient for each of its bound native contact rows.");
+            throw new InvalidDataException("An effect action requires a nonempty contact stream within the native packet capacity.");
+        }
+
+        Dictionary<TRecipient, byte> rowsByRecipient = new();
+        Dictionary<byte, TRecipient> recipientsByRow = new();
+        foreach ((TRecipient recipient, NativeBattleContactPacket packet) in this.targets)
+        {
+            if (recipient is null || packet is null)
+            {
+                throw new InvalidDataException("An effect contact requires a recipient and a native packet.");
+            }
+            packet.Validate();
+            byte row = packet.Primary.ActorIndex;
+            if (rowsByRecipient.TryGetValue(recipient, out byte previousRow) && previousRow != row ||
+                recipientsByRow.TryGetValue(row, out TRecipient? previousRecipient) && !EqualityComparer<TRecipient>.Default.Equals(previousRecipient, recipient))
+            {
+                throw new InvalidDataException("An effect action requires a one-to-one binding between recipients and native model rows.");
+            }
+            rowsByRecipient[recipient] = row;
+            recipientsByRow[row] = recipient;
         }
     }
 
@@ -44,16 +61,37 @@ public sealed class NativeBattleEffectContactBridge<TRecipient> where TRecipient
         return (packets, mask.Bits);
     }
 
-    public TRecipient Resolve(NativeBattleContactPacket packet)
+    public TRecipient Resolve(NativeBattleContactPacket packet) => ResolveOccurrence(packet).Recipient;
+
+    public (int Index, TRecipient Recipient) ResolveOccurrence(NativeBattleContactPacket packet)
     {
         packet.Validate();
-        foreach (var target in targets)
+        if (packet.PhysicalContactIndex is int physicalIndex)
         {
-            if (target.Packet == packet)
+            if ((uint)physicalIndex >= (uint)targets.Length || targets[physicalIndex].Packet != packet)
             {
-                return target.Recipient;
+                throw new NotSupportedException("The native effect published a contact that does not match its prepared occurrence.");
             }
+            return (physicalIndex, targets[physicalIndex].Recipient);
         }
-        throw new NotSupportedException("The native effect published a contact outside the prepared action.");
+
+        int match = -1;
+        for (int index = 0; index < targets.Length; index++)
+        {
+            if (targets[index].Packet != packet)
+            {
+                continue;
+            }
+            if (match >= 0)
+            {
+                throw new NotSupportedException("The native effect must identify its occurrence when multiple prepared contacts have the same payload.");
+            }
+            match = index;
+        }
+        if (match < 0)
+        {
+            throw new NotSupportedException("The native effect published a contact outside the prepared action.");
+        }
+        return (match, targets[match].Recipient);
     }
 }
