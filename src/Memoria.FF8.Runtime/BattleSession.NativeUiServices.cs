@@ -182,14 +182,29 @@ public sealed partial class BattleSession
 
     private void RegisterNativeTriggerWidget(NativeBattleGraphicsState graphics, BattleCombatant actor, NativeBattleSequenceCue cue)
     {
+        NativeBattleGraphicsState prepared = PrepareNativeTriggerWidget(graphics, actor.EncodeNativeSlot(), cue);
+        nativeGuardianBoost = null;
+        NativeGraphics = prepared;
+        MirrorNativeRenzokukenWidget(prepared.TriggerWidget!);
+    }
+
+    private NativeBattleGraphicsState PrepareNativeTriggerWidget(NativeBattleGraphicsState graphics, int row, NativeBattleSequenceCue cue)
+    {
         BattleNativeRenzokukenBlock block = cue.TriggerWindow ?? throw new InvalidDataException("Native AB cue lacks its parsed original timing block.");
         NativeBattleUiServices ui = graphics.UiServices ?? throw new NotSupportedException("Native AB requires its initialized4A94D0 UI service owner.");
         ushort options = definition.LimitProgress?.Options978 ?? throw new NotSupportedException("Native AB requires its actual saved options WORD1CFE978.");
-        NativeBattleTriggerWidget widget = NativeBattleTriggerWidget.Register(checked((byte)actor.EncodeNativeSlot()), block, options, ui) with { SourceSequence = checked((byte)cue.First), SourceAbOffset = cue.Second, SourceMagicId = graphics.Models[actor.EncodeNativeSlot()].ResourceMagicId };
-        nativeGuardianBoost = null;
+        NativeBattleGraphicsRoster? roster = graphics.PresentationRoster;
+        if (roster is not null)
+        {
+            RequireHostedActionModelBank(graphics, roster);
+            if (!roster.ContainsRow(row))
+            {
+                throw new InvalidDataException("Hosted AB requires its bound graphics model row.");
+            }
+        }
+        NativeBattleTriggerWidget widget = NativeBattleTriggerWidget.Register(checked((byte)row), block, options, ui, roster) with { SourceSequence = checked((byte)cue.First), SourceAbOffset = cue.Second, SourceMagicId = graphics.Models[row].ResourceMagicId };
         ui = widget.Visible ? ui.SetFlags(0x1800) with { Menu957 = 6, Menu955 = -2 } : ui.SetFlags(0, 0x1800);
-        NativeGraphics = graphics with { UiServices = ui, TriggerWidget = widget, PendingTriggerSoundActorIndex = null };
-        MirrorNativeRenzokukenWidget(widget);
+        return graphics with { UiServices = ui, TriggerWidget = widget, PendingTriggerSoundActorIndex = null };
     }
 
     private void AdvanceNativeTriggerWidget()
@@ -203,7 +218,7 @@ public sealed partial class BattleSession
         ushort options = definition.LimitProgress?.Options978 ?? throw new NotSupportedException("Native widget6 requires its saved automatic trigger option.");
         //Host Automatic supplies one actual manual press edge; the original automatic option retains its separate4A7080 draw.
         bool assistance = nativeRenzokukenProcesses.Count == 0 && GunbladeMode == BattleGunbladeMode.Automatic && (options & 1) == 0 && widget.Input.TriggerTiming == 0 && widget.Input.Phase is 4 or 6 && widget.Input.PoseClock + widget.Input.SubframeClock - widget.Block.Timeline.InputThresholds[widget.Input.ContactIndex] == 20;
-        NativeBattleTriggerWidgetStep step = NativeBattleTriggerWidgetRules.Advance(widget, ui.Frame33 ?? throw new InvalidDataException("Native widget6 was invoked before its4A8E30 BYTE33 producer."), (options & 1) != 0, nativeBattleUiRandom, assistedPress: assistance);
+        NativeBattleTriggerWidgetStep step = NativeBattleTriggerWidgetRules.Advance(widget, ui.Frame33 ?? throw new InvalidDataException("Native widget6 was invoked before its4A8E30 BYTE33 producer."), (options & 1) != 0, nativeBattleUiRandom, assistedPress: assistance, roster: graphics.PresentationRoster);
         nativeBattleUiRandom = step.Random;
         NativeBattleTriggerReceipt? pending = graphics.PendingTrigger;
         if (step.Contact is { } contact)
@@ -255,6 +270,6 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Saved native widget differs from its reached original AB timing bytes.");
             }
         }
-        graphics.PendingTrigger?.Validate();
+        graphics.PendingTrigger?.Validate(graphics.PresentationRoster);
     }
 }

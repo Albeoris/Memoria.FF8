@@ -4,11 +4,25 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleGraphicsState AdvanceNativeLoadedModels(NativeBattleGraphicsState graphics, uint flags)
+    private NativeBattleGraphicsState AdvanceNativeLoadedModels(NativeBattleGraphicsState graphics, uint flags, NativeBattleModelLifecycleServices? services = null)
     {
-        ImmutableArray<NativeBattleGraphicsModel> models = graphics.Models;
-        for (int index = 0; index < 7; index++)
+        NativeBattleGraphicsRoster? roster = graphics.PresentationRoster;
+        if (roster is not null)
         {
+            (services ?? throw new InvalidDataException("Hosted model lifecycle requires its actor fact and receipt services.")).Validate(roster, graphics);
+        }
+        else if (services is not null)
+        {
+            throw new InvalidDataException("Hosted model lifecycle services require an explicit graphics roster.");
+        }
+        ImmutableArray<NativeBattleGraphicsModel> models = graphics.Models;
+        for (int index = 0; index < (roster?.ActorCount ?? NativeBattleSlots.Count); index++)
+        {
+            NativeBattleModelActorFacts? actorFacts = services?.Facts[index];
+            if (services is not null && actorFacts is null)
+            {
+                continue;
+            }
             NativeBattleGraphicsModel model = models[index];
             if ((model.Flags0 & 2) == 0)
             {
@@ -26,7 +40,7 @@ public sealed partial class BattleSession
                 NativeEffectMemory = colorMemory with { ModelColorOverrides = colorStep.Overrides };
                 if (colorStep.CountdownRequired)
                 {
-                    AdvanceNativeStatusCountdowns(graphics, model);
+                    AdvanceNativeStatusCountdowns(graphics, model, actorFacts);
                 }
                 (graphics, model) = AdvanceNativeStatusIcons(graphics, model);
                 byte? dispatchedKind = model.Kind5;
@@ -71,9 +85,16 @@ public sealed partial class BattleSession
                 }
                 if (removal.ReleaseParticipant)
                 {
-                    BattleCombatant actor = GraphicsActor(graphics, index);
-                    actor.NativeCombatantFlags = (actor.NativeCombatantFlags | 0x40) & ~1u;
-                    actor.NativeStatus0 |= 1;
+                    if (actorFacts is null)
+                    {
+                        BattleCombatant actor = GraphicsActor(graphics, index);
+                        actor.NativeCombatantFlags = (actor.NativeCombatantFlags | 0x40) & ~1u;
+                        actor.NativeStatus0 |= 1;
+                    }
+                    else
+                    {
+                        services!.Emit(new NativeBattleModelParticipantReleased(index, actorFacts.ActorId));
+                    }
                 }
             }
             bool encounterArrivalActive = ApplyEncounterArrivalBeforeDraw(graphics with { Models = models.SetItem(index, model) }, ref model);
@@ -90,11 +111,13 @@ public sealed partial class BattleSession
             }
             if (!encounterArrivalActive && (model.Flags0 & 2) != 0 && (model.Flags0 & 8) == 0 && !((model.Flags8!.Value & 0x18) != 0 && (model.ResourceFlags44!.Value & 0x40) != 0) && (flags & 0x201) == 0)
             {
-                NativeBattleGraphicsBinding binding = FindNativeGraphicsBinding(graphics.ActorIds[index]!) ?? throw new InvalidDataException("Native graphics callback lost its immutable resource binding.");
+                NativeBattleGraphicsResource originalResource = actorFacts is null
+                    ? (FindNativeGraphicsBinding(graphics.ActorIds[index]!) ?? throw new InvalidDataException("Native graphics callback lost its immutable resource binding.")).Resource
+                    : ReadHostedPresentationModelResource(index) ?? throw new InvalidDataException("Hosted graphics callback lost its immutable resource binding.");
                 NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
                 NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(model, resource, new(NativeEntryAdvantage, NativeCamera?.Mask)
                 {
-                    OriginalResource = model.ModelId4 >= 16 ? model.OriginalResourceRow104 == model.ActiveResourceRow100 && model.ResourceMagicId is null ? resource : ResolveNativeEnemyResource(model.OriginalResourceRow104 ?? throw new NotSupportedException("Native enemy original resource row remains unknown."), binding.Resource) : binding.Resource,
+                    OriginalResource = model.ModelId4 >= 16 ? model.OriginalResourceRow104 == model.ActiveResourceRow100 && model.ResourceMagicId is null ? resource : ResolveNativeEnemyResource(model.OriginalResourceRow104 ?? throw new NotSupportedException("Native enemy original resource row remains unknown."), originalResource) : originalResource,
                     GlobalRandom = NextNativeGlobalRandom,
                     BindModelRing90 = (current, selector) =>
                     {
@@ -146,7 +169,18 @@ public sealed partial class BattleSession
                         graphics = DispatchNativeStageControl(graphics with { Models = models }, command);
                         models = graphics.Models;
                     },
-                    PlaySound = (current, cue) => PublishNativeSequenceSound(graphics with { Models = models.SetItem(index, current) }, current, GraphicsActor(graphics, index), cue),
+                    PlaySound = (current, cue) =>
+                    {
+                        NativeBattleGraphicsState sounding = graphics with { Models = models.SetItem(index, current) };
+                        if (actorFacts is null)
+                        {
+                            PublishNativeSequenceSound(sounding, current, GraphicsActor(graphics, index), cue);
+                        }
+                        else
+                        {
+                            PublishNativeSequenceSound(sounding, current, actorFacts.ActorId, cue);
+                        }
+                    },
                     ScheduleTextureAnimation = (program, sequence) => graphics = ScheduleNativeTextureAnimation(graphics, index, program, sequence),
                     ScheduleModelEffect = effect => graphics = ScheduleNativeModelEffect(graphics, index, effect),
                     ApplyTexture = (selector, variant) => ApplyNativeTextureMotion(graphics, index, selector, variant),
@@ -209,6 +243,11 @@ public sealed partial class BattleSession
                 model = step.Model with { Flags2 = (ushort)(step.Model.Flags2!.Value & ~4) };
                 foreach (NativeBattleSequenceCue cue in step.Cues)
                 {
+                    if (actorFacts is not null)
+                    {
+                        graphics = PublishHostedModelLifecycleCue(graphics, model, actorFacts, cue, services!);
+                        continue;
+                    }
                     BattleCombatant actor = GraphicsActor(graphics, index);
                     if (cue.Kind == NativeBattleSequenceCueKind.Text)
                     {

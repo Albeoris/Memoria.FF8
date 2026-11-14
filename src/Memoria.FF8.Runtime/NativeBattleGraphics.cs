@@ -106,12 +106,16 @@ public sealed partial record NativeBattleGraphicsState([property: JsonRequired] 
         ActionContext?.Validate();
         OriginalEffect?.Validate(PresentationRoster);
         UiServices?.Validate();
-        TriggerWidget?.Validate();
+        TriggerWidget?.Validate(PresentationRoster);
         if ((Flags & 8) != 0 && UiServices is null)
         {
             throw new InvalidDataException("Native506CF0 stage has no initialized4A94D0 UI service owner; migrate the standalone snapshot explicitly.");
         }
         PresentationRoster?.Validate();
+        if (PresentationRoster is { } triggerRoster)
+        {
+            PendingTrigger?.Validate(triggerRoster);
+        }
         if (PendingTriggerSoundActorIndex is byte soundActor)
         {
             if (PresentationRoster is { } soundRoster)

@@ -9,9 +9,9 @@ public sealed record NativeBattleTriggerWidget([property: JsonRequired] byte Act
     public int? SourceAbOffset { get; init; }
     public ushort? SourceMagicId { get; init; }
 
-    public void Validate()
+    public void Validate(NativeBattleGraphicsRoster? roster = null)
     {
-        if (ActorIndex >= 7 || Block is null || Block.Timeline is null || Block.Segments.IsDefaultOrEmpty || Input is null || Block.Timeline.InputThresholds.IsDefaultOrEmpty || Input.ContactIndex > Block.Timeline.InputThresholds.Length || Input.SubframeClock is < 0 or > 3 || Input.PoseClock < 0 || Input.PoseClock % 4 != 0 || Input.Phase is not (0 or 1 or 2 or 3 or 4 or 6 or 8) || ClosingPhase is not (0 or 8 or 10 or 12 or 13) || ClosingRemaining is < 0 or > 23 || (ClosingPhase == 0) == (Input.Phase == 8) || (SourceSequence is null) != (SourceAbOffset is null) || SourceAbOffset < 0)
+        if (!(roster?.ContainsRow(ActorIndex) ?? ActorIndex < 7) || Block is null || Block.Timeline is null || Block.Segments.IsDefaultOrEmpty || Input is null || Block.Timeline.InputThresholds.IsDefaultOrEmpty || Input.ContactIndex > Block.Timeline.InputThresholds.Length || Input.SubframeClock is < 0 or > 3 || Input.PoseClock < 0 || Input.PoseClock % 4 != 0 || Input.Phase is not (0 or 1 or 2 or 3 or 4 or 6 or 8) || ClosingPhase is not (0 or 8 or 10 or 12 or 13) || ClosingRemaining is < 0 or > 23 || (ClosingPhase == 0) == (Input.Phase == 8) || (SourceSequence is null) != (SourceAbOffset is null) || SourceAbOffset < 0)
         {
             throw new InvalidDataException("Native trigger widget lacks its parsed AB timeline or retained callback state.");
         }
@@ -22,8 +22,12 @@ public sealed record NativeBattleTriggerWidget([property: JsonRequired] byte Act
         }
     }
 
-    public static NativeBattleTriggerWidget Register(byte actor, BattleNativeRenzokukenBlock block, ushort options, NativeBattleUiServices ui)
+    public static NativeBattleTriggerWidget Register(byte actor, BattleNativeRenzokukenBlock block, ushort options, NativeBattleUiServices ui, NativeBattleGraphicsRoster? roster = null)
     {
+        if (roster is not null && !roster.ContainsRow(actor))
+        {
+            throw new InvalidDataException("Hosted trigger registration requires its bound model row.");
+        }
         bool visible = block.ShowBar != 0 && (options & 0x8001) == 0;
         //4BA6C0 case0 only registers phase1; it does not read the retained widgetBYTE33.
         BattleNativeRenzokukenInputStep initial = NativeBattleRenzokukenRules.AdvanceInput(block.Timeline, new(), false, false, (options & 1) != 0, null);
@@ -37,9 +41,9 @@ public sealed record NativeBattleTriggerWidgetStep(NativeBattleTriggerWidget Wid
 }
 public sealed record NativeBattleTriggerReceipt([property: JsonRequired] byte ActorIndex, [property: JsonRequired] short ContactIndex, [property: JsonRequired] short TotalContacts, [property: JsonRequired] short Timing, [property: JsonRequired] short WordD96)
 {
-    public void Validate()
+    public void Validate(NativeBattleGraphicsRoster? roster = null)
     {
-        if (ActorIndex >= 7 || ContactIndex < 1 || ContactIndex > TotalContacts || TotalContacts > 16 || Timing != 0 && Timing != 1 && Timing < 20 || WordD96 != 32)
+        if (!(roster?.ContainsRow(ActorIndex) ?? ActorIndex < 7) || ContactIndex < 1 || ContactIndex > TotalContacts || TotalContacts > 16 || Timing != 0 && Timing != 1 && Timing < 20 || WordD96 != 32)
         {
             throw new InvalidDataException("Saved485130 receipt differs from4BA6C0's signed WORD inputs and separate argument32.");
         }
@@ -49,9 +53,9 @@ public sealed record NativeBattleTriggerReceipt([property: JsonRequired] byte Ac
 public static class NativeBattleTriggerWidgetRules
 {
     /// <summary>One actual4B9C80 service invocation, with BYTE33 supplied by4A8E30 rather than an elapsed-time adapter.</summary>
-    public static NativeBattleTriggerWidgetStep Advance(NativeBattleTriggerWidget widget, bool frame33, bool automatic, NativeBattleUiRandomState? random, bool assistedPress = false)
+    public static NativeBattleTriggerWidgetStep Advance(NativeBattleTriggerWidget widget, bool frame33, bool automatic, NativeBattleUiRandomState? random, bool assistedPress = false, NativeBattleGraphicsRoster? roster = null)
     {
-        widget.Validate();
+        widget.Validate(roster);
         BattleNativeRenzokukenContact? contact = null;
         bool beginClose = false;
         bool unregistered = false;
