@@ -37,10 +37,10 @@ internal sealed partial class RecreateGame
 
     private object RestartGraphicsBackend(GraphicsBackend backend, DateTimeOffset? expiresAt)
     {
-        return GraphicsRestartHandoff.Request(backend, expiresAt, updateSave.Paused, (path, deadline) => session.State.Scene == SceneKind.Title ? GraphicsRestartSnapshot.SaveTitle(session, path, deadline) : updateSave.Save(path, deadline), () =>
+        return GraphicsRestartHandoff.Request(backend, expiresAt, updateSave.Paused, (path, deadline) => !InFf7 && session.State.Scene == SceneKind.Title ? GraphicsRestartSnapshot.SaveTitle(session, path, deadline) : updateSave.Save(path, deadline), () =>
         {
             updateSave.Cancel();
             SynchronizeUiMoviePause();
-        }, ExitGame, session.State.Scene.ToString(), session.State.FieldId);
+        }, ExitGame, InFf7 ? "Field" : session.State.Scene.ToString(), InFf7 ? 0 : session.State.FieldId);
     }
 }

@@ -81,6 +81,8 @@ Active Move-Find reveals hidden field draw points and save points and permits us
 
 ## Display settings
 
+Graphics preferences are shared by FFVIII and FFVII and remain selected when using **Switch world**. The current graphics backend and window placement also carry across the transfer. Changing the graphics backend requires a restart; the other graphics choices apply while playing.
+
 **Config → Graphics → Window mode** selects **Windowed** (the default) or **Borderless** full-screen display. **Alt+Enter** toggles the same setting. Your choice is shared across saves and saved across launches.
 
 Open **Config → Graphics → Frame rate limits** to choose **Field and movies: 30 or 60** (default 60). At 60 FPS, field movement and animation interpolate between the original simulation frames. Scripts, movement rules and gameplay timing retain their original rate. Movies retain their own playback timing. **V-Sync** can limit presentation further when the display cannot reach the selected rate.
@@ -89,7 +91,7 @@ Open **Config → Graphics → Frame rate limits** to choose **Field and movies:
 
 ## Graphics
 
-**Config → Graphics → Anti-aliasing** offers **Off**, **MSAA 2x**, **MSAA 4x** and **MSAA 8x**. The default is **MSAA 8x**. Changes apply immediately and are shared by all saves. The graphics device uses a supported sample count when the requested quality is unavailable.
+**Config → Graphics → Anti-aliasing** offers **Off**, **MSAA 2x**, **MSAA 4x** and **MSAA 8x**. The default is **MSAA 8x**. Changes apply immediately and are shared by all saves. The graphics device uses a supported sample count when the requested quality is unavailable. The bundled MonoGame Native runtime currently caps Vulkan at four samples, so selecting **MSAA 8x** there retains that preference and renders with **MSAA 4x**.
 
 The same setting is stored in the `Graphics` section of `%LOCALAPPDATA%/Memoria/FF8/ui-settings.json`. Set `MsaaSamples` to `0`, `2`, `4` or `8`; existing configuration files without this section retain the default. Close the game before editing the file directly.
 

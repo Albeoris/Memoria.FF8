@@ -19,9 +19,9 @@ internal sealed partial class RecreateGame
 #if MEMORIA_NATIVE
         nativeBackBuffer?.Synchronize();
 #endif
-        bool menu = startup.Active || session.State.Scene == SceneKind.Title || gameMenus?.IsOpen == true || saveMenu.IsOpen || battleDebug is not null || world?.ActiveTripleTriad is not null;
-        int frameLimit = PresentationTiming.FrameLimit(uiPreferences, menu, ActiveBattle is not null, session.State.Scene == SceneKind.WorldMap);
-        bool nativeBattle = ActiveBattle?.NativeGraphics is not null;
+        bool menu = InFf7 ? ff7Scene!.IsMenuPresentation || saveMenu.IsOpen || crossoverSetup is not null : startup.Active || session.State.Scene == SceneKind.Title || gameMenus?.IsOpen == true || saveMenu.IsOpen || battleDebug is not null || world?.ActiveTripleTriad is not null;
+        int frameLimit = InFf7 ? PresentationTiming.FrameLimit(uiPreferences, menu, ff7Scene!.Session?.Battle is not null, ff7Scene.Session?.World is not null) : PresentationTiming.FrameLimit(uiPreferences, menu, ActiveBattle is not null, session.State.Scene == SceneKind.WorldMap);
+        bool nativeBattle = !InFf7 && ActiveBattle?.NativeGraphics is not null;
         if (appliedFrameLimit != frameLimit || appliedNativeBattlePacing != nativeBattle)
         {
             // Simulation has its own clocks. Every host tick must reach Draw, including under load.
@@ -42,6 +42,7 @@ internal sealed partial class RecreateGame
             {
                 fieldGpu?.InvalidatePresentation();
                 battleGpu?.InvalidatePresentation();
+                ff7Scene?.InvalidateGraphicsPresentation();
             }
         }
     }

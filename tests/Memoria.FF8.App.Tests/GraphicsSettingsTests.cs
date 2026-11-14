@@ -128,7 +128,8 @@ public sealed class GraphicsSettingsTests
         private void AssertSamples(int requested)
         {
             GraphicsDevice device = game.GraphicsDevice;
-            device.Adapter.QueryRenderTargetFormat(device.GraphicsProfile, SurfaceFormat.Color, DepthFormat.Depth24, requested, out _, out _, out int supported);
+            using RenderTarget2D reference = new(device, 1, 1, false, SurfaceFormat.Color, DepthFormat.Depth24, requested, RenderTargetUsage.PreserveContents);
+            int supported = reference.MultiSampleCount;
             Assert.Equal(supported, device.PresentationParameters.MultiSampleCount);
             GpuTriangleRenderer renderer = (GpuTriangleRenderer)Field("battleGpu").GetValue(game)!;
             renderer.Begin(16, 16, System.Numerics.Vector4.One);

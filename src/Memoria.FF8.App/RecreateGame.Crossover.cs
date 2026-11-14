@@ -147,6 +147,23 @@ internal sealed partial class RecreateGame
         drainUiButtons = true;
     }
 
+    private void ConfigureFf7Presentation(Ff7Scene scene)
+    {
+        scene.ConfigureDialoguePresentation(() => uiPreferences, text, uiCanvas!, () => CreateUiTheme(), preferences =>
+        {
+            bool backendChanged = uiPreferences.Graphics.Backend != preferences.Graphics.Backend;
+            preferences.Save(UiPreferencesPath);
+            uiPreferences = preferences;
+            gameMenus?.InvalidateLiveData();
+            ApplyDisplaySettings();
+            text.FontFamily = uiPreferences.UiFontFamily;
+            if (backendChanged)
+            {
+                RequestGraphicsRestartConfirmation(uiPreferences.Graphics.Backend);
+            }
+        });
+    }
+
     private Ff7Scene PrepareFf7Scene(CombinedSessionSave state)
     {
         Ff7Installation installation = Ff7Installation.Discover(options.Ff7GameDirectory ?? throw new InvalidOperationException("Select a FINAL FANTASY VII installation before loading this world."));
@@ -162,12 +179,7 @@ internal sealed partial class RecreateGame
         {
             scene.ConfigureEnemyIntegrationMods(options.ModsDirectory);
             scene.ConfigureCharacterIdentity(options.GameDirectory);
-            scene.ConfigureDialoguePresentation(() => uiPreferences, text, uiCanvas!, () => CreateUiTheme(), preferences =>
-            {
-                preferences.Save(UiPreferencesPath);
-                uiPreferences = preferences;
-                gameMenus?.InvalidateLiveData();
-            });
+            ConfigureFf7Presentation(scene);
             scene.ConfigureSharedControls(keyboard, gameplayClock, profile => profile.Save(new GlobalSettingsPaths(isolatedDirectory: options.SettingsDirectory).ControlsPreferencesPath));
             scene.PlayerSaveRequested += input => UpdatePlayerSaves(input);
             scene.ContinueRequested += () => OpenPlayerSaveMenu(PlayerSaveMenuMode.Load);
@@ -288,6 +300,7 @@ internal sealed partial class RecreateGame
     {
         if (InFf7)
         {
+            ApplyDisplaySettings();
             UpdateAchievements();
         }
         if (InFf7 || crossoverSetup is not null)
@@ -321,7 +334,7 @@ internal sealed partial class RecreateGame
             InputFrame input = keyboard.Read(windowModeHotkey.Filter(physicalInput.ReadKeyboard()), physicalInput.ReadController(), physicalInput.CanRead && !focusPaused && IsActive);
             UpdatePlayerSavePointer();
             UpdatePlayerSaveMenuAsync(input);
-            presentationPacer.WaitForNextFrame(ff7Scene.PresentationFrameLimit);
+            presentationPacer.WaitForNextFrame(appliedFrameLimit ?? 60);
             return true;
         }
         ff7Scene!.SetFocusPaused(focusPaused || updateSave.Paused);
@@ -348,7 +361,7 @@ internal sealed partial class RecreateGame
             return true;
         }
         UpdateDiagnosticExit(time);
-        presentationPacer.WaitForNextFrame(ff7Scene!.PresentationFrameLimit);
+        presentationPacer.WaitForNextFrame(appliedFrameLimit ?? 60);
         return true;
     }
 
@@ -361,6 +374,7 @@ internal sealed partial class RecreateGame
     {
         if (crossoverSetup is not null)
         {
+            BeginMeasuredFrame();
             GraphicsDevice.Clear(Color.Black);
             crossoverSetup.Draw(batch, GraphicsDevice.Viewport.Bounds, uiPreferences.UiFontFamily);
             DrawCrossoverOverlays();
@@ -372,6 +386,7 @@ internal sealed partial class RecreateGame
         {
             return false;
         }
+        BeginMeasuredFrame();
         GraphicsDevice.Clear(Color.Black);
         ff7Scene!.Draw(batch, GraphicsDevice.Viewport.Bounds);
         if (Window.Title != ff7Scene.LocationWindowTitle)
@@ -392,6 +407,7 @@ internal sealed partial class RecreateGame
         {
             DrawPlayerSaveMenu(GraphicsDevice.Viewport.Bounds, 1);
         }
+        DrawFps(GraphicsDevice.Viewport.Bounds);
         DrawGameConfirmation(GraphicsDevice.Viewport.Bounds);
         DrawWindowCloseConfirmation(GraphicsDevice.Viewport.Bounds);
         batch.End();

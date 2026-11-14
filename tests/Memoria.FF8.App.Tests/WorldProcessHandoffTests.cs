@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO.Pipes;
 using System.Text.Json;
+using Memoria.FF8.Platform;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
@@ -221,8 +222,10 @@ public sealed class WorldProcessHandoffTests
             SettingsDirectory = Path.Combine(Path.GetTempPath(), "shared settings"),
             MuteAudio = true,
             AchievementsLocalOnly = true,
+            RequestedGraphicsBackend = GraphicsBackend.Vulkan,
             Width = 1600,
-            Height = 900
+            Height = 900,
+            ResolutionSpecified = true
         };
         WindowTransferRectangle bounds = new(-1600, 40, 1600, 900);
         WindowTransferPlacement placement = new(new(-1400, 80, 1280, 720), true, 2, 3, 4, 5, 6);
@@ -238,6 +241,10 @@ public sealed class WorldProcessHandoffTests
         Assert.Equal(specification.ParentStarted, restored.ParentStarted);
         Assert.Equal(window, restored.Window);
         Assert.Equal(JsonSerializer.Serialize(options), JsonSerializer.Serialize(restored.Options));
+        Assert.Equal(options.RequestedGraphicsBackend, restored.Options.RequestedGraphicsBackend);
+        Assert.Equal(new GlobalSettingsPaths(isolatedDirectory: options.SettingsDirectory).UiPreferencesPath, new GlobalSettingsPaths(isolatedDirectory: restored.Options.SettingsDirectory).UiPreferencesPath);
+        Assert.True(restored.Options.ResolutionSpecified);
+        Assert.Equal((1600, 900), (restored.Options.Width, restored.Options.Height));
         Assert.Equal(options.InitialState.Scene, restored.Options.InitialState.Scene);
         Assert.Equal(options.InitialState.FieldId, restored.Options.InitialState.FieldId);
     }
