@@ -31,6 +31,37 @@ public sealed partial class BattleSession
         return prepared;
     }
 
+    private NativeBattleGraphicsState PrepareNativeActionGeometry(NativeBattleGraphicsState graphics, int actorIndex, NativeBattleGraphicsActorSet sourceTargets, NativeBattleGraphicsActorSet targetActors, ushort sourceMaskFlags = 0)
+    {
+        NativeBattleGraphicsRoster roster = graphics.PresentationRoster ?? throw new InvalidDataException("Hosted50D300 requires an explicit presentation roster.");
+        RequireHostedActionModelBank(graphics, roster);
+        NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native50D300 requires its retained camera alias memory.");
+        NativeBattleActionGeometryGlobals globals = memory.ActionGeometryGlobals ?? NativeBattleActionGeometryGlobals.Unknown();
+        NativeBattleGraphicsState prepared = NativeBattleActionGeometryRules.PrepareGeometry50D300(graphics, actorIndex, sourceTargets, targetActors, globals, ReadNativeGraphicsBone, sourceMaskFlags);
+        NativeBattleCameraAliases aliases = memory.CameraAliases ?? NativeBattleCameraAliases.Unknown();
+        NativeEffectMemory = memory with
+        {
+            CameraAliases = aliases.Observe50D300(checked((byte)actorIndex), targetActors, roster),
+            ActionGeometryGlobals = globals.Observe50D300(prepared.ActionContext!)
+        };
+        return prepared;
+    }
+
+    private static void RequireHostedActionModelBank(NativeBattleGraphicsState graphics, NativeBattleGraphicsRoster roster)
+    {
+        if (graphics.Models.IsDefault || graphics.Models.Length != roster.ActorCount || graphics.ActorIds.IsDefault || graphics.ActorIds.Length != roster.ActorCount)
+        {
+            throw new InvalidDataException("Hosted action services require a model bank and actor identities for their presentation roster.");
+        }
+        for (int row = 0; row < roster.ActorCount; row++)
+        {
+            if (graphics.Models[row]?.Index != row || !string.Equals(graphics.ActorIds[row], roster.Rows[row]?.ActorId, StringComparison.Ordinal))
+            {
+                throw new InvalidDataException($"Hosted action model or actor identity differs from its presentation binding at row {row}.");
+            }
+        }
+    }
+
     private int ReadNativeGraphicsActionVariable(NativeBattleGraphicsState graphics, byte variable)
     {
         if (variable == 25)

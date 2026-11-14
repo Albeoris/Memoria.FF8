@@ -16,15 +16,19 @@ public static partial class NativeBattleActionGeometryRules
         return PrepareGeometryCore(graphics, actorIndex, sourceMask, targetActors, null, globals, readBone);
     }
 
-    public static NativeBattleGraphicsState PrepareGeometry50D300(NativeBattleGraphicsState graphics, int actorIndex, NativeBattleGraphicsActorSet sourceTargets, NativeBattleGraphicsActorSet targetActors, NativeBattleActionGeometryGlobals globals, Func<NativeBattleGraphicsState, int, byte, short, NativeBattleVector> readBone)
+    public static NativeBattleGraphicsState PrepareGeometry50D300(NativeBattleGraphicsState graphics, int actorIndex, NativeBattleGraphicsActorSet sourceTargets, NativeBattleGraphicsActorSet targetActors, NativeBattleActionGeometryGlobals globals, Func<NativeBattleGraphicsState, int, byte, short, NativeBattleVector> readBone, ushort sourceMaskFlags = 0)
     {
+        if ((sourceMaskFlags & NativeBattleActionGeometry.NativeRowBits) != 0)
+        {
+            throw new InvalidDataException("Hosted50D300 source mask flags cannot supply physical actor bits.");
+        }
         NativeBattleGraphicsRoster roster = graphics.PresentationRoster ?? throw new InvalidDataException("Hosted50D300 requires an explicit presentation roster.");
         if (graphics.Models.IsDefault || graphics.Models.Length != roster.ActorCount || targetActors.IsEmpty)
         {
             throw new InvalidDataException("Hosted50D300 requires models for its presentation roster and a nonempty target set.");
         }
         NativeBattleActionGeometry.ValidatePresentationRows(roster, actorIndex, sourceTargets, targetActors);
-        return PrepareGeometryCore(graphics, actorIndex, sourceTargets.NativePhysicalBits, targetActors, sourceTargets, globals, readBone);
+        return PrepareGeometryCore(graphics, actorIndex, (ushort)(sourceTargets.NativePhysicalBits | sourceMaskFlags), targetActors, sourceTargets, globals, readBone);
     }
 
     private static NativeBattleGraphicsState PrepareGeometryCore(NativeBattleGraphicsState graphics, int actorIndex, ushort sourceMask, NativeBattleGraphicsActorSet targetActors, NativeBattleGraphicsActorSet? sourceTargets, NativeBattleActionGeometryGlobals globals, Func<NativeBattleGraphicsState, int, byte, short, NativeBattleVector> readBone)

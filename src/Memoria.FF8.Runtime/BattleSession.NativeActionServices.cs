@@ -20,6 +20,30 @@ public sealed partial class BattleSession
 
     private bool NativeActionModelsBusy(NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context)
     {
+        if (graphics.PresentationRoster is { } roster)
+        {
+            RequireHostedActionModelBank(graphics, roster);
+            NativeBattleGraphicsActorSet targets = context.TargetActors;
+            NativeBattleGraphicsActorSet cover = NativeBattleGraphicsActorSet.FromNative(context.CoverMask);
+            NativeBattleActionGeometry.ValidatePresentationRows(roster, context.ActorIndex, targets, cover);
+            if (context.UseActionCamera ?? throw new InvalidDataException("Native action service lost its505F00 result."))
+            {
+                for (int row = 0; row < roster.ActorCount; row++)
+                {
+                    if (roster.ContainsRow(row) && (graphics.Models[row].Flags0 & 2) != 0 && NativeBattleActionGraphics.IsModelBusy(graphics.Models[row], 0x40))
+                    {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            if (NativeBattleActionGraphics.IsModelBusy(graphics.Models[context.ActorIndex], 0x40))
+            {
+                return true;
+            }
+            NativeBattleGraphicsActorSet selected = new(targets.Bits | cover.Bits);
+            return selected.EnumerateRows().Any(row => NativeBattleActionGraphics.IsModelBusy(graphics.Models[row], 0x140));
+        }
         if (context.UseActionCamera ?? throw new InvalidDataException("Native action service lost its505F00 result."))
         {
             return graphics.Models.Any(model => (model.Flags0 & 2) != 0 && NativeBattleActionGraphics.IsModelBusy(model, 0x40));
@@ -35,6 +59,43 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState PrepareNativeHeaderGeometry(NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context)
     {
         NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[context.HeaderIndex];
+        if (graphics.PresentationRoster is { } roster)
+        {
+            RequireHostedActionModelBank(graphics, roster);
+            NativeBattleGraphicsActorSet targets = context.TargetActors;
+            NativeBattleGraphicsActorSet cover = NativeBattleGraphicsActorSet.FromNative(context.CoverMask);
+            NativeBattleActionGeometry.ValidatePresentationRows(roster, context.ActorIndex, targets, cover);
+            int source = context.ActorIndex;
+            byte command = header.ReadByte(1);
+            if (command == 0xF0)
+            {
+                int? selected = null;
+                foreach (int row in roster.PartyRows)
+                {
+                    if ((graphics.Models[row].Flags0 & 2) != 0)
+                    {
+                        selected = row;
+                        if (graphics.Models[row].ModelId4 == 4)
+                        {
+                            break;
+                        }
+                    }
+                }
+                source = selected ?? throw new NotSupportedException("Native50AFC0 command240 has no loaded party geometry source.");
+            }
+            NativeBattleGraphicsActorSet selection = cover.IsEmpty ? targets : cover;
+            NativeBattleGraphicsActorSet effective = selection;
+            if (selection.IsEmpty && command is 1 or 12 or 28)
+            {
+                int fallback = context.FirstTarget is byte firstTarget ? firstTarget : source;
+                if (!roster.ContainsRow(fallback))
+                {
+                    throw new InvalidDataException("Hosted action geometry fallback requires a bound target row.");
+                }
+                effective = effective.Add(fallback);
+            }
+            return PrepareNativeActionGeometry(graphics, source, selection, effective);
+        }
         int actorIndex = context.ActorIndex;
         if (header.ReadByte(1) == 0xF0)
         {

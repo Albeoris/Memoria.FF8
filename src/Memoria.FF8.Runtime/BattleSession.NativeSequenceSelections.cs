@@ -4,6 +4,17 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsState RebindNativeSequenceGeometry92(NativeBattleGraphicsState graphics, int currentIndex, byte selector)
     {
+        if (graphics.PresentationRoster is { } roster)
+        {
+            (byte source, NativeBattleGraphicsActorSet targets) = NativeBattleSequenceSelections.GeometryArguments92(currentIndex, selector, graphics.ActionContext, roster);
+            if (targets.IsEmpty)
+            {
+                throw new InvalidDataException("Hosted Native92 requires a bound target selection.");
+            }
+            const ushort nativeActorBits = (1 << NativeBattleSlots.Count) - 1;
+            ushort sourceMaskFlags = selector < NativeBattleSlots.Count ? (ushort)0 : (ushort)(graphics.ActionContext!.SourceTargetMask & ~nativeActorBits);
+            return PrepareNativeActionGeometry(graphics, source, targets, targets, sourceMaskFlags);
+        }
         (byte actorIndex, ushort mask) = NativeBattleSequenceSelections.GeometryArguments92(currentIndex, selector, graphics.ActionContext);
         if ((mask & 127) == 0)
         {
@@ -24,7 +35,7 @@ public sealed partial class BattleSession
     {
         if (opcode == 0x93)
         {
-            foreach (int index in NativeBattleSequenceSelections.SelectModels93(graphics.Models, currentIndex, selector))
+            foreach (int index in NativeBattleSequenceSelections.SelectModels93(graphics.Models, currentIndex, selector, graphics.PresentationRoster))
             {
                 graphics = SelectNativeHeaderSequence(graphics, checked((byte)index), sequence);
             }
@@ -43,7 +54,7 @@ public sealed partial class BattleSession
             }
         }
         int target = (graphics.ActionContext ?? throw new NotSupportedException("Native target sequence requires its50D300 current target owner.")).TargetIndex ?? throw new NotSupportedException("Native target sequence requires its retained physical target identity.");
-        if (opcode == 0xBF && !NativeBattleSequenceSelections.CanSelectTargetBF(graphics.Models[target]))
+        if (opcode == 0xBF && !NativeBattleSequenceSelections.CanSelectTargetBF(graphics.Models[target], graphics.PresentationRoster))
         {
             return graphics;
         }

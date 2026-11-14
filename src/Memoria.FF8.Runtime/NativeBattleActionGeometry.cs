@@ -6,6 +6,8 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Owned50D300 actor/selected-recipient and scalar geometry globals; unresolved packet masks retain unknown fields.</summary>
 public sealed record NativeBattleActionGeometry(byte ActorIndex, ushort SourceTargetMask)
 {
+    internal const ushort NativeRowBits = (1 << NativeBattleGraphicsModelAddress.NativeRowCount) - 1;
+
     public ushort? PhysicalTargetMask { get; init; }
     public byte? TargetIndex { get; init; }
     public short? DistanceScale { get; init; }
@@ -25,7 +27,7 @@ public sealed record NativeBattleActionGeometry(byte ActorIndex, ushort SourceTa
     public NativeBattleGraphicsActorSet? TargetActors => PresentationTargets ?? (PhysicalTargetMask is ushort mask ? NativeBattleGraphicsActorSet.FromNative(mask) : null);
 
     [JsonIgnore]
-    public bool IsSelfTarget => PresentationSourceTargets is { } source ? source.IsSingle(ActorIndex) : SourceTargetMask == 1 << ActorIndex;
+    public bool IsSelfTarget => PresentationSourceTargets is { } source ? (SourceTargetMask & ~NativeRowBits) == 0 && source.IsSingle(ActorIndex) : SourceTargetMask == 1 << ActorIndex;
 
     public void Validate()
     {
@@ -34,7 +36,7 @@ public sealed record NativeBattleActionGeometry(byte ActorIndex, ushort SourceTa
             if (ActorIndex >= NativeBattleGraphicsModelAddress.MaximumRowCount || PresentationTargets is not { } targets ||
                 PresentationSourceTargets is not { } source || targets.IsEmpty ||
                 TargetIndex is not byte target || !targets.Contains(target) ||
-                SourceTargetMask != source.NativePhysicalBits || PhysicalTargetMask != targets.NativePhysicalBits)
+                (SourceTargetMask & NativeRowBits) != source.NativePhysicalBits || PhysicalTargetMask != targets.NativePhysicalBits)
             {
                 throw new InvalidDataException("Hosted action geometry requires consistent source and recipient sets and a resolved recipient.");
             }

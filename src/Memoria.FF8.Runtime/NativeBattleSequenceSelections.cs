@@ -36,11 +36,31 @@ public static class NativeBattleSequenceSelections
         return selector < 7 ? (context.ActorIndex, (ushort)(1 << selector)) : ((byte)currentIndex, context.SourceTargetMask);
     }
 
-    public static ImmutableArray<int> SelectModels93(IReadOnlyList<NativeBattleGraphicsModel> models, int currentIndex, byte selector)
+    public static (byte Actor, NativeBattleGraphicsActorSet Targets) GeometryArguments92(int currentIndex, byte selector, NativeBattleActionGeometry? retained, NativeBattleGraphicsRoster roster)
     {
-        if (models.Count != 7 || (uint)currentIndex >= 7)
+        ArgumentNullException.ThrowIfNull(roster);
+        if (!roster.ContainsRow(currentIndex))
+        {
+            throw new InvalidDataException("Hosted Native92 requires its current bound model row.");
+        }
+        NativeBattleActionGeometry context = retained ?? throw new NotSupportedException("Native92 requires its retained50D300 actor/mask globals.");
+        byte actor = selector < NativeBattleSlots.Count ? context.ActorIndex : checked((byte)currentIndex);
+        NativeBattleGraphicsActorSet targets = selector < NativeBattleSlots.Count
+            ? default(NativeBattleGraphicsActorSet).Add(selector)
+            : context.PresentationSourceTargets ?? NativeBattleGraphicsActorSet.FromNative(NativeBattlePhysicalTargets.FromNativeWord(context.SourceTargetMask).Bits);
+        NativeBattleActionGeometry.ValidatePresentationRows(roster, actor, targets, default);
+        return (actor, targets);
+    }
+
+    public static ImmutableArray<int> SelectModels93(IReadOnlyList<NativeBattleGraphicsModel> models, int currentIndex, byte selector, NativeBattleGraphicsRoster? roster = null)
+    {
+        if (roster is null && (models.Count != 7 || (uint)currentIndex >= 7))
         {
             throw new InvalidDataException("Native93 requires its seven graphics models and current identity.");
+        }
+        if (roster is not null && (models.Count != roster.ActorCount || !roster.ContainsRow(currentIndex)))
+        {
+            throw new InvalidDataException("Hosted Native93 requires its complete graphics bank and current bound row.");
         }
         if (selector < 16)
         {
@@ -48,11 +68,19 @@ public static class NativeBattleSequenceSelections
             {
                 throw new NotSupportedException("Native93 selects an adjacent record outside the seven-model bank.");
             }
+            if (roster is not null && !roster.ContainsRow(selector))
+            {
+                throw new InvalidDataException("Hosted Native93 cannot select an unbound literal row.");
+            }
             return [selector];
         }
         ImmutableArray<int>.Builder selected = ImmutableArray.CreateBuilder<int>();
         for (int index = 0; index < models.Count; index++)
         {
+            if (roster is not null && !roster.ContainsRow(index))
+            {
+                continue;
+            }
             NativeBattleGraphicsModel model = models[index];
             if ((model.Flags0 & 2) != 0 && index != currentIndex && (model.ModelId4 ?? throw new NotSupportedException("Native93 requires its loaded model BYTE4 identity.")) == selector)
             {
@@ -67,9 +95,14 @@ public static class NativeBattleSequenceSelections
         return ((target.ResourceFlags44 ?? throw new NotSupportedException("Native505CE0 requires its target resource WORD44.")) & 0x140) != 0;
     }
 
-    public static bool CanSelectTargetBF(NativeBattleGraphicsModel target)
+    public static bool CanSelectTargetBF(NativeBattleGraphicsModel target, NativeBattleGraphicsRoster? roster = null)
     {
-        if (target.Index < 3 && ((target.Flags8 ?? throw new NotSupportedException("Native BF requires its target model DWORD8.")) & 0x300000) != 0)
+        if (roster is not null && !roster.ContainsRow(target.Index))
+        {
+            throw new InvalidDataException("Hosted Native BF requires its bound target row.");
+        }
+        bool isParty = roster is null ? target.Index < 3 : roster[target.Index].IsParty;
+        if (isParty && ((target.Flags8 ?? throw new NotSupportedException("Native BF requires its target model DWORD8.")) & 0x300000) != 0)
         {
             return false;
         }
