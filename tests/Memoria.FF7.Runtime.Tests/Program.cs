@@ -158,6 +158,12 @@ if (args.Contains("--world-checkpoint-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--world-audio-only", StringComparer.Ordinal))
+{
+    WorldAudioTests.Run();
+    return 0;
+}
+
 if (args.Contains("--world-controls-only", StringComparer.Ordinal))
 {
     WorldInputTests.Run();
@@ -279,6 +285,7 @@ var tests = new (string Name, Action Run)[]
     ("native submerged submarine controls and terrain", WorldSubmarineTests.Run),
     ("native Highwind flight and landing", WorldHighwindTests.Run),
     ("native world particle simulation and presentation", WorldEffectsTests.Run),
+    ("native world audio commands and cold continuation", WorldAudioTests.Run),
     ("FFVII native ordinary yellow Chocobo transport", WorldChocoboTests.Run),
     ("native Chocobo path control and cold continuation", WorldChocoboPathControlTests.Run),
     ("FFVII native world shared random stream", WorldRandomTests.Run),

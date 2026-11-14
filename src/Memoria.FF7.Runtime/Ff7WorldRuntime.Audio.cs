@@ -3,7 +3,7 @@ using Memoria.FF7.Events;
 
 namespace Memoria.FF7.Runtime;
 
-public sealed record Ff7WorldAudioState(bool Initialized = false, int Song = 0, int PreviousSong = 0, bool PlaybackEnabled = false, int LastPublishedTrack = -1, int LastOperation = 0, long Publications = 0, int SoundPriority = 0);
+public sealed record Ff7WorldAudioState(bool Initialized = false, int Song = 0, int PreviousSong = 0, bool PlaybackEnabled = false, int LastPublishedTrack = -1, int LastOperation = 0, long Publications = 0, int SoundPriority = 0, bool BattleClearsFlash = false);
 
 public sealed partial class Ff7WorldRuntime
 {
@@ -61,10 +61,7 @@ public sealed partial class Ff7WorldRuntime
 
     private void PlayWorldSong(int song)
     {
-        if (song is < 1 or > 8)
-        {
-            throw new NotSupportedException("FFVII world music requires an original song-table selector from one through eight.");
-        }
+        ValidateWorldSong(song);
         if (audio.PlaybackEnabled)
         {
             int operation = song == 1 ? 0x18 : audio.Song == 1 ? 0x14 : 0x10;
@@ -73,6 +70,23 @@ public sealed partial class Ff7WorldRuntime
             audio = audio with { LastPublishedTrack = track };
         }
         audio = audio with { PreviousSong = audio.Song, Song = song };
+    }
+
+    private static void ValidateWorldSong(int song)
+    {
+        if (song is < 1 or > 8)
+        {
+            throw new NotSupportedException("FFVII world music requires an original song-table selector from one through eight.");
+        }
+    }
+
+    private void ClearWorldBattleFlash()
+    {
+        if (audio.BattleClearsFlash)
+        {
+            whiteFadeCallbacks = 0;
+            audio = audio with { BattleClearsFlash = false };
+        }
     }
 
     private void PublishAudio(FieldAudioCommand command)
@@ -86,18 +100,20 @@ public sealed partial class Ff7WorldRuntime
         switch (operation)
         {
             case WorldOperation.Music:
+                ValidateWorldSong(values[0]);
                 audio = audio with { PlaybackEnabled = true };
                 PlayWorldSong(values[0]);
-                if (values[0] != 0)
+                audio = audio with { PlaybackEnabled = false };
+                return true;
+            case WorldOperation.Sound:
+                if (values[0] is 0x0B or 0x1B1)
                 {
-                    audio = audio with { PlaybackEnabled = false };
+                    whiteFadeCallbacks = 2;
+                    if (values[0] == 0x1B1)
+                    {
+                        audio = audio with { BattleClearsFlash = true };
+                    }
                 }
-                return true;
-            case WorldOperation.Sound when values[0] == 0x0B:
-                whiteFadeCallbacks = 2;
-                PublishAudio(new(0x20, 64, values[0]));
-                return true;
-            case WorldOperation.Sound when values[0] == 0x114:
                 PublishAudio(new(0x20, 64, values[0]));
                 return true;
             case WorldOperation.MusicVolume:

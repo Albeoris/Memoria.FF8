@@ -155,6 +155,7 @@ public sealed partial class Ff7WorldRuntime
             movementEnabled = false;
             controlLock = 0;
         }
+        ClearWorldBattleFlash();
         audio = audio with { PlaybackEnabled = true };
         PlayWorldSong(chocobo ? 5 : 4);
     }
