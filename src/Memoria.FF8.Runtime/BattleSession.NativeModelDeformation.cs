@@ -14,14 +14,14 @@ public sealed partial record NativeBattleEffectMemory
 
 public sealed partial record NativeBattleAuxiliaryState
 {
-    public NativeBattleAuxiliaryState AppendModelDeformation50F250(int model, byte group, byte bone, NativeBattleVector velocity, short angle, uint color)
+    public NativeBattleAuxiliaryState AppendModelDeformation50F250(int model, byte group, byte bone, NativeBattleVector velocity, short angle, uint color, NativeBattleGraphicsRoster? roster = null)
     {
         Validate();
         if (!Slots.Any(task => (task.Flags & 1) == 0))
         {
             return this;
         }
-        NativeBattleAuxiliaryState state = AppendModelGroupFade50F0B0(model, group);
+        NativeBattleAuxiliaryState state = AppendModelGroupFade50F0B0(model, group, roster);
         int slot = state.Tail!.Value;
         NativeBattleAuxiliaryTask task = state.Slots[slot];
         byte[] payload = task.Payload.ToArray();
@@ -59,7 +59,7 @@ public sealed partial class BattleSession
             bone = Math.Min(bone, candidate);
         }
         uint color = NativeStage?.ModelColors?.Color40 ?? throw new NotSupportedException("Native50F250 requires its retained process color DWORD.");
-        return graphics with { Auxiliary = graphics.Auxiliary.AppendModelDeformation50F250(index, group, unchecked((byte)bone), velocity, angle, color) };
+        return graphics with { Auxiliary = graphics.Auxiliary.AppendModelDeformation50F250(index, group, unchecked((byte)bone), velocity, angle, color, graphics.PresentationRoster) };
     }
 
     private NativeBattleAuxiliaryTask AdvanceNativeModelDeformation50F2E0(ref NativeBattleGraphicsState graphics, NativeBattleAuxiliaryTask task)
@@ -69,9 +69,9 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Native50F2E0 lacks its actual model/group/bone/velocity/color/angle fields.");
         }
         byte[] payload = task.Payload.ToArray();
-        if (!NativeBattleGraphicsModelAddress.TryDecode(BinaryPrimitives.ReadUInt32LittleEndian(payload), out int index))
+        if (!NativeBattleGraphicsModelAddress.TryDecode(BinaryPrimitives.ReadUInt32LittleEndian(payload), out int index, graphics.Models.Length) || graphics.PresentationRoster is { } roster && roster.Rows[index] is null)
         {
-            throw new InvalidDataException("Native50F2E0 model pointer exceeds its seven-row bank.");
+            throw new InvalidDataException("Native50F2E0 model pointer does not identify a bound row in its graphics bank.");
         }
         NativeBattleGraphicsModel model = graphics.Models[index];
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);

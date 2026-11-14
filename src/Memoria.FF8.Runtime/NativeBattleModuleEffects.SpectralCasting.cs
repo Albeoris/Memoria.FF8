@@ -25,7 +25,7 @@ public sealed partial record NativeBattleModuleState
         NativeBattleModuleTask task = Slots[slot];
         byte[] payload = NativeBattleTelemetry.Materialize(1104, task.Payload.AsSpan());
         short phase = S16(task.Payload, 0);
-        int model = ModelIndex(U32(task.Payload, 20));
+        int model = ModelIndex(U32(task.Payload, 20), inputs);
         NativeBattleModuleState state = this;
         NativeCrtRandomState? random = inputs.CrtRandom;
         ImmutableArray<NativeBattleModuleDraw>.Builder draws = ImmutableArray.CreateBuilder<NativeBattleModuleDraw>();

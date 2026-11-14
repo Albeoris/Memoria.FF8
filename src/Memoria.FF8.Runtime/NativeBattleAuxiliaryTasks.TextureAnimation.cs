@@ -5,12 +5,12 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial record NativeBattleAuxiliaryState
 {
-    public NativeBattleAuxiliaryState AppendTextureAnimation(int model, byte sequence, NativeBattleAuxiliaryProgram program)
+    public NativeBattleAuxiliaryState AppendTextureAnimation(int model, byte sequence, NativeBattleAuxiliaryProgram program, NativeBattleGraphicsRoster? roster = null)
     {
         Validate();
         program.Validate();
         _ = SkipSoundParticleProgram(program.Source, program.Offset);
-        if ((uint)model >= 7)
+        if (!IsAuxiliaryModelBound(model, roster))
         {
             throw new ArgumentOutOfRangeException(nameof(model));
         }
@@ -38,7 +38,7 @@ public sealed partial record NativeBattleAuxiliaryState
         NativeBattleAuxiliaryProgram program = task.Program ?? throw new InvalidDataException("Native5057D0 lacks its original deadline list.");
         program.Validate();
         uint address = BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan());
-        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int model))
+        if (!TryReadAuxiliaryModel(address, inputs?.PresentationRoster, out int model))
         {
             throw new InvalidDataException("Native5057D0's retained graphics model pointer is invalid.");
         }

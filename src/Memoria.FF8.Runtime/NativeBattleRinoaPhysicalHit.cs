@@ -50,11 +50,11 @@ public static partial class NativeBattleRinoaPhysicalHit
         if (age == 11)
         {
             NativeBattleRinoaPhysicalHitState retained = RequireState(state);
-            state = state.AppendModelResource(retained.Target, Resource(inputs.Modules, 20), 0x100014);
+            state = state.AppendModelResource(retained.Target, Resource(inputs.Modules, 20), 0x100014, inputs.Modules.PresentationRoster);
             inputs.PlaySound(retained.Actor, 1, retained.TargetAnchor);
             if (inputs.ReadSecondaryContact())
             {
-                state = state.AppendModelResource(retained.Target, Resource(inputs.Modules, 21), 0x100015);
+                state = state.AppendModelResource(retained.Target, Resource(inputs.Modules, 21), 0x100015, inputs.Modules.PresentationRoster);
                 inputs.PlaySound(retained.Actor, 2, retained.TargetAnchor);
             }
             inputs.ConsumeContact();

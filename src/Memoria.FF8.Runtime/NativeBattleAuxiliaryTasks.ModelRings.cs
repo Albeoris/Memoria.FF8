@@ -5,10 +5,10 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial record NativeBattleAuxiliaryState
 {
-    public (NativeBattleAuxiliaryState State, bool Allocated) AppendModelRing(NativeBattleAuxiliaryKind kind, int model, uint flags = 0, byte sequence = 0)
+    public (NativeBattleAuxiliaryState State, bool Allocated) AppendModelRing(NativeBattleAuxiliaryKind kind, int model, uint flags = 0, byte sequence = 0, NativeBattleGraphicsRoster? roster = null)
     {
         Validate();
-        if (kind is not (NativeBattleAuxiliaryKind.ModelSequence505C70 or NativeBattleAuxiliaryKind.ModelStatus50A000 or NativeBattleAuxiliaryKind.ModelResourceFlags50B080) || (uint)model >= 7)
+        if (kind is not (NativeBattleAuxiliaryKind.ModelSequence505C70 or NativeBattleAuxiliaryKind.ModelStatus50A000 or NativeBattleAuxiliaryKind.ModelResourceFlags50B080) || !IsAuxiliaryModelBound(model, roster))
         {
             throw new ArgumentOutOfRangeException(nameof(kind));
         }
@@ -47,7 +47,7 @@ public sealed partial record NativeBattleAuxiliaryState
     private static void AdvanceModelRing(NativeBattleAuxiliaryTask task, NativeBattleAuxiliaryInputs? inputs)
     {
         uint pointer = BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan());
-        if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row))
+        if (!TryReadAuxiliaryModel(pointer, inputs?.PresentationRoster, out int row))
         {
             throw new InvalidDataException("Native ring callback has no physical source model pointer.");
         }

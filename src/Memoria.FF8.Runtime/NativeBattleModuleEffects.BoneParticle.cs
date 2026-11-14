@@ -6,9 +6,9 @@ namespace Memoria.FF8.Runtime;
 public sealed partial record NativeBattleModuleState
 {
     /// <summary>570E60 writes placement3 and retains the original packed four-byte resource parameters.</summary>
-    public NativeBattleModuleState AppendBoneParticle(int model, byte bone, short fraction, NativeBattleModuleResource resource, uint packedParameters)
+    public NativeBattleModuleState AppendBoneParticle(int model, byte bone, short fraction, NativeBattleModuleResource resource, uint packedParameters, NativeBattleGraphicsRoster? roster = null)
     {
-        if ((uint)model >= 7 || (byte)packedParameters != resource.Id)
+        if (!HasModelRow(model, roster) || (byte)packedParameters != resource.Id)
         {
             throw new InvalidDataException("Native570E60 requires its actual model and resource parameters.");
         }

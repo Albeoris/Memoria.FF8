@@ -88,7 +88,7 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState ScheduleNativeTextureAnimation(NativeBattleGraphicsState graphics, int index, NativeBattleAuxiliaryProgram program, byte sequence)
     {
-        return graphics with { Auxiliary = graphics.Auxiliary.AppendTextureAnimation(index, sequence, program) };
+        return graphics with { Auxiliary = graphics.Auxiliary.AppendTextureAnimation(index, sequence, program, graphics.PresentationRoster) };
     }
 
     private void ApplyNativeTextureMotion(NativeBattleGraphicsState graphics, int index, byte selector, int variant)

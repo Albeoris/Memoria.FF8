@@ -9,7 +9,7 @@ public sealed partial class BattleSession
             return graphics;
         }
         NativeGlobalRandomState before = nativeGlobalRandom ?? throw new NotSupportedException("Native50F7D0 requires the actual534AA0 random owner.");
-        (NativeBattleAuxiliaryState auxiliary, NativeGlobalRandomState after, bool allocated) = graphics.Auxiliary.AppendSoundParticle(model, soundTwo, bone, program, before);
+        (NativeBattleAuxiliaryState auxiliary, NativeGlobalRandomState after, bool allocated) = graphics.Auxiliary.AppendSoundParticle(model, soundTwo, bone, program, before, graphics.PresentationRoster);
         nativeGlobalRandom = after;
         if (allocated)
         {

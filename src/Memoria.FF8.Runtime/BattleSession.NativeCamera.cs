@@ -99,6 +99,7 @@ public sealed partial class BattleSession
     {
         NativeBattleAuxiliaryStep step = graphics.Auxiliary.Advance(new()
         {
+            PresentationRoster = graphics.PresentationRoster,
             ApplyScreenFade501D10 = (fade, complete) => graphics = PublishNativeScreenFade501D10(graphics, fade, complete),
             ApplyScreenBlend501E80 = color => graphics = PublishNativeScreenBlend501E80(graphics, color),
             ReadBone = (model, bone, fraction) => ReadNativeGraphicsBone(graphics, model, bone, fraction),
@@ -517,7 +518,7 @@ public sealed partial class BattleSession
             if (emission.Particle)
             {
                 NativeBattleModuleResource resource = definition.NativeModuleResources.Single(candidate => candidate.Id == 3);
-                graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendBoneParticle(emission.Model, emission.Bone, short.MinValue, resource, 3u | (uint)emission.Size << 16) };
+                graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendBoneParticle(emission.Model, emission.Bone, short.MinValue, resource, 3u | (uint)emission.Size << 16, graphics.PresentationRoster) };
             }
             if (emission.Sound is ushort sound)
             {

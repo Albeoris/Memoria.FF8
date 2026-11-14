@@ -5,10 +5,10 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial record NativeBattleAuxiliaryState
 {
-    public (NativeBattleAuxiliaryState State, bool Allocated) AppendModelMotion(byte opcode, int source, int target, byte first, byte second, short fraction, byte duration)
+    public (NativeBattleAuxiliaryState State, bool Allocated) AppendModelMotion(byte opcode, int source, int target, byte first, byte second, short fraction, byte duration, NativeBattleGraphicsRoster? roster = null)
     {
         Validate();
-        if (opcode is not (0x9E or 0xAD or 0xAE) || (uint)source >= 7 || (uint)target >= 7)
+        if (opcode is not (0x9E or 0xAD or 0xAE) || !IsAuxiliaryModelBound(source, roster) || !IsAuxiliaryModelBound(target, roster))
         {
             throw new ArgumentOutOfRangeException(nameof(opcode), "Native motion requires its actual model bank and producer opcode.");
         }
@@ -54,8 +54,8 @@ public sealed partial record NativeBattleAuxiliaryState
         Func<int, NativeBattleGraphicsModel> read = inputs?.ReadModel ?? throw new NotSupportedException("Native model motion requires its current model bank.");
         Action<int, NativeBattleGraphicsModel> write = inputs?.WriteModel ?? throw new NotSupportedException("Native model motion requires its model publication owner.");
         byte[] payload = task.Payload.ToArray();
-        int sourceIndex = MotionModel(payload, 0);
-        int targetIndex = MotionModel(payload, 4);
+        int sourceIndex = MotionModel(payload, 0, inputs?.PresentationRoster);
+        int targetIndex = MotionModel(payload, 4, inputs?.PresentationRoster);
         NativeBattleGraphicsModel source = read(sourceIndex);
         NativeBattleGraphicsModel target = read(targetIndex);
         bool release;
@@ -101,9 +101,9 @@ public sealed partial record NativeBattleAuxiliaryState
         return (task with { Payload = payload.ToImmutableArray() }, release);
     }
 
-    private static int MotionModel(byte[] payload, int offset)
+    private static int MotionModel(byte[] payload, int offset, NativeBattleGraphicsRoster? roster)
     {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(BinaryPrimitives.ReadUInt32LittleEndian(payload.AsSpan(offset)), out int row))
+        if (!TryReadAuxiliaryModel(BinaryPrimitives.ReadUInt32LittleEndian(payload.AsSpan(offset)), roster, out int row))
         {
             throw new NotSupportedException("Native model motion pointer lies outside its seven-model bank.");
         }

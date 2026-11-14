@@ -5,10 +5,10 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial record NativeBattleAuxiliaryState
 {
-    public NativeBattleAuxiliaryState AppendModelGroupFade50F0B0(int model, byte group)
+    public NativeBattleAuxiliaryState AppendModelGroupFade50F0B0(int model, byte group, NativeBattleGraphicsRoster? roster = null)
     {
         Validate();
-        if ((uint)model >= 7)
+        if (!IsAuxiliaryModelBound(model, roster))
         {
             throw new ArgumentOutOfRangeException(nameof(model));
         }
@@ -38,7 +38,7 @@ public sealed partial record NativeBattleAuxiliaryState
             throw new InvalidDataException("Native50F0E0 lacks its actual model/group/phase/color operands.");
         }
         byte[] payload = task.Payload.ToArray();
-        int model = MotionModel(payload, 0);
+        int model = MotionModel(payload, 0, inputs?.PresentationRoster);
         uint unknown = task.UnknownByteMask;
         if (payload[6] == 0)
         {

@@ -48,7 +48,10 @@ public enum NativeBattleModuleDrawKind
 }
 
 public sealed partial record NativeBattleModuleDraw(NativeBattleModuleDrawKind Kind, byte Intensity);
-public sealed partial record NativeBattleModuleInputs(uint GraphicsFlags);
+public sealed partial record NativeBattleModuleInputs(uint GraphicsFlags)
+{
+    public NativeBattleGraphicsRoster? PresentationRoster { get; init; }
+}
 public sealed partial record NativeBattleModuleTask([property: JsonRequired] ushort Flags, [property: JsonRequired] ushort State, [property: JsonRequired] int? Next, [property: JsonRequired] NativeBattleModuleKind Kind, [property: JsonRequired] ImmutableArray<byte> Payload)
 {
     [JsonIgnore]

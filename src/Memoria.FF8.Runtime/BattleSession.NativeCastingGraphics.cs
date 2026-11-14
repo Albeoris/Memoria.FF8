@@ -145,7 +145,7 @@ public sealed partial class BattleSession
         NativeBattleGraphicsModel model = graphics.Models[index];
         if (model.ReadLinkedModelIndex140() is not null)
         {
-            (NativeBattleAuxiliaryState auxiliary, bool allocated) = graphics.Auxiliary.AppendModelRing(NativeBattleAuxiliaryKind.ModelResourceFlags50B080, index, flags);
+            (NativeBattleAuxiliaryState auxiliary, bool allocated) = graphics.Auxiliary.AppendModelRing(NativeBattleAuxiliaryKind.ModelResourceFlags50B080, index, flags, roster: graphics.PresentationRoster);
             return allocated ? graphics with { Auxiliary = auxiliary } : throw new InvalidOperationException("Native50A9A0 cannot write its50B080 payload after auxiliary allocation fails.");
         }
         return graphics with { Models = graphics.Models.SetItem(index, model with { ResourceFlags44 = (ushort)(NativeCastingResourceFlags(graphics, index) | flags) }) };

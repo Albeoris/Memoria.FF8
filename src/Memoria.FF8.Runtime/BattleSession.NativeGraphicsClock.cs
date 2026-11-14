@@ -263,7 +263,7 @@ public sealed partial class BattleSession
                         },
                         ScheduleSoundParticle = (program, soundTwo, bone) => graphics = ScheduleNativeSoundParticle(graphics, index, program, soundTwo, bone),
                         ScheduleCameraShake = (start, end, duration) => graphics = graphics with { Auxiliary = graphics.Auxiliary.AppendCameraShake50F680(start, end, duration) },
-                        ScheduleModelGroupFade = group => graphics = graphics with { Auxiliary = graphics.Auxiliary.AppendModelGroupFade50F0B0(index, group) },
+                        ScheduleModelGroupFade = group => graphics = graphics with { Auxiliary = graphics.Auxiliary.AppendModelGroupFade50F0B0(index, group, graphics.PresentationRoster) },
                         ScheduleModelDeformation = (current, group, velocity, angle) =>
                         {
                             graphics = ScheduleNativeModelDeformation50F250(graphics with { Models = models.SetItem(index, current) }, index, group, velocity, angle);
@@ -296,7 +296,7 @@ public sealed partial class BattleSession
                         {
                             graphics = graphics with { Models = models.SetItem(index, current) };
                             int target = opcode == 0x9E ? first : (graphics.ActionContext?.TargetIndex ?? throw new NotSupportedException("Native AD/AE requires its retained50D300 target identity."));
-                            (NativeBattleAuxiliaryState auxiliary, bool allocated) = graphics.Auxiliary.AppendModelMotion(opcode, index, target, first, second, fraction, duration);
+                            (NativeBattleAuxiliaryState auxiliary, bool allocated) = graphics.Auxiliary.AppendModelMotion(opcode, index, target, first, second, fraction, duration, graphics.PresentationRoster);
                             graphics = graphics with { Auxiliary = auxiliary };
                             if (allocated && opcode != 0x9E)
                             {
@@ -568,7 +568,7 @@ public sealed partial class BattleSession
             model = NativeBattleGraphicsModels.StartService(model, 7);
             NativeBattleVector position = model.Transform?.Position28 ?? throw new NotSupportedException("Native ejection sound requires its current model positionWORD28.");
             NativeBattleModuleAnchor anchor = new(position.X, position.Y, position.Z, 0);
-            graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendModelResource(index, resource, 0x200015) };
+            graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendModelResource(index, resource, 0x200015, graphics.PresentationRoster) };
             PublishNativeModuleSound(0x0D, 8, anchor, graphics.ActorIds[index]);
             PublishNativeModuleSound(0x0E, 16, anchor, graphics.ActorIds[index]);
         }
@@ -585,7 +585,7 @@ public sealed partial class BattleSession
         if (!plan.Secondary && (half.Flags2 & 0x30) != 0)
         {
             byte resourceId = (half.Flags2 & 0x30) switch { 0x10 => 39, 0x20 => 40, _ => 38 };
-            graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendModelResource(index, RequireNativeModuleResource(resourceId), 0x100000u | resourceId) };
+            graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendModelResource(index, RequireNativeModuleResource(resourceId), 0x100000u | resourceId, graphics.PresentationRoster) };
         }
         if (!plan.Secondary && (graphics.Flags & 0x10) == 0 && (half.HitFlags3 & 8) != 0)
         {

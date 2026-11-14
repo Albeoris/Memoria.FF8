@@ -45,9 +45,9 @@ public sealed partial record NativeBattleModuleDraw
 
 public sealed partial record NativeBattleModuleState
 {
-    public NativeBattleModuleState AppendPositionResource(int model, NativeBattleVector local, NativeBattleModuleResource resource, uint packedParameters)
+    public NativeBattleModuleState AppendPositionResource(int model, NativeBattleVector local, NativeBattleModuleResource resource, uint packedParameters, NativeBattleGraphicsRoster? roster = null)
     {
-        NativeBattleModuleState state = AppendModelResource(model, resource, packedParameters);
+        NativeBattleModuleState state = AppendModelResource(model, resource, packedParameters, roster);
         int slot = state.Tail!.Value;
         byte[] payload = NativeBattleTelemetry.Materialize(1090, state.Slots[slot].Payload.AsSpan());
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(2), 4);
@@ -59,9 +59,9 @@ public sealed partial record NativeBattleModuleState
         return state with { Slots = state.Slots.SetItem(slot, state.Slots[slot] with { Payload = NativeBattleTelemetry.Immutable(1096, payload) }) };
     }
 
-    public NativeBattleModuleState AppendModelResource(int model, NativeBattleModuleResource resource, uint packedParameters)
+    public NativeBattleModuleState AppendModelResource(int model, NativeBattleModuleResource resource, uint packedParameters, NativeBattleGraphicsRoster? roster = null)
     {
-        if ((uint)model >= 7 || (byte)packedParameters != resource.Id)
+        if (!HasModelRow(model, roster) || (byte)packedParameters != resource.Id)
         {
             throw new InvalidDataException("Native module model or packed resource index differs from its original producer.");
         }
@@ -84,7 +84,7 @@ public sealed partial record NativeBattleModuleState
     {
         NativeBattleModuleTask task = Slots[slot];
         short placement = S16(task.Payload, 2);
-        int model = ModelIndex(U32(task.Payload, placement == 4 ? 12 : 4));
+        int model = ModelIndex(U32(task.Payload, placement == 4 ? 12 : 4), inputs);
         NativeBattleModuleAnchor anchor;
         if (placement == 1)
         {
@@ -138,7 +138,7 @@ public sealed partial record NativeBattleModuleState
         {
             return new(this, true, []);
         }
-        int model = ModelIndex(modelAddress);
+        int model = ModelIndex(modelAddress, inputs);
         short rotation = (inputs.ReadModelRotation14 ?? throw new NotSupportedException("Native defensive effect requires the current model rotationWORD14."))(model);
         NativeCrtRandomState crt = inputs.CrtRandom ?? throw new NotSupportedException("Native defensive effect requires the existing CRT thread random owner.");
         NativeCrtRandomState after = crt.Draw(out ushort roll);
@@ -202,9 +202,15 @@ public sealed partial record NativeBattleModuleState
         return NativeBattleGraphicsModelAddress.Encode(model);
     }
 
-    private static int ModelIndex(uint address)
+    private static bool HasModelRow(int model, NativeBattleGraphicsRoster? roster)
     {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int row))
+        return (uint)model < (roster?.ActorCount ?? NativeBattleGraphicsModelAddress.NativeRowCount) && (roster is null || roster.Rows[model] is not null);
+    }
+
+    private static int ModelIndex(uint address, NativeBattleModuleInputs inputs)
+    {
+        NativeBattleGraphicsRoster? roster = inputs.PresentationRoster;
+        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int row, roster?.ActorCount ?? NativeBattleGraphicsModelAddress.NativeRowCount) || !HasModelRow(row, roster))
         {
             throw new InvalidDataException("Native module payload does not identify a physical graphics model.");
         }

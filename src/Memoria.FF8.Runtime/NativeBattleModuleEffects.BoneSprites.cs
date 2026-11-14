@@ -13,7 +13,7 @@ public sealed partial record NativeBattleModuleState
         NativeBattleModuleTask task = Slots[slot];
         byte[] payload = NativeBattleTelemetry.Materialize(1054, task.Payload.AsSpan());
         short phase = S16(task.Payload, 0);
-        int model = ModelIndex(U32(task.Payload, 20));
+        int model = ModelIndex(U32(task.Payload, 20), inputs);
         NativeBattleModuleState state = this;
         ImmutableArray<NativeBattleModuleDraw>.Builder draws = ImmutableArray.CreateBuilder<NativeBattleModuleDraw>();
         if (phase == 0)

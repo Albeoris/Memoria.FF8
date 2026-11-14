@@ -7,6 +7,7 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState SubmitNativeModelGroup50F190(NativeBattleGraphicsState graphics, int index, byte group, byte counter, uint sourceColor, ImmutableArray<NativeBattleActionMatrix>? deformed = null)
     {
         NativeBattleGraphicsModel model = graphics.Models[index];
+        NativeBattleModelTextureOwner? material = SelectNativeModelMaterial(graphics, model);
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native50F190 requires its prior published camera matrix.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native50F190 requires its retained camera view matrix.");
@@ -47,7 +48,8 @@ public sealed partial class BattleSession
                 mesh = linked[0];
                 binding = model.LinkedTextureSlots ?? throw new NotSupportedException("Native50F190 requires its executed weapon material relocation.");
             }
-            graphics = AppendNativeModelRendererPackets(graphics, NativeBattleRawGeometryPackets.Emit5099D0([mesh], matrices, projection, color, 1, null, 17, 4, binding, pilotIdentity: NativePilotSceneIdentity(0x50F190, index, meshIndex)), true);
+            ImmutableArray<NativeBattleGeometryPrimitive> primitives = NativeBattleRawGeometryPackets.Emit5099D0([mesh], matrices, projection, color, 1, null, 17, 4, binding, pilotIdentity: NativePilotSceneIdentity(0x50F190, index, meshIndex));
+            graphics = AppendNativeModelRendererPackets(graphics, BindNativeModelMaterial(primitives, material), true);
         }
         if (deformed is null)
         {

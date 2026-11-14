@@ -6,7 +6,11 @@ public sealed partial class BattleSession
 {
     private NativeBattleModelTextureOwner? SelectNativeModelMaterial(NativeBattleGraphicsState graphics, NativeBattleGraphicsModel model)
     {
-        NativeBattleEffectTextureState? textures = NativeEffectMemory?.Textures;
+        return SelectNativeModelMaterial(graphics, model, NativeEffectMemory?.Textures);
+    }
+
+    private NativeBattleModelTextureOwner? SelectNativeModelMaterial(NativeBattleGraphicsState graphics, NativeBattleGraphicsModel model, NativeBattleEffectTextureState? textures)
+    {
         // Ordinary pose overrides retain the original body and weapon geometry.
         if (graphics.PresentationRoster is not { } roster || textures?.PresentationTextures is null || NativeGraphicsUsesForeignPose(graphics, model.Index))
         {
@@ -37,6 +41,13 @@ public sealed partial class BattleSession
         }
         textures.RequirePresentationTexture(actorId);
         return new(actorId);
+    }
+
+    private static ImmutableArray<NativeBattleGeometryPrimitive> BindNativeModelMaterial(ImmutableArray<NativeBattleGeometryPrimitive> primitives, NativeBattleModelTextureOwner? material)
+    {
+        return material is null
+            ? primitives
+            : primitives.Select(primitive => BindNativeModelMaterial(primitive, primitive.PresentationActorId, material)).ToImmutableArray();
     }
 
     private static NativeBattleGfGeometryBatch BindNativeModelMaterial(NativeBattleGfGeometryBatch batch, NativeBattleModelTextureOwner? material)

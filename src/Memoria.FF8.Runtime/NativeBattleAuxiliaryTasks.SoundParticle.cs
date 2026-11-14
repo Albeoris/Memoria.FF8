@@ -37,15 +37,16 @@ public sealed record NativeBattleAuxiliaryInputs
     public Func<int>? ReadEffectIoResult508470 { get; init; }
     public Action<uint>? EnqueueTexture505E30 { get; init; }
     public Action<uint, byte>? WriteCompletionByte { get; init; }
+    public NativeBattleGraphicsRoster? PresentationRoster { get; init; }
 }
 
 public sealed partial record NativeBattleAuxiliaryState
 {
-    public (NativeBattleAuxiliaryState State, NativeGlobalRandomState Random, bool Allocated) AppendSoundParticle(int model, bool soundTwo, byte bone, NativeBattleAuxiliaryProgram program, NativeGlobalRandomState random)
+    public (NativeBattleAuxiliaryState State, NativeGlobalRandomState Random, bool Allocated) AppendSoundParticle(int model, bool soundTwo, byte bone, NativeBattleAuxiliaryProgram program, NativeGlobalRandomState random, NativeBattleGraphicsRoster? roster = null)
     {
         Validate();
         program.Validate();
-        if ((uint)model >= 7)
+        if (!IsAuxiliaryModelBound(model, roster))
         {
             throw new ArgumentOutOfRangeException(nameof(model));
         }
@@ -97,7 +98,7 @@ public sealed partial record NativeBattleAuxiliaryState
             return (task, false, null);
         }
         uint address = BinaryPrimitives.ReadUInt32LittleEndian(payload.AsSpan(16));
-        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int model))
+        if (!TryReadAuxiliaryModel(address, inputs?.PresentationRoster, out int model))
         {
             throw new InvalidDataException("Native50F830 retained model pointer is invalid.");
         }

@@ -34,9 +34,9 @@ public sealed partial class BattleSession
             NativeBattleModuleResource resource = RequireNativeModuleResource((byte)particle.PackedParameters);
             NativeBattleModuleState modules = particle.Placement switch
             {
-                1 => graphics.ModuleEffects.AppendModelResource(target, resource, particle.PackedParameters),
-                3 => graphics.ModuleEffects.AppendBoneParticle(target, particle.Bone, particle.Fraction, resource, particle.PackedParameters),
-                4 => graphics.ModuleEffects.AppendPositionResource(target, particle.Position ?? throw new InvalidDataException("Native505900 placement4 lacks its local position."), resource, particle.PackedParameters),
+                1 => graphics.ModuleEffects.AppendModelResource(target, resource, particle.PackedParameters, graphics.PresentationRoster),
+                3 => graphics.ModuleEffects.AppendBoneParticle(target, particle.Bone, particle.Fraction, resource, particle.PackedParameters, graphics.PresentationRoster),
+                4 => graphics.ModuleEffects.AppendPositionResource(target, particle.Position ?? throw new InvalidDataException("Native505900 placement4 lacks its local position."), resource, particle.PackedParameters, graphics.PresentationRoster),
                 _ => throw new InvalidDataException("Native505900 produced an invalid placement.")
             };
             graphics = graphics with { ModuleEffects = modules };

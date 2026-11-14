@@ -28,9 +28,9 @@ public sealed partial record NativeBattleModuleState
         return AppendModelEffect(model, effect, null);
     }
 
-    public NativeBattleModuleState AppendModelEffect(int model, byte effect, NativeBattleCastingSequenceProvenance? presentationSource)
+    public NativeBattleModuleState AppendModelEffect(int model, byte effect, NativeBattleCastingSequenceProvenance? presentationSource, NativeBattleGraphicsRoster? roster = null)
     {
-        if ((uint)model >= 7)
+        if (!HasModelRow(model, roster))
         {
             throw new InvalidDataException("Native571840 requires its physical graphics model pointer.");
         }
@@ -70,7 +70,7 @@ public sealed partial record NativeBattleModuleState
         ImmutableArray<NativeBattleModuleDraw>.Builder draws = ImmutableArray.CreateBuilder<NativeBattleModuleDraw>();
         if (phase == 0)
         {
-            int model = ModelIndex(U32(task.Payload, 20));
+            int model = ModelIndex(U32(task.Payload, 20), inputs);
             NativeBattleModelTransform transform = (inputs.ReadModelTransform ?? throw new NotSupportedException("Native574C80 requires the original model WORD36/38."))(model);
             NativeBattleModuleAnchor anchor = (inputs.ReadModelAnchor ?? throw new NotSupportedException("Native574C80 requires its actual571400 anchor."))(model);
             WriteAnchor(payload.AsSpan(4), anchor);

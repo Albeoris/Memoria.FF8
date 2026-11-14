@@ -7,6 +7,9 @@ public sealed partial class BattleSession
     private (NativeBattleDiablos325Frame Frame, NativeBattleGraphicsState Graphics) DrawNativeDiablosRecipient657CB0(NativeBattleDiablos325Frame frame, int index, int scaleY, NativeBattleGraphicsState graphics)
     {
         NativeBattleGraphicsModel actor = graphics.Models[index];
+        NativeBattleModelTextureOwner? material = presentationForeignActors?.ContainsKey(index) == true
+            ? null
+            : SelectNativeModelMaterial(graphics, actor, frame.Memory.Textures);
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Diablos sink requires its current projection.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Diablos sink requires its current camera matrix.");
         NativeBattleGraphicsDefinition rules = definition.NativeGraphics ?? throw new NotSupportedException("Native Diablos sink requires its original graphics definition.");
@@ -83,7 +86,7 @@ public sealed partial class BattleSession
             {
                 NativeFileStaging = (NativeFileStaging ?? throw new NotSupportedException("Native Diablos actor projection requires its canonical shared byte owner.")).Write(address, drawn.ProjectedScratch.AsSpan().Slice(0, drawn.ProjectedBytesWritten));
             }
-            NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, drawn.Packets);
+            NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, BindNativeModelMaterial(drawn.Packets, material));
             process = written.Process.Publish50FDF0(unchecked((uint)(written.Process.ByteCursor ?? throw new NotSupportedException("Native Diablos actor draw lost its current COMMON cursor."))), null);
             primitive = primitive with { Pending = written.Ordering };
         }

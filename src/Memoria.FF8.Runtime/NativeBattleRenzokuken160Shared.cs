@@ -56,7 +56,7 @@ public static partial class NativeBattleRenzokuken160Controller
         }
         if (counter == 1)
         {
-            modules = modules.AppendModelEffect(actor, 3);
+            modules = modules.AppendModelEffect(actor, 3, null, inputs.PresentationRoster);
         }
         ushort next = unchecked((ushort)(BinaryPrimitives.ReadUInt16LittleEndian(payload) + 1));
         Write(payload, 0, next);

@@ -8,7 +8,7 @@ public sealed partial class BattleSession
         {
             return graphics with { Models = graphics.Models.SetItem(index, SetNativeGraphicsFlags(graphics.Models[index], flags, graphics)) };
         }
-        (NativeBattleAuxiliaryState auxiliary, bool allocated) = graphics.Auxiliary.AppendModelRing(NativeBattleAuxiliaryKind.ModelStatus50A000, index, flags);
+        (NativeBattleAuxiliaryState auxiliary, bool allocated) = graphics.Auxiliary.AppendModelRing(NativeBattleAuxiliaryKind.ModelStatus50A000, index, flags, roster: graphics.PresentationRoster);
         return allocated ? graphics with { Auxiliary = auxiliary } : throw new InvalidOperationException("Native509CD0 cannot write its required50A000 payload after auxiliary allocation fails.");
     }
 
@@ -47,7 +47,7 @@ public sealed partial class BattleSession
             NativeBattleGraphicsModel selectedModel = NativeBattleSequenceSelections.SelectResource505BC0(source, NativeActionResource(graphics, index), selected);
             return graphics with { Models = graphics.Models.SetItem(index, selectedModel) };
         }
-        (NativeBattleAuxiliaryState auxiliary, bool allocated) = graphics.Auxiliary.AppendModelRing(NativeBattleAuxiliaryKind.ModelSequence505C70, index, sequence: unchecked((byte)selected));
+        (NativeBattleAuxiliaryState auxiliary, bool allocated) = graphics.Auxiliary.AppendModelRing(NativeBattleAuxiliaryKind.ModelSequence505C70, index, sequence: unchecked((byte)selected), roster: graphics.PresentationRoster);
         if (!allocated)
         {
             return graphics;
