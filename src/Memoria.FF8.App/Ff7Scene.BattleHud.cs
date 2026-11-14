@@ -217,7 +217,7 @@ internal sealed partial class Ff7Scene
         UiRect panel = DrawBattleTargetChoices(canvas, theme, layout, textScale, rows, selected, group, action.AllTargets, battle.Tick / (double)Ff7BattleSession.LogicUpdatesPerSecond, (row, bounds) => battlePointerRows.Add((bounds, ready, BattleCategory(action), action.Argument, BattleTargetIdentity(targets[row]))));
         float scale = layout.Scale;
         string title = CommandName(action, ready);
-        bool multicast = action.Command == Ff7BattleCommand.Magic && battle.GuestMagicCastCounts(ready, action.Argument).Count > 1;
+        bool multicast = action.Command == Ff7BattleCommand.Magic && battle.GuestMagicCastCounts(ready, action.Argument).LastOrDefault(1) > 1;
         if (multicast)
         {
             title += $" ×{battleMagicCastCount} ({battleMagicTargets.Count + 1}/{battleMagicCastCount})";
@@ -245,7 +245,7 @@ internal sealed partial class Ff7Scene
         }
         else if (multicast)
         {
-            canvas.Text("Page Up/Down: number of casts", titleSize, layout.Rect(68, titleY + 7 + titleHeight, 412, titleHeight), theme.Foreground);
+            canvas.Text(battleMagicCastCount == 3 ? "Triple: 75% damage per cast" : "Select a target for each cast", titleSize, layout.Rect(68, titleY + 7 + titleHeight, 412, titleHeight), theme.Foreground);
         }
         if (canConfirmCasts)
         {

@@ -6,6 +6,7 @@ internal sealed partial class Ff7Scene
 {
     private int battleMagicCastCount = 1;
     private readonly List<ushort> battleMagicTargets = [];
+    private readonly List<bool> battleMagicTargetGroups = [];
 
     private bool CanConfirmGuestMagicSelection(Ff7BattleCommandOption option)
     {
@@ -15,6 +16,7 @@ internal sealed partial class Ff7Scene
     private void BeginGuestMagicSelection(Ff7BattleCommandOption option)
     {
         battleMagicTargets.Clear();
+        battleMagicTargetGroups.Clear();
         battleMagicCastCount = option.Command == Ff7BattleCommand.Magic && Session?.Battle is { } battle && battleInputOwner is int owner ? battle.GuestMagicCastCounts(owner, option.Argument).LastOrDefault(1) : 1;
     }
 
@@ -25,32 +27,23 @@ internal sealed partial class Ff7Scene
             return false;
         }
         battleMagicTargets.RemoveAt(battleMagicTargets.Count - 1);
+        battleMagicTargetGroups.RemoveAt(battleMagicTargetGroups.Count - 1);
         return true;
     }
 
-    private bool ChangeGuestMagicCastCount(Ff7BattleSession battle, int owner, Ff7BattleCommandOption option)
+    private void SynchronizeGuestMagicSelection(Ff7BattleSession battle, int owner, Ff7BattleCommandOption option)
     {
         if (option.Command != Ff7BattleCommand.Magic)
         {
-            return false;
+            return;
         }
         IReadOnlyList<int> counts = battle.GuestMagicCastCounts(owner, option.Argument);
         if (!counts.Contains(battleMagicCastCount))
         {
             battleMagicCastCount = counts.LastOrDefault(1);
             battleMagicTargets.Clear();
+            battleMagicTargetGroups.Clear();
         }
-        if (counts.Count <= 1)
-        {
-            return false;
-        }
-        if (semanticInput.MenuPage != 0)
-        {
-            int index = counts.ToList().IndexOf(battleMagicCastCount);
-            battleMagicCastCount = counts[(index + Math.Sign(semanticInput.MenuPage) + counts.Count) % counts.Count];
-            battleMagicTargets.Clear();
-        }
-        return true;
     }
 
     private bool CollectGuestMagicTarget(Ff7BattleSession battle, int owner, Ff7BattleCommandOption option, ushort targets, bool group, out bool submitted)
@@ -61,12 +54,14 @@ internal sealed partial class Ff7Scene
             return false;
         }
         battleMagicTargets.Add(targets);
+        battleMagicTargetGroups.Add(group);
         if (battleMagicTargets.Count == battleMagicCastCount)
         {
-            submitted = battle.SubmitGuestMagicSequence(owner, option.Argument, battleMagicTargets, group);
+            submitted = battle.SubmitMagicSequence(owner, option.Argument, battleMagicTargets, battleMagicTargetGroups);
             if (!submitted)
             {
                 battleMagicTargets.RemoveAt(battleMagicTargets.Count - 1);
+                battleMagicTargetGroups.RemoveAt(battleMagicTargetGroups.Count - 1);
             }
         }
         return true;

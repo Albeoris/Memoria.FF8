@@ -180,9 +180,7 @@ public sealed class CrossoverBattleAbilityRulesTests
     }
 
     [Theory]
-    [InlineData(0, 0x100u)]
     [InlineData(0, 0x200u)]
-    [InlineData(0, 0x2000u)]
     public void OriginOnlyStatusesReportMissingCounterpartsWithoutInventingHostAliases(ushort saved, uint battle)
     {
         BattleNativeAction action = Action(2) with { Statuses0 = saved, Statuses1 = battle };
@@ -192,10 +190,12 @@ public sealed class CrossoverBattleAbilityRulesTests
     }
 
     [Theory]
+    [InlineData(0x100u)]
+    [InlineData(0x2000u)]
     [InlineData(0x20000u)]
     [InlineData(0x40000u)]
     [InlineData(0x60000u)]
-    public void NativeMulticastStatusesUseTheSourceBankWithoutHostStatusCollisions(uint mask)
+    public void SupportedOriginStatusesUseTheSourceBankWithoutHostStatusCollisions(uint mask)
     {
         BattleNativeAction action = Action(2) with { Power = 0, Element = 0, Statuses1 = mask, StatusAttack = 255 };
         Assert.Null(CrossoverBattleAbilityRules.UnsupportedReason(action));
@@ -244,7 +244,7 @@ public sealed class CrossoverBattleAbilityRulesTests
     [Fact]
     public void UnsupportedOperationsAndStatusBitsFailBeforeProducingMechanics()
     {
-        List<BattleNativeAction> unsupported = [Action(2) with { PresentationOnly = true }, Action(2) with { Statuses1 = 0x2000 }];
+        List<BattleNativeAction> unsupported = [Action(2) with { PresentationOnly = true }, Action(2) with { Statuses1 = 0x10000 }];
         Assert.Null(CrossoverBattleAbilityRules.UnsupportedReason(Action(2) with { HitCount = 2 }));
         for (byte type = 0; type <= 36; type++)
         {

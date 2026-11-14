@@ -1,6 +1,10 @@
 namespace Memoria.FF7.Runtime;
 
-public sealed record Ff7BattleGuestOriginStatus(int HostSlot, uint BattleStatuses);
+public sealed record Ff7BattleGuestOriginStatus(int HostSlot, uint BattleStatuses)
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public short[]? Timers { get; init; }
+}
 
 public sealed partial class Ff7BattleSession
 {
@@ -55,14 +59,13 @@ public sealed partial class Ff7BattleSession
         {
             parameter = null;
         }
-        if (GetGuestBinding(actor.Actor.Slot) is { } binding)
+        if (state.GuestOriginStatuses?.SingleOrDefault(value => value.HostSlot == actor.Actor.Slot) is not null || GetGuestBinding(actor.Actor.Slot) is not null)
         {
-            uint current = state.GuestOriginStatuses?.SingleOrDefault(value => value.HostSlot == actor.Actor.Slot)?.BattleStatuses ?? binding.OriginBattleStatuses;
-            uint remaining = current & ~battleRemoval;
+            uint current = state.GuestOriginStatuses?.SingleOrDefault(value => value.HostSlot == actor.Actor.Slot)?.BattleStatuses ?? GetGuestBinding(actor.Actor.Slot)?.OriginBattleStatuses ?? 0;
+            uint remaining = current & ~RemovableOriginBattleStatuses(actor.Actor.Slot, battleRemoval);
             if (current != remaining)
             {
-                Ff7BattleGuestOriginStatus[] statuses = (state.GuestOriginStatuses ?? []).Where(value => value.HostSlot != actor.Actor.Slot).Append(new(actor.Actor.Slot, remaining)).OrderBy(value => value.HostSlot).ToArray();
-                state = state with { GuestOriginStatuses = statuses };
+                StoreOriginBattleStatuses(actor.Actor.Slot, remaining, current & ~remaining);
             }
         }
         return actor with { OriginSavedStatuses = owned, ParameterStatus = parameter, ParameterStatusInitialized = true };
@@ -70,8 +73,16 @@ public sealed partial class Ff7BattleSession
 
     public uint GetGuestOriginBattleStatuses(int slot)
     {
-        Ff7BattleGuestVitalsBinding binding = GetGuestBinding(slot) ?? throw new InvalidOperationException("Origin battle statuses require an FFVIII guest binding.");
-        uint original = state.GuestOriginStatuses?.SingleOrDefault(value => value.HostSlot == slot)?.BattleStatuses ?? binding.OriginBattleStatuses;
+        if (GetGuestBinding(slot) is null)
+        {
+            throw new InvalidOperationException("Origin battle statuses require an FFVIII guest binding.");
+        }
+        return GetOriginBattleStatuses(slot);
+    }
+
+    public uint GetOriginBattleStatuses(int slot)
+    {
+        uint original = state.GuestOriginStatuses?.SingleOrDefault(value => value.HostSlot == slot)?.BattleStatuses ?? GetGuestBinding(slot)?.OriginBattleStatuses ?? 0;
         uint common = Ff7GuestBattleStatuses.ToOriginBattle(Ff7GuestBattleStatuses.SupportedHost);
         Ff7BattleActorState actor = Actor(slot);
         return original & ~(common | Ff7GuestBattleStatuses.OriginDefenseReduction) | Ff7GuestBattleStatuses.ToOriginBattle(actor.Actor.Statuses) | (actor.ParameterStatus?.SourceStatusMask ?? 0);
@@ -84,13 +95,14 @@ public sealed partial class Ff7BattleSession
         {
             return;
         }
-        if ((changed & ~Ff7GuestBattleStatuses.OriginMulticast) != 0 || GetGuestBinding(slot) is null)
+        uint allowedRemoval = Ff7GuestBattleStatuses.SupportedOwnedOriginBattle | ((receipt.AddedOriginBattleStatuses & Ff7GuestBattleStatuses.OriginAura) != 0 ? Ff7GuestBattleStatuses.OriginCurse : 0);
+        if ((receipt.AddedOriginBattleStatuses & ~Ff7GuestBattleStatuses.SupportedOwnedOriginBattle) != 0 || (receipt.RemovedOriginBattleStatuses & ~allowedRemoval) != 0)
         {
-            throw new InvalidDataException("The source status contact has no compatible guest owner.");
+            throw new InvalidDataException("The source status contact contains an unsupported operation.");
         }
-        uint next = (GetGuestOriginBattleStatuses(slot) & ~receipt.RemovedOriginBattleStatuses) | receipt.AddedOriginBattleStatuses;
-        Ff7BattleGuestOriginStatus[] statuses = (state.GuestOriginStatuses ?? []).Where(value => value.HostSlot != slot).Append(new(slot, next)).OrderBy(value => value.HostSlot).ToArray();
-        state = state with { GuestOriginStatuses = statuses };
+        uint removed = RemovableOriginBattleStatuses(slot, receipt.RemovedOriginBattleStatuses);
+        uint next = (GetOriginBattleStatuses(slot) & ~removed) | receipt.AddedOriginBattleStatuses;
+        StoreOriginBattleStatuses(slot, next, removed, receipt.AddedOriginBattleStatuses);
     }
 
     private static void ValidateGuestOriginStatuses(Ff7BattleSnapshot snapshot)
@@ -99,10 +111,9 @@ public sealed partial class Ff7BattleSession
         {
             return;
         }
-        IReadOnlyList<Ff7BattleGuestSlotState> slots = snapshot.GetGuestSlotStates();
-        if (statuses.Any(value => value is null) || statuses.Select(value => value.HostSlot).Distinct().Count() != statuses.Length || statuses.Any(value => !slots.Any(slot => slot.Binding.HostSlot == value.HostSlot)))
+        if (statuses.Any(value => value is null) || statuses.Select(value => value.HostSlot).Distinct().Count() != statuses.Length || statuses.Any(value => !snapshot.Actors.Any(actor => actor.Actor.Slot == value.HostSlot) || value.Timers is { Length: not 14 }))
         {
-            throw new InvalidDataException("The saved origin statuses have no unique guest identity.");
+            throw new InvalidDataException("The saved origin statuses have no unique actor identity.");
         }
     }
 }

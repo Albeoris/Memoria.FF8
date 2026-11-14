@@ -7,11 +7,14 @@ internal sealed partial class CrossoverGuestHostActions
 {
     private string? SourceStatusTargetUnsupportedReason(BattleNativeAction action, int target)
     {
-        if ((action.Statuses1 & 0x68000) == 0 || action.AttackType is 27 or 29 or 35)
+        uint operations = action.Statuses1 & ~(Ff7GuestBattleStatuses.SupportedOriginBattle | Ff7GuestBattleStatuses.SupportedOwnedOriginBattle | Ff7GuestBattleStatuses.OriginDefenseReduction | 0x8000u);
+        if (operations == 0 || action.AttackType is 27 or 29 or 35)
         {
             return null;
         }
+        bool healing = action.AttackType is 3 or 4 or 5 or 6 or 21 or 25 or 32;
         ushort mask = AbilityTargetMask(action, target);
-        return host.Actors.Any(actor => (mask & (1 << actor.Actor.Slot)) != 0 && !host.GuestVitalsBindings.Any(binding => binding.HostSlot == actor.Actor.Slot)) ? "The original status operation currently requires an FFVIII character target." : null;
+        bool requested = host.Actors.Any(actor => (mask & (1 << actor.Actor.Slot)) != 0 && (host.GetOriginBattleStatuses(actor.Actor.Slot) & operations) != 0);
+        return !healing || requested ? "This source status operation has no supported combat owner." : null;
     }
 }

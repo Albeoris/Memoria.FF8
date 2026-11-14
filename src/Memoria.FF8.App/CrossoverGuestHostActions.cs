@@ -67,6 +67,9 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         graphicsRules = game.ReadNativeBattleGraphicsRules();
         this.attack = attack;
         this.host = host;
+        // Older source saves without input settings use the selected installation's default speed.
+        NativeBattleStatusRules sourceStatusRules = assets.ReadNativeStatusRules(encounter.OriginBattleSpeed ?? game.ReadNewGameInputConfiguration().NativeBattleSpeedByte ?? throw new InvalidDataException("Source status timing requires a saved or installed default battle-speed byte."));
+        host.BindOriginStatusDurations(sourceStatusRules.Durations.Select(duration => unchecked((short)(4 * (sourceStatusRules.BattleSpeed + 1) * duration))).ToArray());
         ValidateItemQueue();
         fire = saved?.Fire;
         NativeBattleGraphicsResource sourceResource = assets.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = kit.CharacterId, WeaponId = kit.Weapon });
@@ -211,7 +214,15 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
     public Ff7BattleGuestInvocation? Invocation => limit?.Invocation ?? fire?.Invocation ?? attack.Invocation;
     public long HostTick => limit?.HostTick ?? fire?.HostTick ?? attack.HostTick;
     public bool ContactPublished => limit is { } current ? current.Program.PublishedContacts > 0 : fire?.ContactPublished ?? attack.ContactPublished;
-    public CrossoverFf8BattleActorVisual? Visual => LimitVisual ?? (fire is { } current && attack.Visual is { } visual ? visual with { Model = current.Presentation.Cast.Model, OriginToHost = current.Placement.Matrix, BodyTextures = current.Presentation.BodyTextures, Textures = current.Presentation.Textures } : attack.Visual);
+    public CrossoverFf8BattleActorVisual? Visual
+    {
+        get
+        {
+            CrossoverFf8BattleActorVisual? visual = LimitVisual ?? (fire is { } current && attack.Visual is { } caster ? caster with { Model = current.Presentation.Cast.Model, OriginToHost = current.Placement.Matrix, BodyTextures = current.Presentation.BodyTextures, Textures = current.Presentation.Textures } : attack.Visual);
+            int offset = host.RenderActorFloatOffset(ActorSlot);
+            return visual is null || offset == 0 ? visual : visual with { OriginToHost = visual.OriginToHost * Matrix4x4.CreateTranslation(0, offset, 0), ShadowGroundOffsetY = offset };
+        }
+    }
     public ImmutableArray<NativeBattleModuleDraw> Draws => fire?.Presentation.Draws ?? [];
     public NativeBattleEffectTextureState? Textures => fire?.Presentation.Textures;
     public CrossoverNativeEffectVisual? EffectVisual => LimitEffectVisual ?? (fire is { } current ? new(compositor, current.Presentation.Draws, current.Presentation.Textures, current.Placement.Matrix, CrossoverGunbladeHostPlacement.OriginToHostScale) { Ordering = current.Presentation.Ordering, Memory = current.Presentation.Memory, StageColor = current.Presentation.StageDepth is not 0 ? new(graphicsRules.SummonColors!, current.Presentation.StageColor.Depth, current.Presentation.StageColor.TargetRgb) : null } : attack.AttackEffectVisual(compositor));

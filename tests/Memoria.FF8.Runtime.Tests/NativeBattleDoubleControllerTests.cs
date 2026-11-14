@@ -7,6 +7,31 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleDoubleControllerTests
 {
     [Fact]
+    public void Host_caster_and_target_use_posed_anchors_and_bounds_without_requesting_a_native_resource()
+    {
+        var fixture = Fixture();
+        NativeBattleEffectActorGeometry geometry = new(new(10, -900, 30), new(50, -100, 70), 13, new(new(-41, -703, -83), new(109, 211, 307)));
+        NativeBattleDoubleInputs inputs = fixture.Inputs with
+        {
+            ReadForeign = _ => geometry,
+            ReadModel = index => new(index, 2) { Transform = new(default, default, 0, 77, 4096) },
+            ReadPoseSource = _ => throw new InvalidOperationException("A host pose must not request a native skeleton or animation bank.")
+        };
+        NativeBattleDoubleStep first = NativeBattleDoubleController.Advance8D5180(fixture.Frame, fixture.Resources, inputs, NativeCrtRandomState.FromColdProcess());
+        NativeBattleModulePoolTask root = first.Frame.Effect.Pools[0].Slots[0];
+        Assert.Equal((ushort)50, root.ReadWord(0x30));
+        Assert.Equal((ushort)77, root.ReadWord(0x32));
+        Assert.Equal(unchecked((ushort)-500), root.ReadWord(0x3A));
+        NativeBattleDoubleFrame cold = NativeBattleTestSnapshots.RestoreJson<NativeBattleDoubleFrame>(NativeBattleTestSnapshots.Json(first.Frame))!;
+        NativeBattleDoubleStep second = NativeBattleDoubleController.Advance8D5180(cold, fixture.Resources, inputs, first.Random);
+        NativeBattleModulePoolTask target = second.Frame.Effect.Pools[1].Slots[0];
+        Assert.Equal((ushort)13, target.ReadWord(0x32));
+        Assert.Equal(unchecked((ushort)-703), target.ReadWord(0x4A));
+        Assert.Equal((ushort)307, target.ReadWord(0x54));
+        Assert.Equal(NativeBattleTestSnapshots.Json(second), NativeBattleTestSnapshots.Json(NativeBattleDoubleController.Advance8D5180(first.Frame, fixture.Resources, inputs, first.Random)));
+    }
+
+    [Fact]
     public void Entry_initializes_six_native_banks_and_preserves_the_current_morph_without_reading_skipped_TIM()
     {
         var fixture = Fixture();

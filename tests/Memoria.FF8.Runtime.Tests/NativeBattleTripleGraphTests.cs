@@ -7,6 +7,31 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleTripleGraphTests
 {
     [Fact]
+    public void Host_caster_and_target_share_posed_geometry_instead_of_a_native_skeleton_or_animation_bank()
+    {
+        var fixture = Fixture();
+        NativeBattleEffectActorGeometry geometry = new(new(10, -900, 30), new(50, -100, 70), 13, new(new(-41, -703, -83), new(109, 211, 307)));
+        NativeBattleTripleInputs inputs = fixture.Inputs with
+        {
+            ReadForeign = _ => geometry,
+            ReadModel = index => new(index, 2) { Transform = new(default, default, 0, 77, 4096) },
+            ReadPoseSource = _ => throw new InvalidOperationException("A host pose must not request a native skeleton or animation bank.")
+        };
+        NativeBattleTripleStep first = NativeBattleTripleController.Advance89DFF0(fixture.Frame, fixture.Resources, inputs, NativeCrtRandomState.FromColdProcess());
+        NativeBattleModulePoolTask root = first.Frame.Effect.Pools[0].Slots[0];
+        Assert.Equal((ushort)50, root.ReadWord(0x30));
+        Assert.Equal((ushort)77, root.ReadWord(0x32));
+        Assert.Equal(unchecked((ushort)-500), root.ReadWord(0x3A));
+        NativeBattleTripleFrame cold = NativeBattleTestSnapshots.RestoreJson<NativeBattleTripleFrame>(NativeBattleTestSnapshots.Json(first.Frame))!;
+        NativeBattleTripleStep second = NativeBattleTripleController.Advance89DFF0(cold, fixture.Resources, inputs, first.Random);
+        NativeBattleModulePoolTask target = second.Frame.Effect.Pools[1].Slots[0];
+        Assert.Equal((ushort)13, target.ReadWord(0x32));
+        Assert.Equal(unchecked((ushort)-703), target.ReadWord(0x4A));
+        Assert.Equal((ushort)307, target.ReadWord(0x54));
+        Assert.Equal(NativeBattleTestSnapshots.Json(second), NativeBattleTestSnapshots.Json(NativeBattleTripleController.Advance89DFF0(first.Frame, fixture.Resources, inputs, first.Random)));
+    }
+
+    [Fact]
     public void Same_pass_opposite_pairs_use_larger_banks_two_CRT_draws_each_and_prior_sprite_list_order()
     {
         var fixture = Fixture();

@@ -8,6 +8,7 @@ public readonly record struct Ff7BattleDamageActor(byte Level, byte Attack, byte
     public byte EquippedMateriaCount { get; init; }
     public Ff7BattleParameterOperation? ParameterStatus { get; init; }
     public ushort OriginSavedStatuses { get; init; }
+    public uint OriginBattleStatuses { get; init; }
 }
 
 [Flags]
@@ -36,6 +37,7 @@ public readonly record struct Ff7BattleDamageAction(byte Formula, byte Power, by
     public int? FixedDamage { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public bool SourceMissingHitPoints { get; init; }
+    public int DamageScalePercent { get; init; } = 100;
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public int MinimumDamage { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
@@ -153,6 +155,10 @@ public static class Ff7NativeBattleDamage
             throw new InvalidDataException("Battle damage operands must describe nonnegative damage and a valid fraction.");
         }
         action = BindSourceVitals(action, attacker.CurrentHitPoints, attacker.MaximumHitPoints);
+        if (action.DamageScalePercent is < 0 or > 1000)
+        {
+            throw new InvalidDataException("Battle damage scaling requires a nonnegative bounded percentage.");
+        }
         if (action.RequiredTargetLevelMultiple != 0 && target.Level % action.RequiredTargetLevelMultiple != 0)
         {
             return new(true, false, 0);
@@ -215,7 +221,12 @@ public static class Ff7NativeBattleDamage
         {
             return new(true, false, 0);
         }
-        action = action with { Affinity = action.IgnoreNativeAffinity ? Ff7BattleDamageAffinity.Normal : Ff7NativeBattleStatuses.ShieldAffinity(target.Statuses, action.NativeElements, action.IsItem, action.Affinity) };
+        Ff7BattleDamageAffinity affinity = action.Affinity;
+        if ((target.OriginBattleStatuses & Ff7GuestBattleStatuses.OriginFloat) != 0 && (action.NativeElements & 0x08) != 0)
+        {
+            affinity |= Ff7BattleDamageAffinity.Nullify;
+        }
+        action = action with { Affinity = action.IgnoreNativeAffinity ? Ff7BattleDamageAffinity.Normal : Ff7NativeBattleStatuses.ShieldAffinity(target.Statuses, action.NativeElements, action.IsItem, affinity) };
         bool immune = (target.NativeConditions & ((action.NativePhysicalCategory ?? action.UsePhysicalStats) ? 0x100U : 0x200U)) != 0;
         int elementalDamage = immune ? 0 : ApplyAffinity(damage, action.Affinity);
         bool zombie = Ff7OriginSavedStatusRules.IsZombie(target.OriginSavedStatuses);
@@ -240,7 +251,12 @@ public static class Ff7NativeBattleDamage
             damage = Math.Abs(damage);
         }
         bool healing = action.Healing && !(zombie && !action.TargetsMagicPoints);
-        return new(false, critical && !nullified, healing ? -damage : damage);
+        int result = healing ? -damage : damage;
+        if (result > 0)
+        {
+            result = checked((int)((long)result * action.DamageScalePercent / 100));
+        }
+        return new(false, critical && !nullified, result);
     }
 
     private static int ApplyAffinity(int damage, Ff7BattleDamageAffinity affinity)

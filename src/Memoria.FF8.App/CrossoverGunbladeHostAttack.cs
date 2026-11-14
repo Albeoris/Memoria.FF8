@@ -13,7 +13,7 @@ namespace Memoria.FF8;
 internal sealed record CrossoverGunbladeHostPlacement(Ff7BattlePosition Anchor, int Yaw)
 {
     // Standing body bounds in the first original Cloud and Squall clips.
-    public const float OriginToHostScale = 0.81593376f;
+    public const float OriginToHostScale = Ff7BattleSession.OriginActorToHostScale;
     [JsonIgnore]
     public Matrix4x4 Matrix => Matrix4x4.CreateTranslation(0, 1, -2200) * Matrix4x4.CreateScale(OriginToHostScale)
         * Matrix4x4.CreateRotationY(Yaw * MathF.Tau / 4096) * Matrix4x4.CreateTranslation(Anchor.ToVector() + new Vector3(0, 2.0688171f, 0));

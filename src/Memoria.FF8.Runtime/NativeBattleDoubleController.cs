@@ -13,6 +13,7 @@ public sealed record NativeBattleDoubleSprite(NativeBattleModuleDraw Draw) : Nat
 public sealed record NativeBattleDoubleInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleDoubleFrame, NativeBattleDoubleOperation, NativeBattleDoubleFrame> Execute)
 {
     public Func<NativeBattleDoubleFrame, int, NativeBattleDoubleFrame>? ApplyContact { get; init; }
+    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeign { get; init; }
 }
 public sealed record NativeBattleDoubleStep(NativeBattleDoubleFrame Frame, NativeCrtRandomState Random, ImmutableArray<int> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
 public sealed record NativeBattleDoubleParticleStep(NativeBattleDoubleFrame Frame, NativeCrtRandomState Random, int Result);
@@ -50,7 +51,7 @@ public static partial class NativeBattleDoubleController
             NativeBattleDoubleParticleStep particle = AdvancePrivate(current, childAddress, resources, inputs, random);
             current = particle.Frame;
             return new(new(current.Memory, current.Effect, current.State.DrawCursor), particle.Random, particle.Result);
-        });
+        }) { ReadForeign = inputs.ReadForeign };
         NativeBattleEnhancementRootStep root = NativeBattleEnhancementRoot.Advance(new(frame.Memory, frame.Effect, frame.State.DrawCursor), NativeBattleEnhancementProfile.Double, sharedInputs, random);
         return new(new(root.Frame.Memory, root.Frame.Effect, new(root.Frame.DrawCursor)), root.Random, contacts.ToImmutable(), sounds.ToImmutable());
 
@@ -61,12 +62,7 @@ public static partial class NativeBattleDoubleController
             {
                 throw new InvalidDataException("Native Double target callback is not8D52A0.");
             }
-            task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, Models(inputs), inputs.ReadPoseSource);
-            int target = task.ReadByte(0x2D);
-            NativeBattleGraphicsModel model = inputs.ReadModel(target);
-            NativeBattlePoseSource source = inputs.ReadPoseSource(target);
-            NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native Double bounds require the actual target pose.");
-            task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, source.Sample(sequence.Pose ?? throw new NotSupportedException("Native Double target lacks its selected pose."), sequence.PoseFrame114 ?? throw new NotSupportedException("Native Double target lacks its decoded pose frame."), sequence.PoseFlags109));
+            task = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, Models(inputs), inputs.ReadPoseSource, inputs.ReadForeign);
             state = state.Write(address, task);
             switch (Phase(task))
             {

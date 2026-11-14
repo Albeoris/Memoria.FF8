@@ -98,7 +98,7 @@ public sealed partial class Ff7BattleSession
     {
         Ff7BattleSnapshot original = state;
         Ff7BattleActorState dispatchSource = Actor(command.ActorSlot);
-        Ff7BattleDamageAction[] phaseActions = program.Phases.Select(phase => Ff7NativeBattleDamage.BindSourceVitals(phase.Description.Attack, dispatchSource.Actor.HitPoints, dispatchSource.Actor.MaxHitPoints)).ToArray();
+        Ff7BattleDamageAction[] phaseActions = program.Phases.Select(phase => ApplyMagicSequenceDamage(command, Ff7NativeBattleDamage.BindSourceVitals(phase.Description.Attack, dispatchSource.Actor.HitPoints, dispatchSource.Actor.MaxHitPoints))).ToArray();
         state = state with { Actors = (Ff7BattleActorState[])state.Actors.Clone() };
         ImmutableArray<Ff7BattleGuestCompositeContact>.Builder contacts = ImmutableArray.CreateBuilder<Ff7BattleGuestCompositeContact>();
         try
@@ -123,7 +123,7 @@ public sealed partial class Ff7BattleSession
                     Ff7BattleActionVitals targetVitals = GuestItemVitals(target) with { StatusImmunities = (slot >= 4 ? ~Enemy(slot).NativeStatusMask : 0) | target.StatusProtection };
                     Ff7BattleDamageAction attack = reflected?.Attack ?? ProjectGuestOutgoingAttack(slot, description) with { Split = false };
                     Ff7BattleDamageActor sourceStats = description.Source with { Statuses = source.Actor.Statuses, CurrentHitPoints = source.Actor.HitPoints, OriginSavedStatuses = sourceVitals.OriginSavedStatuses };
-                    Ff7BattleActionReceipt receipt = reflected?.Receipt ?? Ff7NativeBattleActionResolver.ResolveGuestContact(sourceStats, sourceVitals, Stats(target), targetVitals, attack, description.StatusRecord, candidateRandom, slot == command.ActorSlot, GetGuestProjection(slot)?.OriginStatusResistances, GetGuestBinding(slot) is null ? 0 : GetGuestOriginBattleStatuses(slot), GetGuestBinding(command.ActorSlot) is null ? (ushort)0 : GetGuestOriginSavedStatuses(command.ActorSlot), GetGuestBinding(slot) is null ? (ushort)0 : GetGuestOriginSavedStatuses(slot));
+                    Ff7BattleActionReceipt receipt = reflected?.Receipt ?? Ff7NativeBattleActionResolver.ResolveGuestContact(sourceStats, sourceVitals, Stats(target), targetVitals, attack, description.StatusRecord, candidateRandom, slot == command.ActorSlot, GetGuestProjection(slot)?.OriginStatusResistances, GetOriginBattleStatuses(slot), GetOriginSavedStatuses(command.ActorSlot), GetOriginSavedStatuses(slot));
                     receipt = Ff7NativeBattleActionResolver.ApplyPreparedGuestContact(sourceVitals, targetVitals, receipt, attack, slot == command.ActorSlot);
                     Ff7BattleGuestPhysicalHit prepared = description with { Attack = attack, PreparedContact = new(invocation with { TargetSlot = slot }, sourceVitals, targetVitals, receipt) };
                     contacts.Add(new(contacts.Count, phaseIndex, hit, prepared) { Reflected = reflected?.Reflected == true, Reflections = reflections });
@@ -132,7 +132,6 @@ public sealed partial class Ff7BattleSession
                         Replace(source with { Actor = source.Actor with { HitPoints = receipt.Source.Hp, MagicPoints = receipt.Source.Mp, Statuses = receipt.Source.Statuses } });
                     }
                     PublishHit(command, target, attack, receipt, runCounters: false);
-                    ApplyGuestOriginContact(slot, receipt);
                 }
             }
             return contacts.ToImmutable();

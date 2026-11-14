@@ -17,18 +17,18 @@ public sealed class CrossoverGuestStatusHostTests
     public void Original_status_on_a_second_guest_enables_selected_magic_targets_in_one_turn(string name, uint status, int count)
     {
         using Fixture fixture = new();
-        Assert.NotNull(fixture.Host.GuestAbilityTargetUnsupportedReason(0, Ff7BattleCommand.Magic, fixture.Spell(name), 4));
+        Assert.Null(fixture.Host.GuestAbilityTargetUnsupportedReason(0, Ff7BattleCommand.Magic, fixture.Spell(name), 4));
         fixture.Cast(0, name, 2);
         Assert.Equal(status, fixture.Host.GetGuestOriginBattleStatuses(1) & 0x60000);
         Ff7BattleSnapshot roundtrip = JsonSerializer.Deserialize<Ff7BattleSnapshot>(JsonSerializer.Serialize(fixture.Host.Capture()))!;
         Assert.Equal(status, Assert.Single(roundtrip.GuestOriginStatuses!, entry => entry.HostSlot == 1).BattleStatuses & 0x60000);
         ushort cure = fixture.Spell("Cure");
-        Assert.Contains(count, fixture.Providers[1].MagicCastCounts(cure));
+        Assert.Equal(new[] { count }, fixture.Providers[1].MagicCastCounts(cure));
         int before = fixture.Stock(cure);
         ushort[] targets = Enumerable.Range(0, count).Select(index => (ushort)(1 << (index % 2))).ToArray();
         fixture.Ready(1);
         Assert.True(fixture.Host.SubmitGuestMagicSequence(1, cure, targets));
-        int contacts = fixture.Complete(1, count);
+        int contacts = fixture.Complete(1, count, inspectPrepared: hit => fixture.AssertPreparedDamage(1, hit, count == 3 ? 75 : 100, healing: true));
         Assert.Equal(count, contacts);
         Assert.Equal(before - count, fixture.Stock(cure));
         Assert.Empty(fixture.Host.Capture().GuestMagicSequences);
@@ -44,7 +44,7 @@ public sealed class CrossoverGuestStatusHostTests
         uint sourceBefore = fixture.Hp(0);
         uint targetBefore = fixture.Hp(1);
         int stockBefore = fixture.Stock(spell);
-        Assert.NotNull(fixture.Host.GuestAbilityTargetUnsupportedReason(0, Ff7BattleCommand.Magic, spell, 4));
+        Assert.Null(fixture.Host.GuestAbilityTargetUnsupportedReason(0, Ff7BattleCommand.Magic, spell, 4));
         fixture.Cast(0, "Drain", 2);
         Assert.True(fixture.Hp(0) > sourceBefore);
         Assert.True(fixture.Hp(1) < targetBefore);
@@ -71,7 +71,7 @@ public sealed class CrossoverGuestStatusHostTests
         fixture.Cast(0, "Triple", 2);
         fixture.Ready(1);
         ushort cure = fixture.Spell("Cure");
-        Assert.Contains(3, fixture.Providers[1].MagicCastCounts(cure));
+        Assert.Equal(new[] { 3 }, fixture.Providers[1].MagicCastCounts(cure));
         Assert.True(fixture.Host.SubmitGuestMagicSequence(1, cure, [1, 2, 1]));
         Assert.Equal(3, fixture.Complete(1, 3, restoreQueuedBoundary: true));
         Assert.Equal(0, fixture.Stock(cure));
@@ -79,17 +79,35 @@ public sealed class CrossoverGuestStatusHostTests
     }
 
     [Fact]
-    public void Abbreviated_triple_does_not_apply_the_economical_double_passive()
+    public void Triple_rejects_an_abbreviated_selection_without_spending_stock_or_mutating_the_queue()
     {
         using Fixture fixture = new(0x20, 2);
         fixture.Cast(0, "Triple", 2);
         fixture.Ready(1);
         ushort cure = fixture.Spell("Cure");
-        Assert.Equal(new[] { 1, 2 }, fixture.Providers[1].MagicCastCounts(cure));
-        Assert.Equal(2, fixture.Providers[1].MagicCastCost(cure, 2));
+        Assert.Equal(new[] { 3 }, fixture.Providers[1].MagicCastCounts(cure));
+        Assert.Equal(3, fixture.Providers[1].MagicCastCost(cure, 3));
+        string before = JsonSerializer.Serialize(fixture.Host.Capture());
+        Assert.False(fixture.Host.SubmitGuestMagicSequence(1, cure, [1, 2]));
+        Assert.False(fixture.Host.SubmitGuestMagicSequence(1, cure, [1, 2, 1]));
+        Assert.Equal(before, JsonSerializer.Serialize(fixture.Host.Capture()));
+        Assert.Equal(2, fixture.Stock(cure));
+    }
+
+    [Fact]
+    public void Original_Double_on_a_clean_guest_uses_two_casts_and_its_own_economical_passive()
+    {
+        using Fixture fixture = new(0x20, 1);
+        fixture.Cast(0, "Double", 2);
+        fixture.Ready(1);
+        ushort cure = fixture.Spell("Cure");
+        Assert.Equal(0x20000u, fixture.Host.GetOriginBattleStatuses(1) & Ff7GuestBattleStatuses.OriginMulticast);
+        Assert.Equal(new[] { 2 }, fixture.Providers[1].MagicCastCounts(cure));
+        Assert.Equal(1, fixture.Providers[1].MagicCastCost(cure, 2));
         Assert.True(fixture.Host.SubmitGuestMagicSequence(1, cure, [1, 2]));
-        Assert.Equal(2, fixture.Complete(1, 2));
+        Assert.Equal(2, fixture.Complete(1, 2, restoreQueuedBoundary: true));
         Assert.Equal(0, fixture.Stock(cure));
+        Assert.Equal(1, fixture.Providers[1].Capture().CommittedSpells!.Value.Count(cost => cost.Spell == cure));
     }
 
     internal sealed class Fixture : IDisposable
@@ -262,7 +280,8 @@ public sealed class CrossoverGuestStatusHostTests
         {
             Ready(caster);
             ushort spell = Spell(name);
-            Assert.Null(Host.GuestAbilityTargetUnsupportedReason(caster, Ff7BattleCommand.Magic, spell, System.Numerics.BitOperations.TrailingZeroCount(targets)));
+            string? reason = Host.GuestAbilityTargetUnsupportedReason(caster, Ff7BattleCommand.Magic, spell, System.Numerics.BitOperations.TrailingZeroCount(targets));
+            Assert.True(reason is null, reason);
             Assert.True(Host.Submit(caster, Ff7BattleCommand.Magic, spell, targets));
             Assert.Equal(1, Complete(caster, 1));
         }
@@ -280,7 +299,7 @@ public sealed class CrossoverGuestStatusHostTests
             Assert.Equal(1, Complete(caster, 1));
         }
 
-        public int Complete(int caster, int count, bool restoreQueuedBoundary = false)
+        public int Complete(int caster, int count, bool restoreQueuedBoundary = false, Action<Ff7BattleGuestPhysicalHit>? inspectPrepared = null)
         {
             HashSet<long> invocations = [];
             int contacts = 0;
@@ -291,7 +310,10 @@ public sealed class CrossoverGuestStatusHostTests
                 Assert.Null(Host.GuestAbilityFailure);
                 if (Providers[caster].Invocation is { } invocation)
                 {
-                    invocations.Add(invocation.StartedAt);
+                    if (invocations.Add(invocation.StartedAt) && inspectPrepared is not null)
+                    {
+                        inspectPrepared(Providers[caster].CaptureActor().Fire!.Prepared);
+                    }
                 }
                 int presented = Host.PresentedGuestContacts.Count(contact => contact.HitDescription.PreparedContact!.Invocation.ActorSlot == caster);
                 if (presented > 0)
@@ -316,6 +338,25 @@ public sealed class CrossoverGuestStatusHostTests
             }
             Assert.Fail("The selected native magic did not finish its host queue sequence.");
             return contacts;
+        }
+
+        public void AssertPreparedDamage(int caster, Ff7BattleGuestPhysicalHit hit, int scale, bool healing)
+        {
+            Assert.Equal(scale, hit.Attack.DamageScalePercent);
+            Assert.Equal(healing, hit.Attack.Healing);
+            Ff7BattleGuestPreparedContact prepared = Assert.IsType<Ff7BattleGuestPreparedContact>(hit.PreparedContact);
+            Ff7BattleGuestContactContext context = Host.GuestContactContext(caster, prepared.Invocation.TargetSlot, hit, physical: false);
+            HashSet<int> expected = [];
+            for (int phase = 0; phase < 256; phase++)
+            {
+                Ff7BattleRng Random() => new(context.RandomKernel.Span, new(Enumerable.Repeat((byte)phase, 8).ToArray()));
+                Ff7BattleActionReceipt full = Ff7NativeBattleActionResolver.ResolveGuestContact(context.Source, prepared.SourceBefore, context.Target, prepared.TargetBefore, context.Attack with { DamageScalePercent = 100 }, hit.StatusRecord, Random());
+                Ff7BattleActionReceipt scaled = Ff7NativeBattleActionResolver.ResolveGuestContact(context.Source, prepared.SourceBefore, context.Target, prepared.TargetBefore, context.Attack, hit.StatusRecord, Random());
+                Assert.Equal(healing ? full.Damage.Damage : full.Damage.Damage * scale / 100, scaled.Damage.Damage);
+                expected.Add(scaled.Damage.Damage);
+            }
+            Assert.Contains(prepared.Receipt.Damage.Damage, expected);
+            Assert.True(healing ? prepared.Receipt.Damage.Damage < 0 : prepared.Receipt.Damage.Damage > 0);
         }
 
         public void RestoreQueuedBoundary(Ff7BattleSnapshot? snapshot = null)

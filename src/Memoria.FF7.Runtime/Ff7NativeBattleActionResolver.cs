@@ -102,26 +102,30 @@ public static class Ff7NativeBattleActionResolver
         return true;
     }
 
-    public static Ff7BattleActionReceipt Resolve(Ff7BattleDamageActor sourceStats, Ff7BattleActionVitals source, Ff7BattleDamageActor targetStats, Ff7BattleActionVitals target, Ff7BattleDamageAction action, Ff7BattleAttack? record, Ff7BattleRng random, bool sameActor = false)
-        => ResolveCore(sourceStats, source, targetStats, target, action, record, random, sameActor, false, null);
+    public static Ff7BattleActionReceipt Resolve(Ff7BattleDamageActor sourceStats, Ff7BattleActionVitals source, Ff7BattleDamageActor targetStats, Ff7BattleActionVitals target, Ff7BattleDamageAction action, Ff7BattleAttack? record, Ff7BattleRng random, bool sameActor = false, uint originBattleStatuses = 0)
+        => ResolveCore(sourceStats, source, targetStats, target, action, record, random, sameActor, false, null, originBattleStatuses);
 
     public static Ff7BattleActionReceipt ResolveGuestContact(Ff7BattleDamageActor sourceStats, Ff7BattleActionVitals source, Ff7BattleDamageActor targetStats, Ff7BattleActionVitals target, Ff7BattleDamageAction action, Ff7BattleAttack? record, Ff7BattleRng random, bool sameActor = false, IReadOnlyList<byte>? originStatusResistances = null, uint originBattleStatuses = 0, ushort originSourceStatuses = 0, ushort originTargetStatuses = 0)
     {
         action.ParameterOperation?.Validate();
-        if ((action.GuestOriginBattleStatuses & ~Ff7GuestBattleStatuses.OriginMulticast) != 0 || (action.GuestOriginSavedStatuses & ~Ff7OriginSavedStatusRules.Supported) != 0)
+        if ((action.GuestOriginBattleStatuses & ~Ff7GuestBattleStatuses.SupportedOwnedOriginBattle) != 0 || (action.GuestOriginSavedStatuses & ~Ff7OriginSavedStatusRules.Supported) != 0)
         {
             throw new NotSupportedException("The guest contact contains an unsupported source status operation.");
         }
         sourceStats = sourceStats with { OriginSavedStatuses = (ushort)(sourceStats.OriginSavedStatuses | source.OriginSavedStatuses | originSourceStatuses) };
         targetStats = targetStats with { OriginSavedStatuses = (ushort)(targetStats.OriginSavedStatuses | target.OriginSavedStatuses | originTargetStatuses) };
-        Ff7BattleActionReceipt receipt = ResolveCore(sourceStats, source, targetStats, target, action, record, random, sameActor, true, originStatusResistances);
+        Ff7BattleActionReceipt receipt = ResolveCore(sourceStats, source, targetStats, target, action, record, random, sameActor, true, originStatusResistances, originBattleStatuses);
         if (receipt.Damage.Missed)
         {
             return receipt;
         }
         uint mask = action.GuestOriginBattleStatuses;
+        if (!action.Healing && (receipt.Target.Statuses & (Death | Petrify | Peerless | Resist)) != 0)
+        {
+            mask = 0;
+        }
         uint changed = 0;
-        foreach (uint bit in new uint[] { 0x20000, 0x40000 })
+        foreach (uint bit in new uint[] { Ff7GuestBattleStatuses.OriginAura, Ff7GuestBattleStatuses.OriginFloat, 0x20000, 0x40000 })
         {
             if ((mask & bit) == 0 || (originBattleStatuses & bit) != 0 && !action.Healing)
             {
@@ -132,7 +136,8 @@ public static class Ff7NativeBattleActionResolver
                 changed |= bit;
                 continue;
             }
-            int resistance = originStatusResistances?[bit == 0x20000 ? 25 : 26] ?? 100;
+            int resistanceIndex = System.Numerics.BitOperations.TrailingZeroCount(bit) + 8;
+            int resistance = originStatusResistances?[resistanceIndex] ?? 100;
             int effective = action.GuestOriginStatusAttack + sourceStats.Magic / 4 - targetStats.MagicDefense / 4 - resistance;
             if (resistance < 200 && effective > 0 && (action.GuestOriginStatusAttack >= 250 || random.NextByte() <= 255 * effective / 100))
             {
@@ -211,7 +216,7 @@ public static class Ff7NativeBattleActionResolver
             Source = nextSource,
             Target = sameActor ? nextSource : receipt.Target,
             AddedOriginBattleStatuses = action.Healing ? 0 : changed,
-            RemovedOriginBattleStatuses = action.Healing ? changed & originBattleStatuses : 0,
+            RemovedOriginBattleStatuses = receipt.RemovedOriginBattleStatuses | (action.Healing ? changed & originBattleStatuses : (changed & Ff7GuestBattleStatuses.OriginAura) != 0 ? originBattleStatuses & Ff7GuestBattleStatuses.OriginCurse : 0),
             AddedOriginSavedStatuses = addedSaved,
             RemovedOriginSavedStatuses = removedSaved,
             SourceHitPointDamage = sourceDamage,
@@ -220,7 +225,7 @@ public static class Ff7NativeBattleActionResolver
         };
     }
 
-    private static Ff7BattleActionReceipt ResolveCore(Ff7BattleDamageActor sourceStats, Ff7BattleActionVitals source, Ff7BattleDamageActor targetStats, Ff7BattleActionVitals target, Ff7BattleDamageAction action, Ff7BattleAttack? record, Ff7BattleRng random, bool sameActor, bool guestContact, IReadOnlyList<byte>? originStatusResistances)
+    private static Ff7BattleActionReceipt ResolveCore(Ff7BattleDamageActor sourceStats, Ff7BattleActionVitals source, Ff7BattleDamageActor targetStats, Ff7BattleActionVitals target, Ff7BattleDamageAction action, Ff7BattleAttack? record, Ff7BattleRng random, bool sameActor, bool guestContact, IReadOnlyList<byte>? originStatusResistances, uint originBattleStatuses = 0)
     {
         ArgumentNullException.ThrowIfNull(random);
         sourceStats = sourceStats with { OriginSavedStatuses = (ushort)(sourceStats.OriginSavedStatuses | source.OriginSavedStatuses) };
@@ -331,8 +336,15 @@ public static class Ff7NativeBattleActionResolver
         return new(nextSource, nextTarget, damage, nextTarget.Statuses & ~target.Statuses, target.Statuses & ~nextTarget.Statuses)
         {
             RemovedOriginSavedStatuses = (ushort)(target.OriginSavedStatuses & ~nextTarget.OriginSavedStatuses & Ff7OriginSavedStatusRules.Supported),
-            OffensiveRevival = offensiveRevival
+            OffensiveRevival = offensiveRevival,
+            RemovedOriginBattleStatuses = admittedStatus && IsBeneficialStatusDispel(record) && (action.IsItem || (target.Statuses & (Resist | Peerless)) == 0 || record is { SpecialFlags: var dispelFlags } && (dispelFlags & 0x80) == 0) ? originBattleStatuses & Ff7GuestBattleStatuses.SupportedOwnedOriginBattle : 0
         };
+    }
+
+    private static bool IsBeneficialStatusDispel(Ff7BattleAttack? record)
+    {
+        const uint beneficialDispelStatuses = 0x30178700;
+        return Ff7NativeBattleStatuses.ReadRecordMode(record) == 1 && (ReadStatusMask(record) & beneficialDispelStatuses) == beneficialDispelStatuses;
     }
 
     internal static Ff7BattleDamageAction ApplyFacingEffect(Ff7BattleDamageAction action, Ff7BattleAttack? record, uint targetConditions)

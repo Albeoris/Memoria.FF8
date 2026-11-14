@@ -16,7 +16,11 @@ public static class Ff7GuestBattleStatuses
     public const uint SupportedHost = Ff7NativeBattleActionResolver.Death | Ff7NativeBattleActionResolver.Sleep | Ff7NativeBattleActionResolver.Poison | Ff7NativeBattleActionResolver.Slow | Ff7NativeBattleActionResolver.Darkness | Silence | Haste | Stop | Petrify | Barrier | MagicBarrier | Berserk | Ff7NativeBattleStatuses.Confusion | Ff7NativeBattleStatuses.SlowNumb | Ff7NativeBattleStatuses.Regen | Ff7NativeBattleStatuses.Reflect | Ff7NativeBattleStatuses.DeathSentence | Ff7NativeBattleStatuses.Peerless;
     public const ushort SupportedOrigin = 0x3F;
     public const uint SupportedOriginBattle = 0x5CFF;
+    public const uint OriginAura = 0x100;
+    public const uint OriginCurse = 0x200;
+    public const uint OriginFloat = 0x2000;
     public const uint OriginMulticast = 0x60000;
+    public const uint SupportedOwnedOriginBattle = OriginAura | OriginFloat | OriginMulticast;
     public const uint OriginDefenseReduction = 0x1000000;
 
     // FFVIII keeps the saved and battle banks separate. Its defense row indexes battle bits after the saved byte.

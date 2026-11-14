@@ -153,9 +153,9 @@ public sealed partial class Ff7BattleSession
         (int clip, int frame) = VisualPose(slot);
         if (VisualLimit(slot) is not null)
         {
-            return animations!.LimitBonePosition(ActorModel(slot), clip, frame, VisualPlacement(slot), VisualLimitId(slot)!.Value, bone, Vector3.Zero, state.ActorModels.SingleOrDefault(model => model.Slot == slot)?.Modifiers?.PoseTransform);
+            return animations!.LimitBonePosition(ActorModel(slot), clip, frame, PosedActorPlacement(slot), VisualLimitId(slot)!.Value, bone, Vector3.Zero, state.ActorModels.SingleOrDefault(model => model.Slot == slot)?.Modifiers?.PoseTransform);
         }
-        return animations!.BonePosition(ActorModel(slot), clip, frame, VisualPlacement(slot), bone, state.ActorModels.SingleOrDefault(model => model.Slot == slot)?.Modifiers?.PoseTransform);
+        return animations!.BonePosition(ActorModel(slot), clip, frame, PosedActorPlacement(slot), bone, state.ActorModels.SingleOrDefault(model => model.Slot == slot)?.Modifiers?.PoseTransform);
     }
 
     private Ff7BattlePlacement HomePlacement(int slot)

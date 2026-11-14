@@ -34,7 +34,7 @@ internal static class CrossoverBattleAbilityRules
         }
         bool healing = IsHealing(action.AttackType);
         ushort unmappedSaved = (ushort)(action.Statuses0 & ~(Ff7GuestBattleStatuses.SupportedOrigin | Ff7OriginSavedStatusRules.Supported));
-        uint unmappedBattle = action.Statuses1 & ~(Ff7GuestBattleStatuses.SupportedOriginBattle | Ff7GuestBattleStatuses.OriginMulticast | NativeBattleParameterRules.DefenseReductionStatus | 0x8000u);
+        uint unmappedBattle = action.Statuses1 & ~(Ff7GuestBattleStatuses.SupportedOriginBattle | Ff7GuestBattleStatuses.SupportedOwnedOriginBattle | NativeBattleParameterRules.DefenseReductionStatus | 0x8000u);
         if (!healing && !IgnoresStatuses(action.AttackType) && (unmappedSaved != 0 || unmappedBattle != 0))
         {
             return $"This command changes FFVIII statuses or execution flags with no direct FFVII counterpart (saved 0x{unmappedSaved:X4}, battle 0x{unmappedBattle:X8}).";
@@ -75,7 +75,7 @@ internal static class CrossoverBattleAbilityRules
         {
             accuracy = hit == 255 ? byte.MaxValue : (byte)Math.Min(100, (int)hit);
         }
-        uint originStatuses = IgnoresStatuses(action.AttackType) ? 0 : action.Statuses1 & Ff7GuestBattleStatuses.OriginMulticast;
+        uint originStatuses = IgnoresStatuses(action.AttackType) ? 0 : action.Statuses1 & Ff7GuestBattleStatuses.SupportedOwnedOriginBattle;
         ushort originSavedStatuses = IgnoresStatuses(action.AttackType) ? (ushort)0 : (ushort)(action.Statuses0 & Ff7OriginSavedStatusRules.Supported);
         NativeBattleParameterOperation? parameter = IgnoresStatuses(action.AttackType) ? null : NativeBattleParameterRules.Describe(action, parameterTuning ?? kit.ParameterTuning);
         Ff7BattleAttack? record = statuses == 0 && originStatuses == 0 ? null : new(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, (byte)((healing ? 0x40 : 0) | (revive || action.StatusAttack > 100 ? 63 : (action.StatusAttack + 3) / 4)), byte.MaxValue, 0, statuses, 0, revive ? (ushort)(ushort.MaxValue & ~0x900) : ushort.MaxValue);

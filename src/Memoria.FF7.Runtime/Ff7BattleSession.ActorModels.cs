@@ -12,7 +12,10 @@ public readonly record struct Ff7BattleWorldJoint(float X, float Y, float Z)
     public Ff7BattleCameraPoint ToCameraPoint() => new(unchecked((short)(int)X), unchecked((short)(int)Y), unchecked((short)(int)Z));
 }
 
-public sealed record Ff7BattleActorRenderState(int Clip, int Frame, Ff7BattlePosition Position, int Yaw, Ff7BattleActorModelModifiers Modifiers, ushort? Limit = null, short ProjectedScreenX = -1);
+public sealed record Ff7BattleActorRenderState(int Clip, int Frame, Ff7BattlePosition Position, int Yaw, Ff7BattleActorModelModifiers Modifiers, ushort? Limit = null, short ProjectedScreenX = -1)
+{
+    public int FloatOffset { get; init; }
+}
 public sealed record Ff7BattleActorFade(byte Remaining, ushort Step, bool Appearing, byte RedStep, byte GreenStep, byte BlueStep);
 
 public sealed record Ff7BattleActorModelState(int Slot, short Action = 0, BattleActionPoseState? Pose = null, bool Ready = true, ushort? Limit = null, long? IdleStarted = null, bool Reaction = false, long PendingSince = -1, Ff7BattleActorModelModifiers? Modifiers = null, Ff7BattlePosition? Position = null, int? FacingYaw = null, Ff7BattleWorldJoint[]? Joints = null, Ff7BattleActorRenderState? Render = null, bool ReactionKnockedOut = false, bool? PresentedKnockedOut = null)
@@ -20,6 +23,7 @@ public sealed record Ff7BattleActorModelState(int Slot, short Action = 0, Battle
     public bool LinkedAction { get; init; }
     public Ff7BattleMotion? Motion { get; init; }
     public Ff7BattleActorFade? Fade { get; init; }
+    public Ff7BattleFloatPresentation? Float { get; init; }
 }
 
 public sealed partial class Ff7BattleSession
@@ -33,7 +37,7 @@ public sealed partial class Ff7BattleSession
     public bool NativeActorModelsReady => state.ActorModels.All(model => model.Ready && model.Fade is null);
     public Ff7BattleActorModelModifiers ActorModelOutput(int slot) => ActorModelState(slot).Render?.Modifiers ?? LiveActorModelOutput(slot);
     public (int Clip, int Frame) RenderActorPose(int slot) => ActorModelState(slot).Render is { } render ? (render.Clip, render.Frame) : VisualPose(slot);
-    public Ff7BattlePlacement RenderActorPlacement(int slot) => ActorModelState(slot).Render is { } render ? new(render.Position.ToVector(), render.Yaw) : VisualPlacement(slot);
+    public Ff7BattlePlacement RenderActorPlacement(int slot) => ActorModelState(slot).Render is { } render ? new(render.Position.ToVector(), render.Yaw) : PosedActorPlacement(slot);
     public BattleLimitAnimation? RenderActorLimit(int slot) => ActorModelState(slot).Render is { } render ? render.Limit is ushort limit ? animations!.GetLimit(limit) : null : VisualLimit(slot);
 
     public bool HasActorDeathPresentation(int slot)
@@ -420,8 +424,9 @@ public sealed partial class Ff7BattleSession
         {
             return;
         }
-        foreach (Ff7BattleActorModelState model in state.ActorModels.ToArray())
+        foreach (Ff7BattleActorModelState current in state.ActorModels.ToArray())
         {
+            Ff7BattleActorModelState model = current;
             Ff7BattleActorModelModifiers modifiers = model.Modifiers!;
             if (deferred && !deferredActorSubmissions.Contains(model.Slot))
             {
@@ -452,7 +457,9 @@ public sealed partial class Ff7BattleSession
                 continue;
             }
             (int clip, int frame) = VisualPose(model.Slot);
-            Ff7BattlePlacement placement = VisualPlacement(model.Slot);
+            model = AdvanceOriginFloatPresentation(model);
+            ReplaceActorModel(model);
+            Ff7BattlePlacement placement = PosedActorPlacement(model.Slot);
             Ff7BattleWorldJoint[] joints = new Ff7BattleWorldJoint[animations.BoneCount(ActorModel(model.Slot))];
             for (int bone = 0; bone < joints.Length; bone++)
             {
@@ -462,7 +469,7 @@ public sealed partial class Ff7BattleSession
             int selector = animations.JointSelector(ActorModel(model.Slot), 0);
             Vector3 projected = BattleCameraBasis.Create(RenderCameraOutput).Transform(joints[selector].ToVector());
             short screenX = projected.Z <= 0 ? (short)-1 : unchecked((short)(int)(160 + projected.X * 512 / projected.Z));
-            ReplaceActorModel(model with { Joints = joints, Render = new(clip, frame, Ff7BattlePosition.FromVector(placement.Position), placement.Yaw, modifiers, VisualLimitId(model.Slot), screenX) });
+            ReplaceActorModel(model with { Joints = joints, Render = new(clip, frame, Ff7BattlePosition.FromVector(placement.Position), placement.Yaw, modifiers, VisualLimitId(model.Slot), screenX) { FloatOffset = model.Float?.Offset ?? 0 } });
         }
         if (!deferred)
         {
@@ -508,6 +515,10 @@ public sealed partial class Ff7BattleSession
             if (model.Motion is { } motion && (!model.LinkedAction && !motion.WrapHorizontalPosition || motion.Remaining is < 0 or > 255 || motion.VerticalSteps is not null))
             {
                 throw new InvalidDataException("FFVII saved linked actor motion is invalid.");
+            }
+            if (model.Float is { } floating && (floating.Tick < 0 || floating.Tick > snapshot.Tick || floating.Remainder is < 0 or >= 120 || floating.Offset > 0 || floating.Offset < -300))
+            {
+                throw new InvalidDataException("FFVII saved Float presentation is invalid.");
             }
             if (model.Modifiers is { } modifiers && !ValidModelModifiers(modifiers) || model.Render is { } render && (render.Clip < 0 || render.Frame < 0 || render.Modifiers is null || !ValidModelModifiers(render.Modifiers)))
             {

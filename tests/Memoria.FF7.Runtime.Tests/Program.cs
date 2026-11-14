@@ -3,6 +3,27 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--aura-limit-only", StringComparer.Ordinal))
+{
+    OriginAuraLimitTests.Run();
+    return 0;
+}
+
+if (args.Contains("--origin-status-rules-only", StringComparer.Ordinal))
+{
+    OriginAuraLimitTests.Run();
+    OriginBattleStatusTests.Run();
+    OriginFloatPresentationTests.Run();
+    OriginMagicSequenceTests.Run();
+    return 0;
+}
+
+if (args.Contains("--magic-sequence-only", StringComparer.Ordinal))
+{
+    OriginMagicSequenceTests.Run();
+    return 0;
+}
+
 if (args.Contains("--stop-clock-only", StringComparer.Ordinal))
 {
     NativeStopClockTests.Run();

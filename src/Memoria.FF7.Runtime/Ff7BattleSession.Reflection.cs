@@ -49,11 +49,11 @@ public sealed partial class Ff7BattleSession
                     Ff7BattleActionReceipt receipt;
                     if (guest || GetGuestProjection(slot) is not null)
                     {
-                        receipt = Ff7NativeBattleActionResolver.ResolveGuestContact(description.Source, source, Stats(actor), target, attack, guest ? description.StatusRecord : Ff7GuestBattleStatuses.ProjectIncoming(description.StatusRecord), candidateRandom, slot == command.ActorSlot, GetGuestProjection(slot)?.OriginStatusResistances, GetGuestBinding(slot) is null ? 0 : GetGuestOriginBattleStatuses(slot), GetGuestBinding(command.ActorSlot) is null ? (ushort)0 : GetGuestOriginSavedStatuses(command.ActorSlot), GetGuestBinding(slot) is null ? (ushort)0 : GetGuestOriginSavedStatuses(slot));
+                        receipt = Ff7NativeBattleActionResolver.ResolveGuestContact(description.Source, source, Stats(actor), target, attack, guest ? description.StatusRecord : Ff7GuestBattleStatuses.ProjectIncoming(description.StatusRecord), candidateRandom, slot == command.ActorSlot, GetGuestProjection(slot)?.OriginStatusResistances, GetOriginBattleStatuses(slot), GetOriginSavedStatuses(command.ActorSlot), GetOriginSavedStatuses(slot));
                     }
                     else
                     {
-                        receipt = Ff7NativeBattleActionResolver.Resolve(description.Source, source, Stats(actor), target, attack, description.StatusRecord, candidateRandom, slot == command.ActorSlot);
+                        receipt = Ff7NativeBattleActionResolver.Resolve(description.Source, source, Stats(actor), target, attack, description.StatusRecord, candidateRandom, slot == command.ActorSlot, GetOriginBattleStatuses(slot));
                     }
                     ushort bit = (ushort)(1 << slot);
                     if (receipt.Damage.Missed || (target.Statuses & Ff7NativeBattleStatuses.Reflect) == 0 || (permanentVisited & bit) != 0)

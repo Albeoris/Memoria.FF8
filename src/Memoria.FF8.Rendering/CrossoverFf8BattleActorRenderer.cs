@@ -16,6 +16,7 @@ public sealed record CrossoverFf8BattleActorVisual(BattleModel Body, BattleModel
     public NativeBattleShadowSource? ShadowSource { get; init; }
     public bool ShadowSuppressed { get; init; }
     public CrossoverNativeActorColor? NativeColor { get; init; }
+    public float ShadowGroundOffsetY { get; init; }
 }
 
 public static class CrossoverFf8BattleActorRenderer
@@ -44,7 +45,7 @@ public static class CrossoverFf8BattleActorRenderer
         Vector3 World(int index)
         {
             Vector3 transformed = NativeBattlePilotVisualGeometry.Transform(geometry.CameraMatrix, geometry.Vertices[index]);
-            return Vector3.Transform(transformed, visual.OriginToHost);
+            return Vector3.Transform(transformed, visual.OriginToHost) - new Vector3(0, visual.ShadowGroundOffsetY, 0);
         }
         for (int index = 1; index <= 8; index++)
         {

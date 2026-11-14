@@ -60,9 +60,7 @@ public static class NativeBattleModelStatusMotion
             return model;
         }
         byte timer = ReadTimer(model, 9, "50A5F0");
-        int sine = NativeBattleCameraMath.Sine(timer << 8);
-        int fraction = (sine + 4096) / 2;
-        short vertical = unchecked((short)((-100 * fraction >> 12) - 200));
+        short vertical = Memoria.Battles.NativeBattleFloatPresentation.Vertical50A5F0(timer);
         NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native50A5F0 requires its vertical model WORD22h owner.");
         return model with { StatusTimers = model.StatusTimers.SetItem(9, unchecked((byte)(timer + 1))), Transform = transform with { Vertical34 = vertical } };
     }

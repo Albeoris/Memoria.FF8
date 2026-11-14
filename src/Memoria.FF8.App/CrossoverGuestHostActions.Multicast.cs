@@ -4,15 +4,14 @@ namespace Memoria.FF8;
 
 internal sealed partial class CrossoverGuestHostActions
 {
+    public bool SupportsMagicSequence(ushort ability)
+    {
+        return !IsDrawCast(ability) && ReadOriginAbilities().Any(choice => choice.Key == ability && choice.NativeAction is { Command: 2 });
+    }
+
     public IReadOnlyList<int> MagicCastCounts(ushort ability)
     {
-        CrossoverGuestAbility? choice = ReadOriginAbilities().SingleOrDefault(choice => choice.Key == ability);
-        if (choice?.NativeAction is not { Command: 2 } action || IsDrawCast(ability))
-        {
-            return [1];
-        }
-        MagicCastQuote quote = MagicCastingService.Quote(encounter.Working, kit.RecordRow, action.ActionId, MagicCastContext.Battle, characterId: kit.CharacterId);
-        return NativeBattleMagicRepetition.PlayerCounts(host.GetGuestOriginBattleStatuses(ActorSlot), quote.Available, kit.StatusPassives, encounter.Working.MagicSystem.InfiniteMagic, encounter.Working.MagicSystem.UnlimitedMagic);
+        return host.GuestMagicCastCounts(ActorSlot, ability);
     }
 
     public int MagicCastCost(ushort ability, int casts)

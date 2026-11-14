@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 public static class NativeBattleCameraMath
 {
     /// <summary>56D130/56D100 with authenticated B6B980/B69540/B693D8 constants and the original biased-double conversion.</summary>
-    public static int Sine(int angle) => FixedTrig(Math.Sin(angle * (double)0.0015339808f));
+    public static int Sine(int angle) => Memoria.Battles.NativeBattleFloatPresentation.Sine(angle);
     public static int Cosine(int angle) => FixedTrig(Math.Cos(angle * (double)0.0015339808f));
 
     private static int FixedTrig(double value)

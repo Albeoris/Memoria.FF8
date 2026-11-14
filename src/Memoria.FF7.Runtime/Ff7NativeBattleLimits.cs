@@ -29,7 +29,7 @@ public static class Ff7NativeBattleLimits
         return divisor;
     }
 
-    public static byte GainFromEnemyDamage(byte gauge, int damage, uint maxHp, uint statuses, int divisor)
+    public static byte GainFromEnemyDamage(byte gauge, int damage, uint maxHp, uint statuses, int divisor, bool aura = false)
     {
         if (maxHp == 0 || divisor <= 0 || damage is < 0 or > 9999)
         {
@@ -37,6 +37,10 @@ public static class Ff7NativeBattleLimits
         }
         uint multiplier = (statuses & 0x20) != 0 ? 512u : (statuses & 0x10) != 0 ? 128u : 256u;
         uint gain = ((uint)damage * 300 / maxHp) * multiplier / (uint)divisor;
+        if (aura)
+        {
+            gain = (uint)((ulong)gain * 5 / 4);
+        }
         return (byte)Math.Min(byte.MaxValue, gauge + gain);
     }
 

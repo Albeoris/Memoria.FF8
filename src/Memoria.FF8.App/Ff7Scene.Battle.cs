@@ -251,8 +251,8 @@ internal sealed partial class Ff7Scene
                 selectedBattleCommand = null;
                 return;
             }
-            bool multicast = ChangeGuestMagicCastCount(battle, owner, current);
-            if (!multicast && current.GroupUses > 0 && semanticInput.MenuPage != 0)
+            SynchronizeGuestMagicSelection(battle, owner, current);
+            if (current.GroupUses > 0 && semanticInput.MenuPage != 0)
             {
                 battleTargetGroup = !battleTargetGroup;
             }

@@ -104,9 +104,7 @@ internal sealed record CrossoverNativeForeignTarget(int HostSlot, NativeBattleMo
         uint? statusFlags = null;
         if (graphicsRules is not null)
         {
-            uint hostStatuses = host.Actors.Single(actor => actor.Actor.Slot == slot).Actor.Statuses;
-            bool native = host.GuestVitalsBindings.Any(binding => binding.HostSlot == slot);
-            statusFlags = graphicsRules.Project(host.GetOriginSavedStatuses(slot), native ? host.GetGuestOriginBattleStatuses(slot) : Ff7GuestBattleStatuses.ToOriginBattle(hostStatuses));
+            statusFlags = graphicsRules.Project(host.GetOriginSavedStatuses(slot), host.GetOriginBattleStatuses(slot));
         }
         return new(slot, new(position, position, 0, position.Y, 4096), world, new(first, second, position.Y, bounds), geometry, inverse) { Facing = unchecked((short)NativePrecision53.RoundInteger(Math.Atan2(facing.X, facing.Z) * 4096 / (2 * Math.PI))), CanReact = host.CanPresentGuestReaction(slot), AtStandingPose = host.IsGuestTargetStanding(slot), NativeStatusFlags = statusFlags };
     }

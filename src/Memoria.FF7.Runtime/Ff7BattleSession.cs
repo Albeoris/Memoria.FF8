@@ -78,6 +78,7 @@ public sealed record Ff7BattleSnapshot(long RequestId, int FormationId, byte Lay
     public byte? NativeBattleSpeed { get; init; }
     public Ff7BattleGlobalStatusClock? GlobalStatusClock { get; init; }
     public System.Collections.Immutable.ImmutableArray<Ff7BattleGuestMagicSequence> GuestMagicSequences { get; init; } = [];
+    public long NextMagicSequenceId { get; init; }
     public Ff7ResolvedEnemyExtension[]? EnemyExtensions { get; init; }
     public byte[]? AiGlobalMemory { get; init; }
     public byte[]? AiSaveBank1 { get; init; }
@@ -323,6 +324,7 @@ public sealed partial class Ff7BattleSession
     public void Advance(bool waitForCommand = false, bool confirmLimit = false, bool escapeHeld = false, bool turnBased = false)
     {
         PresentedGuestContacts = [];
+        CancelUnavailableMagicSequences();
         if (Outcome != Ff7BattleOutcome.Fighting)
         {
             if (state.TerminalFrames < TerminalDuration)
@@ -452,6 +454,7 @@ public sealed partial class Ff7BattleSession
             {
                 continue;
             }
+            changed |= AdvanceOriginStatusTimers(slot);
             Ff7BattleStatusTick status = Ff7NativeBattleStatusClock.Advance(actor.Timers, actor.Actor.Statuses, NativeBattleSpeed, NativeImprisonedType, actor.Actor.MaxHitPoints, globalTick, GetOriginSavedStatuses(slot));
             changed |= status.Timers != actor.Timers || status.Statuses != actor.Actor.Statuses || status.HitPointDelta != 0 || status.Timers.Stop > 0;
             uint hp = (uint)Math.Clamp((long)actor.Actor.HitPoints + status.HitPointDelta, 0, actor.Actor.MaxHitPoints);
@@ -498,6 +501,10 @@ public sealed partial class Ff7BattleSession
 
     private void Dispatch(Ff7BattleQueuedCommand command)
     {
+        if (DeferMagicSequenceCommand(command))
+        {
+            return;
+        }
         Ff7BattleActorState source = Actor(command.ActorSlot);
         if (command.Priority >= 2)
         {
@@ -567,6 +574,10 @@ public sealed partial class Ff7BattleSession
             return;
         }
         command = ResolveEnemyCommand(command);
+        if (!AdmitNativeMagicSequence(ref command))
+        {
+            return;
+        }
         command = command with { TargetMask = ResolveQueuedTargets(command) };
         int animation = Animation(command);
         Ff7BattleMotion? motion = command.CommandId == (byte)Ff7BattleCommand.Change && animation >= 0 && animations is not null
@@ -625,7 +636,7 @@ public sealed partial class Ff7BattleSession
         Ff7BattleDamageActor stats = native.Slot < 3 ? party[native.Slot]!.Value.Actor : Ff7NativeBattleDamage.FromEnemy(Enemy(native.Slot));
         stats = stats with { Level = native.Level ?? stats.Level, Attack = native.Strength ?? stats.Attack, Magic = native.Magic ?? stats.Magic, Dexterity = native.Speed ?? stats.Dexterity, Evade = native.PhysicalEvasion ?? stats.Evade };
         stats = ProjectGuestDefense(actor, stats with { NativeConditions = native.Conditions, Statuses = native.Statuses, Defense = native.Defense, MagicDefense = native.MagicDefense, BackRow = (native.Conditions & 0x40) != 0, Defending = actor.Defending, CurrentHitPoints = native.HitPoints });
-        stats = stats with { OriginSavedStatuses = GetOriginSavedStatuses(native.Slot) };
+        stats = stats with { OriginSavedStatuses = GetOriginSavedStatuses(native.Slot), OriginBattleStatuses = GetOriginBattleStatuses(native.Slot) };
         return actor.ParameterStatus?.Project(stats) ?? stats;
     }
 
@@ -735,7 +746,7 @@ public sealed partial class Ff7BattleSession
             FormationAiMemory = source.FormationAiMemory?.ToArray(),
             EnemyExtensions = source.EnemyExtensions?.Select(e => e with { DrawSlots = e.DrawSlots.ToArray(), Items = e.Items.ToArray() }).ToArray(),
             GuestSlots = source.GuestSlots is null ? null : (Ff7BattleGuestSlotState[])source.GuestSlots.Clone(),
-            GuestOriginStatuses = source.GuestOriginStatuses is null ? null : (Ff7BattleGuestOriginStatus[])source.GuestOriginStatuses.Clone(),
+            GuestOriginStatuses = source.GuestOriginStatuses is null ? null : source.GuestOriginStatuses.Select(value => value with { Timers = value.Timers is null ? null : (short[])value.Timers.Clone() }).ToArray(),
             Action = CopyActionPrimaryEffects(CopyActionReactions(source.Action is { Motion: { VerticalSteps: { } steps } motion } action ? action with { Motion = motion with { VerticalSteps = (short[])steps.Clone() } } : source.Action)),
             Queue = queue with
             {

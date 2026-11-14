@@ -6,23 +6,16 @@ namespace Memoria.FF8.App.Tests;
 public sealed class CrossoverGuardianPartyStatusTests
 {
     [Fact]
-    public void Cerberus_group_with_a_native_host_ally_is_rejected_without_publishing_an_unapproved_multicast_owner()
+    public void Cerberus_group_publishes_the_same_source_multicast_owner_on_guest_and_native_host_ally()
     {
         using CrossoverGuestStatusHostTests.Fixture fixture = new(guestCount: 1, guardianName: "Cerberus");
-        fixture.Ready(0);
-        ushort guardian = fixture.Guardian("Cerberus");
-        string hostBefore = JsonSerializer.Serialize(fixture.Host.Capture());
         string stockBefore = JsonSerializer.Serialize(fixture.Providers[0].WorkingStock);
-        string randomBefore = JsonSerializer.Serialize(fixture.Providers[0].CurrentCrtRandom);
-        uint originBefore = fixture.Host.GetGuestOriginBattleStatuses(0);
-        Ff7BattleCommandOption option = Assert.Single(fixture.Host.Commands(0), choice => choice.Command == Ff7BattleCommand.Magic && choice.Argument == guardian);
-        Assert.NotNull(option.UnsupportedReason);
-        Assert.NotNull(fixture.Host.GuestAbilityTargetUnsupportedReason(0, Ff7BattleCommand.Magic, guardian, 1));
-        Assert.False(fixture.Host.Submit(0, Ff7BattleCommand.Magic, guardian, 3));
-        Assert.Equal(hostBefore, JsonSerializer.Serialize(fixture.Host.Capture()));
+        fixture.CastGuardian("Cerberus");
         Assert.Equal(stockBefore, JsonSerializer.Serialize(fixture.Providers[0].WorkingStock));
-        Assert.Equal(randomBefore, JsonSerializer.Serialize(fixture.Providers[0].CurrentCrtRandom));
-        Assert.Equal(originBefore, fixture.Host.GetGuestOriginBattleStatuses(0));
+        Assert.Equal(Ff7GuestBattleStatuses.OriginMulticast, fixture.Host.GetOriginBattleStatuses(0) & Ff7GuestBattleStatuses.OriginMulticast);
+        Assert.Equal(Ff7GuestBattleStatuses.OriginMulticast, fixture.Host.GetOriginBattleStatuses(1) & Ff7GuestBattleStatuses.OriginMulticast);
+        fixture.RestoreQueuedBoundary();
+        Assert.Equal(Ff7GuestBattleStatuses.OriginMulticast, fixture.Host.GetOriginBattleStatuses(1) & Ff7GuestBattleStatuses.OriginMulticast);
         Assert.Null(fixture.Providers[0].Invocation);
         Assert.Null(fixture.Host.Action);
     }
@@ -43,18 +36,18 @@ public sealed class CrossoverGuardianPartyStatusTests
         for (int slot = 0; slot < 2; slot++)
         {
             Assert.Equal(0x60000u, fixture.Host.GetGuestOriginBattleStatuses(slot) & Ff7GuestBattleStatuses.OriginMulticast);
-            Assert.Equal(new[] { 1, 2, 3 }, fixture.Providers[slot].MagicCastCounts(cure));
-            Assert.Equal(new[] { 1, 2, 3 }, fixture.Providers[slot].MagicCastCounts(fire));
+            Assert.Equal(new[] { 3 }, fixture.Providers[slot].MagicCastCounts(cure));
+            Assert.Equal(new[] { 3 }, fixture.Providers[slot].MagicCastCounts(fire));
         }
         fixture.Ready(1);
         Assert.True(fixture.Host.SubmitGuestMagicSequence(1, cure, [1, 2, 1]));
-        Assert.Equal(3, fixture.Complete(1, 3));
+        Assert.Equal(3, fixture.Complete(1, 3, inspectPrepared: hit => fixture.AssertPreparedDamage(1, hit, 75, healing: true)));
         Assert.Equal(cureBefore - 3, fixture.Stock(cure));
         Assert.Equal(fireBefore, fixture.Stock(fire));
         fixture.Ready(0);
-        Assert.True(fixture.Host.SubmitGuestMagicSequence(0, fire, [1 << 4, 1 << 5]));
-        Assert.Equal(2, fixture.Complete(0, 2));
-        Assert.Equal(fireBefore - 2, fixture.Stock(fire));
+        Assert.True(fixture.Host.SubmitGuestMagicSequence(0, fire, [2, 1, 2]));
+        Assert.Equal(3, fixture.Complete(0, 3, inspectPrepared: hit => fixture.AssertPreparedDamage(0, hit, 75, healing: false)));
+        Assert.Equal(fireBefore - 3, fixture.Stock(fire));
         Assert.Empty(fixture.Host.Capture().GuestMagicSequences);
         Assert.All(fixture.Providers, provider => Assert.Null(provider.Invocation));
         Assert.Null(fixture.Host.Action);

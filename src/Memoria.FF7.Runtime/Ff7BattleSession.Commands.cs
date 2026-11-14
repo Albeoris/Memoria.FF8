@@ -227,6 +227,10 @@ public sealed partial class Ff7BattleSession
 
     public bool Submit(int slot, Ff7BattleCommand command, ushort argument, ushort targets, bool group = false)
     {
+        if (command == Ff7BattleCommand.Magic && !submittingMagicSequence && GuestMagicCastCounts(slot, argument)[0] is int casts && casts > 1)
+        {
+            return SubmitMagicSequence(slot, argument, Enumerable.Repeat(targets, casts).ToArray(), Enumerable.Repeat(group, casts).ToArray());
+        }
         if ((IsGuestVitalsSlot(slot) || GetGuestAttack(slot) is not null) && command == Ff7BattleCommand.Attack && argument == 0 && !group && System.Numerics.BitOperations.IsPow2((uint)targets))
         {
             return SubmitGuestAttack(slot, System.Numerics.BitOperations.TrailingZeroCount((uint)targets));
@@ -602,7 +606,7 @@ public sealed partial class Ff7BattleSession
         }
         if (command.Priority != 0 && command.CommandId != 0x23 && !command.StatusCountdown)
         {
-            FinishTurn(command.ActorSlot);
+            CompleteGuestMagic(command);
         }
         if (active.Motion is { WrapHorizontalPosition: true, Remaining: > 0 } motion)
         {
@@ -721,6 +725,7 @@ public sealed partial class Ff7BattleSession
         {
             action = action with { Split = true };
         }
+        action = ApplyMagicSequenceDamage(command, action);
         ushort elements = record is null ? party[slot]!.Value.AttackElements : record.Elements;
         Ff7BattleRng candidateRandom = new(kernel[2].Data.Span, random.Capture());
         ReflectionPlan? reflection = PrepareReflections(command, new(Stats(source), action, elements) { StatusRecord = record }, candidateRandom, false, sourceVitals);
@@ -814,11 +819,11 @@ public sealed partial class Ff7BattleSession
                 action = action with { GuestElementAdjustment = Ff7GuestBattleElements.DefenseAdjustment(elements, defenses) };
             }
             IReadOnlyList<byte>? statusResistances = projection.OriginStatusResistances is { } statuses ? statuses : null;
-            result = Ff7NativeBattleActionResolver.ResolveGuestContact(Stats(source), sourceVitals, Stats(target), targetVitals, action, Ff7GuestBattleStatuses.ProjectIncoming(record), random, source.Actor.Slot == targetSlot, statusResistances);
+            result = Ff7NativeBattleActionResolver.ResolveGuestContact(Stats(source), sourceVitals, Stats(target), targetVitals, action, Ff7GuestBattleStatuses.ProjectIncoming(record), random, source.Actor.Slot == targetSlot, statusResistances, GetOriginBattleStatuses(targetSlot), GetOriginSavedStatuses(source.Actor.Slot), GetOriginSavedStatuses(targetSlot));
         }
         else
         {
-            result = Ff7NativeBattleActionResolver.Resolve(Stats(source), sourceVitals, Stats(target), targetVitals, action, record, random, source.Actor.Slot == targetSlot);
+            result = Ff7NativeBattleActionResolver.Resolve(Stats(source), sourceVitals, Stats(target), targetVitals, action, record, random, source.Actor.Slot == targetSlot, GetOriginBattleStatuses(targetSlot));
         }
         if (source.Actor.Slot != targetSlot)
         {
@@ -840,7 +845,7 @@ public sealed partial class Ff7BattleSession
         }
         else if (targetSlot < 3 && !IsGuestVitalsSlot(targetSlot) && command.ActorSlot >= 4 && !action.TargetsMagicPoints && result.Damage.Damage > 0)
         {
-            gauge = Ff7NativeBattleLimits.GainFromEnemyDamage(gauge, result.Damage.Damage, native.MaxHitPoints, native.Statuses, limitDivisors[targetSlot]);
+            gauge = Ff7NativeBattleLimits.GainFromEnemyDamage(gauge, result.Damage.Damage, native.MaxHitPoints, native.Statuses, limitDivisors[targetSlot], (GetOriginBattleStatuses(targetSlot) & Ff7GuestBattleStatuses.OriginAura) != 0);
         }
         Ff7BattleStatusTimers timers = Ff7NativeBattleStatusClock.Apply(target.Timers, native.Statuses, result.Target.Statuses);
         uint conditions = action.BackAttack && !result.Damage.Missed ? native.Conditions ^ 0x80u : native.Conditions;
@@ -853,6 +858,7 @@ public sealed partial class Ff7BattleSession
         parameter ??= result.AddedParameterStatus;
         ushort originSaved = (ushort)((GetOriginSavedStatuses(targetSlot) | result.AddedOriginSavedStatuses) & ~result.RemovedOriginSavedStatuses & Ff7OriginSavedStatusRules.Supported);
         Replace(target with { Actor = native, Timers = timers, LimitGauge = gauge, ParameterStatus = parameter, ParameterStatusInitialized = true, OriginSavedStatuses = originSaved });
+        ApplyGuestOriginContact(targetSlot, result);
         state = state with { LastHit = new(command.ActorSlot, targetSlot, command.AttackId ?? command.Argument, result.Damage, Tick) { NativeResultMarker = result.NativeResultMarker } };
         if (runCounters && targetSlot >= 4 && !result.Damage.Missed)
         {
