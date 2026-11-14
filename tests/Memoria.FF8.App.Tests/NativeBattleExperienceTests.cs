@@ -16,7 +16,7 @@ public sealed class NativeBattleExperienceTests
         NativeCharacterVital[] records = source.Records.ToArray();
         uint abilities = Ability(definition, 0x80) | (uint)Ability(definition, 0x100) << 8 | (uint)Ability(definition, 0x200) << 16 | (uint)Ability(definition, 0x400) << 24;
         uint before = Threshold(curve, 2) - 1;
-        records[0] = records[0] with { Experience = before, HitPointBonus = 9990, StatBonuses = [254, 255, 12, 13, 14, 15], HitPoints = new(100, 100), Junction = records[0].Junction with { Abilities = abilities } };
+        records[0] = records[0] with { Experience = before, BonusSources = null, HitPointBonus = 9990, StatBonuses = [254, 255, 12, 13, 14, 15], HitPoints = new(100, 100), Junction = records[0].Junction with { Abilities = abilities } };
         NativeGuardianForceVital[] gfs = source.GuardianForces.ToArray();
         NativeStatCurve gfCurve = source.Definitions.GuardianForces[0];
         gfs[0] = gfs[0] with { Experience = Threshold(gfCurve, 2) - 1, HitPoints = 100 };
@@ -42,7 +42,7 @@ public sealed class NativeBattleExperienceTests
         NativeStatCurve curve = source.Definitions.Characters[0];
         byte spirit = Ability(definition, 0x800);
         NativeCharacterVital[] records = source.Records.ToArray();
-        records[0] = records[0] with { Experience = Threshold(curve, 2) - 1, StatBonuses = [0, 0, 0, 9, 0, 0], Junction = records[0].Junction with { Abilities = spirit | (uint)spirit << 8 } };
+        records[0] = records[0] with { Experience = Threshold(curve, 2) - 1, BonusSources = null, StatBonuses = [0, 0, 0, 9, 0, 0], Junction = records[0].Junction with { Abilities = spirit | (uint)spirit << 8 } };
         source = source with { Records = records };
         NativeCharacterVitals result = source.AwardBattleExperience(new Dictionary<byte, ushort> { [0] = 1 }, new Dictionary<byte, ushort>(), definition);
         Assert.Equal(new byte[] { 0, 0, 0, 10, 0, 0 }, result.Records[0].StatBonuses);
@@ -58,7 +58,7 @@ public sealed class NativeBattleExperienceTests
         NativeStatCurve guardianCurve = source.Definitions.GuardianForces[0];
         NativeCharacterVital[] records = source.Records.ToArray();
         uint abilities = Ability(definition, 0x80) | (uint)Ability(definition, 0x100) << 8;
-        records[0] = records[0] with { Experience = Threshold(characterCurve, 100), HitPointBonus = 10, StatBonuses = [1, 2, 3, 4, 5, 6], Junction = records[0].Junction with { Abilities = abilities } };
+        records[0] = records[0] with { Experience = Threshold(characterCurve, 100), BonusSources = null, HitPointBonus = 10, StatBonuses = [1, 2, 3, 4, 5, 6], Junction = records[0].Junction with { Abilities = abilities } };
         NativeGuardianForceVital[] guardianForces = source.GuardianForces.ToArray();
         guardianForces[0] = guardianForces[0] with { Experience = Threshold(guardianCurve, 100) };
         source = source with { Records = records, GuardianForces = guardianForces };
@@ -90,6 +90,36 @@ public sealed class NativeBattleExperienceTests
         Assert.Throws<InvalidDataException>(() => source.AwardBattleExperience(new Dictionary<byte, ushort> { [1] = 1 }, new Dictionary<byte, ushort>(), definition));
         Assert.Throws<InvalidDataException>(() => source.AwardBattleExperience(new Dictionary<byte, ushort>(), new Dictionary<byte, ushort> { [1] = 1 }, definition));
         Assert.Throws<InvalidDataException>(() => source.AwardBattleExperience(new Dictionary<byte, ushort>(), new Dictionary<byte, ushort>(), definition with { KernelSha256 = new string('0', 64) }));
+    }
+
+    [Fact]
+    public void LevelBasedModeRecordsNewLevelGrowthWithoutHealingAndRestoresItWhenDisabled()
+    {
+        using GameAssets assets = InstalledAssets();
+        NativeCharacterVitals source = assets.ReadNewGameCharacterVitals() with { LevelBasedStatBonuses = true };
+        NativeBattleExperienceDefinition definition = assets.ReadNativeBattleExperienceDefinition();
+        NativeStatCurve curve = source.Definitions.Characters[0];
+        byte hp = Ability(definition, 0x80);
+        byte strength = Ability(definition, 0x100);
+        uint abilities = hp | (uint)strength << 8;
+        NativeCharacterVital character = source.Records[0] with { Experience = Threshold(curve, 2) - 1, HitPoints = new(100, 100), Junction = source.Records[0].Junction with { Abilities = abilities } };
+        source.Records[0] = character.WithBonusSources(new([
+            new(NativeStatBonusSources.LevelUp, 300, [10, 0, 0, 0, 0, 0]),
+            new(NativeStatBonusSources.Items, 20, [2, 0, 0, 0, 0, 0])
+        ]));
+
+        NativeCharacterVitals result = source.AwardBattleExperience(new Dictionary<byte, ushort> { [0] = checked((ushort)(Threshold(curve, 4) - character.Experience)) }, new Dictionary<byte, ushort>(), definition);
+
+        NativeStatBonusGroup recorded = Assert.Single(result.Records[0].BonusSources!.Groups, group => group.Source == NativeStatBonusSources.LevelUp);
+        Assert.Equal(390, recorded.HitPoints);
+        Assert.Equal(13, recorded.Stats[0]);
+        Assert.Equal(new NativeHpWord(100, 100), result.Records[0].HitPoints);
+        Assert.Equal((ushort)110, result.EffectiveGrowth(result.Records[0]).HitPointBonus);
+        Assert.Equal((byte)5, result.EffectiveGrowth(result.Records[0]).StatBonuses[0]);
+        NativeCharacterVitals disabled = result with { LevelBasedStatBonuses = false };
+        Assert.Equal((ushort)410, disabled.EffectiveGrowth(disabled.Records[0]).HitPointBonus);
+        Assert.Equal((byte)15, disabled.EffectiveGrowth(disabled.Records[0]).StatBonuses[0]);
+        Assert.Equal((ushort)320, source.Records[0].HitPointBonus);
     }
 
     private static byte Ability(NativeBattleExperienceDefinition definition, uint flag)

@@ -110,13 +110,14 @@ public static partial class NativePcSaveConverter
             for (int row = 0; row < 8; row++)
             {
                 NativeCharacterVital character = vitals.Records[row];
+                BattleNativeCharacterGrowth growth = character.Growth;
                 int start = 1088 + row * 152;
                 W(start, character.HitPoints.Minimum);
-                W(start + 2, character.HitPointBonus);
+                W(start + 2, growth.HitPointBonus);
                 D(start + 4, character.Experience);
                 block[Main + start + 8] = character.CharacterId;
                 block[Main + start + 9] = character.Weapon;
-                Copy(start + 10, character.StatBonuses);
+                Copy(start + 10, growth.StatBonuses.ToArray());
                 for (int slot = 0; slot < 32; slot++)
                 {
                     block[Main + start + 16 + 2 * slot] = character.MagicInventory[slot].SpellId;

@@ -133,7 +133,7 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
             row = CrossoverGuestRecord.FindOriginalRow(origin, character);
             int magicCommand = origin.MenuDefinitions.CommandAbilityCommands.IndexOf((byte)2) + 20;
             ushort sourceHitPoints = checked((ushort)(sourceHP ?? 9000));
-            origin.Records[row] = origin.Records[row] with { HitPointBonus = 9999, HitPoints = new(sourceHitPoints, sourceHitPoints), Status = 0, Junction = origin.Records[row].Junction with { Commands = (uint)magicCommand } };
+            origin.Records[row] = origin.Records[row] with { BonusSources = null, HitPointBonus = 9999, HitPoints = new(sourceHitPoints, sourceHitPoints), Status = 0, Junction = origin.Records[row].Junction with { Commands = (uint)magicCommand } };
             origin = origin with { MagicSystem = origin.MagicSystem with { SharedMagicStock = true } };
             fire = Assert.Single(assets.NativeActions, item => item.Command == 2 && item.Name == "Fire");
             origin = origin.ChangeMagicStock(row, fire.ActionId, 4, MagicOperationReason.ScriptReward, out _);

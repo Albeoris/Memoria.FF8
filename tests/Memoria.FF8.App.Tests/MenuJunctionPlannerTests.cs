@@ -156,7 +156,7 @@ public sealed class MenuJunctionPlannerTests
         using GameAssets assets = new(TestResources.GameDirectory);
         LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
         NativeCharacterVitals source = FullBank(assets, true) with { CombatParty = [0, 4, 255] };
-        source.Records[4] = source.Records[4] with { StatBonuses = Enumerable.Repeat((byte)10, source.Records[4].StatBonuses.Length).ToArray() };
+        source.Records[4] = source.Records[4] with { BonusSources = null, StatBonuses = Enumerable.Repeat((byte)10, source.Records[4].StatBonuses.Length).ToArray() };
         MenuJunctionPlan optimized = Planner(source, catalog).Optimize("character-0", "Magic", new HashSet<string>());
         Assert.Null(optimized.UnavailableReason);
         Assert.True(optimized.HasChanges);

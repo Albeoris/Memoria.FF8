@@ -30,7 +30,7 @@ public sealed class CrossoverRevivalHostTests
         int sourceRow = origin.FindPhysicalRow(0);
         int targetRow = origin.FindPhysicalRow(1);
         int magicCommand = origin.MenuDefinitions.CommandAbilityCommands.IndexOf((byte)2) + 20;
-        origin.Records[sourceRow] = origin.Records[sourceRow] with { HitPointBonus = 9999, HitPoints = new(4000, 4000), Status = 0, Junction = origin.Records[sourceRow].Junction with { Commands = (uint)magicCommand } };
+        origin.Records[sourceRow] = origin.Records[sourceRow] with { BonusSources = null, HitPointBonus = 9999, HitPoints = new(4000, 4000), Status = 0, Junction = origin.Records[sourceRow].Junction with { Commands = (uint)magicCommand } };
         origin.Records[targetRow] = origin.Records[targetRow] with { HitPoints = new(0, 0), Status = 1 };
         origin = origin with { MagicSystem = origin.MagicSystem with { SharedMagicStock = true } };
         origin = origin.ChangeMagicStock(sourceRow, action.ActionId, 4, MagicOperationReason.ScriptReward, out _);

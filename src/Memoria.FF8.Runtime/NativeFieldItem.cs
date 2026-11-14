@@ -189,10 +189,10 @@ public sealed record NativeFieldItem(byte Type, byte TargetFlags, byte Power, by
         if (Type == 20)
         {
             BattleNativePlayerStatRules rules = statRules ?? throw new NotSupportedException("Stat items require the original unjunctioned, initial-weapon stat projection.");
-            BattleNativePlayerStatistics stats = rules.Project(target.MagicInventory, new BattleNativeCharacterGrowth(target.HitPointBonus, System.Collections.Immutable.ImmutableArray.CreateRange(target.StatBonuses)));
+            BattleNativePlayerStatistics stats = rules.Project(target.MagicInventory, target.Growth);
             int[] values = [stats.MaximumHp, stats.Strength, stats.Vitality, stats.Magic, stats.Spirit, stats.Speed, stats.Luck];
-            ushort hpBonus = target.HitPointBonus;
-            byte[] bonuses = target.StatBonuses.ToArray();
+            int hpGain = 0;
+            int[] statGains = new int[6];
             bool changed = false;
             for (int stat = 0; stat < 7; stat++)
             {
@@ -203,11 +203,11 @@ public sealed record NativeFieldItem(byte Type, byte TargetFlags, byte Power, by
                 changed = true;
                 if (stat == 0)
                 {
-                    hpBonus = (ushort)Math.Min(9999, hpBonus + Power);
+                    hpGain = Power;
                 }
                 else
                 {
-                    bonuses[stat - 1] = (byte)Math.Min(255, bonuses[stat - 1] + Power);
+                    statGains[stat - 1] = Power;
                 }
             }
             if (!changed)
@@ -215,7 +215,7 @@ public sealed record NativeFieldItem(byte Type, byte TargetFlags, byte Power, by
                 return (vitals, economy, false);
             }
             NativeCharacterVitals grown = vitals.DeepCopy();
-            NativeCharacterVital updated = target with { HitPointBonus = hpBonus, StatBonuses = bonuses };
+            NativeCharacterVital updated = target.WithBonusSources(target.Growth.Sources.Add(NativeStatBonusSources.Items, hpGain, statGains, vitals.LevelBasedStatBonuses));
             grown.Records[row] = updated;
             ushort maximumHp = grown.GetMagicMaximumHitPoints(row);
             ushort hitPoints = Math.Min(updated.HitPoints.Minimum, maximumHp);

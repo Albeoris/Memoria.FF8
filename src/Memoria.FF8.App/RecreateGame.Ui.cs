@@ -268,6 +268,7 @@ internal sealed partial class RecreateGame
         {
             using var assets = new Memoria.FF8.Assets.GameAssets(options.GameDirectory, resources: resourceHost?.Resources);
             liveMenuCatalog = LiveMenuCatalog.ReadInstalled(assets);
+            liveMenuCatalog.InterfaceLanguage = () => resourceHost?.Mods.LocalizationPrimaryTarget ?? resourceHost?.Resources.ResourceLanguage;
             nativeRefinementDefinitions = assets.ReadNativeRefinementDefinitions();
         }
     }

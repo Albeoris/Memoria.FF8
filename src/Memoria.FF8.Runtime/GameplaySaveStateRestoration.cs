@@ -27,6 +27,7 @@ public static class GameplaySaveStateRestoration
             throw new NotSupportedException("A live battle achievement cursor requires its encounter continuation; it cannot be resumed as exploration.");
         }
         NativeCharacterVitals characters = saved.Characters.Restore(Require(initialized.CharacterVitals, "character definitions"));
+        characters = characters with { LevelBasedStatBonuses = rules.Preferences.Tuning.LevelBasedStatBonuses };
         NativeEconomy economy = saved.Economy.Restore(Require(initialized.Economy, "inventory initialization"));
         NativeLimitProgress limits = saved.Limits.Restore(Require(initialized.LimitProgress, "Limit initialization"));
         NativeWorldControlState? controls = story.Controls is { } control ? Require(initialized.WorldControls, "world controls") with { EventFlags103 = control.Flags, EventFlags104 = control.EventFlags, Menu209 = control.Menu, MusicKeep207 = control.MusicKeep } : null;

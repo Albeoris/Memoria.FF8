@@ -46,7 +46,7 @@ public sealed class ExtendedRosterTests
             NativeCharacterVital record = enabled.Records[row];
             record.MagicInventory[0] = new(1, (byte)row);
             record.Junction.MagicJunctions[0] = 1;
-            enabled.Records[row] = record with { Junction = record.Junction with { GuardianForces = (ushort)(1 << row), Commands = 20, Abilities = 39 }, Experience = (uint)(3000 + row), HitPoints = new(17, 17), HitPointBonus = (ushort)row, Status = 0x80, KillCount = (ushort)row };
+            enabled.Records[row] = record with { BonusSources = null, Junction = record.Junction with { GuardianForces = (ushort)(1 << row), Commands = 20, Abilities = 39 }, Experience = (uint)(3000 + row), HitPoints = new(17, 17), HitPointBonus = (ushort)row, Status = 0x80, KillCount = (ushort)row };
         }
 
         NativeCharacterVitals disabled = enabled.WithExtendedRoster(false);

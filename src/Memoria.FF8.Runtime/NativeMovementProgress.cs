@@ -97,7 +97,7 @@ public static class NativeMovementProgress
                 continue;
             }
             NativeCharacterVital character = records[row];
-            int maximum = unchecked((short)vitals.Definitions.CharacterMaximum(character));
+            int maximum = unchecked((short)vitals.Definitions.CharacterMaximum(character, vitals.LevelBasedStatBonuses));
             if (character.HitPoints.Maximum == 0 || character.HitPoints.Minimum >= maximum || (vitals.Definitions.EquippedStatusPassiveFlags(character.Junction.Abilities) & 0x20000) == 0)
             {
                 continue;

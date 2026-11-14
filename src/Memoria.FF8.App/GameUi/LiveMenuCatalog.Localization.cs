@@ -5,6 +5,17 @@ namespace Memoria.FF8.GameUi;
 
 public sealed partial class LiveMenuCatalog
 {
+    public Func<string?>? InterfaceLanguage { get; set; }
+
+    public string? ReadBonusAbilityDescription(int ability, bool levelBasedStatBonuses)
+    {
+        if (levelBasedStatBonuses && SystemTextCatalog.LevelBasedBonusAbilityDescription(ability, InterfaceLanguage?.Invoke() ?? resources?.ResourceLanguage) is string description)
+        {
+            return SystemText("mods.level-based-stat-bonuses.ability." + ability, description);
+        }
+        return AbilityDescription(ability);
+    }
+
     internal string SystemText(string id, string original) => resources is null ? original : SystemTextCatalog.Translate(resources.Localize, id, original);
 
     internal string FormatSystemText(string id, string original, params object?[] arguments) => SystemTextCatalog.Format(SystemText(id, original), original, arguments);

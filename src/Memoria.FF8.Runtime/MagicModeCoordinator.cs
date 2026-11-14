@@ -111,7 +111,7 @@ public static class MagicJunctionPolicy
     {
         NativeCharacterVital character = vitals.Records[row];
         int spell = character.Junction.MagicJunctions[0];
-        return vitals.Definitions.CharacterMaximum(character.CharacterId, NativeStatDefinitions.Level(character.Experience, vitals.Definitions.Characters[character.CharacterId]), character.HitPointBonus, (byte)spell, GetEffectiveCount(vitals, row, spell), character.Junction.Abilities);
+        return vitals.Definitions.CharacterMaximum(character.CharacterId, NativeStatDefinitions.Level(character.Experience, vitals.Definitions.Characters[character.CharacterId]), vitals.EffectiveGrowth(character).HitPointBonus, (byte)spell, GetEffectiveCount(vitals, row, spell), character.Junction.Abilities);
     }
 
     internal static NativeCharacterVitals ClampHitPoints(NativeCharacterVitals vitals, int? physicalRow = null)
@@ -160,7 +160,7 @@ public static class MagicModeCoordinator
         List<MagicStockMove> moves = [];
         List<MagicStockMove> overflow = [];
         bool enabling = preferences.SharedMagicStock && !next.MagicSystem.SharedMagicStock;
-        next = next with { MagicSystem = next.MagicSystem with { SharedMagicStock = preferences.SharedMagicStock, InfiniteMagic = preferences.InfiniteMagic, UnlimitedMagic = preferences.Tuning.UnlimitedMagic, HistoriesInitialized = next.MagicSystem.HistoriesInitialized || preferences.InfiniteMagic } };
+        next = next with { LevelBasedStatBonuses = preferences.Tuning.LevelBasedStatBonuses, MagicSystem = next.MagicSystem with { SharedMagicStock = preferences.SharedMagicStock, InfiniteMagic = preferences.InfiniteMagic, UnlimitedMagic = preferences.Tuning.UnlimitedMagic, HistoriesInitialized = next.MagicSystem.HistoriesInitialized || preferences.InfiniteMagic } };
         if (enabling)
         {
             for (int donor = 1; donor < next.Records.Length; donor++)

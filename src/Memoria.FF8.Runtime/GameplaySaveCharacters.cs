@@ -36,7 +36,7 @@ public sealed record GameplaySaveCharacters
         source = GameplaySaveGuardianForceAdapter.PrepareCapture(source, out GameplaySaveGuardianForceRecovery? recovery);
         GameplaySaveCharacters result = new()
         {
-            Records = source.Records,
+            Records = source.Records.Select(record => record.WithBonusSources(record.Growth.Sources)).ToArray(),
             CombatParty = source.CombatParty,
             DreamEnabled = source.DreamEnabled,
             ExtendedRosterEnabled = source.ExtendedRosterEnabled,
@@ -63,7 +63,7 @@ public sealed record GameplaySaveCharacters
         NativeGuardianForceVital[] guardianForces = detached.GuardianForces.Select(gf => gf.Restore()).ToArray();
         NativeCharacterVitals result = installed with
         {
-            Records = detached.Records,
+            Records = detached.Records.Select(record => record.WithBonusSources(record.Growth.Sources)).ToArray(),
             CombatParty = detached.CombatParty,
             DreamEnabled = detached.DreamEnabled,
             ExtendedRosterEnabled = detached.ExtendedRosterEnabled,
@@ -93,6 +93,7 @@ public sealed record GameplaySaveCharacters
                 throw new InvalidDataException("Gameplay character records require exact HP, junctions, inventory and bounded saved arrays.");
             }
             record.HitPoints.Validate();
+            record.Growth.Validate();
             record.Junction.Validate();
         }
         foreach (GameplaySaveGuardianForce gf in GuardianForces)

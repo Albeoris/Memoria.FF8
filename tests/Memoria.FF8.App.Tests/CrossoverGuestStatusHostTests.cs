@@ -143,7 +143,7 @@ public sealed class CrossoverGuestStatusHostTests
             for (byte id = 0; id < 2; id++)
             {
                 int row = origin.FindPhysicalRow(id);
-                origin.Records[row] = origin.Records[row] with { HitPointBonus = 9999, HitPoints = new((ushort)(id == 0 ? 1000 : 5000), (ushort)(id == 0 ? 1000 : 5000)), Status = 0, Junction = origin.Records[row].Junction with { Commands = (uint)(command | (additionalItems is null ? 0 : itemCommand << 8)) } };
+                origin.Records[row] = origin.Records[row] with { BonusSources = null, HitPointBonus = 9999, HitPoints = new((ushort)(id == 0 ? 1000 : 5000), (ushort)(id == 0 ? 1000 : 5000)), Status = 0, Junction = origin.Records[row].Junction with { Commands = (uint)(command | (additionalItems is null ? 0 : itemCommand << 8)) } };
             }
             if (economical != 0)
             {

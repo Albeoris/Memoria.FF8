@@ -1,0 +1,29 @@
+# Level-Based Stat Bonuses
+
+While equipped, HP Bonus gives +30 × (level − 1), up to +2970 HP; Str/Vit/Mag/Spr Bonus give +(level − 1), up to +99 each. Removing the ability removes its benefit. Historical permanent Bonus growth is suppressed while this mod is on; item and Devour gains remain. No Speed or Luck Bonus abilities are added. Off by default; required in Hardcore.
+
+This built-in package changes the five original Bonus abilities. It adds no abilities or resource replacements. Existing permanent growth remains recorded so disabling the mod restores the ordinary rule; Bonus growth earned while the mod is active continues to be recorded but is ignored until the mod is disabled.
+
+## ru
+
+Пока способность экипирована, HP Bonus даёт +30 × (уровень − 1), максимум +2970 HP; Str/Vit/Mag/Spr Bonus дают +(уровень − 1), максимум +99 к каждой характеристике. Снятие способности убирает её прибавку. При включённом моде прежний постоянный рост от Bonus не учитывается; прибавки от предметов и Devour сохраняются. Способности Speed Bonus и Luck Bonus не добавляются. По умолчанию выключен; обязателен в Hardcore.
+
+## ja
+
+装備中のみ、HP Bonus は +30 × (レベル − 1)、最大 +2970 HP。Str/Vit/Mag/Spr Bonus は各 +(レベル − 1)、最大 +99。外すと効果は失われます。この MOD が有効な間、過去の Bonus による永続成長は反映されません。アイテムと Devour の上昇分は維持されます。Speed Bonus や Luck Bonus は追加されません。初期設定は無効。Hardcore では必須です。
+
+## de
+
+Solange ausgerüstet, gewährt HP Bonus +30 × (Stufe − 1), höchstens +2970 HP; Str/Vit/Mag/Spr Bonus gewähren jeweils +(Stufe − 1), höchstens +99. Beim Ablegen entfällt der Vorteil. Frühere dauerhafte Bonus-Steigerungen werden bei aktiver Mod unterdrückt; Steigerungen durch Gegenstände und Devour bleiben erhalten. Keine Speed- oder Luck-Bonus-Fähigkeiten werden hinzugefügt. Standardmäßig aus; in Hardcore vorgeschrieben.
+
+## fr
+
+Tant que la capacité est équipée, HP Bonus accorde +30 × (niveau − 1), jusqu’à +2970 HP ; Str/Vit/Mag/Spr Bonus accordent chacun +(niveau − 1), jusqu’à +99. Retirer la capacité supprime son avantage. Les anciens gains permanents de Bonus sont ignorés lorsque le mod est actif ; les gains des objets et de Devour sont conservés. Aucune capacité Speed Bonus ou Luck Bonus n’est ajoutée. Désactivé par défaut ; obligatoire en Hardcore.
+
+## it
+
+Finché equipaggiata, HP Bonus conferisce +30 × (livello − 1), fino a +2970 HP; Str/Vit/Mag/Spr Bonus conferiscono ciascuna +(livello − 1), fino a +99. Rimuovendo l’abilità si perde il beneficio. Con il mod attivo, i precedenti aumenti permanenti di Bonus vengono ignorati; restano quelli di oggetti e Devour. Non vengono aggiunte abilità Speed Bonus o Luck Bonus. Disattivato per impostazione predefinita; obbligatorio in Hardcore.
+
+## es
+
+Mientras está equipada, HP Bonus otorga +30 × (nivel − 1), hasta +2970 HP; Str/Vit/Mag/Spr Bonus otorgan cada una +(nivel − 1), hasta +99. Al quitar la habilidad se pierde su beneficio. Con el mod activo se ignoran los aumentos permanentes anteriores de Bonus; se conservan los de objetos y Devour. No se añaden habilidades Speed Bonus ni Luck Bonus. Desactivado por defecto; obligatorio en Hardcore.

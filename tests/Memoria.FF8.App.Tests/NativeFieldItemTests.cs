@@ -180,6 +180,7 @@ public sealed class NativeFieldItemTests
         Assert.Equal(vitals.Records[0].StatBonuses[0] + 1, strength.Vitals.Records[0].StatBonuses[0]);
         NativeCharacterVitals capped = vitals.DeepCopy();
         capped.Records[0].StatBonuses[0] = 255;
+        capped.Records[0] = capped.Records[0] with { BonusSources = null };
         var exhausted = catalog.FieldItem(170)!.Use(capped, economy, 170, 0, assets.ReadFieldItemStatRules(capped, 0));
         Assert.False(exhausted.Changed);
         Assert.Same(economy, exhausted.Economy);

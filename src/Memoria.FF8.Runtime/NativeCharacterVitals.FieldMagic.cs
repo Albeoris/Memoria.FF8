@@ -40,7 +40,7 @@ public sealed partial record NativeCharacterVitals
         switch (type)
         {
             case 3:
-                BattleNativeCharacterGrowth growth = new(source.HitPointBonus, source.StatBonuses.ToImmutableArray());
+                BattleNativeCharacterGrowth growth = source.Growth;
                 int magic = sourceRules.Project(GetMagicInventory(sourceRow), growth).Magic;
                 int amount = ((magic + power) / 2) * power;
                 if ((status & 1) != 0 || (status & 0x40) != 0 && (cure & 0x40) == 0)

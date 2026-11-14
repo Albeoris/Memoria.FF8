@@ -33,7 +33,7 @@ public sealed class CrossoverUniversalAbilityHostTests(ITestOutputHelper output)
         NativeCharacterVitals origin = game.ReadNewGameCharacterVitals().DeepCopy();
         int row = origin.FindPhysicalRow(0);
         int magicCommand = origin.MenuDefinitions.CommandAbilityCommands.IndexOf((byte)2) + 20;
-        origin.Records[row] = origin.Records[row] with { HitPointBonus = 9999, HitPoints = new(4000, 4000), Status = 0, Junction = origin.Records[row].Junction with { Commands = (uint)magicCommand } };
+        origin.Records[row] = origin.Records[row] with { BonusSources = null, HitPointBonus = 9999, HitPoints = new(4000, 4000), Status = 0, Junction = origin.Records[row].Junction with { Commands = (uint)magicCommand } };
         origin = origin with { MagicSystem = origin.MagicSystem with { SharedMagicStock = true } };
         origin = origin.ChangeMagicStock(row, action.ActionId, 4, MagicOperationReason.ScriptReward, out _);
         CrossoverFf8BattleKit kit = CrossoverFf8BattleKit.Read(origin, assets, 0);

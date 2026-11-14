@@ -606,6 +606,11 @@ public static partial class SystemTextCatalog
         defaults["name.validation.character-limit"] = "Use at most 20 characters without control characters.";
         defaults["party.switch.member"] = "Switch Member";
         defaults["party.switch.empty-slot"] = "Empty slot";
+        foreach (int ability in Enumerable.Range(65, 5))
+        {
+            defaults["mods.level-based-stat-bonuses.ability." + ability] = LevelBasedBonusAbilityDescription(ability, "en")!;
+        }
+        defaults["mods.level-based-stat-bonuses.description"] = LevelBasedStatBonusesDescription;
         defaults["mods.extended-roster.description"] = "Adds Laguna, Kiros, Ward, Edea and Seifer to Switch Member when party changes are available.";
         defaults["projection.ability.description-unavailable"] = "Ability description unavailable.";
         defaults["projection.action.unsupported"] = "The current engine does not support this native menu action.";

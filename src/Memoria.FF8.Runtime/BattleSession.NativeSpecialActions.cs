@@ -204,15 +204,15 @@ public sealed partial class BattleSession
             RemoveNativeStatuses(actor, effect.SavedStatuses, effect.BattleStatuses);
             if (actor.NativeGrowth is { } growth)
             {
-                byte[] bonuses = growth.StatBonuses.ToArray();
-                for (int index = 0; index < bonuses.Length; index++)
+                int[] gains = new int[6];
+                for (int index = 0; index < gains.Length; index++)
                 {
                     if ((effect.StatFlags & (1 << index)) != 0)
                     {
-                        bonuses[index] = (byte)Math.Min(255, bonuses[index] + 1);
+                        gains[index] = 1;
                     }
                 }
-                actor.NativeGrowth = new((ushort)Math.Min(9999, growth.HitPointBonus + effect.HitPointBonus), bonuses.ToImmutableArray());
+                actor.NativeGrowth = growth.Add(NativeStatBonusSources.Devour, effect.HitPointBonus, gains, definition.Tuning.LevelBasedStatBonuses);
             }
             ApplyHealing(actor, amount, "Devour");
         }

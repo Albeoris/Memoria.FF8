@@ -19,12 +19,23 @@ public sealed record NativeHpWord([property: JsonRequired] ushort Minimum, [prop
 
 public sealed record NativeCharacterVital([property: JsonRequired] byte CharacterId, [property: JsonRequired] NativeHpWord HitPoints, [property: JsonRequired] ushort Status, [property: JsonRequired] NativeCharacterJunction Junction, [property: JsonRequired] uint Experience, [property: JsonRequired] ushort HitPointBonus, [property: JsonRequired] byte Weapon, [property: JsonRequired] byte[] StatBonuses, [property: JsonRequired] NativeMagicStock[] MagicInventory, [property: JsonRequired] ushort MemberFlags, [property: JsonRequired] ushort KillCount)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeStatBonusSources? BonusSources { get; init; }
+    [JsonIgnore]
+    public BattleNativeCharacterGrowth Growth => new(HitPointBonus, StatBonuses.ToImmutableArray()) { BonusSources = BonusSources };
+
+    public NativeCharacterVital WithBonusSources(NativeStatBonusSources sources)
+    {
+        BattleNativeCharacterGrowth total = sources.Total();
+        return this with { HitPointBonus = total.HitPointBonus, StatBonuses = total.StatBonuses.ToArray(), BonusSources = sources };
+    }
+
     public byte? NativeByte90 { get; init; }
     public ushort? DeathCount { get; init; }
     public ushort[]? GuardianForceCompatibility { get; init; }
     public bool Equals(NativeCharacterVital? other)
     {
-        return other is not null && CharacterId == other.CharacterId && HitPoints == other.HitPoints && Status == other.Status && Junction == other.Junction && Experience == other.Experience && HitPointBonus == other.HitPointBonus && Weapon == other.Weapon && MemberFlags == other.MemberFlags && KillCount == other.KillCount && DeathCount == other.DeathCount && NativeByte90 == other.NativeByte90 && StatBonuses.AsSpan().SequenceEqual(other.StatBonuses) && MagicInventory.SequenceEqual(other.MagicInventory) && (GuardianForceCompatibility is null ? other.GuardianForceCompatibility is null : other.GuardianForceCompatibility is not null && GuardianForceCompatibility.AsSpan().SequenceEqual(other.GuardianForceCompatibility));
+        return other is not null && Growth.SameSources(other.Growth) && CharacterId == other.CharacterId && HitPoints == other.HitPoints && Status == other.Status && Junction == other.Junction && Experience == other.Experience && HitPointBonus == other.HitPointBonus && Weapon == other.Weapon && MemberFlags == other.MemberFlags && KillCount == other.KillCount && DeathCount == other.DeathCount && NativeByte90 == other.NativeByte90 && StatBonuses.AsSpan().SequenceEqual(other.StatBonuses) && MagicInventory.SequenceEqual(other.MagicInventory) && (GuardianForceCompatibility is null ? other.GuardianForceCompatibility is null : other.GuardianForceCompatibility is not null && GuardianForceCompatibility.AsSpan().SequenceEqual(other.GuardianForceCompatibility));
     }
 
     public override int GetHashCode()
@@ -126,6 +137,7 @@ public sealed partial record NativeCharacterVitals
         foreach (NativeCharacterVital record in Records)
         {
             record.HitPoints.Validate();
+            record.Growth.Validate();
             if (record.Junction is null)
             {
                 throw new InvalidDataException("Native character junction state requires its authentic New Game template.");

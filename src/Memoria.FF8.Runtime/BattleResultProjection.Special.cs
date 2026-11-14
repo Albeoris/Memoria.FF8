@@ -7,11 +7,11 @@ public static partial class BattleResultProjection
         foreach (BattleNativeGrowthChange change in result.NativeGrowthChanges)
         {
             NativeCharacterVital current = records[change.Row];
-            if (current.HitPointBonus != change.Before.HitPointBonus || !current.StatBonuses.AsSpan().SequenceEqual(change.Before.StatBonuses.AsSpan()))
+            if (!current.Growth.SameSources(change.Before))
             {
                 throw new InvalidDataException("Native battle growth effect differs from its saved statistic bonus owners.");
             }
-            records[change.Row] = current with { HitPointBonus = change.After.HitPointBonus, StatBonuses = change.After.StatBonuses.ToArray() };
+            records[change.Row] = current.WithBonusSources(change.After.Sources);
         }
         return records;
     }

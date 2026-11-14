@@ -199,7 +199,7 @@ public static class LiveMenuData
                     character.AbilitySlots = vitals.JunctionAbilitySlots(row);
                     foreach (int ability in vitals.JunctionLearnedAbilities(row).Order())
                     {
-                        MenuAbilityChoice choice = new(ability.ToString(System.Globalization.CultureInfo.InvariantCulture), NativeAbilityMenuMetadata.CommandName(ability, catalog?.AbilityName(ability) ?? Format("fallback.ability.name", "Ability {0}", ability), supportsSummon, Text), true) { Icon = NativeAbilityMenuMetadata.Icon(ability), Description = catalog?.AbilityDescription(ability) ?? Text("projection.ability.description-unavailable", "Ability description unavailable.") };
+                        MenuAbilityChoice choice = new(ability.ToString(System.Globalization.CultureInfo.InvariantCulture), NativeAbilityMenuMetadata.CommandName(ability, catalog?.AbilityName(ability) ?? Format("fallback.ability.name", "Ability {0}", ability), supportsSummon, Text), true) { Icon = NativeAbilityMenuMetadata.Icon(ability), Description = catalog?.ReadBonusAbilityDescription(ability, state.GameplayPreferences.Tuning.LevelBasedStatBonuses) ?? Text("projection.ability.description-unavailable", "Ability description unavailable.") };
                         if (ability is >= 20 and < 39)
                         {
                             character.AvailableCommands.Add(choice);
@@ -215,7 +215,7 @@ public static class LiveMenuData
                         int characterRow = row;
                         BattleNativePlayerStatRules rules = projectedRules!;
                         IReadOnlyList<NativeMagicStock> inventory = projection.Inventory(row);
-                        BattleNativePlayerStatistics projected = rules.Project(inventory, new BattleNativeCharacterGrowth(native.HitPointBonus, native.StatBonuses.ToImmutableArray()));
+                        BattleNativePlayerStatistics projected = rules.Project(inventory, native.Growth);
                         foreach (var stat in Statistics(projected))
                         {
                             character.Stats.Add(stat.Key, stat.Value);
@@ -343,7 +343,7 @@ public static class LiveMenuData
                     {
                         guardianForce.Abilities.Add(AbilityName(entry.Ability, "Learned ability {0}", "fallback.learned-ability.name"));
                     }
-                    guardianForce.LearningChoices.Add(new MenuAbilityChoice(entry.Ability.ToString(System.Globalization.CultureInfo.InvariantCulture), AbilityName(entry.Ability, "Ability {0}", "fallback.ability.name"), entry.Learned, entry.Progress, entry.RequiredPoints) { Icon = NativeAbilityMenuMetadata.Icon(entry.Ability), Description = catalog?.AbilityDescription(entry.Ability) ?? Text("projection.ability.description-unavailable", "Ability description unavailable."), IsPassive = NativeCharacterVitals.IsGuardianForcePassiveAbility(entry.Ability), PassiveEnabled = entry.Learned && NativeCharacterVitals.IsGuardianForcePassiveAbility(entry.Ability) && vitals.GuardianForcePassiveAbilityEnabled(id, entry.Ability), PassiveAvailable = entry.Learned && native.HitPoints > 0 });
+                    guardianForce.LearningChoices.Add(new MenuAbilityChoice(entry.Ability.ToString(System.Globalization.CultureInfo.InvariantCulture), AbilityName(entry.Ability, "Ability {0}", "fallback.ability.name"), entry.Learned, entry.Progress, entry.RequiredPoints) { Icon = NativeAbilityMenuMetadata.Icon(entry.Ability), Description = catalog?.ReadBonusAbilityDescription(entry.Ability, state.GameplayPreferences.Tuning.LevelBasedStatBonuses) ?? Text("projection.ability.description-unavailable", "Ability description unavailable."), IsPassive = NativeCharacterVitals.IsGuardianForcePassiveAbility(entry.Ability), PassiveEnabled = entry.Learned && NativeCharacterVitals.IsGuardianForcePassiveAbility(entry.Ability) && vitals.GuardianForcePassiveAbilityEnabled(id, entry.Ability), PassiveAvailable = entry.Learned && native.HitPoints > 0 });
                     if (entry.Ability == native.Learning && !entry.Learned)
                     {
                         guardianForce.AbilityPoints = entry.Progress;
@@ -480,7 +480,7 @@ public static class LiveMenuData
 
     internal static Dictionary<string, int> Statistics(BattleNativePlayerStatRules rules, NativeCharacterVital character, IReadOnlyList<NativeMagicStock> inventory)
     {
-        BattleNativePlayerStatistics stats = rules.Project(inventory, new BattleNativeCharacterGrowth(character.HitPointBonus, character.StatBonuses.ToImmutableArray()));
+        BattleNativePlayerStatistics stats = rules.Project(inventory, character.Growth);
         return Statistics(stats);
     }
 
@@ -502,7 +502,7 @@ public static class LiveMenuData
 
     internal static MenuJunctionEffects JunctionEffects(BattleNativePlayerStatRules rules, NativeCharacterVital character, IReadOnlyList<NativeMagicStock> inventory, BattleNativePlayerStatistics? projected = null)
     {
-        BattleNativePlayerStatistics stats = projected ?? rules.Project(inventory, new BattleNativeCharacterGrowth(character.HitPointBonus, character.StatBonuses.ToImmutableArray()));
+        BattleNativePlayerStatistics stats = projected ?? rules.Project(inventory, character.Growth);
         ImmutableArray<byte> resistances = rules.ProjectStatusResistances(inventory);
         string[] names = ["Fire", "Ice", "Thunder", "Earth", "Poison", "Wind", "Water", "Holy"];
         MenuJunctionPercentage[] elements = names.Select((name, index) => new MenuJunctionPercentage(name, (stats.ElementAttack & (1 << index)) != 0 ? stats.ElementAttackPercent : 0, stats.ElementDefenses[index] - 800)).ToArray();

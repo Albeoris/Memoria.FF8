@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime.Tests;
 
-public sealed class NativePlayerJunctionStatTests
+public sealed partial class NativePlayerJunctionStatTests
 {
     private static BattleNativePlayerStatRules Rules(int slot, byte quantitySpell = 1)
     {

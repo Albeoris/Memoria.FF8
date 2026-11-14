@@ -5,10 +5,12 @@ namespace Memoria.FF8.GameUi;
 public sealed partial class MenuController
 {
     private Func<string, string, string>? localizeInterface;
+    private Func<string?>? interfaceLanguage;
 
-    internal void ConnectLocalizationText(Func<string, string, string> localize)
+    internal void ConnectLocalizationText(Func<string, string, string> localize, Func<string?>? language = null)
     {
         localizeInterface = localize;
+        interfaceLanguage = language;
         _view = null;
     }
 

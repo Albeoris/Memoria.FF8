@@ -40,7 +40,7 @@ public sealed class CrossoverParticipantResourceHostTests(ITestOutputHelper outp
         }
         int row = CrossoverGuestRecord.FindOriginalRow(origin, character);
         int magicCommand = origin.MenuDefinitions.CommandAbilityCommands.IndexOf((byte)2) + 20;
-        origin.Records[row] = origin.Records[row] with { HitPointBonus = 9999, HitPoints = new(9000, 9000), Status = 0, Junction = origin.Records[row].Junction with { Commands = (uint)magicCommand } };
+        origin.Records[row] = origin.Records[row] with { BonusSources = null, HitPointBonus = 9999, HitPoints = new(9000, 9000), Status = 0, Junction = origin.Records[row].Junction with { Commands = (uint)magicCommand } };
         origin = origin with { MagicSystem = origin.MagicSystem with { SharedMagicStock = true } };
         BattleNativeAction fire = Assert.Single(assets.NativeActions, action => action.Command == 2 && action.Name == "Fire");
         origin = origin.ChangeMagicStock(row, fire.ActionId, 4, MagicOperationReason.ScriptReward, out _);

@@ -3,6 +3,7 @@ namespace Memoria.FF8.Mods;
 public sealed partial class ModRuntime
 {
     public const string HardcoreMeltdownLockReason = "Hardcore requires Meltdown: Vitality reduction 50%, Spirit reduction 25%. The mod cannot be disabled and these settings cannot be changed.";
+    public const string HardcoreStatBonusesLockReason = "Hardcore requires Level-Based Stat Bonuses. The mod cannot be disabled.";
     private bool hardcore;
 
     public bool SetHardcoreMode(bool enabled)
@@ -25,7 +26,11 @@ public sealed partial class ModRuntime
     {
         lock (gate)
         {
-            return IsRequiredHardcorePackage(packageId) ? HardcoreMeltdownLockReason : null;
+            if (!IsRequiredHardcorePackage(packageId))
+            {
+                return null;
+            }
+            return packageId.Equals("Memoria/Meltdown", StringComparison.OrdinalIgnoreCase) ? HardcoreMeltdownLockReason : HardcoreStatBonusesLockReason;
         }
     }
 
@@ -36,12 +41,12 @@ public sealed partial class ModRuntime
 
     private bool IsRequiredHardcorePackage(string packageId)
     {
-        return hardcore && packageId.Equals("Memoria/Meltdown", StringComparison.OrdinalIgnoreCase);
+        return hardcore && (packageId.Equals("Memoria/Meltdown", StringComparison.OrdinalIgnoreCase) || packageId.Equals("Memoria/Level-Based Stat Bonuses", StringComparison.OrdinalIgnoreCase));
     }
 
     private IReadOnlyList<BehaviorModSetting> ApplyBehaviorSettingPolicy(ModPackage package, IReadOnlyList<BehaviorModSetting> settings)
     {
-        if (!IsRequiredHardcorePackage(package.Id))
+        if (!hardcore || !package.Id.Equals("Memoria/Meltdown", StringComparison.OrdinalIgnoreCase))
         {
             return settings;
         }

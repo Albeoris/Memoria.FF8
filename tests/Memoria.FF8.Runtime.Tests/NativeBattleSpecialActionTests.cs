@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
-public sealed class NativeBattleSpecialActionTests
+public sealed partial class NativeBattleSpecialActionTests
 {
     [Fact]
     public void CardAcquiresAtInvocationAndRetainsItsPreparedResultAcrossWindupRestore()

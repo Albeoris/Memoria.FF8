@@ -41,8 +41,9 @@ public sealed partial record NativeCharacterVitals
                 // Original496E03..496E51 indexes this cap by physical row, even for a substituted dream identity.
                 experience = MaximumExperience(Definitions.Characters[row]);
             }
-            ushort hitPointBonus = character.HitPointBonus;
-            byte[] statBonuses = character.StatBonuses.ToArray();
+            BattleNativeCharacterGrowth growth = character.Growth;
+            int hitPointGain = 0;
+            int[] statGains = new int[6];
             int levelsGained = level - previousLevel;
             if (previousLevel != 100 && levelsGained > 0)
             {
@@ -57,17 +58,18 @@ public sealed partial record NativeCharacterVitals
                 }
                 if ((flags & 0x80) != 0)
                 {
-                    hitPointBonus = (ushort)Math.Min(hitPointBonus + 30 * levelsGained, 9999);
+                    hitPointGain = 30 * levelsGained;
                 }
                 for (int stat = 0; stat < 4; stat++)
                 {
                     if ((flags & (0x100u << stat)) != 0)
                     {
-                        statBonuses[stat] = (byte)Math.Min(statBonuses[stat] + levelsGained, 255);
+                        statGains[stat] = levelsGained;
                     }
                 }
             }
-            records[row] = character with { Experience = experience, HitPointBonus = hitPointBonus, StatBonuses = statBonuses };
+            growth = growth.Add(NativeStatBonusSources.LevelUp, hitPointGain, statGains, LevelBasedStatBonuses);
+            records[row] = character.WithBonusSources(growth.Sources) with { Experience = experience };
         }
         NativeGuardianForceVital[] guardianForces = GuardianForces.ToArray();
         foreach ((byte id, ushort points) in guardianForceAwards)

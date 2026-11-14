@@ -18,7 +18,7 @@ internal sealed partial class RecreateGame
     private void ConnectLocalizationTools()
     {
         gameMenus!.ConnectLocalizationAuthoring(LocalizationProjectController.CreateServices(options.GameDirectory, Path.Combine(resourceHost!.Mods.PrimaryModsDirectory, "Memoria"), resourceHost.Mods.Refresh, () => (resourceHost.LocalizationPreview?.Layers ?? []).Select(layer => layer.Project.Manifest.TargetLanguage).ToArray(), () => resourceHost.CommittedLocalizations?.Layers ?? [], () => resourceHost.CommittedLocalizations?.RequestedOrder ?? []));
-        gameMenus.ConnectLocalizationText(resourceHost.Resources.Localize);
+        gameMenus.ConnectLocalizationText(resourceHost.Resources.Localize, () => resourceHost.Mods.LocalizationPrimaryTarget ?? resourceHost.Resources.ResourceLanguage);
         if (saveMenu is not null)
         {
             saveMenu.LocalizeText = resourceHost.Resources.Localize;

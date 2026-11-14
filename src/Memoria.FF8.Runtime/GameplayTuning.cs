@@ -8,6 +8,8 @@ public sealed record GameplayTuning
     public int ExperienceMultiplier { get; init; } = 1;
     public int GuardianExperienceMultiplier { get; init; } = 1;
     public bool UnlimitedMagic { get; init; }
+    /// <summary>Equipped HP/Str/Vit/Mag/Spr Bonus abilities scale with current level instead of granting permanent growth.</summary>
+    public bool LevelBasedStatBonuses { get; init; }
     /// <summary>The default retains native per-action primary caps; other values override the primary damage cap.</summary>
     public int MaximumDamage { get; init; } = 9999;
     public RareItemProbabilities RareItem { get; init; } = new();
@@ -36,7 +38,7 @@ public sealed record GameplayTuning
 
     public bool Equals(GameplayTuning? other)
     {
-        return other is not null && DrawBonus == other.DrawBonus && ApMultiplier == other.ApMultiplier && ExperienceMultiplier == other.ExperienceMultiplier && GuardianExperienceMultiplier == other.GuardianExperienceMultiplier && UnlimitedMagic == other.UnlimitedMagic && MaximumDamage == other.MaximumDamage && RareItem == other.RareItem && MeltdownVitalityReductionPercent == other.MeltdownVitalityReductionPercent && MeltdownSpiritReductionPercent == other.MeltdownSpiritReductionPercent && UnrestrictedScanRotation == other.UnrestrictedScanRotation;
+        return other is not null && DrawBonus == other.DrawBonus && ApMultiplier == other.ApMultiplier && ExperienceMultiplier == other.ExperienceMultiplier && GuardianExperienceMultiplier == other.GuardianExperienceMultiplier && UnlimitedMagic == other.UnlimitedMagic && LevelBasedStatBonuses == other.LevelBasedStatBonuses && MaximumDamage == other.MaximumDamage && RareItem == other.RareItem && MeltdownVitalityReductionPercent == other.MeltdownVitalityReductionPercent && MeltdownSpiritReductionPercent == other.MeltdownSpiritReductionPercent && UnrestrictedScanRotation == other.UnrestrictedScanRotation;
     }
 
     public override int GetHashCode()
@@ -47,6 +49,7 @@ public sealed record GameplayTuning
         hash.Add(ExperienceMultiplier);
         hash.Add(GuardianExperienceMultiplier);
         hash.Add(UnlimitedMagic);
+        hash.Add(LevelBasedStatBonuses);
         hash.Add(MaximumDamage);
         hash.Add(RareItem);
         hash.Add(MeltdownVitalityReductionPercent);

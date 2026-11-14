@@ -7,6 +7,8 @@ public sealed record BattleNativePlayerStatistics(ushort MaximumHp, int Strength
 /// <summary>Immutable original inputs for495960 and the496xxx player-stat consumers.</summary>
 public sealed record BattleNativePlayerStatRules(int CharacterId, byte Level, ImmutableArray<byte> CharacterRecord, ImmutableArray<byte> WeaponRecord, ImmutableArray<ImmutableArray<byte>> MagicRecords, ImmutableArray<ImmutableArray<byte>> PassiveRecords, ImmutableArray<byte> MagicJunctions, uint Abilities, NativeStatDefinitions SavedDefinitions)
 {
+    public bool LevelBasedStatBonuses { get; init; }
+
     public uint? NativeStatusPassiveFlags { get; init; }
 
     public void Validate()
@@ -22,6 +24,7 @@ public sealed record BattleNativePlayerStatRules(int CharacterId, byte Level, Im
     {
         Validate();
         growth.Validate();
+        growth = growth.Effective(LevelBasedStatBonuses, Level, Abilities);
         int Quantity(int spell) => spell == 0 ? 0 : stocks.FirstOrDefault(stock => stock.SpellId == spell)?.Count ?? 0;
         int Percentage(int selector)
         {

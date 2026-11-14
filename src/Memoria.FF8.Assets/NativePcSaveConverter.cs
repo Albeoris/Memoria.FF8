@@ -181,7 +181,18 @@ public static partial class NativePcSaveConverter
             ReadOnlySpan<byte> row = block.AsSpan(start, 68);
             guardianForces[index] = new NativeGuardianForceVital(ReadDWord(block, start + 12), row[17], ReadWord(block, start + 18), new NativeGuardianForceLearnedBank(BinaryPrimitives.ReadUInt64LittleEndian(row[20..]), BinaryPrimitives.ReadUInt64LittleEndian(row[28..])), null, row.Slice(36, 21).ToArray().ToImmutableArray(), row[64], (uint)(row[65] | row[66] << 8 | row[67] << 16)) { NativeOpaqueBytes = new(row[16], row[57], row[58], row[59]), KillCount = ReadWord(block, start + 60), DeathCount = ReadWord(block, start + 62) };
         }
-        return (defaults with { Records = characters, GuardianForces = guardianForces, CombatParty = block.AsSpan(Main + 2724, 3).ToArray(), DreamWeapons = block.AsSpan(Main + 2744, 3).ToArray(), DreamEnabled = (block[Main + 3282] & 1) != 0, JunctionPartyBackup = block.AsSpan(Event + 188, 6).ToArray() }).RebuildParty();
+        bool LearnedBonus(int ability)
+        {
+            return guardianForces.Any(gf => (gf.Flags & 1) != 0 && gf.HasLearnedAbility(ability));
+        }
+        bool hpBonus = LearnedBonus(65);
+        bool[] statBonus = [LearnedBonus(66), LearnedBonus(67), LearnedBonus(68), LearnedBonus(69), false, false];
+        for (int index = 0; index < characters.Length; index++)
+        {
+            NativeCharacterVital character = characters[index];
+            characters[index] = character.WithBonusSources(NativeStatBonusSources.FromLegacy(character.HitPointBonus, character.StatBonuses, hpBonus, statBonus));
+        }
+        return (defaults with { LevelBasedStatBonuses = false, Records = characters, GuardianForces = guardianForces, CombatParty = block.AsSpan(Main + 2724, 3).ToArray(), DreamWeapons = block.AsSpan(Main + 2744, 3).ToArray(), DreamEnabled = (block[Main + 3282] & 1) != 0, JunctionPartyBackup = block.AsSpan(Event + 188, 6).ToArray() }).RebuildParty();
     }
 
     private static ushort ReadWord(byte[] bytes, int offset) => BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(offset));

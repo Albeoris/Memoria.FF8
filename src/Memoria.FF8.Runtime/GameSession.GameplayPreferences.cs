@@ -150,7 +150,7 @@ public sealed partial class GameSession
     private bool MagicRulesDiffer(GameplayPreferences preferences)
     {
         GameplayPreferences current = State.GameplayPreferences;
-        return preferences.SharedMagicStock != current.SharedMagicStock || preferences.InfiniteMagic != current.InfiniteMagic || preferences.Tuning.UnlimitedMagic != current.Tuning.UnlimitedMagic;
+        return preferences.SharedMagicStock != current.SharedMagicStock || preferences.InfiniteMagic != current.InfiniteMagic || preferences.Tuning.UnlimitedMagic != current.Tuning.UnlimitedMagic || preferences.Tuning.LevelBasedStatBonuses != State.CharacterVitals?.LevelBasedStatBonuses;
     }
 
     public string? MagicMutationUnavailableReason => ActiveFieldMutationBoundary switch

@@ -86,13 +86,13 @@ public sealed record NativeStatDefinitions([property: JsonRequired] ImmutableArr
         return (byte)level;
     }
 
-    public ushort CharacterMaximum(NativeCharacterVital character)
+    public ushort CharacterMaximum(NativeCharacterVital character, bool levelBasedStatBonuses = false)
     {
         NativeStatCurve curve = Characters[character.CharacterId];
         int level = Level(character.Experience, curve);
         byte spell = character.Junction.MagicJunctions[0];
         int quantity = spell == 0 ? 0 : character.MagicInventory.FirstOrDefault(stock => stock.SpellId == spell)?.Count ?? 0;
-        return CharacterMaximum(character.CharacterId, level, character.HitPointBonus, spell, quantity, character.Junction.Abilities);
+        return CharacterMaximum(character.CharacterId, level, character.Growth.Effective(levelBasedStatBonuses, level, character.Junction.Abilities).HitPointBonus, spell, quantity, character.Junction.Abilities);
     }
 
     public ushort CharacterMaximum(int characterId, int level, ushort hitPointBonus, byte spell, int quantity, uint abilities)

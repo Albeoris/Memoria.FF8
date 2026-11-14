@@ -6,6 +6,9 @@ namespace Memoria.FF8;
 /// <summary>Composition of reviewed package rules in catalog priority order.</summary>
 internal sealed class GameplayTuningPolicy
 {
+    internal const string LevelBasedStatBonusesPackageId = "Memoria/Level-Based Stat Bonuses";
+    private bool levelBasedStatBonuses;
+    private bool hardcoreStatBonuses;
     internal const string ExtendedRosterPackageId = "Memoria/Extended FFVIII Roster";
     private readonly Dictionary<JunctionGameplaySetting, (decimal Value, string Owner)> settings = [];
     private readonly Dictionary<string, (int Value, string Owner)> behaviorSettings = [];
@@ -27,6 +30,8 @@ internal sealed class GameplayTuningPolicy
         {
             ExtendedRosterEnabled = catalog.Packages.Any(package => package.IsBundled && package.Status == ModEffectiveStatus.Active && package.Id.Equals(ExtendedRosterPackageId, StringComparison.OrdinalIgnoreCase))
         };
+        policy.levelBasedStatBonuses = catalog.Packages.Any(package => package.IsBundled && package.Status == ModEffectiveStatus.Active && package.Id.Equals(LevelBasedStatBonusesPackageId, StringComparison.OrdinalIgnoreCase));
+        policy.hardcoreStatBonuses = catalog.Hardcore && policy.levelBasedStatBonuses;
         AddBehavior(nameof(GameplayTuning.MeltdownVitalityReductionPercent), behaviorMods.MeltdownVitalityReductionPercent, behaviorMods.MeltdownVitalityPackageId, BehaviorMods.HardcoreVitalityReductionPercent);
         AddBehavior(nameof(GameplayTuning.MeltdownSpiritReductionPercent), behaviorMods.MeltdownSpiritReductionPercent, behaviorMods.MeltdownSpiritPackageId, BehaviorMods.HardcoreSpiritReductionPercent);
 
@@ -54,7 +59,7 @@ internal sealed class GameplayTuningPolicy
 
     public GameplayTuning Apply(GameplayTuning configured)
     {
-        GameplayTuning result = configured;
+        GameplayTuning result = configured with { LevelBasedStatBonuses = levelBasedStatBonuses };
         foreach (var (setting, entry) in settings)
         {
             decimal value = entry.Value;
@@ -89,6 +94,10 @@ internal sealed class GameplayTuningPolicy
 
     public string? UnavailableReason(string field)
     {
+        if (field == nameof(GameplayTuning.LevelBasedStatBonuses) && levelBasedStatBonuses)
+        {
+            return hardcoreStatBonuses ? ModRuntime.HardcoreStatBonusesLockReason : "Controlled by Level-Based Stat Bonuses. Disable the mod to release this rule.";
+        }
         if (behaviorSettings.TryGetValue(field, out var behavior))
         {
             return hardcoreMeltdown ? ModRuntime.HardcoreMeltdownLockReason : $"Controlled by {behavior.Owner}. Change its mod option to release this rule.";
@@ -125,7 +134,7 @@ internal sealed class GameplayTuningPolicy
         return configured;
     }
 
-    private IEnumerable<string> ControlledFields => settings.Keys.Select(Field).Concat(behaviorSettings.Keys).Distinct();
+    private IEnumerable<string> ControlledFields => settings.Keys.Select(Field).Concat(behaviorSettings.Keys).Concat(levelBasedStatBonuses ? [nameof(GameplayTuning.LevelBasedStatBonuses)] : []).Distinct();
 
     private static string Field(JunctionGameplaySetting setting) => setting switch
     {

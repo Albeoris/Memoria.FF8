@@ -99,7 +99,13 @@ public sealed partial class NativePcSaveConverterTests
         }
         initial[2725] = 255;
         initial[2726] = 255;
+        BinaryPrimitives.WriteUInt16LittleEndian(initial.AsSpan(1090), 30);
+        initial[1100] = 8;
         NativeCharacterVitals vitals = NativeCharacterInitialization.Read(initial, kernel);
+        NativeStatBonusGroup initialGrowth = Assert.Single(vitals.Records[0].BonusSources!.Groups);
+        Assert.Equal(NativeStatBonusSources.Initial, initialGrowth.Source);
+        Assert.Equal(30, initialGrowth.HitPoints);
+        Assert.Equal(new[] { 0, 0, 8, 0, 0, 0 }, initialGrowth.Stats.ToArray());
         for (int row = 0; row < 8; row++)
         {
             Assert.Equal((byte)(row + 1), vitals.Records[row].NativeByte90);
