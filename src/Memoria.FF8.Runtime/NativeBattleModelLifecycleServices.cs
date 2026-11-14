@@ -15,7 +15,10 @@ internal sealed record NativeBattlePresentationSoundCommitted(NativeBattleModule
 internal sealed record NativeBattlePresentationMusicCommandCommitted(NativeBattleMusicCommandReceipt Command) : NativeBattlePresentationReceipt;
 internal abstract record NativeBattleModelLifecycleReceipt(int Row, string ActorId) : NativeBattlePresentationReceipt;
 internal sealed record NativeBattleModelParticipantReleased(int Row, string ActorId) : NativeBattleModelLifecycleReceipt(Row, ActorId);
-internal sealed record NativeBattleModelParticipantSuspended(int Row, string ActorId, byte Sequence) : NativeBattleModelLifecycleReceipt(Row, ActorId);
+internal sealed record NativeBattleModelParticipantSuspended(int Row, string ActorId, byte Sequence) : NativeBattleModelLifecycleReceipt(Row, ActorId)
+{
+    internal NativeBattleActionHeaderSlot? ActiveHeader { get; init; }
+}
 internal sealed record NativeBattleModelTextPublished(int Row, string ActorId, string Text, int Value, BattleTextIdentity? TextIdentity) : NativeBattleModelLifecycleReceipt(Row, ActorId);
 internal sealed record NativeBattleModelTriggerRegistered(int Row, string ActorId, NativeBattleTriggerWidget Widget) : NativeBattleModelLifecycleReceipt(Row, ActorId);
 

@@ -138,8 +138,14 @@ public sealed partial class BattleSession
                 case NativeBattleModelTextPublished text:
                     events.Add(new BattleEvent(Frame, "NativeText", text.ActorId, null, text.Value, text.Text) { NativeMessageMode = 3, NativeTextIdentity = text.TextIdentity });
                     break;
+                case NativeBattleModelParticipantReleased released:
+                    AcknowledgeExpandedModelRelease(RequireExpandedLifecycleRoster(), released);
+                    break;
+                case NativeBattleModelParticipantSuspended suspended:
+                    AcknowledgeExpandedModelSuspension(RequireExpandedLifecycleRoster(), suspended);
+                    break;
                 default:
-                    // TODO(TD-009): Implement parent lifecycle and trigger acknowledgement before App attachment.
+                    // TODO(TD-009): Implement parent trigger acknowledgement before App attachment.
                     throw new NotSupportedException($"Hosted parent acknowledgement does not handle {receipt.GetType().Name}.");
             }
         }

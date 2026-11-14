@@ -42,7 +42,10 @@ public sealed partial class BattleSession
                 services.Emit(new NativeBattleModelTextPublished(row, actor.ActorId, resource.ReadText91(cue.First), cue.Second, actor.IsParty ? null : BattleTextIdentity.Enemy(actor.OriginalModelId, cue.First)));
                 break;
             case NativeBattleSequenceCueKind.SuspendParticipant:
-                services.Emit(new NativeBattleModelParticipantSuspended(row, actor.ActorId, checked((byte)cue.First)));
+                NativeBattleActionHeaderSlot? header = graphics.ActionGraphics is { } action && action.ActorIndex == row && nativeActionPackets.ActiveHeaderIndex == action.HeaderIndex
+                    ? nativeActionPackets.Headers[action.HeaderIndex]
+                    : null;
+                services.Emit(new NativeBattleModelParticipantSuspended(row, actor.ActorId, checked((byte)cue.First)) { ActiveHeader = header });
                 break;
             case NativeBattleSequenceCueKind.ActionCallback:
                 throw new InvalidDataException("Native AA must publish its active header contacts inline.");
