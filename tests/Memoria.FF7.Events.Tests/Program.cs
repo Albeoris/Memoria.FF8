@@ -1,6 +1,12 @@
 using System.Text.Json;
 using Memoria.FF7.Events;
 
+if (args.Contains("--water-effect-only", StringComparer.Ordinal))
+{
+    NativeWaterEffectOpcodeTests.Run();
+    return 0;
+}
+
 if (args.Contains("--background-scroll-only", StringComparer.Ordinal))
 {
     NativeBackgroundScrollTests.Run();
@@ -172,6 +178,7 @@ var tests = new (string Name, Action Run)[]
     ("native party direction query and cold continuation", NativePartyDirectionQueryTests.Run),
     ("native background layer depth operands and cold continuation", NativeBackgroundDepthTests.Run),
     ("native background scroll operands and cold continuation", NativeBackgroundScrollTests.Run),
+    ("native KAWAI water request operands and cold ownership", NativeWaterEffectOpcodeTests.Run),
     ("native music change operands and cold continuation", NativeMusicChangeTests.Run),
     ("native music activity query operands and cold continuation", NativeMusicPlayingQueryTests.Run),
     ("native music lock and player target operands", ExtendedTests.MusicLockAndControlTarget),

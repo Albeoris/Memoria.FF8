@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--water-effect-only", StringComparer.Ordinal))
+{
+    NativeWaterEffectTests.Run();
+    return 0;
+}
+
 if (args.Contains("--background-scroll-only", StringComparer.Ordinal))
 {
     NativeBackgroundScrollTests.Run();
@@ -501,6 +507,7 @@ var tests = new (string Name, Action Run)[]
     ("durable field battle settlements and legacy continuation", FieldBattleSettlementTests.Run),
     ("native background layer depth state and field reset", NativeBackgroundDepthTests.Run),
     ("native background scroll phase and resource restoration", NativeBackgroundScrollTests.Run),
+    ("native water initialization cache and cold continuation", NativeWaterEffectTests.Run),
     ("native field encounter materia modifiers and cold continuation", FieldEncounterModifierTests.Run),
     ("native guest fury ownership and cold continuation", NativeGuestFuryTests.Run),
     ("native fury producer, opposition and cold continuation", NativeFuryTests.Run),

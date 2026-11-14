@@ -7,15 +7,47 @@ public sealed partial class Ff7FieldHost
 {
     private FieldHostReply ModelEffect(int entity, FieldModelEffectCommand command)
     {
+        FieldHostReply reply = ModelEffectCore(entity, command);
+        if (!command.Wait && command.Operation != 8 && reply.Completed && GetActor(entity).NativeWaterEffect is { Active: true })
+        {
+            SetActor(entity, current => current with { NativeWaterEffect = current.NativeWaterEffect! with { Active = false } });
+        }
+        return reply;
+    }
+
+    private FieldHostReply ModelEffectCore(int entity, FieldModelEffectCommand command)
+    {
         Ff7Actor actor = GetActor(entity);
         if (command.Wait)
         {
-            bool completed = (actor.ModelEffect?.Completed ?? true) && (actor.PartVisibility?.Completed ?? true) && !actor.NativeEyeControlPending && actor.NativeColorOffset?.Pending != true && actor.NativeColorTransition?.Pending != true;
+            bool completed = (actor.ModelEffect?.Completed ?? true) && (actor.PartVisibility?.Completed ?? true) && !actor.NativeEyeControlPending && actor.NativeColorOffset?.Pending != true && actor.NativeColorTransition?.Pending != true && actor.NativeWaterEffect?.Active != true;
             if (completed)
             {
                 SetActor(entity, current => current with { ModelEffect = null });
             }
             return new(completed);
+        }
+        if (command.Operation == 8)
+        {
+            byte[] payload = command.Payload ?? throw new InvalidDataException("FFVII water effects require their complete original payload.");
+            if (payload.Length == 0 || command.Mode != payload[0])
+            {
+                throw new InvalidDataException("FFVII water effect differs from its decoded mode.");
+            }
+            Ff7NativeWaterEffectState waterState = Ff7NativeWaterEffect.Request(actor.NativeWaterEffect, payload, actor.Slot);
+            if (actor.ModelEffect is { Restored: false } || actor.PartVisibility is { Completed: false })
+            {
+                throw new NotSupportedException("Water effects replacing a pending topology effect require its native shared material-cache restoration contract.");
+            }
+            SetActor(entity, current => current with
+            {
+                NativeWaterEffect = waterState,
+                NativeEyeControlPending = false,
+                NativeColorOffset = current.NativeColorOffset is null ? null : current.NativeColorOffset with { Pending = false },
+                NativeColorTransition = current.NativeColorTransition is null ? null : current.NativeColorTransition with { Request = null },
+                ModelEffect = null
+            });
+            return new(true);
         }
         if (command.Operation != 6 && actor.NativeColorTransition is { Pending: true } pendingTransition)
         {
@@ -127,7 +159,7 @@ public sealed partial class Ff7FieldHost
 
     private void AdvanceModelEffects()
     {
-        if (!Process.Actors.Any(actor => actor.ModelEffect is not null || actor.PartVisibility is { Completed: false } || actor.NativeEyeControlPending || actor.NativeColorOffset is { Pending: true } || actor.NativeColorTransition is { Pending: true }))
+        if (!Process.Actors.Any(actor => actor.ModelEffect is not null || actor.PartVisibility is { Completed: false } || actor.NativeEyeControlPending || actor.NativeColorOffset is { Pending: true } || actor.NativeColorTransition is { Pending: true } || actor.NativeWaterEffect is { Active: true }))
         {
             return;
         }
@@ -141,6 +173,7 @@ public sealed partial class Ff7FieldHost
                 ModelEffect = actor.ModelEffect is null ? null : Ff7NativeModelEffect.Advance(actor.ModelEffect, ModelEffectDepth(actor, camera) < 3840),
                 PartVisibility = actor.PartVisibility is null ? null : Ff7NativePartVisibility.Advance(actor.PartVisibility, ModelEffectDepth(actor, camera) < 3840, fieldId ?? throw new NotSupportedException("Native part visibility requires its original field identity.")),
                 NativeColorOffset = actor.NativeColorOffset is null ? null : Ff7NativeColorOffset.Advance(actor.NativeColorOffset, ModelEffectDepth(actor, camera) < 3840),
+                NativeWaterEffect = actor.NativeWaterEffect is null ? null : Ff7NativeWaterEffect.Advance(actor.NativeWaterEffect, ModelEffectDepth(actor, camera) < 3840),
                 NativeEyeControlPending = actor.NativeEyeControlPending && ModelEffectDepth(actor, camera) >= 3840
             }).ToArray()
         };
