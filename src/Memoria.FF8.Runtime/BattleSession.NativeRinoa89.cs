@@ -29,7 +29,7 @@ public sealed partial class BattleSession
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Wishing Star requires its actual contact pointer.");
         int count = header.ReadByte(16) >> 3;
         ImmutableArray<byte> targets = Enumerable.Range(0, count).Select(index => nativeActionPackets.ReadContact(checked(first + index)).Primary.ActorIndex).ToImmutableArray();
-        NativeBattleRinoa89PreparationServices preparation = new(index => graphics.Models[index], WriteModel, index => ReadNativeModelAnchor(graphics, index), targets, checked(0x1D28344u + (uint)first * 24), body, Bind, Select, NativeBattleRinoa89Controller.InitializeShards6FA3E0) { PartyActors = ReadPresentationSideActors(true) };
+        NativeBattleRinoa89PreparationServices preparation = new(index => graphics.Models[index], WriteModel, index => ReadNativeModelAnchor(graphics, index), targets, NativeBattleContactAddress.EncodeCursor(first, nativeActionPackets.StorageCapacity), body, Bind, Select, NativeBattleRinoa89Controller.InitializeShards6FA3E0) { PartyActors = ReadPresentationSideActors(true) };
         NativeBattleRinoa89BodyInputs inputs = new(resources, index => graphics.Models[index], WriteModel, Execute, ReadBone19, Contacts, Poll, Reload);
 
         int beamMesh = checked((int)(0x1497140 - NativeBattleRinoa89Resources.StaticAddress));
@@ -122,7 +122,7 @@ public sealed partial class BattleSession
             return NativeBattleRinoa89Contacts.Apply6FC410(current, nativeActionPackets, (active, pointer) =>
             {
                 Publish(active);
-                int index = checked((int)((pointer - 0x1D28344u) / 24));
+                int index = NativeBattleContactAddress.Decode(pointer, nativeActionPackets.StorageCapacity);
                 ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                 graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(index)] });
                 graphics = graphics with { PendingContacts = pending };

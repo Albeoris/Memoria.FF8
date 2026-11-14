@@ -188,7 +188,7 @@ public sealed class NativeBattleEffect322PresentationTests
         Assert.Equal((byte)12, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(caster.ModelId, caster.Level), action));
         NativeBattleActionPacketsState packets = original.NativeActionPackets!;
         byte priorActions = packets.ActionCount;
-        byte priorContacts = packets.ContactCount;
+        int priorContacts = packets.ContactCount;
         sbyte cameraChoice = unchecked((sbyte)action.RawRecord[4]);
         (packets, int header) = packets.Prepare(new(4, 8, 12, cameraChoice, 214, 322, null));
         BattleCombatantSnapshot target = original.Combatants.Single(actor => actor.Id == targetId);

@@ -82,7 +82,7 @@ public sealed class NativeBattleEffect83PresentationTests
         Assert.Equal(new NativeBattleStatusMirror(768, 0), status.Presentation);
         NativeBattleActionPacketsState packets = original.NativeActionPackets ?? throw new InvalidDataException("The selected component requires its retained current action packet owner.");
         byte priorActions = packets.ActionCount;
-        byte priorContacts = packets.ContactCount;
+        int priorContacts = packets.ContactCount;
         (packets, int header) = packets.Prepare(new(4, 8, 16, -1, 336, 83, null));
         Assert.Equal(priorActions, header);
         byte reaction = Assert.Single(assets.NativeActions, action => action.Command == 8 && action.ActionId == 336 && action.MagicId == 83).DamagePresentation;

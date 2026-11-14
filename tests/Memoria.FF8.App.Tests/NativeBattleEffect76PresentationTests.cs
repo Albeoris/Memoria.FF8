@@ -167,7 +167,7 @@ public sealed class NativeBattleEffect76PresentationTests
         Assert.Equal((byte)14, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(126, 1), action));
         NativeBattleActionPacketsState packets = original.NativeActionPackets!;
         byte priorActions = packets.ActionCount;
-        byte priorContacts = packets.ContactCount;
+        int priorContacts = packets.ContactCount;
         (packets, int header) = packets.Prepare(new(3, 8, 14, -1, 355, 76, null));
         BattleCombatantSnapshot target = original.Combatants.Single(actor => actor.Id == casterId);
         NativeBattleStatusSnapshot status = target.NativeStatus ?? throw new InvalidDataException("Effect76 requires its current self status.");

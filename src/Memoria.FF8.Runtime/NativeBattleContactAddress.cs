@@ -61,6 +61,12 @@ public static class NativeBattleContactAddress
         return Decode(address, capacity);
     }
 
+    public static uint OffsetCursor(uint address, int delta, int capacity = NativeRowCount)
+    {
+        int row = DecodeCursor(address, capacity);
+        return EncodeCursor(checked(row + delta), capacity);
+    }
+
     /// <summary>Resolves a complete field within one owned row. A zero-length field still starts at an owned byte.</summary>
     public static (int ContactIndex, int Offset) ResolveField(uint address, int byteLength, int capacity = NativeRowCount)
     {

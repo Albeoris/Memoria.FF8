@@ -93,6 +93,20 @@ public sealed class NativeBattleContactAddressTests
         Assert.Throws<ArgumentOutOfRangeException>(() => NativeBattleContactAddress.DecodeCursor(0xF2000001, 50));
     }
 
+    [Fact]
+    public void CursorOffsetCrossesBetweenAddressSegmentsInBothDirections()
+    {
+        Assert.Equal(0xF2000000u, NativeBattleContactAddress.OffsetCursor(0x1D287C4, 1, 50));
+        Assert.Equal(0x1D287C4u, NativeBattleContactAddress.OffsetCursor(0xF2000000, -1, 50));
+        Assert.Equal(0xF2000018u, NativeBattleContactAddress.OffsetCursor(0x1D287C4, 2, 50));
+        Assert.Equal(0x1D287C4u, NativeBattleContactAddress.OffsetCursor(0xF2000018, -2, 50));
+        Assert.Equal(0x1D287DCu, NativeBattleContactAddress.OffsetCursor(0x1D287C4, 1));
+        Assert.Equal(0x1D287C4u, NativeBattleContactAddress.OffsetCursor(0x1D287DC, -1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => NativeBattleContactAddress.OffsetCursor(0x1D287DC, 0, 50));
+        Assert.Throws<ArgumentOutOfRangeException>(() => NativeBattleContactAddress.OffsetCursor(0xF2000018, 1, 50));
+        Assert.Throws<OverflowException>(() => NativeBattleContactAddress.OffsetCursor(0x1D287C4, int.MaxValue, 50));
+    }
+
     [Theory]
     [InlineData(-1)]
     [InlineData(0)]

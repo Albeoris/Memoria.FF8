@@ -39,7 +39,7 @@ public sealed partial class BattleSession
             NativeBattleEffectArena bytes = NativeBattleEffectArena.Clear().Write(0, [parameters.Actor78, parameters.Flags79]).Write(2, BitConverter.GetBytes(parameters.TargetMask7A)).Write(4, BitConverter.GetBytes(checked(0x1D280C4u + (uint)parameters.HeaderIndex7C * 20)));
             return NativeBattleEffectNodeContextMemory.Copy(bytes, checked((int)(address - 0x1D99A78)), result, 0, length);
         }
-        if (address >= 0x1D280C4 && address < 0x1D28344)
+        if (address >= 0x1D280C4 && address < NativeBattleContactAddress.Encode(0))
         {
             uint relative = address - 0x1D280C4;
             int offset = checked((int)(relative % 20));
@@ -50,15 +50,13 @@ public sealed partial class BattleSession
             NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[checked((int)(relative / 20))];
             return result.Write(0, Enumerable.Range(offset, length).Select(header.ReadByte).ToArray());
         }
-        if (address >= 0x1D28344 && (ulong)address + (uint)length <= 0x1D28344ul + NativeBattleActionPacketsState.ContactCapacity * 24)
+        if (TryResolveNativeContactRead(address, length, out int row, out int contactOffset))
         {
-            uint relative = address - 0x1D28344;
-            int offset = checked((int)(relative % 24));
-            if (length > 24 - offset)
+            if (length > NativeBattleContactAddress.RowSize - contactOffset)
             {
                 throw new InvalidDataException("Effect31 physical read crosses a current contact row.");
             }
-            return result.Write(0, nativeActionPackets.ReadContact(checked((int)(relative / 24))).Encode().AsSpan(offset, length));
+            return result.Write(0, nativeActionPackets.ReadContactBytes(row).AsSpan(contactOffset, length));
         }
         for (int bank = 0; bank < 3; bank++)
         {

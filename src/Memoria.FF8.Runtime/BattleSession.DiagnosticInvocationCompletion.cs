@@ -17,7 +17,7 @@ public sealed record BattleDiagnosticTerminalTextureRelease([property: JsonRequi
 public sealed record BattleDiagnosticInvocationOwners(int DescriptorPackets, int NonPumpDescriptorTasks, int PendingContacts, int Effects, bool EffectHead, bool AuxiliaryHead, int Modules, bool ModuleHead, int? Files, uint? ReturnedTaskPointer, bool DetachedReturnedTask, byte CameraMask, bool SoundBusy, bool ReplacementResource, bool ActionOrCommand, bool TimedOrReaction)
 {
     public byte ActionHeaders { get; init; }
-    public byte ContactRows { get; init; }
+    public int ContactRows { get; init; }
     public int? RetainedActiveHeader { get; init; }
     public int? RetainedActiveContact { get; init; }
     public bool ObservedOriginalEffect { get; init; }

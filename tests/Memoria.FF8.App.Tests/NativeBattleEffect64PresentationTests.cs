@@ -152,7 +152,7 @@ public sealed class NativeBattleEffect64PresentationTests
         Assert.Equal((byte)16, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(124, 1), action));
         NativeBattleActionPacketsState packets = original.NativeActionPackets!;
         byte priorActions = packets.ActionCount;
-        byte priorContacts = packets.ContactCount;
+        int priorContacts = packets.ContactCount;
         (packets, int header) = packets.Prepare(new(5, 8, 16, -1, 353, 64, null));
         // Original selector200 is SELF; the declared neutral contact carries that physical target without publishing a new status cache.
         NativeBattleStatusMirror selfStatus = original.Combatants.Single(actor => actor.Id == casterId).NativeStatus!.Presentation;

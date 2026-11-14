@@ -14,6 +14,17 @@ public sealed partial class BattleSession
         return (uint)length <= (uint)((bankEnd - actor) * NativeBattleGraphicsModelAddress.RowSize - offset);
     }
 
+    private bool TryResolveNativeContactRead(uint address, int length, out int row, out int offset)
+    {
+        int capacity = nativeActionPackets.StorageCapacity;
+        if (!NativeBattleContactAddress.TryResolveField(address, 0, out row, out offset, capacity))
+        {
+            return false;
+        }
+        int bankEnd = row < NativeBattleContactAddress.NativeRowCount ? Math.Min(capacity, NativeBattleContactAddress.NativeRowCount) : capacity;
+        return (uint)length <= (uint)((bankEnd - row) * NativeBattleContactAddress.RowSize - offset);
+    }
+
     private byte ReadNativeDescriptorByte(NativeBattleGraphicsState graphics, uint address)
     {
         if (NativeBattleGraphicsModelAddress.TryResolveField(address, out _, out _, graphics.Models.Length))
@@ -81,16 +92,14 @@ public sealed partial class BattleSession
             }
             return task.Payload[offset - 12];
         }
-        if (address >= 0x1D280C4 && address < 0x1D28344)
+        if (address >= 0x1D280C4 && address < NativeBattleContactAddress.Encode(0))
         {
             uint relative = address - 0x1D280C4;
             return nativeActionPackets.Headers[checked((int)(relative / 20))].ReadByte(checked((int)(relative % 20)));
         }
-        if (address >= NativeBattleActionPacketsState.ContactBase && address < NativeBattleActionPacketsState.ContactBase + NativeBattleActionPacketsState.ContactCapacity * 24)
+        if (NativeBattleContactAddress.TryResolveField(address, 1, out int contact, out int contactOffset, nativeActionPackets.StorageCapacity))
         {
-            uint relative = address - NativeBattleActionPacketsState.ContactBase;
-            byte[] contact = nativeActionPackets.ReadContact(checked((int)(relative / 24))).Encode();
-            return contact[checked((int)(relative % 24))];
+            return nativeActionPackets.ReadContactBytes(contact)[contactOffset];
         }
         if (address >= 0x1D99774 && address < 0x1D99774 + 11 * 52)
         {

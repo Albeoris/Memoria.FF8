@@ -38,18 +38,18 @@ public sealed partial class BattleSession
         }
         byte[] header = new byte[20];
         header[0] = caster;
-        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(8), WaterContactsAddress);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(8), NativeBattleContactAddress.Encode(0));
         header[0x10] = 1;
         header[0x11] = 1;
         if (address >= WaterHeadersAddress && (long)address - WaterHeadersAddress <= header.Length - length)
         {
             return header.AsSpan(checked((int)(address - WaterHeadersAddress)), length).ToArray();
         }
-        byte[] positioning = new byte[24];
+        byte[] positioning = new byte[NativeBattleContactAddress.RowSize];
         positioning[0] = caster;
-        if (address >= WaterContactsAddress && (long)address - WaterContactsAddress <= positioning.Length - length)
+        if (NativeBattleContactAddress.TryResolveField(address, length, out _, out int offset, capacity: 1))
         {
-            return positioning.AsSpan(checked((int)(address - WaterContactsAddress)), length).ToArray();
+            return positioning.AsSpan(offset, length).ToArray();
         }
         throw new InvalidDataException("Presentation-only Ifrit read leaves its owned positioning inputs.");
     }

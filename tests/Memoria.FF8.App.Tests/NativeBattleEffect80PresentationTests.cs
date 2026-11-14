@@ -163,7 +163,7 @@ public sealed class NativeBattleEffect80PresentationTests
         BattleCombatantSnapshot preparedTarget = target with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } };
         NativeBattleActionPacketsState packets = original.NativeActionPackets!;
         byte priorActions = packets.ActionCount;
-        byte priorContacts = packets.ContactCount;
+        int priorContacts = packets.ContactCount;
         (packets, int header) = packets.Prepare(new(4, 8, 13, -1, 352, 80, null));
         NativeBattleContactPacket contact = new(new(5, action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0));
         (packets, _) = packets.AppendContact(contact);

@@ -17,10 +17,9 @@ public sealed partial class BattleSession
         Publish(frame);
         return graphics with { OriginalEffect = frame.Effect };
 
-        static int NativeEffect312ContactIndex(uint address)
+        int NativeEffect312ContactIndex(uint address)
         {
-            long offset = (long)address - WaterContactsAddress;
-            return offset >= 0 && offset % 24 == 0 ? checked((int)(offset / 24)) : throw new InvalidDataException("Effect312 requires its actual physical contact pointer.");
+            return NativeBattleContactAddress.TryDecode(address, out int index, nativeActionPackets.StorageCapacity) ? index : throw new InvalidDataException("Effect312 requires its actual physical contact pointer.");
         }
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Effect312 requires its current camera.");

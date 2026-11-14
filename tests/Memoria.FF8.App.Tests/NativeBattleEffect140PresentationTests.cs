@@ -155,7 +155,7 @@ public sealed class NativeBattleEffect140PresentationTests
         BattleNativeAction action = Assert.Single(assets.NativeActions, row => row.Command == 240 && row.ActionId == 1 && row.MagicId == 140 && row.KernelSection == 9 && row.KernelIndex == 1);
         NativeBattleActionPacketsState packets = original.NativeActionPackets!;
         byte priorActions = packets.ActionCount;
-        byte priorContacts = packets.ContactCount;
+        int priorContacts = packets.ContactCount;
         (packets, int header) = packets.Prepare(new(0, 240, 0, -1, 1, 140, null));
         BattleCombatantSnapshot target = original.Combatants.Single(actor => actor.Id == targetId);
         NativeBattleStatusSnapshot status = target.NativeStatus ?? throw new InvalidDataException("Effect140 requires its actual current target status.");

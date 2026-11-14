@@ -51,12 +51,11 @@ public sealed partial class BattleSession
                 graphics = ScheduleNativeRingSequence505C00(graphics, checked((byte)NativeEffect301Actor(graphics, animation.ModelAddress)), animation.Mode);
                 return frame;
             case NativeBattleEffect251Contact506690 contact:
-                long relative = (long)contact.TargetArgumentAddress - 0x1D28344;
-                if (relative < 0 || relative % 24 != 0 || relative / 24 >= nativeActionPackets.ContactCount)
+                if (!NativeBattleContactAddress.TryDecode(contact.TargetArgumentAddress, out int contactIndex, nativeActionPackets.StorageCapacity) || contactIndex >= nativeActionPackets.ContactCount)
                 {
                     throw new InvalidDataException("Effect251 contact argument leaves its current physical contact records.");
                 }
-                NativeBattleContactPacket selected = nativeActionPackets.ReadContact(checked((int)(relative / 24)));
+                NativeBattleContactPacket selected = nativeActionPackets.ReadContact(contactIndex);
                 PublishNativeEffect251Frame(frame);
                 ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                 graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [selected] });

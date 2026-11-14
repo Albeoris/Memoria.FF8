@@ -9,7 +9,6 @@ public sealed partial class BattleSession
     private const uint WaterTemporaryAddress = 0x1A77238;
     private const uint WaterParametersAddress = 0x1D99A78;
     private const uint WaterHeadersAddress = 0x1D280C4;
-    private const uint WaterContactsAddress = 0x1D28344;
 
     private NativeBattleGraphicsState EnterNativeWaterA9B200(NativeBattleGraphicsState graphics)
     {
@@ -193,16 +192,15 @@ public sealed partial class BattleSession
         }
         byte[] ReadAction(uint address, int length)
         {
-            if (address >= WaterHeadersAddress && address < WaterContactsAddress)
+            if (address >= WaterHeadersAddress && address < NativeBattleContactAddress.Encode(0))
             {
                 uint relative = address - WaterHeadersAddress;
                 NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[checked((int)(relative / 20))];
                 int start = (int)(relative % 20);
                 return Enumerable.Range(start, length).Select(header.ReadByte).ToArray();
             }
-            uint contact = address - WaterContactsAddress;
-            byte[] bytes = nativeActionPackets.ReadContact(checked((int)(contact / 24))).Encode();
-            return bytes.AsSpan((int)(contact % 24), length).ToArray();
+            (int row, int offset) = NativeBattleContactAddress.ResolveField(address, length, nativeActionPackets.StorageCapacity);
+            return nativeActionPackets.ReadContactBytes(row).AsSpan(offset, length).ToArray();
         }
         NativeBattleWaterScriptProgram ResolveProgram(NativeBattleWaterExecutionFrame current, uint address)
         {
@@ -312,10 +310,9 @@ public sealed partial class BattleSession
         return NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex) ? actorIndex : throw new NotSupportedException("Native Water actor pointer leaves its physical model bank.");
     }
     private static uint ActorPointer(int index) => NativeBattleGraphicsModelAddress.Encode(index);
-    private static int ContactIndex(uint address)
+    private int ContactIndex(uint address)
     {
-        uint relative = unchecked(address - WaterContactsAddress);
-        return relative % 24 == 0 && relative / 24 < NativeBattleActionPacketsState.ContactCapacity ? (int)(relative / 24) : throw new NotSupportedException("Native Water contact pointer leaves its physical packet bank.");
+        return NativeBattleContactAddress.TryDecode(address, out int index, nativeActionPackets.StorageCapacity) ? index : throw new NotSupportedException("Native Water contact pointer leaves its physical packet bank.");
     }
     private static int HeaderIndex(uint address)
     {

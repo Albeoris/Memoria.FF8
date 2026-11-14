@@ -166,7 +166,7 @@ public sealed class NativeBattleEffect65PresentationTests
         Assert.Equal((byte)13, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(124, 1), action));
         NativeBattleActionPacketsState packets = original.NativeActionPackets!;
         byte priorActions = packets.ActionCount;
-        byte priorContacts = packets.ContactCount;
+        int priorContacts = packets.ContactCount;
         (packets, int header) = packets.Prepare(new(5, 8, 13, -1, 360, 65, null));
         string targetId = graphics.ActorIds[0] ?? throw new InvalidDataException("Effect65 requires its actual party recipient.");
         BattleCombatantSnapshot target = original.Combatants.Single(actor => actor.Id == targetId);

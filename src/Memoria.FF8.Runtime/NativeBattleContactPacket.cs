@@ -34,11 +34,15 @@ public sealed record NativeBattleContactPacket(NativeBattleContactHalf Primary, 
         return HashCode.Combine(Primary, Secondary);
     }
 
-    public void Validate()
+    public void Validate(int actorCount = NativeBattleGraphicsModelAddress.NativeRowCount)
     {
-        if (Primary is null || Secondary is null || !NativeBattleSlots.Contains(Primary.ActorIndex) || Secondary.ActorIndex != 255 && !NativeBattleSlots.Contains(Secondary.ActorIndex))
+        if (actorCount is < 1 or > NativeBattleGraphicsModelAddress.MaximumRowCount)
         {
-            throw new InvalidDataException("Native contact packet requires its original primary and optional secondary physical model indices.");
+            throw new ArgumentOutOfRangeException(nameof(actorCount));
+        }
+        if (Primary is null || Secondary is null || Primary.ActorIndex >= actorCount || Secondary.ActorIndex != 255 && Secondary.ActorIndex >= actorCount)
+        {
+            throw new InvalidDataException("Native contact packet requires primary and optional secondary indices within its model bank.");
         }
         foreach (NativeBattleContactHalf half in new[] { Primary, Secondary })
         {
@@ -49,20 +53,20 @@ public sealed record NativeBattleContactPacket(NativeBattleContactHalf Primary, 
         }
     }
 
-    public static NativeBattleContactPacket Decode(ReadOnlySpan<byte> bytes)
+    public static NativeBattleContactPacket Decode(ReadOnlySpan<byte> bytes, int actorCount = NativeBattleGraphicsModelAddress.NativeRowCount)
     {
         if (bytes.Length != 24)
         {
             throw new InvalidDataException("Native48EF80 contact packet requires exactly24 bytes.");
         }
         NativeBattleContactPacket result = new(ReadHalf(bytes), ReadHalf(bytes[12..]));
-        result.Validate();
+        result.Validate(actorCount);
         return result;
     }
 
-    public byte[] Encode()
+    public byte[] Encode(int actorCount = NativeBattleGraphicsModelAddress.NativeRowCount)
     {
-        Validate();
+        Validate(actorCount);
         byte[] result = new byte[24];
         WriteHalf(result, Primary);
         WriteHalf(result.AsSpan(12), Secondary);

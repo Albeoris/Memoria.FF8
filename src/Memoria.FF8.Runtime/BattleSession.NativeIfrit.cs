@@ -173,19 +173,18 @@ public sealed partial class BattleSession
                 NativeBattleEffectParameters parameters = outputParameters ?? throw new NotSupportedException("Native cinematic parameter read requires its current action owner.");
                 return NativeBattleCinematicParameterBytes.Read(parameters, checked((int)(address - WaterParametersAddress)), length);
             }
-            if (address >= WaterHeadersAddress && address < WaterContactsAddress)
+            if (address >= WaterHeadersAddress && address < NativeBattleContactAddress.Encode(0))
             {
                 uint relative = address - WaterHeadersAddress;
                 NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[checked((int)(relative / 20))];
                 return Enumerable.Range((int)(relative % 20), length).Select(header.ReadByte).ToArray();
             }
-            if (length < 0 || address < WaterContactsAddress || (long)address - WaterContactsAddress > nativeActionPackets.Contacts.Length * 24L - length)
+            if (!TryResolveNativeContactRead(address, length, out int row, out _))
             {
                 throw new NotSupportedException("Native cinematic action read leaves its actual header, contact and parameter owners.");
             }
-            uint contact = address - WaterContactsAddress;
-            byte[] bytes = nativeActionPackets.ReadContact(checked((int)(contact / 24))).Encode();
-            return bytes.AsSpan((int)(contact % 24), length).ToArray();
+            (_, int offset) = NativeBattleContactAddress.ResolveField(address, length, nativeActionPackets.StorageCapacity);
+            return nativeActionPackets.ReadContactBytes(row).AsSpan(offset, length).ToArray();
         }
 
         NativeBattleWaterScriptProgram Program(NativeBattleWaterExecutionFrame current, uint address)
@@ -974,7 +973,7 @@ public sealed partial class BattleSession
                     uint action = CoreDword(frame, manager + 0xCC);
                     int count = context.ReadActionBytes(frame, action + 0x10, 1)[0];
                     uint targets = BinaryPrimitives.ReadUInt32LittleEndian(context.ReadActionBytes(frame, action + 8, 4));
-                    return NativeBattleMeteor223Commands.SpreadResults(frame, count, (current, target) => context.ApplyContact506690(current, unchecked(targets + (uint)(24 * target))));
+                    return NativeBattleMeteor223Commands.SpreadResults(frame, count, (current, target) => context.ApplyContact506690(current, NativeBattleContactAddress.OffsetCursor(targets, target, nativeActionPackets.StorageCapacity)));
                 }
                 if (selectedDrawHandler == 0xB4BBE0)
                 {

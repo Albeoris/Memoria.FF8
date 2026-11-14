@@ -145,7 +145,7 @@ public sealed class NativeBattleEffect69PresentationTests
         Assert.Equal(6, System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(original.NativeFileStaging!.Read(stage, 4)));
         NativeBattleActionPacketsState packets = original.NativeActionPackets!;
         byte priorActions = packets.ActionCount;
-        byte priorContacts = packets.ContactCount;
+        int priorContacts = packets.ContactCount;
         (packets, int header) = packets.Prepare(new(4, 8, 12, -1, 350, 69, null));
         // Original selector200 is SELF; the declared neutral contact carries that physical target without publishing a new status cache.
         NativeBattleStatusMirror selfStatus = original.Combatants.Single(actor => actor.Id == definition.Id).NativeStatus!.Presentation;

@@ -38,7 +38,7 @@ public sealed class NativeBattleEffect31PresentationTests
         byte sequence = NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(caster.ModelId, caster.Level), action);
         Assert.Equal((byte)13, sequence);
         NativeBattleActionPacketsState packets = original.NativeActionPackets!;
-        byte priorContacts = packets.ContactCount;
+        int priorContacts = packets.ContactCount;
         (packets, int header) = packets.Prepare(new(3, action.Command, sequence, unchecked((sbyte)action.RawRecord[4]), action.ActionId, action.MagicId, null));
         string target = graphics.ActorIds[0]!;
         BattleCombatantSnapshot recipient = Assert.Single(original.Combatants, actor => actor.Id == target);

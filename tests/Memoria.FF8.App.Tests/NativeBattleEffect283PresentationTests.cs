@@ -77,7 +77,7 @@ public sealed class NativeBattleEffect283PresentationTests
         NativeBattleStatusSnapshot status = target.NativeStatus ?? throw new InvalidDataException("The selected component requires its current target status owner.");
         NativeBattleActionPacketsState packets = original.NativeActionPackets ?? throw new InvalidDataException("The selected component requires its retained current action packet owner.");
         byte priorActions = packets.ActionCount;
-        byte priorContacts = packets.ContactCount;
+        int priorContacts = packets.ContactCount;
         (packets, int header) = packets.Prepare(new(4, 8, 12, -1, 261, 283, null));
         Assert.Equal(priorActions, header);
         byte reaction = Assert.Single(assets.NativeActions, action => action.Command == 8 && action.ActionId == 261 && action.MagicId == 283).DamagePresentation;

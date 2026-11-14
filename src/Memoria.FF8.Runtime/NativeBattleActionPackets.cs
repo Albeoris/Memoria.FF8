@@ -7,7 +7,26 @@ namespace Memoria.FF8.Runtime;
 /// <summary>One physical20-byte slot at1D280C4; unwritten bytes survive48D1F0.</summary>
 public sealed record NativeBattleActionHeaderSlot([property: JsonRequired] ImmutableArray<byte> Payload, [property: JsonRequired] uint UnknownByteMask, [property: JsonRequired] int? FirstContactIndex, [property: JsonRequired] NativeBattleActionDataReference? Data)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? PresentationContactCount { get; init; }
+
     public byte ReadByte(int offset)
+    {
+        byte value = ReadRetainedByte(offset);
+        if (offset == 16 && PresentationContactCount > byte.MaxValue)
+        {
+            throw new NotSupportedException("Hosted contact counts above 255 require the semantic ReadContactCount reader.");
+        }
+        return value;
+    }
+
+    public int ReadContactCount()
+    {
+        byte value = ReadRetainedByte(16);
+        return PresentationContactCount ?? value;
+    }
+
+    private byte ReadRetainedByte(int offset)
     {
         if (offset is < 0 or >= 20)
         {
@@ -22,9 +41,15 @@ public sealed record NativeBattleActionHeaderSlot([property: JsonRequired] Immut
 }
 
 /// <summary>Canonical C0/C1 counts and adjacent physical header/contact arenas. Resetting counts does not erase storage.</summary>
-public sealed record NativeBattleActionPacketsState([property: JsonRequired] byte ActionCount, [property: JsonRequired] byte ContactCount, [property: JsonRequired] ImmutableArray<NativeBattleActionHeaderSlot> Headers, [property: JsonRequired] ImmutableArray<NativeBattleContactPacket?> Contacts, [property: JsonRequired] int? ActiveHeaderIndex)
+public sealed record NativeBattleActionPacketsState([property: JsonRequired] byte ActionCount, [property: JsonRequired] int ContactCount, [property: JsonRequired] ImmutableArray<NativeBattleActionHeaderSlot> Headers, [property: JsonRequired] ImmutableArray<NativeBattleContactPacket?> Contacts, [property: JsonRequired] int? ActiveHeaderIndex)
 {
     public int? ActiveContactIndex { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleGraphicsRoster? PresentationRoster { get; init; }
+
+    [JsonIgnore]
+    public int StorageCapacity => Contacts.Length;
 
     public const int HeaderCapacity = 32;
     public const int ContactCapacity = 49;
@@ -55,6 +80,18 @@ public sealed record NativeBattleActionPacketsState([property: JsonRequired] byt
         return new(0, 0, headerSlots.ToImmutableArray(), contactSlots.ToImmutableArray(), null);
     }
 
+    public static NativeBattleActionPacketsState FromPresentationStorage(NativeBattleGraphicsRoster roster, int capacity = ContactCapacity)
+    {
+        ArgumentNullException.ThrowIfNull(roster);
+        roster.Validate();
+        if (capacity is < ContactCapacity or > NativeBattleContactAddress.MaximumRowCount)
+        {
+            throw new ArgumentOutOfRangeException(nameof(capacity));
+        }
+        NativeBattleActionHeaderSlot empty = new(ImmutableArray.CreateRange(new byte[20]), 0, null, null);
+        return new(0, 0, Enumerable.Repeat(empty, HeaderCapacity).ToImmutableArray(), Enumerable.Repeat<NativeBattleContactPacket?>(null, capacity).ToImmutableArray(), null) { PresentationRoster = roster };
+    }
+
     internal NativeBattleActionPacketsState DetachDiagnosticCopy()
     {
         Validate();
@@ -67,19 +104,22 @@ public sealed record NativeBattleActionPacketsState([property: JsonRequired] byt
 
     public void Validate()
     {
-        if (ActionCount > HeaderCapacity || ContactCount > ContactCapacity || Headers.IsDefault || Headers.Length != HeaderCapacity || Contacts.IsDefault || Contacts.Length != ContactCapacity || ActiveHeaderIndex is < 0 or >= HeaderCapacity || ActiveContactIndex is < 0 or > ContactCapacity)
+        PresentationRoster?.Validate();
+        if (ActionCount > HeaderCapacity || Headers.IsDefault || Headers.Length != HeaderCapacity || Contacts.IsDefault ||
+            (PresentationRoster is null ? StorageCapacity != ContactCapacity : StorageCapacity is < ContactCapacity or > NativeBattleContactAddress.MaximumRowCount) ||
+            ContactCount < 0 || ContactCount > StorageCapacity || ActiveHeaderIndex is < 0 or >= HeaderCapacity || ActiveContactIndex < 0 || ActiveContactIndex > StorageCapacity)
         {
-            throw new InvalidDataException("Native action packets require their original counts and32-header/49-contact physical arenas.");
+            throw new InvalidDataException(PresentationRoster is null ? "Native action packets require their original counts and32-header/49-contact physical arenas." : "Hosted action packets require valid counts in their owned header and contact storage.");
         }
         foreach (NativeBattleActionHeaderSlot header in Headers)
         {
-            if (header is null || header.Payload.IsDefault || header.Payload.Length != 20 || (header.UnknownByteMask & ~0xFFFFFu) != 0 || header.FirstContactIndex is < 0 or > ContactCapacity)
+            if (header is null || header.Payload.IsDefault || header.Payload.Length != 20 || (header.UnknownByteMask & ~0xFFFFFu) != 0 || header.FirstContactIndex < 0 || header.FirstContactIndex > StorageCapacity)
             {
                 throw new InvalidDataException("Native action header has invalid retained bytes or contact binding.");
             }
             if (header.FirstContactIndex is int first)
             {
-                if ((header.UnknownByteMask & 0xFFF) != 0 || BinaryPrimitives.ReadUInt32LittleEndian(header.Payload.AsSpan()[8..]) != ContactBase + 24u * (uint)first)
+                if ((header.UnknownByteMask & 0xFFF) != 0 || BinaryPrimitives.ReadUInt32LittleEndian(header.Payload.AsSpan()[8..]) != NativeBattleContactAddress.EncodeCursor(first, StorageCapacity))
                 {
                     throw new InvalidDataException("Native action header contradicts its prepared physical contact pointer.");
                 }
@@ -88,20 +128,47 @@ public sealed record NativeBattleActionPacketsState([property: JsonRequired] byt
                 {
                     throw new InvalidDataException("Native action data pointer lacks its known NULL or logical producer binding.");
                 }
+                if (PresentationRoster is { } roster)
+                {
+                    RequireBoundActor(roster, header.Payload[0]);
+                }
             }
             else if (header.Data is not null)
             {
                 throw new InvalidDataException("Native prepared action header lacks its physical contact binding.");
             }
+            if (header.PresentationContactCount is int count)
+            {
+                if (PresentationRoster is null || header.FirstContactIndex is not int start || count < 0 || count > StorageCapacity - start ||
+                    (header.UnknownByteMask & (1u << 16)) != 0 || header.Payload[16] != unchecked((byte)count))
+                {
+                    throw new InvalidDataException("Hosted action header contradicts its retained contact count or packet owner.");
+                }
+                for (int row = start; row < start + count; row++)
+                {
+                    if (Contacts[row] is null)
+                    {
+                        throw new InvalidDataException("Hosted action header references an unwritten contact row.");
+                    }
+                }
+            }
         }
         foreach (NativeBattleContactPacket? contact in Contacts)
         {
-            contact?.Validate();
+            if (contact is not null)
+            {
+                ValidateContact(contact);
+            }
         }
         for (int index = 0; index < ActionCount; index++)
         {
             RequirePrepared(index);
-            _ = Headers[index].ReadByte(16);
+            NativeBattleActionHeaderSlot header = Headers[index];
+            _ = header.ReadContactCount();
+            if (PresentationRoster is not null && !header.PresentationContactCount.HasValue)
+            {
+                throw new InvalidDataException("Published hosted action header lacks its semantic contact count.");
+            }
         }
         for (int index = 0; index < ContactCount; index++)
         {
@@ -110,7 +177,7 @@ public sealed record NativeBattleActionPacketsState([property: JsonRequired] byt
         if (ActiveHeaderIndex is int active)
         {
             RequirePrepared(active);
-            _ = Headers[active].ReadByte(16);
+            _ = Headers[active].ReadContactCount();
         }
     }
 
@@ -122,7 +189,11 @@ public sealed record NativeBattleActionPacketsState([property: JsonRequired] byt
         {
             throw new InvalidOperationException("Native action header write would overlap the adjacent contact arena.");
         }
-        if (preparation.Actor >= 7)
+        if (PresentationRoster is { } roster)
+        {
+            RequireBoundActor(roster, preparation.Actor);
+        }
+        else if (preparation.Actor >= NativeBattleGraphicsModelAddress.NativeRowCount)
         {
             throw new InvalidDataException("Native action header requires a physical actor index0..6.");
         }
@@ -134,7 +205,7 @@ public sealed record NativeBattleActionPacketsState([property: JsonRequired] byt
         payload[3] = unchecked((byte)preparation.CameraChoice);
         BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(4), preparation.Action);
         BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(6), preparation.Effect);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(8), ContactBase + 24u * ContactCount);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(8), NativeBattleContactAddress.EncodeCursor(ContactCount, StorageCapacity));
         uint unknown = previous.UnknownByteMask & ~0xFFFFu;
         if (preparation.Data is null)
         {
@@ -152,20 +223,49 @@ public sealed record NativeBattleActionPacketsState([property: JsonRequired] byt
     {
         Validate();
         ArgumentNullException.ThrowIfNull(packet);
-        packet.Validate();
-        if (ContactCount == ContactCapacity)
+        ValidateContact(packet);
+        if (ContactCount == StorageCapacity)
         {
             throw new InvalidOperationException("Native contact write would overlap the adjacent scene owner.");
         }
-        return (this with { Contacts = Contacts.SetItem(ContactCount, packet), ContactCount = checked((byte)(ContactCount + 1)) }, ContactCount);
+        return (this with { Contacts = Contacts.SetItem(ContactCount, packet), ContactCount = ContactCount + 1 }, ContactCount);
     }
 
-    public (NativeBattleActionPacketsState State, int HeaderIndex) Publish(byte targetCount)
+    public NativeBattleActionPacketsState AppendContacts(IEnumerable<NativeBattleContactPacket> packets)
+    {
+        Validate();
+        ArgumentNullException.ThrowIfNull(packets);
+        ImmutableArray<NativeBattleContactPacket?>.Builder contacts = Contacts.ToBuilder();
+        int count = ContactCount;
+        foreach (NativeBattleContactPacket packet in packets)
+        {
+            if (count == StorageCapacity)
+            {
+                throw new InvalidOperationException("Native contact write would exceed its owned storage.");
+            }
+            ArgumentNullException.ThrowIfNull(packet);
+            ValidateContact(packet);
+            contacts[count] = packet;
+            count++;
+        }
+        return this with { Contacts = contacts.MoveToImmutable(), ContactCount = count };
+    }
+
+    public (NativeBattleActionPacketsState State, int HeaderIndex) Publish(int targetCount)
     {
         Validate();
         RequirePrepared(ActionCount);
         NativeBattleActionHeaderSlot header = Headers[ActionCount];
-        header = header with { Payload = header.Payload.SetItem(16, targetCount), UnknownByteMask = header.UnknownByteMask & ~(1u << 16) };
+        if (targetCount < 0 || (PresentationRoster is null ? targetCount > byte.MaxValue : header.FirstContactIndex!.Value > ContactCount - targetCount))
+        {
+            throw new ArgumentOutOfRangeException(nameof(targetCount));
+        }
+        header = header with
+        {
+            Payload = header.Payload.SetItem(16, unchecked((byte)targetCount)),
+            UnknownByteMask = header.UnknownByteMask & ~(1u << 16),
+            PresentationContactCount = PresentationRoster is null ? null : targetCount
+        };
         return (this with { Headers = Headers.SetItem(ActionCount, header), ActionCount = checked((byte)(ActionCount + 1)) }, ActionCount);
     }
 
@@ -182,7 +282,7 @@ public sealed record NativeBattleActionPacketsState([property: JsonRequired] byt
     {
         Validate();
         RequirePrepared(index);
-        _ = Headers[index].ReadByte(16);
+        _ = Headers[index].ReadContactCount();
         return this with { ActiveHeaderIndex = index, ActiveContactIndex = Headers[index].FirstContactIndex };
     }
 
@@ -194,7 +294,7 @@ public sealed record NativeBattleActionPacketsState([property: JsonRequired] byt
     public NativeBattleActionPacketsState AdvanceContact50A690()
     {
         int index = ActiveContactIndex ?? throw new NotSupportedException("Native50A690 requires its retained physical contact cursor.");
-        if (index >= ContactCapacity)
+        if (index >= StorageCapacity)
         {
             throw new NotSupportedException("Native50A690 cursor leaves its retained physical contact arena.");
         }
@@ -214,13 +314,13 @@ public sealed record NativeBattleActionPacketsState([property: JsonRequired] byt
             throw new ArgumentOutOfRangeException(nameof(headerIndex));
         }
         NativeBattleActionHeaderSlot header = Headers[headerIndex];
-        int count = header.ReadByte(16);
+        int count = header.ReadContactCount();
         if (count == 0)
         {
             return [];
         }
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native506BA0 requires its actual header's physical contact pointer.");
-        if (first < 0 || first > ContactCapacity - count)
+        if (first < 0 || count < 0 || first > StorageCapacity - count)
         {
             throw new InvalidDataException("Native506BA0 contact range exceeds the retained physical contact arena.");
         }
@@ -229,12 +329,35 @@ public sealed record NativeBattleActionPacketsState([property: JsonRequired] byt
 
     public NativeBattleContactPacket ReadContact(int index)
     {
-        if (index is < 0 or >= ContactCapacity)
+        if (index < 0 || index >= StorageCapacity)
         {
             throw new ArgumentOutOfRangeException(nameof(index));
         }
         NativeBattleContactPacket packet = Contacts[index] ?? throw new NotSupportedException("Native contact packet has no observed physical writer.");
         return packet with { PhysicalContactIndex = index };
+    }
+
+    public byte[] ReadContactBytes(int index) => ReadContact(index).Encode(PresentationRoster?.ActorCount ?? NativeBattleGraphicsModelAddress.NativeRowCount);
+
+    private void ValidateContact(NativeBattleContactPacket packet)
+    {
+        packet.Validate(PresentationRoster?.ActorCount ?? NativeBattleGraphicsModelAddress.NativeRowCount);
+        if (PresentationRoster is { } roster)
+        {
+            RequireBoundActor(roster, packet.Primary.ActorIndex);
+            if (packet.Secondary.ActorIndex != byte.MaxValue)
+            {
+                RequireBoundActor(roster, packet.Secondary.ActorIndex);
+            }
+        }
+    }
+
+    private static void RequireBoundActor(NativeBattleGraphicsRoster roster, byte row)
+    {
+        if (row >= roster.ActorCount || roster.Rows[row] is null)
+        {
+            throw new InvalidDataException($"Hosted action packets require a bound actor at row {row}.");
+        }
     }
 
     private void RequirePrepared(int index)
