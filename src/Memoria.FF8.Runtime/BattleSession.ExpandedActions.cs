@@ -13,6 +13,7 @@ public sealed partial class BattleSession
     private NativeBattleEffectPresentation? expandedEffect;
     private NativeBattleEffectContactBridge<string>? expandedContactBridge;
     private int expandedExpectedContacts;
+    private bool deferringExpandedImpacts;
     private ImmutableArray<ExpandedBattleContact> expandedSharedContacts = [];
     private ImmutableArray<ExpandedBattleContact> expandedModelContacts = [];
     private readonly HashSet<string> expandedPresentedRecipients = new(StringComparer.Ordinal);
@@ -107,7 +108,7 @@ public sealed partial class BattleSession
                 PublishExpandedEffectContact(command, recipient, packet.Primary);
                 if (packet.Secondary.ActorIndex == 0)
                 {
-                    PublishExpandedImpact(command, command.ActorId, packet.Secondary, "SecondaryEffectContact");
+                    PublishExpandedImpact(command, command.ActorId, packet.Secondary, "SecondaryEffectContact", deferredImpact: true);
                 }
             }
             if (!expandedSharedContacts.IsEmpty && expandedPresentedRecipients.Count == expandedContactBridge!.Count)
@@ -166,7 +167,7 @@ public sealed partial class BattleSession
         if (!CanExecuteExpandedAction(actor, command.NativeAiCallbackStage, command.AiRecipients) && !CanNativeSupportCommandAct(actor, command.NativePlayerReaction) ||
             !CanExecuteMagicReservation(actor, new(command.ActorId, command.TargetId, command.Ability, command.ActionId) { MagicReservationId = command.MagicReservationId }) || recipients.Length == 0 || silencedMagic)
         {
-            if (silencedMagic && command.FreeNativeMagic && HasNativeAngelWing(actor) && CanNativeBattleActorAct(actor))
+            if (silencedMagic && (command.FreeNativeMagic && HasNativeAngelWing(actor) || command.AiRecipients?.TargetPolicy == BattleAiTargetPolicy.Compelled) && CanNativeBattleActorAct(actor))
             {
                 QueueNativeSpecialText(actor, target, NativeBattleGlobalText(100), BattleTextIdentity.Global(100));
             }
@@ -182,6 +183,7 @@ public sealed partial class BattleSession
             return;
         }
         BattleActionDefinition? drawSpell = null;
+        BattleActionDefinition? stockDraw = null;
         if (command.Ability == BattleAbility.Draw)
         {
             if (command.DrawCast)
@@ -198,12 +200,10 @@ public sealed partial class BattleSession
             command = command with { NativeDraw = draw.NativeDraw, NativeAction = draw.NativeAction };
             if (draw.NativeDraw!.Failed || drawSpell is null)
             {
-                if (draw.NativeDraw is { Failed: false, Selection: >= 64 })
-                {
-                    RefreshNativeEnemyDrawSlots();
-                }
-                CompleteActionPresentation(command, "Draw completed.");
-                return;
+                BattleNativeAction stock = NativeStockDrawAction(draw.NativeDraw);
+                stockDraw = new(BattleAbility.Draw, command.ActionId, "Draw", BattleActionEffect.Native, 0, false) { NativeAction = stock };
+                drawSpell = null;
+                recipients = [target];
             }
         }
 
@@ -215,12 +215,18 @@ public sealed partial class BattleSession
             CompleteActionPresentation(command, "Guardian item completed.");
             return;
         }
-        BattleActionDefinition action = drawSpell ?? ExpandedActionDefinition(actor, command);
+        BattleActionDefinition action = stockDraw ?? drawSpell ?? ExpandedActionDefinition(actor, command);
         if (command.IndependentGuardian is { Action: { } child } independent)
         {
             action = action with { Name = child.Name ?? action.Name, Level = independent.Level, NativeAction = child };
         }
         BattleNativeAction native = action.NativeAction!;
+        if (IsGunbladeAttack(actor, command.Ability))
+        {
+            // 485160 recomputes the ordinary trigger contact with the installed weapon and type 10.
+            native = native with { Command = command.NativeQueuedCommand == 12 ? (byte)248 : (byte)253, AttackType = 10, HitCount = 1, Critical = 0, DamagePresentation = 4 };
+            command = command with { GunbladeTriggerTiming = ReadGunbladeTiming(actor, command) };
+        }
         bool miniMog = IsExpandedMiniMogAction(native);
         if (miniMog && PrepareNativeMiniMog() is int miniMogFailure)
         {
@@ -277,7 +283,7 @@ public sealed partial class BattleSession
         bool exceedsPresentationBank = presentsNativeEffect && firstHitRecipientCount > nativeContactLimit;
 
         bool independentSupport = IsExpandedIndependentSupport(native, command.NativePlayerReaction);
-        nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = false, EventLane = actor.IsPlayer && !independentSupport ? (byte)2 : (byte)0, Command = command.NativeQueuedCommand ?? native.Command, Action = native.ActionId };
+        nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = false, EventLane = actor.IsPlayer && !independentSupport ? (byte)2 : (byte)0, Command = stockDraw is not null || native.Command is 248 or 253 ? native.Command : command.NativeQueuedCommand ?? native.Command, Action = native.ActionId };
         if (command.Ability == BattleAbility.GuardianForce)
         {
             // TODO(TD-009): Expanded GF impact uses the unboosted formula without the native summon presentation.
@@ -308,7 +314,13 @@ public sealed partial class BattleSession
                 SetNativeSavedBattleFlag(4);
             }
             BattleCombatant? reflector;
+            deferringExpandedImpacts = presentsNativeEffect;
             (contacts, reflector) = ResolveExpandedHitPlan(actor, resolved, action, resolved.NativeAction!, hitPlan, presentsNativeEffect);
+            deferringExpandedImpacts = false;
+            if (command.NativeDraw is { Failed: true })
+            {
+                contacts = [];
+            }
             if (miniMog && !contacts.IsEmpty)
             {
                 QueueNativeSpecialText(actor, target, NativeBattleGlobalText(54), BattleTextIdentity.Global(54));
@@ -338,11 +350,15 @@ public sealed partial class BattleSession
                 }
             }
             CompleteNativeOrdinaryCommand(actor, resolved);
-            CompleteNativeActionInventory(actor, resolved, false);
-            if (command.Ability == BattleAbility.GuardianForce)
+            bool continueAffinity = CompleteNativeActionInventory(actor, resolved, false);
+            if (continueAffinity && HasNativeAffinityAction(actor, resolved, native))
             {
                 nativeAffinityAction = native;
                 CompleteGuardianForceAffinity(actor, resolved);
+            }
+            if (command.NativeDraw is { Failed: false, Selection: >= 64 })
+            {
+                RefreshNativeEnemyDrawSlots();
             }
             if (phoenixPinion)
             {
@@ -355,6 +371,7 @@ public sealed partial class BattleSession
         }
         finally
         {
+            deferringExpandedImpacts = false;
             nativeActionCommitDepth--;
             expandedRecoverSourceHp = null;
             resolvingNativeAction = null;
@@ -430,9 +447,9 @@ public sealed partial class BattleSession
         BattleCombatant? firstReflector = null;
         try
         {
-            foreach (BattleCombatant[] targets in hitPlan)
+            for (int hit = 0; hit < hitPlan.Length; hit++)
             {
-                foreach (BattleCombatant recipient in targets)
+                foreach (BattleCombatant recipient in hitPlan[hit])
                 {
                     // Native48E830 stops the remaining pass when a previously selected target is KO.
                     bool deathSelfContact = recipient == actor && recipient.Id == command.AiRecipients?.DeathSelfTargetId && command.NativeAiCallbackStage == 3;
@@ -440,6 +457,10 @@ public sealed partial class BattleSession
                     if (!recipient.IsActive || (NativeSavedStatusBits(recipient) & 1) != 0 && !deathSelfContact && !targetsKnockedOutAlly)
                     {
                         return (contacts.ToImmutable(), firstReflector);
+                    }
+                    if (hit == 0 && command.NativeQueuedCommand == 12)
+                    {
+                        ResolveNativeMug(actor, recipient);
                     }
                     bool hasPresentationRow = presentsNativeEffect && contacts.Count < NativeBattleSlots.Count - 1;
                     byte row = hasPresentationRow && recipient != actor ? checked((byte)nextRow++) : (byte)0;
@@ -487,9 +508,13 @@ public sealed partial class BattleSession
 
     private BattleActionDefinition ExpandedActionDefinition(BattleCombatant actor, BattleActionPresentation command)
     {
+        if (command.Ability == BattleAbility.Attack)
+        {
+            BattleNativeAction attack = command.NativeAction ?? actor.NativeAttack!;
+            return new(BattleAbility.Attack, 0, attack.Name ?? "Attack", BattleActionEffect.Native, attack.Power, false) { NativeAction = attack };
+        }
         return command.Ability switch
         {
-            BattleAbility.Attack => new(BattleAbility.Attack, 0, actor.NativeAttack!.Name ?? "Attack", BattleActionEffect.Native, actor.NativeAttack.Power, false) { NativeAction = actor.NativeAttack },
             BattleAbility.EnemyAbility when actor.IsPlayer && command.FreeNativeMagic && SupportsExpandedAngelWingSpell(command.NativeAction) => FindAction(BattleAbility.Magic, command.ActionId),
             BattleAbility.EnemyAbility when command.AiRecipients is not null => new(BattleAbility.EnemyAbility, command.ActionId, command.NativeAction!.Name ?? $"Enemy ability {command.ActionId}", BattleActionEffect.Native, command.NativeAction.Power, false) { NativeAction = command.NativeAction },
             BattleAbility.EnemyAbility when IsExpandedIndependentSupport(command.NativeAction, command.NativePlayerReaction) => new(BattleAbility.EnemyAbility, command.ActionId, command.NativeAction!.Name ?? "Automatic Support", BattleActionEffect.Native, command.NativeAction.Power, false) { NativeAction = command.NativeAction },
@@ -507,7 +532,7 @@ public sealed partial class BattleSession
         }
         if (aiRecipients is not null)
         {
-            if (aiRecipients.RandomSide is null && (native?.TargetFlags.GetValueOrDefault() & 2) == 2)
+            if (aiRecipients.TargetPolicy != BattleAiTargetPolicy.Compelled && aiRecipients.RandomSide is null && (native?.TargetFlags.GetValueOrDefault() & 2) == 2)
             {
                 return Roster(GetActor(targetId).Side).Where(IsExpandedAiTarget).ToArray();
             }
@@ -589,17 +614,17 @@ public sealed partial class BattleSession
             throw new InvalidDataException("The expanded effect repeated a published recipient.");
         }
         CommitExpandedEnemyDraw(recipient, ref expandedEffectEnemyDraw);
-        PublishExpandedImpact(command, recipient, contact, "EffectContact");
+        PublishExpandedImpact(command, recipient, contact, "EffectContact", deferredImpact: true);
     }
 
-    private void PublishExpandedImpact(BattleActionPresentation command, string recipient, NativeBattleContactHalf contact, string eventKind)
+    private void PublishExpandedImpact(BattleActionPresentation command, string recipient, NativeBattleContactHalf contact, string eventKind, bool deferredImpact = false)
     {
         string actionName = command.NativeAction?.Name ?? ActionName(command.Ability, command.ActionId);
-        Log(eventKind, command.ActorId, recipient, contact.PresentedAmount, actionName);
+        Log(eventKind, command.ActorId, recipient, contact.PresentedAmount, actionName, actionContext: command);
         if (contact.PresentedAmount > 0)
         {
             bool healing = (contact.HitFlags3 & 1) != 0;
-            Log(healing ? "EffectHealing" : "EffectDamage", command.ActorId, recipient, contact.PresentedAmount, actionName);
+            Log(healing ? "EffectHealing" : "EffectDamage", command.ActorId, recipient, contact.PresentedAmount, actionName, actionContext: command, deferredImpact: deferredImpact);
         }
     }
 }

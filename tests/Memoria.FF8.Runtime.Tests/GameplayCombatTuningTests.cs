@@ -28,7 +28,7 @@ public sealed class GameplayCombatTuningTests
         BattleSession battle = Create(cap);
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
         BattleCombatant target = restored.Combatants[1];
-        typeof(BattleSession).GetMethod("ApplyDamage", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(restored, [restored.Combatants[0], target, 120000, "Tuned attack", true, true, false]);
+        typeof(BattleSession).GetMethod("ApplyDamage", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(restored, [restored.Combatants[0], target, 120000, "Tuned attack", true, true, false, EncounterHpCause.Damage]);
         Assert.Equal(200000 - cap, target.CurrentHp);
         Assert.Equal(cap, Assert.Single(restored.Events, entry => entry.Kind == "Damage").Amount);
         typeof(BattleSession).GetMethod("ApplyHealing", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(restored, [target, 100, "Recovery"]);
@@ -48,7 +48,7 @@ public sealed class GameplayCombatTuningTests
         BattleNativeAction native = new(0, 1, -1, -1) { Name = "Fixed damage", MagicId = 0, AttackType = 28, Power = 0, HitCount = 1, AttackFlags = flags, TargetFlags = 0, PowerModifier = 0, LevelModifier = 0, DamagePresentation = 0, Element = 0, ElementPercent = 0, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = 255, Critical = 0, RawRecord = [], SupplementalRecord = [] };
         BattleActionPresentation command = new(actor.Id, target.Id, BattleActionPhase.Windup, 0, BattleAbility.EnemyAbility, 1) { NativeAction = native, NativeQueuedCommand = 0 };
         BattleActionDefinition action = new(BattleAbility.EnemyAbility, 1, "Fixed damage", BattleActionEffect.Native, 0, false) { NativeAction = native };
-        NativeBattleContactPacket packet = (NativeBattleContactPacket)typeof(BattleSession).GetMethod("ResolveInstalledNativeHitWithContact", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, [actor, target, command, action, native, (byte)255, false])!;
+        NativeBattleContactPacket packet = (NativeBattleContactPacket)typeof(BattleSession).GetMethod("ResolveInstalledNativeHitWithContact", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, [actor, target, command, action, native, (byte)255, false, null])!;
         Assert.Equal(200000 - expected, target.CurrentHp);
         Assert.Equal(expected, packet.Primary.PresentedAmount);
         Assert.Equal(unchecked((ushort)expected), NativeBattleContactPacket.Decode(packet.Encode()).Primary.Amount6);

@@ -13,6 +13,12 @@ internal static class BattleImpactPresentation
     // TODO(TD-009): Hit sparks, floating HP values and their durations provide presentation feedback until native effect scripts/atlases are decoded.
     public const int Duration = 30;
 
+    internal static bool IsImpact(BattleSession session, BattleEvent item)
+    {
+        bool contactOwnsImpact = session.UsesExpandedRoster && (item.DeferredImpact || item.Ability == BattleAbility.Magic);
+        return contactOwnsImpact ? item.Kind is "EffectDamage" or "EffectHealing" : item.Kind is "Damage" or "Healing";
+    }
+
     public static IReadOnlyList<BattleImpactCue> Collect(BattleSession session)
     {
         List<BattleImpactCue> result = [];
@@ -25,9 +31,7 @@ internal static class BattleImpactPresentation
             {
                 break;
             }
-            bool nativeSpell = session.UsesExpandedRoster && item.Ability == BattleAbility.Magic;
-            bool hit = nativeSpell ? item.Kind is "EffectDamage" or "EffectHealing" : item.Kind is "Damage" or "Healing";
-            if (age >= 0 && item.Amount > 0 && item.TargetId is not null && hit)
+            if (age >= 0 && item.Amount > 0 && item.TargetId is not null && IsImpact(session, item))
             {
                 result.Add(new BattleImpactCue(item, (int)age));
             }

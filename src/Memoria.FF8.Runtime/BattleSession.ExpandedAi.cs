@@ -24,7 +24,8 @@ public enum BattleAiSelection
 public enum BattleAiTargetPolicy
 {
     Standard,
-    DrawnMagic
+    DrawnMagic,
+    Compelled
 }
 
 public sealed partial class BattleSession
@@ -243,6 +244,10 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Expanded AI target selection has invalid roster or recipient ownership.");
         }
         IEnumerable<BattleCombatant> targets = recipients.RandomSide is BattleSide side ? Roster(side) : recipients.ActorIds.Select(GetActor);
+        if (recipients.TargetPolicy == BattleAiTargetPolicy.Compelled)
+        {
+            return targets.Where(candidate => IsExpandedCompelledTarget(candidate, action?.TargetFlags ?? 0)).ToArray();
+        }
         if (recipients.TargetPolicy == BattleAiTargetPolicy.DrawnMagic)
         {
             bool includesKnockedOutAllies = (action?.TargetFlags.GetValueOrDefault() & 1) != 0;

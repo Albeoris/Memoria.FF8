@@ -31,7 +31,7 @@ public sealed class NativeBattleActionCatalogTests
         BattleActionPresentation presentation = new(actor.Id, target.Id, BattleActionPhase.Windup, 0, BattleAbility.LimitBreak, actionId) { NativeAction = native, NativeQueuedCommand = native.Command };
         BattleActionDefinition action = new(BattleAbility.LimitBreak, actionId, native.Name!, BattleActionEffect.Native, native.Power, false) { NativeAction = native };
 
-        NativeBattleContactPacket packet = (NativeBattleContactPacket)typeof(BattleSession).GetMethod("ResolveInstalledNativeHitWithContact", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, [actor, target, presentation, action, native, (byte)255, false])!;
+        NativeBattleContactPacket packet = (NativeBattleContactPacket)typeof(BattleSession).GetMethod("ResolveInstalledNativeHitWithContact", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, [actor, target, presentation, action, native, (byte)255, false, null])!;
 
         Assert.True(packet.Primary.Amount6 > 0);
         Assert.Equal(10000 - packet.Primary.Amount6, target.CurrentHp);

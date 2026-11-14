@@ -159,7 +159,7 @@ public sealed class DiagnosticCounterObservationTests
             Set(battle, "diagnosticCounterProducingHeader", 0);
             Set(battle, "nativeReactionOrder", (byte)0);
             Set(battle, "nativeActionCommitDepth", 1);
-            packet = (NativeBattleContactPacket)Invoke(battle, "ResolveInstalledNativeHitWithContact", actor, target, presentation, action, native, (byte)255, preliminary)!;
+            packet = (NativeBattleContactPacket)Invoke(battle, "ResolveInstalledNativeHitWithContact", actor, target, presentation, action, native, (byte)255, preliminary, null!)!;
             var table = (System.Runtime.CompilerServices.ConditionalWeakTable<NativeBattleContactPacket, BattleDiagnosticCounterPrimary>)typeof(BattleSession).GetField("diagnosticCounterContacts", Instance)!.GetValue(battle)!;
             table.TryGetValue(packet, out primary);
             Set(battle, "nativeActionCommitDepth", 0);

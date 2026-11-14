@@ -68,17 +68,23 @@ internal sealed partial class GameWorld
         return slots;
     }
 
-    private ImmutableArray<ushort> ReadLocalEnemyFormations()
+    private ImmutableArray<ushort>? ReadLocalEnemyFormations()
     {
-        if (session.State.Scene == SceneKind.Field && Field?.RandomEncounters is { Rate: > 0 } field)
+        if (session.State.Scene == SceneKind.Field && Field is { } field && field.Id == session.State.FieldId)
         {
-            return field.Formations;
+            return field.RandomEncounters is { Rate: > 0 } encounters ? encounters.Formations : [];
         }
-        if (session.State.Scene == SceneKind.WorldMap && worldScene is { } world && world.State.GroundType.HasValue && world.ReadRandomEncounterDefinition(world.State) is { } terrain)
+        if (session.State.Scene == SceneKind.WorldMap && (worldScene?.State ?? session.State.World) is { GroundType: byte ground } world && session.State.DiscProcess is { } disc)
         {
-            return terrain.Formations;
+            if (worldScene is { } scene)
+            {
+                return scene.ReadRandomEncounterDefinition(world)?.Formations ?? [];
+            }
+            // Restoring the frozen field can validate its battle before the world scene is allocated.
+            using WorldAssets worldAssets = new(assets.GameDirectory, resources);
+            return worldAssets.ReadRandomEncounterDefinition(world.X, world.Z, ground, disc.SavedDisc204)?.Formations ?? [];
         }
-        return [];
+        return null;
     }
 
     private ImmutableSortedDictionary<int, BattleEnemyRosterSource> SelectAdditionalEnemies(BattleEncounter encounter, int count, byte seed)
@@ -93,7 +99,7 @@ internal sealed partial class GameWorld
         // Selection is replayable from the entry seed and does not spend battle or exploration RNG.
         NativeBattleRandomState random = NativeBattleRandomState.ForecastPhase(seed);
         List<(int Formation, BattleEnemyPlacement[] Enemies)> pool = [];
-        foreach (int formation in ReadLocalEnemyFormations().Distinct())
+        foreach (int formation in (ReadLocalEnemyFormations() ?? []).Distinct())
         {
             if (formation >= BattleResources.FormationCount)
             {
@@ -154,9 +160,14 @@ internal sealed partial class GameWorld
     private BattleEnemyPlacement[] ResolveExpandedEnemyPlacements(BattleEncounter encounter, ImmutableSortedDictionary<int, BattleEnemyRosterSource> addedEnemies)
     {
         List<BattleEnemyPlacement> placements = encounter.Enemies.Select((enemy, index) => enemy with { Slot = index }).ToList();
+        ImmutableArray<ushort>? localFormations = addedEnemies.Count == 0 ? null : ReadLocalEnemyFormations();
         foreach ((int slot, BattleEnemyRosterSource source) in addedEnemies)
         {
             source.Validate();
+            if (localFormations is { } formations && (source.Formation > ushort.MaxValue || !formations.Contains((ushort)source.Formation)))
+            {
+                throw new InvalidDataException($"Added enemy source formation {source.Formation} is outside the suspended exploration encounter table.");
+            }
             if (slot != placements.Count || slot >= ExpandedBattleFormation.MaximumSideSize || !BattleResources.FormationSourceHash(source.Formation).Equals(source.FormationHash, StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidDataException("The added enemy roster disagrees with its installed source formation.");

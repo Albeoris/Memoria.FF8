@@ -6,7 +6,7 @@ public sealed partial class BattleSession
     {
         BattleCombatant actor = GetActor(actorId);
         BattleCombatant source = GetActor(sourceId);
-        if (Outcome != BattleOutcome.Active || !actor.IsReady || UsesExpandedRoster && HasNativeAngelWing(actor) || !actor.Abilities.Contains(BattleAbility.Draw) || HasStatus(actor, BattleStatusKind.Silence) || !source.IsActive || !source.IsAlive || source.Untargetable || source.IsPlayer == actor.IsPlayer || selection is < 1 or >= 80 || !source.NativeDrawSlots.Any(slot => slot.Id == selection) || cast && selection >= 64 || !cast && castTargetId is not null)
+        if (Outcome != BattleOutcome.Active || !actor.IsReady || UsesExpandedRoster && RequiresNativeCompelledCommand(actor) || !actor.Abilities.Contains(BattleAbility.Draw) || HasStatus(actor, BattleStatusKind.Silence) || !source.IsActive || !source.IsAlive || source.Untargetable || source.IsPlayer == actor.IsPlayer || selection is < 1 or >= 80 || !source.NativeDrawSlots.Any(slot => slot.Id == selection) || cast && selection >= 64 || !cast && castTargetId is not null)
         {
             throw new InvalidOperationException("Draw requires an available source entry, a ready caster and a valid Stock/Cast selection.");
         }
@@ -156,7 +156,7 @@ public sealed partial class BattleSession
         if (nativeProductionContext is not null)
         {
             //48D200/48FE20 Stock is an executable zero contact, including GF IDs without a magic record.
-            BattleNativeAction stock = new(result.Failed ? (byte)0 : (byte)6, result.Failed ? (ushort)9 : result.Selection, -1, -1) { Name = "Draw", MagicId = result.Failed ? (ushort)0 : (ushort)15, AttackType = 0, Power = 0, HitCount = 1, TargetFlags = null, AttackFlags = 3, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = System.Collections.Immutable.ImmutableArray<byte>.Empty, SupplementalRecord = System.Collections.Immutable.ImmutableArray<byte>.Empty };
+            BattleNativeAction stock = NativeStockDrawAction(result);
             ResolveInstalledNativeAction(actor, source, command, new(BattleAbility.Draw, result.Selection, "Draw", BattleActionEffect.Native, 0, false) { NativeAction = stock });
         }
         else
@@ -167,6 +167,11 @@ public sealed partial class BattleSession
         {
             PresentNativeDrawResult(actor, source, result, command.DrawCast);
         }
+    }
+
+    private static BattleNativeAction NativeStockDrawAction(BattleNativeDrawContext result)
+    {
+        return new(result.Failed ? (byte)0 : (byte)6, result.Failed ? (ushort)9 : result.Selection, -1, -1) { Name = "Draw", MagicId = result.Failed ? (ushort)0 : (ushort)15, AttackType = 0, Power = 0, HitCount = 1, TargetFlags = null, AttackFlags = 3, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = System.Collections.Immutable.ImmutableArray<byte>.Empty, SupplementalRecord = System.Collections.Immutable.ImmutableArray<byte>.Empty };
     }
 
     private void PublishNativeDrawComponentResult(BattleActionPresentation command)

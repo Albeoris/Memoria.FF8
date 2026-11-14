@@ -65,7 +65,7 @@ internal sealed partial class GameWorld
             }
             if (saved.Definition.EncounterId is not null)
             {
-                saved = saved with { Definition = BindExpandedEnemySpecials(saved.Definition) };
+                saved = saved with { Definition = BindExpandedEnemyMug(BindExpandedEnemySpecials(saved.Definition)) };
             }
         }
         battle = saved is null ? null : AttachNativeEffectResources(BattleSession.Restore(saved));
@@ -290,7 +290,7 @@ internal sealed partial class GameWorld
         };
         if (effectPreviewRequest is null)
         {
-            definition = BindExpandedEnemySpecials(BindExpandedEnemyLevels(definition));
+            definition = BindExpandedEnemyMug(BindExpandedEnemySpecials(BindExpandedEnemyLevels(definition)));
         }
         else
         {
@@ -375,6 +375,20 @@ internal sealed partial class GameWorld
                 }
                 return actor with { NativeSpecial = special };
             }).ToArray()
+        };
+    }
+
+    private BattleDefinition BindExpandedEnemyMug(BattleDefinition definition)
+    {
+        if (!definition.UsesExpandedRoster || !definition.Combatants.Any(actor => actor.IsPlayer && actor.NativeCommandSlots.Contains((byte)12)))
+        {
+            return definition;
+        }
+        return definition with
+        {
+            Combatants = definition.Combatants.Select(actor => actor.IsPlayer || actor.NativeTemplate?.NativeMug is not null || actor.NativeMug is not null
+                ? actor
+                : actor with { NativeMug = BattleResources.ReadEnemyNativeMugData(actor.ModelId) }).ToArray()
         };
     }
 

@@ -69,7 +69,7 @@ public sealed class NativeBattleCardDevourAdmissionTests
         target.NativeRemainingHits = 1;
         typeof(BattleSession).GetField("nativeActionScratch", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(battle, new NativeBattleActionScratch { ActorIndex = 0, Command = 7, Action = 9, EventActorB0F = 0, EventLane = 2, DeferredEffectsE00 = false });
         NativeBattleRandomState before = battle.Capture().Random!;
-        NativeBattleContactPacket packet = (NativeBattleContactPacket)resolve.Invoke(battle, [actor, target, command, action, native, (byte)0, false])!;
+        NativeBattleContactPacket packet = (NativeBattleContactPacket)resolve.Invoke(battle, [actor, target, command, action, native, (byte)0, false, null])!;
         Assert.Equal((ushort)4, packet.Primary.Amount6);
         Assert.Equal(4, packet.Primary.HitFlags3 & 4);
         Assert.Equal(0x08, packet.Primary.HitFlags3 & 0x08);

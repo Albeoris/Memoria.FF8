@@ -198,6 +198,6 @@ public sealed class NativeBattleContactDrainTests
         BattleCombatant target = session.Combatants.Single(item => item.Id == "enemy");
         BattleActionPresentation presentation = new(actor.Id, target.Id, BattleActionPhase.Windup, 0, BattleAbility.Attack, 0) { NativeAction = native, NativeQueuedCommand = native.Command };
         BattleActionDefinition action = new(BattleAbility.Attack, 0, "Contact", BattleActionEffect.Native, 20, false) { NativeAction = native };
-        return (NativeBattleContactPacket)typeof(BattleSession).GetMethod("ResolveInstalledNativeHitWithContact", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [actor, target, presentation, action, native, (byte)255, false])!;
+        return (NativeBattleContactPacket)typeof(BattleSession).GetMethod("ResolveInstalledNativeHitWithContact", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [actor, target, presentation, action, native, (byte)255, false, null])!;
     }
 }

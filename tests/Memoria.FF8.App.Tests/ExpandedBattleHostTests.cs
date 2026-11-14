@@ -255,14 +255,25 @@ public sealed class ExpandedBattleHostTests
                     BattleSession restored = Assert.IsType<BattleSession>(resumedWorld.Battle);
                     Assert.Equal(recipient.Id, restored.ActiveAction?.DrawCastTargetId ?? Assert.Single(restored.QueuedActions).DrawCastTargetId);
                     bool presented = false;
+                    int impacts = 0;
                     for (int frame = 0; frame < 512 && caster.IsBusy; frame++)
                     {
                         world.ApplyBattleInput(new(BattleInputKind.Tick));
                         resumedWorld.ApplyBattleInput(new(BattleInputKind.Tick));
                         presented |= battle.ExpandedEffect is not null;
+                        BattleImpactCue[] cues = BattleImpactPresentation.Collect(battle).Where(cue => cue.Event.Frame >= windup.Frame && cue.Event.ActorId == caster.Id).ToArray();
+                        Assert.All(cues, cue =>
+                        {
+                            Assert.Equal(BattleAbility.Draw, cue.Event.Ability);
+                            Assert.Equal(recipient.Id, cue.Event.TargetId);
+                            Assert.True(cue.Event.DeferredImpact);
+                            Assert.Contains(battle.Events, entry => entry.Kind == "EffectContact" && entry.ActorId == caster.Id && entry.TargetId == recipient.Id && entry.Frame == cue.Event.Frame);
+                        });
+                        impacts = Math.Max(impacts, cues.Length);
                     }
                     Assert.False(caster.IsBusy);
                     Assert.True(presented);
+                    Assert.Equal(1, impacts);
                     Assert.Equal(stockBefore, caster.MagicStocks.FirstOrDefault(stock => stock.Id == spell.Id)?.Count ?? 0);
                     Assert.Single(battle.Events, entry => entry.Kind == "EffectContact" && entry.ActorId == caster.Id && entry.TargetId == recipient.Id && entry.Frame >= windup.Frame);
                     AssertEquivalentBattle(battle, restored);

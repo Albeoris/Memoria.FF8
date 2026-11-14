@@ -88,7 +88,7 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
                 return Play(clips, progress * Length(clips), offset, approachTarget);
             }
         }
-        BattleEvent? damage = session.Events.LastOrDefault(item => item.Kind == "Damage" && item.Amount > 0 && item.TargetId == actor.Id);
+        BattleEvent? damage = session.Events.LastOrDefault(item => (item.Kind is "Damage" or "EffectDamage") && item.Amount > 0 && item.TargetId == actor.Id && BattleImpactPresentation.IsImpact(session, item));
         if (damage is not null)
         {
             int[] clips = Sequence(4).Animations.ToArray();
@@ -183,7 +183,7 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
             {
                 "Windup" when item.ActorId == definition.Id => CommandSequence(item.Ability, item.NativeSequence),
                 "Defeated" when item.TargetId == definition.Id => 3,
-                "Damage" when item.TargetId == definition.Id && item.Amount > 0 => 4,
+                "Damage" or "EffectDamage" when item.TargetId == definition.Id && item.Amount > 0 && BattleImpactPresentation.IsImpact(session, item) => 4,
                 "Outcome" when definition.IsPlayer && session.Outcome == BattleOutcome.Victory => 17,
                 _ => 0
             };

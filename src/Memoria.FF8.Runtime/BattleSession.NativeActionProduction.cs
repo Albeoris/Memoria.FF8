@@ -42,7 +42,7 @@ public sealed partial class BattleSession
     {
         BattleNativeAction native = action.NativeAction!;
         ValidateNativeActionContract(native);
-        if (actor.IsPlayer && native.Command is 2 or 6 or 254 && (command.NativeDraw is null || command.DrawCast && !command.NativeDraw.Failed))
+        if (HasNativeAffinityAction(actor, command, native))
         {
             nativeAffinityAction = native;
         }
@@ -141,6 +141,11 @@ public sealed partial class BattleSession
             }
         }
         return new(contacts.ToImmutable(), publishedCount, deferred, firstReflector is null ? null : checked((byte)firstReflector.EncodeNativeSlot()), aborted);
+    }
+
+    private static bool HasNativeAffinityAction(BattleCombatant actor, BattleActionPresentation command, BattleNativeAction native)
+    {
+        return actor.IsPlayer && native.Command is 2 or 6 or 254 && (command.NativeDraw is null || command.DrawCast && !command.NativeDraw.Failed);
     }
 
     private NativeBattleDeferredContactKind NativeDeferredContact(BattleCombatant actor, BattleActionPresentation command, BattleNativeAction native)

@@ -24,6 +24,14 @@ public sealed partial class BattleSession
             if (!ExpandedTimedLimitOwnsInput)
             {
                 DispatchExpandedAngelWingActors();
+                foreach (BattleCombatant actor in allies.Where(actor => actor.IsReady && CanNativeBattleActorAct(actor) && RequiresNativeCompelledCommand(actor) && !HasNativeAngelWing(actor)))
+                {
+                    BattleAttackCommand? command = PrepareExpandedCompelledCommand(actor);
+                    if (command is not null)
+                    {
+                        actions.Enqueue(command);
+                    }
+                }
             }
             return;
         }
@@ -106,6 +114,15 @@ public sealed partial class BattleSession
         {
             return null;
         }
+        var selection = SelectNativeConfuseCommand(actor);
+        ushort targetMask = selection.TargetFlags is byte flags
+            ? NativeCompelledTargetMask(actor, flags, selection.OppositeSide)
+            : ResolveNativeAiTargetMask(actor, selection.OppositeSide ? (byte)202 : (byte)201);
+        return new(selection.Command, selection.ActionId, targetMask, false);
+    }
+
+    private (byte Command, ushort ActionId, byte? TargetFlags, bool OppositeSide) SelectNativeConfuseCommand(BattleCombatant actor)
+    {
         if (actor.NativeCommandSlots.Length != 4)
         {
             throw new NotSupportedException("Native Confuse requires all four original physical command slots.");
@@ -120,7 +137,7 @@ public sealed partial class BattleSession
             {
                 case 1:
                 case 12:
-                    return new(command, 0, ResolveNativeAiTargetMask(actor, side != 0 ? (byte)201 : (byte)202), false);
+                    return (command, 0, null, side == 0);
                 case 2:
                     if ((rules & 2) == 0)
                     {
@@ -136,7 +153,7 @@ public sealed partial class BattleSession
                                 slot = (slot + 1) % candidates.Length;
                             }
                             byte spell = candidates[slot].SpellId;
-                            return new(2, spell, NativeCompelledTargetMask(actor, RequiredNativeSpellFlags(spell), side == 0), false);
+                            return (2, spell, RequiredNativeSpellFlags(spell), side == 0);
                         }
                     }
                     break;
@@ -148,7 +165,7 @@ public sealed partial class BattleSession
                         {
                             BattleNativeAction action = FindInstalledNativeAction(4, (ushort)item);
                             byte flags = action.TargetFlags ?? throw new InvalidDataException("Native Confuse item lacks original target flags.");
-                            return new(4, (ushort)item, NativeCompelledTargetMask(actor, flags, side == 0), false);
+                            return (4, (ushort)item, flags, side == 0);
                         }
                     }
                     break;
@@ -156,6 +173,89 @@ public sealed partial class BattleSession
             commandSlot = (commandSlot + 1) & 3;
         }
         throw new NotSupportedException("Native Confuse command rejection has no supported available physical command and would not terminate.");
+    }
+
+    private static bool RequiresExpandedCompelledReplacement(BattleCombatant actor, BattleAttackCommand command)
+    {
+        return RequiresNativeCompelledCommand(actor) && !HasNativeAngelWing(actor) && command.NativePlayerReaction is null &&
+            command.NativeLimitCallback is null && command.AiRecipients?.TargetPolicy != BattleAiTargetPolicy.Compelled;
+    }
+
+    private BattleAttackCommand? PrepareExpandedCompelledCommand(BattleCombatant actor, BattleAttackCommand? previous = null)
+    {
+        if (previous is not null)
+        {
+            // The native invocation discards the buffered input and releases its reservation before replacement.
+            RefundCancelledNativeItem(previous);
+        }
+        bool confused = (NativeBattleStatusBits(actor) & 0x4000) != 0;
+        var selection = (NativeSavedStatusBits(actor) & 0x20) != 0
+            ? (Command: (byte)1, ActionId: (ushort)0, TargetFlags: (byte?)null, OppositeSide: !confused)
+            : SelectNativeConfuseCommand(actor);
+        BattleAiRecipients recipients = SelectExpandedCompelledRecipients(selection.TargetFlags, selection.OppositeSide);
+        if (recipients.ActorIds.IsEmpty)
+        {
+            actor.Atb = 0;
+            actor.IsBusy = false;
+            return null;
+        }
+
+        string targetId = recipients.ActorIds[0];
+        BattleAbility ability = selection.Command switch
+        {
+            2 => BattleAbility.Magic,
+            4 => BattleAbility.Item,
+            _ => BattleAbility.Attack
+        };
+        BattleNativeAction? native = selection.Command == 1 && actor.NativeAttack is null ? null : FindNativeCommandAction(actor, selection.Command, selection.ActionId);
+        if (ability is BattleAbility.Magic or BattleAbility.Item)
+        {
+            RequireExpandedAction(FindAction(ability, selection.ActionId));
+        }
+        if (selection.Command == 12 && GetActor(targetId) is { IsPlayer: false, NativeMug: null })
+        {
+            throw new NotSupportedException("Expanded Confuse Mug requires the recipient's installed steal table.");
+        }
+        byte? sequence = native is null ? null : NativeBattleActionGraphics.ResolvePlayerSequence(selection.Command, 0, selection.ActionId, definition.NativeCommandSequences);
+        if (native is not null)
+        {
+            ValidateNativeActionContract(native);
+        }
+        BattleAttackCommand command = new(actor.Id, targetId, ability, selection.ActionId) { NativeQueuedCommand = selection.Command, NativeAction = native, NativeSequence = sequence, AiRecipients = recipients };
+        command = EnsureMagicReservation(actor, command);
+        if (ability == BattleAbility.Item)
+        {
+            command = command with { ReservedNativeItemSlot = ConsumeNativeItem(selection.ActionId) };
+        }
+        OnNativePlayerCommandSubmitted(actor, selection.Command);
+        actor.Atb = 0;
+        actor.IsBusy = true;
+        nativeLimitLevels.Remove(actor.Id);
+        Log("Queued", actor.Id, targetId, 0, $"{actor.Name}: {native?.Name ?? ActionName(ability, selection.ActionId)} queued.");
+        return command;
+    }
+
+    private BattleAiRecipients SelectExpandedCompelledRecipients(byte? targetFlags, bool oppositeSide)
+    {
+        byte flags = targetFlags.GetValueOrDefault();
+        bool selectsBothSides = (flags & 0x30) == 0x20;
+        bool randomizes = (flags & 2) != 0;
+        bool targetsAllies = targetFlags is null ? !oppositeSide : ((flags & 0x40) != 0) != oppositeSide;
+        BattleSide side = targetsAllies ? BattleSide.Allies : BattleSide.Enemies;
+        if (selectsBothSides && randomizes)
+        {
+            side = BattleSide.Enemies;
+        }
+        IEnumerable<BattleCombatant> roster = selectsBothSides && !randomizes ? combatants : Roster(side);
+        BattleAiRecipients selected = targetFlags is null || (flags & 0x30) == 0x10
+            ? PickExpandedAiTarget(roster.Where(IsExpandedAiTarget))
+            : new([.. roster.Where(candidate => IsExpandedCompelledTarget(candidate, flags)).Select(candidate => candidate.Id)]);
+        return selected with { TargetPolicy = BattleAiTargetPolicy.Compelled, RandomSide = randomizes ? side : null };
+    }
+
+    private static bool IsExpandedCompelledTarget(BattleCombatant actor, byte flags)
+    {
+        return actor.IsActive && !actor.Untargetable && !actor.IsEjected && (actor.IsAlive || (flags & 1) != 0 && actor.IsPlayer);
     }
 
     private byte? SelectNativeAngelWingSpell(BattleCombatant actor)

@@ -13,7 +13,7 @@ public sealed partial class BattleSession
         }
         if (!UsesNativeReadyMenu)
         {
-            return (!UsesExpandedRoster || !ExpandedTimedLimitOwnsInput && !HasNativeAngelWing(actor)) && actor.IsReady && CanNativeBattleActorAct(actor);
+            return (!UsesExpandedRoster || !ExpandedTimedLimitOwnsInput && !RequiresNativeCompelledCommand(actor)) && actor.IsReady && CanNativeBattleActorAct(actor);
         }
         NativeBattleUiServices ui = NativeGraphics!.UiServices ?? throw new InvalidDataException("Native command admission lost its initialized UI owner.");
         if (lastGuardianFormInvocation != 0 && ui.Commands.Queue.Any(slot => ui.Commands.Packets[slot].Bytes[0] == actor.EncodeNativeSlot() && ui.Commands.Packets[slot].Command == 0x12))
