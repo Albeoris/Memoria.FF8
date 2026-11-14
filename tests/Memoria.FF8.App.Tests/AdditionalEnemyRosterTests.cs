@@ -23,8 +23,13 @@ public sealed class AdditionalEnemyRosterTests
         world.EnsureField();
         world.Apply(new(PlayerActionKind.Wait, Frames: 4));
         NativeCharacterVitals vitals = (session.State.CharacterVitals! with { CombatParty = [0, 1, 2] }).WithGuestBattleRecords().Rest();
+        if (allies > NativeCharacterVitals.NativeRecordCount)
+        {
+            vitals = vitals.WithExtendedRoster(true);
+        }
         vitals = vitals with { Records = vitals.Records.Select(record => record with { MemberFlags = (ushort)(record.MemberFlags | 1), Status = 0 }).ToArray() };
-        session.SetCharacterVitals(vitals.Rest());
+        byte[] selectedRows = Enumerable.Range(0, allies).Select(row => checked((byte)row)).ToArray();
+        session.SetCharacterVitals(vitals.Rest().WithBattleParty(selectedRows, allies));
         world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = allies, AdditionalEnemies = storedEnemies, Difficulty = difficulty });
         string source = world.Events.Capture().GetProperty("ProgramHash").GetString()!;
         session.SetRandomEncounters(new(true, NativeRandomEncounterState.FromColdProcess(), new(SceneKind.Field, 133, world.Events.Frame, formation, source)));
