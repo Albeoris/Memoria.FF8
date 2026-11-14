@@ -159,7 +159,7 @@ public sealed partial record NativeBattleGraphicsState([property: JsonRequired] 
             }
             model.ValidatePartialStatus();
             model.SequenceState?.Validate();
-            if (model.TextureResourceIndex is < 0 or >= 11)
+            if (model.TextureResourceIndex is int textureAlias && (uint)textureAlias >= (uint)(PresentationRoster is null ? NativeBattleModelResourceRowAddress.NativeRowCount : NativeBattleModelResourceRowAddress.MaximumRowCount))
             {
                 throw new InvalidDataException("Native model texture resource does not identify its physical52-byte cache row.");
             }

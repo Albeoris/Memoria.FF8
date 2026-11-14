@@ -86,7 +86,7 @@ public sealed partial class BattleSession
             NativeCamera = NativeCamera.WriteEffectGlobals(inputs.HostCameraPose ?? throw new InvalidDataException("The cinematic presentation requires its initial host camera pose.")) with { BlendProgress = 0 };
         }
         presentationHostCamera = NativeCamera;
-        NativeFileStaging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.FromColdProcess());
+        NativeFileStaging = NativeBattleTemporaryMemory.Reset5082F0(roster is null ? NativeBattleFileStaging.FromColdProcess() : NativeBattleFileStaging.FromColdProcess(HostedPresentationExecutableHash));
         NativeFileIo = NativeBattleFileIoState.FromColdProcess();
         NativeGlobalSoundProcess = definition.NativeGlobalSoundProcess ?? NativeGlobalSoundProcess.FromBufferlessColdProcess();
         presentationInitialMusicGain = inputs.InitialMusicGain;
@@ -121,7 +121,11 @@ public sealed partial class BattleSession
             : roster.Rows.Select(actor => actor?.ActorId).ToImmutableArray();
         NativeGraphics = InitializeNativePrimitiveFrame500400(new(models, actorIds, 0, 0) { UiServices = presentationInitialUi, PresentationRoster = roster });
         byte sourceModel = inputs.Source.ModelId4 ?? throw new NotSupportedException("Native effect presentation requires its source model identity.");
-        if (sourceModel < 16)
+        if (roster is not null)
+        {
+            NativeGraphics = InitializeHostedPresentationModelResources(NativeGraphics, sourceModel >= 16 && presentationNativeTargets.Values.Any(binding => binding.CanActivate));
+        }
+        else if (sourceModel < 16)
         {
             NativeGraphics = InitializeEffectPresentationSourceResources(NativeGraphics, inputs.SourceResource, preserveSelectedProgram: true);
         }
@@ -150,7 +154,7 @@ public sealed partial class BattleSession
             NativeBattleGraphicsDefinition graphics = definition.NativeGraphics ?? throw new NotSupportedException("Hosted Sonic Wave requires its original primitive resources.");
             NativeSoftwarePrimitiveTable softwareTable = graphics.SoftwarePrimitiveTable ?? throw new NotSupportedException("Hosted Sonic Wave requires its original software dispatch table.");
             bool hardware = graphics.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Hosted Sonic Wave requires its selected hardware execution capability.");
-            NativeBattleSoftwarePrimitiveExecution execution = new(software, inputs.Textures, softwareTable, hardware, cache);
+            NativeBattleSoftwarePrimitiveExecution execution = new(software, roster is null ? inputs.Textures : NativeEffectMemory.Textures!, softwareTable, hardware, cache);
             execution.ApplyEnvironment45B660(buffer ^ 1);
             NativeEffectMemory = NativeEffectMemory with { PrimitiveProcess = process with { Software = execution.State, TextureWindowCache = execution.Cache }, Textures = execution.Textures };
         }
@@ -255,7 +259,7 @@ public sealed partial class BattleSession
         }
         BindHostedCinematicActors();
         nativeCrtRandom = randomState;
-        NativeEffectMemory = NativeEffectMemory! with { Textures = textures };
+        NativeEffectMemory = NativeEffectMemory! with { Textures = AcceptHostedPresentationTextures(textures) };
         InvokeEffectPresentation();
     }
 
@@ -323,7 +327,7 @@ public sealed partial class BattleSession
             NativeCamera = NativeCamera! with { Projection = projection, ViewTranslationScratch = new(0, 0, 0) };
         }
         NativeBattleGraphicsState graphics = NativeGraphics! with { Models = BindPresentationForeignModels(NativeGraphics!.Models.SetItem(presentationSourceIndex, source), NativeGraphics.PresentationRoster, previousForeignActors), ModuleDraws = presentationFirstAdvance ? NativeGraphics.ModuleDraws : [], PrimitiveFrame = presentationFirstAdvance ? NativeGraphics.PrimitiveFrame : NativeBattlePrimitiveFrame.Clear() };
-        NativeEffectMemory = NativeEffectMemory! with { PrimitiveProcess = presentationFirstAdvance ? NativeEffectMemory.PrimitiveProcess : NativeEffectMemory.PrimitiveProcess!.Reset500900(graphics.Flags), Textures = textures };
+        NativeEffectMemory = NativeEffectMemory! with { PrimitiveProcess = presentationFirstAdvance ? NativeEffectMemory.PrimitiveProcess : NativeEffectMemory.PrimitiveProcess!.Reset500900(graphics.Flags), Textures = AcceptHostedPresentationTextures(textures) };
         presentationFirstAdvance = false;
         NativeGraphics = graphics;
         PumpNativeFileIo482590();

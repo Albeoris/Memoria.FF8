@@ -103,15 +103,17 @@ public static class NativeBattleActionGraphics
         };
     }
 
-    public static short AnyOtherModelBusy5044B0(IReadOnlyList<NativeBattleGraphicsModel> models, int currentIndex)
+    public static short AnyOtherModelBusy5044B0(IReadOnlyList<NativeBattleGraphicsModel> models, int currentIndex, NativeBattleGraphicsRoster? roster = null)
     {
-        if (models.Count != 7 || (uint)currentIndex >= 7)
+        roster?.Validate();
+        int count = roster?.ActorCount ?? NativeBattleGraphicsModelAddress.NativeRowCount;
+        if (models.Count != count || (uint)currentIndex >= (uint)count || roster is not null && roster.Rows[currentIndex] is null)
         {
-            throw new InvalidDataException("Native sequence busy query requires its seven graphics records and current model identity.");
+            throw new InvalidDataException("Native sequence busy query requires its owned graphics records and current model identity.");
         }
         for (int index = 0; index < models.Count; index++)
         {
-            if (index != currentIndex && (models[index].Flags0 & 2) != 0 && IsModelBusy(models[index], 0x40))
+            if (index != currentIndex && (roster is null || roster.Rows[index] is not null) && (models[index].Flags0 & 2) != 0 && IsModelBusy(models[index], 0x40))
             {
                 return 1;
             }

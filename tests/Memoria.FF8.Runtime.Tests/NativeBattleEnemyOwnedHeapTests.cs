@@ -54,7 +54,22 @@ public sealed class NativeBattleEnemyOwnedHeapTests
         Assert.Equal(held.Read(0, held.Owner.Length!.Value), NativeBattleModelResourceView.Open(restored.Cpu, restored.Staging, restored.Pin, restored.Pin.Length!.Value).Read(0, restored.Pin.Length.Value));
         cache = cache.Release5080D0(0);
         (cpu, staging) = NativeBattleModelEnemyHeap.Release(restored.Cpu, restored.Staging, cache, 1);
-        Assert.Empty(cpu.EnemyResources!);
+        NativeBattleModelCpuReference releasedClone = cpu.Rows[1].Require(12);
+        int geometryOwner = geometry.EnemyResourceId!.Value;
+        int cloneOwner = releasedClone.EnemyResourceId!.Value;
+        Assert.Equal(2, cpu.EnemyResources!.Count);
+        Assert.Equal(0xDD, NativeBattleModelEnemyHeap.Read(cpu, staging, cpu.Rows[0].Require(16), 10)[9]);
+        Assert.Equal(0xDD, NativeBattleModelEnemyHeap.Read(cpu, staging, cpu.Rows[1].Require(16), 10)[9]);
+        Assert.Equal(0xCC, NativeBattleModelEnemyHeap.Read(cpu, staging, releasedClone, 7)[6]);
+
+        (cpu, staging) = NativeBattleModelEnemyHeap.Load(cpu, staging, source, 0, null, false);
+        Assert.Contains(geometryOwner, cpu.EnemyResources!.Keys);
+        Assert.Contains(cloneOwner, cpu.EnemyResources!.Keys);
+        Assert.Equal(0xDD, NativeBattleModelEnemyHeap.Read(cpu, staging, cpu.Rows[1].Require(16), 10)[9]);
+        (cpu, staging) = NativeBattleModelEnemyHeap.Load(cpu, staging, source, 1, 0, false);
+        Assert.DoesNotContain(geometryOwner, cpu.EnemyResources!.Keys);
+        Assert.DoesNotContain(cloneOwner, cpu.EnemyResources!.Keys);
+        Assert.Equal(2, cpu.EnemyResources!.Count);
         Assert.Equal(held.Read(0, 32), NativeBattleModelResourceView.Open(cpu, staging, pin, 32).Read(0, 32));
         Assert.Throws<InvalidDataException>(() => NativeBattleModelResourceView.Open(cpu, staging, pin, pin.Length!.Value + 1));
     }
@@ -95,7 +110,7 @@ public sealed class NativeBattleEnemyOwnedHeapTests
     }
 
     [Fact]
-    public void Special143_keeps_model142_owners_and_distinct_information_until_last_release()
+    public void Special143_keeps_shared_model142_and_distinct_information_owners_until_row_replacement()
     {
         NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.FromColdProcess() with { EnemyCursor = 0, EnemyLinkedSlots = 0, ScratchMaximum = 0 };
         cpu = cpu with { Rows = cpu.Rows.SetItem(0, cpu.Rows[0] with { LinkedPhysicalIndex36 = 255 }) };
@@ -112,13 +127,34 @@ public sealed class NativeBattleEnemyOwnedHeapTests
         NativeBattleModelTextureBinding binding = new(Enumerable.Repeat<byte?>(null, 16).ToImmutableArray());
         NativeBattleModelTextureCache cache = NativeBattleModelTextureCache.FromColdProcess();
         cache = cache with { Rows = cache.Rows.SetItem(0, new(3, 142, 0, binding)).SetItem(1, new(3, 143, 0, binding)) };
-        byte[] animation = NativeBattleModelEnemyHeap.Read(cpu, staging, cpu.Rows[1].Require(20), 12);
+        NativeBattleModelCpuReference sharedAnimation = cpu.Rows[1].Require(20);
+        NativeBattleModelCpuReference privateInformation = cpu.Rows[1].Require(28);
+        int sharedOwner = sharedAnimation.EnemyResourceId!.Value;
+        int informationOwner = privateInformation.EnemyResourceId!.Value;
+        byte[] animation = NativeBattleModelEnemyHeap.Read(cpu, staging, sharedAnimation, 12);
+        byte[] information = NativeBattleModelEnemyHeap.Read(cpu, staging, privateInformation, 16);
+        NativeBattleResourcePointer pin = new NativeBattleResourcePointer(privateInformation, null, 16).Pin(cpu);
+
         (cpu, staging) = NativeBattleModelEnemyHeap.Release(cpu, staging, cache, 0);
         Assert.Equal(animation, NativeBattleModelEnemyHeap.Read(cpu, staging, cpu.Rows[1].Require(20), 12));
         Assert.Equal(2, cpu.EnemyResources!.Count);
         cache = cache.Release5080D0(0);
         (cpu, staging) = NativeBattleModelEnemyHeap.Release(cpu, staging, cache, 1);
-        Assert.Empty(cpu.EnemyResources!);
+        Assert.Equal(2, cpu.EnemyResources!.Count);
+        Assert.Equal(animation, NativeBattleModelEnemyHeap.Read(cpu, staging, cpu.Rows[1].Require(20), 12));
+        Assert.Equal(information, NativeBattleModelEnemyHeap.Read(cpu, staging, cpu.Rows[1].Require(28), 16));
+
+        (cpu, staging) = NativeBattleModelEnemyHeap.Load(cpu, staging, original, 0, null, false);
+        Assert.Contains(sharedOwner, cpu.EnemyResources!.Keys);
+        Assert.Contains(informationOwner, cpu.EnemyResources!.Keys);
+        Assert.Equal(animation, NativeBattleModelEnemyHeap.Read(cpu, staging, cpu.Rows[1].Require(20), 12));
+        Assert.Equal(information, NativeBattleModelEnemyHeap.Read(cpu, staging, cpu.Rows[1].Require(28), 16));
+        (cpu, staging) = NativeBattleModelEnemyHeap.Load(cpu, staging, original, 1, 0, false);
+        Assert.DoesNotContain(sharedOwner, cpu.EnemyResources!.Keys);
+        Assert.DoesNotContain(informationOwner, cpu.EnemyResources!.Keys);
+        Assert.Equal(2, cpu.EnemyResources!.Count);
+        Assert.Equal(information, NativeBattleModelResourceView.Open(cpu, staging, pin, 16).Read(0, 16));
+        Assert.Throws<InvalidDataException>(() => NativeBattleModelResourceView.Open(cpu, staging, pin, 17));
     }
 
     [Fact]

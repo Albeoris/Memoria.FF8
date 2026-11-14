@@ -13,6 +13,15 @@ public sealed partial class BattleSession
     private ImmutableArray<NativeBattleModelDatSource> NativeModelResourceSources()
     {
         IEnumerable<NativeBattleModelDatSource> sources = definition.NativeGraphics!.Bindings.SelectMany(binding => binding.Resource.ModelLoadSources ?? []);
+        if (NativeGraphics?.PresentationRoster is { } roster)
+        {
+            sources = sources.Concat(Enumerable.Range(0, roster.ActorCount).Where(index => roster.Rows[index] is not null).SelectMany(index => ReadHostedPresentationModelResource(index)?.ModelLoadSources ?? []));
+            if (definition.GuardianFormsEnabled)
+            {
+                sources = sources.Concat(definition.GuardianFormResources.SelectMany(resource => resource.VisualResource.ModelLoadSources ?? []));
+            }
+            return sources.ToImmutableArray();
+        }
         if (!definition.GuardianFormsEnabled)
         {
             return sources.ToImmutableArray();

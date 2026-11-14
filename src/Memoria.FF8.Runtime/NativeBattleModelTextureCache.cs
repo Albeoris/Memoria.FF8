@@ -156,6 +156,22 @@ public sealed record NativeBattleModelTextureCache([property: JsonRequired] Immu
         return this with { Rows = rows, PresentationActors = PresentationActors?.Remove(resourceIndex), BlockedSlots = shared || PresentationRoster is not null ? BlockedSlots : (ushort)(BlockedSlots & ~mask), EnemyTextureMotion = shared ? EnemyTextureMotion : EnemyTextureMotion.Remove(row.ModelId!.Value) };
     }
 
+    internal int SelectHostedLoadAlias(NativeBattleModelLoadTask task)
+    {
+        Validate();
+        NativeBattleGraphicsRoster roster = PresentationRoster ?? throw new InvalidDataException("Hosted texture loading requires its presentation roster.");
+        bool party = task.Callback is 0x5077B0 or 0x5079B0 or 0x507BF0;
+        RequirePresentationActor(roster, task.PhysicalIndex, requireParty: party);
+        return task.Callback switch
+        {
+            0x5077B0 or 0x5079B0 => ExistingOrFree(1, task.ModelId, task.PhysicalIndex),
+            0x507BF0 => ExistingOrFree(2, task.ModelId, task.PhysicalIndex),
+            0x507120 => ExistingOrFree(3, task.ModelId, task.PhysicalIndex),
+            0x507F80 => FirstFree(),
+            _ => throw new InvalidDataException("Hosted texture alias selection requires an allocating model callback.")
+        };
+    }
+
     private int ExistingOrFree(byte kind, byte modelId, int actorRow)
     {
         Validate();

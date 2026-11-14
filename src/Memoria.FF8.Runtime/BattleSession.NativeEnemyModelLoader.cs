@@ -14,7 +14,7 @@ public sealed partial class BattleSession
         NativeBattleModelTextureCache cache = NativeModelTextureCache ?? throw new NotSupportedException("Native enemy load requires its eleven physical resource rows.");
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Native enemy load requires its retained heap cursor and row aliases.");
         NativeBattleFileStaging staging = NativeFileStaging ?? NativeBattleFileStaging.Unknown();
-        if (task.Phase == 0 && task.Callback == 0x507120)
+        if (graphics.PresentationRoster is null && task.Phase == 0 && task.Callback == 0x507120)
         {
             int existing = Array.FindIndex(cache.Rows.ToArray(), row => row.Kind == 3 && row.ModelId == task.ModelId);
             if (existing >= 0)
@@ -26,7 +26,7 @@ public sealed partial class BattleSession
                 NativeFileStaging = staging;
                 NativeModelTextureCache = clone.Cache;
                 BindNativeEnemyModel(ref graphics, task, clone.ResourceIndex, clone.Binding);
-                NativeModelLoader = new(null);
+                NativeModelLoader = new(null) { PresentationRoster = loader.PresentationRoster };
                 return true;
             }
         }
@@ -47,6 +47,10 @@ public sealed partial class BattleSession
                 destination = index;
             }
         }
+        if (cache.PresentationRoster is not null)
+        {
+            destination = cache.SelectHostedLoadAlias(task);
+        }
         if (destination < 0)
         {
             throw new NotSupportedException("Native507F80 has no free resource row.");
@@ -56,23 +60,30 @@ public sealed partial class BattleSession
         NativeBattleModelFileSelection file = task.File ?? throw new InvalidDataException("Native507F80 has no completed source file.");
         NativeBattleModelDatSource dat = task.ResourceSource ?? new(task.ModelId, false, 0, file.FileId, file.Name, staging.ReadDat(NativeBattleFileStaging.Address));
         (cpu, staging) = NativeBattleModelEnemyHeap.Load(cpu, staging, dat, destination, owner, true);
+        cache = cache with
+        {
+            Rows = cache.Rows.SetItem(destination, cache.Rows[destination] with { Kind = 3, ModelId = 143, TextureMask = 0, Binding = binding }),
+            PresentationActors = cache.PresentationActors?.SetItem(destination, task.PhysicalIndex)
+        };
+        RequireHostedModelLoadAlias(cpu, cache, destination, task.PhysicalIndex, 3, task.ModelId);
         NativeModelCpuResources = cpu;
         NativeFileStaging = staging;
-        NativeModelTextureCache = cache with { Rows = cache.Rows.SetItem(destination, cache.Rows[destination] with { Kind = 3, ModelId = 143, TextureMask = 0, Binding = binding }) };
+        NativeModelTextureCache = cache;
         BindNativeEnemyModel(ref graphics, task, destination, binding);
-        NativeModelLoader = new(null);
+        NativeModelLoader = new(null) { PresentationRoster = loader.PresentationRoster };
         return true;
     }
 
     private void ReserveNativeEnemyResource(NativeBattleModelLoadTask task, NativeBattleModelTextureLoad upload)
     {
         NativeBattleModelTextureCache cache = NativeModelTextureCache!;
-        NativeBattleModelTextureCacheLoad load = cache.LoadEnemy(task.ModelId, task.OriginalTexturePack!);
+        NativeBattleModelTextureCacheLoad load = cache.LoadEnemy(task.ModelId, task.OriginalTexturePack!, cache.PresentationRoster is null ? null : task.PhysicalIndex);
         if (load.Upload is null || load.Upload.AllocatedSlots != upload.AllocatedSlots || !load.Binding.PaletteRows.SequenceEqual(upload.Binding.PaletteRows))
         {
             throw new InvalidDataException("Native507120 material allocation changed while its singleton task was executing.");
         }
         NativeBattleModelCpuResources cpu = NativeModelCpuResources!;
+        RequireHostedModelLoadAlias(cpu, load.Cache, load.ResourceIndex, task.PhysicalIndex, 3, task.ModelId);
         NativeBattleModelDatSource source = task.ResourceSource ?? new(task.ModelId, false, task.Selector, task.File!.FileId, task.File.Name, NativeFileStaging!.ReadDat(NativeBattleFileStaging.Address));
         byte slot = 255;
         if (source.Section(9) != source.Section(10))
@@ -96,6 +107,11 @@ public sealed partial class BattleSession
     private void CompleteNativeEnemyResource(ref NativeBattleGraphicsState graphics, NativeBattleModelResourceBind bind)
     {
         int row = bind.Task.EnemyResourceIndex ?? throw new InvalidDataException("Native507120 completion has no actually allocated resource row.");
+        RequireHostedModelLoadAlias(NativeModelCpuResources!, NativeModelTextureCache!, row, bind.Task.PhysicalIndex, 3, bind.Task.ModelId);
+        if (NativeModelTextureCache!.PresentationRoster is not null)
+        {
+            RequireHostedModelLoadBinding(NativeModelTextureCache, bind, NativeModelTextureCache.Rows[row].Binding!);
+        }
         (NativeModelCpuResources, NativeFileStaging) = NativeBattleModelEnemyHeap.Load(NativeModelCpuResources!, NativeFileStaging!, bind.PreparedDat, row, null, false);
         BindNativeEnemyModel(ref graphics, bind.Task, row, bind.TextureBinding);
     }

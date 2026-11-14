@@ -22,16 +22,33 @@ public sealed partial class BattleSession
 
     private void QueueNativeModelResource507080(NativeBattleGraphicsState graphics, ushort request, byte physicalIndex, uint argument = 0)
     {
+        NativeBattleGraphicsRoster? roster = graphics.PresentationRoster;
+        if (roster is not null)
+        {
+            _ = RequireHostedModelLoadOwner(graphics, roster, physicalIndex);
+        }
         NativeBattleGraphicsModel model = graphics.Models[physicalIndex];
         bool linked = request >= 0x1000;
         byte body = linked || request >= 16 ? (byte)0 : model.FileSelector129 ?? throw new NotSupportedException("Native5077B0 requires the observed model BYTE129 costume selector.");
         byte weapon = !linked || request == 0x1007 ? (byte)0 : model.FileSelector128 ?? throw new NotSupportedException("Native507BF0/507E20 requires the observed model BYTE128 kernel weapon selector.");
-        NativeBattleModelLoader queued = NativeBattleModelLoader.Queue507080(request, physicalIndex, argument, weapon, body);
+        NativeBattleModelLoader queued = NativeBattleModelLoader.Queue507080(request, physicalIndex, argument, weapon, body, roster);
+        if (roster is not null && queued.Task is { } hostedTask)
+        {
+            if (hostedTask.Callback is 0x507BF0 or 0x507E20)
+            {
+                int alias = model.TextureResourceIndex ?? throw new InvalidDataException("Hosted linked loading requires its bound body alias.");
+                RequireHostedModelLoadAlias(NativeModelCpuResources!, NativeModelTextureCache!, alias, physicalIndex, 1, hostedTask.ModelId);
+            }
+            if (hostedTask.Callback != 0x507E20)
+            {
+                _ = NativeModelTextureCache!.SelectHostedLoadAlias(hostedTask);
+            }
+        }
         if (!linked && request < 16)
         {
             NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Complete party load planning requires its current CPU resource owner.");
             byte linkedSelector = request == 7 ? (byte)0 : model.FileSelector128 ?? throw new NotSupportedException("Complete party load planning requires its selected BYTE128 weapon resource.");
-            NativeBattlePartyLoadPlan plan = NativeBattlePartyLoadPlan.Create(checked((byte)request), physicalIndex, body, linkedSelector, cpu.Cpu.EffectiveLayout, NativeModelResourceSources());
+            NativeBattlePartyLoadPlan plan = NativeBattlePartyLoadPlan.Create(checked((byte)request), physicalIndex, body, linkedSelector, cpu.Cpu.EffectiveLayout, NativeModelResourceSources(), roster);
             if (plan.RequiresResourceStorage)
             {
                 NativeBattleModelResourceCopies.RequirePlannedTransition(cpu, physicalIndex, graphics);
@@ -45,7 +62,7 @@ public sealed partial class BattleSession
             NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Linked party planning requires its current body owner.");
             int row = model.TextureResourceIndex ?? throw new NotSupportedException("Linked party planning requires its completed body resource row.");
             NativeBattleModelCpuReference tail = cpu.Rows[row].Require(8);
-            if (tail.Bank != physicalIndex || tail.Offset != plan.Body.CopiedLength || tail.EffectiveLayout != plan.Layout)
+            if (tail.Bank != cpu.Cpu.PartyBankIndex(physicalIndex) || tail.Offset != plan.Body.CopiedLength || tail.EffectiveLayout != plan.Layout)
             {
                 throw new InvalidDataException("The linked request no longer belongs to its planned body publication.");
             }
@@ -57,6 +74,22 @@ public sealed partial class BattleSession
     private int PollNativeModelResource507070(ref NativeBattleGraphicsState graphics)
     {
         NativeBattleModelLoader loader = NativeModelLoader ?? throw new NotSupportedException("Native507070 requires its actually initialized singleton load list.");
+        (string ActorId, NativeBattlePresentationTextureBank Bank)? material = null;
+        if (graphics.PresentationRoster is { } roster && loader.Task is { } task)
+        {
+            NativeBattlePartyLoadPlan.RequireMatchingRoster(roster, loader.PresentationRoster);
+            material = RequireHostedModelLoadOwner(graphics, roster, task.PhysicalIndex);
+            NativeBattleGraphicsModel actor = graphics.Models[task.PhysicalIndex];
+            if (task.Callback is 0x507BF0 or 0x507E20)
+            {
+                int bodyAlias = actor.TextureResourceIndex ?? throw new InvalidDataException("Hosted linked loading requires its bound body alias.");
+                RequireHostedModelLoadAlias(NativeModelCpuResources!, NativeModelTextureCache!, bodyAlias, task.PhysicalIndex, 1, task.ModelId);
+            }
+            if (task.Callback == 0x507120 && task.EnemyResourceIndex is int enemyAlias)
+            {
+                RequireHostedModelLoadAlias(NativeModelCpuResources!, NativeModelTextureCache!, enemyAlias, task.PhysicalIndex, 3, task.ModelId);
+            }
+        }
         if (TryPollNativeEnemyModel(ref graphics, loader, out int enemyRemaining))
         {
             return enemyRemaining;
@@ -75,7 +108,16 @@ public sealed partial class BattleSession
         {
             throw new NotSupportedException("Native model callback requires its retained shared199B018 staging bytes; migrate an older active load explicitly.");
         }
-        NativeBattleModelLoadStep step = loader.Poll507070(NativeEffectIoResult ?? throw new NotSupportedException("Native507070 requires its retained signed1D999C8 IO result."), sources, NativeFileStaging ?? NativeBattleFileStaging.Unknown(), NativeModelTextureCache?.BlockedSlots ?? 63, ownedEnemySource: NativeModelCpuResources?.EnemyResources is not null);
+        NativeBattleModelLoadStep step = loader.Poll507070(NativeEffectIoResult ?? throw new NotSupportedException("Native507070 requires its retained signed1D999C8 IO result."), sources, NativeFileStaging ?? NativeBattleFileStaging.Unknown(), material is not null ? HostedEnemyBlockedTextureSlots : NativeModelTextureCache?.BlockedSlots ?? 63, ownedEnemySource: NativeModelCpuResources?.EnemyResources is not null);
+        NativeBattleModelCpuResources? hostedPalettes = null;
+        NativeBattleEffectTextureState? hostedTextures = null;
+        if (material is { } owner && step.TextureUpload is { } hostedUpload)
+        {
+            NativeBattleModelCpuResources cpu = NativeModelCpuResources!;
+            NativeBattleEffectTextureState textures = NativeEffectMemory!.Textures!;
+            hostedPalettes = cpu.SavePalettes507400(hostedUpload, loader.Task!.PhysicalIndex);
+            hostedTextures = PublishNativeModelTextures(textures, owner, NativeBattleModelTextures.Enqueue507400(owner.Bank.Textures, hostedUpload));
+        }
         if (step.FileRequest is not null)
         {
             //508480 writes the result gate before482610's synchronous read and delayed508470 callback.
@@ -91,8 +133,8 @@ public sealed partial class BattleSession
             NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Native507400 requires its retained model CPU/palette owner.");
             NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native507400 requires its retained process texture owner.");
             NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native507400 requires its actual texture-upload queue and VRAM.");
-            NativeModelCpuResources = cpu.SavePalettes507400(upload);
-            NativeEffectMemory = memory with { Textures = NativeBattleModelTextures.Enqueue507400(textures, upload) };
+            NativeModelCpuResources = hostedPalettes ?? cpu.SavePalettes507400(upload);
+            NativeEffectMemory = memory with { Textures = hostedTextures ?? NativeBattleModelTextures.Enqueue507400(textures, upload) };
         }
         if (step.Bind is { } bind)
         {
@@ -125,16 +167,21 @@ public sealed partial class BattleSession
             NativeBattleModelTextureCacheLoad load = cache.LoadPlayer(task.ModelId, task.PhysicalIndex, pack);
             cache = load.Cache;
             bodyRow = load.ResourceIndex;
+            RequireHostedModelLoadAlias(cpu, cache, bodyRow, task.PhysicalIndex, 1, task.ModelId);
+            RequireHostedModelLoadBinding(cache, bind, load.Binding);
             model = model with { BodyTextureSlots = bind.TextureBinding, TextureResourceIndex = bodyRow, TextureAllocationMask = cache.Rows[bodyRow].TextureMask, ActiveResourceRow100 = bodyRow, ActiveStagedResourceRow100 = null, LinkedStagedResourceRow = null, ResourceMagicId = null, ResourceRenzokukenTargetBank = null };
         }
         else
         {
             bodyRow = model.TextureResourceIndex ?? throw new NotSupportedException("Native linked resource completion requires its actual primary resource-row pointer.");
+            RequireHostedModelLoadAlias(cpu, cache, bodyRow, task.PhysicalIndex, 1, task.ModelId);
             if (task.Callback == 0x507BF0)
             {
                 NativeBattleModelTextureCacheLoad load = cache.LoadLinkedWeapon(task.ModelId, task.PhysicalIndex, pack);
                 cache = load.Cache;
                 linkedRow = load.ResourceIndex;
+                RequireHostedModelLoadAlias(cpu, cache, load.ResourceIndex, task.PhysicalIndex, 2, task.ModelId);
+                RequireHostedModelLoadBinding(cache, bind, load.Binding);
             }
             model = model with { LinkedTextureSlots = bind.TextureBinding, LinkedTextureResourceIndex = linkedRow };
         }
@@ -157,6 +204,13 @@ public sealed partial class BattleSession
         NativeModelCpuResources = cpu;
         NativeModelTextureCache = cache;
         graphics = graphics with { Models = graphics.Models.SetItem(task.PhysicalIndex, model) };
+    }
 
+    private static void RequireHostedModelLoadBinding(NativeBattleModelTextureCache cache, NativeBattleModelResourceBind bind, NativeBattleModelTextureBinding binding)
+    {
+        if (cache.PresentationRoster is not null && !binding.PaletteRows.SequenceEqual(bind.TextureBinding.PaletteRows))
+        {
+            throw new InvalidDataException("Hosted resource completion disagrees with the uploaded material binding.");
+        }
     }
 }

@@ -5,19 +5,35 @@ public sealed record NativeBattleGraphicsModelCompletion(ushort Flags0, byte Kin
 
 public static class NativeBattleGraphicsCompletion
 {
-    public static int PollTask112(byte effectTaskCount, IReadOnlyList<NativeBattleGraphicsModelCompletion>? models, byte cameraTaskMask, ref byte completionByte)
+    public static int PollTask112(byte effectTaskCount, IReadOnlyList<NativeBattleGraphicsModelCompletion>? models, byte cameraTaskMask, ref byte completionByte, NativeBattleGraphicsRoster? roster = null)
+    {
+        return PollTask112Core(effectTaskCount, models, static model => model, () => cameraTaskMask, ref completionByte, roster);
+    }
+
+    internal static int PollHostedTask112(byte effectTaskCount, IReadOnlyList<NativeBattleGraphicsModel>? models, Func<byte> readCameraTaskMask, ref byte completionByte, NativeBattleGraphicsRoster roster)
+    {
+        return PollTask112Core(effectTaskCount, models, static model => model.CompletionInputs(), readCameraTaskMask, ref completionByte, roster);
+    }
+
+    private static int PollTask112Core<TModel>(byte effectTaskCount, IReadOnlyList<TModel>? models, Func<TModel, NativeBattleGraphicsModelCompletion> readModel, Func<byte> readCameraTaskMask, ref byte completionByte, NativeBattleGraphicsRoster? roster)
     {
         //5085F0 preserves short-circuit order and returns the508420 unlink bit only after all three owners clear.
         if (effectTaskCount != 0)
         {
             return 0;
         }
-        if (models is null || models.Count != 7)
+        roster?.Validate();
+        if (models is null || models.Count != (roster?.ActorCount ?? NativeBattleGraphicsModelAddress.NativeRowCount))
         {
-            throw new NotSupportedException("Native graphics task112 requires its seven original graphics model records.");
+            throw new NotSupportedException("Native graphics task112 requires its owned graphics model records.");
         }
-        foreach (NativeBattleGraphicsModelCompletion model in models)
+        for (int index = 0; index < models.Count; index++)
         {
+            if (roster is not null && roster.Rows[index] is null)
+            {
+                continue;
+            }
+            NativeBattleGraphicsModelCompletion model = readModel(models[index]);
             if ((model.Flags0 & 2) == 0 || (model.Flags0 & 8) != 0 || (model.Flags8 & 0x18) != 0)
             {
                 continue;
@@ -32,7 +48,7 @@ public static class NativeBattleGraphicsCompletion
                 return 0;
             }
         }
-        if (cameraTaskMask != 0)
+        if (readCameraTaskMask() != 0)
         {
             return 0;
         }

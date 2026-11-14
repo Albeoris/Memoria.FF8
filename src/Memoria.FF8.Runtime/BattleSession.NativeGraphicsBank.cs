@@ -97,7 +97,8 @@ public sealed partial class BattleSession
             }
             NativeEffectMemory?.ValidateReturnedTaskOwner(state.OriginalEffect);
             ValidateNativeTriggerWidget(state);
-            for (int index = 0; index < 7; index++)
+            int modelCount = state.PresentationRoster is null ? NativeBattleGraphicsModelAddress.NativeRowCount : state.Models.Length;
+            for (int index = 0; index < modelCount; index++)
             {
                 if (state.ActorIds[index] is string id && (!byId.ContainsKey(id) || FindNativeGraphicsBinding(id) is null))
                 {
@@ -107,6 +108,10 @@ public sealed partial class BattleSession
                 if ((model.Flags0 & 2) != 0 && model.TextureResourceIndex is int resourceIndex)
                 {
                     NativeBattleModelTextureCache cache = NativeModelTextureCache ?? throw new InvalidDataException("Saved native graphics resource index has no retained texture cache owner.");
+                    if (state.PresentationRoster is not null && (cache.Rows.IsDefault || (uint)resourceIndex >= (uint)cache.Rows.Length || cache.PresentationActors is { } owners && (!owners.TryGetValue(resourceIndex, out int actor) || actor != index)))
+                    {
+                        throw new InvalidDataException("Saved hosted graphics resource index is outside its cache or belongs to another actor.");
+                    }
                     NativeBattleModelTextureCacheRow row = cache.Rows[resourceIndex];
                     if (row.Kind == 0 || row.ModelId != model.ModelId4 || row.Binding is not { } binding || model.BodyTextureSlots is not { } material || !binding.PaletteRows.SequenceEqual(material.PaletteRows))
                     {

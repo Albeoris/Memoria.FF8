@@ -9,17 +9,27 @@ public sealed partial class BattleSession
         {
             presentedResource = foreign.NativeResource ?? throw new NotSupportedException($"Host actor slot {index} cannot supply a native FFVIII skeleton, animation bank or textured body resource required by the selected effect.");
         }
-        if (presentedResource is not null && graphics.Models[index].ResourceMagicId is null && graphics.Models[index].ActiveStagedResourceRow100 is null)
+        bool hosted = graphics.PresentationRoster is not null && NativeEffectMemory?.Textures?.PresentationTextures is not null;
+        if (!hosted && presentedResource is not null && graphics.Models[index].ResourceMagicId is null && graphics.Models[index].ActiveStagedResourceRow100 is null)
         {
             return presentedResource;
         }
-        if (presentationNativeTargets?.TryGetValue(index, out NativeBattleEffectModelBinding? effectTarget) == true && graphics.Models[index].ResourceMagicId is null && graphics.Models[index].ActiveStagedResourceRow100 is null)
+        if (!hosted && presentationNativeTargets?.TryGetValue(index, out NativeBattleEffectModelBinding? effectTarget) == true && graphics.Models[index].ResourceMagicId is null && graphics.Models[index].ActiveStagedResourceRow100 is null)
         {
             return effectTarget.Resource;
         }
-        if ((uint)index >= 7 || graphics.ActorIds[index] is not string actorId)
+        int capacity = hosted ? graphics.PresentationRoster!.ActorCount : 7;
+        if ((uint)index >= (uint)capacity || graphics.ActorIds[index] is not string actorId)
         {
             throw new InvalidDataException($"Native graphics pose index {index} has no allocated resource owner.");
+        }
+        if (hosted)
+        {
+            if (!StringComparer.Ordinal.Equals(graphics.PresentationRoster![index].ActorId, actorId))
+            {
+                throw new InvalidDataException("Hosted graphics pose requires the selected row's actual actor identity.");
+            }
+            presentedResource = ReadHostedPresentationModelResource(index, actorId) ?? throw new NotSupportedException("Hosted graphics pose requires the selected actor's native model resource.");
         }
         NativeBattleGraphicsBinding binding = presentedResource is not null
             ? new(actorId, graphics.Models[index].ModelId4 ?? throw new InvalidDataException("Native presentation participant lost its model identity."), presentedResource)
@@ -82,7 +92,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Native target animation bank exceeds its Renzokuken resource directory.");
             }
-            NativeBattleGraphicsResource original = graphics.Models[index].ModelId4 >= 16
+            NativeBattleGraphicsResource original = graphics.Models[index].ModelId4 >= 16 && (!hosted || OwnsHostedEnemyPoseRow(graphics.Models[index]))
                 ? ResolveNativeEnemyResource(graphics.Models[index].ActiveResourceRow100 ?? throw new NotSupportedException("Native target animation requires its loaded enemy resource row."), binding.Resource)
                 : binding.Resource;
             NativeBattleGraphicsResource target = resource.TargetResources[targetBank].BindGraphicsResource(original.PoseSource ?? throw new NotSupportedException("Native target animation requires its original skeleton owner."));
@@ -90,6 +100,10 @@ public sealed partial class BattleSession
         }
         if (graphics.Models[index].ModelId4 >= 16)
         {
+            if (hosted && !OwnsHostedEnemyPoseRow(graphics.Models[index]))
+            {
+                return binding.Resource;
+            }
             int enemyRow = graphics.Models[index].ActiveResourceRow100 ?? throw new NotSupportedException("Native enemy resource view requires its actually loaded physical row; migrate the named older snapshot explicitly.");
             return ResolveNativeEnemyResource(enemyRow, binding.Resource);
         }

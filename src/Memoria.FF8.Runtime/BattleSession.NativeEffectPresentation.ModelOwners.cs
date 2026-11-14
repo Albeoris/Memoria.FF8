@@ -1,0 +1,74 @@
+namespace Memoria.FF8.Runtime;
+
+public sealed partial class BattleSession
+{
+    private string HostedPresentationExecutableHash => definition.NativeRetainedMemory?.ColdExecutableSha256 ?? NativeFieldRuntimeProfile.FF8EnExecutableHash;
+
+    private void InitializeHostedPresentationModelOwners(NativeBattleGraphicsRoster roster)
+    {
+        NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Hosted model resources require their effect memory owner.");
+        NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Hosted model resources require their texture owner.");
+        if (textures.PresentationTextures is null)
+        {
+            NativeBattlePcTextureWindowCache cache = memory.PrimitiveProcess?.TextureWindowCache ?? throw new NotSupportedException("Hosted model textures require their initialized process cache.");
+            // Older presentations retain a single published image. Copy its pixels and provenance without replaying its upload queue.
+            NativeBattleEffectTextureState leaf = textures with { PresentationTextures = null, Count = 0, Slots = NativeBattleEffectTextureState.FromColdProcess().Slots, Animation = null };
+            foreach (NativeBattleGraphicsActor actor in roster.Rows.OfType<NativeBattleGraphicsActor>())
+            {
+                textures = textures.WithPresentationTexture(actor.ActorId, new(leaf, NativeBattlePcTextureWindowCache.Reset4647A0(cache)));
+            }
+        }
+        else
+        {
+            ValidateHostedPresentationTextureOwners(roster, textures);
+        }
+        NativeEffectMemory = memory with { Textures = textures };
+        NativeModelCpuResources = (NativeBattleModelCpuResources.FromColdProcess(HostedPresentationExecutableHash) with { EnemyCursor = 0, ScratchMaximum = 0, EnemyLinkedSlots = 0 }).WithPresentationRoster(roster);
+        NativeModelTextureCache = NativeBattleModelTextureCache.Initialize508260(NativeBattleModelTextureCache.FromColdProcess()).WithPresentationRoster(roster);
+        NativeEffectIoResult = 0;
+    }
+
+    private NativeBattleEffectTextureState AcceptHostedPresentationTextures(NativeBattleEffectTextureState textures)
+    {
+        if (NativeGraphics?.PresentationRoster is not { } roster)
+        {
+            return textures;
+        }
+        if (textures.PresentationTextures is null)
+        {
+            textures = textures with { PresentationTextures = NativeEffectMemory?.Textures?.PresentationTextures ?? throw new InvalidDataException("Hosted presentation lost its initialized model texture owners.") };
+        }
+        ValidateHostedPresentationTextureOwners(roster, textures);
+        return textures;
+    }
+
+    private static void ValidateHostedPresentationTextureOwners(NativeBattleGraphicsRoster roster, NativeBattleEffectTextureState textures)
+    {
+        textures.Validate();
+        foreach (NativeBattleGraphicsActor actor in roster.Rows.OfType<NativeBattleGraphicsActor>())
+        {
+            textures.RequirePresentationTexture(actor.ActorId);
+        }
+    }
+
+    private NativeBattleGraphicsResource? ReadHostedPresentationModelResource(int index, string? actorId = null)
+    {
+        if (index == presentationSourceIndex && presentationSourceResource is not null)
+        {
+            return presentationSourceResource;
+        }
+        if (presentationNativeTargets?.TryGetValue(index, out NativeBattleEffectModelBinding? target) == true)
+        {
+            return target.Resource;
+        }
+        return presentationForeignActors?.GetValueOrDefault(index)?.NativeResource ?? (actorId is not null ? FindNativeGraphicsBinding(actorId)?.Resource : null);
+    }
+
+    private bool OwnsHostedEnemyPoseRow(NativeBattleGraphicsModel model)
+    {
+        return model.ActiveResourceRow100 is int row && NativeModelTextureCache is { PresentationActors: { } owners } cache &&
+            NativeModelCpuResources is { } cpu && (uint)row < (uint)cache.Rows.Length && (uint)row < (uint)cpu.Rows.Length &&
+            cache.Rows[row] is { Kind: 3 } material && material.ModelId == model.ModelId4 &&
+            owners.TryGetValue(row, out int actor) && actor == model.Index;
+    }
+}

@@ -14,7 +14,7 @@ public sealed partial class BattleSession
         }
         if (variable == 46)
         {
-            return NativeBattleActionGraphics.AnyOtherModelBusy5044B0(graphics.Models, modelIndex);
+            return NativeBattleActionGraphics.AnyOtherModelBusy5044B0(graphics.Models, modelIndex, graphics.PresentationRoster);
         }
         if (variable == 51)
         {
