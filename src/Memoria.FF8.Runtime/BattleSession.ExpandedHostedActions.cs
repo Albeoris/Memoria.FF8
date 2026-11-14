@@ -27,10 +27,14 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("Hosted invocation staging requires the logical preparation candidate.");
         }
-        // TODO(TD-009): Adapt failure-only header ownership before enabling the attached host in App.
-        if (header.Command == 0 || contacts.IsEmpty)
+        // TODO(TD-009): Ordinary zero-target and graphics-only invocations have separate admission contracts.
+        if (contacts.IsDefault || contacts.IsEmpty && header is not { Command: 0, Sequence: 10, Action: 9, Effect: 0 })
         {
-            throw new NotSupportedException("Hosted presentation has no admission for this invocation without resolved contacts.");
+            throw new NotSupportedException("Hosted presentation requires an explicit contact list or its original failed control header.");
+        }
+        if (contacts.IsEmpty && enemyDraw is not null)
+        {
+            throw new InvalidDataException("A hosted control invocation cannot consume pending Draw without a contact.");
         }
         expandedHostedInvocations = expandedHostedInvocations.Add(new(command, header, contacts, enemyDraw));
     }
@@ -65,12 +69,12 @@ public sealed partial class BattleSession
         return process.PrepareAction(invocation.Header, invocation.Contacts.Select(contact => contact.Packet).ToImmutableArray());
     }
 
-    private static NativeBattleEffectContactBridge<string> PrepareExpandedHostedContactBridge(ExpandedHostedInvocation invocation, NativeBattleGraphicsRoster roster)
+    private static NativeBattleEffectContactBridge<string>? PrepareExpandedHostedContactBridge(ExpandedHostedInvocation invocation, NativeBattleGraphicsRoster roster)
     {
-        return new(invocation.Contacts.Select(contact => (contact.RecipientId, contact.Packet)), roster);
+        return invocation.Contacts.IsEmpty ? null : new(invocation.Contacts.Select(contact => (contact.RecipientId, contact.Packet)), roster);
     }
 
-    private void BindExpandedHostedContactTracking(ExpandedHostedInvocation invocation, NativeBattleGraphicsRoster roster, NativeBattleEffectContactBridge<string> bridge)
+    private void BindExpandedHostedContactTracking(ExpandedHostedInvocation invocation, NativeBattleGraphicsRoster roster, NativeBattleEffectContactBridge<string>? bridge)
     {
         expandedContactBridge = bridge;
         expandedModelContacts = invocation.Contacts;
@@ -103,7 +107,7 @@ public sealed partial class BattleSession
         ImmutableArray<ExpandedHostedInvocation> remaining = expandedHostedInvocations.RemoveAt(0);
         ExpandedHostedInvocation invocation = remaining[0];
         PreparedHostedAction next = PrepareExpandedHostedInvocation(process, invocation);
-        NativeBattleEffectContactBridge<string> bridge = PrepareExpandedHostedContactBridge(invocation, roster);
+        NativeBattleEffectContactBridge<string>? bridge = PrepareExpandedHostedContactBridge(invocation, roster);
         process.ValidatePreparedAction(next);
         expandedHostedInvocations = remaining;
         BindExpandedHostedContactTracking(invocation, roster, bridge);
@@ -120,6 +124,10 @@ public sealed partial class BattleSession
                     if (actionToken is null || actionToken != expandedHostedActionToken || expandedEffectCommand is not { } command)
                     {
                         throw new InvalidDataException("Hosted contact arrived without its active logical action.");
+                    }
+                    if (expandedContactBridge is null)
+                    {
+                        throw new InvalidDataException("A hosted control invocation published an unexpected contact.");
                     }
                     AcknowledgeExpandedEffectContact(command, contact.Packet);
                     NativeBattleGraphicsRoster roster = expandedModelRoster!;

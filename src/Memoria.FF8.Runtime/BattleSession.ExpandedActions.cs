@@ -185,7 +185,7 @@ public sealed partial class BattleSession
         BattleCombatant[] recipients = ExpandedActionTargets(actor, command.TargetId, command.Ability, command.ActionId, command.AiRecipients, graphicAction ?? command.NativeAction);
         bool silencedMagic = (command.Ability == BattleAbility.Magic || command.NativeAction?.Command == 2) && (NativeSavedStatusBits(actor) & 0x10) != 0;
         if (!CanExecuteExpandedAction(actor, command.NativeAiCallbackStage, command.AiRecipients) && !CanNativeSupportCommandAct(actor, command.NativePlayerReaction) ||
-            !CanExecuteMagicReservation(actor, new(command.ActorId, command.TargetId, command.Ability, command.ActionId) { MagicReservationId = command.MagicReservationId }) || graphicAction is null && recipients.Length == 0 || silencedMagic)
+            !CanExecuteMagicReservation(actor, new(command.ActorId, command.TargetId, command.Ability, command.ActionId) { MagicReservationId = command.MagicReservationId }, admitSilencedInvocation: hosted) || graphicAction is null && recipients.Length == 0 || !hosted && silencedMagic)
         {
             if (silencedMagic && (command.FreeNativeMagic && HasNativeAngelWing(actor) || command.AiRecipients?.TargetPolicy == BattleAiTargetPolicy.Compelled) && CanNativeBattleActorAct(actor))
             {
@@ -227,10 +227,6 @@ public sealed partial class BattleSession
             }
             BattleAttackCommand draw = PrepareNativeDrawCommand(actor, new(actor.Id, target.Id, BattleAbility.Draw, command.ActionId, command.DrawCast) { DrawCastTargetId = command.DrawCastTargetId });
             command = command with { NativeDraw = draw.NativeDraw, NativeAction = draw.NativeAction };
-            if (hosted && draw.NativeDraw!.Failed)
-            {
-                throw new NotSupportedException("Hosted presentation has no admission for a failed Draw invocation.");
-            }
             if (draw.NativeDraw!.Failed || drawSpell is null)
             {
                 BattleNativeAction stock = NativeStockDrawAction(draw.NativeDraw);
@@ -264,13 +260,15 @@ public sealed partial class BattleSession
             command = command with { GunbladeTriggerTiming = ReadGunbladeTiming(actor, command) };
         }
         bool miniMog = IsExpandedMiniMogAction(native);
-        if (hosted && miniMog)
+        int? miniMogFailure = miniMog ? PrepareNativeMiniMog() : null;
+        if (hosted && miniMog && miniMogFailure is null)
         {
-            throw new NotSupportedException("Hosted presentation has no admission for MiniMog.");
+            // TODO(TD-009): Successful MiniMog still requires its native effect ownership.
+            throw new NotSupportedException("Hosted presentation has no admission for successful MiniMog.");
         }
-        if (miniMog && PrepareNativeMiniMog() is int miniMogFailure)
+        if (!hosted && miniMogFailure is int miniMogMessage)
         {
-            QueueNativeSpecialText(actor, target, NativeBattleGlobalText(miniMogFailure), BattleTextIdentity.Global(miniMogFailure));
+            QueueNativeSpecialText(actor, target, NativeBattleGlobalText(miniMogMessage), BattleTextIdentity.Global(miniMogMessage));
             CompleteNativeActionStatuses(actor);
             CompleteActionPresentation(command, "MiniMog failed.");
             return;
@@ -279,12 +277,8 @@ public sealed partial class BattleSession
         {
             // The expanded host prepares and applies the contact at the same callback, after windup revalidation.
             BattleNativeSpecialContext special = PrepareNativeSpecialTarget(recipients.Single(), native.AttackType);
-            if (special.Failed)
+            if (!hosted && special.Failed)
             {
-                if (hosted)
-                {
-                    throw new NotSupportedException("Hosted presentation has no admission for a failed special invocation.");
-                }
                 int message = native.AttackType == 17 ? 50 : 112;
                 QueueNativeSpecialText(actor, target, NativeBattleGlobalText(message), BattleTextIdentity.Global(message));
                 CompleteNativeActionStatuses(actor);
@@ -303,6 +297,18 @@ public sealed partial class BattleSession
         {
             BeginExpandedGuardianSummon(actor, command with { NativeAction = native }, recipients);
             return;
+        }
+        bool hostedSilence = hosted && NativeMagicInvocationSilenced(actor, command, originalNative);
+        bool failedSpecial = hosted && (miniMogFailure.HasValue || NativeSpecialInvocationFailed(command, originalNative));
+        NativeBattleActionHeaderPreparation? hostedHeader = hosted ? BuildExpandedActionHeaderPreparation(command, originalNative, miniMogFailure.HasValue) : null;
+        BattleActionPresentation resolved = command with { NativeAction = miniMog && !failedSpecial ? native with { ActionId = (ushort)native.KernelIndex } : native };
+        BattleActionPresentation formulaCommand = resolved;
+        BattleActionDefinition formulaAction = action;
+        if (failedSpecial || hostedSilence)
+        {
+            native = NativeFailedInvocationControl(originalNative);
+            formulaCommand = resolved with { NativeQueuedCommand = 0, NativeAction = native };
+            formulaAction = action with { NativeAction = native };
         }
         bool randomTarget = command.AiRecipients?.NativeSelectionMask is ushort nativeMask
             ? ExpandedNativeTargetRequest(nativeMask, native).SelectsRandomTarget
@@ -333,14 +339,12 @@ public sealed partial class BattleSession
             CanPresentExpandedEnemyEffect(actor, command, native, firstHitRecipientCount));
 
         bool independentSupport = IsExpandedIndependentSupport(native, command.NativePlayerReaction);
-        nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = false, EventLane = actor.IsPlayer && !independentSupport ? (byte)2 : (byte)0, Command = stockDraw is not null || native.Command is 248 or 253 ? native.Command : command.NativeQueuedCommand ?? native.Command, Action = native.ActionId };
+        nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = false, EventLane = actor.IsPlayer && !independentSupport ? (byte)2 : (byte)0, Command = stockDraw is not null || native.Command is 0 or 248 or 253 ? native.Command : command.NativeQueuedCommand ?? native.Command, Action = native.ActionId };
         if (command.Ability == BattleAbility.GuardianForce)
         {
             // TODO(TD-009): A logical-only host has no summon presentation callback to own Boost.
             nativeActionScratch = nativeActionScratch with { GuardianFormulaE1E = true, GuardianBoostPercent = 100 };
         }
-        BattleActionPresentation resolved = command with { NativeAction = miniMog ? native with { ActionId = (ushort)native.KernelIndex } : native };
-        NativeBattleActionHeaderPreparation? hostedHeader = hosted ? BuildExpandedActionHeaderPreparation(command, originalNative) : null;
         ImmutableArray<ExpandedBattleContact> contacts;
         ImmutableArray<ExpandedBattleContact> reflectedContacts = [];
         BattleActionPresentation? reflectedCommand = null;
@@ -348,7 +352,7 @@ public sealed partial class BattleSession
         NativeBattleActionHeaderPreparation? reflectedHeader = null;
         (BattleActionPresentation Command, ImmutableArray<ExpandedBattleContact> Contacts)? phoenixRevival = null;
         bool phoenixPinion = command is { Ability: BattleAbility.Item, ActionId: 31, IndependentGuardian.Action: not null };
-        resolvingNativeAction = resolved;
+        resolvingNativeAction = formulaCommand;
         expandedRecoverSourceHp = native.AttackType == 25 ? actor.CurrentHp : null;
         BeginNativeReactionBatch();
         nativeActionCommitDepth++;
@@ -366,21 +370,31 @@ public sealed partial class BattleSession
             {
                 SetNativeSavedBattleFlag(4);
             }
+            if (hostedSilence && definition.NativeGlobalMessages.Length != 0)
+            {
+                QueueNativeSpecialText(actor, target, NativeBattleGlobalText(100));
+            }
             BattleCombatant? reflector;
             deferringExpandedImpacts = presentsNativeEffect && !IsExpandedOriginalGraphicPresentation(actor, command, native);
-            (contacts, reflector) = ResolveExpandedHitPlan(actor, resolved, action, resolved.NativeAction!, hitPlan);
+            (contacts, reflector) = ResolveExpandedHitPlan(actor, formulaCommand, formulaAction, formulaCommand.NativeAction!, hitPlan);
             deferringExpandedImpacts = false;
-            if (command.NativeDraw is { Failed: true })
+            if (command.NativeDraw is { Failed: true } || failedSpecial || hostedSilence)
             {
                 contacts = [];
             }
-            if (miniMog && !contacts.IsEmpty)
+            if (failedSpecial)
+            {
+                int message = miniMogFailure ?? (originalNative.AttackType == 17 ? 50 : 112);
+                QueueNativeSpecialText(actor, target, NativeBattleGlobalText(message), BattleTextIdentity.Global(message));
+            }
+            else if (miniMog && !contacts.IsEmpty)
             {
                 QueueNativeSpecialText(actor, target, NativeBattleGlobalText(54), BattleTextIdentity.Global(54));
             }
             (reflectedCommand, reflectedContacts, presentsReflection, reflectedHeader) = ResolveExpandedReflection(actor, resolved, action, reflector, reflected);
+            resolvingNativeAction = resolved;
             CompleteNativeOrdinaryCommand(actor, resolved);
-            bool continueAffinity = CompleteNativeActionInventory(actor, resolved, false);
+            bool continueAffinity = CompleteNativeActionInventory(actor, resolved, hostedSilence);
             if (continueAffinity && HasNativeAffinityAction(actor, resolved, native))
             {
                 nativeAffinityAction = native;

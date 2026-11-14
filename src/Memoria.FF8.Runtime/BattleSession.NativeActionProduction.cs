@@ -7,6 +7,11 @@ public sealed partial class BattleSession
     private sealed record NativeProducedContacts(ImmutableArray<NativeBattleContactPacket> Contacts, byte PublishedCount, NativeBattleDeferredContactKind DeferredContact, byte? ReflectorIndex, bool RepeatAborted);
     private NativeBattleActionProductionContext? nativeProductionContext;
 
+    private static BattleNativeAction NativeFailedInvocationControl(BattleNativeAction native)
+    {
+        return native with { Command = 0, ActionId = 9, KernelSection = -1, KernelIndex = -1, MagicId = 0, AttackType = 0, Power = 0, HitCount = 1, AttackFlags = 3, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null };
+    }
+
     private NativeBattleActionProductionResult ProduceNativeActionFacts(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command, BattleActionDefinition action, NativeBattleActionHeaderPreparation header, NativeBattleActionProductionContext context, bool miniMogFailed)
     {
         if (header.Actor != actor.EncodeNativeSlot() || header.Command != (miniMogFailed ? 0 : NativeHeaderCommand(actor, command, action.NativeAction!)) || context.CompletionCallback is not (0x47DDA0 or 0x47DE70 or 0x47E120))
@@ -19,7 +24,7 @@ public sealed partial class BattleSession
         BattleActionDefinition formulaAction = action;
         if (failedSpecial || silencedMagic)
         {
-            BattleNativeAction control = action.NativeAction! with { Command = 0, ActionId = 9, KernelSection = -1, KernelIndex = -1, MagicId = 0, AttackType = 0, Power = 0, HitCount = 1, AttackFlags = 3, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null };
+            BattleNativeAction control = NativeFailedInvocationControl(action.NativeAction!);
             formulaCommand = command with { NativeQueuedCommand = 0, NativeAction = control };
             formulaAction = action with { NativeAction = control };
         }

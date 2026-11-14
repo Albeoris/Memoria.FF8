@@ -184,7 +184,7 @@ public sealed partial class BattleSession
         }
     }
 
-    private bool CanExecuteMagicReservation(BattleCombatant actor, BattleAttackCommand command)
+    private bool CanExecuteMagicReservation(BattleCombatant actor, BattleAttackCommand command, bool admitSilencedInvocation = false)
     {
         if (command.NativeHeaderIndex is not null || command.MagicReservationId is null || magicVitals is null || actor.MagicRecordId is not int row)
         {
@@ -203,7 +203,7 @@ public sealed partial class BattleSession
         int mode = command.NativeMagicCastMode == 0 ? command.NativeMagicTargets.Length : command.NativeMagicCastMode;
         int casts = mode >= 3 && (statuses & 0x40000) != 0 ? 3 : command.NativeMagicTargets.Length >= 2 && (statuses & 0x20000) != 0 ? 2 : 1;
         MagicCastQuote quote = MagicCastingService.Quote(magicVitals, row, reservation.SpellId, MagicCastContext.Battle, reservation.ActionId);
-        return quote.Available >= Math.Min(MagicCost(actor, casts), reservation.Count) && (command.Ability != BattleAbility.Magic || (NativeSavedStatusBits(actor) & 0x10) == 0 && (actor.Abilities.Contains(BattleAbility.Magic) || HasRetainedReservedCommand(actor, command.Ability, command.NativeQueuedCommand)));
+        return quote.Available >= Math.Min(MagicCost(actor, casts), reservation.Count) && (command.Ability != BattleAbility.Magic || (admitSilencedInvocation || (NativeSavedStatusBits(actor) & 0x10) == 0) && (actor.Abilities.Contains(BattleAbility.Magic) || HasRetainedReservedCommand(actor, command.Ability, command.NativeQueuedCommand)));
     }
 
     private BattleAttackCommand RevalidateSmartAttack(BattleCombatant actor, BattleAttackCommand command)

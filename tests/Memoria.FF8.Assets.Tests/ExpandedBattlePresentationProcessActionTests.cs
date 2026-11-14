@@ -13,6 +13,82 @@ public sealed class ExpandedBattlePresentationProcessActionTests
     private static readonly NativeBattleContactHalf NoSecondary = new(byte.MaxValue, 0, 0, 0, 0, 0, 0);
 
     [Theory]
+    [InlineData(BattleAbility.Draw)]
+    [InlineData(BattleAbility.Magic)]
+    public void Main_failed_draw_and_silenced_fire_finish_native_control_and_allow_ordinary_attack(BattleAbility ability)
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        var (logicalDefinition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
+        BattleActionDefinition fire = Assert.Single(assets.ActionDefinitions, action => action.Ability == BattleAbility.Magic && action.Name == "Fire");
+        const string caster = "party-1";
+        const string target = "enemy-8";
+        NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals();
+        logicalDefinition = logicalDefinition with
+        {
+            NativeActions = assets.NativeActions.ToArray(),
+            ActionDefinitions = [fire],
+            NativeCommandSequences = selected.NativeCommandSequences,
+            NativeKnownMagic = new(NativeInputConfiguration.OriginalInitHash, [0, 0]),
+            NativeGlobalMessages = assets.ReadNativeGlobalBattleMessages(),
+            NativeCommandNames = assets.ReadNativeCommandNames(),
+            NativeMessageSpeed = 1,
+            Combatants = logicalDefinition.Combatants.Select(actor => actor.Id == caster
+                ? actor with { Attack = 35, Abilities = [BattleAbility.Attack, BattleAbility.Magic, BattleAbility.Draw], MagicStocks = [new(fire.Id, 5)], NativeAttack = assets.ReadPlayerNativeAttackData(vitals, 1), NativeStatusResistances = new byte[40] }
+                : actor.Id == "party-3" ? actor with { Attack = 35, NativeAttack = assets.ReadPlayerNativeAttackData(vitals, 3), NativeStatusResistances = new byte[40] }
+                : actor.Id == target ? actor with { MaximumHp = 6000, CurrentHp = 6000, NativeDrawSlots = [new((byte)fire.Id, 0), new(0, 0), new(0, 0), new(0, 0)], NativeStatusResistances = new byte[40] }
+                : actor.NativeTemplate is { } template ? actor with { MaximumHp = template.Levels[actor.Level].MaximumHp, CurrentHp = template.Levels[actor.Level].MaximumHp }
+                : actor).ToArray()
+        };
+        BattleSession logical = new(logicalDefinition, BattleAtbMode.TurnBased);
+        ExpandedBattlePresentationProcess process = new(logical, selected);
+        logical.AttachExpandedPresentationProcess(process);
+        for (int callback = 0; callback < EntryBudget && !logical.NativeEntryReady; callback++)
+        {
+            logical.Tick();
+        }
+        Assert.True(logical.NativeEntryReady);
+        var models = Models(process);
+        BattleCombatant actor = logical.Combatants.Single(item => item.Id == caster);
+        BattleCombatant enemy = logical.Combatants.Single(item => item.Id == target);
+        int mark = logical.Events.Count;
+        logical.QueueAction(caster, target, ability, fire.Id);
+        logical.Tick();
+        Assert.Equal(BattleActionPhase.Windup, logical.ActiveAction?.Phase);
+        actor.NativeStatus0 |= 0x10;
+        long? token = null;
+        bool reachedControl = false;
+        bool sequenceTen = false;
+        for (int callback = 0; callback < ActionBudget && logical.ActiveAction is not null; callback++)
+        {
+            logical.Tick();
+            token ??= process.LastStepActionToken;
+            reachedControl |= process.Graphics.ActionGraphics is { Callback: 0x50BD00, ActorIndex: 7 };
+            sequenceTen |= process.Graphics.Models[7].Sequence == 10;
+            Assert.Empty(process.LastStep.Contacts);
+        }
+        Assert.Null(logical.ActiveAction);
+        Assert.True(process.IsActionComplete(Assert.IsType<long>(token)));
+        Assert.True(reachedControl && sequenceTen);
+        Assert.Equal(6000, enemy.CurrentHp);
+        Assert.Equal(5, logical.GetAvailableMagicCasts(caster, fire.Id));
+        Assert.Single(logical.Events.Skip(mark), item => item.Kind == "ActionComplete" && item.ActorId == caster);
+        Assert.Contains(logical.Events.Skip(mark), item => item.ActorId == caster && item.Kind == (ability == BattleAbility.Draw ? "Draw" : "NativeText"));
+        Assert.DoesNotContain(logical.Events.Skip(mark), item => item.Kind == "EffectContact" && item.ActorId == caster);
+
+        string next = "party-3";
+        logical.QueueAction(next, target, BattleAbility.Attack, 0);
+        for (int callback = 0; callback < ActionBudget && (logical.ActiveAction is not null || logical.QueuedActions.Count != 0); callback++)
+        {
+            logical.Tick();
+        }
+        Assert.Null(logical.ActiveAction);
+        Assert.True(enemy.CurrentHp < 6000);
+        Assert.Same(process, logical.ExpandedPresentationProcess);
+        Assert.Equal(models, Models(process));
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void Main_queued_double_and_reflected_fire_admit_each_invocation_on_the_same_process(bool reflect)
