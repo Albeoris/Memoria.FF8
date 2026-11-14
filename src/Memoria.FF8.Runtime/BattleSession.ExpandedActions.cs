@@ -9,7 +9,7 @@ public sealed record ExpandedBattleContact(string RecipientId, NativeBattleConta
 
 public sealed partial class BattleSession
 {
-    private Func<BattleCombatant, BattleNativeAction, byte, ImmutableArray<ExpandedBattleContact>, GuardianFormInvocationMode?, NativeBattleEffectPresentation>? expandedEffectFactory;
+    private Func<BattleSession, BattleCombatant, BattleNativeAction, byte, ImmutableArray<ExpandedBattleContact>, GuardianFormInvocationMode?, NativeBattleEffectPresentation>? expandedEffectFactory;
     private NativeBattleEffectPresentation? expandedEffect;
     private BattleActionPresentation? expandedEffectCommand;
     private NativeBattleEffectContactBridge<string>? expandedContactBridge;
@@ -39,7 +39,7 @@ public sealed partial class BattleSession
         return target is not null && expandedEffect.ReplacesHostModel(target.Contact.ActorIndex);
     }
 
-    public void AttachExpandedEffectFactory(Func<BattleCombatant, BattleNativeAction, byte, ImmutableArray<ExpandedBattleContact>, GuardianFormInvocationMode?, NativeBattleEffectPresentation> factory)
+    public void AttachExpandedEffectFactory(Func<BattleSession, BattleCombatant, BattleNativeAction, byte, ImmutableArray<ExpandedBattleContact>, GuardianFormInvocationMode?, NativeBattleEffectPresentation> factory)
     {
         if (!UsesExpandedRoster || expandedEffectFactory is not null)
         {
@@ -152,6 +152,19 @@ public sealed partial class BattleSession
             ActiveAction = command with { RemainingFrames = command.RemainingFrames - 1 };
             return;
         }
+        if (expandedEffectFactory is null)
+        {
+            CommitExpandedAction(command);
+        }
+        else
+        {
+            PrepareAndPublishExpandedAction(command);
+        }
+    }
+
+    private void CommitExpandedAction(BattleActionPresentation command)
+    {
+        BattleCombatant actor = GetActor(command.ActorId);
         BattleCombatant target = GetActor(command.TargetId);
         if (IsDuelCallback(command.NativeLimitCallback))
         {
@@ -418,7 +431,7 @@ public sealed partial class BattleSession
                 new(reflectedCommand, reflectedContacts, presentsReflection && !reflectedContacts.IsEmpty)]);
             expandedMagicCompletionMessage = "Expanded effect completed.";
             ActiveAction = command with { Phase = BattleActionPhase.Recovery, RemainingFrames = 1, MagicReservationId = null };
-            AdvanceExpandedMagicPresentation(ActiveAction);
+            AdvanceExpandedMagicPresentation(ActiveAction, preparing: true);
             return;
         }
         BeginExpandedEffect(actor, resolved, presentationAction, presentationSequence, contacts);
@@ -469,11 +482,16 @@ public sealed partial class BattleSession
         }
     }
 
-    private void BeginExpandedEffect(BattleCombatant actor, BattleActionPresentation command, BattleNativeAction action, byte sequence, ImmutableArray<ExpandedBattleContact> contacts)
+    private NativeBattleEffectPresentation CreateExpandedEffect(BattleCombatant actor, BattleActionPresentation command, BattleNativeAction action, byte sequence, ImmutableArray<ExpandedBattleContact> contacts)
     {
         int nativeContactLimit = NativeBattleSlots.Count - 1;
         ImmutableArray<ExpandedBattleContact> presented = contacts.Length > nativeContactLimit ? contacts[..nativeContactLimit] : contacts;
-        expandedEffect = expandedEffectFactory!(actor, action, sequence, presented, command.GuardianFormInvocation?.Mode);
+        return expandedEffectFactory!(this, actor, action, sequence, presented, command.GuardianFormInvocation?.Mode);
+    }
+
+    private void BeginExpandedEffect(BattleCombatant actor, BattleActionPresentation command, BattleNativeAction action, byte sequence, ImmutableArray<ExpandedBattleContact> contacts, NativeBattleEffectPresentation? prepared = null)
+    {
+        expandedEffect = prepared ?? CreateExpandedEffect(actor, command, action, sequence, contacts);
         expandedEffectCommand = command;
         bool graphicsOnly = IsExpandedOriginalGraphicPresentation(actor, command, action);
         expandedExpectedContacts = graphicsOnly ? 0 : contacts.Length;

@@ -35,25 +35,25 @@ internal sealed partial class GameWorld
         NativeBattlePrimitiveTables tables = assets.ReadNativePrimitiveTables();
         var softwareTable = assets.ReadNativeSoftwarePrimitiveTable();
         var rules = game.ReadNativeBattleGraphicsRules();
-        Dictionary<(string Id, int? FormModel), NativeBattleGraphicsResource> actorResources = [];
-        active.AttachExpandedEffectFactory((caster, action, sequence, contacts, formMode) =>
+        Dictionary<(bool IsPlayer, int Model, int Costume, int? Weapon), NativeBattleGraphicsResource> actorResources = [];
+        active.AttachExpandedEffectFactory((owner, caster, action, sequence, contacts, formMode) =>
         {
             bool guardianSummon = action is { Command: 254, KernelSection: 2 } && formMode is null;
             bool activatesActor = definition.UsesOriginalEnemySlots && action is { Command: 8, KernelSection: 3, ActionId: 287, MagicId: 20 };
             bool originalGraphic = activatesActor || action.Command == 252 && definition.UsesOriginalEnemySlots;
-            int? casterForm = formMode == GuardianFormInvocationMode.EntryOnly ? BattleGuardianFormProfiles.Find(active.GetGuardianForm(caster.Id)!.GuardianForceId)!.ModelId : active.GetGuardianFormVisual(caster.Id);
-            NativeBattleGraphicsResource sourceResource = GetResource(caster.Id, casterForm);
+            int? casterForm = formMode == GuardianFormInvocationMode.EntryOnly ? BattleGuardianFormProfiles.Find(owner.GetGuardianForm(caster.Id)!.GuardianForceId)!.ModelId : owner.GetGuardianFormVisual(caster.Id);
+            NativeBattleGraphicsResource sourceResource = GetResource(owner, caster, casterForm);
             byte sourceIndex = originalGraphic ? PhysicalIndex(caster) : (byte)0;
-            (NativeBattleGraphicsModel source, NativeBattleEffectTextureState textures) = NativeEffectActorTextures.Allocate(CreateModel(caster, sourceResource, casterForm) with { Index = sourceIndex }, sourceResource);
+            (NativeBattleGraphicsModel source, NativeBattleEffectTextureState textures) = NativeEffectActorTextures.Allocate(CreateModel(owner, caster, sourceResource, casterForm) with { Index = sourceIndex }, sourceResource);
             ushort occupiedSlots = source.TextureAllocationMask.GetValueOrDefault();
             ImmutableArray<NativeBattleEffectModelBinding>.Builder nativeTargets = ImmutableArray.CreateBuilder<NativeBattleEffectModelBinding>();
             ImmutableArray<NativeBattleForeignActor>.Builder foreignTargets = ImmutableArray.CreateBuilder<NativeBattleForeignActor>();
             if (originalGraphic)
             {
-                foreach (BattleCombatant participant in active.Combatants.Where(actor => actor != caster && actor.NativeActorIndex.HasValue))
+                foreach (BattleCombatant participant in owner.Combatants.Where(actor => actor != caster && actor.NativeActorIndex.HasValue))
                 {
-                    NativeBattleGraphicsResource resource = GetResource(participant.Id, null);
-                    NativeBattleGraphicsModel model = CreateModel(participant, resource, null) with { Index = PhysicalIndex(participant) };
+                    NativeBattleGraphicsResource resource = GetResource(owner, participant, null);
+                    NativeBattleGraphicsModel model = CreateModel(owner, participant, resource, null) with { Index = PhysicalIndex(participant) };
                     if (!participant.IsActive)
                     {
                         model = model with { Flags0 = 0 };
@@ -76,10 +76,10 @@ internal sealed partial class GameWorld
             }
             foreach (ExpandedBattleContact contact in contacts.Where(contact => !originalGraphic && contact.RecipientId != caster.Id).DistinctBy(contact => contact.RecipientId))
             {
-                int? recipientForm = active.GetGuardianFormVisual(contact.RecipientId);
-                NativeBattleGraphicsResource resource = GetResource(contact.RecipientId, recipientForm);
-                BattleCombatant recipient = active.Combatants.Single(actor => actor.Id == contact.RecipientId);
-                NativeBattleGraphicsModel target = CreateModel(recipient, resource, recipientForm) with { Index = contact.Contact.ActorIndex };
+                int? recipientForm = owner.GetGuardianFormVisual(contact.RecipientId);
+                BattleCombatant recipient = owner.Combatants.Single(actor => actor.Id == contact.RecipientId);
+                NativeBattleGraphicsResource resource = GetResource(owner, recipient, recipientForm);
+                NativeBattleGraphicsModel target = CreateModel(owner, recipient, resource, recipientForm) with { Index = contact.Contact.ActorIndex };
                 if (action is { Command: 6, KernelSection: -1 } or { Command: 8, KernelSection: 3, ActionId: 175 } || action.MagicId is 1 or 25 or 39 or 50 or 139 || definition.NativeEffectCatalog.Any(binding => binding.Effect == action.MagicId && binding.Entry == NativeBattleLaserEye71Profile.Entry))
                 {
                     (target, textures) = NativeEffectActorTextures.Allocate(target, resource, textures, occupiedSlots);
@@ -141,18 +141,20 @@ internal sealed partial class GameWorld
             return checked((byte)(actor.NativeActorIndex ?? throw new InvalidDataException("The original graphic requires its allocated native actor row.")));
         }
 
-        NativeBattleGraphicsResource GetResource(string id, int? formModel)
+        NativeBattleGraphicsResource GetResource(BattleSession owner, BattleCombatant actor, int? formModel)
         {
-            var key = (id, formModel);
+            (bool IsPlayer, int Model, int Costume, int? Weapon) key = formModel is int model
+                ? (false, model, 0, null)
+                : (actor.IsPlayer, actor.ModelId, actor.Costume, actor.WeaponId);
             if (!actorResources.TryGetValue(key, out NativeBattleGraphicsResource? resource))
             {
-                resource = formModel is int modelId ? assets.ReadEnemyNativeGraphicsResource(modelId) : assets.ReadNativeGraphicsResource(active.GetCombatantDefinition(id));
+                resource = key.IsPlayer ? assets.ReadNativeGraphicsResource(owner.GetCombatantDefinition(actor.Id)) : assets.ReadEnemyNativeGraphicsResource(key.Model);
                 actorResources.Add(key, resource);
             }
             return resource;
         }
 
-        NativeBattleGraphicsModel CreateModel(BattleCombatant actor, NativeBattleGraphicsResource resource, int? formModel)
+        NativeBattleGraphicsModel CreateModel(BattleSession owner, BattleCombatant actor, NativeBattleGraphicsResource resource, int? formModel)
         {
             BattleRosterSlot slot = actor.Slot ?? throw new InvalidDataException("Expanded actor has no roster position.");
             int sideCount = actor.IsPlayer ? definition.Combatants.Count(candidate => candidate.IsPlayer) : definition.Combatants.Count(candidate => !candidate.IsPlayer);
@@ -166,7 +168,7 @@ internal sealed partial class GameWorld
             short scale = formModel is null ? (short)4096 : unchecked((short)(System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(poseSource.Skeleton.AsSpan().Slice(2)) * 4));
             int modelId = formModel ?? actor.ModelId;
             bool characterModel = actor.IsPlayer && formModel is null;
-            BattleStatusPresentation status = active.ReadStatusPresentation(actor.Id);
+            BattleStatusPresentation status = owner.ReadStatusPresentation(actor.Id);
             NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(new(0, 0)
             {
                 Transform = new(position, position, 0, actor.IsPlayer ? (short)0 : (short)2048, scale),

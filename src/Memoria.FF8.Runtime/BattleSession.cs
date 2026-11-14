@@ -415,7 +415,13 @@ public sealed partial class BattleSession
         {
             throw new NotSupportedException("Wait until the current expanded battle effect finishes before saving.");
         }
-        return NativeBattleStorageSnapshots.Capture(new BattleSnapshot
+        return NativeBattleStorageSnapshots.Capture(CaptureState());
+    }
+
+    private BattleSnapshot CaptureState()
+    {
+        RequireEncounterDamagePublicationBoundary();
+        return new BattleSnapshot
         {
             DiagnosticTerminalHold = DiagnosticTerminalHold,
             OriginalStockDrawOperations = originalStockDrawOperations.ToArray(),
@@ -493,7 +499,7 @@ public sealed partial class BattleSession
             NativeLastAllocatedIndex = nativeLastAllocatedIndex,
             NativeScriptState = NativeScriptState,
             CustomHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).Select(handler => handler.Kind).Order().ToArray()
-        });
+        };
     }
 
     public static BattleSession Restore(BattleSnapshot snapshot, IEnumerable<IBattleStatusEffectHandler>? additionalHandlers = null)
@@ -1033,6 +1039,10 @@ public sealed partial class BattleSession
                 ObserveNativeUnknownStackCallback(0x485460, "active action cancellation");
             }
             RefundCancelledNativeItem(active);
+            if (UsesExpandedRoster)
+            {
+                ReleaseExpandedActionPresentation();
+            }
             if (!UsesExpandedRoster)
             {
                 QueueNativeActionClockCompletion(0x47DDA0);
@@ -1192,12 +1202,12 @@ public sealed partial class BattleSession
                 return;
             }
         }
+        if (UsesExpandedRoster)
+        {
+            ReleaseExpandedActionPresentation();
+        }
         if (guardianForms is not null)
         {
-            if (expandedEffectCommand?.GuardianFormAction is not null)
-            {
-                ReleaseExpandedEffect();
-            }
             foreach (string actorId in guardianForms.Keys.ToArray())
             {
                 BattleCombatant actor = GetActor(actorId);
@@ -1825,7 +1835,10 @@ public sealed partial class BattleSession
         //48E620's successful GF branch queues its FE input without494A60; its already-grown gauge survives before48E830.
         //Only the physical-bank caller can establish this preheader authority; ordinary managed queues cannot.
         //Graphicsless components preserve the same initialization/reaction gauge in their logical clock.
-        bool retainedNativeGauge = (factualNativeAction || physicalQueuedNativeAction) && (actor.NativeAtb is not null || factualNativeAction && NativeGraphics is null);
+        // Authored AI can refill ATB with opcode 36 after queueing its logical command.
+        bool retainedExpandedAiGauge = UsesExpandedRoster && !actor.IsPlayer && actor.NativeAi is not null && ability == BattleAbility.EnemyAbility &&
+            aiRecipients is { TargetPolicy: not BattleAiTargetPolicy.Compelled } && aiCallbackStage is <= 4 && (nativeAction is not null || graphic is not null);
+        bool retainedNativeGauge = retainedExpandedAiGauge || (factualNativeAction || physicalQueuedNativeAction) && (actor.NativeAtb is not null || factualNativeAction && NativeGraphics is null);
         if (UsesExpandedRoster && aiCallbackStage == 3 && !IsExpandedEnemyDeathAction(actor, aiCallbackStage, aiRecipients) || nativeHeaderIndex is null && !allowNativeQueuedState && !CanRetainBattleActionActor(actor, reaction, aiCallbackStage, aiRecipients) || actor.Atb != 0 && reaction is null && !retainedNativeGauge || !native && nativeTargetMask == 0 && !validTargetSide || !validTarget || !unique && !native && !factualNativeAction && !physicalQueuedNativeAction || !native && !actor.Abilities.Contains(ability) && !HasRetainedReservedCommand(actor, ability, nativeQueuedCommand))
         {
             throw new InvalidDataException("Invalid queued or active battle action.");
@@ -1856,6 +1869,13 @@ public sealed partial class BattleSession
         candidate = Restore(candidateSnapshot);
         DiagnosticResetCount++;
         ResetDiagnosticCounterOwners();
+        CopyCandidateState(candidate, candidateSnapshot);
+        RefreshPreparedPresentation();
+    }
+
+    private void CopyCandidateState(BattleSession candidate, BattleSnapshot candidateSnapshot, bool preparedExpandedAction = false)
+    {
+        magicVitals = candidate.magicVitals?.DeepCopy();
         nativeActionMemory.State = candidate.nativeActionMemory.State;
         nativePresentationStatusMemory.State = candidate.nativePresentationStatusMemory.State;
         foreach (NativeBattleEnemyAllocation allocation in candidate.nativeAllocations.Skip(nativeAllocations.Count))
@@ -1863,6 +1883,8 @@ public sealed partial class BattleSession
             CreateNativeAllocation(allocation);
             nativeAllocations.Add(allocation);
         }
+        nativeAllocations.Clear();
+        nativeAllocations.AddRange(candidate.nativeAllocations);
         foreach (BattleCombatant actor in combatants)
         {
             BattleCombatant replacement = candidate.byId[actor.Id];
@@ -1895,7 +1917,10 @@ public sealed partial class BattleSession
         Frame = candidate.Frame;
         NativeHostCallbacks = candidate.NativeHostCallbacks;
         NativeExamTimer = candidate.NativeExamTimer;
+        DiagnosticTerminalHold = candidate.DiagnosticTerminalHold;
+        NativeEntryAdvantage = candidate.NativeEntryAdvantage;
         Difficulty = candidate.Difficulty;
+        Mode = candidate.Mode;
         GunbladeMode = candidate.GunbladeMode;
         nativeEscape = candidate.nativeEscape;
         Outcome = candidate.Outcome;
@@ -1951,7 +1976,10 @@ public sealed partial class BattleSession
         pendingSlotsDeal = candidate.pendingSlotsDeal;
         NativeCamera = candidate.NativeCamera;
         NativeGraphics = candidate.NativeGraphics;
-        RestoreNativeGuardianBoost(candidate.nativeGuardianBoost);
+        if (!preparedExpandedAction)
+        {
+            RestoreNativeGuardianBoost(candidate.nativeGuardianBoost);
+        }
         RestoreGuardianForces(candidateSnapshot);
         RestoreGuardianForms(candidate.CaptureGuardianForms(), candidate.Outcome);
         RestoreNativeSupport(candidate.nativeSupport);
@@ -1959,6 +1987,5 @@ public sealed partial class BattleSession
         RestoreNativeBattleClock(candidate.nativeBattleClock);
         turnAdvance = candidate.turnAdvance;
         RestoreOriginalStockDrawOperations(candidate.originalStockDrawOperations.ToArray());
-        RefreshPreparedPresentation();
     }
 }

@@ -4,7 +4,10 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private sealed record ExpandedMagicCastPresentation(BattleActionPresentation Cast, ImmutableArray<ExpandedBattleContact> Contacts, bool UsesNativeEffect);
+    private sealed record ExpandedMagicCastPresentation(BattleActionPresentation Cast, ImmutableArray<ExpandedBattleContact> Contacts, bool UsesNativeEffect)
+    {
+        public NativeBattleEffectPresentation? PreparedEffect { get; set; }
+    }
 
     private Queue<ExpandedMagicCastPresentation>? expandedMagicPresentation;
     private string expandedMagicCompletionMessage = "Repeated magic completed.";
@@ -256,17 +259,21 @@ public sealed partial class BattleSession
         expandedMagicPresentation = presentations;
         expandedMagicCompletionMessage = "Repeated magic completed.";
         ActiveAction = command with { Phase = BattleActionPhase.Recovery, RemainingFrames = 1, MagicReservationId = null };
-        AdvanceExpandedMagicPresentation(ActiveAction);
+        AdvanceExpandedMagicPresentation(ActiveAction, preparing: true);
     }
 
-    private void AdvanceExpandedMagicPresentation(BattleActionPresentation group)
+    private void AdvanceExpandedMagicPresentation(BattleActionPresentation group, bool preparing = false)
     {
         while (expandedMagicPresentation!.TryDequeue(out ExpandedMagicCastPresentation? presentation))
         {
             BattleActionPresentation cast = presentation.Cast;
             if (presentation.UsesNativeEffect)
             {
-                BeginExpandedEffect(GetActor(cast.ActorId), cast, cast.NativeAction!, cast.NativeSequence ?? 1, presentation.Contacts);
+                if (!preparing && presentation.PreparedEffect is null)
+                {
+                    throw new InvalidOperationException("A committed expanded magic cast lacks its prepared presentation.");
+                }
+                BeginExpandedEffect(GetActor(cast.ActorId), cast, cast.NativeAction!, cast.NativeSequence ?? 1, presentation.Contacts, presentation.PreparedEffect);
                 return;
             }
             PublishExpandedImpacts(cast, presentation.Contacts);

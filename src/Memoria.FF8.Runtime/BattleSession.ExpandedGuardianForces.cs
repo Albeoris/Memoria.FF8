@@ -95,7 +95,7 @@ public sealed partial class BattleSession
         NativeBattleContactPacket positioning = new(new(0, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0));
         try
         {
-            expandedGuardianFormEntry = new(actor.Id, form.InvocationId, expandedEffectFactory(actor, summon, 0, [new(actor.Id, positioning)], GuardianFormInvocationMode.EntryOnly));
+            expandedGuardianFormEntry = new(actor.Id, form.InvocationId, expandedEffectFactory(this, actor, summon, 0, [new(actor.Id, positioning)], GuardianFormInvocationMode.EntryOnly));
         }
         catch
         {
