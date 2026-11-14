@@ -82,7 +82,7 @@ public sealed class NativeBattleContactReaderTests
         {
             return NativeBattleActionPacketsState.Fresh();
         }
-        NativeBattleGraphicsActor?[] rows = new NativeBattleGraphicsActor?[25];
+        BattleModelOwner?[] rows = new BattleModelOwner?[25];
         rows[0] = new("party", true);
         rows[6] = new("enemy-6", false);
         rows[24] = new("enemy-24", false);

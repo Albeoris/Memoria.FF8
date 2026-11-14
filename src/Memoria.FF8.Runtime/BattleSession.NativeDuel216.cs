@@ -302,7 +302,7 @@ public sealed partial class BattleSession
         NativeBattleDuel216Frame CaptureEcho(NativeBattleDuel216Frame current, int slot)
         {
             NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, parameters.Actor78).PoseSource ?? throw new NotSupportedException("Native Different Beat echo requires its current skeleton.");
-            ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(graphics.Models[parameters.Actor78], pose);
+            ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(parameters.Source), pose);
             NativeBattleEffectTaskPool main = Bank(current, NativeBattleDuel216Controller.Main);
             NativeBattleModulePoolTask captured = NativeBattleDuelEcho.Capture697850(main.Slots[slot], 3668, pose.BoneCount, index =>
             {

@@ -236,7 +236,7 @@ public sealed class NativeBattleWaterHeaderTests
 
     private static NativeBattleWaterHeader HostedHeader(ImmutableArray<NativeBattleGraphicsModel> models, int? hole = null)
     {
-        NativeBattleGraphicsRoster roster = new(Enumerable.Range(0, models.Length).Select(row => row == hole ? null : new NativeBattleGraphicsActor($"actor-{row}", row % 2 == 0)).ToImmutableArray());
+        BattleModelRoster roster = new(Enumerable.Range(0, models.Length).Select(row => row == hole ? null : new BattleModelOwner($"actor-{row}", row % 2 == 0)).ToImmutableArray());
         NativeBattleCinematicActorContext actors = NativeBattleCinematicActorContext.FromGraphics(roster, models).CaptureCurrentContacts([24, 7], 0).WithContactCursor(49);
         return Warm() with { PresentationActors = actors };
     }

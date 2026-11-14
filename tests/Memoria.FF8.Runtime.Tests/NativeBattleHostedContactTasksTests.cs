@@ -1,5 +1,3 @@
-using System.Collections.Immutable;
-
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleHostedContactTasksTests
@@ -8,22 +6,20 @@ public sealed class NativeBattleHostedContactTasksTests
     public void Three_hundred_damage_contacts_keep_order_and_anchors_until_the_tenth_callback()
     {
         const int count = 300;
-        NativeBattleGraphicsRoster roster = Roster();
-        NativeBattleGraphicsModel[] models = Models(roster);
-        NativeBattleGraphicsRules rules = Rules();
-        NativeBattleEffectsState state = NativeBattleEffectsState.Clear();
+        BattleModelOwner[] owners = Enumerable.Range(0, 25).Select(Owner).ToArray();
+        BattleActorModels models = Models(owners);
+        NativeBattleEffectsState state = NativeBattleEffectsState.Clear(BattleContactTaskStorageContract.ExpandableArena);
         for (int index = 0; index < count; index++)
         {
-            byte row = (byte)(index % roster.ActorCount);
-            state = Produce(state, models[row], rules, roster, (ushort)(100 + index));
+            state = state.PrependDamageText(owners[index % owners.Length], 0, 100 + index, models.Roster);
         }
         int capacity = state.Slots.Length;
         Assert.True(capacity >= count);
         Assert.Equal(0, state.PublishedCount);
-        List<byte> projected = [];
+        List<BattleModelOwner> projected = [];
         for (int frame = 0; frame < 10; frame++)
         {
-            NativeBattleEffectsStep step = state.Advance(models, Project, roster);
+            NativeBattleEffectsStep step = state.Advance(models, Project);
             Assert.Empty(step.ResetModelStatuses);
             state = step.State;
             Assert.Equal(frame < 9 ? count : 0, state.PublishedCount);
@@ -34,7 +30,7 @@ public sealed class NativeBattleHostedContactTasksTests
                 for (int drawIndex = 0; drawIndex < count; drawIndex++)
                 {
                     int contact = count - 1 - drawIndex;
-                    int row = contact % roster.ActorCount;
+                    int row = contact % owners.Length;
                     int amount = 100 + contact;
                     NativeBattleDamageTextDraw draw = state.TextDraws[drawIndex];
                     Assert.Equal(new byte[] { (byte)(56 + amount / 100), (byte)(56 + amount / 10 % 10), (byte)(56 + amount % 10), 0 }, draw.Glyphs);
@@ -44,175 +40,151 @@ public sealed class NativeBattleHostedContactTasksTests
                 }
             }
         }
-        Assert.Equal(Enumerable.Range(0, count).Reverse().Select(index => (byte)(index % roster.ActorCount)), projected);
+        Assert.Equal(Enumerable.Range(0, count).Reverse().Select(index => owners[index % owners.Length]), projected);
         Assert.Null(state.Head);
         Assert.Null(state.Tail);
-        Assert.Empty(state.Advance(models, roster: roster).State.TextDraws);
+        Assert.Empty(state.Advance(models).State.TextDraws);
 
-        // A busy publication is independent from the queue, as with the stage's synthetic 112 gate.
         NativeBattleEffectsState synthetic = state with { PublishedCount = count };
-        synthetic.Validate(roster);
+        synthetic.Validate(models.Roster);
         Assert.Null(synthetic.Head);
         byte completion = 17;
-        Assert.Equal(0, NativeBattleGraphicsCompletion.PollHostedTask112(synthetic.PublishedCount, null, () => throw new InvalidOperationException("Busy effects must not read camera state."), ref completion, roster));
-        Assert.Equal(17, completion);
-        Assert.Equal(0, NativeBattleGraphicsCompletion.PollTask112(synthetic.PublishedCount, null, 0, ref completion, roster));
+        Assert.Equal(0, NativeBattleGraphicsCompletion.PollTask112(synthetic.PublishedCount, null, () => throw new InvalidOperationException("Busy effects must not read camera state."), ref completion));
         Assert.Equal(17, completion);
 
-        NativeBattleEffectsState reused = Produce(state, models[24], rules, roster, 321);
+        NativeBattleEffectsState reused = state.PrependDamageText(owners[24], 0, 321, models.Roster);
         Assert.Equal(0, reused.Head);
         Assert.Equal(0, reused.Tail);
         Assert.Equal(capacity, reused.Slots.Length);
 
-        NativeBattleDamageTextAnchor Project(byte row)
+        NativeBattleDamageTextAnchor Project(BattleModelOwner owner)
         {
-            projected.Add(row);
-            return new((short)(120 + row), 100);
+            projected.Add(owner);
+            return new((short)(120 + Array.IndexOf(owners, owner)), 100);
         }
     }
 
     [Fact]
-    public void Interleaved_extended_petrify_and_damage_keep_all_tasks_reachable_and_release_the_actual_rows()
+    public void Interleaved_status_and_damage_keep_all_tasks_reachable_and_release_the_actual_owners()
     {
-        byte[] rows = [7, 14, 15, 24];
-        NativeBattleGraphicsRoster roster = Roster(rows);
-        NativeBattleGraphicsModel[] models = Models(roster);
-        NativeBattleGraphicsRules rules = Rules();
-        NativeBattleEffectsState state = Produce(NativeBattleEffectsState.Clear(), models[7], rules, roster, 123);
+        BattleModelOwner[] owners = [Owner(7), Owner(14), Owner(15), Owner(24)];
+        BattleActorModels models = Models(owners);
+        NativeBattleEffectsState state = NativeBattleEffectsState.Clear(BattleContactTaskStorageContract.ExpandableArena).PrependDamageText(owners[0], 0, 123, models.Roster);
         Assert.Equal(state.Head, state.Tail);
 
-        // A retained text-first native shape can also enter the explicit hosted path.
-        state = state with { Tail = null };
-        List<byte> expectedResets = [];
+        List<BattleModelOwner> expectedResets = [];
         for (int index = 0; index < 16; index++)
         {
-            byte row = rows[index % rows.Length];
-            NativeBattleContactHalf half = new(row, 5, 0, 0, 4, 234, 0);
-            NativeBattleContactEffectPlan plan = NativeBattleContactEffects.Plan(half, models[row], rules, 0);
-            Assert.True(plan.DeferPetrify);
-            state = NativeBattleContactEffects.ProduceTasks(state, half, plan, roster);
-            expectedResets.Add(row);
+            BattleModelOwner owner = owners[index % owners.Length];
+            state = state.AppendStatusReset(owner, models.Roster).PrependDamageText(owner, 0, 234, models.Roster);
+            expectedResets.Add(owner);
         }
         Assert.Equal(33, state.Slots.Count(task => (task.Flags0 & 1) != 0));
-        NativeBattleEffectsStep first = state.Advance(models, _ => new(160, 100), roster);
+        NativeBattleEffectsStep first = state.Advance(models, _ => new(160, 100));
         Assert.Equal(33, first.State.PublishedCount);
         Assert.Equal(17, first.State.TextDraws.Length);
         Assert.Empty(first.ResetModelStatuses);
         Assert.Equal(new byte[] { 57, 58, 59, 0 }, first.State.TextDraws[^1].Glyphs);
 
-        models[7] = models[7] with { Flags8 = 16 };
-        models[14] = models[14] with { ResourceFlags44 = 0x40 };
-        models[15] = models[15] with { ResourceFlags44 = 0x100 };
-        models[24] = models[24] with { Flags8 = 2 };
-        NativeBattleEffectsStep released = first.State.Advance(models, _ => throw new InvalidOperationException("Published text anchors should be reused."), roster);
+        models = models.Set(owners[0], models.Get(owners[0]) with { Flags8 = 16 });
+        models = models.Set(owners[1], models.Get(owners[1]) with { ResourceFlags44 = 0x40 });
+        models = models.Set(owners[2], models.Get(owners[2]) with { ResourceFlags44 = 0x100 });
+        models = models.Set(owners[3], models.Get(owners[3]) with { Flags8 = 2 });
+        NativeBattleEffectsStep released = first.State.Advance(models, _ => throw new InvalidOperationException("Published text anchors should be reused."));
         Assert.Equal(expectedResets, released.ResetModelStatuses);
         Assert.Equal(17, released.State.PublishedCount);
         Assert.Equal(17, released.State.Slots.Count(task => (task.Flags0 & 1) != 0));
+        Assert.DoesNotContain(released.State.Slots, task => (task.Flags0 & 1) == 0 && task.ModelOwner is not null);
         Assert.Equal(NativeBattleEffectKind.DamageText5069B0, released.State.Slots[released.State.Tail!.Value].Kind);
     }
 
-    [Fact]
-    public void Hosted_producers_and_callback_validation_reject_sparse_unbound_rows()
+    [Theory]
+    [InlineData(BattleContactTaskStorageContract.OriginalArena)]
+    [InlineData(BattleContactTaskStorageContract.ExpandableArena)]
+    public void Task_owners_must_remain_bound_and_cannot_be_redirected_to_a_replacement(BattleContactTaskStorageContract contract)
     {
-        NativeBattleGraphicsRoster roster = Roster([7, 24]);
-        NativeBattleGraphicsModel[] models = Models(roster);
-        NativeBattleEffectsState state = Produce(NativeBattleEffectsState.Clear(), models[24], Rules(), roster, 123);
-        Assert.Throws<ArgumentOutOfRangeException>(() => state.AppendStatusReset(14, roster));
-        Assert.Throws<ArgumentOutOfRangeException>(() => state.PrependDamageText(14, 1, 123, roster));
+        BattleModelOwner target = Owner(24);
+        BattleModelOwner other = Owner(7);
+        BattleModelOwner replacement = Owner(14);
+        BattleActorModels models = Models([target, other]);
+        NativeBattleEffectsState state = NativeBattleEffectsState.Clear(contract).PrependDamageText(target, 0, 123, models.Roster);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => state.AppendStatusReset(replacement, models.Roster));
+        Assert.Throws<ArgumentOutOfRangeException>(() => state.PrependDamageText(replacement, 1, 123, models.Roster));
         Assert.Equal(0, state.PublishedCount);
         Assert.Single(state.Slots.Where(task => (task.Flags0 & 1) != 0));
-        Assert.Equal((byte)24, state.Slots[state.Head!.Value].ModelIndex);
+        Assert.Equal(target, state.Slots[state.Head!.Value].ModelOwner);
 
-        NativeBattleEffectsState malformed = state with { Slots = state.Slots.SetItem(state.Head.Value, state.Slots[state.Head.Value] with { ModelIndex = 14 }) };
-        Assert.Throws<InvalidDataException>(() => malformed.Validate(roster));
-        Assert.Throws<InvalidDataException>(() => malformed.Advance(models, _ => throw new InvalidOperationException("A hole cannot project."), roster));
+        BattleActorModels rebound = models.Remove(target).Add(replacement, models.Get(target));
+        Assert.Throws<InvalidDataException>(() => state.Advance(rebound, _ => throw new InvalidOperationException("A retired owner cannot project.")));
+        NativeBattleEffectsState malformed = state with { Slots = state.Slots.SetItem(state.Head.Value, state.Slots[state.Head.Value] with { ModelOwner = null }) };
+        Assert.Throws<InvalidDataException>(() => malformed.Validate(models.Roster));
     }
 
     [Fact]
-    public void Hosted_validation_rejects_a_nonterminal_tail_and_an_unreachable_active_slot()
+    public void Expandable_validation_requires_a_terminal_tail_and_every_active_task()
     {
-        NativeBattleGraphicsRoster roster = Roster([7, 14, 24]);
-        NativeBattleEffectsState state = NativeBattleEffectsState.Clear()
-            .PrependDamageText(7, 0, 123, roster)
-            .PrependDamageText(14, 0, 234, roster)
-            .PrependDamageText(24, 0, 345, roster);
+        BattleModelOwner[] owners = [Owner(7), Owner(14), Owner(24)];
+        BattleModelRoster roster = Models(owners).Roster;
+        NativeBattleEffectsState state = NativeBattleEffectsState.Clear(BattleContactTaskStorageContract.ExpandableArena)
+            .PrependDamageText(owners[0], 0, 123, roster)
+            .PrependDamageText(owners[1], 0, 234, roster)
+            .PrependDamageText(owners[2], 0, 345, roster);
         state.Validate(roster);
         int head = state.Head!.Value;
         int next = state.Slots[head].Next!.Value;
         Assert.NotNull(state.Slots[next].Next);
 
         NativeBattleEffectsState nonterminalTail = state with { Tail = head };
-        Assert.Throws<InvalidDataException>(() => nonterminalTail.AppendStatusReset(7, roster));
+        Assert.Throws<InvalidDataException>(() => nonterminalTail.AppendStatusReset(owners[0], roster));
         Assert.Equal(next, nonterminalTail.Slots[head].Next);
         Assert.Equal(3, nonterminalTail.Slots.Count(task => (task.Flags0 & 1) != 0));
-
-        NativeBattleEffectsState unreachable = state with { Head = next };
-        Assert.Throws<InvalidDataException>(() => unreachable.Validate(roster));
-        state.Validate(roster);
+        Assert.Throws<InvalidDataException>(() => (state with { Tail = null }).Validate(roster));
+        Assert.Throws<InvalidDataException>(() => (state with { Head = next }).Validate(roster));
     }
 
     [Fact]
-    public void Native_text_keeps_its_original_tail_and_twenty_slot_exhaustion_behavior()
+    public void Original_text_keeps_its_tail_and_twenty_slot_exhaustion_with_a_typed_roster()
     {
-        NativeBattleEffectsState state = NativeBattleEffectsState.Clear().PrependDamageText(3, 0, 123);
+        BattleModelOwner target = Owner(3);
+        BattleActorModels models = Models([target]);
+        NativeBattleEffectsState state = NativeBattleEffectsState.Clear(BattleContactTaskStorageContract.OriginalArena).PrependDamageText(target, 0, 123, models.Roster);
         Assert.Equal(0, state.Head);
         Assert.Null(state.Tail);
         for (int index = 1; index < 20; index++)
         {
-            state = state.PrependDamageText(3, 0, 123);
+            state = state.PrependDamageText(target, 0, 123, models.Roster);
         }
         Assert.Equal(20, state.Slots.Length);
         Assert.Null(state.Tail);
-        Assert.Same(state, state.PrependDamageText(3, 0, 234));
-        Assert.Throws<InvalidOperationException>(() => state.AppendStatusReset(3));
-        Assert.Throws<ArgumentOutOfRangeException>(() => state.PrependDamageText(7, 0, 123));
-        Assert.Equal(20, state.Advance(NativeBattleGraphicsModels.ClearBank(), _ => new(160, 100)).State.PublishedCount);
+        Assert.Same(state, state.PrependDamageText(target, 0, 234, models.Roster));
+        Assert.Throws<InvalidOperationException>(() => state.AppendStatusReset(target, models.Roster));
+        Assert.Equal(20, state.Advance(models, _ => new(160, 100)).State.PublishedCount);
     }
 
     [Fact]
     public void Synthetic_busy_publication_and_negative_counts_keep_distinct_contracts()
     {
-        NativeBattleEffectsState synthetic = NativeBattleEffectsState.Clear() with { PublishedCount = 1 };
+        BattleModelRoster roster = Models([Owner(7)]).Roster;
+        NativeBattleEffectsState synthetic = NativeBattleEffectsState.Clear(BattleContactTaskStorageContract.OriginalArena) with { PublishedCount = 1 };
         Assert.Null(synthetic.Head);
         Assert.Null(synthetic.Tail);
-        synthetic.Validate();
+        synthetic.Validate(roster);
         byte completion = 17;
         Assert.Equal(0, NativeBattleGraphicsCompletion.PollTask112(synthetic.PublishedCount, null, 0, ref completion));
         Assert.Throws<ArgumentOutOfRangeException>(() => NativeBattleGraphicsCompletion.PollTask112(-1, null, 0, ref completion));
-        Assert.Throws<ArgumentOutOfRangeException>(() => NativeBattleGraphicsCompletion.PollHostedTask112(-1, null, () => throw new InvalidOperationException("Invalid counts cannot read camera state."), ref completion, Roster([7])));
-        Assert.Throws<InvalidDataException>(() => (synthetic with { PublishedCount = -1 }).Validate());
-        Assert.Throws<InvalidDataException>(() => (synthetic with { PublishedCount = 21 }).Validate());
+        Assert.Throws<InvalidDataException>(() => (synthetic with { PublishedCount = -1 }).Validate(roster));
+        Assert.Throws<InvalidDataException>(() => (synthetic with { PublishedCount = 21 }).Validate(roster));
         Assert.Equal(17, completion);
     }
 
-    private static NativeBattleGraphicsRoster Roster(byte[]? bound = null)
+    private static BattleModelOwner Owner(int index)
     {
-        return new(Enumerable.Range(0, 25).Select(row => bound is null || bound.Contains((byte)row) ? new NativeBattleGraphicsActor($"actor-{row}", row is < 3 or >= 7 and <= 14) : null).ToImmutableArray());
+        return index is < 3 or >= 7 and <= 14 ? new BattlePartyActorModel(new($"ally-{index}")) : new BattleEnemyActorModel(new($"enemy-{index}"));
     }
 
-    private static NativeBattleGraphicsModel[] Models(NativeBattleGraphicsRoster roster)
+    private static BattleActorModels Models(IEnumerable<BattleModelOwner> owners)
     {
-        NativeBattleGraphicsModel[] models = NativeBattleGraphicsModels.ClearPresentationBank(roster);
-        for (int row = 0; row < models.Length; row++)
-        {
-            if (roster.ContainsRow(row))
-            {
-                models[row] = models[row] with { ModelId4 = roster[row].IsParty ? (byte)1 : (byte)61, Flags0 = 3, Flags8 = 0, ResourceFlags44 = 1 };
-            }
-        }
-        return models;
-    }
-
-    private static NativeBattleEffectsState Produce(NativeBattleEffectsState state, NativeBattleGraphicsModel model, NativeBattleGraphicsRules rules, NativeBattleGraphicsRoster roster, ushort amount)
-    {
-        NativeBattleContactHalf half = new((byte)model.Index, 5, 0, 0, 0, amount, 0);
-        return NativeBattleContactEffects.ProduceTasks(state, half, NativeBattleContactEffects.Plan(half, model, rules, 0), roster);
-    }
-
-    private static NativeBattleGraphicsRules Rules()
-    {
-        ImmutableArray<sbyte> saved = Enumerable.Repeat((sbyte)-1, 16).ToImmutableArray().SetItem(2, 4);
-        ImmutableArray<sbyte> battle = Enumerable.Repeat((sbyte)-1, 32).ToImmutableArray();
-        return new(NativeFieldRuntimeProfile.FF8EnExecutableHash, saved, battle);
+        return new(owners.Select(owner => new BattleModelEntry<BattleModelOwner>(owner, new(3) { Flags8 = 0, ResourceFlags44 = 1 })));
     }
 }

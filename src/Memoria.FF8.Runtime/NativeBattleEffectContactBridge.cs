@@ -6,15 +6,15 @@ namespace Memoria.FF8.Runtime;
 public sealed class NativeBattleEffectContactBridge<TRecipient> where TRecipient : notnull
 {
     private readonly ImmutableArray<(TRecipient Recipient, NativeBattleContactPacket Packet)> targets;
-    private readonly NativeBattleGraphicsRoster? roster;
+    private readonly BattleModelRoster? roster;
     private readonly int firstContactIndex;
 
-    public NativeBattleEffectContactBridge(IEnumerable<(TRecipient Recipient, NativeBattleContactHalf Contact)> targets, NativeBattleGraphicsRoster? roster = null, int firstContactIndex = 0)
+    public NativeBattleEffectContactBridge(IEnumerable<(TRecipient Recipient, NativeBattleContactHalf Contact)> targets, BattleModelRoster? roster = null, int firstContactIndex = 0)
         : this((targets ?? throw new ArgumentNullException(nameof(targets))).Select(target => (target.Recipient, new NativeBattleContactPacket(target.Contact, new(255, 0, 0, 0, 0, 0, 0)))), roster, firstContactIndex)
     {
     }
 
-    public NativeBattleEffectContactBridge(IEnumerable<(TRecipient Recipient, NativeBattleContactPacket Packet)> targets, NativeBattleGraphicsRoster? roster = null, int firstContactIndex = 0)
+    public NativeBattleEffectContactBridge(IEnumerable<(TRecipient Recipient, NativeBattleContactPacket Packet)> targets, BattleModelRoster? roster = null, int firstContactIndex = 0)
     {
         ArgumentNullException.ThrowIfNull(targets);
         roster?.Validate();
@@ -61,18 +61,18 @@ public sealed class NativeBattleEffectContactBridge<TRecipient> where TRecipient
             throw new InvalidOperationException("An effect bridge with a presentation roster requires PrepareHosted.");
         }
         NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[NativeBattleActionPacketsState.HeaderCapacity * 20], new byte[NativeBattleActionPacketsState.ContactCapacity * 24]);
-        (NativeBattleActionPacketsState prepared, NativeBattleGraphicsActorSet selected) = Prepare(packets, command, sequence, action, effect, source);
+        (NativeBattleActionPacketsState prepared, BattleModelTargets selected) = Prepare(packets, command, sequence, action, effect, source);
         return (prepared, selected.NativePhysicalBits);
     }
 
-    public (NativeBattleActionPacketsState Packets, NativeBattleGraphicsActorSet Targets) PrepareHosted(byte command, byte sequence, ushort action, ushort effect, byte source = 0)
+    public (NativeBattleActionPacketsState Packets, BattleModelTargets Targets) PrepareHosted(byte command, byte sequence, ushort action, ushort effect, byte source = 0)
     {
-        NativeBattleGraphicsRoster presentationRoster = roster ?? throw new InvalidOperationException("Preparing hosted effects requires an explicit presentation roster.");
+        BattleModelRoster presentationRoster = roster ?? throw new InvalidOperationException("Preparing hosted effects requires an explicit presentation roster.");
         NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromPresentationStorage(presentationRoster, Math.Max(NativeBattleActionPacketsState.ContactCapacity, targets.Length));
         return Prepare(packets, command, sequence, action, effect, source);
     }
 
-    private (NativeBattleActionPacketsState Packets, NativeBattleGraphicsActorSet Targets) Prepare(NativeBattleActionPacketsState packets, byte command, byte sequence, ushort action, ushort effect, byte source)
+    private (NativeBattleActionPacketsState Packets, BattleModelTargets Targets) Prepare(NativeBattleActionPacketsState packets, byte command, byte sequence, ushort action, ushort effect, byte source)
     {
         if (firstContactIndex != 0)
         {
@@ -84,7 +84,7 @@ public sealed class NativeBattleEffectContactBridge<TRecipient> where TRecipient
         }
         (packets, _) = packets.Prepare(new(source, command, sequence, -1, action, effect, null));
         packets = packets.AppendContacts(targets.Select(target => target.Packet));
-        NativeBattleGraphicsActorSet selected = default;
+        BattleModelTargets selected = default;
         foreach (var target in targets)
         {
             selected = selected.Add(target.Packet.Primary.ActorIndex);

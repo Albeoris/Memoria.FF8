@@ -3,7 +3,7 @@ using static Memoria.FF8.Runtime.NativeBattleEffect218Profile;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleEffect218EntryInputs(NativeBattleActionPacketsState Packets, Func<int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleGraphicsActorSet, NativeBattleVector> TargetCenter5020A0);
+public sealed record NativeBattleEffect218EntryInputs(NativeBattleActionPacketsState Packets, Func<int, NativeBattleGraphicsModel> ReadModel, Func<BattleModelTargets, NativeBattleVector> TargetCenter5020A0);
 
 public static partial class NativeBattleEffect218Controller
 {

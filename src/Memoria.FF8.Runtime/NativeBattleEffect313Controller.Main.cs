@@ -23,7 +23,7 @@ public static partial class NativeBattleEffect313Controller
                 uint field = CenterAddress + (uint)(axis * 2);
                 frame = frame with { State = frame.State.WriteWord(field, unchecked((ushort)(frame.State.ReadWord(field) + delta))) };
             }
-            NativeBattleGraphicsActorSet targets = frame.Effect.Parameters?.TargetActors ?? throw new NotSupportedException("Effect313 requires its current target mask.");
+            BattleModelTargets targets = frame.Effect.Parameters?.TargetActors ?? throw new NotSupportedException("Effect313 requires its current target mask.");
             point = inputs.TargetCenter5020A0(frame, targets, frame.State.ReadView(TargetPointAddress, 8));
             frame = point.Frame with { State = point.Frame.State.WriteView(TargetPointAddress, point.Output8, 8) };
         }

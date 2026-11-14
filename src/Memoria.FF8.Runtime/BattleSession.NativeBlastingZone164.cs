@@ -9,7 +9,7 @@ public sealed partial class BattleSession
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new InvalidDataException("Native Blasting Zone requires its selected original module.");
         NativeBattleEffectParameters parameters = effect.Parameters ?? throw new InvalidDataException("Native Blasting Zone requires its entered parameters.");
-        NativeBattleGraphicsModel model = graphics.Models[parameters.Actor78];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(parameters.Source);
         NativeBattleVector rotation = new(model.Rotation12 ?? throw new NotSupportedException("Native Blasting Zone requires actor rotation X."), model.Rotation14 ?? throw new NotSupportedException("Native Blasting Zone requires actor rotation Y."), model.Rotation16 ?? throw new NotSupportedException("Native Blasting Zone requires actor rotation Z."));
         NativeBattleVector bone = ReadNativeGraphicsBone(graphics, parameters.Actor78, 241, 0);
         NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(parameters.TargetActors.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Native Blasting Zone requires actual target positions.")).ToArray());

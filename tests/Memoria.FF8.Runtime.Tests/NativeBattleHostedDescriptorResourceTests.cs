@@ -13,7 +13,7 @@ public sealed class NativeBattleHostedDescriptorResourceTests
     [InlineData(36)]
     public void Descriptor_reads_hosted_scalar_and_null_fields_but_rejects_fabricated_section_addresses(int alias)
     {
-        NativeBattleGraphicsRoster roster = Roster();
+        BattleModelRoster roster = Roster();
         NativeBattleModelCpuResources cpu = Resources(roster);
         NativeBattleModelCpuResourceRow native = cpu.Rows[0].Set(12, new(0, 0x24) { ResourceOnly = true });
         NativeBattleModelCpuResourceRow hosted = NativeBattleModelCpuResourceRow.Unknown().Set(12, null).Set(16, new(9, 0x24) { ResourceOnly = true }) with
@@ -46,7 +46,7 @@ public sealed class NativeBattleHostedDescriptorResourceTests
     [Fact]
     public void Descriptor_native_hole_reads_external_bytes_in_a_hosted_roster()
     {
-        NativeBattleGraphicsRoster roster = Roster();
+        BattleModelRoster roster = Roster();
         BattleSession session = Session(NativeBattleModelCpuResources.Unknown());
         uint hole = NativeBattleGraphicsModelAddress.Encode(1);
         NativeBattleFileStaging staging = NativeBattleFileStaging.FromColdProcess().Write(hole, [0xB3]);
@@ -105,15 +105,15 @@ public sealed class NativeBattleHostedDescriptorResourceTests
         return session;
     }
 
-    private static NativeBattleModelCpuResources Resources(NativeBattleGraphicsRoster roster)
+    private static NativeBattleModelCpuResources Resources(BattleModelRoster roster)
     {
         NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown().WithPresentationRoster(roster);
         return cpu with { Rows = cpu.Rows.AddRange(Enumerable.Range(0, 37 - cpu.Rows.Length).Select(_ => NativeBattleModelCpuResourceRow.Unknown())) };
     }
 
-    private static NativeBattleGraphicsRoster Roster()
+    private static BattleModelRoster Roster()
     {
-        NativeBattleGraphicsActor?[] rows = new NativeBattleGraphicsActor?[25];
+        BattleModelOwner?[] rows = new BattleModelOwner?[25];
         rows[0] = new("ally", true);
         rows[7] = new("extra", true);
         for (int row = 8; row < rows.Length; row++)

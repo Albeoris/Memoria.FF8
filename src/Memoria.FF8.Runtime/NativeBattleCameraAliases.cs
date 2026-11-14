@@ -7,7 +7,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleCameraAliases([property: JsonRequired] byte? Actor1D99B95, [property: JsonRequired] byte? Target1D99AAA)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleGraphicsRoster? PresentationRoster { get; init; }
+    public BattleModelRoster? PresentationRoster { get; init; }
 
     public static NativeBattleCameraAliases FromColdProcess() => new(0, 0);
 
@@ -32,7 +32,7 @@ public sealed record NativeBattleCameraAliases([property: JsonRequired] byte? Ac
         return this with { Actor1D99B95 = actor, Target1D99AAA = targetMask == 0 ? Target1D99AAA : checked((byte)BitOperations.Log2(targetMask)) };
     }
 
-    public NativeBattleCameraAliases Observe50D300(byte actor, NativeBattleGraphicsActorSet targets, NativeBattleGraphicsRoster roster)
+    public NativeBattleCameraAliases Observe50D300(byte actor, BattleModelTargets targets, BattleModelRoster roster)
     {
         roster.Validate();
         NativeBattleActionGeometry.ValidatePresentationRows(roster, actor, default, targets);

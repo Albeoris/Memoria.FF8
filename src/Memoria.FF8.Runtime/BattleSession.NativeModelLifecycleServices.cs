@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    internal NativeBattleModelLifecycleServices CaptureExpandedModelLifecycleServices(NativeBattleGraphicsRoster roster)
+    internal NativeBattleModelLifecycleServices CaptureExpandedModelLifecycleServices(BattleModelRoster roster)
     {
         ArgumentNullException.ThrowIfNull(roster);
         NativeBattleModelActorFacts?[] facts = new NativeBattleModelActorFacts?[roster.ActorCount];

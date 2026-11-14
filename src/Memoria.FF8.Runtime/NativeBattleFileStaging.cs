@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -31,6 +31,7 @@ public sealed partial record NativeBattleFileStaging : INativeBattleStorageNode
         loaderZeroRanges = data.LoaderZeroRanges;
         resourcePointers = data.ResourcePointers;
         retainedUnknownRanges = data.RetainedUnknownRanges;
+        retainedExecutionReferences = data.ExecutionReferences;
         ValidateData(data);
     }
 
@@ -357,7 +358,7 @@ public sealed partial record NativeBattleFileStaging : INativeBattleStorageNode
         }
     }
 
-    private NativeBattleFileStagingData ImportData() => new(baseAddress, knownRanges, loaderZeroRanges, resourcePointers, retainedUnknownRanges);
+    private NativeBattleFileStagingData ImportData() => new(baseAddress, knownRanges, loaderZeroRanges, resourcePointers, retainedUnknownRanges) { ExecutionReferences = retainedExecutionReferences };
     private ulong FrozenKnownExtentEnd()
     {
         Validate();

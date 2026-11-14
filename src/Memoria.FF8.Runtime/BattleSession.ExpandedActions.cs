@@ -15,7 +15,7 @@ public sealed partial class BattleSession
     private int expandedExpectedContacts;
     private bool deferringExpandedImpacts;
     private ImmutableArray<ExpandedBattleContact> expandedModelContacts = [];
-    private NativeBattleGraphicsRoster? expandedModelRoster;
+    private BattleModelRoster? expandedModelRoster;
     private readonly HashSet<int> expandedPresentedOccurrences = [];
     public NativeBattleEffectPresentation? ExpandedEffect => expandedGuardianFormEntry?.Effect ?? expandedEffect;
 
@@ -543,7 +543,7 @@ public sealed partial class BattleSession
         return PrepareExpandedEffect(actor, action, sequence, contacts, command.GuardianFormInvocation?.Mode, ReadExpandedPresentationRoster());
     }
 
-    private NativeBattleEffectPresentation PrepareExpandedEffect(BattleCombatant actor, BattleNativeAction action, byte sequence, ImmutableArray<ExpandedBattleContact> contacts, GuardianFormInvocationMode? mode, NativeBattleGraphicsRoster roster)
+    private NativeBattleEffectPresentation PrepareExpandedEffect(BattleCombatant actor, BattleNativeAction action, byte sequence, ImmutableArray<ExpandedBattleContact> contacts, GuardianFormInvocationMode? mode, BattleModelRoster roster)
     {
         ValidateExpandedEffectContacts(actor, contacts, roster);
         NativeBattleEffectPresentation prepared = expandedPresentationHost!.PrepareEffect(this, actor, action, sequence, contacts, mode);
@@ -551,7 +551,7 @@ public sealed partial class BattleSession
         return prepared;
     }
 
-    private static void ValidatePreparedExpandedEffectBinding(NativeBattleEffectPresentation prepared, BattleCombatant actor, NativeBattleGraphicsRoster roster)
+    private static void ValidatePreparedExpandedEffectBinding(NativeBattleEffectPresentation prepared, BattleCombatant actor, BattleModelRoster roster)
     {
         try
         {
@@ -572,7 +572,7 @@ public sealed partial class BattleSession
 
     private void BeginExpandedEffect(BattleCombatant actor, BattleActionPresentation command, BattleNativeAction action, byte sequence, ImmutableArray<ExpandedBattleContact> contacts, NativeBattleEffectPresentation? prepared = null)
     {
-        NativeBattleGraphicsRoster roster = ReadExpandedPresentationRoster();
+        BattleModelRoster roster = ReadExpandedPresentationRoster();
         if (prepared is null)
         {
             prepared = PrepareExpandedEffect(actor, action, sequence, contacts, command.GuardianFormInvocation?.Mode, roster);
@@ -595,19 +595,19 @@ public sealed partial class BattleSession
 
     private void SetExpandedEffectContacts(BattleCombatant actor, ImmutableArray<ExpandedBattleContact> contacts)
     {
-        NativeBattleGraphicsRoster roster = ReadExpandedPresentationRoster();
+        BattleModelRoster roster = ReadExpandedPresentationRoster();
         ValidateExpandedEffectContacts(actor, contacts, roster);
         SetExpandedEffectContacts(contacts, roster);
     }
 
-    private void SetExpandedEffectContacts(ImmutableArray<ExpandedBattleContact> contacts, NativeBattleGraphicsRoster roster)
+    private void SetExpandedEffectContacts(ImmutableArray<ExpandedBattleContact> contacts, BattleModelRoster roster)
     {
         expandedContactBridge = new(contacts.Select(contact => (contact.RecipientId, contact.Packet)), roster);
         expandedModelContacts = contacts;
         expandedModelRoster = roster;
     }
 
-    private static void ValidateExpandedEffectContacts(BattleCombatant actor, ImmutableArray<ExpandedBattleContact> contacts, NativeBattleGraphicsRoster roster)
+    private static void ValidateExpandedEffectContacts(BattleCombatant actor, ImmutableArray<ExpandedBattleContact> contacts, BattleModelRoster roster)
     {
         byte source = ExpandedPresentationRow(actor);
         if (!StringComparer.Ordinal.Equals(roster[source].ActorId, actor.Id))
@@ -626,7 +626,7 @@ public sealed partial class BattleSession
 
     private string ReadExpandedEffectModelActor(int index)
     {
-        NativeBattleGraphicsRoster roster = expandedModelRoster ?? throw new InvalidDataException("The expanded effect has no bound model roster.");
+        BattleModelRoster roster = expandedModelRoster ?? throw new InvalidDataException("The expanded effect has no bound model roster.");
         return roster[index].ActorId;
     }
 
@@ -713,7 +713,7 @@ public sealed partial class BattleSession
     private (ImmutableArray<ExpandedBattleContact> Contacts, BattleCombatant? Reflector) ResolveExpandedHitPlan(BattleCombatant actor, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native, BattleCombatant[][] hitPlan, bool preliminary = false)
     {
         IGrouping<BattleCombatant, BattleCombatant>[] recipientHits = hitPlan.SelectMany(targets => targets).GroupBy(recipient => recipient).ToArray();
-        NativeBattleGraphicsRoster roster = ReadExpandedPresentationRoster();
+        BattleModelRoster roster = ReadExpandedPresentationRoster();
         _ = RequireExpandedPresentationRow(roster, actor);
         Dictionary<BattleCombatant, byte> recipientRows = recipientHits.ToDictionary(entry => entry.Key, entry => RequireExpandedPresentationRow(roster, entry.Key));
         foreach (IGrouping<BattleCombatant, BattleCombatant> entry in recipientHits)

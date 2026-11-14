@@ -1,400 +1,266 @@
-using System.Buffers.Binary;
 using System.Collections.Immutable;
-using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-/// <summary>One physical20-byte slot at1D280C4; unwritten bytes survive48D1F0.</summary>
-public sealed record NativeBattleActionHeaderSlot([property: JsonRequired] ImmutableArray<byte> Payload, [property: JsonRequired] uint UnknownByteMask, [property: JsonRequired] int? FirstContactIndex, [property: JsonRequired] NativeBattleActionDataReference? Data)
+public sealed record NativeBattleActionHeaderSlot(BattleModelOwner Source, byte Command, byte Sequence, sbyte CameraChoice, ushort Action, ushort Effect, BattleContactCursor FirstContact, NativeBattleActionDataReference? Data, int? ContactCount, byte? RepeatModeMinusOne)
 {
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public int? PresentationContactCount { get; init; }
-
-    public byte ReadByte(int offset)
-    {
-        byte value = ReadRetainedByte(offset);
-        if (offset == 16 && PresentationContactCount > byte.MaxValue)
-        {
-            throw new NotSupportedException("Hosted contact counts above 255 require the semantic ReadContactCount reader.");
-        }
-        return value;
-    }
-
     public int ReadContactCount()
     {
-        byte value = ReadRetainedByte(16);
-        return PresentationContactCount ?? value;
+        return ContactCount ?? throw new NotSupportedException("The action header's contact count has no observed writer.");
     }
 
-    private byte ReadRetainedByte(int offset)
+    public byte ReadRepeatModeMinusOne()
     {
-        if (offset is < 0 or >= 20)
-        {
-            throw new ArgumentOutOfRangeException(nameof(offset));
-        }
-        if ((UnknownByteMask & (1u << offset)) != 0)
-        {
-            throw new NotSupportedException($"Native action header byte{offset} has no observed physical writer.");
-        }
-        return Payload[offset];
+        return RepeatModeMinusOne ?? throw new NotSupportedException("The action header's repeat mode has no observed writer.");
     }
 }
 
-/// <summary>Canonical C0/C1 counts and adjacent physical header/contact arenas. Resetting counts does not erase storage.</summary>
-public sealed record NativeBattleActionPacketsState([property: JsonRequired] byte ActionCount, [property: JsonRequired] int ContactCount, [property: JsonRequired] ImmutableArray<NativeBattleActionHeaderSlot> Headers, [property: JsonRequired] ImmutableArray<NativeBattleContactPacket?> Contacts, [property: JsonRequired] int? ActiveHeaderIndex)
+public sealed class NativeBattleActionPacketsState
 {
-    public int? ActiveContactIndex { get; init; }
+    private readonly ImmutableArray<NativeBattleActionHeaderSlot?> headers;
+    private readonly ImmutableArray<NativeBattleContactPacket?> contacts;
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleGraphicsRoster? PresentationRoster { get; init; }
-
-    [JsonIgnore]
-    public int StorageCapacity => Contacts.Length;
-
-    public const int HeaderCapacity = 32;
-    public const int ContactCapacity = 49;
-    public const uint ContactBase = 0x1D28344;
-
-    public static NativeBattleActionPacketsState Fresh()
+    private NativeBattleActionPacketsState(BattleModelRoster roster, NativeBattleRetainedActionPackets retainedStorage, ImmutableArray<NativeBattleActionHeaderSlot?> headers, ImmutableArray<NativeBattleContactPacket?> contacts, int actionCount = 0, int contactCount = 0, BattleActionHeaderReference? activeHeader = null, BattleContactCursor? activeContact = null)
     {
-        //48D1F0 clears only the two counts; the retained slot payload has no known cold writer here.
-        return new(0, 0, Enumerable.Range(0, HeaderCapacity).Select(_ => new NativeBattleActionHeaderSlot(ImmutableArray.CreateRange(new byte[20]), 0xFFFFF, null, null)).ToImmutableArray(), Enumerable.Repeat<NativeBattleContactPacket?>(null, ContactCapacity).ToImmutableArray(), null);
+        Roster = roster;
+        RetainedStorage = retainedStorage;
+        this.headers = headers;
+        this.contacts = contacts;
+        ActionCount = actionCount;
+        ContactCount = contactCount;
+        ActiveHeader = activeHeader;
+        ActiveContact = activeContact;
     }
 
-    public static NativeBattleActionPacketsState FromColdLoaderStorage(ReadOnlySpan<byte> headers, ReadOnlySpan<byte> contacts)
-    {
-        if (headers.Length != HeaderCapacity * 20 || contacts.Length != ContactCapacity * 24 || headers.ContainsAnyExcept((byte)0) || contacts.ContainsAnyExcept((byte)0))
-        {
-            throw new InvalidDataException("Native cold-process action storage requires the observed zero-filled loader arenas.");
-        }
-        NativeBattleActionHeaderSlot[] headerSlots = new NativeBattleActionHeaderSlot[HeaderCapacity];
-        NativeBattleContactPacket?[] contactSlots = new NativeBattleContactPacket?[ContactCapacity];
-        for (int index = 0; index < headerSlots.Length; index++)
-        {
-            headerSlots[index] = new(ImmutableArray.CreateRange(headers.Slice(index * 20, 20).ToArray()), 0, null, null);
-        }
-        for (int index = 0; index < contactSlots.Length; index++)
-        {
-            contactSlots[index] = NativeBattleContactPacket.Decode(contacts.Slice(index * 24, 24));
-        }
-        return new(0, 0, headerSlots.ToImmutableArray(), contactSlots.ToImmutableArray(), null);
-    }
+    public BattleModelRoster Roster { get; }
+    internal NativeBattleRetainedActionPackets RetainedStorage { get; }
+    public int ActionCount { get; }
+    public int ContactCount { get; }
+    public BattleActionHeaderReference? ActiveHeader { get; }
+    public BattleContactCursor? ActiveContact { get; }
 
-    public static NativeBattleActionPacketsState FromPresentationStorage(NativeBattleGraphicsRoster roster, int capacity = ContactCapacity)
+    public static NativeBattleActionPacketsState Create(BattleModelRoster roster, NativeBattleRetainedActionPackets retained)
     {
         ArgumentNullException.ThrowIfNull(roster);
-        roster.Validate();
-        if (capacity is < ContactCapacity or > NativeBattleContactAddress.MaximumRowCount)
-        {
-            throw new ArgumentOutOfRangeException(nameof(capacity));
-        }
-        NativeBattleActionHeaderSlot empty = new(ImmutableArray.CreateRange(new byte[20]), 0, null, null);
-        return new(0, 0, Enumerable.Repeat(empty, HeaderCapacity).ToImmutableArray(), Enumerable.Repeat<NativeBattleContactPacket?>(null, capacity).ToImmutableArray(), null) { PresentationRoster = roster };
+        ArgumentNullException.ThrowIfNull(retained);
+        retained.Validate();
+        return new(roster, retained, ImmutableArray.CreateRange(new NativeBattleActionHeaderSlot?[NativeBattleRetainedActionPackets.HeaderCapacity]), ImmutableArray.CreateRange(new NativeBattleContactPacket?[NativeBattleRetainedActionPackets.ContactCapacity]));
     }
 
-    internal NativeBattleActionPacketsState GrowPresentationContacts(int capacity)
+    /// <summary>Replaces live membership after callers retire outstanding work for removed owners.</summary>
+    public NativeBattleActionPacketsState WithRoster(BattleModelRoster roster)
     {
-        Validate();
-        ArgumentOutOfRangeException.ThrowIfNegative(capacity);
-        if (PresentationRoster is null || capacity > NativeBattleContactAddress.MaximumRowCount)
-        {
-            throw new InvalidOperationException("Hosted contacts exceed their owned packet capacity.");
-        }
-        if (capacity <= StorageCapacity)
-        {
-            return this;
-        }
-        ImmutableArray<NativeBattleActionHeaderSlot> headers = Headers;
-        if (StorageCapacity == ContactCapacity)
-        {
-            // The physical one-past cursor becomes a hosted row when this arena grows.
-            for (int index = 0; index < headers.Length; index++)
-            {
-                NativeBattleActionHeaderSlot header = headers[index];
-                if (header.FirstContactIndex == ContactCapacity)
-                {
-                    byte[] payload = header.Payload.ToArray();
-                    BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(8), NativeBattleContactAddress.EncodeCursor(ContactCapacity, capacity));
-                    headers = headers.SetItem(index, header with { Payload = ImmutableArray.CreateRange(payload) });
-                }
-            }
-        }
-        return this with { Headers = headers, Contacts = Contacts.AddRange(Enumerable.Repeat<NativeBattleContactPacket?>(null, capacity - StorageCapacity)) };
+        ArgumentNullException.ThrowIfNull(roster);
+        return ReferenceEquals(Roster, roster) ? this : new(roster, RetainedStorage, headers, contacts, ActionCount, ContactCount, ActiveHeader, ActiveContact);
     }
 
-    internal NativeBattleActionPacketsState DetachDiagnosticCopy()
+    public (NativeBattleActionPacketsState State, BattleActionHeaderReference Header) Prepare(NativeBattleActionHeaderPreparation preparation)
     {
-        Validate();
-        return this with
-        {
-            Headers = Headers.Select(header => header with { Payload = ImmutableArray.CreateRange(header.Payload.AsSpan().ToArray()), Data = header.Data is null ? null : header.Data with { } }).ToImmutableArray(),
-            Contacts = Contacts.Select(contact => contact is null ? null : contact with { Primary = contact.Primary with { }, Secondary = contact.Secondary with { } }).ToImmutableArray()
-        };
-    }
-
-    public void Validate()
-    {
-        PresentationRoster?.Validate();
-        if (ActionCount > HeaderCapacity || Headers.IsDefault || Headers.Length != HeaderCapacity || Contacts.IsDefault ||
-            (PresentationRoster is null ? StorageCapacity != ContactCapacity : StorageCapacity is < ContactCapacity or > NativeBattleContactAddress.MaximumRowCount) ||
-            ContactCount < 0 || ContactCount > StorageCapacity || ActiveHeaderIndex is < 0 or >= HeaderCapacity || ActiveContactIndex < 0 || ActiveContactIndex > StorageCapacity)
-        {
-            throw new InvalidDataException(PresentationRoster is null ? "Native action packets require their original counts and32-header/49-contact physical arenas." : "Hosted action packets require valid counts in their owned header and contact storage.");
-        }
-        foreach (NativeBattleActionHeaderSlot header in Headers)
-        {
-            if (header is null || header.Payload.IsDefault || header.Payload.Length != 20 || (header.UnknownByteMask & ~0xFFFFFu) != 0 || header.FirstContactIndex < 0 || header.FirstContactIndex > StorageCapacity)
-            {
-                throw new InvalidDataException("Native action header has invalid retained bytes or contact binding.");
-            }
-            if (header.FirstContactIndex is int first)
-            {
-                if ((header.UnknownByteMask & 0xFFF) != 0 || BinaryPrimitives.ReadUInt32LittleEndian(header.Payload.AsSpan()[8..]) != NativeBattleContactAddress.EncodeCursor(first, StorageCapacity))
-                {
-                    throw new InvalidDataException("Native action header contradicts its prepared physical contact pointer.");
-                }
-                uint pointerMask = header.UnknownByteMask & 0xF000u;
-                if (header.Data is null ? pointerMask != 0 || BinaryPrimitives.ReadUInt32LittleEndian(header.Payload.AsSpan()[12..]) != 0 : pointerMask != 0xF000)
-                {
-                    throw new InvalidDataException("Native action data pointer lacks its known NULL or logical producer binding.");
-                }
-                if (PresentationRoster is { } roster)
-                {
-                    RequireBoundActor(roster, header.Payload[0]);
-                }
-            }
-            else if (header.Data is not null)
-            {
-                throw new InvalidDataException("Native prepared action header lacks its physical contact binding.");
-            }
-            if (header.PresentationContactCount is int count)
-            {
-                if (PresentationRoster is null || header.FirstContactIndex is not int start || count < 0 || count > StorageCapacity - start ||
-                    (header.UnknownByteMask & (1u << 16)) != 0 || header.Payload[16] != unchecked((byte)count))
-                {
-                    throw new InvalidDataException("Hosted action header contradicts its retained contact count or packet owner.");
-                }
-                for (int row = start; row < start + count; row++)
-                {
-                    if (Contacts[row] is null)
-                    {
-                        throw new InvalidDataException("Hosted action header references an unwritten contact row.");
-                    }
-                }
-            }
-        }
-        foreach (NativeBattleContactPacket? contact in Contacts)
-        {
-            if (contact is not null)
-            {
-                ValidateContact(contact);
-            }
-        }
-        for (int index = 0; index < ActionCount; index++)
-        {
-            RequirePrepared(index);
-            NativeBattleActionHeaderSlot header = Headers[index];
-            _ = header.ReadContactCount();
-            if (PresentationRoster is not null && !header.PresentationContactCount.HasValue)
-            {
-                throw new InvalidDataException("Published hosted action header lacks its semantic contact count.");
-            }
-        }
-        for (int index = 0; index < ContactCount; index++)
-        {
-            _ = ReadContact(index);
-        }
-        if (ActiveHeaderIndex is int active)
-        {
-            RequirePrepared(active);
-            _ = Headers[active].ReadContactCount();
-        }
-    }
-
-    public (NativeBattleActionPacketsState State, int HeaderIndex) Prepare(NativeBattleActionHeaderPreparation preparation)
-    {
-        Validate();
         ArgumentNullException.ThrowIfNull(preparation);
-        if (ActionCount == HeaderCapacity)
-        {
-            throw new InvalidOperationException("Native action header write would overlap the adjacent contact arena.");
-        }
-        if (PresentationRoster is { } roster)
-        {
-            RequireBoundActor(roster, preparation.Actor);
-        }
-        else if (preparation.Actor >= NativeBattleGraphicsModelAddress.NativeRowCount)
-        {
-            throw new InvalidDataException("Native action header requires a physical actor index0..6.");
-        }
-        NativeBattleActionHeaderSlot previous = Headers[ActionCount];
-        byte[] payload = previous.Payload.ToArray();
-        payload[0] = preparation.Actor;
-        payload[1] = preparation.Command;
-        payload[2] = preparation.Sequence;
-        payload[3] = unchecked((byte)preparation.CameraChoice);
-        BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(4), preparation.Action);
-        BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(6), preparation.Effect);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(8), NativeBattleContactAddress.EncodeCursor(ContactCount, StorageCapacity));
-        uint unknown = previous.UnknownByteMask & ~0xFFFFu;
-        if (preparation.Data is null)
-        {
-            BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(12), 0);
-        }
-        else
-        {
-            unknown |= 0xF000;
-        }
-        NativeBattleActionHeaderSlot header = new(ImmutableArray.CreateRange(payload), unknown, ContactCount, preparation.Data);
-        return (this with { Headers = Headers.SetItem(ActionCount, header) }, ActionCount);
+        RequireOwner(preparation.Source);
+        int index = ActionCount;
+        ImmutableArray<NativeBattleActionHeaderSlot?> grown = EnsureCapacity(headers, checked(index + 1));
+        NativeBattleActionHeaderSlot? previous = grown[index];
+        NativeBattleRetainedActionHeaderSlot? retained = index < RetainedStorage.Headers.Length ? RetainedStorage.Headers[index] : null;
+        int? count = previous is null ? retained?.ReadKnownByte(16) : previous.ContactCount;
+        byte? repeat = previous is null ? retained?.ReadKnownByte(17) : previous.RepeatModeMinusOne;
+        NativeBattleActionHeaderSlot slot = new(preparation.Source, preparation.Command, preparation.Sequence, preparation.CameraChoice, preparation.Action, preparation.Effect, new(ContactCount), preparation.Data, count, repeat);
+        return (new(Roster, RetainedStorage, grown.SetItem(index, slot), contacts, ActionCount, ContactCount, ActiveHeader, ActiveContact), new(index));
     }
 
-    public (NativeBattleActionPacketsState State, int ContactIndex) AppendContact(NativeBattleContactPacket packet)
+    public (NativeBattleActionPacketsState State, BattleContactOccurrence Occurrence) AppendContact(NativeBattleContactPacket packet)
     {
-        Validate();
-        ArgumentNullException.ThrowIfNull(packet);
-        ValidateContact(packet);
-        if (ContactCount == StorageCapacity)
-        {
-            throw new InvalidOperationException("Native contact write would overlap the adjacent scene owner.");
-        }
-        return (this with { Contacts = Contacts.SetItem(ContactCount, packet), ContactCount = ContactCount + 1 }, ContactCount);
+        return (AppendContacts([packet]), new(ContactCount));
     }
 
     public NativeBattleActionPacketsState AppendContacts(IEnumerable<NativeBattleContactPacket> packets)
     {
-        Validate();
         ArgumentNullException.ThrowIfNull(packets);
-        ImmutableArray<NativeBattleContactPacket?>.Builder contacts = Contacts.ToBuilder();
+        var builder = contacts.ToBuilder();
         int count = ContactCount;
         foreach (NativeBattleContactPacket packet in packets)
         {
-            if (count == StorageCapacity)
-            {
-                throw new InvalidOperationException("Native contact write would exceed its owned storage.");
-            }
-            ArgumentNullException.ThrowIfNull(packet);
             ValidateContact(packet);
-            contacts[count] = packet;
-            count++;
+            if (count == builder.Count)
+            {
+                builder.Add(packet with { Occurrence = null });
+            }
+            else
+            {
+                builder[count] = packet with { Occurrence = null };
+            }
+            count = checked(count + 1);
         }
-        return this with { Contacts = contacts.MoveToImmutable(), ContactCount = count };
+        return count == ContactCount ? this : new(Roster, RetainedStorage, headers, builder.ToImmutable(), ActionCount, count, ActiveHeader, ActiveContact);
     }
 
-    public (NativeBattleActionPacketsState State, int HeaderIndex) Publish(int targetCount)
+    public (NativeBattleActionPacketsState State, BattleActionHeaderReference Header) Publish(int targetCount)
     {
-        Validate();
-        RequirePrepared(ActionCount);
-        NativeBattleActionHeaderSlot header = Headers[ActionCount];
-        if (targetCount < 0 || (PresentationRoster is null ? targetCount > byte.MaxValue : header.FirstContactIndex!.Value > ContactCount - targetCount))
+        ArgumentOutOfRangeException.ThrowIfNegative(targetCount);
+        BattleActionHeaderReference reference = new(ActionCount);
+        NativeBattleActionHeaderSlot header = ReadHeader(reference) with { ContactCount = targetCount };
+        return (new(Roster, RetainedStorage, headers.SetItem(reference.Ordinal, header), contacts, checked(ActionCount + 1), ContactCount, ActiveHeader, ActiveContact), reference);
+    }
+
+    public NativeBattleActionPacketsState WritePlayerRepeatMode(BattleActionHeaderReference reference, byte repeatMode)
+    {
+        NativeBattleActionHeaderSlot header = ReadHeader(reference) with { RepeatModeMinusOne = unchecked((byte)(repeatMode - 1)) };
+        return new(Roster, RetainedStorage, headers.SetItem(reference.Ordinal, header), contacts, ActionCount, ContactCount, ActiveHeader, ActiveContact);
+    }
+
+    public NativeBattleActionHeaderSlot ReadHeader(BattleActionHeaderReference reference)
+    {
+        if ((uint)reference.Ordinal >= (uint)headers.Length)
         {
-            throw new ArgumentOutOfRangeException(nameof(targetCount));
+            throw new ArgumentOutOfRangeException(nameof(reference));
         }
-        header = header with
+        NativeBattleActionHeaderSlot header = headers[reference.Ordinal] ?? throw new InvalidDataException("The live action header has not been prepared.");
+        RequireOwner(header.Source);
+        return header;
+    }
+
+    public NativeBattleContactPacket ReadContact(BattleContactOccurrence occurrence)
+    {
+        if ((uint)occurrence.Ordinal >= (uint)contacts.Length)
         {
-            Payload = header.Payload.SetItem(16, unchecked((byte)targetCount)),
-            UnknownByteMask = header.UnknownByteMask & ~(1u << 16),
-            PresentationContactCount = PresentationRoster is null ? null : targetCount
-        };
-        return (this with { Headers = Headers.SetItem(ActionCount, header), ActionCount = checked((byte)(ActionCount + 1)) }, ActionCount);
+            throw new ArgumentOutOfRangeException(nameof(occurrence));
+        }
+        NativeBattleContactPacket packet = contacts[occurrence.Ordinal] ?? throw new NotSupportedException("The live contact has no observed writer.");
+        ValidateContact(packet);
+        return packet with { Occurrence = occurrence };
     }
 
-    public NativeBattleActionPacketsState WritePlayerRepeatMode(int firstHeaderIndex, byte repeatMode)
+    public BattleContactOccurrence ResolveContact(BattleActionHeaderReference header, int relativeOrdinal)
     {
-        Validate();
-        RequirePrepared(firstHeaderIndex);
-        NativeBattleActionHeaderSlot header = Headers[firstHeaderIndex];
-        header = header with { Payload = header.Payload.SetItem(17, unchecked((byte)(repeatMode - 1))), UnknownByteMask = header.UnknownByteMask & ~(1u << 17) };
-        return this with { Headers = Headers.SetItem(firstHeaderIndex, header) };
+        NativeBattleActionHeaderSlot slot = ReadHeader(header);
+        int count = slot.ReadContactCount();
+        if ((uint)relativeOrdinal >= (uint)count)
+        {
+            throw new ArgumentOutOfRangeException(nameof(relativeOrdinal));
+        }
+        if (slot.FirstContact.Ordinal > contacts.Length - count)
+        {
+            throw new InvalidDataException("The action's contact range exceeds the live arena.");
+        }
+        return new(checked(slot.FirstContact.Ordinal + relativeOrdinal));
     }
 
-    public NativeBattleActionPacketsState ActivateHeader(int index)
+    public ImmutableArray<NativeBattleContactPacket> ReadHeaderContacts(BattleActionHeaderReference reference)
     {
-        Validate();
-        RequirePrepared(index);
-        _ = Headers[index].ReadContactCount();
-        return this with { ActiveHeaderIndex = index, ActiveContactIndex = Headers[index].FirstContactIndex };
+        NativeBattleActionHeaderSlot header = ReadHeader(reference);
+        int count = header.ReadContactCount();
+        if (header.FirstContact.Ordinal > contacts.Length - count)
+        {
+            throw new InvalidDataException("The action's contact range exceeds the live arena.");
+        }
+        var result = ImmutableArray.CreateBuilder<NativeBattleContactPacket>(count);
+        for (int relative = 0; relative < count; relative++)
+        {
+            result.Add(ReadContact(new(checked(header.FirstContact.Ordinal + relative))));
+        }
+        return result.MoveToImmutable();
+    }
+
+    public NativeBattleActionPacketsState ActivateHeader(BattleActionHeaderReference reference)
+    {
+        NativeBattleActionHeaderSlot header = ReadHeader(reference);
+        _ = header.ReadContactCount();
+        return new(Roster, RetainedStorage, headers, contacts, ActionCount, ContactCount, reference, header.FirstContact);
+    }
+
+    public NativeBattleActionPacketsState AdvanceContact()
+    {
+        BattleContactCursor cursor = ActiveContact ?? throw new NotSupportedException("Native50A690 requires its current contact cursor.");
+        if (cursor.Ordinal >= contacts.Length)
+        {
+            throw new NotSupportedException("Native50A690 cannot advance past the live arena's one-past cursor.");
+        }
+        return new(Roster, RetainedStorage, headers, contacts, ActionCount, ContactCount, ActiveHeader, cursor.Advance(1));
     }
 
     public NativeBattleContactPacket ReadActiveContact()
     {
-        return ReadContact(ActiveContactIndex ?? throw new NotSupportedException("Native current contact pointer1D99A60 requires its retained physical cursor; migrate the standalone snapshot explicitly."));
-    }
-
-    public NativeBattleActionPacketsState AdvanceContact50A690()
-    {
-        int index = ActiveContactIndex ?? throw new NotSupportedException("Native50A690 requires its retained physical contact cursor.");
-        if (index >= StorageCapacity)
-        {
-            throw new NotSupportedException("Native50A690 cursor leaves its retained physical contact arena.");
-        }
-        return this with { ActiveContactIndex = index + 1 };
+        BattleContactCursor cursor = ActiveContact ?? throw new NotSupportedException("The action has no active contact cursor.");
+        return ReadContact(new(cursor.Ordinal));
     }
 
     public NativeBattleActionPacketsState ResetCounts()
     {
-        Validate();
-        return this with { ActionCount = 0, ContactCount = 0 };
+        return new(Roster, RetainedStorage, headers, contacts, 0, 0, ActiveHeader, ActiveContact);
     }
 
-    public ImmutableArray<NativeBattleContactPacket> ReadHeaderContacts506BA0(int headerIndex)
+    public NativeBattleRetainedActionPackets ExportRetained(NativeBattleModelBoundary bindings, BattleActorModels models)
     {
-        if (headerIndex is < 0 or >= HeaderCapacity)
-        {
-            throw new ArgumentOutOfRangeException(nameof(headerIndex));
-        }
-        NativeBattleActionHeaderSlot header = Headers[headerIndex];
-        int count = header.ReadContactCount();
-        if (count == 0)
-        {
-            return [];
-        }
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Native506BA0 requires its actual header's physical contact pointer.");
-        if (first < 0 || count < 0 || first > StorageCapacity - count)
-        {
-            throw new InvalidDataException("Native506BA0 contact range exceeds the retained physical contact arena.");
-        }
-        return Enumerable.Range(first, count).Select(ReadContact).ToImmutableArray();
+        return NativeBattleActionPacketBoundary.Export(this, bindings, models);
     }
 
-    public NativeBattleContactPacket ReadContact(int index)
+    internal NativeBattleRetainedActionPackets ExportUnmodifiedRetained()
     {
-        if (index < 0 || index >= StorageCapacity)
+        if (ActionCount != 0 || ContactCount != 0 || ActiveHeader is not null || ActiveContact is not null ||
+            headers.Any(header => header is not null) || contacts.Any(contact => contact is not null))
         {
-            throw new ArgumentOutOfRangeException(nameof(index));
+            throw new NotSupportedException("Projecting written live action packets requires original model bindings.");
         }
-        NativeBattleContactPacket packet = Contacts[index] ?? throw new NotSupportedException("Native contact packet has no observed physical writer.");
-        return packet with { PhysicalContactIndex = index };
+        return RetainedStorage.ResetCounts();
     }
 
-    public byte[] ReadContactBytes(int index) => ReadContact(index).Encode(PresentationRoster?.ActorCount ?? NativeBattleGraphicsModelAddress.NativeRowCount);
+    internal NativeBattleActionPacketsState DetachDiagnosticCopy() => this;
+
+    public void Validate()
+    {
+        if (headers.IsDefault || contacts.IsDefault || ActionCount < 0 || ActionCount > headers.Length || ContactCount < 0 || ContactCount > contacts.Length ||
+            ActiveHeader is { } active && ((uint)active.Ordinal >= (uint)headers.Length || headers[active.Ordinal]?.ContactCount is null) ||
+            ActiveContact is { } cursor && cursor.Ordinal > contacts.Length)
+        {
+            throw new InvalidDataException("The action arena lacks its live storage or has invalid counts or cursors.");
+        }
+        // Rebinding may retire an owner recorded by an earlier invocation. Membership is checked when that fact is reached.
+        if (headers.Take(ActionCount).Any(header => header?.ContactCount is null) || contacts.Take(ContactCount).Any(contact => contact is null) ||
+            headers.Any(header => header is not null && (header.Source is null || header.ContactCount < 0 || header.FirstContact.Ordinal > contacts.Length)))
+        {
+            throw new InvalidDataException("The action arena contains invalid live header or contact storage.");
+        }
+    }
+
+    internal NativeBattleActionHeaderSlot? FindRetainedHeader(BattleActionHeaderReference reference) => reference.Ordinal < headers.Length ? headers[reference.Ordinal] : null;
+
+    internal NativeBattleContactPacket? FindRetainedContact(BattleContactOccurrence occurrence) => occurrence.Ordinal < contacts.Length ? contacts[occurrence.Ordinal] : null;
+
+    private void RequireOwner(BattleModelOwner owner)
+    {
+        if (owner is null || !Roster.Contains(owner))
+        {
+            throw new InvalidDataException("The action packet refers to a model outside its current roster.");
+        }
+    }
 
     private void ValidateContact(NativeBattleContactPacket packet)
     {
-        packet.Validate(PresentationRoster?.ActorCount ?? NativeBattleGraphicsModelAddress.NativeRowCount);
-        if (PresentationRoster is { } roster)
+        ArgumentNullException.ThrowIfNull(packet);
+        packet.Validate();
+        RequireHalfOwner(packet.Primary);
+        if (packet.Secondary is { } secondary)
         {
-            RequireBoundActor(roster, packet.Primary.ActorIndex);
-            if (packet.Secondary.ActorIndex != byte.MaxValue)
-            {
-                RequireBoundActor(roster, packet.Secondary.ActorIndex);
-            }
+            RequireHalfOwner(secondary);
         }
     }
 
-    private static void RequireBoundActor(NativeBattleGraphicsRoster roster, byte row)
+    private void RequireHalfOwner(NativeBattleContactHalf half)
     {
-        if (row >= roster.ActorCount || roster.Rows[row] is null)
+        RequireOwner(half.Recipient);
+        if (half.CoverSource is { } cover)
         {
-            throw new InvalidDataException($"Hosted action packets require a bound actor at row {row}.");
+            RequireOwner(cover);
         }
     }
 
-    private void RequirePrepared(int index)
+    private static ImmutableArray<T> EnsureCapacity<T>(ImmutableArray<T> storage, int required)
     {
-        if (index is < 0 or >= HeaderCapacity || Headers[index].FirstContactIndex is null)
+        if (required <= storage.Length)
         {
-            throw new InvalidDataException("Native action header has not been prepared in its physical slot.");
+            return storage;
         }
+        int capacity = checked((int)Math.Max(required, Math.Min((long)Array.MaxLength, (long)storage.Length * 2)));
+        return storage.AddRange(new T[capacity - storage.Length]);
     }
 }

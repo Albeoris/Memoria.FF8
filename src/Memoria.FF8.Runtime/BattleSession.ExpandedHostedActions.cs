@@ -63,7 +63,7 @@ public sealed partial class BattleSession
         return draw;
     }
 
-    private void ValidateExpandedHostedInvocations(NativeBattleGraphicsRoster roster)
+    private void ValidateExpandedHostedInvocations(BattleModelRoster roster)
     {
         if (!roster.Rows.SequenceEqual(ReadExpandedPresentationRoster().Rows))
         {
@@ -81,7 +81,7 @@ public sealed partial class BattleSession
         }
     }
 
-    private PreparedHostedDispatch PrepareExpandedHostedEventSegment(ExpandedBattlePresentationProcess process, NativeBattleGraphicsRoster roster, BattleActionPresentation command, uint callback, PreparedHostedCompletionAck? acknowledgment = null)
+    private PreparedHostedDispatch PrepareExpandedHostedEventSegment(ExpandedBattlePresentationProcess process, BattleModelRoster roster, BattleActionPresentation command, uint callback, PreparedHostedCompletionAck? acknowledgment = null)
     {
         ImmutableArray<HostedDispatchHeader> headers = expandedHostedInvocations.Select(invocation => new HostedDispatchHeader(invocation.Header, invocation.Contacts.Select(contact => contact.Packet).ToImmutableArray())).ToImmutableArray();
         HostedDispatchCompletion? completion = headers.Length == 1 ? ReadExpandedHostedCompletion(roster, command, callback) : null;
@@ -95,17 +95,17 @@ public sealed partial class BattleSession
         return prepared;
     }
 
-    private HostedDispatchCompletion ReadExpandedHostedCompletion(NativeBattleGraphicsRoster roster, BattleActionPresentation command, uint callback)
+    private HostedDispatchCompletion ReadExpandedHostedCompletion(BattleModelRoster roster, BattleActionPresentation command, uint callback)
     {
         return new(callback, RequireExpandedPresentationRow(roster, GetActor(command.ActorId)), command.ActorId);
     }
 
-    private static NativeBattleEffectContactBridge<string>? PrepareExpandedHostedContactBridge(ExpandedHostedInvocation invocation, NativeBattleGraphicsRoster roster)
+    private static NativeBattleEffectContactBridge<string>? PrepareExpandedHostedContactBridge(ExpandedHostedInvocation invocation, BattleModelRoster roster)
     {
         return invocation.Contacts.IsEmpty ? null : new(invocation.Contacts.Select(contact => (contact.RecipientId, contact.Packet)), roster, invocation.FirstContactIndex);
     }
 
-    private void BindExpandedHostedContactTracking(ExpandedHostedInvocation invocation, NativeBattleGraphicsRoster roster, NativeBattleEffectContactBridge<string>? bridge)
+    private void BindExpandedHostedContactTracking(ExpandedHostedInvocation invocation, BattleModelRoster roster, NativeBattleEffectContactBridge<string>? bridge)
     {
         expandedContactBridge = bridge;
         expandedModelContacts = invocation.Contacts;
@@ -141,7 +141,7 @@ public sealed partial class BattleSession
             return;
         }
 
-        NativeBattleGraphicsRoster roster = process.Graphics.PresentationRoster!;
+        BattleModelRoster roster = process.Graphics.PresentationRoster!;
         ValidateExpandedHostedInvocations(roster);
         ImmutableArray<ExpandedHostedInvocation> remaining = expandedHostedInvocations.RemoveAt(0);
         ExpandedHostedInvocation invocation = remaining[0];
@@ -178,7 +178,7 @@ public sealed partial class BattleSession
                         throw new InvalidDataException("Hosted Gunblade published its placeholder before trigger recomputation.");
                     }
                     AcknowledgeExpandedEffectContact(command, contact.Packet);
-                    NativeBattleGraphicsRoster roster = expandedModelRoster!;
+                    BattleModelRoster roster = expandedModelRoster!;
                     PublishExpandedReadyContact(roster, contact.Packet.Primary, command.ActorId);
                     if (contact.Packet.Secondary.ActorIndex != byte.MaxValue)
                     {

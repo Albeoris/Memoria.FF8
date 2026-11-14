@@ -23,7 +23,7 @@ public sealed class NativeBattleHostedEffectRosterTests
     [Fact]
     public void Detached_and_inherited_effect_rosters_validate_the_same_bound_parameters()
     {
-        NativeBattleGraphicsRoster roster = Roster();
+        BattleModelRoster roster = Roster();
         NativeBattleOriginalEffectState effect = Effect(new(24, 0, 0x8, 0, 0, 0) { PresentationTargets = Rows(3, 7) }) with { PresentationRoster = roster };
         effect.Validate();
         (effect with { Parameters = null }).Validate();
@@ -48,7 +48,7 @@ public sealed class NativeBattleHostedEffectRosterTests
     [Fact]
     public void Hosted_effect_rejects_invalid_projections_holes_and_different_roster_rows()
     {
-        NativeBattleGraphicsRoster roster = Roster();
+        BattleModelRoster roster = Roster();
         NativeBattleEffectParameters parameters = new(24, 0, 0x8, 0, 0, 0) { PresentationTargets = Rows(3, 7) };
         NativeBattleOriginalEffectState effect = Effect(parameters) with { PresentationRoster = roster };
         Assert.Throws<InvalidDataException>((effect with { Parameters = parameters with { Actor78 = 23 } }).Validate);
@@ -81,18 +81,18 @@ public sealed class NativeBattleHostedEffectRosterTests
 
     private static NativeBattleOriginalEffectState Effect(NativeBattleEffectParameters parameters) => new(1, 0, new(1, 0x100, 0x200), parameters, null);
 
-    private static NativeBattleGraphicsRoster Roster()
+    private static BattleModelRoster Roster()
     {
-        NativeBattleGraphicsActor?[] actors = new NativeBattleGraphicsActor?[25];
+        BattleModelOwner?[] actors = new BattleModelOwner?[25];
         actors[3] = new("native-target", false);
         actors[7] = new("ally", true);
         actors[24] = new("enemy", false);
         return new(actors.ToImmutableArray());
     }
 
-    private static NativeBattleGraphicsState Graphics(NativeBattleGraphicsRoster roster) => new(NativeBattleGraphicsModels.ClearPresentationBank(roster).ToImmutableArray(), roster.Rows.Select(row => row?.ActorId).ToImmutableArray(), 0, 0) { PresentationRoster = roster };
+    private static NativeBattleGraphicsState Graphics(BattleModelRoster roster) => new(NativeBattleGraphicsModels.ClearPresentationBank(roster).ToImmutableArray(), roster.Rows.Select(row => row?.ActorId).ToImmutableArray(), 0, 0) { PresentationRoster = roster };
 
-    private static NativeBattleGraphicsActorSet Rows(int first, int second) => default(NativeBattleGraphicsActorSet).Add(first).Add(second);
+    private static BattleModelTargets Rows(int first, int second) => default(BattleModelTargets).Add(first).Add(second);
 
     private static NativeBattleContactPacket Contact(byte primary, byte secondary) => new(new(primary, 0, 0, 0, 0, 0, 0), new(secondary, 0, 0, 0, 0, 0, 0));
 }

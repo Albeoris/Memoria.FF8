@@ -230,10 +230,10 @@ public sealed class NativeBattleHostedActionAdmissionTests
             Combatants = [new() { Id = "ally", Name = "Ally", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }],
             NativeGlobalRandom = new(123)
         }, BattleAtbMode.TurnBased);
-        NativeBattleGraphicsActor?[] actors = new NativeBattleGraphicsActor?[25];
+        BattleModelOwner?[] actors = new BattleModelOwner?[25];
         actors[7] = new("ally", true);
         actors[24] = new("enemy", false);
-        NativeBattleGraphicsRoster roster = new(actors.ToImmutableArray());
+        BattleModelRoster roster = new(actors.ToImmutableArray());
         NativeBattleGraphicsModel[] models = NativeBattleGraphicsModels.ClearPresentationBank(roster);
         models[7] = models[7] with { ModelId4 = 1 };
         models[24] = models[24] with { ModelId4 = 16 };

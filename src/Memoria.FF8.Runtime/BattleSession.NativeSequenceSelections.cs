@@ -6,7 +6,7 @@ public sealed partial class BattleSession
     {
         if (graphics.PresentationRoster is { } roster)
         {
-            (byte source, NativeBattleGraphicsActorSet targets) = NativeBattleSequenceSelections.GeometryArguments92(currentIndex, selector, graphics.ActionContext, roster);
+            (byte source, BattleModelTargets targets) = NativeBattleSequenceSelections.GeometryArguments92(currentIndex, selector, graphics.ActionContext, roster);
             if (targets.IsEmpty)
             {
                 throw new InvalidDataException("Hosted Native92 requires a bound target selection.");

@@ -332,7 +332,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         Assert.True(logical.NativeEntryReady);
 
         const int attackRow = 7;
-        NativeBattleGraphicsRoster roster = process.Graphics.PresentationRoster!;
+        BattleModelRoster roster = process.Graphics.PresentationRoster!;
         string attackActor = roster[attackRow].ActorId;
         string fireActor = roster[fireRow].ActorId;
         string target = roster[targetRow].ActorId;
@@ -834,7 +834,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         BattleSession logical = new(logicalDefinition, BattleAtbMode.TurnBased);
         string logicalBefore = ExpandedBattlePresentationProcessEntryTests.LogicalState(logical);
         ExpandedBattlePresentationProcess process = new(logical, selected);
-        NativeBattleGraphicsRoster roster = process.Graphics.PresentationRoster!;
+        BattleModelRoster roster = process.Graphics.PresentationRoster!;
 
         NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals().WithGuestBattleRecords();
         BattleCombatant attackActor = logical.Combatants.Single(actor => actor.Id == roster[attackRow].ActorId);
@@ -1070,7 +1070,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
 
     private static (int Row, byte? Model, int? Body, int? Linked)[] Models(ExpandedBattlePresentationProcess process)
     {
-        NativeBattleGraphicsRoster roster = process.Graphics.PresentationRoster!;
+        BattleModelRoster roster = process.Graphics.PresentationRoster!;
         return roster.PartyRows.Concat(roster.EnemyRows).Select(row =>
         {
             NativeBattleGraphicsModel model = process.Graphics.Models[row];

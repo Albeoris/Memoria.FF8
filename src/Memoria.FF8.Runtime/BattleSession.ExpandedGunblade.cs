@@ -34,7 +34,7 @@ public sealed partial class BattleSession
     private void AcknowledgeExpandedGunbladeRegistration(NativeBattleModelTriggerRegistered receipt, long? actionToken)
     {
         ExpandedBattlePresentationProcess process = expandedPresentationProcess!;
-        NativeBattleGraphicsRoster roster = process.Graphics.PresentationRoster!;
+        BattleModelRoster roster = process.Graphics.PresentationRoster!;
         if (actionToken is null || expandedHostedActionToken != actionToken || process.ActiveActionToken != actionToken ||
             expandedHostedInvocations is not [{ PendingGunblade: true } invocation] ||
             receipt.Row != invocation.Header.Actor || !roster.ContainsRow(receipt.Row) || !roster[receipt.Row].IsParty ||
@@ -56,7 +56,7 @@ public sealed partial class BattleSession
         {
             return;
         }
-        NativeBattleGraphicsRoster roster = process.Graphics.PresentationRoster!;
+        BattleModelRoster roster = process.Graphics.PresentationRoster!;
         receipt.Validate(roster);
         if (expandedHostedActionToken is not long token || process.ActiveActionToken != token ||
             expandedHostedInvocations is not [{ PendingGunblade: true, Contacts: [var previous] } invocation] ||

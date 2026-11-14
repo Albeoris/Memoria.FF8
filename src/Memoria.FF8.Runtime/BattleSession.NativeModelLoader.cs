@@ -22,7 +22,7 @@ public sealed partial class BattleSession
 
     private void QueueNativeModelResource507080(NativeBattleGraphicsState graphics, ushort request, byte physicalIndex, uint argument = 0)
     {
-        NativeBattleGraphicsRoster? roster = graphics.PresentationRoster;
+        BattleModelRoster? roster = graphics.PresentationRoster;
         if (roster is not null)
         {
             _ = RequireHostedModelLoadOwner(graphics, roster, physicalIndex);

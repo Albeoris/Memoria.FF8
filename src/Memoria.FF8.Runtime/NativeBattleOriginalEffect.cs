@@ -23,7 +23,8 @@ public sealed partial record NativeBattleOriginalEffectState([property: JsonRequ
     public ImmutableArray<NativeBattleEffectHeapResourcePointer>? HeapResourcePointers { get; init; }
     [JsonRequired]
     public uint? FireDrawBuffer { get; init; }
-    public ImmutableArray<int>? FireModelCompletion { get; init; }
+    [JsonIgnore]
+    public ImmutableDictionary<BattleModelOwner, int>? FireModelCompletion { get; init; }
     public int? DrawArenaOffset { get; init; }
     public NativeBattleQuezacotlState? Quezacotl { get; init; }
     public NativeBattleCureState? Cure { get; init; }
@@ -49,33 +50,9 @@ public sealed partial record NativeBattleOriginalEffectState([property: JsonRequ
 
     public void Validate()
     {
-        Validate(null);
-    }
-
-    public void Validate(NativeBattleGraphicsRoster? inheritedRoster)
-    {
-        PresentationRoster?.Validate();
-        inheritedRoster?.Validate();
-        if (PresentationRoster is { } owned && inheritedRoster is not null && !owned.Rows.SequenceEqual(inheritedRoster.Rows))
-        {
-            throw new InvalidDataException("The effect presentation roster differs from its graphics roster.");
-        }
-        NativeBattleGraphicsRoster? roster = PresentationRoster ?? inheritedRoster;
-        if (SelectedIndex is < 0 or >= 400 || Binding is null || Binding.Effect is < 1 or > 400 || Binding.Entry == 0 || Pools.IsDefault || Pools.Any(pool => pool is null) || ResourcePointers.IsDefault || ResourcePointers.Any(pointer => pointer is null || pointer.ArenaOffset is < 0 or > NativeBattleEffectArena.Length) || DrawArenaOffset is < 0 or >= NativeBattleEffectArena.Length || Parameters is { } parameters && ((roster is null && parameters.Actor78 >= 7) || parameters.HeaderIndex7C is < 0 or >= NativeBattleActionPacketsState.HeaderCapacity) || ReturnedDescriptor is > 0 && !Pools.Any(pool => pool.DescriptorAddress == ReturnedDescriptor))
+        if (SelectedIndex is < 0 or >= 400 || Binding is null || Binding.Effect is < 1 or > 400 || Binding.Entry == 0 || Pools.IsDefault || Pools.Any(pool => pool is null) || ResourcePointers.IsDefault || ResourcePointers.Any(pointer => pointer is null || pointer.ArenaOffset is < 0 or > NativeBattleEffectArena.Length) || DrawArenaOffset is < 0 or >= NativeBattleEffectArena.Length || Parameters is { } parameters && (parameters.Source is null || parameters.TargetActors is null) || ReturnedDescriptor is > 0 && !Pools.Any(pool => pool.DescriptorAddress == ReturnedDescriptor))
         {
             throw new InvalidDataException("Native effect service lacks its selected entry, parameter block or returned physical task descriptor.");
-        }
-        if (Parameters is { } current)
-        {
-            current.ValidatePresentationTargets();
-            if (roster is not null)
-            {
-                NativeBattleActionGeometry.ValidatePresentationRows(roster, current.Actor78, default, current.TargetActors);
-            }
-            else if (current.PresentationTargets is { } targets)
-            {
-                targets.ValidateCapacity(NativeBattleGraphicsModelAddress.NativeRowCount);
-            }
         }
         if (Binding.InitializerResources is not null || Binding.InitializerAssets is not null)
         {
@@ -91,9 +68,23 @@ public sealed partial record NativeBattleOriginalEffectState([property: JsonRequ
         {
             pool.Validate();
         }
-        if (FireModelCompletion is { } completion && (completion.IsDefault || completion.Length != (roster?.ActorCount ?? NativeBattleGraphicsModelAddress.NativeRowCount)))
+        if (FireModelCompletion is { } completion && (completion.Keys.Any(owner => owner is null) || completion.Keys.Distinct().Count() != completion.Count))
         {
-            throw new InvalidDataException("Native6298A0 requires one DEE360 completion DWORD per owned graphics row.");
+            throw new InvalidDataException("Native6298A0 requires valid model owners for its completion fields.");
+        }
+    }
+
+    public void Validate(BattleModelRoster roster)
+    {
+        ArgumentNullException.ThrowIfNull(roster);
+        Validate();
+        if (Parameters is { } parameters && (!roster.Contains(parameters.Source) || parameters.TargetActors.Enumerate().Any(owner => !roster.Contains(owner))))
+        {
+            throw new InvalidDataException("Effect parameters require a bound source and bound target owners.");
+        }
+        if (FireModelCompletion is { } completion && (completion.Count != roster.Count || completion.Keys.Any(owner => !roster.Contains(owner))))
+        {
+            throw new InvalidDataException("Native6298A0 requires one DEE360 completion DWORD per bound model owner.");
         }
     }
 

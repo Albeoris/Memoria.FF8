@@ -8,7 +8,7 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleEffectParametersTests
 {
     private const uint OriginalParameterAddress = 0x1D99A78;
-    private static readonly NativeBattleGraphicsActorSet HostedRows = default(NativeBattleGraphicsActorSet).Add(7).Add(16).Add(24);
+    private static readonly BattleModelTargets HostedRows = default(BattleModelTargets).Add(7).Add(16).Add(24);
 
     [Fact]
     public void Legacy_json_preserves_native_selection_and_shape()

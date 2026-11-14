@@ -1,138 +1,100 @@
 namespace Memoria.FF8.Runtime;
 
-/// <summary>Addresses original contact rows and engine-owned handles for hosted contact rows.</summary>
+/// <summary>Codec for the original physical contact rows.</summary>
 public static class NativeBattleContactAddress
 {
-    public const int NativeRowCount = NativeBattleActionPacketsState.ContactCapacity;
-    public const int MaximumRowCount = checked(NativeBattleActionPacketsState.HeaderCapacity * NativeBattleGraphicsModelAddress.MaximumRowCount * byte.MaxValue);
+    public const int NativeRowCount = 49;
     public const int RowSize = 24;
 
     private const uint NativeBase = 0x1D28344;
     private const uint NativeEnd = NativeBase + NativeRowCount * RowSize;
-    private const uint HostedBase = 0xF2000000;
-    private const uint HostedEnd = HostedBase + (MaximumRowCount - NativeRowCount) * RowSize;
 
-    public static uint Encode(int row)
+    public static uint EncodeOriginal(BattleContactOccurrence occurrence)
     {
-        if ((uint)row >= MaximumRowCount)
+        if (occurrence.Ordinal >= NativeRowCount)
         {
-            throw new ArgumentOutOfRangeException(nameof(row));
+            throw new ArgumentOutOfRangeException(nameof(occurrence));
         }
-        return RowAddress(row);
+        return EncodeOriginalCursor(occurrence.AsCursor());
     }
 
-    public static int Decode(uint address, int capacity = NativeRowCount)
+    public static BattleContactOccurrence DecodeOriginal(uint address)
     {
-        if (!TryDecode(address, out int row, capacity))
+        if (!TryDecodeOriginal(address, out BattleContactOccurrence occurrence))
         {
-            throw new ArgumentOutOfRangeException(nameof(address), address, "The address is not a contact row base owned by this arena.");
+            throw new ArgumentOutOfRangeException(nameof(address), address, "The address is not an original contact row base.");
         }
-        return row;
+        return occurrence;
     }
 
-    public static bool TryDecode(uint address, out int row, int capacity = NativeRowCount)
+    public static bool TryDecodeOriginal(uint address, out BattleContactOccurrence occurrence)
     {
-        if (TryResolveField(address, 0, out int candidate, out int offset, capacity) && offset == 0)
+        if (TryResolveOriginalField(address, 0, out occurrence, out int offset) && offset == 0)
         {
-            row = candidate;
             return true;
         }
-        row = -1;
+        occurrence = default;
         return false;
     }
 
-    /// <summary>Encodes an aligned position in the arena, including its one-past cursor.</summary>
-    public static uint EncodeCursor(int row, int capacity = NativeRowCount)
+    /// <summary>Encodes an aligned original contact position, including its one-past cursor.</summary>
+    public static uint EncodeOriginalCursor(BattleContactCursor cursor)
     {
-        ValidateCapacity(capacity);
-        if ((uint)row > capacity)
+        if (cursor.Ordinal > NativeRowCount)
         {
-            throw new ArgumentOutOfRangeException(nameof(row));
+            throw new ArgumentOutOfRangeException(nameof(cursor));
         }
-        return row == NativeRowCount && capacity == NativeRowCount ? NativeEnd : RowAddress(row);
+        return NativeBase + (uint)(cursor.Ordinal * RowSize);
     }
 
-    public static int DecodeCursor(uint address, int capacity = NativeRowCount)
+    public static BattleContactCursor DecodeOriginalCursor(uint address)
     {
-        if (address == EncodeCursor(capacity, capacity))
+        return address == NativeEnd ? new(NativeRowCount) : DecodeOriginal(address).AsCursor();
+    }
+
+    public static uint OffsetOriginalCursor(uint address, int delta)
+    {
+        return EncodeOriginalCursor(DecodeOriginalCursor(address).Advance(delta));
+    }
+
+    /// <summary>Resolves a complete original contact field. Even a zero-length field must start in a row.</summary>
+    public static (BattleContactOccurrence Occurrence, int Offset) ResolveOriginalField(uint address, int byteLength)
+    {
+        if (!TryResolveOriginalField(address, 0, out BattleContactOccurrence occurrence, out int offset))
         {
-            return capacity;
-        }
-        return Decode(address, capacity);
-    }
-
-    public static uint OffsetCursor(uint address, int delta, int capacity = NativeRowCount)
-    {
-        int row = DecodeCursor(address, capacity);
-        return EncodeCursor(checked(row + delta), capacity);
-    }
-
-    /// <summary>Resolves a complete field within one owned row. A zero-length field still starts at an owned byte.</summary>
-    public static (int ContactIndex, int Offset) ResolveField(uint address, int byteLength, int capacity = NativeRowCount)
-    {
-        if (!TryResolveField(address, 0, out int row, out int offset, capacity))
-        {
-            throw new ArgumentOutOfRangeException(nameof(address), address, "The address is not a byte owned by this contact arena.");
+            throw new ArgumentOutOfRangeException(nameof(address), address, "The address is outside the original contact rows.");
         }
         ValidateFieldLength(offset, byteLength);
-        return (row, offset);
+        return (occurrence, offset);
     }
 
-    public static bool TryResolveField(uint address, int byteLength, out int contactIndex, out int offset, int capacity = NativeRowCount)
+    public static bool TryResolveOriginalField(uint address, int byteLength, out BattleContactOccurrence occurrence, out int offset)
     {
-        ValidateCapacity(capacity);
-        if (TryResolveAddress(address, out contactIndex, out offset) && contactIndex < capacity && IsFieldLengthValid(offset, byteLength))
+        if (address is >= NativeBase and < NativeEnd)
         {
-            return true;
+            int relative = (int)(address - NativeBase);
+            int fieldOffset = relative % RowSize;
+            if (IsFieldLengthValid(fieldOffset, byteLength))
+            {
+                occurrence = new(relative / RowSize);
+                offset = fieldOffset;
+                return true;
+            }
         }
-        contactIndex = -1;
+        occurrence = default;
         offset = -1;
         return false;
     }
 
-    public static uint EncodeField(int row, int offset, int byteLength)
+    public static uint EncodeOriginalField(BattleContactOccurrence occurrence, int offset, int byteLength)
     {
-        uint address = Encode(row);
+        uint address = EncodeOriginal(occurrence);
         if ((uint)offset >= RowSize)
         {
             throw new ArgumentOutOfRangeException(nameof(offset));
         }
         ValidateFieldLength(offset, byteLength);
         return address + (uint)offset;
-    }
-
-    private static uint RowAddress(int row)
-    {
-        return row < NativeRowCount ? NativeBase + (uint)(row * RowSize) : HostedBase + (uint)((row - NativeRowCount) * RowSize);
-    }
-
-    private static bool TryResolveAddress(uint address, out int row, out int offset)
-    {
-        if (address is >= NativeBase and < NativeEnd)
-        {
-            int relative = (int)(address - NativeBase);
-            row = relative / RowSize;
-            offset = relative % RowSize;
-            return true;
-        }
-        if (address is >= HostedBase and < HostedEnd)
-        {
-            int relative = (int)(address - HostedBase);
-            row = NativeRowCount + relative / RowSize;
-            offset = relative % RowSize;
-            return true;
-        }
-        row = -1;
-        offset = -1;
-        return false;
-    }
-
-    private static void ValidateCapacity(int capacity)
-    {
-        if (capacity is < 1 or > MaximumRowCount)
-        {
-            throw new ArgumentOutOfRangeException(nameof(capacity));
-        }
     }
 
     private static bool IsFieldLengthValid(int offset, int byteLength) => byteLength >= 0 && byteLength <= RowSize - offset;

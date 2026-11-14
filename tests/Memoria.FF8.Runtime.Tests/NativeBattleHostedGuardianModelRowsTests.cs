@@ -12,7 +12,7 @@ public sealed class NativeBattleHostedGuardianModelRowsTests
     public void HostedEntriesPreserveCentroidsAndRetainBoundCasterPointers(byte caster)
     {
         var fixture = NativeBattleDiablos325Tests.Fixture();
-        NativeBattleGraphicsRoster roster = Roster();
+        BattleModelRoster roster = Roster();
         var (packets, targets) = Prepare(roster, caster, 325, 7, 24);
         ImmutableArray<NativeBattleGraphicsModel> models = Models(fixture.Models);
         NativeBattleDiablos325Frame diablos = fixture.Frame with { Effect = fixture.Frame.Effect with { Parameters = Parameters(caster, targets) } };
@@ -42,7 +42,7 @@ public sealed class NativeBattleHostedGuardianModelRowsTests
     public void EntriesRejectMismatchedBankAndUnboundCasterOrRecipientBeforeResourceUse()
     {
         var fixture = NativeBattleDiablos325Tests.Fixture();
-        NativeBattleGraphicsRoster roster = Roster();
+        BattleModelRoster roster = Roster();
         var (packets, targets) = Prepare(roster, 7, 325, 7, 24);
         NativeBattleEffectParameters parameters = Parameters(7, targets);
         NativeBattleDiablos325Frame diablos = fixture.Frame with { Effect = fixture.Frame.Effect with { Parameters = parameters, ResourcePointers = [] } };
@@ -147,7 +147,7 @@ public sealed class NativeBattleHostedGuardianModelRowsTests
     [Fact]
     public void PandemonaSessionTargetReaderRejectsUnboundRecordBeforeChangingTheGraphicsBank()
     {
-        NativeBattleGraphicsRoster roster = Roster();
+        BattleModelRoster roster = Roster();
         var (packets, targets) = Prepare(roster, 7, 291, 7);
         NativeBattlePandemona291Frame frame = Pandemona(Parameters(7, targets));
         const int creature = 0x21A4;
@@ -170,10 +170,10 @@ public sealed class NativeBattleHostedGuardianModelRowsTests
         Assert.Contains("target record", Assert.IsType<NotSupportedException>(invalid.InnerException).Message);
     }
 
-    private static NativeBattleGraphicsRoster Roster() => new(Enumerable.Range(0, 25).Select(row => row switch
+    private static BattleModelRoster Roster() => new(Enumerable.Range(0, 25).Select(row => row switch
     {
-        7 => new NativeBattleGraphicsActor("party", true),
-        24 => new NativeBattleGraphicsActor("enemy", false),
+        7 => new BattleModelOwner("party", true),
+        24 => new BattleModelOwner("enemy", false),
         _ => null
     }).ToImmutableArray());
 
@@ -185,13 +185,13 @@ public sealed class NativeBattleHostedGuardianModelRowsTests
             _ => new NativeBattleGraphicsModel(row, 0)
         }).ToImmutableArray();
 
-    private static (NativeBattleActionPacketsState, NativeBattleGraphicsActorSet) Prepare(NativeBattleGraphicsRoster roster, byte caster, ushort effect, params byte[] targets)
+    private static (NativeBattleActionPacketsState, BattleModelTargets) Prepare(BattleModelRoster roster, byte caster, ushort effect, params byte[] targets)
     {
         var bridge = new NativeBattleEffectContactBridge<byte>(targets.Select(target => (target, Packet(target))), roster);
         return bridge.PrepareHosted(240, 0, 3, effect, caster);
     }
 
-    private static NativeBattleEffectParameters Parameters(byte caster, NativeBattleGraphicsActorSet targets) =>
+    private static NativeBattleEffectParameters Parameters(byte caster, BattleModelTargets targets) =>
         new(caster, 0, targets.NativePhysicalBits, 0, 0, 0) { PresentationTargets = targets };
 
     private static NativeBattleContactPacket Packet(byte target) => new(new(target, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0));

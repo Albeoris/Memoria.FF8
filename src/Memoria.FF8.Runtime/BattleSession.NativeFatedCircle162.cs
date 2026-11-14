@@ -38,7 +38,7 @@ public sealed partial class BattleSession
             return anchor with { W = (graphics.Models[actor].Transform ?? throw new NotSupportedException("Native571400 requires the actor angleWORD36.")).Angle36 };
         }
 
-        NativeBattleModuleAnchor Target5020A0(NativeBattleGraphicsActorSet targets)
+        NativeBattleModuleAnchor Target5020A0(BattleModelTargets targets)
         {
             NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Native5020A0 requires each selected physical model position.")).ToArray());
             return new(center.X, center.Y, center.Z, 0);
@@ -58,7 +58,7 @@ public sealed partial class BattleSession
             {
                 0x5F91D0 => NativeBattleFatedCircle162Controller.Advance5F91D0(current, pool, slot, inputs),
                 0x5F99C0 => NativeBattleFatedCircle162Controller.Advance5F99C0(current, pool, slot, inputs, actor => ReadNativeRenzokuken160WeaponTip(graphics, actor), view, projection, current.Memory.ScriptedGraphics, colors),
-                0x5F9F70 => NativeBattleFatedCircle162Controller.Advance5F9F70(current, pool, slot, inputs, (graphics.Models[current.Memory.FatedCircle162!.Parameters!.Actor78].GeometryBounds52 ?? throw new NotSupportedException("Native5F9F70 requires actual actor boundsWORD3C.")).Maximum.Y, view, projection, colors),
+                0x5F9F70 => NativeBattleFatedCircle162Controller.Advance5F9F70(current, pool, slot, inputs, (graphics.ActorModels.Get(current.Memory.FatedCircle162!.Parameters!.Source).GeometryBounds52 ?? throw new NotSupportedException("Native5F9F70 requires actual actor boundsWORD3C.")).Maximum.Y, view, projection, colors),
                 0x5FA0E0 => NativeBattleFatedCircle162Controller.Advance5FA0E0(current, pool, slot, inputs, view, projection, camera.Roll),
                 0x5FA340 => NativeBattleFatedCircle162Controller.Advance5FA340(current, pool, slot, inputs, view, projection, colors),
                 0x5FA480 => NativeBattleFatedCircle162Controller.Advance5FA480(current, pool, slot, inputs, view, projection, colors),

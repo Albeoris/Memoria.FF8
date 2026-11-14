@@ -41,7 +41,7 @@ internal sealed class NativeBattleModelLifecycleServices(ImmutableArray<NativeBa
     internal void EmitSound(NativeBattleModuleSound sound, string? actorId, NativeBattleSequenceSound? sequence) => receipts.Add(new NativeBattlePresentationSoundCommitted(sound, actorId, sequence));
     internal void EmitMusicCommand(NativeBattleMusicCommandReceipt command) => receipts.Add(new NativeBattlePresentationMusicCommandCommitted(command));
 
-    internal void Validate(NativeBattleGraphicsRoster roster, NativeBattleGraphicsState graphics)
+    internal void Validate(BattleModelRoster roster, NativeBattleGraphicsState graphics)
     {
         if (graphics.Models.IsDefault || graphics.Models.Length != roster.ActorCount ||
             graphics.ActorIds.IsDefault || graphics.ActorIds.Length != roster.ActorCount ||
@@ -51,7 +51,7 @@ internal sealed class NativeBattleModelLifecycleServices(ImmutableArray<NativeBa
         }
         for (int row = 0; row < roster.ActorCount; row++)
         {
-            NativeBattleGraphicsActor? actor = roster.Rows[row];
+            BattleModelOwner? actor = roster.Rows[row];
             NativeBattleModelActorFacts? fact = Facts[row];
             if (graphics.Models[row] is not { } model || model.Index != row ||
                 !StringComparer.Ordinal.Equals(graphics.ActorIds[row], actor?.ActorId) ||

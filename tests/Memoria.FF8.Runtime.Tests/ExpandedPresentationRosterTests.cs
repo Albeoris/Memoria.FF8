@@ -15,7 +15,7 @@ public sealed class ExpandedPresentationRosterTests
     {
         BattleSession battle = Create(allies, enemies);
         string before = Snapshot(battle);
-        NativeBattleGraphicsRoster roster = battle.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = battle.ReadExpandedPresentationRoster();
         Assert.Equal(extent, roster.ActorCount);
         for (int position = 0; position < allies; position++)
         {
@@ -42,14 +42,14 @@ public sealed class ExpandedPresentationRosterTests
         retained.IsActive = false;
         retained.Hidden = true;
         replacement.BindRosterSlot(null);
-        NativeBattleGraphicsRoster retainedRoster = battle.ReadExpandedPresentationRoster();
+        BattleModelRoster retainedRoster = battle.ReadExpandedPresentationRoster();
         AssertBinding(battle, retainedRoster, retained.Id, 4, false);
         Assert.Null(retainedRoster.Rows[5]);
         Assert.Throws<InvalidDataException>(() => battle.ReadExpandedPresentationRow(replacement.Id));
 
         retained.BindRosterSlot(null);
         replacement.BindRosterSlot(BattleRosterSlot.Enemy(1));
-        NativeBattleGraphicsRoster replaced = battle.ReadExpandedPresentationRoster();
+        BattleModelRoster replaced = battle.ReadExpandedPresentationRoster();
         AssertBinding(battle, replaced, replacement.Id, 4, false);
         Assert.DoesNotContain(replaced.Rows, actor => actor?.ActorId == retained.Id);
         Assert.Null(replaced.Rows[5]);
@@ -142,9 +142,9 @@ public sealed class ExpandedPresentationRosterTests
         }, BattleAtbMode.TurnBased);
     }
 
-    private static void AssertBinding(BattleSession battle, NativeBattleGraphicsRoster roster, string id, int row, bool party)
+    private static void AssertBinding(BattleSession battle, BattleModelRoster roster, string id, int row, bool party)
     {
-        Assert.Equal(new NativeBattleGraphicsActor(id, party), roster.Rows[row]);
+        Assert.Equal(new BattleModelOwner(id, party), roster.Rows[row]);
         Assert.Equal(row, battle.ReadExpandedPresentationRow(id));
     }
 

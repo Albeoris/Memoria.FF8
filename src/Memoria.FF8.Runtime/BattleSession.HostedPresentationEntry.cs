@@ -20,7 +20,7 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Hosted battle presentation requires an expanded logical roster.");
         }
         definition = NativeBattleStorageSnapshots.Capture(CloneDefinition(presentationResources));
-        NativeBattleGraphicsRoster roster = logicalOwner.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = logicalOwner.ReadExpandedPresentationRoster();
         NativeBattleGraphicsDefinition source = definition.NativeGraphics ?? throw new InvalidDataException("Hosted entry requires its installed graphics definition.");
         NativeBattleRetainedMemory retained = definition.NativeRetainedMemory ?? throw new InvalidDataException("Hosted entry requires its retained native process memory.");
         if (definition.StageId is null || definition.NativeStageSource?.PhysicalSource is null || definition.NativeStageCameraBank is null ||
@@ -85,7 +85,7 @@ public sealed partial class BattleSession
         return new(logicalOwner, presentationResources);
     }
 
-    private ImmutableArray<NativeBattleModelEntryFacts?> CaptureHostedEntryFacts(NativeBattleGraphicsRoster roster)
+    private ImmutableArray<NativeBattleModelEntryFacts?> CaptureHostedEntryFacts(BattleModelRoster roster)
     {
         NativeBattleModelEntryFacts?[] facts = new NativeBattleModelEntryFacts?[roster.ActorCount];
         foreach (BattleCombatant actor in combatants.Where(actor => actor.Slot is not null))
@@ -100,14 +100,14 @@ public sealed partial class BattleSession
         return facts.ToImmutableArray();
     }
 
-    private static Dictionary<string, NativeBattleGraphicsBinding> ReadHostedEntryBindings(NativeBattleGraphicsRoster roster, NativeBattleGraphicsDefinition source)
+    private static Dictionary<string, NativeBattleGraphicsBinding> ReadHostedEntryBindings(BattleModelRoster roster, NativeBattleGraphicsDefinition source)
     {
         if (source.Rules is null || source.Bindings.IsDefault)
         {
             throw new InvalidDataException("Hosted entry requires its installed graphics rules and bindings.");
         }
         source.Rules.Validate();
-        HashSet<string> expected = roster.Rows.OfType<NativeBattleGraphicsActor>().Select(actor => actor.ActorId).ToHashSet(StringComparer.Ordinal);
+        HashSet<string> expected = roster.Rows.OfType<BattleModelOwner>().Select(actor => actor.ActorId).ToHashSet(StringComparer.Ordinal);
         Dictionary<string, NativeBattleGraphicsBinding> bindings = new(StringComparer.Ordinal);
         foreach (NativeBattleGraphicsBinding binding in source.Bindings)
         {
@@ -130,7 +130,7 @@ public sealed partial class BattleSession
 
     private NativeBattleModelEntryFacts RequireHostedEntryFacts(NativeBattleGraphicsState graphics, int row)
     {
-        NativeBattleGraphicsRoster roster = graphics.PresentationRoster ?? throw new InvalidDataException("Hosted entry descriptor lost its presentation roster.");
+        BattleModelRoster roster = graphics.PresentationRoster ?? throw new InvalidDataException("Hosted entry descriptor lost its presentation roster.");
         if (!roster.ContainsRow(row) || hostedEntryFacts[row] is not { Active: true } facts || graphics.ActorIds[row] != facts.ActorId)
         {
             throw new InvalidDataException("Hosted entry descriptor requires its active allocation identity.");

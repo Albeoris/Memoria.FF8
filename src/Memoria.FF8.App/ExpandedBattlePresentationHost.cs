@@ -17,9 +17,9 @@ internal sealed class ExpandedBattlePresentationHost(GameAssets game, BattleAsse
     internal ExpandedBattlePresentationProcess CreateProcess(BattleSession owner)
     {
         BattleDefinition definition = owner.ReadDefinition();
-        NativeBattleGraphicsRoster roster = owner.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = owner.ReadExpandedPresentationRoster();
         ImmutableDictionary<string, NativeBattleVector> positions = sceneFrames.ReadPositions(owner);
-        ImmutableArray<NativeBattleGraphicsActor> actors = roster.Rows.OfType<NativeBattleGraphicsActor>().ToImmutableArray();
+        ImmutableArray<BattleModelOwner> actors = roster.Rows.OfType<BattleModelOwner>().ToImmutableArray();
         var combatants = owner.Combatants.ToDictionary(actor => actor.Id, StringComparer.Ordinal);
         ImmutableArray<NativeBattleGraphicsBinding> bindings = actors.Select(binding =>
         {
@@ -41,7 +41,7 @@ internal sealed class ExpandedBattlePresentationHost(GameAssets game, BattleAsse
     public NativeBattleEffectPresentation PrepareEffect(BattleSession owner, BattleCombatant caster, BattleNativeAction action, byte sequence, ImmutableArray<ExpandedBattleContact> contacts, GuardianFormInvocationMode? formMode)
     {
         BattleDefinition definition = owner.ReadDefinition();
-        NativeBattleGraphicsRoster roster = owner.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = owner.ReadExpandedPresentationRoster();
         byte sourceIndex = owner.ReadExpandedPresentationRow(caster.Id);
         foreach (ExpandedBattleContact contact in contacts)
         {
@@ -51,7 +51,7 @@ internal sealed class ExpandedBattlePresentationHost(GameAssets game, BattleAsse
             }
         }
         NativeBattleEffectContactBridge<string> bridge = new(contacts.Select(contact => (contact.RecipientId, contact.Packet)), roster);
-        (NativeBattleActionPacketsState packets, NativeBattleGraphicsActorSet targets) = bridge.PrepareHosted(action.Command, sequence, action.ActionId, action.MagicId, sourceIndex);
+        (NativeBattleActionPacketsState packets, BattleModelTargets targets) = bridge.PrepareHosted(action.Command, sequence, action.ActionId, action.MagicId, sourceIndex);
 
         ExpandedBattleSceneFrame frame = ReadSceneFrame(owner);
         bool guardianSummon = action is { Command: 254, KernelSection: 2 } && formMode is null;

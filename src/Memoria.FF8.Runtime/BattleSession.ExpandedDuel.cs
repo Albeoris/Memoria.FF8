@@ -197,7 +197,7 @@ public sealed partial class BattleSession
 
     private void ApplyExpandedDuelContact(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command, BattleNativeAction move, bool deferred, bool publish)
     {
-        NativeBattleGraphicsRoster roster = ReadExpandedPresentationRoster();
+        BattleModelRoster roster = ReadExpandedPresentationRoster();
         _ = RequireExpandedPresentationRow(roster, actor);
         byte row = RequireExpandedPresentationRow(roster, target);
         BattleActionPresentation? previous = resolvingNativeAction;

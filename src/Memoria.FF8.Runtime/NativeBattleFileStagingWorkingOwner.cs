@@ -2,7 +2,10 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-internal sealed record NativeBattleFileStagingData(uint BaseAddress, ImmutableArray<NativeBattleEffectMemoryRegion> KnownRanges, ImmutableArray<NativeBattleLoaderZeroRegion> LoaderZeroRanges, ImmutableDictionary<uint, NativeBattleResourcePointer?> ResourcePointers, ImmutableArray<NativeBattleEffectMemoryRegion> RetainedUnknownRanges);
+internal sealed record NativeBattleFileStagingData(uint BaseAddress, ImmutableArray<NativeBattleEffectMemoryRegion> KnownRanges, ImmutableArray<NativeBattleLoaderZeroRegion> LoaderZeroRanges, ImmutableDictionary<uint, NativeBattleResourcePointer?> ResourcePointers, ImmutableArray<NativeBattleEffectMemoryRegion> RetainedUnknownRanges)
+{
+    internal ImmutableDictionary<uint, BattleExecutionReferenceEntry> ExecutionReferences { get; init; } = ImmutableDictionary<uint, BattleExecutionReferenceEntry>.Empty;
+}
 
 /// <summary>Persistent sparse absolute-address pages; loader-proved zero does not materialize a page.</summary>
 internal sealed partial class NativeBattleFileStagingWorkingOwner
@@ -44,6 +47,7 @@ internal sealed partial class NativeBattleFileStagingWorkingOwner
         {
             pointers.Add(entry.Key, entry.Value);
         }
+        RestoreExecutionReferences(source.ExecutionReferences);
         version = 0;
     }
 
@@ -129,6 +133,10 @@ internal sealed partial class NativeBattleFileStagingWorkingOwner
             {
                 throw new InvalidDataException("Native staging rebase exceeds its offset representation.");
             }
+        }
+        if (executionReferences.Any(pair => (ulong)pair.Key + (uint)pair.Value.Width - address > int.MaxValue))
+        {
+            throw new InvalidDataException("Native staging rebase exceeds its live reference extent.");
         }
     }
 
@@ -346,6 +354,10 @@ internal sealed partial class NativeBattleFileStagingWorkingOwner
     public void SetPointerMetadata(uint address, bool present, NativeBattleResourcePointer? pointer)
     {
         PrepareOperationMutation();
+        if (present)
+        {
+            InvalidateExecutionReferences(address, 4);
+        }
         bool existed = pointers.TryGetValue(address, out NativeBattleResourcePointer? previous);
         if (checkpoint)
         {
@@ -368,6 +380,7 @@ internal sealed partial class NativeBattleFileStagingWorkingOwner
         {
             return;
         }
+        InvalidateExecutionReferences(address, length);
         removedPointers.Clear();
         foreach (uint pointer in pointers.Keys)
         {
@@ -465,7 +478,7 @@ internal sealed partial class NativeBattleFileStagingWorkingOwner
                 (assigned ? ranges : hidden).Add(region);
             }
         }
-        return new(BaseAddress, ranges.ToImmutable(), zeros.ToImmutableArray(), pointers.ToImmutableDictionary(), hidden.ToImmutable());
+        return new(BaseAddress, ranges.ToImmutable(), zeros.ToImmutableArray(), pointers.ToImmutableDictionary(), hidden.ToImmutable()) { ExecutionReferences = executionReferences.ToImmutableDictionary() };
     }
 
     private NativeBattleWorkingMemory WritablePage(uint address)

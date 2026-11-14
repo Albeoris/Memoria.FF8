@@ -11,7 +11,7 @@ public sealed class NativeBattleHostedPreparedPresentationTests
     public void Child_publishes_current_actor_metadata_with_its_own_palettes_and_graphics_clock()
     {
         var (owner, child, graphics) = Fixture();
-        NativeBattleGraphicsRoster roster = graphics.PresentationRoster!;
+        BattleModelRoster roster = graphics.PresentationRoster!;
         Set(owner, nameof(BattleSession.Frame), 17L);
         BattleCombatant alias = owner.Combatants.Single(actor => actor.Id == "enemy-4");
         alias.SetNativeDisplayName(0);
@@ -111,7 +111,7 @@ public sealed class NativeBattleHostedPreparedPresentationTests
     public void Missing_frame_opacities_or_a_changed_logical_roster_preserves_prior_publication()
     {
         var (owner, child, graphics) = Fixture();
-        NativeBattleGraphicsRoster roster = graphics.PresentationRoster!;
+        BattleModelRoster roster = graphics.PresentationRoster!;
         NativeBattleModelLifecycleServices services = owner.CaptureExpandedModelLifecycleServices(roster);
         Set(child, nameof(BattleSession.NativeGraphics), graphics);
         child.RefreshHostedPreparedPresentation(owner, services);
@@ -141,7 +141,7 @@ public sealed class NativeBattleHostedPreparedPresentationTests
         Field(child, "hostedBattlePresentation", true);
         Set(child, "NativeStage", NativeBattleStageState.FromColdProcess() with { ResourceStageId = 22 });
         Set(child, nameof(BattleSession.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess() with { PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400() });
-        NativeBattleGraphicsRoster roster = owner.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = owner.ReadExpandedPresentationRoster();
         NativeBattleGraphicsModel[] models = NativeBattleGraphicsModels.ClearPresentationBank(roster);
         NativeBattleModelTextureBinding body = new(new byte?[16].ToImmutableArray().SetItem(0, 1));
         NativeBattleModelTextureBinding linked = new(new byte?[16].ToImmutableArray().SetItem(0, 2));

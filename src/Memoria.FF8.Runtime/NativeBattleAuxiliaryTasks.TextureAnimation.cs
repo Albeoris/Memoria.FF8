@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial record NativeBattleAuxiliaryState
 {
-    public NativeBattleAuxiliaryState AppendTextureAnimation(int model, byte sequence, NativeBattleAuxiliaryProgram program, NativeBattleGraphicsRoster? roster = null)
+    public NativeBattleAuxiliaryState AppendTextureAnimation(int model, byte sequence, NativeBattleAuxiliaryProgram program, BattleModelRoster? roster = null)
     {
         Validate();
         program.Validate();

@@ -1,5 +1,3 @@
-using System.Collections.Immutable;
-
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleHostedResourceRowAddressTests
@@ -19,7 +17,6 @@ public sealed class NativeBattleHostedResourceRowAddressTests
     [Fact]
     public void ExtensionHandlesRequireTheirActualCapacity()
     {
-        Assert.Equal(51, NativeBattleModelResourceRowAddress.MaximumRowCount);
         for (int row = 11; row <= 50; row++)
         {
             uint expected = 0xF3000000u + (uint)(52 * (row - 11));
@@ -79,7 +76,7 @@ public sealed class NativeBattleHostedResourceRowAddressTests
 
     [Theory]
     [InlineData(10)]
-    [InlineData(52)]
+    [InlineData(NativeBattleModelResourceRowAddress.MaximumEncodedRowCount + 1)]
     public void InvalidCapacitiesAreRejected(int capacity)
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => NativeBattleModelResourceRowAddress.Encode(0, capacity));
@@ -88,19 +85,33 @@ public sealed class NativeBattleHostedResourceRowAddressTests
     }
 
     [Fact]
-    public void SparseRosterCapacityCountsBoundSidesAndOneSpare()
+    public void EncodedCapacityUsesTheLastCompleteUintRowWithoutWrapping()
     {
-        ImmutableArray<NativeBattleGraphicsActor?> rows = new NativeBattleGraphicsActor?[25].ToImmutableArray().SetItem(24, new("enemy", false));
-        Assert.Equal(11, NativeBattleModelResourceRowAddress.CapacityForRoster(new(rows)));
-        foreach (int row in new[] { 0, 3, 7, 11, 16, 20 })
-        {
-            rows = rows.SetItem(row, new($"ally-{row}", true));
-        }
-        Assert.Equal(14, NativeBattleModelResourceRowAddress.CapacityForRoster(new(rows)));
-        ImmutableArray<NativeBattleGraphicsActor?> full = Enumerable.Range(0, 25).Select(row => (NativeBattleGraphicsActor?)new NativeBattleGraphicsActor($"actor-{row}", row < 11)).ToImmutableArray();
-        Assert.Equal(37, NativeBattleModelResourceRowAddress.CapacityForRoster(new(full)));
-        ImmutableArray<NativeBattleGraphicsActor?> allParty = full.Select(row => (NativeBattleGraphicsActor?)(row! with { IsParty = true })).ToImmutableArray();
-        Assert.Equal(51, NativeBattleModelResourceRowAddress.CapacityForRoster(new(allParty)));
+        const int capacity = NativeBattleModelResourceRowAddress.MaximumEncodedRowCount;
+        const uint lastRow = 0xFFFFFFCCu;
+        Assert.Equal(4_194_315, capacity);
+        Assert.Equal(lastRow, NativeBattleModelResourceRowAddress.Encode(capacity - 1, capacity));
+        Assert.Throws<ArgumentOutOfRangeException>(() => NativeBattleModelResourceRowAddress.Encode(capacity, capacity));
+        Assert.True(NativeBattleModelResourceRowAddress.TryResolveField(lastRow, 52, out int row, out int offset, capacity));
+        Assert.Equal((capacity - 1, 0), (row, offset));
+        Assert.True(NativeBattleModelResourceRowAddress.TryResolveField(uint.MaxValue, 1, out row, out offset, capacity));
+        Assert.Equal((capacity - 1, 51), (row, offset));
+        Assert.False(NativeBattleModelResourceRowAddress.TryResolveField(uint.MaxValue, 2, out _, out _, capacity));
+        Assert.False(NativeBattleModelResourceRowAddress.TryDecode(uint.MaxValue, out _, capacity));
+        Assert.False(NativeBattleModelResourceRowAddress.TryDecode(lastRow, out _, capacity - 1));
+    }
+
+    [Theory]
+    [InlineData(0, 1, 11)]
+    [InlineData(6, 1, 14)]
+    [InlineData(11, 14, 37)]
+    [InlineData(25, 0, 51)]
+    [InlineData(26, 15, 68)]
+    public void RosterCapacityCountsOwnersOnEachSideAndOneSpare(int partyCount, int enemyCount, int expected)
+    {
+        IEnumerable<BattlePartyActorModel> party = Enumerable.Range(0, partyCount).Select(index => new BattlePartyActorModel(new($"ally-{index}")));
+        IEnumerable<BattleEnemyActorModel> enemies = Enumerable.Range(0, enemyCount).Select(index => new BattleEnemyActorModel(new($"enemy-{index}")));
+        Assert.Equal(expected, NativeBattleModelResourceRowAddress.CapacityForRoster(new([.. enemies, .. party])));
     }
 
     [Fact]

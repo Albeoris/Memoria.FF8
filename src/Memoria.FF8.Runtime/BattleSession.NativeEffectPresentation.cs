@@ -64,7 +64,7 @@ public sealed partial class BattleSession
         presentationSourceIndex = inputs.Source.Index;
         presentationSourceModelId = inputs.Source.ModelId4;
         presentationSourceIsParty = inputs.SourceIsParty;
-        NativeBattleGraphicsRoster? roster = inputs.Packets.PresentationRoster;
+        BattleModelRoster? roster = inputs.Packets.PresentationRoster;
         if (roster is not null)
         {
             ValidateHostedPresentationBindings(inputs, roster);
@@ -405,7 +405,7 @@ public sealed partial class BattleSession
         };
     }
 
-    private ImmutableArray<NativeBattleGraphicsModel> BindPresentationForeignModels(ImmutableArray<NativeBattleGraphicsModel> models, NativeBattleGraphicsRoster? roster, Dictionary<int, NativeBattleForeignActor>? previous = null)
+    private ImmutableArray<NativeBattleGraphicsModel> BindPresentationForeignModels(ImmutableArray<NativeBattleGraphicsModel> models, BattleModelRoster? roster, Dictionary<int, NativeBattleForeignActor>? previous = null)
     {
         foreach (NativeBattleForeignActor actor in presentationForeignActors!.Values)
         {

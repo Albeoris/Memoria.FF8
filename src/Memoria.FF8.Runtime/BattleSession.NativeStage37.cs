@@ -45,7 +45,7 @@ public sealed partial class BattleSession
         {
             return Enumerable.Range(3, 4);
         }
-        NativeBattleGraphicsRoster roster = graphics.PresentationRoster ?? throw new InvalidDataException("Hosted stage contact sampling requires its presentation roster.");
+        BattleModelRoster roster = graphics.PresentationRoster ?? throw new InvalidDataException("Hosted stage contact sampling requires its presentation roster.");
         roster.Validate();
         services.Validate(roster, graphics);
         return roster.EnemyRows;

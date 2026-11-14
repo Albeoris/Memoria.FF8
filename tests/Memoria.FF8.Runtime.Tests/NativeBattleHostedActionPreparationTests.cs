@@ -123,7 +123,7 @@ public sealed class NativeBattleHostedActionPreparationTests
             ran = true;
             Assert.Throws<InvalidOperationException>(() => session.ValidatePreparedHostedAction(stale));
             BattleSession.PreparedHostedDispatch prepared = session.PrepareHostedAction(Header, [Contact]);
-            NativeBattleGraphicsRoster roster = session.NativeGraphics!.PresentationRoster!;
+            BattleModelRoster roster = session.NativeGraphics!.PresentationRoster!;
             Field("hostedFrameServices").SetValue(session, logical.CaptureExpandedModelLifecycleServices(roster));
             try
             {
@@ -153,7 +153,7 @@ public sealed class NativeBattleHostedActionPreparationTests
     private static BattleSession Fixture()
     {
         BattleSession session = new(Definition(), BattleAtbMode.TurnBased);
-        NativeBattleGraphicsRoster roster = session.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = session.ReadExpandedPresentationRoster();
         NativeBattleGraphicsModel[] models = NativeBattleGraphicsModels.ClearPresentationBank(roster);
         models[0] = models[0] with { ModelId4 = 1 };
         models[3] = models[3] with { ModelId4 = 16 };

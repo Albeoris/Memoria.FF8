@@ -32,10 +32,10 @@ public sealed class NativeBattleHostedActionPacketsTests
     [InlineData(300)]
     public void Hosted_bridge_preserves_identical_occurrences_and_full_header_counts(int count)
     {
-        NativeBattleGraphicsRoster roster = Roster();
+        BattleModelRoster roster = Roster();
         NativeBattleContactPacket contact = Contact(24, 7);
         NativeBattleEffectContactBridge<string> bridge = new(Enumerable.Repeat(("target", contact), count), roster);
-        (NativeBattleActionPacketsState packets, NativeBattleGraphicsActorSet targets) = bridge.PrepareHosted(2, 5, 6, 7, source: 7);
+        (NativeBattleActionPacketsState packets, BattleModelTargets targets) = bridge.PrepareHosted(2, 5, 6, 7, source: 7);
         packets.Validate();
         Assert.True(targets.IsSingle(24));
         Assert.Equal((ushort)0, targets.NativePhysicalBits);
@@ -123,7 +123,7 @@ public sealed class NativeBattleHostedActionPacketsTests
         Assert.Throws<InvalidDataException>(() => NativeBattleContactPacket.Decode(bytes));
         Assert.Throws<ArgumentOutOfRangeException>(() => contact.Validate(actorCount: 26));
 
-        NativeBattleGraphicsRoster roster = Roster();
+        BattleModelRoster roster = Roster();
         NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromPresentationStorage(roster);
         Assert.Throws<InvalidDataException>(() => packets.Prepare(Header() with { Actor = 6 }));
         Assert.Throws<InvalidDataException>(() => packets.AppendContact(Contact(6)));
@@ -183,9 +183,9 @@ public sealed class NativeBattleHostedActionPacketsTests
         }
     }
 
-    private static NativeBattleGraphicsRoster Roster()
+    private static BattleModelRoster Roster()
     {
-        NativeBattleGraphicsActor?[] rows = new NativeBattleGraphicsActor?[25];
+        BattleModelOwner?[] rows = new BattleModelOwner?[25];
         rows[7] = new("source", true);
         rows[24] = new("target", false);
         return new(rows.ToImmutableArray());

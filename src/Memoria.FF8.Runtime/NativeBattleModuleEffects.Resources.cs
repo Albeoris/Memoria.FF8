@@ -45,7 +45,7 @@ public sealed partial record NativeBattleModuleDraw
 
 public sealed partial record NativeBattleModuleState
 {
-    public NativeBattleModuleState AppendPositionResource(int model, NativeBattleVector local, NativeBattleModuleResource resource, uint packedParameters, NativeBattleGraphicsRoster? roster = null)
+    public NativeBattleModuleState AppendPositionResource(int model, NativeBattleVector local, NativeBattleModuleResource resource, uint packedParameters, BattleModelRoster? roster = null)
     {
         NativeBattleModuleState state = AppendModelResource(model, resource, packedParameters, roster);
         int slot = state.Tail!.Value;
@@ -59,7 +59,7 @@ public sealed partial record NativeBattleModuleState
         return state with { Slots = state.Slots.SetItem(slot, state.Slots[slot] with { Payload = NativeBattleTelemetry.Immutable(1096, payload) }) };
     }
 
-    public NativeBattleModuleState AppendModelResource(int model, NativeBattleModuleResource resource, uint packedParameters, NativeBattleGraphicsRoster? roster = null)
+    public NativeBattleModuleState AppendModelResource(int model, NativeBattleModuleResource resource, uint packedParameters, BattleModelRoster? roster = null)
     {
         if (!HasModelRow(model, roster) || (byte)packedParameters != resource.Id)
         {
@@ -202,14 +202,14 @@ public sealed partial record NativeBattleModuleState
         return NativeBattleGraphicsModelAddress.Encode(model);
     }
 
-    private static bool HasModelRow(int model, NativeBattleGraphicsRoster? roster)
+    private static bool HasModelRow(int model, BattleModelRoster? roster)
     {
         return (uint)model < (roster?.ActorCount ?? NativeBattleGraphicsModelAddress.NativeRowCount) && (roster is null || roster.Rows[model] is not null);
     }
 
     private static int ModelIndex(uint address, NativeBattleModuleInputs inputs)
     {
-        NativeBattleGraphicsRoster? roster = inputs.PresentationRoster;
+        BattleModelRoster? roster = inputs.PresentationRoster;
         if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int row, roster?.ActorCount ?? NativeBattleGraphicsModelAddress.NativeRowCount) || !HasModelRow(row, roster))
         {
             throw new InvalidDataException("Native module payload does not identify a physical graphics model.");

@@ -6,7 +6,7 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsState AdvanceNativeLoadedModels(NativeBattleGraphicsState graphics, uint flags, NativeBattleModelLifecycleServices? services = null)
     {
-        NativeBattleGraphicsRoster? roster = graphics.PresentationRoster;
+        BattleModelRoster? roster = graphics.PresentationRoster;
         if (roster is not null)
         {
             (services ?? throw new InvalidDataException("Hosted model lifecycle requires its actor fact and receipt services.")).Validate(roster, graphics);

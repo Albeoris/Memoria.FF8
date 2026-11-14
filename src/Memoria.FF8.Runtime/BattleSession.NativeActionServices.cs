@@ -23,8 +23,8 @@ public sealed partial class BattleSession
         if (graphics.PresentationRoster is { } roster)
         {
             RequireHostedActionModelBank(graphics, roster);
-            NativeBattleGraphicsActorSet targets = context.TargetActors;
-            NativeBattleGraphicsActorSet cover = NativeBattleGraphicsActorSet.FromNative(context.CoverMask);
+            BattleModelTargets targets = context.TargetActors;
+            BattleModelTargets cover = BattleModelTargets.FromNative(context.CoverMask);
             NativeBattleActionGeometry.ValidatePresentationRows(roster, context.ActorIndex, targets, cover);
             if (context.UseActionCamera ?? throw new InvalidDataException("Native action service lost its505F00 result."))
             {
@@ -41,7 +41,7 @@ public sealed partial class BattleSession
             {
                 return true;
             }
-            NativeBattleGraphicsActorSet selected = new(targets.Bits | cover.Bits);
+            BattleModelTargets selected = new(targets.Bits | cover.Bits);
             return selected.EnumerateRows().Any(row => NativeBattleActionGraphics.IsModelBusy(graphics.Models[row], 0x140));
         }
         if (context.UseActionCamera ?? throw new InvalidDataException("Native action service lost its505F00 result."))
@@ -62,8 +62,8 @@ public sealed partial class BattleSession
         if (graphics.PresentationRoster is { } roster)
         {
             RequireHostedActionModelBank(graphics, roster);
-            NativeBattleGraphicsActorSet targets = context.TargetActors;
-            NativeBattleGraphicsActorSet cover = NativeBattleGraphicsActorSet.FromNative(context.CoverMask);
+            BattleModelTargets targets = context.TargetActors;
+            BattleModelTargets cover = BattleModelTargets.FromNative(context.CoverMask);
             NativeBattleActionGeometry.ValidatePresentationRows(roster, context.ActorIndex, targets, cover);
             int source = context.ActorIndex;
             byte command = header.ReadByte(1);
@@ -83,8 +83,8 @@ public sealed partial class BattleSession
                 }
                 source = selected ?? throw new NotSupportedException("Native50AFC0 command240 has no loaded party geometry source.");
             }
-            NativeBattleGraphicsActorSet selection = cover.IsEmpty ? targets : cover;
-            NativeBattleGraphicsActorSet effective = selection;
+            BattleModelTargets selection = cover.IsEmpty ? targets : cover;
+            BattleModelTargets effective = selection;
             if (selection.IsEmpty && command is 1 or 12 or 28)
             {
                 int fallback = context.FirstTarget is byte firstTarget ? firstTarget : source;

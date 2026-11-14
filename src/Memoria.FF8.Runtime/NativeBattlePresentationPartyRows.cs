@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 internal static class NativeBattlePresentationPartyRows
 {
-    internal static ImmutableArray<int> Resolve(NativeBattleGraphicsRoster roster, int? expectedPartyCount)
+    internal static ImmutableArray<int> Resolve(BattleModelRoster roster, int? expectedPartyCount)
     {
         ImmutableArray<int> party = roster.PartyRows.ToImmutableArray();
         if (expectedPartyCount is int expected && party.Length != expected)

@@ -12,7 +12,7 @@ public sealed class NativeBattleExpandedPartyPresentationTests
     public void ExtendedRowsUseTheirCachedHpUntilOrderedContactsAndNativeHudSmoothing()
     {
         BattleSession session = Fixture();
-        NativeBattleGraphicsRoster roster = session.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = session.ReadExpandedPresentationRoster();
         BattleCombatant fourth = Actor(session, "ally-3");
         BattleCombatant eleventh = Actor(session, "ally-10");
         Assert.Equal((byte)7, session.ReadExpandedPresentationRow(fourth.Id));
@@ -42,7 +42,7 @@ public sealed class NativeBattleExpandedPartyPresentationTests
     public void KoThenReviveOnTheSameActorUsesOrderedCacheAndEnemyRemainsCanonical()
     {
         BattleSession session = Fixture();
-        NativeBattleGraphicsRoster roster = session.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = session.ReadExpandedPresentationRoster();
         BattleCombatant actor = Actor(session, "ally-10");
         actor.CurrentHp = 0;
         actor.NativeStatus0 |= 1;
@@ -75,7 +75,7 @@ public sealed class NativeBattleExpandedPartyPresentationTests
     public void GuardianCacheRequiresASeedAndFormContactUsesCurrentFormHp()
     {
         BattleSession session = Fixture();
-        NativeBattleGraphicsRoster roster = session.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = session.ReadExpandedPresentationRoster();
         BattleCombatant actor = Actor(session, "ally-3");
         BattleGuardianForceVital gf = Assert.Single(session.GuardianForces);
         object? before = Cache.GetValue(session);
@@ -101,10 +101,10 @@ public sealed class NativeBattleExpandedPartyPresentationTests
     public void HoleUnknownIdentityAndMissingCacheRowRejectBeforeReplacingCache()
     {
         BattleSession session = Fixture();
-        NativeBattleGraphicsRoster roster = session.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = session.ReadExpandedPresentationRoster();
         object? original = Cache.GetValue(session);
         Assert.IsType<InvalidDataException>(Assert.Throws<TargetInvocationException>(() => Publish(session, roster, Half(9, 1))).InnerException);
-        NativeBattleGraphicsRoster stale = new(roster.Rows.SetItem(7, new("retired", true)));
+        BattleModelRoster stale = new(roster.Rows.SetItem(7, new("retired", true)));
         Assert.IsType<InvalidDataException>(Assert.Throws<TargetInvocationException>(() => Publish(session, stale, Half(7, 1))).InnerException);
         Assert.Same(original, Cache.GetValue(session));
 
@@ -131,7 +131,7 @@ public sealed class NativeBattleExpandedPartyPresentationTests
 
     private static BattleCombatant Actor(BattleSession session, string id) => session.Combatants.Single(actor => actor.Id == id);
     private static NativeBattleContactHalf Half(byte row, ushort amount, byte flags = 0, ushort saved = 0) => new(row, 0, 0, flags, saved, amount, 0);
-    private static void Publish(BattleSession session, NativeBattleGraphicsRoster roster, NativeBattleContactHalf half) => Invoke(session, "PublishExpandedPartyPresentedContact", roster, half);
+    private static void Publish(BattleSession session, BattleModelRoster roster, NativeBattleContactHalf half) => Invoke(session, "PublishExpandedPartyPresentedContact", roster, half);
     private static int Recover(BattleSession session, BattleCombatant actor) => (int)Invoke(session, "ReadNativeRecoverSourceHp", actor)!;
     private static object? Invoke(BattleSession session, string name, params object[] args) => typeof(BattleSession).GetMethod(name, PrivateInstance)!.Invoke(session, args);
 }

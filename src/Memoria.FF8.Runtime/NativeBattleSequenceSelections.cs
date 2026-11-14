@@ -36,7 +36,7 @@ public static class NativeBattleSequenceSelections
         return selector < 7 ? (context.ActorIndex, (ushort)(1 << selector)) : ((byte)currentIndex, context.SourceTargetMask);
     }
 
-    public static (byte Actor, NativeBattleGraphicsActorSet Targets) GeometryArguments92(int currentIndex, byte selector, NativeBattleActionGeometry? retained, NativeBattleGraphicsRoster roster)
+    public static (byte Actor, BattleModelTargets Targets) GeometryArguments92(int currentIndex, byte selector, NativeBattleActionGeometry? retained, BattleModelRoster roster)
     {
         ArgumentNullException.ThrowIfNull(roster);
         if (!roster.ContainsRow(currentIndex))
@@ -45,14 +45,14 @@ public static class NativeBattleSequenceSelections
         }
         NativeBattleActionGeometry context = retained ?? throw new NotSupportedException("Native92 requires its retained50D300 actor/mask globals.");
         byte actor = selector < NativeBattleSlots.Count ? context.ActorIndex : checked((byte)currentIndex);
-        NativeBattleGraphicsActorSet targets = selector < NativeBattleSlots.Count
-            ? default(NativeBattleGraphicsActorSet).Add(selector)
-            : context.PresentationSourceTargets ?? NativeBattleGraphicsActorSet.FromNative(NativeBattlePhysicalTargets.FromNativeWord(context.SourceTargetMask).Bits);
+        BattleModelTargets targets = selector < NativeBattleSlots.Count
+            ? default(BattleModelTargets).Add(selector)
+            : context.PresentationSourceTargets ?? BattleModelTargets.FromNative(NativeBattlePhysicalTargets.FromNativeWord(context.SourceTargetMask).Bits);
         NativeBattleActionGeometry.ValidatePresentationRows(roster, actor, targets, default);
         return (actor, targets);
     }
 
-    public static ImmutableArray<int> SelectModels93(IReadOnlyList<NativeBattleGraphicsModel> models, int currentIndex, byte selector, NativeBattleGraphicsRoster? roster = null)
+    public static ImmutableArray<int> SelectModels93(IReadOnlyList<NativeBattleGraphicsModel> models, int currentIndex, byte selector, BattleModelRoster? roster = null)
     {
         if (roster is null && (models.Count != 7 || (uint)currentIndex >= 7))
         {
@@ -95,7 +95,7 @@ public static class NativeBattleSequenceSelections
         return ((target.ResourceFlags44 ?? throw new NotSupportedException("Native505CE0 requires its target resource WORD44.")) & 0x140) != 0;
     }
 
-    public static bool CanSelectTargetBF(NativeBattleGraphicsModel target, NativeBattleGraphicsRoster? roster = null)
+    public static bool CanSelectTargetBF(NativeBattleGraphicsModel target, BattleModelRoster? roster = null)
     {
         if (roster is not null && !roster.ContainsRow(target.Index))
         {

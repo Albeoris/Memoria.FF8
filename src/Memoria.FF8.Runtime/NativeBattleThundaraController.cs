@@ -317,7 +317,7 @@ public static class NativeBattleThundaraController
         _ => throw new NotSupportedException("Native Thundara sprite requires an authored resource selector.")
     };
 
-    public static int ActorIndex(uint address, NativeBattleGraphicsRoster? roster = null)
+    public static int ActorIndex(uint address, BattleModelRoster? roster = null)
     {
         if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int row, roster))
         {
@@ -336,7 +336,7 @@ public static class NativeBattleThundaraController
         return (int)(offset / 44);
     }
 
-    private static uint ActorAddress(int actor, NativeBattleGraphicsRoster? roster)
+    private static uint ActorAddress(int actor, BattleModelRoster? roster)
     {
         if (!(roster?.ContainsRow(actor) ?? NativeBattleSlots.Contains(actor)))
         {

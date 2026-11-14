@@ -95,7 +95,7 @@ public sealed partial class BattleSession
         return opacities;
     }
 
-    private NativeBattlePreparedScan? PrepareScanPresentation(NativeBattleGraphicsState graphics, BattleSession actorOwner, NativeBattleGraphicsRoster? roster)
+    private NativeBattlePreparedScan? PrepareScanPresentation(NativeBattleGraphicsState graphics, BattleSession actorOwner, BattleModelRoster? roster)
     {
         if (NativeEffectMemory?.Scan is not { Text.Initialized: true } scan || graphics.UiServices is not { } services)
         {

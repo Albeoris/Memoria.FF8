@@ -22,7 +22,7 @@ public static class NativeBattleCarbuncle278Entry
         packets.Validate();
         NativeBattleCarbuncle278State state = RequireState(frame.Memory);
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Carbuncle entry requires its current action parameters.");
-        NativeBattleGraphicsRoster? roster = packets.PresentationRoster;
+        BattleModelRoster? roster = packets.PresentationRoster;
         if (models.IsDefault || models.Length != (roster?.ActorCount ?? 7) || models.Where((model, index) => model is null || model.Index != index).Any())
         {
             throw new InvalidDataException(roster is null ? "Native Carbuncle entry requires its seven ordered physical graphics rows." : "Hosted Carbuncle entry requires its ordered presentation model bank.");

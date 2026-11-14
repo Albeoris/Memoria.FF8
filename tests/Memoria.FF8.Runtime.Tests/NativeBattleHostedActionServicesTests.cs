@@ -9,7 +9,7 @@ public sealed class NativeBattleHostedActionServicesTests
     private static readonly MethodInfo ModelsBusy = typeof(BattleSession).GetMethod("NativeActionModelsBusy", PrivateInstance)!;
     private static readonly MethodInfo HeaderGeometry = typeof(BattleSession).GetMethod("PrepareNativeHeaderGeometry", PrivateInstance)!;
     private static readonly MethodInfo TypedGeometry = typeof(BattleSession).GetMethod("PrepareNativeActionGeometry", PrivateInstance, null,
-        [typeof(NativeBattleGraphicsState), typeof(int), typeof(NativeBattleGraphicsActorSet), typeof(NativeBattleGraphicsActorSet), typeof(ushort)], null)!;
+        [typeof(NativeBattleGraphicsState), typeof(int), typeof(BattleModelTargets), typeof(BattleModelTargets), typeof(ushort)], null)!;
 
     [Fact]
     public void HostedBusyDistinguishesSelectedTargetsFromAllLoadedBoundModels()
@@ -79,7 +79,7 @@ public sealed class NativeBattleHostedActionServicesTests
         NativeBattleGraphicsState graphics = Graphics();
         BattleSession session = Session();
         InstallHeader(session, graphics.PresentationRoster!, 7, 1);
-        NativeBattleGraphicsActorSet targets = Rows(15, 24);
+        BattleModelTargets targets = Rows(15, 24);
         NativeBattleGraphicsState prepared = PrepareHeader(session, graphics, Context(7, targets));
         NativeBattleEffectMemory memory = session.NativeEffectMemory!;
         NativeBattleCameraAliases aliases = memory.CameraAliases!;
@@ -113,7 +113,7 @@ public sealed class NativeBattleHostedActionServicesTests
         BattleSession session = Session();
         InstallHeader(session, graphics.PresentationRoster!, 14, command);
         NativeBattleGraphicsState prepared = PrepareHeader(session, graphics, Context(14, default) with { FirstTarget = 24 });
-        Assert.Equal(default(NativeBattleGraphicsActorSet), prepared.ActionContext!.PresentationSourceTargets);
+        Assert.Equal(default(BattleModelTargets), prepared.ActionContext!.PresentationSourceTargets);
         Assert.Equal(Rows(24), prepared.ActionContext.TargetActors);
         Assert.False(prepared.ActionContext.IsSelfTarget);
 
@@ -166,7 +166,7 @@ public sealed class NativeBattleHostedActionServicesTests
     {
         BattleSession session = Session();
         NativeBattleGraphicsState graphics = Graphics();
-        NativeBattleGraphicsActorSet actor = Rows(14);
+        BattleModelTargets actor = Rows(14);
         NativeBattleActionGeometry self = PrepareTyped(session, graphics, 14, actor, actor).ActionContext!;
         NativeBattleActionGeometry retained = PrepareTyped(session, graphics, 14, actor, actor, 0x4000).ActionContext!;
 
@@ -191,12 +191,12 @@ public sealed class NativeBattleHostedActionServicesTests
 
     private static NativeBattleGraphicsState Graphics(int count = 25)
     {
-        NativeBattleGraphicsActor?[] rows = new NativeBattleGraphicsActor?[count];
+        BattleModelOwner?[] rows = new BattleModelOwner?[count];
         foreach (int row in count == 7 ? new[] { 0, 3, 6 } : new[] { 0, 7, 14, 15, 24 })
         {
             rows[row] = new($"presentation-{row}", count == 7 ? row < 3 : row is 7 or 14);
         }
-        NativeBattleGraphicsRoster roster = new([.. rows]);
+        BattleModelRoster roster = new([.. rows]);
         ImmutableArray<NativeBattleGraphicsModel> models = Enumerable.Range(0, count).Select(row => Model(row, busy: row == 0 && count != 7 || row == 6 && count == 7)).ToImmutableArray();
         return new(models, rows.Select(row => row?.ActorId).ToImmutableArray(), 0, 0) { PresentationRoster = roster };
     }
@@ -217,9 +217,9 @@ public sealed class NativeBattleHostedActionServicesTests
         };
     }
 
-    private static NativeBattleGraphicsActorSet Rows(params int[] rows)
+    private static BattleModelTargets Rows(params int[] rows)
     {
-        NativeBattleGraphicsActorSet set = default;
+        BattleModelTargets set = default;
         foreach (int row in rows)
         {
             set = set.Add(row);
@@ -227,12 +227,12 @@ public sealed class NativeBattleHostedActionServicesTests
         return set;
     }
 
-    private static NativeBattleActionGraphicsState Context(byte source, NativeBattleGraphicsActorSet targets)
+    private static NativeBattleActionGraphicsState Context(byte source, BattleModelTargets targets)
     {
         return new(0, source, 0, targets.NativePhysicalBits, 0, null, null, 0, null, 0x50BB00) { PresentationTargets = targets, UseActionCamera = false };
     }
 
-    private static void InstallHeader(BattleSession session, NativeBattleGraphicsRoster? roster, byte source, byte command)
+    private static void InstallHeader(BattleSession session, BattleModelRoster? roster, byte source, byte command)
     {
         NativeBattleActionPacketsState storage = roster is null ? NativeBattleActionPacketsState.Fresh() : NativeBattleActionPacketsState.FromPresentationStorage(roster);
         (NativeBattleActionPacketsState packets, _) = storage.Prepare(new(source, command, 0, -1, 0, 0, null));
@@ -264,7 +264,7 @@ public sealed class NativeBattleHostedActionServicesTests
         return (NativeBattleGraphicsState)HeaderGeometry.Invoke(session, [graphics, context])!;
     }
 
-    private static NativeBattleGraphicsState PrepareTyped(BattleSession session, NativeBattleGraphicsState graphics, int actor, NativeBattleGraphicsActorSet source, NativeBattleGraphicsActorSet targets, ushort sourceMaskFlags = 0)
+    private static NativeBattleGraphicsState PrepareTyped(BattleSession session, NativeBattleGraphicsState graphics, int actor, BattleModelTargets source, BattleModelTargets targets, ushort sourceMaskFlags = 0)
     {
         return (NativeBattleGraphicsState)TypedGeometry.Invoke(session, [graphics, actor, source, targets, sourceMaskFlags])!;
     }

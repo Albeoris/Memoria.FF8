@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial record NativeBattleAuxiliaryState
 {
-    public NativeBattleAuxiliaryState AppendModelGroupFade50F0B0(int model, byte group, NativeBattleGraphicsRoster? roster = null)
+    public NativeBattleAuxiliaryState AppendModelGroupFade50F0B0(int model, byte group, BattleModelRoster? roster = null)
     {
         Validate();
         if (!IsAuxiliaryModelBound(model, roster))

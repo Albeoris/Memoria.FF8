@@ -131,10 +131,10 @@ public sealed class NativeBattleHostedSessionModelLoaderTests
     [Fact]
     public void HostedOwnerMismatchRejectsQueueAndPollBeforeAnyIoOrStagingPublication()
     {
-        NativeBattleGraphicsRoster roster = Roster(false, false);
+        BattleModelRoster roster = Roster(false, false);
         BattleSession session = Session([EnemySource(77)], roster);
         NativeBattleModelTextureCache cache = session.NativeModelTextureCache!;
-        NativeBattleGraphicsRoster mismatch = new(roster.Rows.SetItem(24, new("different", false)));
+        BattleModelRoster mismatch = new(roster.Rows.SetItem(24, new("different", false)));
         Set(session, nameof(BattleSession.NativeModelTextureCache), NativeBattleModelTextureCache.FromColdProcess().WithPresentationRoster(mismatch));
         NativeBattleFileIoState file = session.NativeFileIo!;
         NativeBattleFileStaging staging = session.NativeFileStaging!;
@@ -194,7 +194,7 @@ public sealed class NativeBattleHostedSessionModelLoaderTests
         Assert.Equal(cache.Rows.Length, session.NativeModelTextureCache!.PresentationActors!.Count);
     }
 
-    private static BattleSession Session(ImmutableArray<NativeBattleModelDatSource> sources, NativeBattleGraphicsRoster? roster)
+    private static BattleSession Session(ImmutableArray<NativeBattleModelDatSource> sources, BattleModelRoster? roster)
     {
         NativeBattleGraphicsResource resource = new([0, 0]) { ModelLoadSources = sources };
         NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, [], []);
@@ -232,9 +232,9 @@ public sealed class NativeBattleHostedSessionModelLoaderTests
         return session;
     }
 
-    private static NativeBattleGraphicsRoster Roster(bool firstParty, bool secondParty)
+    private static BattleModelRoster Roster(bool firstParty, bool secondParty)
     {
-        NativeBattleGraphicsActor?[] rows = new NativeBattleGraphicsActor?[25];
+        BattleModelOwner?[] rows = new BattleModelOwner?[25];
         rows[7] = new("first", firstParty);
         rows[24] = new("second", secondParty);
         return new(rows.ToImmutableArray());

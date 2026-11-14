@@ -60,7 +60,7 @@ public sealed class ExpandedBattleProcessResourcesTests
         Assert.Equal(entry.NativeRetainedMemory!.ColdExecutableSha256, selected.NativeRetainedMemory!.ColdExecutableSha256);
         Assert.Equal(entry.NativeRetainedMemory.EffectMemory!.SelectedIndex, process.Memory.SelectedIndex);
         Assert.Same(ReadField<Func<ushort, NativeBattleEffectBinding>>(logical, "nativeEffectResourceResolver"), ReadField<Func<ushort, NativeBattleEffectBinding>>(presentation, "nativeEffectResourceResolver"));
-        NativeBattleGraphicsRoster roster = AssertBindings(logical, process, selected);
+        BattleModelRoster roster = AssertBindings(logical, process, selected);
         Assert.Equal(new[] { 0, 1, 2, 7 }, roster.PartyRows);
         Assert.Equal(new[] { 3, 4, 5, 6, 15 }, roster.EnemyRows);
         Assert.Equal(world.BattleResources.ReadNativePcUiIcons().Binding, selected.NativeGraphics!.PcUiIcons);
@@ -120,7 +120,7 @@ public sealed class ExpandedBattleProcessResourcesTests
         ExpandedBattlePresentationHost host = new(game, assets);
         ExpandedBattlePresentationProcess process = host.CreateProcess(logical);
         BattleDefinition selected = ReadField<BattleSession>(process, "presentation").ReadDefinition();
-        NativeBattleGraphicsRoster roster = AssertBindings(logical, process, selected);
+        BattleModelRoster roster = AssertBindings(logical, process, selected);
         Assert.False(roster.ContainsRow(5));
         Assert.False(roster.ContainsRow(6));
         Assert.True(roster.ContainsRow(15));
@@ -138,12 +138,12 @@ public sealed class ExpandedBattleProcessResourcesTests
         Assert.Equal(assets.ReadEnemyNativeInformation246(donor.ModelId), entry.Combatants.Single(actor => actor.Id == "enemy-8").Information246);
     }
 
-    private static NativeBattleGraphicsRoster AssertBindings(BattleSession logical, ExpandedBattlePresentationProcess process, BattleDefinition selected)
+    private static BattleModelRoster AssertBindings(BattleSession logical, ExpandedBattlePresentationProcess process, BattleDefinition selected)
     {
-        NativeBattleGraphicsRoster roster = logical.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = logical.ReadExpandedPresentationRoster();
         Assert.Equal(roster.Rows.ToArray(), process.Graphics.PresentationRoster!.Rows.ToArray());
         NativeBattleGraphicsDefinition graphics = Assert.IsType<NativeBattleGraphicsDefinition>(selected.NativeGraphics);
-        Assert.Equal(roster.Rows.OfType<NativeBattleGraphicsActor>().Select(actor => actor.ActorId), graphics.Bindings.Select(binding => binding.ActorId));
+        Assert.Equal(roster.Rows.OfType<BattleModelOwner>().Select(actor => actor.ActorId), graphics.Bindings.Select(binding => binding.ActorId));
         Assert.Equal(roster.EnemyRows.Concat(roster.PartyRows).Select(row => roster[row].ActorId), graphics.InitialLoadOrder);
         Assert.All(graphics.Bindings, binding =>
         {

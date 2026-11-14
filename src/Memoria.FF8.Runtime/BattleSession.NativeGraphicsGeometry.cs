@@ -31,9 +31,9 @@ public sealed partial class BattleSession
         return prepared;
     }
 
-    private NativeBattleGraphicsState PrepareNativeActionGeometry(NativeBattleGraphicsState graphics, int actorIndex, NativeBattleGraphicsActorSet sourceTargets, NativeBattleGraphicsActorSet targetActors, ushort sourceMaskFlags = 0)
+    private NativeBattleGraphicsState PrepareNativeActionGeometry(NativeBattleGraphicsState graphics, int actorIndex, BattleModelTargets sourceTargets, BattleModelTargets targetActors, ushort sourceMaskFlags = 0)
     {
-        NativeBattleGraphicsRoster roster = graphics.PresentationRoster ?? throw new InvalidDataException("Hosted50D300 requires an explicit presentation roster.");
+        BattleModelRoster roster = graphics.PresentationRoster ?? throw new InvalidDataException("Hosted50D300 requires an explicit presentation roster.");
         RequireHostedActionModelBank(graphics, roster);
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native50D300 requires its retained camera alias memory.");
         NativeBattleActionGeometryGlobals globals = memory.ActionGeometryGlobals ?? NativeBattleActionGeometryGlobals.Unknown();
@@ -47,7 +47,7 @@ public sealed partial class BattleSession
         return prepared;
     }
 
-    private static void RequireHostedActionModelBank(NativeBattleGraphicsState graphics, NativeBattleGraphicsRoster roster)
+    private static void RequireHostedActionModelBank(NativeBattleGraphicsState graphics, BattleModelRoster roster)
     {
         if (graphics.Models.IsDefault || graphics.Models.Length != roster.ActorCount || graphics.ActorIds.IsDefault || graphics.ActorIds.Length != roster.ActorCount)
         {

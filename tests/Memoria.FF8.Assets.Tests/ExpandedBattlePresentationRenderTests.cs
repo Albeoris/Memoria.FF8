@@ -51,7 +51,7 @@ public sealed class ExpandedBattlePresentationRenderTests(ITestOutputHelper outp
         var (logicalDefinition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, allyCount, enemyCount, authoredCount: 4, expanded: true);
         BattleSession logical = new(logicalDefinition, BattleAtbMode.TurnBased);
         string before = ExpandedBattlePresentationProcessEntryTests.LogicalState(logical);
-        NativeBattleGraphicsRoster roster = logical.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = logical.ReadExpandedPresentationRoster();
         ImmutableSortedDictionary<int, BattleEnemyRosterSource> added = logicalDefinition.AddedEnemySources!;
         var combatants = logical.Combatants.ToDictionary(actor => actor.Id, StringComparer.Ordinal);
         BattleEncounter encounter = assets.LoadEncounter(logicalDefinition.EncounterId!.Value);
@@ -89,7 +89,7 @@ public sealed class ExpandedBattlePresentationRenderTests(ITestOutputHelper outp
         Assert.Equal(allyCount + enemyCount, prepared.Actors.Length);
         foreach (int row in roster.PartyRows.Concat(roster.EnemyRows))
         {
-            NativeBattleGraphicsActor actor = roster[row];
+            BattleModelOwner actor = roster[row];
             NativeBattleVector? expected;
             if (actor.IsParty)
             {

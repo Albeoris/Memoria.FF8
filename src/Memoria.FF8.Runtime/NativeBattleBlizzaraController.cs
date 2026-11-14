@@ -367,7 +367,7 @@ public static class NativeBattleBlizzaraController
         return (int)(delta / 0x53CC);
     }
 
-    public static int ActorIndex(uint pointer, NativeBattleGraphicsRoster? roster = null)
+    public static int ActorIndex(uint pointer, BattleModelRoster? roster = null)
     {
         if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row, roster))
         {
@@ -376,7 +376,7 @@ public static class NativeBattleBlizzaraController
         return row;
     }
 
-    private static uint ActorAddress(int actor, NativeBattleGraphicsRoster? roster) => (roster?.ContainsRow(actor) ?? NativeBattleSlots.Contains(actor)) ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new NotSupportedException("Native Blizzara requires an actual actor graphics row.");
+    private static uint ActorAddress(int actor, BattleModelRoster? roster) => (roster?.ContainsRow(actor) ?? NativeBattleSlots.Contains(actor)) ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new NotSupportedException("Native Blizzara requires an actual actor graphics row.");
     private static void RequireCallback(NativeBattleModulePoolTask task, uint callback)
     {
         if (task.Callback != callback)

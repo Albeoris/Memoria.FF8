@@ -4,12 +4,12 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private static bool IsBoundPresentationRow(NativeBattleGraphicsRoster roster, int row)
+    private static bool IsBoundPresentationRow(BattleModelRoster roster, int row)
     {
         return (uint)row < (uint)roster.ActorCount && roster.Rows[row] is not null;
     }
 
-    private static void ValidateHostedPresentationBindings(NativeBattleEffectPresentationInputs inputs, NativeBattleGraphicsRoster roster)
+    private static void ValidateHostedPresentationBindings(NativeBattleEffectPresentationInputs inputs, BattleModelRoster roster)
     {
         roster.Validate();
         int source = inputs.Source.Index;
@@ -22,14 +22,14 @@ public sealed partial class BattleSession
             throw new InvalidDataException("The hosted effect requires explicit model bindings.");
         }
 
-        NativeBattleGraphicsActorSet occupied = default(NativeBattleGraphicsActorSet).Add(source);
+        BattleModelTargets occupied = default(BattleModelTargets).Add(source);
         foreach (NativeBattleEffectModelBinding target in inputs.NativeTargets)
         {
             if (target?.Model is not { } model || !IsBoundPresentationRow(roster, model.Index) || occupied.Contains(model.Index))
             {
                 throw new InvalidDataException("A hosted native effect target requires a unique bound roster row.");
             }
-            NativeBattleGraphicsActor actor = roster[model.Index];
+            BattleModelOwner actor = roster[model.Index];
             if (!string.Equals(target.ActorId, actor.ActorId, StringComparison.Ordinal) || (target.IsParty is bool targetSide && targetSide != actor.IsParty))
             {
                 throw new InvalidDataException("A hosted native effect target disagrees with its presentation actor identity or side.");
@@ -75,7 +75,7 @@ public sealed partial class BattleSession
 
     private static NativeBattleCinematicActorContext SeedHostedCinematicActors(NativeBattleWaterHeader header, NativeBattleCinematicActorContext context)
     {
-        NativeBattleGraphicsRoster roster = context.Roster;
+        BattleModelRoster roster = context.Roster;
         ImmutableArray<byte?>.Builder ordinals = context.ActorOrdinals.ToBuilder();
         for (int row = 0; row < roster.ActorCount; row++)
         {

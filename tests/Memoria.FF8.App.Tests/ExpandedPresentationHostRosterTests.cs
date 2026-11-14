@@ -23,7 +23,7 @@ public sealed class ExpandedPresentationHostRosterTests
         BattleDefinition definition = CreateDefinition(game, assets, allies, enemies);
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
         GameWorld.AttachExpandedEffects(battle, game, assets);
-        NativeBattleGraphicsRoster roster = battle.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = battle.ReadExpandedPresentationRoster();
         string caster = roster[sourceRow].ActorId;
         string recipient = roster[targetRow].ActorId;
         Assert.Equal(3, battle.MagicVitals!.GetMagicCount(0, 1));
@@ -54,7 +54,7 @@ public sealed class ExpandedPresentationHostRosterTests
         BattleDefinition definition = CreateDefinition(game, assets, 11, 14);
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
         GameWorld.AttachExpandedEffects(battle, game, assets);
-        NativeBattleGraphicsRoster roster = battle.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = battle.ReadExpandedPresentationRoster();
         BattleCombatant caster = battle.Combatants.Single(actor => actor.Id == roster[14].ActorId);
         byte[] targetRows = roster.EnemyRows.Select(row => checked((byte)row)).Reverse().ToArray();
         ImmutableArray<ExpandedBattleContact> contacts = targetRows.Select(row =>
@@ -87,7 +87,7 @@ public sealed class ExpandedPresentationHostRosterTests
         BattleDefinition definition = CreateDefinition(game, assets, allies, enemies);
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
         GameWorld.AttachExpandedEffects(battle, game, assets);
-        NativeBattleGraphicsRoster roster = battle.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = battle.ReadExpandedPresentationRoster();
         string caster = roster[sourceRow].ActorId;
         string recipient = roster[targetRow].ActorId;
         ExpandedBattleSceneFrame frame = Assert.IsType<ExpandedBattleSceneFrame>(battle.ExpandedPresentationHost!.ReadSceneFrame(battle));
@@ -116,7 +116,7 @@ public sealed class ExpandedPresentationHostRosterTests
         typeof(BattleSession).GetField("expandedPresentationHost", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle, null);
         NativeBattleEffectPresentation? wrong = null;
         NativeBattleGraphicsState? beforeDisposal = null;
-        NativeBattleGraphicsRoster roster = battle.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = battle.ReadExpandedPresentationRoster();
         string casterId = roster[7].ActorId;
         string targetId = roster[15].ActorId;
         battle.AttachExpandedEffectFactory((candidate, _, native, sequence, contacts, mode) =>
@@ -140,9 +140,9 @@ public sealed class ExpandedPresentationHostRosterTests
         Assert.NotSame(beforeDisposal, wrong!.Graphics);
     }
 
-    private static void AssertFullBindings(NativeBattleEffectPresentation presenter, NativeBattleGraphicsRoster roster, int allies, int enemies, int source)
+    private static void AssertFullBindings(NativeBattleEffectPresentation presenter, BattleModelRoster roster, int allies, int enemies, int source)
     {
-        NativeBattleGraphicsRoster presented = Assert.IsType<NativeBattleGraphicsRoster>(presenter.Graphics.PresentationRoster);
+        BattleModelRoster presented = Assert.IsType<BattleModelRoster>(presenter.Graphics.PresentationRoster);
         Assert.Equal(roster.Rows.ToArray(), presented.Rows.ToArray());
         Assert.Equal(roster.ActorCount, presenter.Graphics.Models.Length);
         Assert.Equal(allies, presented.PartyRows.Count());

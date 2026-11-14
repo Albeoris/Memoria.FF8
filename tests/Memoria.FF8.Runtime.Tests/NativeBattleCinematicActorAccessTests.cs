@@ -154,7 +154,7 @@ public sealed class NativeBattleCinematicActorAccessTests
 
     private static NativeBattleWaterExecutionFrame HostedFrame()
     {
-        NativeBattleGraphicsActor?[] rows = new NativeBattleGraphicsActor?[25];
+        BattleModelOwner?[] rows = new BattleModelOwner?[25];
         rows[0] = new("enemy-zero", false);
         rows[7] = new("ally-seven", true);
         rows[24] = new("enemy-last", false);

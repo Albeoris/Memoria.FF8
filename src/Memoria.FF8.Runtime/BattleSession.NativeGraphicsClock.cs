@@ -109,7 +109,7 @@ public sealed partial class BattleSession
         }
         if (services is not null)
         {
-            NativeBattleGraphicsRoster roster = graphics.PresentationRoster ?? throw new InvalidDataException("Hosted graphics frames require their actual roster.");
+            BattleModelRoster roster = graphics.PresentationRoster ?? throw new InvalidDataException("Hosted graphics frames require their actual roster.");
             services.Validate(roster, graphics);
         }
         graphics.Validate();
@@ -320,7 +320,7 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState ConsumeHostedNativeGraphicsContacts(NativeBattleGraphicsState graphics, NativeBattleModelLifecycleServices services)
     {
-        NativeBattleGraphicsRoster roster = graphics.PresentationRoster ?? throw new InvalidDataException("Hosted graphics contacts require their presentation roster.");
+        BattleModelRoster roster = graphics.PresentationRoster ?? throw new InvalidDataException("Hosted graphics contacts require their presentation roster.");
         roster.Validate();
         services.Validate(roster, graphics);
         if (graphics.PendingContacts.IsDefault)

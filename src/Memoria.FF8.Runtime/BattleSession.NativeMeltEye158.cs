@@ -52,7 +52,7 @@ public sealed partial class BattleSession
             return new(current, point);
         }
 
-        NativeBattleMeltEye158PointStep TargetCenter(NativeBattleMeltEye158Frame current, NativeBattleGraphicsActorSet targets)
+        NativeBattleMeltEye158PointStep TargetCenter(NativeBattleMeltEye158Frame current, BattleModelTargets targets)
         {
             NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Melt-Eye requires each selected physical target position.")).ToArray());
             return new(current, center);

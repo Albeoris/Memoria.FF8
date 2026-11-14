@@ -121,12 +121,12 @@ public sealed class NativeBattleHostedFireEffectTests
     public void FireRejectsMismatchedOrUnboundRosterRowsBeforeCreatingTaskPools()
     {
         var fixture = Fixture([[7, 16, 24]]);
-        NativeBattleGraphicsRoster roster = fixture.Effect.PresentationRoster!;
+        BattleModelRoster roster = fixture.Effect.PresentationRoster!;
         NativeBattleOriginalEffectState different = fixture.Effect with { PresentationRoster = new(roster.Rows.SetItem(16, new("other-actor", false))) };
         Assert.Throws<InvalidDataException>(() => NativeBattleFireEffect.RequiredChildCapacity(different, fixture.Inputs.Packets));
 
-        NativeBattleGraphicsRoster withHole = new(roster.Rows.SetItem(24, null));
-        NativeBattleGraphicsActorSet boundTargets = default(NativeBattleGraphicsActorSet).Add(7).Add(16);
+        BattleModelRoster withHole = new(roster.Rows.SetItem(24, null));
+        BattleModelTargets boundTargets = default(BattleModelTargets).Add(7).Add(16);
         NativeBattleOriginalEffectState unbound = fixture.Effect with
         {
             PresentationRoster = withHole,
@@ -170,10 +170,10 @@ public sealed class NativeBattleHostedFireEffectTests
 
     private static (NativeBattleOriginalEffectState Effect, NativeBattleFireInputs Inputs) Fixture(byte[][] groups)
     {
-        NativeBattleGraphicsRoster roster = new(Enumerable.Range(0, 25).Select(row => (NativeBattleGraphicsActor?)new NativeBattleGraphicsActor($"actor-{row}", row < 11)).ToImmutableArray());
+        BattleModelRoster roster = new(Enumerable.Range(0, 25).Select(row => (BattleModelOwner?)new BattleModelOwner($"actor-{row}", row < 11)).ToImmutableArray());
         int occurrences = groups.Sum(group => group.Length);
         NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromPresentationStorage(roster, Math.Max(49, occurrences));
-        NativeBattleGraphicsActorSet targets = default;
+        BattleModelTargets targets = default;
         foreach (byte[] group in groups)
         {
             (packets, _) = packets.Prepare(new(0, 2, 11, -1, 1, 2, null));

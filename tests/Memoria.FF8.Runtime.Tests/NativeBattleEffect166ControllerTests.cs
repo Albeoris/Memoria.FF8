@@ -31,7 +31,7 @@ public sealed class NativeBattleEffect166ControllerTests
         int[] selectedRows = hosted ? [0, 7, 16, 24] : [0];
         if (hosted)
         {
-            frame = frame with { Effect = frame.Effect with { Parameters = frame.Effect.Parameters! with { PresentationTargets = new NativeBattleGraphicsActorSet(1).Add(7).Add(16).Add(24) } } };
+            frame = frame with { Effect = frame.Effect with { Parameters = frame.Effect.Parameters! with { PresentationTargets = new BattleModelTargets(1).Add(7).Add(16).Add(24) } } };
         }
         NativeBattleEffect166Step step = AdvanceMain5E4F60(frame, ChildBank, Resources(), harness.Inputs());
         NativeBattleEffect166TargetCenter5020A0 center = Assert.Single(harness.Operations.OfType<NativeBattleEffect166TargetCenter5020A0>());

@@ -144,6 +144,18 @@ internal sealed class NativeBattleFileStagingTransaction : IDisposable
         overlay.Write(address, bytes);
     }
 
+    internal void WriteExecutionReference(uint address, BattleExecutionReferenceEntry entry, ImmutableArray<byte>? nativeBytes)
+    {
+        RequireActive();
+        overlay.WriteExecutionReference(address, entry, nativeBytes);
+    }
+
+    internal BattleExecutionReferenceEntry? ReadExecutionReference(uint address)
+    {
+        RequireActive();
+        return overlay.ReadExecutionReference(address);
+    }
+
     internal void BindResource(uint address, ImmutableArray<byte> bytes, int sourceOffset, int length)
     {
         RequireRange(address, length);

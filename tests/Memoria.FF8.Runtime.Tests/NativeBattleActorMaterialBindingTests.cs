@@ -7,7 +7,7 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleActorMaterialBindingTests
 {
     private static readonly NativeBattleActionMatrix Identity = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
-    private static readonly NativeBattleGraphicsRoster Roster = new([new("first", true), null, null, null, null, null, null, new("second", false)]);
+    private static readonly BattleModelRoster Roster = new([new("first", true), null, null, null, null, null, null, new("second", false)]);
     private static readonly NativeBattlePoseSource Pose = CreatePose();
 
     [Fact]

@@ -51,7 +51,7 @@ public sealed partial class BattleSession
             return new(second.Frame, retained.Write(6, BitConverter.GetBytes(transform.Angle36)));
         }
 
-        NativeBattleEffect313PointStep TargetCenter(NativeBattleEffect313Frame current, NativeBattleGraphicsActorSet targets, NativeBattleEffectArena retained)
+        NativeBattleEffect313PointStep TargetCenter(NativeBattleEffect313Frame current, BattleModelTargets targets, NativeBattleEffectArena retained)
         {
             NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Effect313 requires its current selected physical target positions.")).ToArray());
             return new(current, retained.Write(0, BitConverter.GetBytes(center.X)).Write(2, BitConverter.GetBytes(center.Y)).Write(4, BitConverter.GetBytes(center.Z)));

@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("Expanded party presentation requires an expanded roster and one initialization.");
         }
-        NativeBattleGraphicsRoster roster = ReadExpandedPresentationRoster();
+        BattleModelRoster roster = ReadExpandedPresentationRoster();
         ImmutableDictionary<string, NativeBattlePartyPresentedVital>.Builder rows = ImmutableDictionary.CreateBuilder<string, NativeBattlePartyPresentedVital>(StringComparer.Ordinal);
         ImmutableDictionary<string, NativeBattleStatusMirror>.Builder statuses = ImmutableDictionary.CreateBuilder<string, NativeBattleStatusMirror>(StringComparer.Ordinal);
         foreach (int row in roster.PartyRows)
@@ -27,14 +27,14 @@ public sealed partial class BattleSession
         expandedPartyReadyStatusMirrors = mirrors;
     }
 
-    private BattleCombatant? PublishExpandedPartyPresentedContact(NativeBattleGraphicsRoster roster, NativeBattleContactHalf half)
+    private BattleCombatant? PublishExpandedPartyPresentedContact(BattleModelRoster roster, NativeBattleContactHalf half)
     {
         ImmutableDictionary<string, NativeBattlePartyPresentedVital> state = expandedPartyPresentation ?? throw new InvalidOperationException("Expanded contact presentation requires the current party cache.");
         if (!roster.ContainsRow(half.ActorIndex))
         {
             throw new InvalidDataException("Expanded contact presentation requires a bound actor row.");
         }
-        NativeBattleGraphicsActor binding = roster[half.ActorIndex];
+        BattleModelOwner binding = roster[half.ActorIndex];
         if (!byId.TryGetValue(binding.ActorId, out BattleCombatant? actor) || actor.IsPlayer != binding.IsParty || RequireExpandedPresentationRow(roster, actor) != half.ActorIndex)
         {
             throw new InvalidDataException("Expanded contact presentation row does not belong to the current actor.");

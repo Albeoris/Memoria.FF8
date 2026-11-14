@@ -45,7 +45,7 @@ public sealed partial class BattleSession
             return new(current with { Memory = observed, Staging = NativeFileStaging }, Point(point));
         }
 
-        NativeBattleCannonBlow151PointStep TargetCenter(NativeBattleCannonBlow151Frame current, NativeBattleGraphicsActorSet targets)
+        NativeBattleCannonBlow151PointStep TargetCenter(NativeBattleCannonBlow151Frame current, BattleModelTargets targets)
         {
             NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Cannon Blow requires every selected physical target position.")).ToArray());
             return new(current, Point(center));

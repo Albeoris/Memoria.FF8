@@ -3,15 +3,16 @@ using System.Text.Json.Serialization;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>4BA560's single registered widget6; contact timing and post-contact close states remain distinct.</summary>
-public sealed record NativeBattleTriggerWidget([property: JsonRequired] byte ActorIndex, [property: JsonRequired] BattleNativeRenzokukenBlock Block, [property: JsonRequired] BattleNativeRenzokukenInputState Input, [property: JsonRequired] bool Visible, [property: JsonRequired] bool PendingTrigger, [property: JsonRequired] byte ClosingPhase, [property: JsonRequired] short ClosingRemaining, [property: JsonRequired] sbyte PreviousMenu957, [property: JsonRequired] sbyte? PreviousMenu955)
+public sealed record NativeBattleTriggerWidget(BattleModelOwner Actor, [property: JsonRequired] BattleNativeRenzokukenBlock Block, [property: JsonRequired] BattleNativeRenzokukenInputState Input, [property: JsonRequired] bool Visible, [property: JsonRequired] bool PendingTrigger, [property: JsonRequired] byte ClosingPhase, [property: JsonRequired] short ClosingRemaining, [property: JsonRequired] sbyte PreviousMenu957, [property: JsonRequired] sbyte? PreviousMenu955)
 {
     public byte? SourceSequence { get; init; }
     public int? SourceAbOffset { get; init; }
     public ushort? SourceMagicId { get; init; }
 
-    public void Validate(NativeBattleGraphicsRoster? roster = null)
+    public void Validate(BattleModelRoster roster)
     {
-        if (!(roster?.ContainsRow(ActorIndex) ?? ActorIndex < 7) || Block is null || Block.Timeline is null || Block.Segments.IsDefaultOrEmpty || Input is null || Block.Timeline.InputThresholds.IsDefaultOrEmpty || Input.ContactIndex > Block.Timeline.InputThresholds.Length || Input.SubframeClock is < 0 or > 3 || Input.PoseClock < 0 || Input.PoseClock % 4 != 0 || Input.Phase is not (0 or 1 or 2 or 3 or 4 or 6 or 8) || ClosingPhase is not (0 or 8 or 10 or 12 or 13) || ClosingRemaining is < 0 or > 23 || (ClosingPhase == 0) == (Input.Phase == 8) || (SourceSequence is null) != (SourceAbOffset is null) || SourceAbOffset < 0)
+        ArgumentNullException.ThrowIfNull(roster);
+        if (Actor is null || !roster.Contains(Actor) || Block is null || Block.Timeline is null || Block.Segments.IsDefaultOrEmpty || Input is null || Block.Timeline.InputThresholds.IsDefaultOrEmpty || Input.ContactIndex > Block.Timeline.InputThresholds.Length || Input.SubframeClock is < 0 or > 3 || Input.PoseClock < 0 || Input.PoseClock % 4 != 0 || Input.Phase is not (0 or 1 or 2 or 3 or 4 or 6 or 8) || ClosingPhase is not (0 or 8 or 10 or 12 or 13) || ClosingRemaining is < 0 or > 23 || (ClosingPhase == 0) == (Input.Phase == 8) || (SourceSequence is null) != (SourceAbOffset is null) || SourceAbOffset < 0)
         {
             throw new InvalidDataException("Native trigger widget lacks its parsed AB timeline or retained callback state.");
         }
@@ -22,11 +23,12 @@ public sealed record NativeBattleTriggerWidget([property: JsonRequired] byte Act
         }
     }
 
-    public static NativeBattleTriggerWidget Register(byte actor, BattleNativeRenzokukenBlock block, ushort options, NativeBattleUiServices ui, NativeBattleGraphicsRoster? roster = null)
+    public static NativeBattleTriggerWidget Register(BattleModelOwner actor, BattleNativeRenzokukenBlock block, ushort options, NativeBattleUiServices ui, BattleModelRoster roster)
     {
-        if (roster is not null && !roster.ContainsRow(actor))
+        ArgumentNullException.ThrowIfNull(roster);
+        if (actor is null || !roster.Contains(actor))
         {
-            throw new InvalidDataException("Hosted trigger registration requires its bound model row.");
+            throw new InvalidDataException("Trigger registration requires a bound model owner.");
         }
         bool visible = block.ShowBar != 0 && (options & 0x8001) == 0;
         //4BA6C0 case0 only registers phase1; it does not read the retained widgetBYTE33.
@@ -39,11 +41,12 @@ public sealed record NativeBattleTriggerWidgetStep(NativeBattleTriggerWidget Wid
 {
     public bool PlayTriggerSound { get; init; }
 }
-public sealed record NativeBattleTriggerReceipt([property: JsonRequired] byte ActorIndex, [property: JsonRequired] short ContactIndex, [property: JsonRequired] short TotalContacts, [property: JsonRequired] short Timing, [property: JsonRequired] short WordD96)
+public sealed record NativeBattleTriggerReceipt(BattleModelOwner Actor, [property: JsonRequired] short ContactIndex, [property: JsonRequired] short TotalContacts, [property: JsonRequired] short Timing, [property: JsonRequired] short WordD96)
 {
-    public void Validate(NativeBattleGraphicsRoster? roster = null)
+    public void Validate(BattleModelRoster roster)
     {
-        if (!(roster?.ContainsRow(ActorIndex) ?? ActorIndex < 7) || ContactIndex < 1 || ContactIndex > TotalContacts || TotalContacts > 16 || Timing != 0 && Timing != 1 && Timing < 20 || WordD96 != 32)
+        ArgumentNullException.ThrowIfNull(roster);
+        if (Actor is null || !roster.Contains(Actor) || ContactIndex < 1 || ContactIndex > TotalContacts || TotalContacts > 16 || Timing != 0 && Timing != 1 && Timing < 20 || WordD96 != 32)
         {
             throw new InvalidDataException("Saved485130 receipt differs from4BA6C0's signed WORD inputs and separate argument32.");
         }
@@ -53,7 +56,7 @@ public sealed record NativeBattleTriggerReceipt([property: JsonRequired] byte Ac
 public static class NativeBattleTriggerWidgetRules
 {
     /// <summary>One actual4B9C80 service invocation, with BYTE33 supplied by4A8E30 rather than an elapsed-time adapter.</summary>
-    public static NativeBattleTriggerWidgetStep Advance(NativeBattleTriggerWidget widget, bool frame33, bool automatic, NativeBattleUiRandomState? random, bool assistedPress = false, NativeBattleGraphicsRoster? roster = null)
+    public static NativeBattleTriggerWidgetStep Advance(NativeBattleTriggerWidget widget, bool frame33, bool automatic, NativeBattleUiRandomState? random, BattleModelRoster roster, bool assistedPress = false)
     {
         widget.Validate(roster);
         BattleNativeRenzokukenContact? contact = null;

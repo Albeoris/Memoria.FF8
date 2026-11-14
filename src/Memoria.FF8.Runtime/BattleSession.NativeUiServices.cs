@@ -216,7 +216,7 @@ public sealed partial class BattleSession
         BattleNativeRenzokukenBlock block = cue.TriggerWindow ?? throw new InvalidDataException("Native AB cue lacks its parsed original timing block.");
         NativeBattleUiServices ui = graphics.UiServices ?? throw new NotSupportedException("Native AB requires its initialized4A94D0 UI service owner.");
         ushort options = definition.LimitProgress?.Options978 ?? throw new NotSupportedException("Native AB requires its actual saved options WORD1CFE978.");
-        NativeBattleGraphicsRoster? roster = graphics.PresentationRoster;
+        BattleModelRoster? roster = graphics.PresentationRoster;
         if (roster is not null)
         {
             RequireHostedActionModelBank(graphics, roster);

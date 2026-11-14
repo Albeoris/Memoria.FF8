@@ -447,7 +447,7 @@ public static class NativeBattleBlizzagaController
     }
 
     public static int PrimarySlot(uint pointer) => Slot(pointer, Arena, 0x6428, 2);
-    public static int ActorIndex(uint pointer, NativeBattleGraphicsRoster? roster = null) => NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row, roster) ? row : throw new NotSupportedException("Native Blizzaga pointer has no exact physical task or actor owner.");
+    public static int ActorIndex(uint pointer, BattleModelRoster? roster = null) => NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row, roster) ? row : throw new NotSupportedException("Native Blizzaga pointer has no exact physical task or actor owner.");
     public static NativeBattleActionMatrix ReadSecondMatrix(NativeBattleEffectTaskPool pool, uint pointer)
     {
         int slot = Slot(pointer, SecondBank + 32, 0x478, 6);
@@ -462,7 +462,7 @@ public static class NativeBattleBlizzagaController
         }
         return (int)(delta / stride);
     }
-    private static uint ActorAddress(int actor, NativeBattleGraphicsRoster? roster) => (roster?.ContainsRow(actor) ?? NativeBattleSlots.Contains(actor)) ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new NotSupportedException("Native Blizzaga requires an actual actor graphics row.");
+    private static uint ActorAddress(int actor, BattleModelRoster? roster) => (roster?.ContainsRow(actor) ?? NativeBattleSlots.Contains(actor)) ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new NotSupportedException("Native Blizzaga requires an actual actor graphics row.");
     private static bool Full(NativeBattleEffectTaskPool pool) => pool.Slots.All(task => (task.Flags & 1) != 0);
     private static (int X, int Y, int Z) Mac(NativeBattleActionMatrix matrix, NativeBattleVector vector)
     {

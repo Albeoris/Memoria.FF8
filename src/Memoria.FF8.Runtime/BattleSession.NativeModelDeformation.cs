@@ -14,7 +14,7 @@ public sealed partial record NativeBattleEffectMemory
 
 public sealed partial record NativeBattleAuxiliaryState
 {
-    public NativeBattleAuxiliaryState AppendModelDeformation50F250(int model, byte group, byte bone, NativeBattleVector velocity, short angle, uint color, NativeBattleGraphicsRoster? roster = null)
+    public NativeBattleAuxiliaryState AppendModelDeformation50F250(int model, byte group, byte bone, NativeBattleVector velocity, short angle, uint color, BattleModelRoster? roster = null)
     {
         Validate();
         if (!Slots.Any(task => (task.Flags & 1) == 0))

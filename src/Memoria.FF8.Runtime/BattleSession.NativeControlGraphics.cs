@@ -6,9 +6,9 @@ public sealed partial class BattleSession
     {
         if (graphics.PresentationRoster is { } roster)
         {
-            NativeBattleGraphicsActorSet cover = NativeBattleGraphicsActorSet.FromNative(context.CoverMask);
+            BattleModelTargets cover = BattleModelTargets.FromNative(context.CoverMask);
             NativeBattleActionGeometry.ValidatePresentationRows(roster, context.ActorIndex, context.TargetActors, cover);
-            NativeBattleGraphicsActorSet selected = new(context.TargetActors.Bits | cover.Bits);
+            BattleModelTargets selected = new(context.TargetActors.Bits | cover.Bits);
             return selected.EnumerateRows().Any(row => NativeBattleActionGraphics.IsModelBusy(graphics.Models[row], 0x140));
         }
         ushort mask = (ushort)(context.TargetMask | context.CoverMask);

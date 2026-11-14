@@ -77,7 +77,7 @@ public sealed class NativeBattleHostedBrothersTargetCommandTests
 
     private static NativeBattleWaterExecutionFrame Fixture(ImmutableArray<byte> selected, byte first = 7)
     {
-        NativeBattleGraphicsRoster roster = new([.. Enumerable.Range(0, 25).Select(row => new NativeBattleGraphicsActor($"actor-{row}", row < 3))]);
+        BattleModelRoster roster = new([.. Enumerable.Range(0, 25).Select(row => new BattleModelOwner($"actor-{row}", row < 3))]);
         ImmutableArray<NativeBattleGraphicsModel> models = [.. Enumerable.Range(0, 25).Select(row => new NativeBattleGraphicsModel(row, 3) { Rotation14 = -99, Transform = new(default, new(1, 2, 3), -10, 0, 0) { Scale154 = 1024 } })];
         NativeBattleCinematicActorContext context = NativeBattleCinematicActorContext.FromGraphics(roster, models).CaptureCurrentContacts([7, 24], first).WithCurrentActors(selected).WithSavedActors([9, 6]).WithContactCursor(256);
         if (selected.IsEmpty)

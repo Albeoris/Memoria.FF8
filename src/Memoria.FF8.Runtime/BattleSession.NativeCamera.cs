@@ -72,7 +72,7 @@ public sealed partial class BattleSession
         {
             NativeBattleCameraAliases aliases = NativeEffectMemory?.CameraAliases ?? throw new NotSupportedException("Native50D790 requires its retained camera alias BYTEs; migrate the needed older snapshot explicitly.");
             model = aliases.Resolve50D790(reference);
-            NativeBattleGraphicsRoster? roster = NativeGraphics?.PresentationRoster;
+            BattleModelRoster? roster = NativeGraphics?.PresentationRoster;
             if (aliases.PresentationRoster is { } owner && (roster is null || !owner.Rows.SequenceEqual(roster.Rows)))
             {
                 throw new InvalidDataException("The retained camera aliases belong to a different presentation roster.");

@@ -20,7 +20,7 @@ public sealed class NativeBattleHostedResourceHandleConsumerTests
         AssertOutOfExtent();
         Assert.IsType<NotSupportedException>(Assert.Throws<TargetInvocationException>(() => Address(session, native with { ActiveResourceRow100 = null })).InnerException);
 
-        NativeBattleGraphicsActor?[] rows = new NativeBattleGraphicsActor?[7];
+        BattleModelOwner?[] rows = new BattleModelOwner?[7];
         for (int row = 0; row < rows.Length; row++)
         {
             rows[row] = new($"party-{row}", true);

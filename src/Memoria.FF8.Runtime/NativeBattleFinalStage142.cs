@@ -36,7 +36,7 @@ public static class NativeBattleFinalStage142
 
     public static NativeBattleFinalStage142State Initialize0(NativeBattleFinalStage142State state) => state with { TargetRatio = 0x1000 };
 
-    public static NativeBattleFinalStage142State UpdateTarget3(NativeBattleFinalStage142State state, ImmutableArray<NativeBattleFinalStage142Actor> actors, NativeBattleGraphicsRoster? roster = null)
+    public static NativeBattleFinalStage142State UpdateTarget3(NativeBattleFinalStage142State state, ImmutableArray<NativeBattleFinalStage142Actor> actors, BattleModelRoster? roster = null)
     {
         state.Validate();
         roster?.Validate();

@@ -9,7 +9,7 @@ public sealed class NativeBattleHostedTextureCacheTests
     [Fact]
     public void FullRosterUsesThirtySevenOwnedAliasesIncludingOnePartyForm()
     {
-        NativeBattleGraphicsRoster roster = FullRoster();
+        BattleModelRoster roster = FullRoster();
         NativeBattleModelTextureCache cache = NativeBattleModelTextureCache.Initialize508260(null).WithPresentationRoster(roster);
         Assert.Equal(37, cache.Rows.Length);
         NativeBattleEffectHeapAllocation body = TimPack(2);
@@ -121,7 +121,7 @@ public sealed class NativeBattleHostedTextureCacheTests
     [Fact]
     public void AttachingRosterToOccupiedNativeRowsRequiresFactualOwners()
     {
-        NativeBattleGraphicsRoster roster = FullRoster();
+        BattleModelRoster roster = FullRoster();
         NativeBattleModelTextureCache native = NativeBattleModelTextureCache.Initialize508260(null).LoadPlayer(2, 0, TimPack(2)).Cache;
         ImmutableDictionary<int, int> owners = ImmutableDictionary<int, int>.Empty.Add(0, 7);
         Assert.Throws<InvalidDataException>(() => native.WithPresentationRoster(roster));
@@ -138,7 +138,7 @@ public sealed class NativeBattleHostedTextureCacheTests
     [Fact]
     public void LoadsRejectWrongSidesHolesAndAbsentHostedOwners()
     {
-        NativeBattleGraphicsRoster roster = FullRoster();
+        BattleModelRoster roster = FullRoster();
         roster = new(roster.Rows.SetItem(16, null));
         NativeBattleEffectHeapAllocation pack = TimPack(1);
         NativeBattleModelTextureCache native = NativeBattleModelTextureCache.Initialize508260(null);
@@ -152,9 +152,9 @@ public sealed class NativeBattleHostedTextureCacheTests
         Assert.Throws<InvalidDataException>((cache with { PresentationActors = null }).Validate);
     }
 
-    private static NativeBattleGraphicsRoster FullRoster()
+    private static BattleModelRoster FullRoster()
     {
-        return new(Enumerable.Range(0, 25).Select(row => (NativeBattleGraphicsActor?)new NativeBattleGraphicsActor($"actor-{row}", row < 10 || row == 24)).ToImmutableArray());
+        return new(Enumerable.Range(0, 25).Select(row => (BattleModelOwner?)new BattleModelOwner($"actor-{row}", row < 10 || row == 24)).ToImmutableArray());
     }
 
     private static ushort PaletteColor(NativeBattleModelTextureLoad upload)

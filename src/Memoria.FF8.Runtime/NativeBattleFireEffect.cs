@@ -119,7 +119,7 @@ public static partial class NativeBattleFireEffect
 
     private static void ValidatePacketRoster(NativeBattleOriginalEffectState effect, NativeBattleActionPacketsState packets)
     {
-        NativeBattleGraphicsRoster? roster = effect.PresentationRoster;
+        BattleModelRoster? roster = effect.PresentationRoster;
         if (roster is null ? packets.PresentationRoster is not null : packets.PresentationRoster is not { } owner || !roster.Rows.SequenceEqual(owner.Rows))
         {
             throw new InvalidDataException("Fire packet and effect actor rosters disagree.");

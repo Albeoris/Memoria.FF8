@@ -28,7 +28,7 @@ public sealed partial record NativeBattleModuleState
         return AppendModelEffect(model, effect, null);
     }
 
-    public NativeBattleModuleState AppendModelEffect(int model, byte effect, NativeBattleCastingSequenceProvenance? presentationSource, NativeBattleGraphicsRoster? roster = null)
+    public NativeBattleModuleState AppendModelEffect(int model, byte effect, NativeBattleCastingSequenceProvenance? presentationSource, BattleModelRoster? roster = null)
     {
         if (!HasModelRow(model, roster))
         {

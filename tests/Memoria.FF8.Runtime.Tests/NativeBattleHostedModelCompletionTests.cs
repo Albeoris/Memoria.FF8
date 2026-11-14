@@ -7,7 +7,7 @@ public sealed class NativeBattleHostedModelCompletionTests
     [Fact]
     public void Sequence_busy_queries_include_bound_extras_and_preserve_ascending_first_hit()
     {
-        NativeBattleGraphicsRoster roster = Roster();
+        BattleModelRoster roster = Roster();
         ImmutableArray<NativeBattleGraphicsModel> models = Models()
             .SetItem(7, new(7, 2) { Kind5 = 1, Flags8 = 0 })
             .SetItem(24, new(24, 2));
@@ -27,7 +27,7 @@ public sealed class NativeBattleHostedModelCompletionTests
     [Fact]
     public void Barrier_waits_for_last_hosted_model_before_reading_the_camera()
     {
-        NativeBattleGraphicsRoster roster = Roster();
+        BattleModelRoster roster = Roster();
         ImmutableArray<NativeBattleGraphicsModel> models = Models()
             .SetItem(7, new(7, 2) { Kind5 = 0, Flags8 = 0, ResourceFlags44 = 0x40 })
             .SetItem(24, new(24, 2) { Kind5 = 1, Flags8 = 0 });
@@ -50,7 +50,7 @@ public sealed class NativeBattleHostedModelCompletionTests
     [Fact]
     public void Direct_barrier_requires_exactly_seven_native_rows_or_its_explicit_hosted_extent()
     {
-        NativeBattleGraphicsRoster roster = Roster();
+        BattleModelRoster roster = Roster();
         NativeBattleGraphicsModelCompletion[] models = Enumerable.Repeat(new NativeBattleGraphicsModelCompletion(0, 0, 0, null), 25).ToArray();
         models[1] = new(2, 0, 0, null);
         models[24] = new(2, 0, 0, 0);
@@ -72,7 +72,7 @@ public sealed class NativeBattleHostedModelCompletionTests
     [InlineData(50)]
     public void Hosted_graphics_accepts_symbolic_texture_aliases_beyond_the_native_rows(int alias)
     {
-        NativeBattleGraphicsRoster roster = Roster();
+        BattleModelRoster roster = Roster();
         ImmutableArray<NativeBattleGraphicsModel> models = NativeBattleGraphicsModels.ClearPresentationBank(roster).ToImmutableArray();
         models = models.SetItem(24, models[24] with { TextureResourceIndex = alias });
         NativeBattleGraphicsState graphics = new(models, roster.Rows.Select(actor => actor?.ActorId).ToImmutableArray(), 0, 0) { PresentationRoster = roster };
@@ -87,7 +87,7 @@ public sealed class NativeBattleHostedModelCompletionTests
     [InlineData(false, 11)]
     public void Graphics_rejects_texture_alias_outside_its_symbolic_domain(bool hosted, int alias)
     {
-        NativeBattleGraphicsRoster? roster = hosted ? Roster() : null;
+        BattleModelRoster? roster = hosted ? Roster() : null;
         ImmutableArray<NativeBattleGraphicsModel> models = (roster is null ? NativeBattleGraphicsModels.ClearBank() : NativeBattleGraphicsModels.ClearPresentationBank(roster)).ToImmutableArray();
         models = models.SetItem(0, models[0] with { TextureResourceIndex = alias });
         ImmutableArray<string?> ids = roster?.Rows.Select(actor => actor?.ActorId).ToImmutableArray() ?? Enumerable.Repeat<string?>(null, models.Length).ToImmutableArray();
@@ -105,9 +105,9 @@ public sealed class NativeBattleHostedModelCompletionTests
         return Enumerable.Range(0, 25).Select(row => new NativeBattleGraphicsModel(row, row == 1 ? (ushort)2 : (ushort)0)).ToImmutableArray();
     }
 
-    private static NativeBattleGraphicsRoster Roster()
+    private static BattleModelRoster Roster()
     {
-        NativeBattleGraphicsActor?[] actors = new NativeBattleGraphicsActor?[25];
+        BattleModelOwner?[] actors = new BattleModelOwner?[25];
         actors[0] = new("native", true);
         actors[7] = new("extra-ally", true);
         actors[24] = new("extra-enemy", false);

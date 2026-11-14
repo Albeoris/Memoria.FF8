@@ -9,23 +9,23 @@ public sealed class NativeBattleGraphicsActorSetTests
     [InlineData((1u << 24) | (1u << 7) | 1u)]
     public void JsonRoundTripContainsOnlyTheAuthoritativeBits(uint bits)
     {
-        NativeBattleGraphicsActorSet set = new(bits);
+        BattleModelTargets set = new(bits);
         string json = JsonSerializer.Serialize(set);
         using JsonDocument document = JsonDocument.Parse(json);
-        Assert.Equal(nameof(NativeBattleGraphicsActorSet.Bits), Assert.Single(document.RootElement.EnumerateObject()).Name);
-        Assert.Equal(set, JsonSerializer.Deserialize<NativeBattleGraphicsActorSet>(json));
+        Assert.Equal(nameof(BattleModelTargets.Bits), Assert.Single(document.RootElement.EnumerateObject()).Name);
+        Assert.Equal(set, JsonSerializer.Deserialize<BattleModelTargets>(json));
     }
 
     [Fact]
     public void JsonRejectsBitsBeyondTheGraphicsBank()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => JsonSerializer.Deserialize<NativeBattleGraphicsActorSet>("{\"Bits\":33554432}"));
+        Assert.Throws<ArgumentOutOfRangeException>(() => JsonSerializer.Deserialize<BattleModelTargets>("{\"Bits\":33554432}"));
     }
 
     [Fact]
     public void EveryRowHasItsOwnBitAndEnumeratesInAscendingOrder()
     {
-        NativeBattleGraphicsActorSet set = default;
+        BattleModelTargets set = default;
         Assert.True(set.IsEmpty);
         Assert.Equal(0, set.Count);
         Assert.Empty(set.EnumerateRows());
@@ -33,7 +33,7 @@ public sealed class NativeBattleGraphicsActorSetTests
 
         for (int row = 24; row >= 0; row--)
         {
-            NativeBattleGraphicsActorSet single = default(NativeBattleGraphicsActorSet).Add(row);
+            BattleModelTargets single = default(BattleModelTargets).Add(row);
             Assert.Equal(1u << row, single.Bits);
             Assert.True(single.IsSingle(row));
             Assert.False(single.IsSingle((row + 1) % 25));
@@ -56,14 +56,14 @@ public sealed class NativeBattleGraphicsActorSetTests
     {
         for (ushort native = 0; native <= 0x7F; native++)
         {
-            NativeBattleGraphicsActorSet set = NativeBattleGraphicsActorSet.FromNative(native);
+            BattleModelTargets set = BattleModelTargets.FromNative(native);
             Assert.Equal((uint)native, set.Bits);
             Assert.Equal(native, set.NativePhysicalBits);
             Assert.Equal(native, set.Add(7).Add(24).NativePhysicalBits);
             set.ValidateCapacity(7);
         }
-        Assert.Throws<ArgumentOutOfRangeException>(() => NativeBattleGraphicsActorSet.FromNative(0x80));
-        Assert.Throws<ArgumentOutOfRangeException>(() => NativeBattleGraphicsActorSet.FromNative(0x8000));
+        Assert.Throws<ArgumentOutOfRangeException>(() => BattleModelTargets.FromNative(0x80));
+        Assert.Throws<ArgumentOutOfRangeException>(() => BattleModelTargets.FromNative(0x8000));
     }
 
     [Theory]
@@ -75,7 +75,7 @@ public sealed class NativeBattleGraphicsActorSetTests
     [InlineData(int.MaxValue)]
     public void InvalidRowsCannotAliasSelectedBits(int row)
     {
-        NativeBattleGraphicsActorSet set = new(1u | (1u << 24));
+        BattleModelTargets set = new(1u | (1u << 24));
         Assert.False(set.Contains(row));
         Assert.False(set.IsSingle(row));
         Assert.Throws<ArgumentOutOfRangeException>(() => set.Add(row));
@@ -85,13 +85,13 @@ public sealed class NativeBattleGraphicsActorSetTests
     [Fact]
     public void CapacityAndConstructorRejectUnownedBits()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new NativeBattleGraphicsActorSet(1u << 25));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new NativeBattleGraphicsActorSet(uint.MaxValue));
-        NativeBattleGraphicsActorSet set = new(1u << 24);
+        Assert.Throws<ArgumentOutOfRangeException>(() => new BattleModelTargets(1u << 25));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new BattleModelTargets(uint.MaxValue));
+        BattleModelTargets set = new(1u << 24);
         set.ValidateCapacity(25);
         Assert.Throws<InvalidDataException>(() => set.ValidateCapacity(24));
         Assert.Throws<ArgumentOutOfRangeException>(() => set.ValidateCapacity(26));
         Assert.Throws<ArgumentOutOfRangeException>(() => set.ValidateCapacity(0));
-        default(NativeBattleGraphicsActorSet).ValidateCapacity(1);
+        default(BattleModelTargets).ValidateCapacity(1);
     }
 }

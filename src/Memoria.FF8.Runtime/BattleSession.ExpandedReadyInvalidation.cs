@@ -6,7 +6,7 @@ public sealed partial class BattleSession
 {
     private ImmutableDictionary<string, NativeBattleStatusMirror>? expandedPartyReadyStatusMirrors;
 
-    private void PublishExpandedReadyContact(NativeBattleGraphicsRoster roster, NativeBattleContactHalf half, string casterId)
+    private void PublishExpandedReadyContact(BattleModelRoster roster, NativeBattleContactHalf half, string casterId)
     {
         if (PublishExpandedPartyPresentedContact(roster, half) is not { } actor)
         {

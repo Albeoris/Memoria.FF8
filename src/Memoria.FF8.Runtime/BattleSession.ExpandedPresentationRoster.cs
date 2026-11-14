@@ -4,9 +4,9 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    public NativeBattleGraphicsRoster ReadExpandedPresentationRoster()
+    public BattleModelRoster ReadExpandedPresentationRoster()
     {
-        NativeBattleGraphicsActor?[] rows = new NativeBattleGraphicsActor?[NativeBattleGraphicsModelAddress.MaximumRowCount];
+        BattleModelOwner?[] rows = new BattleModelOwner?[NativeBattleGraphicsModelAddress.MaximumRowCount];
         int length = NativeBattleGraphicsModelAddress.NativeRowCount;
         foreach (BattleCombatant actor in combatants)
         {
@@ -30,7 +30,7 @@ public sealed partial class BattleSession
         return ExpandedPresentationRow(GetActor(actorId));
     }
 
-    private static byte RequireExpandedPresentationRow(NativeBattleGraphicsRoster roster, BattleCombatant actor)
+    private static byte RequireExpandedPresentationRow(BattleModelRoster roster, BattleCombatant actor)
     {
         byte row = ExpandedPresentationRow(actor);
         if (!StringComparer.Ordinal.Equals(roster[row].ActorId, actor.Id))

@@ -9,7 +9,7 @@ public sealed class NativeBattleHostedResourceAliasTests
     [Fact]
     public void Eleven_body_and_linked_pairs_publish_independent_sections_across_the_native_alias_end()
     {
-        NativeBattleGraphicsRoster roster = Roster();
+        BattleModelRoster roster = Roster();
         NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown().WithPresentationRoster(roster);
         Assert.Equal(37, cpu.Rows.Length);
         Assert.Equal(14, roster.EnemyRows.Count());
@@ -64,7 +64,7 @@ public sealed class NativeBattleHostedResourceAliasTests
     [Fact]
     public void Partial_hosted_rows_upgrade_without_rebinding_existing_rows_or_pinned_sections()
     {
-        NativeBattleGraphicsRoster roster = Roster();
+        BattleModelRoster roster = Roster();
         NativeBattleModelCpuResources native = NativeBattleModelCpuResources.Unknown();
         var (body, linked) = Sources(0);
         NativeBattlePartyLoadPlan plan = Plan(null, 0, body, linked);
@@ -83,7 +83,7 @@ public sealed class NativeBattleHostedResourceAliasTests
         Assert.Same(upgraded, upgraded.WithPresentationRoster(roster));
         Assert.Equal(new byte[] { 1 }, NativeBattleModelResourceView.Open(upgraded, EmptyStaging, pinned, 64).Read(1, 1));
 
-        NativeBattleGraphicsRoster other = new(roster.Rows.SetItem(0, new("different", true)));
+        BattleModelRoster other = new(roster.Rows.SetItem(0, new("different", true)));
         Assert.Throws<InvalidDataException>(() => partial.WithPresentationRoster(other));
         NativeBattleModelDatSource changed = Sources(1).Body;
         NativeBattlePartyLoadPlan changedPlan = Plan(roster, 0, changed, linked);
@@ -95,7 +95,7 @@ public sealed class NativeBattleHostedResourceAliasTests
     [Fact]
     public void Validation_and_completion_reject_unowned_aliases_and_out_of_extent_references()
     {
-        NativeBattleGraphicsRoster roster = Roster();
+        BattleModelRoster roster = Roster();
         NativeBattleModelCpuResources native = NativeBattleModelCpuResources.Unknown();
         var (body, linked) = Sources(0);
         NativeBattlePartyLoadPlan nativePlan = Plan(null, 0, body, linked);
@@ -131,9 +131,9 @@ public sealed class NativeBattleHostedResourceAliasTests
         Assert.Throws<InvalidDataException>(invalid.Validate);
     }
 
-    private static NativeBattleGraphicsRoster Roster()
+    private static BattleModelRoster Roster()
     {
-        NativeBattleGraphicsActor?[] rows = new NativeBattleGraphicsActor?[25];
+        BattleModelOwner?[] rows = new BattleModelOwner?[25];
         for (int row = 0; row < rows.Length; row++)
         {
             bool party = row < 3 || row is >= 7 and <= 14;
@@ -151,7 +151,7 @@ public sealed class NativeBattleHostedResourceAliasTests
         return (body, linked);
     }
 
-    private static NativeBattlePartyLoadPlan Plan(NativeBattleGraphicsRoster? roster, int actor, NativeBattleModelDatSource body, NativeBattleModelDatSource linked)
+    private static NativeBattlePartyLoadPlan Plan(BattleModelRoster? roster, int actor, NativeBattleModelDatSource body, NativeBattleModelDatSource linked)
     {
         return NativeBattlePartyLoadPlan.Create(0, checked((byte)actor), 0, 0, NativeBattlePartyCpuLayout.Classic, [body, linked], roster);
     }

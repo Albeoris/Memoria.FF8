@@ -37,12 +37,12 @@ public sealed record NativeBattleAuxiliaryInputs
     public Func<int>? ReadEffectIoResult508470 { get; init; }
     public Action<uint>? EnqueueTexture505E30 { get; init; }
     public Action<uint, byte>? WriteCompletionByte { get; init; }
-    public NativeBattleGraphicsRoster? PresentationRoster { get; init; }
+    public BattleModelRoster? PresentationRoster { get; init; }
 }
 
 public sealed partial record NativeBattleAuxiliaryState
 {
-    public (NativeBattleAuxiliaryState State, NativeGlobalRandomState Random, bool Allocated) AppendSoundParticle(int model, bool soundTwo, byte bone, NativeBattleAuxiliaryProgram program, NativeGlobalRandomState random, NativeBattleGraphicsRoster? roster = null)
+    public (NativeBattleAuxiliaryState State, NativeGlobalRandomState Random, bool Allocated) AppendSoundParticle(int model, bool soundTwo, byte bone, NativeBattleAuxiliaryProgram program, NativeGlobalRandomState random, BattleModelRoster? roster = null)
     {
         Validate();
         program.Validate();

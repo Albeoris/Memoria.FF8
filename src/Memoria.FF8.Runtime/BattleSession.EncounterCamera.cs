@@ -27,7 +27,7 @@ public sealed partial class BattleSession
         {
             return pose;
         }
-        NativeBattleGraphicsActorSet actors = parameters.TargetActors.Add(parameters.Actor78);
+        BattleModelTargets actors = parameters.TargetActors.Add(parameters.Actor78);
         actors.ValidateCapacity(graphics.Models.Length);
         if (graphics.PresentationRoster is { } roster)
         {

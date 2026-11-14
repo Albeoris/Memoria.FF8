@@ -111,7 +111,7 @@ public sealed class NativeBattleEffect321ControllerTests
         NativeBattleEffect321Frame result = AdvanceMain597AB0(frame, ChildBank, null!, harness.Inputs()).Frame;
         NativeBattleEffect321PositionalSound5013A0 sound = Assert.IsType<NativeBattleEffect321PositionalSound5013A0>(Assert.Single(harness.Operations));
         Assert.Equal(SecondSoundAddress, sound.SourceAddress);
-        Assert.Equal(NativeBattleGraphicsActorSet.FromNative(0x15), harness.Targets);
+        Assert.Equal(BattleModelTargets.FromNative(0x15), harness.Targets);
         Assert.Equal(new[] { true, true, true, true, true, true, false, false }, sound.Point8.ReadSnapshot(0, 8).Known);
         Assert.Equal(456u, result.State.ReadDword(InitializerGlobal));
     }
@@ -209,7 +209,7 @@ public sealed class NativeBattleEffect321ControllerTests
         public NativeBattleVector Anchor { get; init; } = new(100, 200, 300);
         public bool VibrationActive { get; init; }
         public int QueriedHandle { get; private set; }
-        public NativeBattleGraphicsActorSet Targets { get; private set; }
+        public BattleModelTargets Targets { get; private set; }
         public List<uint> Anchors { get; } = [];
         public List<NativeBattleEffect321Operation> Operations { get; } = [];
         public NativeBattleActionPacketsState Packets { get; private set; } = NativeBattleActionPacketsState.Fresh();

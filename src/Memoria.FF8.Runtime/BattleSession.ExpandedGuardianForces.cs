@@ -17,7 +17,7 @@ public sealed partial class BattleSession
     private void BeginExpandedGuardianSummon(BattleCombatant caster, BattleActionPresentation command, BattleCombatant[] targets)
     {
         BattleNativeAction action = command.NativeAction!;
-        NativeBattleGraphicsRoster roster = ReadExpandedPresentationRoster();
+        BattleModelRoster roster = ReadExpandedPresentationRoster();
         _ = RequireExpandedPresentationRow(roster, caster);
         ImmutableArray<ExpandedBattleContact> layout = targets.Select(target =>
         {
@@ -93,7 +93,7 @@ public sealed partial class BattleSession
             throw new InvalidOperationException("A GF form entrance already owns expanded battle presentation.");
         }
         BattleNativeAction summon = FindAction(BattleAbility.GuardianForce, form.GuardianForceId).NativeAction!;
-        NativeBattleGraphicsRoster roster = ReadExpandedPresentationRoster();
+        BattleModelRoster roster = ReadExpandedPresentationRoster();
         byte source = RequireExpandedPresentationRow(roster, actor);
         NativeBattleContactPacket positioning = new(new(source, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0));
         try

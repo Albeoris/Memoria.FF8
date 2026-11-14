@@ -58,7 +58,7 @@ public sealed partial class BattleSession
         {
             NativeBattleEffectMemory geometryMemory = NativeEffectMemory!;
             NativeBattleActionGeometryGlobals globals = geometryMemory.ActionGeometryGlobals ?? NativeBattleActionGeometryGlobals.Unknown();
-            NativeBattleGraphicsActorSet targets = parameters.TargetActors;
+            BattleModelTargets targets = parameters.TargetActors;
             graphics = NativeBattleActionGeometryRules.PrepareGeometry50D300(graphics, parameters.Actor78, targets, targets, globals, ReadNativeGraphicsBone);
             NativeEffectMemory = geometryMemory with { CameraAliases = (geometryMemory.CameraAliases ?? NativeBattleCameraAliases.Unknown()).Observe50D300(parameters.Actor78, targets, roster), ActionGeometryGlobals = globals.Observe50D300(graphics.ActionContext!) };
             NativeGraphics = graphics;

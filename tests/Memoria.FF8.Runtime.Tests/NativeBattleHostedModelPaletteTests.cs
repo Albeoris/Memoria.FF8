@@ -124,7 +124,7 @@ public sealed class NativeBattleHostedModelPaletteTests
 
     private static NativeBattleModelCpuResources Hosted()
     {
-        NativeBattleGraphicsActor?[] rows = new NativeBattleGraphicsActor?[25];
+        BattleModelOwner?[] rows = new BattleModelOwner?[25];
         foreach (int row in new[] { 0, 1, 7, 24 })
         {
             rows[row] = new($"party-{row}", true);

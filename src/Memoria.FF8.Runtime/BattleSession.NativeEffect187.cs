@@ -52,7 +52,7 @@ public sealed partial class BattleSession
             return current with { Staging = (current.Staging ?? throw new NotSupportedException("Effect187 requires its actual addressed cursor owner.")).Write(0x1D8E054, BitConverter.GetBytes(checked(NativeEffect187CommonBase(current.Memory.PrimitiveProcess!) + (uint)cursor))) };
         }
 
-        NativeBattleEffectArena Center(NativeBattleEffect187Frame current, NativeBattleGraphicsActorSet targets, NativeBattleEffectArena retained)
+        NativeBattleEffectArena Center(NativeBattleEffect187Frame current, BattleModelTargets targets, NativeBattleEffectArena retained)
         {
             NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Effect187 requires its actual selected target positions.")).ToArray());
             return retained.Write(0, BitConverter.GetBytes(center.X)).Write(2, BitConverter.GetBytes(center.Y)).Write(4, BitConverter.GetBytes(center.Z));

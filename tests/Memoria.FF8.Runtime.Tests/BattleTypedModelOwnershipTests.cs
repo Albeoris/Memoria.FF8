@@ -27,6 +27,30 @@ public sealed class BattleTypedModelOwnershipTests
     }
 
     [Fact]
+    public void Planning_roster_orders_typed_members_without_needing_model_state()
+    {
+        BattleForeignEnemyModel foreign = new(new("shared"));
+        BattlePartyActorModel party = new(new("shared"));
+        BattleEnemyActorModel enemy = new(new("enemy"));
+        BattleForeignPartyModel otherSideForeign = new(new("shared"));
+        BattleEnemyActorModel otherSideActor = new(new("shared"));
+        BattleModelOwner[] additionalEnemies = Enumerable.Range(0, 30).Select(index => new BattleEnemyActorModel(new($"extra-{index}"))).ToArray();
+        BattleModelRoster roster = new([foreign, party, enemy, .. additionalEnemies]);
+
+        Assert.Equal(33, roster.Count);
+        Assert.Equal<BattleModelOwner>([foreign, party, enemy, .. additionalEnemies], roster.Owners);
+        Assert.Equal(party, Assert.Single(roster.Party));
+        Assert.Equal<BattleModelOwner>([foreign, enemy, .. additionalEnemies], roster.Enemies);
+        Assert.True(roster.Contains(new BattlePartyActorModel(new("shared"))));
+        Assert.True(roster.Contains(additionalEnemies[^1]));
+        Assert.False(roster.Contains(otherSideActor));
+        Assert.False(roster.Contains(otherSideForeign));
+        Assert.Throws<ArgumentException>(() => new BattleModelRoster([party, otherSideActor]));
+        Assert.Throws<ArgumentException>(() => new BattleModelRoster([foreign, otherSideForeign]));
+        Assert.Throws<ArgumentException>(() => new BattleModelRoster([enemy, enemy]));
+    }
+
+    [Fact]
     public void Side_pools_preserve_their_order_and_global_entries_preserve_interleaving()
     {
         BattleEnemyActorModel enemy = new(new("enemy"));
@@ -84,10 +108,15 @@ public sealed class BattleTypedModelOwnershipTests
         BattleActorModels set = replaced.Set(first, updated);
         BattleActorModels removed = set.Remove(last);
 
+        Assert.Equal(0, empty.Roster.Count);
         Assert.Empty(empty.Owners);
-        Assert.Equal<BattleModelOwner>([first, retired, last], initial.Owners);
-        Assert.Equal<BattleModelOwner>([first, current, last], replaced.Owners);
-        Assert.Equal<BattleModelOwner>([first, current], removed.Owners);
+        Assert.Equal<BattleModelOwner>([first, retired, last], initial.Roster.Owners);
+        Assert.Equal<BattleModelOwner>([first, current, last], replaced.Roster.Owners);
+        Assert.Equal<BattleModelOwner>([first, current], removed.Roster.Owners);
+        Assert.Same(replaced.Roster, set.Roster);
+        Assert.NotSame(initial.Roster, replaced.Roster);
+        Assert.Equal(retired, Assert.Single(initial.Roster.Enemies));
+        Assert.Equal(current, Assert.Single(replaced.Roster.Enemies));
         Assert.Same(state, initial.Get(retired));
         Assert.False(initial.Contains(current));
         Assert.False(replaced.Contains(retired));

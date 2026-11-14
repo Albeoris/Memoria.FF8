@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
@@ -19,7 +19,7 @@ internal sealed partial class NativeBattleFileStagingOverlay(NativeBattleFileSta
     private readonly List<CellUndo> byteUndo = [];
     private readonly List<PointerUndo> pointerUndo = [];
     private long sequence;
-    private readonly record struct CheckpointMark(int Bytes, int Pointers, int Unknown, int Zeros, int Resources, long Sequence, uint BaseAddress);
+    private readonly record struct CheckpointMark(int Bytes, int Pointers, int ExecutionReferences, int Unknown, int Zeros, int Resources, long Sequence, uint BaseAddress);
     private readonly List<CheckpointMark> checkpointMarks = [];
     private bool checkpoint => checkpointMarks.Count != 0;
     public int CheckpointDepth => checkpointMarks.Count;
@@ -68,6 +68,13 @@ internal sealed partial class NativeBattleFileStagingOverlay(NativeBattleFileSta
             if ((ulong)stored + 1 - address > int.MaxValue)
             {
                 throw new InvalidDataException("Native staging overlay rebase exceeds its offset representation.");
+            }
+        }
+        foreach ((uint start, BattleExecutionReferenceEntry entry) in EnumerateExecutionReferences())
+        {
+            if ((ulong)start + (uint)entry.Width - address > int.MaxValue)
+            {
+                throw new InvalidDataException("Native staging overlay rebase exceeds its live reference extent.");
             }
         }
         BaseAddress = address;
@@ -178,6 +185,7 @@ internal sealed partial class NativeBattleFileStagingOverlay(NativeBattleFileSta
 
     public void SetPointerMetadata(uint address, NativeBattleResourcePointer? pointer)
     {
+        InvalidateExecutionReferences(address, 4);
         StorePointer(address, new(true, pointer));
     }
 
@@ -187,6 +195,7 @@ internal sealed partial class NativeBattleFileStagingOverlay(NativeBattleFileSta
         {
             return;
         }
+        InvalidateExecutionReferences(address, length);
         invalidated.Clear();
         CollectVisiblePointerKeys(address, length, invalidated);
         if (checkpoint)
@@ -270,7 +279,7 @@ internal sealed partial class NativeBattleFileStagingOverlay(NativeBattleFileSta
 
     public int BeginNestedCheckpoint()
     {
-        checkpointMarks.Add(new(byteUndo.Count, pointerUndo.Count, unknown.Count, forgottenZeros.Count, resources.Count, sequence, BaseAddress));
+        checkpointMarks.Add(new(byteUndo.Count, pointerUndo.Count, executionUndo.Count, unknown.Count, forgottenZeros.Count, resources.Count, sequence, BaseAddress));
         return checkpointMarks.Count;
     }
 
@@ -288,6 +297,7 @@ internal sealed partial class NativeBattleFileStagingOverlay(NativeBattleFileSta
         {
             byteUndo.Clear();
             pointerUndo.Clear();
+            executionUndo.Clear();
         }
     }
 
@@ -327,6 +337,7 @@ internal sealed partial class NativeBattleFileStagingOverlay(NativeBattleFileSta
         }
         byteUndo.RemoveRange(mark.Bytes, byteUndo.Count - mark.Bytes);
         pointerUndo.RemoveRange(mark.Pointers, pointerUndo.Count - mark.Pointers);
+        RollbackExecutionReferences(mark.ExecutionReferences);
         unknown.RemoveRange(mark.Unknown, unknown.Count - mark.Unknown);
         forgottenZeros.RemoveRange(mark.Zeros, forgottenZeros.Count - mark.Zeros);
         resources.RemoveRange(mark.Resources, resources.Count - mark.Resources);
@@ -394,6 +405,10 @@ internal sealed partial class NativeBattleFileStagingOverlay(NativeBattleFileSta
             {
                 source.SetPointerMetadata(entry.Key, entry.Value.Present, entry.Value.Value);
             }
+            foreach ((uint address, BattleExecutionReferenceEntry? entry) in executionChanges)
+            {
+                source.SetExecutionReference(address, entry);
+            }
             source.CommitPublicationCheckpoint(publicationDepth);
         }
         catch
@@ -420,6 +435,8 @@ internal sealed partial class NativeBattleFileStagingOverlay(NativeBattleFileSta
         resourceEvents.Clear();
         forgottenZeros.Clear();
         cleared += pointers.Clear();
+        cleared += executionChanges.Clear();
+        executionUndo.Clear();
         invalidated.Clear();
         sorted.Clear();
         byteUndo.Clear();

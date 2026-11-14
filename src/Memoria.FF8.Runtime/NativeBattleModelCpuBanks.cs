@@ -227,7 +227,7 @@ public sealed record NativeBattleModelCpuBanks(ImmutableArray<NativeBattleModelC
     public NativeBattlePartyCpuLayout? Layout { get; init; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleGraphicsRoster? PresentationRoster { get; init; }
+    public BattleModelRoster? PresentationRoster { get; init; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ImmutableDictionary<int, NativeBattleModelCpuBank>? PresentationBanks { get; init; }
@@ -274,7 +274,7 @@ public sealed record NativeBattleModelCpuBanks(ImmutableArray<NativeBattleModelC
         }
     }
 
-    public NativeBattleModelCpuBanks WithPresentationRoster(NativeBattleGraphicsRoster roster)
+    public NativeBattleModelCpuBanks WithPresentationRoster(BattleModelRoster roster)
     {
         ArgumentNullException.ThrowIfNull(roster);
         Validate();

@@ -23,7 +23,7 @@ public sealed class NativeBattleHostedElementalModelRowsTests
     [InlineData(105, 24)]
     public void Primary_callbacks_roundtrip_native_addresses_and_hosted_handles(int effect, int row)
     {
-        NativeBattleGraphicsRoster? roster = row == 3 ? null : Roster();
+        BattleModelRoster? roster = row == 3 ? null : Roster();
         NativeBattleActionPacketsState packets = Packets(effect, row, roster);
         List<int> observed = [];
         ElementalFrame frame = Spawn(effect, packets, observed);
@@ -105,7 +105,7 @@ public sealed class NativeBattleHostedElementalModelRowsTests
     [Fact]
     public void Address_decoder_distinguishes_native_extent_from_bound_hosted_rows()
     {
-        NativeBattleGraphicsRoster roster = Roster();
+        BattleModelRoster roster = Roster();
 
         Assert.True(roster.ContainsRow(0));
         Assert.True(roster.ContainsRow(7));
@@ -124,13 +124,13 @@ public sealed class NativeBattleHostedElementalModelRowsTests
         Assert.Equal(3, row);
     }
 
-    private static NativeBattleGraphicsRoster Roster()
+    private static BattleModelRoster Roster()
     {
-        var rows = new NativeBattleGraphicsActor?[25].ToImmutableArray().SetItem(0, new("source", true)).SetItem(7, new("first", true)).SetItem(24, new("last", false));
+        var rows = new BattleModelOwner?[25].ToImmutableArray().SetItem(0, new("source", true)).SetItem(7, new("first", true)).SetItem(24, new("last", false));
         return new(rows);
     }
 
-    private static NativeBattleActionPacketsState Packets(int effect, int row, NativeBattleGraphicsRoster? roster)
+    private static NativeBattleActionPacketsState Packets(int effect, int row, BattleModelRoster? roster)
     {
         NativeBattleActionPacketsState packets = roster is null ? NativeBattleRetainedMemory.FromColdProcess().ActionPackets : NativeBattleActionPacketsState.FromPresentationStorage(roster);
         (packets, _) = packets.Prepare(new(0, 2, 4, 0, 8, (ushort)effect, null));
@@ -144,7 +144,7 @@ public sealed class NativeBattleHostedElementalModelRowsTests
     private static ElementalFrame Initialize(int id, NativeBattleActionPacketsState packets)
     {
         int row = packets.ReadContact(0).Primary.ActorIndex;
-        NativeBattleGraphicsActorSet targets = default(NativeBattleGraphicsActorSet).Add(row);
+        BattleModelTargets targets = default(BattleModelTargets).Add(row);
         NativeBattleEffectParameters parameters = new(0, 0, targets.NativePhysicalBits, 0, 0, 0)
         {
             PresentationTargets = packets.PresentationRoster is null ? null : targets

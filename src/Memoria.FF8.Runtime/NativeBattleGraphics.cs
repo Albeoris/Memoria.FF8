@@ -23,12 +23,10 @@ public sealed partial record NativeBattleGraphicsDefinition(NativeBattleGraphics
     public NativeBattlePrimitiveCapabilities? PrimitiveCapabilities { get; init; }
 }
 public sealed record NativeBattleGraphicsRequest(ushort Command, BattleModelOwner? ModelOwner, byte State = 0, bool Entry = false);
-public sealed partial record NativeBattleGraphicsState([property: JsonRequired] BattleActorModels ActorModels, [property: JsonRequired] NativeBattleModelBoundary NativeBindings, [property: JsonRequired] uint Flags, [property: JsonRequired] long Callback)
+public sealed partial record NativeBattleGraphicsState([property: JsonRequired] BattleActorModels ActorModels, [property: JsonRequired] NativeBattleModelBoundary NativeBindings, [property: JsonRequired] uint Flags, [property: JsonRequired] long Callback, [property: JsonRequired] NativeBattleEffectsState Effects)
 {
     [JsonRequired]
     public ImmutableArray<NativeBattleContactPacket> PendingContacts { get; init; } = [];
-    [JsonRequired]
-    public NativeBattleEffectsState Effects { get; init; } = NativeBattleEffectsState.Clear();
     [JsonRequired]
     public NativeBattleAuxiliaryState Auxiliary { get; init; } = NativeBattleAuxiliaryState.Clear();
     [JsonRequired]
@@ -78,6 +76,12 @@ public sealed partial record NativeBattleGraphicsState([property: JsonRequired] 
 
     public void Validate()
     {
+        if (ActorModels is null || NativeBindings is null || Effects is null || Callback < 0 || PresentationSubticks is < 0 or >= TimeSpan.TicksPerSecond || ModelLoadCount < 0 || EntryGatePhase > 2 || EntryBarrierCompletion is not (0 or 255) || EntryLifecycle > 4 || EntryBarrierPacket is < 0 or >= 30 || Descriptors is null || PendingContacts.IsDefault)
+        {
+            throw new InvalidDataException("Native graphics state requires its model owners, native bindings and valid callback gates.");
+        }
+        NativeBindings.ValidateBindings(ActorModels);
+        BattleModelRoster roster = ActorModels.Roster;
         GuardianFormPresentation?.Validate();
         if (GuardianAnimationSkip is { } skip && (!NativeBattleGuardianAnimationFinale.IsSupported(skip.Effect) || OriginalEffect?.Binding.Effect != skip.Effect))
         {
@@ -87,67 +91,47 @@ public sealed partial record NativeBattleGraphicsState([property: JsonRequired] 
         {
             throw new InvalidDataException("Saved GF camera restoration requires a positive focal length.");
         }
-        ActionContext?.Validate();
-        OriginalEffect?.Validate(PresentationRoster);
+        if (ActionContext is { } geometry)
+        {
+            geometry.Validate();
+            RequireBoundOwner(roster, geometry.Source);
+            RequireBoundTargets(roster, geometry.SourceTargets);
+            if (geometry.TargetActors is { } targets)
+            {
+                RequireBoundTargets(roster, targets);
+                RequireBoundOwner(roster, geometry.Target);
+            }
+        }
+        OriginalEffect?.Validate(roster);
         UiServices?.Validate();
-        TriggerWidget?.Validate(PresentationRoster);
+        TriggerWidget?.Validate(roster);
         if ((Flags & 8) != 0 && UiServices is null)
         {
             throw new InvalidDataException("Native506CF0 stage has no initialized4A94D0 UI service owner; migrate the standalone snapshot explicitly.");
         }
-        PresentationRoster?.Validate();
-        if (PresentationRoster is { } triggerRoster)
+        PendingTrigger?.Validate(roster);
+        if (PendingTriggerSoundActor is { } soundActor)
         {
-            PendingTrigger?.Validate(triggerRoster);
+            RequireBoundOwner(roster, soundActor);
         }
-        if (PendingTriggerSoundActorIndex is byte soundActor)
+        if (ActionGraphics is { } action)
         {
-            if (PresentationRoster is { } soundRoster)
+            ValidateActionOwners(roster, action);
+        }
+        foreach (BattleModelEntry<BattleModelOwner> entry in ActorModels.Entries)
+        {
+            NativeBattleGraphicsModel model = entry.State;
+            if ((model.Flags0 & 2) != 0 && (model.SequenceState is null || model.ResourceFlags44 is null || model.Flags8 is null || model.Flags2 is null))
             {
-                RequireBoundPresentationRow(soundRoster, soundActor);
+                throw new InvalidDataException("Loaded native graphics model lacks its resource or model fields.");
             }
-            else if (soundActor >= NativeBattleGraphicsModelAddress.NativeRowCount)
+            if (model.LinkedModel is not null)
             {
-                throw new InvalidDataException("Native trigger sound requires its physical AB actor owner.");
-            }
-        }
-        if (ActionGraphics is { PresentationTargets: not null } actionGraphics)
-        {
-            actionGraphics.ValidatePresentationTargets(PresentationRoster);
-        }
-        if (ActionContext is { PresentationTargets: { } targets, PresentationSourceTargets: { } sourceTargets } geometry)
-        {
-            NativeBattleGraphicsRoster geometryRoster = PresentationRoster ?? throw new InvalidDataException("Hosted action geometry requires its explicit presentation roster.");
-            NativeBattleActionGeometry.ValidatePresentationRows(geometryRoster, geometry.ActorIndex, sourceTargets, targets);
-        }
-        int actorCount = PresentationRoster?.ActorCount ?? NativeBattleGraphicsModelAddress.NativeRowCount;
-        if (Models.IsDefault || Models.Length != actorCount || ActorIds.IsDefault || ActorIds.Length != actorCount || Callback < 0 || PresentationSubticks is < 0 or >= TimeSpan.TicksPerSecond || ModelLoadCount < 0 || EntryGatePhase > 2 || EntryBarrierCompletion is not (0 or 255) || EntryLifecycle > 4 || EntryBarrierPacket is < 0 or >= 30 || Descriptors is null || PendingContacts.IsDefault || Models.Where((model, index) => model is null || model.Index != index).Any())
-        {
-            throw new InvalidDataException(PresentationRoster is null ? "Native graphics state requires seven physical model owners and valid callback gates." : "Hosted graphics state requires one model per presentation roster row and valid callback gates.");
-        }
-        if (PresentationRoster is { } roster)
-        {
-            for (int row = 0; row < actorCount; row++)
-            {
-                if (!string.Equals(ActorIds[row], roster.Rows[row]?.ActorId, StringComparison.Ordinal))
-                {
-                    throw new InvalidDataException($"Hosted graphics actor ID differs from its presentation binding at row {row}.");
-                }
-            }
-        }
-        foreach (NativeBattleGraphicsModel model in Models)
-        {
-            if ((model.Flags0 & 2) != 0 && (ActorIds[model.Index] is null || model.SequenceState is null || model.ResourceFlags44 is null || model.Flags8 is null || model.Flags2 is null))
-            {
-                throw new InvalidDataException("Loaded native graphics row lacks its actor, resource or model fields.");
-            }
-            if (model.LinkedModelIndex140 is not null)
-            {
-                _ = model.ReadLinkedModelIndex140();
+                RequireBoundOwner(roster, model.ReadLinkedModel());
             }
             model.ValidatePartialStatus();
             model.SequenceState?.Validate();
-            if (model.TextureResourceIndex is int textureAlias && (uint)textureAlias >= (uint)(PresentationRoster is null ? NativeBattleModelResourceRowAddress.NativeRowCount : NativeBattleModelResourceRowAddress.MaximumRowCount))
+            if (model.TextureResourceIndex is int textureAlias && (uint)textureAlias >= NativeBattleModelResourceRowAddress.MaximumEncodedRowCount)
             {
                 throw new InvalidDataException("Native model texture resource does not identify its physical52-byte cache row.");
             }
@@ -156,7 +140,7 @@ public sealed partial record NativeBattleGraphicsState([property: JsonRequired] 
                 throw new InvalidDataException("Native model requires its32 status-effect timer fields.");
             }
         }
-        Effects.Validate(PresentationRoster);
+        Effects.Validate(roster);
         Descriptors.Validate();
         Auxiliary.Validate();
         ModuleEffects.Validate();
@@ -166,23 +150,80 @@ public sealed partial record NativeBattleGraphicsState([property: JsonRequired] 
         }
         foreach (NativeBattleContactPacket packet in PendingContacts)
         {
-            packet.Validate(actorCount);
-            if (PresentationRoster is { } contactRoster)
+            if (packet is null)
             {
-                RequireBoundPresentationRow(contactRoster, packet.Primary.ActorIndex);
-                if (packet.Secondary.ActorIndex != byte.MaxValue)
-                {
-                    RequireBoundPresentationRow(contactRoster, packet.Secondary.ActorIndex);
-                }
+                throw new InvalidDataException("Pending graphics contacts require actual packets.");
+            }
+            packet.Validate();
+            ValidateContactOwners(roster, packet.Primary);
+            if (packet.Secondary is { } secondary)
+            {
+                ValidateContactOwners(roster, secondary);
             }
         }
     }
 
-    private static void RequireBoundPresentationRow(NativeBattleGraphicsRoster roster, byte actor)
+    private static void ValidateActionOwners(BattleModelRoster roster, NativeBattleActionGraphicsState action)
     {
-        if (actor >= roster.ActorCount || roster.Rows[actor] is null)
+        RequireBoundOwner(roster, action.Actor);
+        RequireBoundTargets(roster, action.TargetActors);
+        RequireBoundTargets(roster, action.CoverActors);
+        if (action.CoverSource is { } coverSource)
         {
-            throw new InvalidDataException($"Hosted graphics require a bound actor at row {actor}.");
+            RequireBoundOwner(roster, coverSource);
+        }
+        if (action.FirstTarget is { } firstTarget)
+        {
+            RequireBoundOwner(roster, firstTarget);
+        }
+        if (action.CameraActor is { } cameraActor)
+        {
+            RequireBoundOwner(roster, cameraActor);
+        }
+        if (action.HiddenPartyActors is { } hiddenParty)
+        {
+            RequireBoundPartyTargets(roster, hiddenParty);
+        }
+        if (action.Guardian is { } guardian)
+        {
+            RequireBoundPartyTargets(roster, guardian.HiddenPartyActors);
+        }
+        if (action.FirstHeaderTargetCount is < 0)
+        {
+            throw new InvalidDataException("Action graphics requires a nonnegative first-header target count.");
+        }
+    }
+
+    private static void ValidateContactOwners(BattleModelRoster roster, NativeBattleContactHalf contact)
+    {
+        RequireBoundOwner(roster, contact.Recipient);
+        if (contact.CoverSource is { } coverSource)
+        {
+            RequireBoundOwner(roster, coverSource);
+        }
+    }
+
+    private static void RequireBoundTargets(BattleModelRoster roster, BattleModelTargets? targets)
+    {
+        if (targets is null || targets.Enumerate().Any(owner => !roster.Contains(owner)))
+        {
+            throw new InvalidDataException("Graphics selections require bound model owners.");
+        }
+    }
+
+    private static void RequireBoundPartyTargets(BattleModelRoster roster, BattleModelTargets? targets)
+    {
+        if (targets is null || targets.Enumerate().Any(owner => owner is not BattlePartyModelOwner || !roster.Contains(owner)))
+        {
+            throw new InvalidDataException("Hidden party selection requires bound party model owners.");
+        }
+    }
+
+    private static void RequireBoundOwner(BattleModelRoster roster, BattleModelOwner? owner)
+    {
+        if (owner is null || !roster.Contains(owner))
+        {
+            throw new InvalidDataException("Graphics state requires a bound model owner.");
         }
     }
 }

@@ -35,7 +35,7 @@ public static class NativeBattlePandemona291Construction
             throw new NotSupportedException("Native Pandemona construction requires the actual current arena buffer.");
         }
         NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Native Pandemona construction requires its arena.");
-        NativeBattleGraphicsRoster? roster = inputs.Packets.PresentationRoster;
+        BattleModelRoster? roster = inputs.Packets.PresentationRoster;
         ValidateHostedRows(inputs.Packets, frame.Effect.Parameters);
         ImmutableArray<NativeBattleEffectTaskPool> pools = frame.Effect.Pools;
         AddPool(0x25562A8, 0x21A4, 0x1030, 1);

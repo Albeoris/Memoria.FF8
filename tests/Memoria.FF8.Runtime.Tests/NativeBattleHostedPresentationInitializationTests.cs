@@ -150,8 +150,8 @@ public sealed class NativeBattleHostedPresentationInitializationTests
     public void HostRejectsAnExistingContextWithDifferentActorIdentity()
     {
         NativeBattleEffectPresentationInputs original = Inputs(7, 24, NativeBattleScriptedEffectMemory.FromColdProcess(), 1);
-        NativeBattleGraphicsRoster originalRoster = original.Packets.PresentationRoster!;
-        NativeBattleGraphicsRoster different = new(originalRoster.Rows.SetItem(24, new("different", false)));
+        BattleModelRoster originalRoster = original.Packets.PresentationRoster!;
+        BattleModelRoster different = new(originalRoster.Rows.SetItem(24, new("different", false)));
         NativeBattleCinematicActorContext context = NativeBattleCinematicActorContext.FromGraphics(different, IndexedModels(25));
         NativeBattleScriptedEffectMemory core = NativeBattleScriptedEffectMemory.FromColdProcess() with { PresentationActors = context };
         Assert.Throws<InvalidDataException>(() => BattleSession.CreateEffectPresentation(Inputs(7, 24, core, 1)));
@@ -223,9 +223,9 @@ public sealed class NativeBattleHostedPresentationInitializationTests
     public void IfritPositioningUsesTheExplicitPartySideForHostedCaster(bool party)
     {
         var fixture = NativeBattleIfritEntryTests.Fixture();
-        NativeBattleGraphicsActor?[] rows = new NativeBattleGraphicsActor?[25];
+        BattleModelOwner?[] rows = new BattleModelOwner?[25];
         rows[24] = new("caster", party);
-        NativeBattleGraphicsRoster roster = new([.. rows]);
+        BattleModelRoster roster = new([.. rows]);
         ImmutableArray<NativeBattleGraphicsModel> models = IndexedModels(25).SetItem(24, Model(24));
         NativeBattleCinematicActorContext context = NativeBattleCinematicActorContext.FromGraphics(roster, models);
         NativeBattleEffectMemory memory = fixture.Memory with { ScriptedEffects = fixture.Memory.ScriptedEffects! with { PresentationActors = context } };
@@ -243,7 +243,7 @@ public sealed class NativeBattleHostedPresentationInitializationTests
 
     private static NativeBattleEffectPresentationInputs Inputs(byte source, byte target, NativeBattleScriptedEffectMemory core, int count, bool bindOriginalRows = false, bool hosted = true)
     {
-        NativeBattleGraphicsActor?[] rows = new NativeBattleGraphicsActor?[25];
+        BattleModelOwner?[] rows = new BattleModelOwner?[25];
         rows[source] = new("caster", true);
         rows[target] = new("target", false);
         NativeBattleGraphicsResource resource = new([0, 0]);
@@ -255,13 +255,13 @@ public sealed class NativeBattleHostedPresentationInitializationTests
             targets.Add(new("original-1", Model(1), resource));
             targets.Add(new("original-2", Model(2), resource));
         }
-        NativeBattleGraphicsRoster? roster = hosted ? new([.. rows]) : null;
+        BattleModelRoster? roster = hosted ? new([.. rows]) : null;
         NativeBattleEffectContactBridge<string> bridge = new(Enumerable.Repeat(("target", Packet(target, 1)), count), roster);
         NativeBattleActionPacketsState packets;
         NativeBattleEffectParameters parameters;
         if (hosted)
         {
-            (packets, NativeBattleGraphicsActorSet actors) = bridge.PrepareHosted(8, 0, 1, 1, source);
+            (packets, BattleModelTargets actors) = bridge.PrepareHosted(8, 0, 1, 1, source);
             parameters = new(source, 0, actors.NativePhysicalBits, 0, 0, 0) { PresentationTargets = actors };
         }
         else

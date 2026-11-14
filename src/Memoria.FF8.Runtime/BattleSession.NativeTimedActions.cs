@@ -78,7 +78,7 @@ public sealed partial class BattleSession
 
     private void PublishExpandedRenzokukenContact(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command, BattleNativeAction formula, bool deferred)
     {
-        NativeBattleGraphicsRoster roster = ReadExpandedPresentationRoster();
+        BattleModelRoster roster = ReadExpandedPresentationRoster();
         _ = RequireExpandedPresentationRow(roster, actor);
         byte row = RequireExpandedPresentationRow(roster, target);
         BattleActionPresentation? previous = resolvingNativeAction;

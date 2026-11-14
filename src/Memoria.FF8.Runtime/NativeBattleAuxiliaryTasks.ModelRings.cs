@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial record NativeBattleAuxiliaryState
 {
-    public (NativeBattleAuxiliaryState State, bool Allocated) AppendModelRing(NativeBattleAuxiliaryKind kind, int model, uint flags = 0, byte sequence = 0, NativeBattleGraphicsRoster? roster = null)
+    public (NativeBattleAuxiliaryState State, bool Allocated) AppendModelRing(NativeBattleAuxiliaryKind kind, int model, uint flags = 0, byte sequence = 0, BattleModelRoster? roster = null)
     {
         Validate();
         if (kind is not (NativeBattleAuxiliaryKind.ModelSequence505C70 or NativeBattleAuxiliaryKind.ModelStatus50A000 or NativeBattleAuxiliaryKind.ModelResourceFlags50B080) || !IsAuxiliaryModelBound(model, roster))

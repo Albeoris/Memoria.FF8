@@ -13,7 +13,7 @@ public sealed class NativeBattleHostedModelLifecycleTests
     public void Shared_loop_visits_extended_bound_rows_and_emits_ordered_receipts_without_mutating_actors()
     {
         BattleSession session = Session(expanded: true);
-        NativeBattleGraphicsRoster roster = session.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = session.ReadExpandedPresentationRoster();
         NativeBattleGraphicsState graphics = Graphics(roster);
         graphics = graphics with
         {
@@ -48,7 +48,7 @@ public sealed class NativeBattleHostedModelLifecycleTests
     {
         BattleSession session = Session(expanded: true);
         session.Combatants.Single(actor => actor.Id == "ally-4").BindRosterSlot(null, bindNative: false);
-        NativeBattleGraphicsRoster roster = session.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = session.ReadExpandedPresentationRoster();
         NativeBattleGraphicsState graphics = Graphics(roster);
         NativeBattleGraphicsModel placeholder = new(8, 2);
         graphics = graphics with { Models = graphics.Models.SetItem(8, placeholder).SetItem(14, Sequenced(14, 0)) };
@@ -66,7 +66,7 @@ public sealed class NativeBattleHostedModelLifecycleTests
     {
         BattleSession native = Session(expanded: false, partyResource: EnemySequence);
         BattleSession hosted = Session(expanded: false, partyResource: EnemySequence);
-        NativeBattleGraphicsRoster roster = hosted.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = hosted.ReadExpandedPresentationRoster();
         BindPresentationResources(hosted, roster, partyResource: EnemySequence);
         NativeBattleGraphicsState graphics = Graphics(roster);
         graphics = graphics with { Models = graphics.Models.SetItem(0, Sequenced(0, 0)) };
@@ -98,7 +98,7 @@ public sealed class NativeBattleHostedModelLifecycleTests
     public void Shared_loop_parses_AB_and_emits_the_registered_process_widget_without_changing_logical_state()
     {
         BattleSession session = Session(expanded: true);
-        NativeBattleGraphicsRoster roster = session.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = session.ReadExpandedPresentationRoster();
         NativeBattleGraphicsResource ab = new([1, 0, 4, 0, 0xAB, 1, 0, 0xA0, 1, 0xA1, 0xA0, 0, 0xA1]) { AnimationFrames = [15, 9] };
         BindPresentationResources(session, roster, ab);
         NativeBattleGraphicsState graphics = Graphics(roster);
@@ -155,7 +155,7 @@ public sealed class NativeBattleHostedModelLifecycleTests
     {
         BattleSession session = Session(expanded: true);
         session.Combatants.Single(actor => actor.Id == "ally-4").BindRosterSlot(null, bindNative: false);
-        NativeBattleGraphicsRoster roster = session.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = session.ReadExpandedPresentationRoster();
         NativeBattleGraphicsState graphics = Graphics(roster);
         graphics = graphics with { Models = graphics.Models.SetItem(0, Sequenced(0, 0)) };
         NativeBattleModelLifecycleServices? services = session.CaptureExpandedModelLifecycleServices(roster);
@@ -221,18 +221,18 @@ public sealed class NativeBattleHostedModelLifecycleTests
         return session;
     }
 
-    private static void BindPresentationResources(BattleSession session, NativeBattleGraphicsRoster roster, NativeBattleGraphicsResource? extendedPartyResource = null, NativeBattleGraphicsResource? partyResource = null)
+    private static void BindPresentationResources(BattleSession session, BattleModelRoster roster, NativeBattleGraphicsResource? extendedPartyResource = null, NativeBattleGraphicsResource? partyResource = null)
     {
         Dictionary<int, NativeBattleEffectModelBinding> presentationBindings = roster.PartyRows.Concat(roster.EnemyRows).ToDictionary(row => row, row =>
         {
-            NativeBattleGraphicsActor actor = roster[row];
+            BattleModelOwner actor = roster[row];
             NativeBattleGraphicsResource resource = actor.IsParty ? (row == 7 ? extendedPartyResource : null) ?? partyResource ?? PartySequence : EnemySequence;
             return new NativeBattleEffectModelBinding(actor.ActorId, new(row, 0), resource) { IsParty = actor.IsParty };
         });
         typeof(BattleSession).GetField("presentationNativeTargets", PrivateInstance)!.SetValue(session, presentationBindings);
     }
 
-    private static NativeBattleGraphicsState Graphics(NativeBattleGraphicsRoster roster)
+    private static NativeBattleGraphicsState Graphics(BattleModelRoster roster)
     {
         return new(NativeBattleGraphicsModels.ClearPresentationBank(roster).ToImmutableArray(), roster.Rows.Select(actor => actor?.ActorId).ToImmutableArray(), 0, 0) { PresentationRoster = roster };
     }

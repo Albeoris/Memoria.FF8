@@ -85,7 +85,7 @@ public sealed class NativeBattleHostedModelCpuBanksTests
         {
             Assert.Throws<InvalidDataException>((banks with { PresentationBanks = extras.Remove(26).Add(invalid, extension) }).Validate);
         }
-        NativeBattleGraphicsRoster different = new(banks.PresentationRoster!.Rows.SetItem(24, new("replacement", true)));
+        BattleModelRoster different = new(banks.PresentationRoster!.Rows.SetItem(24, new("replacement", true)));
         Assert.Throws<InvalidDataException>(() => banks.WithPresentationRoster(different));
         Assert.Throws<InvalidDataException>(() => banks.WithBank(26, NativeBattleModelCpuBank.Unknown()));
         Assert.Throws<InvalidDataException>(() => banks.WithBank(26, NativeBattleModelCpuBank.Unknown(1).PromoteResourceStorage()));
@@ -150,9 +150,9 @@ public sealed class NativeBattleHostedModelCpuBanksTests
         return cpu with { Cpu = cpu.Cpu.WithPresentationRoster(Roster()) };
     }
 
-    private static NativeBattleGraphicsRoster Roster()
+    private static BattleModelRoster Roster()
     {
-        NativeBattleGraphicsActor?[] rows = new NativeBattleGraphicsActor?[25];
+        BattleModelOwner?[] rows = new BattleModelOwner?[25];
         rows[0] = new("native", true);
         rows[3] = new("party-3", true);
         rows[4] = new("enemy", false);

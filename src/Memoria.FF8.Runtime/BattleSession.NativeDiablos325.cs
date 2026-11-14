@@ -80,7 +80,7 @@ public sealed partial class BattleSession
                 {
                     int headerIndex = current.Effect.Parameters?.HeaderIndex7C ?? throw new NotSupportedException("Native Diablos actor restoration requires its retained action header.");
                     int count = nativeActionPackets.Headers[headerIndex].ReadByte(0x10);
-                    NativeBattleGraphicsRoster? roster = nativeActionPackets.PresentationRoster;
+                    BattleModelRoster? roster = nativeActionPackets.PresentationRoster;
                     NativeBattleDiablos325Recipients.ValidateHostedRecords(task, count, roster);
                     for (int index = 0; index < count; index++)
                     {

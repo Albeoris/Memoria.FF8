@@ -52,7 +52,7 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState InitializeHostedPresentationModelResources(NativeBattleGraphicsState graphics, bool loadStage)
     {
-        NativeBattleGraphicsRoster roster = graphics.PresentationRoster ?? throw new InvalidDataException("Hosted model loading requires its explicit presentation roster.");
+        BattleModelRoster roster = graphics.PresentationRoster ?? throw new InvalidDataException("Hosted model loading requires its explicit presentation roster.");
         InitializeHostedPresentationModelOwners(roster);
         if (loadStage)
         {

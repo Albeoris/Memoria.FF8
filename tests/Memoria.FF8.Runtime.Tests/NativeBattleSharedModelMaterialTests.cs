@@ -11,7 +11,7 @@ public sealed class NativeBattleSharedModelMaterialTests
     private static readonly NativeBattleActionMatrix Identity = NativeBattleCuragaMatrices.Identity8DD770();
     private static readonly NativeBattleCameraProjection Projection = new(Identity, 1000, 160, 108);
     private static readonly ImmutableArray<byte> Lengths = new byte[256].ToImmutableArray().SetItem(0x24, 7).SetItem(0x32, 6);
-    private static readonly NativeBattleGraphicsRoster Roster = new([new("first", true), null, null, null, null, null, null, new("second", true)]);
+    private static readonly BattleModelRoster Roster = new([new("first", true), null, null, null, null, null, null, new("second", true)]);
     private static readonly NativeBattlePoseSource Pose = CreatePose();
 
     [Fact]

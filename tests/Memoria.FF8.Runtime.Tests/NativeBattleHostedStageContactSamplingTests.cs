@@ -82,7 +82,7 @@ public sealed class NativeBattleHostedStageContactSamplingTests
     {
         BattleSession session = new(Definition(), BattleAtbMode.TurnBased);
         IEnumerable<int> boundRows = [0, 3, 15, 24];
-        NativeBattleGraphicsRoster roster = new(Enumerable.Range(0, 25).Select(row => boundRows.Contains(row) ? new NativeBattleGraphicsActor($"row-{row}", row == 0) : null).ToImmutableArray());
+        BattleModelRoster roster = new(Enumerable.Range(0, 25).Select(row => boundRows.Contains(row) ? new BattleModelOwner($"row-{row}", row == 0) : null).ToImmutableArray());
         NativeBattleModelLifecycleServices services = new(roster.Rows.Select(actor => actor is null ? null : new NativeBattleModelActorFacts(actor.ActorId, actor.IsParty, 140, 0, 0)).ToImmutableArray());
         NativeBattleGraphicsModel[] models = NativeBattleGraphicsModels.ClearPresentationBank(roster);
         NativeBattleGraphicsState graphics = new(models.ToImmutableArray(), roster.Rows.Select(actor => actor?.ActorId).ToImmutableArray(), 0, 0) { PresentationRoster = roster };
@@ -97,7 +97,7 @@ public sealed class NativeBattleHostedStageContactSamplingTests
         BattleSession session = new(Definition(), BattleAtbMode.TurnBased);
         BattleCombatant enemy = session.Combatants.Single(actor => !actor.IsPlayer);
         enemy.CurrentHp = 200;
-        NativeBattleGraphicsRoster roster = session.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = session.ReadExpandedPresentationRoster();
         NativeBattleGraphicsState graphics = new(NativeBattleGraphicsModels.ClearBank().ToImmutableArray().SetItem(3, Loaded(3)), roster.Rows.Select(actor => actor?.ActorId).ToImmutableArray(), 0, 0);
         BindStage(session, final);
         return (session, graphics);

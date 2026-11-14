@@ -1,4 +1,4 @@
-﻿using System.Runtime.ExceptionServices;
+using System.Runtime.ExceptionServices;
 
 namespace Memoria.FF8.Runtime;
 
@@ -10,6 +10,7 @@ internal sealed partial class NativeBattleFileStagingWorkingOwner
     {
         internal uint Base;
         internal int Pointers;
+        internal int ExecutionReferences;
         internal int Zeros;
         internal int PageChanges;
         internal readonly List<NativeBattleWorkingMemory> Pages = [];
@@ -43,6 +44,7 @@ internal sealed partial class NativeBattleFileStagingWorkingOwner
             throw new InvalidOperationException("Native staging root checkpoint requires its committed owner boundary.");
         }
         pointerUndo.Clear();
+        executionUndo.Clear();
         zeroUndo.Clear();
         pageUndo.Clear();
         OpenCheckpoint();
@@ -63,6 +65,7 @@ internal sealed partial class NativeBattleFileStagingWorkingOwner
         OwnerCheckpoint frame = checkpoints[checkpointDepth];
         frame.Base = BaseAddress;
         frame.Pointers = pointerUndo.Count;
+        frame.ExecutionReferences = executionUndo.Count;
         frame.Zeros = zeroUndo.Count;
         frame.PageChanges = pageUndo.Count;
         frame.Pages.Clear();
@@ -229,6 +232,7 @@ internal sealed partial class NativeBattleFileStagingWorkingOwner
                 }
             }
             pointerUndo.RemoveRange(frame.Pointers, pointerUndo.Count - frame.Pointers);
+            RollbackExecutionReferences(frame.ExecutionReferences);
             zeroUndo.RemoveRange(frame.Zeros, zeroUndo.Count - frame.Zeros);
             for (int index = pageUndo.Count - 1; index >= frame.PageChanges; index--)
             {
@@ -251,6 +255,7 @@ internal sealed partial class NativeBattleFileStagingWorkingOwner
         if (checkpointDepth == 0)
         {
             pointerUndo.Clear();
+            executionUndo.Clear();
             zeroUndo.Clear();
             pageUndo.Clear();
         }
@@ -277,5 +282,5 @@ internal sealed partial class NativeBattleFileStagingWorkingOwner
 internal sealed partial class NativeBattleFileStagingOverlay
 {
     internal bool IsPublicLayer { get; set; } = true;
-    internal bool HasPendingChanges => checkpoint || resources.Count != 0 || bytes.Count != 0 || pointers.Count != 0 || unknown.Count != 0 || forgottenZeros.Count != 0 || BaseAddress != source.BaseAddress;
+    internal bool HasPendingChanges => checkpoint || resources.Count != 0 || bytes.Count != 0 || pointers.Count != 0 || executionChanges.Count != 0 || unknown.Count != 0 || forgottenZeros.Count != 0 || BaseAddress != source.BaseAddress;
 }

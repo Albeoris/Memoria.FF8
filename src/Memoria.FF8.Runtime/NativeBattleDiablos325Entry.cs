@@ -16,7 +16,7 @@ public static class NativeBattleDiablos325Entry
         packets.Validate();
         NativeBattleDiablos325State state = RequireState(frame.Memory);
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Diablos entry requires its current action parameters.");
-        NativeBattleGraphicsRoster? roster = packets.PresentationRoster;
+        BattleModelRoster? roster = packets.PresentationRoster;
         if (models.IsDefault || models.Length != (roster?.ActorCount ?? 7) || models.Where((model, index) => model is null || model.Index != index).Any())
         {
             throw new InvalidDataException(roster is null ? "Native Diablos entry requires seven ordered physical graphics rows." : "Hosted Diablos entry requires its ordered presentation model bank.");

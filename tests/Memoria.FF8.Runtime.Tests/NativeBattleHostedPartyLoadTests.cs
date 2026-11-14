@@ -8,7 +8,7 @@ public sealed class NativeBattleHostedPartyLoadTests
     [Fact]
     public void Native_cpu_admission_keeps_source_zero_under_hosted_graphics()
     {
-        NativeBattleGraphicsRoster roster = Roster();
+        BattleModelRoster roster = Roster();
         NativeBattleModelCpuResources native = NativeBattleModelCpuResources.Unknown();
         NativeBattleGraphicsState graphics = new(NativeBattleGraphicsModels.ClearPresentationBank(roster).ToImmutableArray(), roster.Rows.Select(actor => actor?.ActorId).ToImmutableArray(), 0, 0) { PresentationRoster = roster };
         Assert.True(NativeBattleModelResourceCopies.CanUseResourceStorage(native, 0, graphics));
@@ -30,7 +30,7 @@ public sealed class NativeBattleHostedPartyLoadTests
     [Fact]
     public void Body_and_linked_loads_publish_isolated_sections_and_hosted_animation_keys()
     {
-        NativeBattleGraphicsRoster roster = Roster();
+        BattleModelRoster roster = Roster();
         NativeBattleModelCpuResources cpu = Resources(roster);
         NativeBattleModelDatSource body = TaggedBody(31);
         NativeBattleModelDatSource otherBody = TaggedBody(42);
@@ -76,7 +76,7 @@ public sealed class NativeBattleHostedPartyLoadTests
     [Fact]
     public void Shared_weapon_callback_patches_relative_geometry_inside_the_hosted_bank()
     {
-        NativeBattleGraphicsRoster roster = Roster();
+        BattleModelRoster roster = Roster();
         NativeBattleModelDatSource body = NativeBattleModelResourceCapacityTests.Source(false, 8) with { ModelId = 1 };
         NativeBattleModelDatSource linked = SpecialSource(1, linked: true);
         NativeBattlePartyLoadPlan plan = Plan(1, 24, roster, body, linked);
@@ -97,7 +97,7 @@ public sealed class NativeBattleHostedPartyLoadTests
     [Fact]
     public void Model_seven_retains_the_extra_poll_and_no_linked_task()
     {
-        NativeBattleGraphicsRoster roster = Roster();
+        BattleModelRoster roster = Roster();
         NativeBattleModelDatSource source = SpecialSource(7, linked: false);
         NativeBattlePartyLoadPlan plan = Plan(7, 7, roster, source);
         Assert.Null(plan.Linked);
@@ -114,8 +114,8 @@ public sealed class NativeBattleHostedPartyLoadTests
     [Fact]
     public void Queue_and_completion_reject_mismatched_rosters_sources_and_tail_owners()
     {
-        NativeBattleGraphicsRoster roster = Roster();
-        NativeBattleGraphicsRoster other = new(roster.Rows.SetItem(24, new("different", true)));
+        BattleModelRoster roster = Roster();
+        BattleModelRoster other = new(roster.Rows.SetItem(24, new("different", true)));
         NativeBattleModelDatSource body = TaggedBody(31);
         NativeBattleModelDatSource linked = NativeBattleModelResourceCapacityTests.Source(true, 8);
         NativeBattlePartyLoadPlan plan = Plan(0, 24, roster, body, linked);
@@ -141,7 +141,7 @@ public sealed class NativeBattleHostedPartyLoadTests
         Assert.Throws<InvalidDataException>((cpu with { AnimationPointers = cpu.AnimationPointers.Add(24 * 32 + 8, 0) }).Validate);
     }
 
-    private static NativeBattlePartyLoadPlan Plan(byte model, byte row, NativeBattleGraphicsRoster roster, params NativeBattleModelDatSource[] sources)
+    private static NativeBattlePartyLoadPlan Plan(byte model, byte row, BattleModelRoster roster, params NativeBattleModelDatSource[] sources)
     {
         return NativeBattlePartyLoadPlan.Create(model, row, 0, 0, NativeBattlePartyCpuLayout.Classic, sources, roster);
     }
@@ -172,16 +172,16 @@ public sealed class NativeBattleHostedPartyLoadTests
         return result.AnimationCopy is { } animation ? cpu.BindAnimation(loaded.Bind!.Task.PhysicalIndex, animation) : cpu;
     }
 
-    private static NativeBattleModelCpuResources Resources(NativeBattleGraphicsRoster roster)
+    private static NativeBattleModelCpuResources Resources(BattleModelRoster roster)
     {
         NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown();
         NativeBattleModelCpuBank native = cpu.Cpu.GetBank(0).WriteGuest(1, [99]);
         return cpu with { Cpu = cpu.Cpu.WithBank(0, native).WithPresentationRoster(roster) };
     }
 
-    private static NativeBattleGraphicsRoster Roster()
+    private static BattleModelRoster Roster()
     {
-        NativeBattleGraphicsActor?[] rows = new NativeBattleGraphicsActor?[25];
+        BattleModelOwner?[] rows = new BattleModelOwner?[25];
         rows[0] = new("native", true);
         rows[6] = new("enemy", false);
         rows[7] = new("party-seven", true);

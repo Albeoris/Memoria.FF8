@@ -7,7 +7,7 @@ public sealed partial class BattleSession
     private void CompleteExpandedHostedEvent(NativeBattlePresentationCompletionRequested receipt, long? graphicsToken)
     {
         ExpandedBattlePresentationProcess process = expandedPresentationProcess ?? throw new InvalidOperationException("Hosted completion lost its presentation process.");
-        NativeBattleGraphicsRoster roster = process.Graphics.PresentationRoster!;
+        BattleModelRoster roster = process.Graphics.PresentationRoster!;
         if (expandedHostedEvent is not { } hostedEvent || hostedEvent.CompletionToken != receipt.Token ||
             hostedEvent.Callback != receipt.Callback || hostedEvent.Command.ActorId != receipt.ActorId ||
             !ReferenceEquals(hostedEvent.ActivePresentation, ActiveAction) ||

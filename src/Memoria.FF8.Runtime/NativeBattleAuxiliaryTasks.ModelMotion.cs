@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial record NativeBattleAuxiliaryState
 {
-    public (NativeBattleAuxiliaryState State, bool Allocated) AppendModelMotion(byte opcode, int source, int target, byte first, byte second, short fraction, byte duration, NativeBattleGraphicsRoster? roster = null)
+    public (NativeBattleAuxiliaryState State, bool Allocated) AppendModelMotion(byte opcode, int source, int target, byte first, byte second, short fraction, byte duration, BattleModelRoster? roster = null)
     {
         Validate();
         if (opcode is not (0x9E or 0xAD or 0xAE) || !IsAuxiliaryModelBound(source, roster) || !IsAuxiliaryModelBound(target, roster))
@@ -101,7 +101,7 @@ public sealed partial record NativeBattleAuxiliaryState
         return (task with { Payload = payload.ToImmutableArray() }, release);
     }
 
-    private static int MotionModel(byte[] payload, int offset, NativeBattleGraphicsRoster? roster)
+    private static int MotionModel(byte[] payload, int offset, BattleModelRoster? roster)
     {
         if (!TryReadAuxiliaryModel(BinaryPrimitives.ReadUInt32LittleEndian(payload.AsSpan(offset)), roster, out int row))
         {

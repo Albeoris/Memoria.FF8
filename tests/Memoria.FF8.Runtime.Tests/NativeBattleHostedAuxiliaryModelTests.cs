@@ -9,7 +9,7 @@ public sealed class NativeBattleHostedAuxiliaryModelTests
     [Fact]
     public void Hosted_ring_texture_and_sound_tasks_keep_high_rows_across_inflight_restore()
     {
-        NativeBattleGraphicsRoster roster = Roster();
+        BattleModelRoster roster = Roster();
         NativeBattleAuxiliaryState state = NativeBattleAuxiliaryState.Clear();
         state = state.AppendModelRing(NativeBattleAuxiliaryKind.ModelStatus50A000, 7, 0xABCDEF, roster: roster).State;
         state = state.AppendTextureAnimation(24, 9, new([2, 255], 0), roster);
@@ -60,7 +60,7 @@ public sealed class NativeBattleHostedAuxiliaryModelTests
     [Fact]
     public void Hosted_source_and_target_motion_preserve_direction_and_resume()
     {
-        NativeBattleGraphicsRoster roster = Roster();
+        BattleModelRoster roster = Roster();
         var start = new NativeBattleVector(0, 3, 0);
         var finish = new NativeBattleVector(100, 6, 200);
         NativeBattleGraphicsModel mover = new(7, 2) { Transform = new(start, start, 0, 0, 4096) };
@@ -107,7 +107,7 @@ public sealed class NativeBattleHostedAuxiliaryModelTests
     [Fact]
     public void Unowned_model_rows_are_rejected_without_model_callbacks_or_slot_publication()
     {
-        NativeBattleGraphicsRoster roster = Roster();
+        BattleModelRoster roster = Roster();
         NativeBattleAuxiliaryState empty = NativeBattleAuxiliaryState.Clear();
         NativeBattleAuxiliaryProgram program = new([1, 255], 0);
         NativeGlobalRandomState random = new(5);
@@ -140,7 +140,7 @@ public sealed class NativeBattleHostedAuxiliaryModelTests
     [Fact]
     public void Native_rows_keep_their_packet_bytes_and_full_slots_do_not_consume_sound_random()
     {
-        NativeBattleGraphicsRoster roster = new(Enumerable.Range(0, 7).Select(row => (NativeBattleGraphicsActor?)new NativeBattleGraphicsActor($"native-{row}", row < 3)).ToImmutableArray());
+        BattleModelRoster roster = new(Enumerable.Range(0, 7).Select(row => (BattleModelOwner?)new BattleModelOwner($"native-{row}", row < 3)).ToImmutableArray());
         NativeBattleAuxiliaryState state = NativeBattleAuxiliaryState.Clear();
         var native = state.AppendModelMotion(0xAE, 2, 6, 2, 3, -1024, 4);
         var explicitRoster = state.AppendModelMotion(0xAE, 2, 6, 2, 3, -1024, 4, roster);
@@ -160,7 +160,7 @@ public sealed class NativeBattleHostedAuxiliaryModelTests
     [Fact]
     public void Hosted_group_fade_resumes_its_frame_after_detached_restore()
     {
-        NativeBattleGraphicsRoster roster = Roster();
+        BattleModelRoster roster = Roster();
         NativeBattleAuxiliaryState state = NativeBattleAuxiliaryState.Clear().AppendModelGroupFade50F0B0(24, 2, roster);
         Assert.Equal(NativeBattleGraphicsModelAddress.Encode(24), BinaryPrimitives.ReadUInt32LittleEndian(state.Slots[0].Payload.AsSpan()));
         NativeBattleGraphicsModel model = new(24, 2) { SequenceState = new() { MeshMask124 = 0xF } };
@@ -198,7 +198,7 @@ public sealed class NativeBattleHostedAuxiliaryModelTests
     [Fact]
     public void Deformation_retains_task_bytes_and_rejects_unowned_rows_before_using_model_state()
     {
-        NativeBattleGraphicsRoster roster = Roster();
+        BattleModelRoster roster = Roster();
         NativeBattleAuxiliaryState empty = NativeBattleAuxiliaryState.Clear();
         NativeBattleVector velocity = new(11, -22, 33);
         NativeBattleAuxiliaryState state = empty.AppendModelDeformation50F250(7, 2, 5, velocity, -6, 0xABCDEF, roster);
@@ -242,9 +242,9 @@ public sealed class NativeBattleHostedAuxiliaryModelTests
         Assert.Null(battle.NativeGraphics);
     }
 
-    private static NativeBattleGraphicsRoster Roster()
+    private static BattleModelRoster Roster()
     {
-        NativeBattleGraphicsActor?[] rows = new NativeBattleGraphicsActor?[25];
+        BattleModelOwner?[] rows = new BattleModelOwner?[25];
         rows[0] = new("native", true);
         rows[7] = new("extra-ally", true);
         rows[24] = new("extra-enemy", false);

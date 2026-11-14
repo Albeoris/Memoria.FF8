@@ -1,9 +1,10 @@
-using System.Text.Json;
-
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleTriggerWidgetTests
 {
+    private static readonly BattlePartyActorModel Source = new(new("gunblade-user"));
+    private static readonly BattleModelRoster Roster = new([Source]);
+
     [Fact]
     public void Actual_registration_consumes_phase_zero_and_hidden_widget_still_reaches_one_timed_contact()
     {
@@ -23,7 +24,7 @@ public sealed class NativeBattleTriggerWidgetTests
                 ui = ui.AdvancePublication();
                 int distance = widget.Input.PoseClock + widget.Input.SubframeClock - widget.Block.Timeline.InputThresholds[0];
                 widget = widget with { PendingTrigger = distance == 20 };
-                NativeBattleTriggerWidgetStep step = NativeBattleTriggerWidgetRules.Advance(widget, ui.Frame33!.Value, false, null);
+                NativeBattleTriggerWidgetStep step = NativeBattleTriggerWidgetRules.Advance(widget, ui.Frame33!.Value, false, null, Roster);
                 widget = step.Widget;
                 contact = step.Contact ?? contact;
             }
@@ -40,20 +41,20 @@ public sealed class NativeBattleTriggerWidgetTests
     public void Contact_completion_keeps_the_widget_registered_through_tail_twenty_four_callbacks_and_the_final_frame_edge()
     {
         NativeBattleTriggerWidget widget = Window() with { Input = new(8, 104, 0, 1, 0), ClosingPhase = 8 };
-        NativeBattleTriggerWidgetStep step = NativeBattleTriggerWidgetRules.Advance(widget, true, false, null);
+        NativeBattleTriggerWidgetStep step = NativeBattleTriggerWidgetRules.Advance(widget, true, false, null, Roster);
         Assert.Equal((byte)10, step.Widget.ClosingPhase);
         Assert.Equal((short)23, step.Widget.ClosingRemaining);
         Assert.False(step.Unregistered);
-        widget = JsonSerializer.Deserialize<NativeBattleTriggerWidget>(JsonSerializer.Serialize(step.Widget))!;
+        widget = NativeBattleTestSnapshots.Independent(step.Widget);
         for (int callback = 0; callback < 23; callback++)
         {
-            step = NativeBattleTriggerWidgetRules.Advance(widget, false, false, null);
+            step = NativeBattleTriggerWidgetRules.Advance(widget, false, false, null, Roster);
             Assert.Equal(callback == 22, step.BeginClose);
             widget = step.Widget;
         }
         Assert.Equal((byte)12, widget.ClosingPhase);
-        Assert.False(NativeBattleTriggerWidgetRules.Advance(widget, false, false, null).Unregistered);
-        Assert.True(NativeBattleTriggerWidgetRules.Advance(widget, true, false, null).Unregistered);
+        Assert.False(NativeBattleTriggerWidgetRules.Advance(widget, false, false, null, Roster).Unregistered);
+        Assert.True(NativeBattleTriggerWidgetRules.Advance(widget, true, false, null, Roster).Unregistered);
     }
 
     [Fact]
@@ -61,30 +62,30 @@ public sealed class NativeBattleTriggerWidgetTests
     {
         NativeBattleTriggerWidget widget = Window() with { Input = new(6, 68, 2, 0, 0) };
         NativeBattleUiRandomState random = new(123);
-        NativeBattleTriggerWidgetStep first = NativeBattleTriggerWidgetRules.Advance(widget, false, true, random);
+        NativeBattleTriggerWidgetStep first = NativeBattleTriggerWidgetRules.Advance(widget, false, true, random, Roster);
         NativeBattleUiRandomState expected = random.Draw(out ushort roll);
         Assert.Equal(expected, first.Random);
         Assert.Equal(roll <= 0x2000 ? (short)1 : (short)25, first.Widget.Input.TriggerTiming);
-        NativeBattleTriggerWidget restored = JsonSerializer.Deserialize<NativeBattleTriggerWidget>(JsonSerializer.Serialize(first.Widget))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleTriggerWidgetRules.Advance(first.Widget, false, true, first.Random)), JsonSerializer.Serialize(NativeBattleTriggerWidgetRules.Advance(restored, false, true, first.Random)));
+        NativeBattleTriggerWidget copied = NativeBattleTestSnapshots.Independent(first.Widget);
+        Assert.Equal(NativeBattleTriggerWidgetRules.Advance(first.Widget, false, true, first.Random, Roster), NativeBattleTriggerWidgetRules.Advance(copied, false, true, first.Random, Roster));
     }
 
     [Fact]
     public void Timing_success_has_no_invented_upper_bound_and_retains_the_separate_fourth_WORD()
     {
-        NativeBattleTriggerReceipt receipt = new(0, 1, 1, short.MaxValue, 32);
-        receipt.Validate();
-        NativeBattleTriggerReceipt restored = JsonSerializer.Deserialize<NativeBattleTriggerReceipt>(JsonSerializer.Serialize(receipt))!;
-        Assert.Equal(receipt, restored);
-        Assert.Equal((short)32, restored.WordD96);
-        Assert.Throws<InvalidDataException>(() => (receipt with { Timing = -1 }).Validate());
-        Assert.Throws<InvalidDataException>(() => (receipt with { WordD96 = 31 }).Validate());
-        Assert.Throws<InvalidDataException>(() => (receipt with { ContactIndex = -1 }).Validate());
+        NativeBattleTriggerReceipt receipt = new(Source, 1, 1, short.MaxValue, 32);
+        receipt.Validate(Roster);
+        NativeBattleTriggerReceipt copied = NativeBattleTestSnapshots.Independent(receipt);
+        Assert.Equal(receipt, copied);
+        Assert.Equal((short)32, copied.WordD96);
+        Assert.Throws<InvalidDataException>(() => (receipt with { Timing = -1 }).Validate(Roster));
+        Assert.Throws<InvalidDataException>(() => (receipt with { WordD96 = 31 }).Validate(Roster));
+        Assert.Throws<InvalidDataException>(() => (receipt with { ContactIndex = -1 }).Validate(Roster));
     }
 
     private static NativeBattleTriggerWidget Window()
     {
         BattleNativeRenzokukenBlock block = new(0, [16, 9], NativeBattleRenzokukenRules.Timeline([16, 9]));
-        return NativeBattleTriggerWidget.Register(0, block, 0, NativeBattleUiServices.Initialize());
+        return NativeBattleTriggerWidget.Register(Source, block, 0, NativeBattleUiServices.Initialize(), Roster);
     }
 }

@@ -37,7 +37,7 @@ public sealed partial class BattleSession
             return current with { Memory = latest, State = latest.Effect312 ?? throw new InvalidDataException("Effect312 service lost its storage."), Random = nativeCrtRandom ?? throw new InvalidDataException("Effect312 service lost its CRT stream."), Staging = NativeFileStaging ?? throw new InvalidDataException("Effect312 service lost its addressed memory.") };
         }
 
-        NativeBattleEffect312PointStep TargetCenter(NativeBattleEffect312Frame current, NativeBattleGraphicsActorSet targets, NativeBattleEffectArena retained)
+        NativeBattleEffect312PointStep TargetCenter(NativeBattleEffect312Frame current, BattleModelTargets targets, NativeBattleEffectArena retained)
         {
             NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Effect312 requires its selected physical target positions.")).ToArray());
             return new(current, retained.Write(0, BitConverter.GetBytes(center.X)).Write(2, BitConverter.GetBytes(center.Y)).Write(4, BitConverter.GetBytes(center.Z)));

@@ -7,15 +7,15 @@ public static class NativeBattleModelResourceRowAddress
     public const int RowSize = 52;
     public const uint NativeBase = 0x1D99774;
     public const uint HostedBase = 0xF3000000;
-    public const int MaximumRowCount = checked(2 * NativeBattleGraphicsModelAddress.MaximumRowCount + 1);
+    // This codec owns the address range from HostedBase through uint.MaxValue.
+    public const int MaximumEncodedRowCount = NativeRowCount + (int)(((ulong)uint.MaxValue + 1 - HostedBase) / RowSize);
 
     private const uint NativeEnd = checked(NativeBase + NativeRowCount * RowSize);
 
-    public static int CapacityForRoster(NativeBattleGraphicsRoster roster)
+    public static int CapacityForRoster(BattleModelRoster roster)
     {
         ArgumentNullException.ThrowIfNull(roster);
-        roster.Validate();
-        return Math.Max(NativeRowCount, checked(2 * roster.PartyRows.Count() + roster.EnemyRows.Count() + 1));
+        return Math.Max(NativeRowCount, checked(2 * roster.Party.Count() + roster.Enemies.Count() + 1));
     }
 
     public static uint Encode(int row, int capacity = NativeRowCount)
@@ -83,7 +83,7 @@ public static class NativeBattleModelResourceRowAddress
 
     internal static void ValidateCapacity(int capacity)
     {
-        if (capacity is < NativeRowCount or > MaximumRowCount)
+        if (capacity is < NativeRowCount or > MaximumEncodedRowCount)
         {
             throw new ArgumentOutOfRangeException(nameof(capacity));
         }

@@ -32,7 +32,7 @@ public sealed partial class BattleSession
         return RequireNativeModelMaterial(graphics, model, roster, textures);
     }
 
-    private static NativeBattleModelTextureOwner RequireNativeModelMaterial(NativeBattleGraphicsState graphics, NativeBattleGraphicsModel model, NativeBattleGraphicsRoster roster, NativeBattleEffectTextureState textures)
+    private static NativeBattleModelTextureOwner RequireNativeModelMaterial(NativeBattleGraphicsState graphics, NativeBattleGraphicsModel model, BattleModelRoster roster, NativeBattleEffectTextureState textures)
     {
         string actorId = roster[model.Index].ActorId;
         if (!StringComparer.Ordinal.Equals(actorId, graphics.ActorIds[model.Index]))

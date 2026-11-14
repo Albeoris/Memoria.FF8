@@ -157,7 +157,7 @@ public sealed class NativeBattleHostedCompletionTests
         NativeBattleActionPacketsState packets = child.NativeActionPackets;
         BattleSession.PreparedHostedCompletionAck prepared = process.PrepareCompletionAck(token, true);
 
-        NativeBattleGraphicsRoster roster = retired.PresentationRoster!;
+        BattleModelRoster roster = retired.PresentationRoster!;
         NativeBattleGraphicsState rebound = retired with
         {
             PresentationRoster = new(roster.Rows.SetItem(Row, new("replacement", true))),
@@ -202,7 +202,7 @@ public sealed class NativeBattleHostedCompletionTests
     {
         var (logical, child, process) = Fixture();
         NativeBattleGraphicsState graphics = child.NativeGraphics!;
-        NativeBattleGraphicsRoster roster = graphics.PresentationRoster!;
+        BattleModelRoster roster = graphics.PresentationRoster!;
         int boundary = NativeBattleActionPacketsState.ContactCapacity;
         NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromPresentationStorage(roster).Prepare(Header).State;
         packets = packets.AppendContacts(Enumerable.Repeat(Contact, boundary)).Publish(boundary).State;
@@ -271,7 +271,7 @@ public sealed class NativeBattleHostedCompletionTests
         NativeBattleGraphicsState graphics = child.NativeGraphics!;
         NativeBattleGraphicsModel actor = graphics.Models[Row] with { Flags0 = 0, Flags8 = 0, Kind5 = 0, ResourceFlags44 = resourceFlags };
         graphics = graphics with { Models = graphics.Models.SetItem(Row, actor) };
-        NativeBattleGraphicsRoster roster = graphics.PresentationRoster!;
+        BattleModelRoster roster = graphics.PresentationRoster!;
         NativeBattleActionHeaderPreparation self = Header with { Command = 0, Sequence = 0, Action = 2 };
         NativeBattleContactPacket contact = Contact with { Primary = Contact.Primary with { ActorIndex = Row } };
         NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromPresentationStorage(roster).Prepare(self).State;
@@ -282,7 +282,7 @@ public sealed class NativeBattleHostedCompletionTests
         Assert.Equal(busy, typeof(BattleSession).GetMethod("NativeHeaderTargetsBusy", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [graphics, context]));
     }
 
-    private static NativeBattleActionPacketsState PopulatedPackets(NativeBattleGraphicsRoster roster)
+    private static NativeBattleActionPacketsState PopulatedPackets(BattleModelRoster roster)
     {
         var (packets, _) = NativeBattleActionPacketsState.FromPresentationStorage(roster).Prepare(Header);
         packets = packets.AppendContacts([Contact]);
@@ -300,7 +300,7 @@ public sealed class NativeBattleHostedCompletionTests
         BattleSession logical = new(definition, BattleAtbMode.TurnBased);
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeExamTimer))!.SetValue(logical, NativeExamTimerState.FromColdProcess().SetRemaining(100));
         BattleSession child = new(definition, BattleAtbMode.TurnBased);
-        NativeBattleGraphicsRoster roster = logical.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = logical.ReadExpandedPresentationRoster();
         NativeBattleGraphicsModel[] models = NativeBattleGraphicsModels.ClearPresentationBank(roster);
         models[Row] = models[Row] with { ModelId4 = 1 };
         SetGraphics(child, new(models.ToImmutableArray(), roster.Rows.Select(actor => actor?.ActorId).ToImmutableArray(), 0, 0) { PresentationRoster = roster, EntryReady = true, EntryLifecycle = 4 });

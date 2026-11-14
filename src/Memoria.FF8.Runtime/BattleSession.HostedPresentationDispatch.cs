@@ -110,7 +110,7 @@ public sealed partial class BattleSession
         return new(this, graphics, original, hostedPreparationEpoch, checked(hostedPreparationEpoch + 1), lastHostedActionIssued, lastHostedCompletionIssued, admitted, packets, action, nextCompletion, acknowledgment, appended.MoveToImmutable());
     }
 
-    private (byte Row, NativeBattleGraphicsResource Source) ReadHostedDispatchSource(NativeBattleGraphicsState graphics, NativeBattleGraphicsRoster roster, NativeBattleActionPacketsState packets, int headerIndex)
+    private (byte Row, NativeBattleGraphicsResource Source) ReadHostedDispatchSource(NativeBattleGraphicsState graphics, BattleModelRoster roster, NativeBattleActionPacketsState packets, int headerIndex)
     {
         if (packets.PresentationRoster is null || (uint)headerIndex >= NativeBattleActionPacketsState.HeaderCapacity ||
             packets.Headers[headerIndex].PresentationContactCount is null)

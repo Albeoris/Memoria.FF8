@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleHostedSequenceSelectionTests
 {
-    private static readonly NativeBattleGraphicsRoster Roster = new([
+    private static readonly BattleModelRoster Roster = new([
         new("original-party", true), null, null, new("original-enemy", false), new("other-enemy", false), null, new("last-native", false),
         new("first-extension", true), null, null, null, null, null, null, new("last-party", true), new("first-extra-enemy", false),
         null, null, null, null, null, null, null, new("unloaded-extra-enemy", false), new("last-enemy", false)]);
@@ -144,9 +144,9 @@ public sealed class NativeBattleHostedSequenceSelectionTests
         }).ToArray();
     }
 
-    private static NativeBattleGraphicsActorSet Rows(params int[] rows)
+    private static BattleModelTargets Rows(params int[] rows)
     {
-        NativeBattleGraphicsActorSet result = default;
+        BattleModelTargets result = default;
         foreach (int row in rows)
         {
             result = result.Add(row);

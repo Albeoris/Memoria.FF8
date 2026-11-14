@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
@@ -336,7 +336,7 @@ public static class NativeBattleThundaga105Controller
 
     private static NativeBattleModulePoolTask ClearSprite(NativeBattleModulePoolTask task, uint address, ushort duration) => (task.ClearPayload(0x20)).WriteDword(0x10, address).WriteWord(0xE, duration).WriteWord(0x1A, 4096);
     private static uint HalfColor(uint saved, uint current) => (current & 0xFF000000) | (((saved & 255) + 255) >> 1) | (((((saved >> 8) & 255) + 255) >> 1) << 8) | (((((saved >> 16) & 255) + 255) >> 1) << 16);
-    private static int ActorIndex(uint address, NativeBattleGraphicsRoster? roster) => NativeBattleGraphicsModelAddress.TryDecode(address, out int row, roster) ? row : throw new InvalidDataException("Native Thundaga requires its actual seven-row actor address.");
+    private static int ActorIndex(uint address, BattleModelRoster? roster) => NativeBattleGraphicsModelAddress.TryDecode(address, out int row, roster) ? row : throw new InvalidDataException("Native Thundaga requires its actual seven-row actor address.");
     private static NativeBattleVector Vector(ImmutableArray<byte> raw) => new(Signed(raw, 0), Signed(raw, 2), Signed(raw, 4));
     private static short Signed(ImmutableArray<byte> raw, int offset) => BinaryPrimitives.ReadInt16LittleEndian(raw.AsSpan().Slice(offset));
     private static short S(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));

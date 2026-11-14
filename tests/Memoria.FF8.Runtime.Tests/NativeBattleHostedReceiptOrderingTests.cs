@@ -106,11 +106,11 @@ public sealed class NativeBattleHostedReceiptOrderingTests
         BattleSession session = new(definition, BattleAtbMode.TurnBased);
         NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, Enumerable.Repeat((sbyte)-1, 16).ToImmutableArray(), Enumerable.Repeat((sbyte)-1, 32).ToImmutableArray());
         Field("definition").SetValue(session, definition with { NativeGraphics = new(rules, [], []) });
-        NativeBattleGraphicsActor?[] actors = new NativeBattleGraphicsActor?[16];
+        BattleModelOwner?[] actors = new BattleModelOwner?[16];
         actors[3] = new("original", false);
         actors[7] = new("extra-ally", true);
         actors[15] = new("extra-enemy", false);
-        NativeBattleGraphicsRoster roster = new(actors.ToImmutableArray());
+        BattleModelRoster roster = new(actors.ToImmutableArray());
         NativeBattleGraphicsModel[] models = NativeBattleGraphicsModels.ClearPresentationBank(roster);
         foreach (int row in new[] { 3, 7, 15 })
         {

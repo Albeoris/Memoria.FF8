@@ -8,7 +8,7 @@ public sealed partial class BattleSession
     private static int AdvanceNativeStickyWebThread(ref NativeBattleModulePoolTask task, NativeBattleGraphicsState graphics, byte[] data, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, short zsf3, short zsf4, bool paused, Action<NativeBattleGfGeometryBatch, int> append, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect!;
-        NativeBattleActionMatrix world = graphics.Models[effect.Parameters!.Actor78].GeometryWorldMatrix ?? throw new NotSupportedException("Native Sticky Web requires its caster world matrix.");
+        NativeBattleActionMatrix world = graphics.ActorModels.Get(effect.Parameters!.Source).GeometryWorldMatrix ?? throw new NotSupportedException("Native Sticky Web requires its caster world matrix.");
         (int x, _, int z) = NativeBattleGfMatrices.Rotate56C3D0(world, new(-4096, 0, 0));
         int counter = Word(task, 12);
         int amplitude = unchecked(NativeBattleCameraMath.Sine(Word(task, 16)) * 600) >> 12;

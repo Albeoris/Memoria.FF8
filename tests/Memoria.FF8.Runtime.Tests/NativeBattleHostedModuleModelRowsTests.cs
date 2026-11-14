@@ -14,7 +14,7 @@ public sealed class NativeBattleHostedModuleModelRowsTests
     [InlineData(6, (byte)4, (ushort)19, (ushort)20)]
     public void CastingAndBoneSpriteCallbacksUseTheBoundModel(int row, byte selector, ushort firstSound, ushort secondSound)
     {
-        NativeBattleGraphicsRoster? roster = row == 6 ? null : Roster();
+        BattleModelRoster? roster = row == 6 ? null : Roster();
         NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelEffect(row, selector, null, roster);
         Assert.Equal(NativeBattleGraphicsModelAddress.Encode(row), Pointer(state, 20));
         NativeBattleModuleAnchor anchor = new((short)row, 200, 300, 0);
@@ -46,7 +46,7 @@ public sealed class NativeBattleHostedModuleModelRowsTests
     [Fact]
     public void PlacementVariantsSendTheirActualRowsAndOriginalOperandsToModelServices()
     {
-        NativeBattleGraphicsRoster roster = Roster();
+        BattleModelRoster roster = Roster();
         NativeBattleModuleResource resource = Sprite();
         var local = new NativeBattleVector(-1, 2, -3);
         NativeBattleModuleState state = NativeBattleModuleState.Clear()
@@ -87,7 +87,7 @@ public sealed class NativeBattleHostedModuleModelRowsTests
     [InlineData(0x5707A0u)]
     public void PlacementChildDecodesItsRetainedOwnerAndUsesNativeRandom(uint callback)
     {
-        NativeBattleGraphicsRoster roster = Roster();
+        BattleModelRoster roster = Roster();
         NativeBattleModuleResource resource = new(5, 0xC70000, 0x570CC0, callback, [0, 0, 0, 1]);
         NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelResource(24, resource, 0x7F0005, roster);
         var anchor = new NativeBattleModuleAnchor(-1, 222, -333, -444);
@@ -125,7 +125,7 @@ public sealed class NativeBattleHostedModuleModelRowsTests
     public void ProducerAndRestoredTaskRejectRowsOutsideTheirActualOwnerBeforeModelReads()
     {
         NativeBattleModuleState empty = NativeBattleModuleState.Clear();
-        NativeBattleGraphicsRoster roster = Roster();
+        BattleModelRoster roster = Roster();
         NativeBattleModuleResource resource = Sprite();
         Assert.Throws<InvalidDataException>(() => empty.AppendModelEffect(7, 4));
         Assert.Throws<InvalidDataException>(() => empty.AppendModelEffect(8, 4, null, roster));
@@ -148,12 +148,12 @@ public sealed class NativeBattleHostedModuleModelRowsTests
         return BinaryPrimitives.ReadUInt32LittleEndian(state.Slots[state.Head!.Value].Payload.AsSpan().Slice(offset));
     }
 
-    private static NativeBattleGraphicsRoster Roster(int capacity = 25, bool bindLast = true)
+    private static BattleModelRoster Roster(int capacity = 25, bool bindLast = true)
     {
         return new(Enumerable.Range(0, capacity).Select(row => row switch
         {
-            7 => new NativeBattleGraphicsActor("party", true),
-            24 when bindLast => new NativeBattleGraphicsActor("enemy", false),
+            7 => new BattleModelOwner("party", true),
+            24 when bindLast => new BattleModelOwner("enemy", false),
             _ => null
         }).ToImmutableArray());
     }

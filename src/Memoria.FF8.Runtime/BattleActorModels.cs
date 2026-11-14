@@ -31,7 +31,7 @@ public sealed class BattleModelPool<TOwner> where TOwner : BattleModelOwner
         foreach (BattleModelEntry<TOwner> entry in entries)
         {
             ArgumentNullException.ThrowIfNull(entry);
-            BattleActorModels.RegisterIdentity(entry.Owner, identities);
+            BattleModelRoster.RegisterIdentity(entry.Owner, identities);
             states.Add(entry.Owner, entry.State);
             ordered.Add(entry);
         }
@@ -62,19 +62,15 @@ public sealed class BattleModelPool<TOwner> where TOwner : BattleModelOwner
 
 public sealed class BattleActorModels
 {
-    private readonly ImmutableArray<BattleModelOwner> ownerOrder;
-
     public BattleActorModels(IEnumerable<BattleModelEntry<BattleModelOwner>> entries)
     {
         ArgumentNullException.ThrowIfNull(entries);
         var order = ImmutableArray.CreateBuilder<BattleModelOwner>();
         var party = ImmutableArray.CreateBuilder<BattleModelEntry<BattlePartyModelOwner>>();
         var enemies = ImmutableArray.CreateBuilder<BattleModelEntry<BattleEnemyModelOwner>>();
-        HashSet<(string Key, bool Actor)> identities = [];
         foreach (BattleModelEntry<BattleModelOwner> entry in entries)
         {
             ArgumentNullException.ThrowIfNull(entry);
-            RegisterIdentity(entry.Owner, identities);
             switch (entry.Owner)
             {
                 case BattlePartyModelOwner owner:
@@ -86,22 +82,23 @@ public sealed class BattleActorModels
             }
             order.Add(entry.Owner);
         }
+        Roster = new(order);
         Party = new(party);
         Enemies = new(enemies);
-        ownerOrder = order.ToImmutable();
     }
 
-    private BattleActorModels(BattleModelPool<BattlePartyModelOwner> party, BattleModelPool<BattleEnemyModelOwner> enemies, ImmutableArray<BattleModelOwner> ownerOrder)
+    private BattleActorModels(BattleModelPool<BattlePartyModelOwner> party, BattleModelPool<BattleEnemyModelOwner> enemies, BattleModelRoster roster)
     {
         Party = party;
         Enemies = enemies;
-        this.ownerOrder = ownerOrder;
+        Roster = roster;
     }
 
     public BattleModelPool<BattlePartyModelOwner> Party { get; }
     public BattleModelPool<BattleEnemyModelOwner> Enemies { get; }
-    public IEnumerable<BattleModelOwner> Owners => ownerOrder;
-    public IEnumerable<BattleModelEntry<BattleModelOwner>> Entries => ownerOrder.Select(owner => new BattleModelEntry<BattleModelOwner>(owner, Get(owner)));
+    public BattleModelRoster Roster { get; }
+    public IEnumerable<BattleModelOwner> Owners => Roster.Owners;
+    public IEnumerable<BattleModelEntry<BattleModelOwner>> Entries => Owners.Select(owner => new BattleModelEntry<BattleModelOwner>(owner, Get(owner)));
 
     public NativeBattleGraphicsModel Get(BattleModelOwner owner)
     {
@@ -123,7 +120,7 @@ public sealed class BattleActorModels
         }
     }
 
-    public bool Contains(BattleModelOwner owner) => TryGet(owner, out _);
+    public bool Contains(BattleModelOwner owner) => Roster.Contains(owner);
 
     public BattleActorModels Set(BattleModelOwner owner, NativeBattleGraphicsModel state)
     {
@@ -131,8 +128,8 @@ public sealed class BattleActorModels
         ArgumentNullException.ThrowIfNull(state);
         return owner switch
         {
-            BattlePartyModelOwner party => new(Party.Set(party, state), Enemies, ownerOrder),
-            BattleEnemyModelOwner enemy => new(Party, Enemies.Set(enemy, state), ownerOrder),
+            BattlePartyModelOwner party => new(Party.Set(party, state), Enemies, Roster),
+            BattleEnemyModelOwner enemy => new(Party, Enemies.Set(enemy, state), Roster),
             _ => throw new KeyNotFoundException("Model owner is not bound.")
         };
     }
@@ -166,25 +163,5 @@ public sealed class BattleActorModels
         {
             throw new KeyNotFoundException("Model owner is not bound.");
         }
-    }
-
-    internal static void RegisterIdentity(BattleModelOwner owner, HashSet<(string Key, bool Actor)> identities)
-    {
-        if (!identities.Add(ReadIdentity(owner)))
-        {
-            throw new ArgumentException("A model identity is bound more than once.", nameof(owner));
-        }
-    }
-
-    private static (string Key, bool Actor) ReadIdentity(BattleModelOwner owner)
-    {
-        return owner switch
-        {
-            BattlePartyActorModel actor => (actor.Actor.ActorId, true),
-            BattleEnemyActorModel actor => (actor.Actor.ActorId, true),
-            BattleForeignPartyModel foreign => (foreign.Presentation.Key, false),
-            BattleForeignEnemyModel foreign => (foreign.Presentation.Key, false),
-            _ => throw new ArgumentException("Unknown model owner.", nameof(owner))
-        };
     }
 }

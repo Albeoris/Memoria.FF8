@@ -4,7 +4,7 @@ public sealed partial class BattleSession
 {
     private const ushort HostedEnemyBlockedTextureSlots = 63;
 
-    private (string ActorId, NativeBattlePresentationTextureBank Bank) RequireHostedModelLoadOwner(NativeBattleGraphicsState graphics, NativeBattleGraphicsRoster roster, int actorRow)
+    private (string ActorId, NativeBattlePresentationTextureBank Bank) RequireHostedModelLoadOwner(NativeBattleGraphicsState graphics, BattleModelRoster roster, int actorRow)
     {
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new InvalidDataException("Hosted model loading requires its CPU resource owner.");
         NativeBattleModelTextureCache cache = NativeModelTextureCache ?? throw new InvalidDataException("Hosted model loading requires its texture alias owner.");

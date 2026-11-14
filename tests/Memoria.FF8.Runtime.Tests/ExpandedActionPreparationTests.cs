@@ -90,7 +90,7 @@ public sealed class ExpandedActionPreparationTests
         Assert.Equal(JsonSerializer.Serialize(before.Random), JsonSerializer.Serialize(candidate.Capture().Random));
 
         const BindingFlags privateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
-        NativeBattleGraphicsRoster roster = candidate.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = candidate.ReadExpandedPresentationRoster();
         object bridge = typeof(BattleSession).GetMethod("PrepareExpandedHostedContactBridge", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [invocation, roster])!;
         typeof(BattleSession).GetMethod("BindExpandedHostedContactTracking", privateInstance)!.Invoke(candidate, [invocation, roster, bridge]);
         typeof(BattleSession).GetField("expandedHostedActionToken", privateInstance)!.SetValue(candidate, 1L);
@@ -150,7 +150,7 @@ public sealed class ExpandedActionPreparationTests
         const BindingFlags privateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
         object invocation = ReadHostedInvocation(candidate);
         Assert.Empty((ImmutableArray<ExpandedBattleContact>)invocation.GetType().GetProperty("Contacts")!.GetValue(invocation)!);
-        NativeBattleGraphicsRoster roster = candidate.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = candidate.ReadExpandedPresentationRoster();
         object? bridge = typeof(BattleSession).GetMethod("PrepareExpandedHostedContactBridge", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [invocation, roster]);
         Assert.Null(bridge);
         typeof(BattleSession).GetMethod("BindExpandedHostedContactTracking", privateInstance)!.Invoke(candidate, [invocation, roster, bridge]);
@@ -186,7 +186,7 @@ public sealed class ExpandedActionPreparationTests
         BattleSession owner = Create();
         BattleCombatant caster = owner.Combatants.Single(actor => actor.Id == "caster");
         caster.NativePresentationStatus = new(caster.NativeStatus0, caster.NativeStatus1);
-        NativeBattleGraphicsRoster roster = owner.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = owner.ReadExpandedPresentationRoster();
         byte row = owner.ReadExpandedPresentationRow("caster");
         BattleActionPresentation command = new("enemy", "caster", BattleActionPhase.Recovery, 1, BattleAbility.Magic, 1);
         NativeBattleContactPacket packet = new(new(row, 0, 0, 0, 0, 0, 0), new(byte.MaxValue, 0, 0, 0, 0, 0, 0));
@@ -242,7 +242,7 @@ public sealed class ExpandedActionPreparationTests
         Assert.Null(pending.GetValue(owner));
         ExpandedBattleContact placeholder = Assert.Single((ImmutableArray<ExpandedBattleContact>)invocation.GetType().GetProperty("Contacts")!.GetValue(invocation)!);
 
-        NativeBattleGraphicsRoster roster = owner.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = owner.ReadExpandedPresentationRoster();
         object bridge = typeof(BattleSession).GetMethod("PrepareExpandedHostedContactBridge", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [invocation, roster])!;
         typeof(BattleSession).GetMethod("BindExpandedHostedContactTracking", privateInstance)!.Invoke(owner, [invocation, roster, bridge]);
         pending.SetValue(owner, newer);

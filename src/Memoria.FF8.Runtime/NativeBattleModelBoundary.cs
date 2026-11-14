@@ -170,13 +170,13 @@ public sealed partial class NativeBattleModelBoundary
         return owner;
     }
 
-    private void ValidateBindings(BattleActorModels models)
+    internal void ValidateBindings(BattleActorModels models)
     {
-        foreach (Cell cell in cells)
+        for (byte offset = 0; offset < cells.Length; offset++)
         {
-            if (cell.Owner is { } owner && !models.Contains(owner))
+            if (cells[offset].Owner is { } owner && (owner.Side != NativeBattleModelSlot.Decode(offset).Side || !models.Contains(owner)))
             {
-                throw new InvalidDataException("An original slot's bound owner is missing from its model pool.");
+                throw new InvalidDataException("An original slot requires its bound owner in the corresponding model pool.");
             }
         }
     }

@@ -226,7 +226,7 @@ public sealed class NativeBattleCinematicContactsTests
 
     private static NativeBattleActionPacketsState Bank(params IEnumerable<byte>[] groups)
     {
-        NativeBattleGraphicsRoster roster = new([.. Enumerable.Range(0, 9).Select(row => new NativeBattleGraphicsActor($"actor-{row}", row < 3))]);
+        BattleModelRoster roster = new([.. Enumerable.Range(0, 9).Select(row => new BattleModelOwner($"actor-{row}", row < 3))]);
         NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromPresentationStorage(roster, 320);
         foreach (IEnumerable<byte> group in groups)
         {

@@ -2,7 +2,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleDescriptorCallbacks
 {
-    public static bool IsBlocked502F30(IReadOnlyList<NativeBattleGraphicsModel> models, short index, Func<uint, byte> readByte, NativeBattleGraphicsRoster? roster = null)
+    public static bool IsBlocked502F30(IReadOnlyList<NativeBattleGraphicsModel> models, short index, Func<uint, byte> readByte, BattleModelRoster? roster = null)
     {
         roster?.Validate();
         if (models.Count != (roster?.ActorCount ?? NativeBattleGraphicsModelAddress.NativeRowCount))

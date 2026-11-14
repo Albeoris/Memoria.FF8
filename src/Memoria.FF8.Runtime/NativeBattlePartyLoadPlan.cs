@@ -20,7 +20,7 @@ public sealed record NativeBattlePartyLoadPlan(byte ModelId, byte PhysicalIndex,
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool PreferResourceStorage { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleGraphicsRoster? PresentationRoster { get; init; }
+    public BattleModelRoster? PresentationRoster { get; init; }
     [JsonIgnore]
     public bool UseResourceStorage => RequiresResourceStorage || PreferResourceStorage || PresentationRoster is not null && PhysicalIndex >= NativeBattleSlots.AllyCount;
     [JsonIgnore]
@@ -28,7 +28,7 @@ public sealed record NativeBattlePartyLoadPlan(byte ModelId, byte PhysicalIndex,
     [JsonIgnore]
     public bool RequiresResourceStorage => RequiredCapacity > Layout.BankLength;
 
-    internal static NativeBattlePartyLoadPlan Create(byte model, byte physicalIndex, byte bodySelector129, byte linkedSelector128, NativeBattlePartyCpuLayout layout, IReadOnlyList<NativeBattleModelDatSource> sources, NativeBattleGraphicsRoster? presentationRoster = null)
+    internal static NativeBattlePartyLoadPlan Create(byte model, byte physicalIndex, byte bodySelector129, byte linkedSelector128, NativeBattlePartyCpuLayout layout, IReadOnlyList<NativeBattleModelDatSource> sources, BattleModelRoster? presentationRoster = null)
     {
         NativeBattleModelLoadTask body = NativeBattleModelLoader.Queue507080(model, physicalIndex, 0, linkedSelector128, bodySelector129, presentationRoster).Task ?? throw new InvalidDataException("A party body load requires its selected callback.");
         NativeBattleModelLoadTask? linked = NativeBattleModelLoader.Queue507080(checked((ushort)(model + 0x1000)), physicalIndex, 0, linkedSelector128, bodySelector129, presentationRoster).Task;
@@ -62,7 +62,7 @@ public sealed record NativeBattlePartyLoadPlan(byte ModelId, byte PhysicalIndex,
         }
     }
 
-    internal static void RequireMatchingRoster(NativeBattleGraphicsRoster? first, NativeBattleGraphicsRoster? second)
+    internal static void RequireMatchingRoster(BattleModelRoster? first, BattleModelRoster? second)
     {
         if (first is null ? second is not null : second is null || !first.Rows.SequenceEqual(second.Rows))
         {

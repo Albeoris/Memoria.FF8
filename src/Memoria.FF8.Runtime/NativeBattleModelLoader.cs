@@ -43,7 +43,7 @@ public sealed record NativeBattleModelLoader(NativeBattleModelLoadTask? Task)
     public NativeBattlePartyLoadPlan? PartyPlan { get; init; }
 
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleGraphicsRoster? PresentationRoster { get; init; }
+    public BattleModelRoster? PresentationRoster { get; init; }
 
     public void Validate()
     {
@@ -79,14 +79,14 @@ public sealed record NativeBattleModelLoader(NativeBattleModelLoadTask? Task)
         }
     }
 
-    public static NativeBattleModelLoader Queue507080(ushort request, byte physicalIndex, uint argument, byte linkedSelector128, byte bodySelector129, NativeBattleGraphicsRoster? presentationRoster = null)
+    public static NativeBattleModelLoader Queue507080(ushort request, byte physicalIndex, uint argument, byte linkedSelector128, byte bodySelector129, BattleModelRoster? presentationRoster = null)
     {
         presentationRoster?.Validate();
         if (presentationRoster is null && physicalIndex >= 7)
         {
             throw new NotSupportedException("Native model reload currently requires a physical party CPU bank0..2.");
         }
-        NativeBattleGraphicsActor? actor = presentationRoster?[physicalIndex];
+        BattleModelOwner? actor = presentationRoster?[physicalIndex];
         bool linked = request >= 0x1000;
         int model = linked ? request - 0x1000 : request;
         if (model >= 16 && !linked)

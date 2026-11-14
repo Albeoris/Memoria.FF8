@@ -4,7 +4,7 @@ public sealed partial class BattleSession
 {
     private string HostedPresentationExecutableHash => definition.NativeRetainedMemory?.ColdExecutableSha256 ?? NativeFieldRuntimeProfile.FF8EnExecutableHash;
 
-    private void InitializeHostedPresentationModelOwners(NativeBattleGraphicsRoster roster, bool useRetainedModelOwners = false)
+    private void InitializeHostedPresentationModelOwners(BattleModelRoster roster, bool useRetainedModelOwners = false)
     {
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Hosted model resources require their effect memory owner.");
         NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Hosted model resources require their texture owner.");
@@ -13,7 +13,7 @@ public sealed partial class BattleSession
             NativeBattlePcTextureWindowCache cache = memory.PrimitiveProcess?.TextureWindowCache ?? throw new NotSupportedException("Hosted model textures require their initialized process cache.");
             // Older presentations retain a single published image. Copy its pixels and provenance without replaying its upload queue.
             NativeBattleEffectTextureState leaf = textures with { PresentationTextures = null, Count = 0, Slots = NativeBattleEffectTextureState.FromColdProcess().Slots, Animation = null };
-            foreach (NativeBattleGraphicsActor actor in roster.Rows.OfType<NativeBattleGraphicsActor>())
+            foreach (BattleModelOwner actor in roster.Rows.OfType<BattleModelOwner>())
             {
                 textures = textures.WithPresentationTexture(actor.ActorId, new(leaf, NativeBattlePcTextureWindowCache.Reset4647A0(cache)));
             }
@@ -48,10 +48,10 @@ public sealed partial class BattleSession
         return textures;
     }
 
-    private static void ValidateHostedPresentationTextureOwners(NativeBattleGraphicsRoster roster, NativeBattleEffectTextureState textures)
+    private static void ValidateHostedPresentationTextureOwners(BattleModelRoster roster, NativeBattleEffectTextureState textures)
     {
         textures.Validate();
-        foreach (NativeBattleGraphicsActor actor in roster.Rows.OfType<NativeBattleGraphicsActor>())
+        foreach (BattleModelOwner actor in roster.Rows.OfType<BattleModelOwner>())
         {
             textures.RequirePresentationTexture(actor.ActorId);
         }

@@ -432,7 +432,7 @@ public sealed partial class BattleSession
         }
         NativeBattleDuel274Frame CaptureEcho(NativeBattleDuel274Frame current, uint address)
         {
-            NativeBattleGraphicsModel model = graphics.Models[parameters.Actor78];
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(parameters.Source);
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, parameters.Actor78).PoseSource ?? throw new NotSupportedException("Native Duel echo capture requires its current body skeleton.");
             ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(model, source);
             return NativeBattleDuel274ArenaEcho.Capture68ADF0(current, address, source.BoneCount, bone =>

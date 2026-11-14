@@ -138,7 +138,7 @@ public sealed partial class BattleSession
                     Put(2, slot, BadStore(puff, 36, Decelerate(velocity, 5)));
                 }
                 short pitch = (short)((Roll() & 127) + 600);
-                short yaw = graphics.Models[effect.Parameters.Actor78].Rotation14 ?? throw new NotSupportedException("Native Bad Breath requires its caster yaw WORD14.");
+                short yaw = graphics.ActorModels.Get(effect.Parameters.Source).Rotation14 ?? throw new NotSupportedException("Native Bad Breath requires its caster yaw WORD14.");
                 short roll = (short)Roll();
                 for (int birth = 0; birth < 2; birth++)
                 {

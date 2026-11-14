@@ -18,7 +18,7 @@ public sealed class NativeBattleHostedRosterResourceInitializationTests
         NativeBattleModelCpuResources cpu = session.NativeModelCpuResources!;
         NativeBattleModelTextureCache cache = session.NativeModelTextureCache!;
         NativeBattleEffectTextureState textures = session.NativeEffectMemory!.Textures!;
-        NativeBattleGraphicsRoster roster = graphics.PresentationRoster!;
+        BattleModelRoster roster = graphics.PresentationRoster!;
         Assert.Equal(roster.Rows, cpu.Cpu.PresentationRoster!.Rows);
         Assert.Equal(roster.Rows, cache.PresentationRoster!.Rows);
         Assert.Equal(partyCount * 2 + enemyCount, cache.PresentationActors!.Count);
@@ -147,7 +147,7 @@ public sealed class NativeBattleHostedRosterResourceInitializationTests
         int[] enemies = enemyCount == 14 ? [3, 4, 5, 6, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24] : [15, 24];
         byte source = 7;
         byte target = 24;
-        NativeBattleGraphicsActor?[] rows = new NativeBattleGraphicsActor?[25];
+        BattleModelOwner?[] rows = new BattleModelOwner?[25];
         foreach (int row in parties)
         {
             rows[row] = new($"actor-{row}", true);
@@ -156,7 +156,7 @@ public sealed class NativeBattleHostedRosterResourceInitializationTests
         {
             rows[row] = new($"actor-{row}", false);
         }
-        NativeBattleGraphicsRoster roster = new([.. rows]);
+        BattleModelRoster roster = new([.. rows]);
         NativeBattleModelDatSource body = NativeBattleModelResourceCapacityTests.Source(false, 8);
         NativeBattleModelDatSource linked = NativeBattleModelResourceCapacityTests.Source(true, 8);
         NativeBattleModelDatSource enemyBody = NativeBattleEnemyOwnedHeapTests.Source(72);
@@ -176,7 +176,7 @@ public sealed class NativeBattleHostedRosterResourceInitializationTests
             enemy = enemy with { ModelLoadSources = [WithTexture(enemyBody, 10, 0x39)] };
         }
         NativeBattleEffectContactBridge<string> bridge = new([(roster[target].ActorId, new NativeBattleContactPacket(new(target, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)))], roster);
-        (NativeBattleActionPacketsState packets, NativeBattleGraphicsActorSet selected) = bridge.PrepareHosted(8, 0, 1, 1, source);
+        (NativeBattleActionPacketsState packets, BattleModelTargets selected) = bridge.PrepareHosted(8, 0, 1, 1, source);
         NativeBattleEffectParameters parameters = new(source, 0, selected.NativePhysicalBits, 0, 0, 0) { PresentationTargets = selected };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();
         BattleDefinition definition = new()

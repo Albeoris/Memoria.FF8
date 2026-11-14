@@ -115,7 +115,7 @@ public sealed class NativeBattleSpecializedModelMaterialTests
         Set(session, nameof(BattleSession.NativeFileStaging), NativeBattleFileStaging.FromColdProcess());
         Set(session, nameof(BattleSession.NativeCamera), NativeBattleCameraState.FromColdProcess() with { Projection = new(Identity, 1000, 160, 108) });
 
-        var rows = new NativeBattleGraphicsActor?[row == 0 ? 7 : 8].ToImmutableArray().SetItem(row, new("selected", true));
+        var rows = new BattleModelOwner?[row == 0 ? 7 : 8].ToImmutableArray().SetItem(row, new("selected", true));
         if (row != 0)
         {
             rows = rows.SetItem(3, new("other", false));

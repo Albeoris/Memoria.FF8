@@ -61,9 +61,9 @@ public sealed class NativeBattleDescriptorCallbackTests
     [InlineData(24)]
     public void Hosted_bound_rows_use_live_models_and_unbound_indices_use_original_signed_addresses(short index)
     {
-        NativeBattleGraphicsActor?[] rows = new NativeBattleGraphicsActor?[25];
+        BattleModelOwner?[] rows = new BattleModelOwner?[25];
         rows[index] = new("actor", true);
-        NativeBattleGraphicsRoster roster = new(rows.ToImmutableArray());
+        BattleModelRoster roster = new(rows.ToImmutableArray());
         ImmutableArray<NativeBattleGraphicsModel> models = Enumerable.Range(0, 25).Select(row => new NativeBattleGraphicsModel(row, 0)).ToImmutableArray();
         models = models.SetItem(index, models[index] with { Flags0 = 2, Flags8 = 0, Kind5 = 1 });
         Assert.True(NativeBattleDescriptorCallbacks.IsBlocked502F30(models, index, _ => throw new InvalidOperationException(), roster));

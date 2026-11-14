@@ -37,7 +37,7 @@ public sealed partial class BattleSession
             return RawVector(ReadNativeGraphicsBone(graphics, actor, selector, fraction));
         }
 
-        ImmutableArray<byte> ReadCentroid(NativeBattleGraphicsActorSet targets)
+        ImmutableArray<byte> ReadCentroid(BattleModelTargets targets)
         {
             NativeBattleVector[] positions = targets.EnumerateRows().Select(actor => (graphics.Models[actor].Transform ?? throw new NotSupportedException("Native Cactuar requires its target's actual transform.")).Position28).ToArray();
             return RawVector(NativeBattleActionGeometryRules.TargetCenter(positions));

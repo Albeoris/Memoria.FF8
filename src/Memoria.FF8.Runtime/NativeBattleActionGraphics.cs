@@ -17,7 +17,7 @@ public sealed record NativeBattleActionGraphicsState([property: JsonRequired] Ba
     public BattleModelTargets? HiddenPartyActors { get; init; }
     public BattleModelOwner? CameraActor { get; init; } = Actor;
 }
-public sealed record NativeBattleGuardianServiceState(byte HiddenPartyMask47, byte CameraSelector4E, ushort Control44, byte? Neighbor70 = null);
+public sealed record NativeBattleGuardianServiceState(BattleModelTargets HiddenPartyActors, byte CameraSelector4E, ushort Control44, byte? Neighbor70 = null);
 public sealed record NativeBattleActionServiceSelection(uint Callback, uint SetGraphicsFlags = 0, byte? Sequence = null);
 
 public static class NativeBattleActionGraphics
@@ -42,7 +42,7 @@ public static class NativeBattleActionGraphics
 
     public static short ReadCameraFlag50A6E0(NativeBattleActionPacketsState packets)
     {
-        return (short)(packets.ReadActiveContact().Primary.HitFlags3 & 2);
+        return NativeBattleActionPacketBoundary.ReadActiveCameraFlag50A6E0(packets);
     }
 
     public static int ReadFirstHeaderTargetCount5044B0(NativeBattleActionGraphicsState? action)
@@ -64,17 +64,21 @@ public static class NativeBattleActionGraphics
         };
     }
 
-    public static short AnyOtherModelBusy5044B0(IReadOnlyList<NativeBattleGraphicsModel> models, int currentIndex, NativeBattleGraphicsRoster? roster = null)
+    public static short AnyOtherModelBusy5044B0(BattleActorModels models, BattleModelOwner current)
     {
-        roster?.Validate();
-        int count = roster?.ActorCount ?? NativeBattleGraphicsModelAddress.NativeRowCount;
-        if (models.Count != count || (uint)currentIndex >= (uint)count || roster is not null && roster.Rows[currentIndex] is null)
+        ArgumentNullException.ThrowIfNull(models);
+        if (!models.Contains(current))
         {
-            throw new InvalidDataException("Native sequence busy query requires its owned graphics records and current model identity.");
+            throw new InvalidDataException("Native sequence busy query requires its current model owner.");
         }
-        for (int index = 0; index < models.Count; index++)
+        foreach (BattleModelOwner owner in models.Owners)
         {
-            if (index != currentIndex && (roster is null || roster.Rows[index] is not null) && (models[index].Flags0 & 2) != 0 && IsModelBusy(models[index], 0x40))
+            if (owner == current)
+            {
+                continue;
+            }
+            NativeBattleGraphicsModel model = models.Get(owner);
+            if ((model.Flags0 & 2) != 0 && IsModelBusy(model, 0x40))
             {
                 return 1;
             }
@@ -89,43 +93,31 @@ public static class NativeBattleActionGraphics
         return (model.Flags0 & 8) == 0 && ((model.Flags8 ?? throw new NotSupportedException("Native508540 requires its reached model DWORD8.")) & statusMask) == 0 && ((model.Kind5 ?? throw new NotSupportedException("Native508540 requires its reached model BYTE5.")) != 0 || ((model.ResourceFlags44 ?? throw new NotSupportedException("Native508540 requires its reached resource WORD44.")) & resourceMask) == 0);
     }
 
-    public static NativeBattleActionGraphicsState Normalize(NativeBattleActionPacketsState packets, int headerIndex, NativeBattleActionGraphicsState? previous = null)
+    public static NativeBattleActionGraphicsState Normalize(NativeBattleActionPacketsState packets, BattleActionHeaderReference header, NativeBattleActionGraphicsState? previous = null)
     {
         packets.Validate();
-        if ((uint)headerIndex >= NativeBattleActionPacketsState.HeaderCapacity)
-        {
-            throw new InvalidDataException("Native50BF90 header pointer is outside its physical arena.");
-        }
-        NativeBattleActionHeaderSlot first = packets.Headers[headerIndex];
-        byte actor = first.ReadByte(0);
-        int firstContact = first.FirstContactIndex ?? throw new NotSupportedException("Native50BF90 requires its actual header contact pointer.");
-        int groups = first.ReadByte(17) + 1;
-        NativeBattleGraphicsActorSet targets = default;
-        ushort cover = 0;
-        byte? source = previous?.CoverSource;
+        NativeBattleActionHeaderSlot first = packets.ReadHeader(header);
+        int groups = first.ReadRepeatModeMinusOne() + 1;
+        HashSet<BattleModelOwner> targets = [];
+        HashSet<BattleModelOwner> covers = [];
+        BattleModelOwner? coverSource = previous?.CoverSource;
+        BattleModelOwner? firstTarget = previous?.FirstTarget;
         byte flags = 0;
         for (int group = 0; group < groups; group++)
         {
-            int index = checked(headerIndex + group);
-            if (index >= NativeBattleActionPacketsState.HeaderCapacity)
+            ImmutableArray<NativeBattleContactPacket> contacts = packets.ReadHeaderContacts(header.Advance(group));
+            if (group == 0 && !contacts.IsEmpty)
             {
-                throw new NotSupportedException("Native50BF90 repeated header crosses into an unowned adjacent arena.");
+                firstTarget = contacts[0].Primary.Recipient;
             }
-            NativeBattleActionHeaderSlot header = packets.Headers[index];
-            int count = header.ReadContactCount();
-            if (count == 0)
+            foreach (NativeBattleContactPacket contact in contacts)
             {
-                continue;
-            }
-            int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native repeated header lacks its physical contact binding.");
-            for (int target = 0; target < count; target++)
-            {
-                NativeBattleContactHalf half = packets.ReadContact(checked(contact + target)).Primary;
-                targets = targets.Add(half.ActorIndex);
-                if ((half.HitFlags3 & 8) != 0)
+                NativeBattleContactHalf half = contact.Primary;
+                targets.Add(half.Recipient);
+                if (half.CoverSource is { } source)
                 {
-                    source = (byte)(half.HitFlags3 >> 6);
-                    cover |= (ushort)(1 << source.Value);
+                    covers.Add(source);
+                    coverSource = source;
                 }
                 if ((half.Flags2 & 0x30) == 0x30)
                 {
@@ -133,27 +125,30 @@ public static class NativeBattleActionGraphics
                 }
             }
         }
-        int firstCount = first.ReadContactCount();
-        byte? firstTarget = firstCount != 0 ? packets.ReadContact(firstContact).Primary.ActorIndex : previous?.FirstTarget;
-        NativeBattleActionServiceSelection selection = SelectService(first);
-        return new(headerIndex, actor, firstContact, targets.NativePhysicalBits, cover, source, firstTarget, flags, first.Data, selection.Callback)
+        if (coverSource is not null && !packets.Roster.Contains(coverSource) || firstTarget is not null && !packets.Roster.Contains(firstTarget))
         {
-            ActorSelector56 = actor,
-            FirstHeaderTargetCount = firstCount,
-            PresentationTargets = packets.PresentationRoster is null ? null : targets
+            throw new InvalidDataException("Native50BF90 cannot retain a retired model owner.");
+        }
+
+        BattleModelTargets targetActors = BattleModelTargets.From(packets.Roster.Owners.Where(targets.Contains));
+        BattleModelTargets coverActors = BattleModelTargets.From(packets.Roster.Owners.Where(covers.Contains));
+        NativeBattleActionServiceSelection selection = SelectService(first);
+        return new(header, first.Source, first.FirstContact, targetActors, coverActors, coverSource, firstTarget, flags, first.Data, selection.Callback)
+        {
+            FirstHeaderTargetCount = first.ReadContactCount()
         };
     }
 
     public static NativeBattleActionServiceSelection SelectService(NativeBattleActionHeaderSlot header)
     {
-        byte command = header.ReadByte(1);
+        byte command = header.Command;
         if (command == 0)
         {
             return new(header.ReadContactCount() != 0 ? 0x50BD80u : 0x50BD00u);
         }
         if (command is 0x26 or 0xF4 or 0xFE)
         {
-            return Word(header, 4) is 70 or 15 ? new(0x50A9A0, 0x40000000, 11) : new(0x50B2A0);
+            return header.Action is 70 or 15 ? new(0x50A9A0, 0x40000000, 11) : new(0x50B2A0);
         }
         uint special = command switch
         {
@@ -169,11 +164,9 @@ public static class NativeBattleActionGraphics
             return new(special);
         }
         uint setFlags = command == 0x1C ? 0x10000000u : 0;
-        uint callback = Word(header, 4) == 65535 ? 0x50BC20u : Word(header, 6) == 0 ? 0x50BB00u : header.ReadByte(2) != 0 ? 0x50A9A0u : 0x50B190u;
+        uint callback = header.Action == 65535 ? 0x50BC20u : header.Effect == 0 ? 0x50BB00u : header.Sequence != 0 ? 0x50A9A0u : 0x50B190u;
         return new(callback, setFlags);
     }
-
-    public static ushort Word(NativeBattleActionHeaderSlot header, int offset) => (ushort)(header.ReadByte(offset) | header.ReadByte(offset + 1) << 8);
 }
 
 public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint Initializer)

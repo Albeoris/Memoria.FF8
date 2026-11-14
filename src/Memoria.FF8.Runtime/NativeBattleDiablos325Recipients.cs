@@ -21,7 +21,7 @@ public static class NativeBattleDiablos325Recipients
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Diablos recipient sink requires its retained action header.");
         NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
         int count = header.ReadByte(0x10);
-        NativeBattleGraphicsRoster? roster = packets.PresentationRoster;
+        BattleModelRoster? roster = packets.PresentationRoster;
         ValidateHostedRecords(task, count, roster);
         for (int index = 0; index < count; index++)
         {
@@ -91,7 +91,7 @@ public static class NativeBattleDiablos325Recipients
         return NativeBattleCameraMath.Sine(NativeBattleCameraMath.Sine(NativeBattleCameraMath.Sine(ratio >> 2) >> 2) >> 2);
     }
 
-    internal static int ActorIndex(uint address, NativeBattleGraphicsRoster? roster = null)
+    internal static int ActorIndex(uint address, BattleModelRoster? roster = null)
     {
         if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int row, roster))
         {
@@ -100,7 +100,7 @@ public static class NativeBattleDiablos325Recipients
         return row;
     }
 
-    internal static void ValidateHostedRecords(NativeBattleModulePoolTask task, int count, NativeBattleGraphicsRoster? roster)
+    internal static void ValidateHostedRecords(NativeBattleModulePoolTask task, int count, BattleModelRoster? roster)
     {
         if (roster is null)
         {

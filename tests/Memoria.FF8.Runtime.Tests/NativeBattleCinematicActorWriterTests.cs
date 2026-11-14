@@ -112,7 +112,7 @@ public sealed class NativeBattleCinematicActorWriterTests
 
     private static NativeBattleCinematicActorContext Context()
     {
-        NativeBattleGraphicsRoster roster = new([.. Enumerable.Range(0, 25).Select(row => new NativeBattleGraphicsActor($"actor-{row}", row < 3))]);
+        BattleModelRoster roster = new([.. Enumerable.Range(0, 25).Select(row => new BattleModelOwner($"actor-{row}", row < 3))]);
         ImmutableArray<NativeBattleGraphicsModel> models = [.. Enumerable.Range(0, 25).Select(row => new NativeBattleGraphicsModel(row, 0))];
         return NativeBattleCinematicActorContext.FromGraphics(roster, models);
     }

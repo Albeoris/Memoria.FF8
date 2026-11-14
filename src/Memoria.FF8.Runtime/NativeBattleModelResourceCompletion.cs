@@ -122,7 +122,7 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
         return Unknown() with { EnemyResources = ImmutableDictionary<int, NativeBattleModelCpuBank>.Empty, Cpu = NativeBattleModelCpuBanks.Unknown(layout), Palettes = NativeBattleModelCpuBank.Unknown().Write(0, new byte[0xC00]), Rows = Enumerable.Range(0, NativeBattleModelResourceRowAddress.NativeRowCount).Select(_ => new NativeBattleModelCpuResourceRow(pointers)).ToImmutableArray() };
     }
 
-    public NativeBattleModelCpuResources WithPresentationRoster(NativeBattleGraphicsRoster roster)
+    public NativeBattleModelCpuResources WithPresentationRoster(BattleModelRoster roster)
     {
         ArgumentNullException.ThrowIfNull(roster);
         Validate();
@@ -244,7 +244,7 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
 
     public NativeBattleModelCpuResources SavePalettes507400(NativeBattleModelTextureLoad load, int actorRow)
     {
-        NativeBattleGraphicsRoster roster = Cpu.PresentationRoster ?? throw new InvalidDataException("Hosted saved palette writes require their presentation roster.");
+        BattleModelRoster roster = Cpu.PresentationRoster ?? throw new InvalidDataException("Hosted saved palette writes require their presentation roster.");
         if (!RequirePaletteActor(roster, actorRow).IsParty)
         {
             return this;
@@ -269,7 +269,7 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
         return Palettes.Read(actorRow * 1024, 1024);
     }
 
-    private static int RequirePartyPaletteSlot(NativeBattleGraphicsRoster roster, int actorRow)
+    private static int RequirePartyPaletteSlot(BattleModelRoster roster, int actorRow)
     {
         if (!RequirePaletteActor(roster, actorRow).IsParty)
         {
@@ -278,7 +278,7 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
         return actorRow < NativeBattleSlots.AllyCount ? actorRow : 0;
     }
 
-    private static NativeBattleGraphicsActor RequirePaletteActor(NativeBattleGraphicsRoster roster, int actorRow)
+    private static BattleModelOwner RequirePaletteActor(BattleModelRoster roster, int actorRow)
     {
         if ((uint)actorRow >= roster.ActorCount || roster.Rows[actorRow] is not { } actor)
         {

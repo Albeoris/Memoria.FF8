@@ -19,7 +19,7 @@ public sealed partial class BattleSession
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };
 
-        NativeBattleVector ReadCentroid(NativeBattleGraphicsActorSet targets)
+        NativeBattleVector ReadCentroid(BattleModelTargets targets)
         {
             return NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Native Doomtrain requires every selected target's current position.")).ToArray());
         }

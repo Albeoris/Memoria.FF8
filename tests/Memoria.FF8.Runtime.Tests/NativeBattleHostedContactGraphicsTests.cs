@@ -146,12 +146,12 @@ public sealed class NativeBattleHostedContactGraphicsTests
         {
             session.Combatants.Single(actor => actor.Id == "ally-10").BindRosterSlot(null, bindNative: false);
         }
-        NativeBattleGraphicsRoster roster = session.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = session.ReadExpandedPresentationRoster();
         NativeBattleGraphicsModel[] models = NativeBattleGraphicsModels.ClearPresentationBank(roster);
         Dictionary<int, NativeBattleEffectModelBinding> presentationBindings = [];
         foreach (int row in roster.PartyRows.Concat(roster.EnemyRows))
         {
-            NativeBattleGraphicsActor actor = roster[row];
+            BattleModelOwner actor = roster[row];
             models[row] = models[row] with { ModelId4 = actor.IsParty ? (byte)1 : (byte)61, Flags0 = 2, Flags8 = 0, ResourceFlags44 = 1, Sequence = 1, SequenceState = new(), HasLinkedModelRing140 = false };
             presentationBindings.Add(row, new(actor.ActorId, models[row], HitResource) { IsParty = actor.IsParty });
         }

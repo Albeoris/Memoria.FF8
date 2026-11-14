@@ -51,7 +51,7 @@ public sealed partial class BattleSession
             return new(current, anchor with { W = (model.Transform ?? throw new NotSupportedException("Sand Storm requires its actual actor heading.")).Angle36 });
         }
 
-        NativeBattleSandStorm155PointStep TargetCenter(NativeBattleSandStorm155Frame current, NativeBattleGraphicsActorSet targets)
+        NativeBattleSandStorm155PointStep TargetCenter(NativeBattleSandStorm155Frame current, BattleModelTargets targets)
         {
             NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Sand Storm requires every selected physical target position.")).ToArray());
             return new(current, center);

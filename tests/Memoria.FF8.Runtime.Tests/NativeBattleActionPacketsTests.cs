@@ -1,202 +1,261 @@
+using System.Collections.Immutable;
 using System.Text.Json;
-using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleActionPacketsTests
 {
-    private static NativeBattleActionHeaderPreparation Header(byte command = 1) => new(0, command, 7, -1, 101, 0, null);
-    private static NativeBattleContactPacket Contact(ushort damage) => new(new(3, 4, 0, 0, 0, damage, 0), new(255, 0, 0, 0, 0, 0, 0));
+    private static readonly BattlePartyActorModel Source = new(new("source"));
+    private static readonly BattleEnemyActorModel Target = new(new("target"));
+    private static readonly BattleEnemyActorModel Extra = new(new("extra"));
+    private static readonly BattlePartyActorModel ExtraCover = new(new("extra-cover"));
+    private static readonly BattleActionHeaderReference First = new(0);
 
     [Fact]
-    public void Physical_reads_distinguish_identical_occurrences_without_changing_packet_values_or_serialization()
+    public void Original_projection_matches_native_header_contact_bytes_and_retained_knownness()
     {
-        NativeBattleActionPacketsState state = NativeBattleActionPacketsState.Fresh();
-        NativeBattleContactPacket packet = Contact(37);
-        (state, _) = state.AppendContact(packet);
-        (state, _) = state.AppendContact(packet);
-        Assert.Same(state.Contacts[0], state.Contacts[1]);
-        NativeBattleContactPacket first = state.ReadContact(0);
-        NativeBattleContactPacket second = state.ReadContact(1);
-        Assert.Equal(0, first.PhysicalContactIndex);
-        Assert.Equal(1, second.PhysicalContactIndex);
-        Assert.Null(packet.PhysicalContactIndex);
-        Assert.Equal(packet, first);
-        Assert.Equal(first, second);
-        Assert.True(first == second);
-        Assert.Equal(first.GetHashCode(), second.GetHashCode());
-        Assert.Equal(packet.GetHashCode(), first.GetHashCode());
-        Assert.Equal(packet.Encode(), first.Encode());
-        Assert.Equal(first.Encode(), second.Encode());
-        NativeBattleContactPacket decoded = NativeBattleContactPacket.Decode(second.Encode());
-        Assert.Null(decoded.PhysicalContactIndex);
-        Assert.Equal(packet, decoded);
-        string json = JsonSerializer.Serialize(second);
-        Assert.DoesNotContain(nameof(NativeBattleContactPacket.PhysicalContactIndex), json);
-        NativeBattleContactPacket restored = JsonSerializer.Deserialize<NativeBattleContactPacket>(json)!;
-        Assert.Null(restored.PhysicalContactIndex);
-        Assert.Equal(packet, restored);
-        NativeBattleActionPacketsState restoredState = JsonSerializer.Deserialize<NativeBattleActionPacketsState>(JsonSerializer.Serialize(state))!;
-        Assert.Equal(0, restoredState.ReadContact(0).PhysicalContactIndex);
-        Assert.Equal(1, restoredState.ReadContact(1).PhysicalContactIndex);
-        Assert.NotEqual(first, first with { Primary = first.Primary with { Amount6 = 38 } });
-        Assert.NotEqual(first, first with { Secondary = first.Secondary with { ActorIndex = 0 } });
+        var (bindings, models) = OriginalBindings();
+        NativeBattleRetainedActionPackets cold = Cold();
+        NativeBattleRetainedActionHeaderSlot raw = cold.Headers[0] with { Payload = cold.Headers[0].Payload.SetItem(16, 7).SetItem(17, 4).SetItem(18, 0xA3).SetItem(19, 0xB4) };
+        cold = cold with { Headers = cold.Headers.SetItem(0, raw) };
+        NativeBattleActionPacketsState arena = NewArena(cold);
+        Assert.Throws<InvalidDataException>(() => arena.ReadHeader(First));
+        Assert.Throws<NotSupportedException>(() => arena.ReadContact(new(0)));
+
+        (arena, var header) = arena.Prepare(Preparation() with { Data = new(0x47E970, 6) });
+        Assert.Equal(0, arena.ActionCount);
+        Assert.Equal(7, arena.ReadHeader(header).ContactCount);
+        Assert.Equal((byte)4, arena.ReadHeader(header).RepeatModeMinusOne);
+        NativeBattleContactPacket contact = Contact() with { Primary = Contact().Primary with { HitFlags = 8, CoverSource = Source } };
+        (arena, _) = arena.AppendContact(contact);
+        (arena, _) = arena.Publish(1);
+        arena = arena.WritePlayerRepeatMode(header, 0).ActivateHeader(header);
+        NativeBattleRetainedActionPackets retained = arena.ExportRetained(bindings, models);
+
+        Assert.Equal(new byte[] { 0, 1, 7, 0xFF, 0x65, 0, 0, 0, 0x44, 0x83, 0xD2, 0x01, 0, 0, 0, 0, 1, 0xFF, 0xA3, 0xB4 }, retained.Headers[0].Payload);
+        Assert.Equal(0xF000u, retained.Headers[0].UnknownByteMask);
+        Assert.Equal(new byte[] { 3, 4, 0, 8, 0, 0, 37, 0, 0, 0, 0, 0, 0xFF, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, NativeBattleContactPacketCodec.Encode(retained.Contacts[0]!));
+        Assert.Equal(contact, NativeBattleContactPacketCodec.DecodeOriginal(retained.Contacts[0]!, bindings, models));
+        Assert.Equal((byte)1, retained.ActionCount);
+        Assert.Equal(1, retained.ContactCount);
+        Assert.Equal(0, retained.ActiveHeaderIndex);
+        Assert.Equal(0, retained.ActiveContactIndex);
+        Assert.False(JsonSerializer.SerializeToElement(retained).TryGetProperty("UnknownCountMask", out _));
     }
 
     [Fact]
-    public void HeaderContactWalkUsesTheExplicitPhysicalHeaderAfterCountsResetInsteadOfTheActiveSingleton()
+    public void Duplicate_occurrences_and_reset_keep_the_selected_header_and_cursor()
     {
-        NativeBattleActionPacketsState state = NativeBattleActionPacketsState.Fresh();
-        (state, _) = state.Prepare(Header());
-        (state, _) = state.AppendContact(Contact(17));
-        (state, _) = state.Publish(1);
-        (state, int second) = state.Prepare(Header(254));
-        (state, _) = state.AppendContact(Contact(29));
-        (state, _) = state.AppendContact(Contact(31));
-        (state, _) = state.Publish(2);
-        state = state.ActivateHeader(0).ResetCounts();
-        Assert.Equal(0, state.ActiveHeaderIndex);
-        Assert.Equal(new ushort[] { 29, 31 }, state.ReadHeaderContacts506BA0(second).Select(packet => packet.Primary.Amount6).ToArray());
-        Assert.Equal((ushort)17, Assert.Single(state.ReadHeaderContacts506BA0(0)).Primary.Amount6);
-        NativeBattleActionPacketsState restored = JsonSerializer.Deserialize<NativeBattleActionPacketsState>(JsonSerializer.Serialize(state))!;
-        Assert.Equal(state.ReadHeaderContacts506BA0(second).ToArray(), restored.ReadHeaderContacts506BA0(second).ToArray());
+        NativeBattleActionPacketsState arena = NewArena();
+        NativeBattleContactPacket contact = Contact();
+        (arena, var first) = arena.Prepare(Preparation());
+        arena = arena.AppendContacts([contact, contact]);
+        (arena, _) = arena.Publish(2);
+        (arena, var second) = arena.Prepare(Preparation() with { Command = 2 });
+        (arena, _) = arena.AppendContact(contact);
+        (arena, _) = arena.Publish(1);
+        arena = arena.ActivateHeader(second).ResetCounts();
+        arena.Validate();
+
+        Assert.Equal(0, arena.ActionCount);
+        Assert.Equal(0, arena.ContactCount);
+        Assert.Equal(second, arena.ActiveHeader);
+        Assert.Equal(new BattleContactCursor(2), arena.ActiveContact);
+        Assert.Equal(new BattleContactOccurrence(2), arena.ReadActiveContact().Occurrence);
+        NativeBattleContactPacket[] pair = arena.ReadHeaderContacts(first).ToArray();
+        Assert.Equal(contact, pair[0]);
+        Assert.Equal(pair[0], pair[1]);
+        Assert.NotEqual(pair[0].Occurrence, pair[1].Occurrence);
+        Assert.Null(contact.Occurrence);
+        Assert.Equal(new BattleContactOccurrence(1), arena.ResolveContact(first, 1));
+        (NativeBattleActionPacketsState next, _) = arena.Prepare(Preparation() with { Command = 4 });
+        Assert.Equal(2, next.ReadHeader(first).ContactCount);
+        Assert.Equal((byte)1, arena.ReadHeader(first).Command);
     }
 
     [Fact]
-    public void EmptyPhysicalHeaderDoesNotReadItsUnobservedContactPointer()
+    public void Dynamic_counts_keep_more_than_original_headers_contacts_and_byte_count()
     {
-        NativeBattleActionPacketsState state = NativeBattleActionPacketsState.Fresh();
-        NativeBattleActionHeaderSlot header = state.Headers[3] with { UnknownByteMask = state.Headers[3].UnknownByteMask & ~(1u << 16) };
-        state = state with { Headers = state.Headers.SetItem(3, header) };
-        Assert.Null(header.FirstContactIndex);
-        Assert.Empty(state.ReadHeaderContacts506BA0(3));
-        Assert.Throws<NotSupportedException>(() => state.ReadHeaderContacts506BA0(4));
-        Assert.Throws<ArgumentOutOfRangeException>(() => state.ReadHeaderContacts506BA0(-1));
-        Assert.Throws<ArgumentOutOfRangeException>(() => state.ReadHeaderContacts506BA0(32));
+        NativeBattleActionPacketsState arena = NewArena();
+        for (int index = 0; index < 33; index++)
+        {
+            (arena, _) = arena.Prepare(Preparation());
+            (arena, _) = arena.Publish(0);
+        }
+        (arena, var header) = arena.Prepare(Preparation() with { Source = Extra });
+        arena = arena.AppendContacts(Enumerable.Repeat(Contact(), 300));
+        (arena, _) = arena.Publish(300);
+        arena = arena.ActivateHeader(header);
+        arena.Validate();
+
+        Assert.Equal(34, arena.ActionCount);
+        Assert.Equal(300, arena.ContactCount);
+        Assert.Equal(300, arena.ReadHeader(header).ContactCount);
+        Assert.Equal(300, arena.ReadHeaderContacts(header).Length);
+        Assert.Equal(new BattleContactOccurrence(299), arena.ResolveContact(header, 299));
+        Assert.Throws<ArgumentOutOfRangeException>(() => arena.ResolveContact(header, 300));
+        Assert.Throws<ArgumentOutOfRangeException>(() => arena.ReadHeader(new(100)));
+        var (bindings, models) = OriginalBindings();
+        NativeBattleRetainedActionPackets retained = arena.ExportRetained(bindings, models);
+        Assert.Equal((byte)3, retained.UnknownCountMask);
+        Assert.Null(retained.ActiveHeaderIndex);
+        Assert.Equal(0, retained.ActiveContactIndex);
     }
 
     [Fact]
-    public void NonemptyPhysicalHeaderRetainsUnknownPointerAndContactBoundaries()
+    public void Unknown_or_unwritten_reached_fields_fail_without_reinterpreting_retained_bytes()
     {
-        NativeBattleActionPacketsState state = NativeBattleActionPacketsState.Fresh();
-        byte[] raw = state.Headers[0].Payload.ToArray();
-        raw[16] = 1;
-        NativeBattleActionHeaderSlot header = state.Headers[0] with { Payload = System.Collections.Immutable.ImmutableArray.CreateRange(raw), UnknownByteMask = state.Headers[0].UnknownByteMask & ~(1u << 16) };
-        state = state with { Headers = state.Headers.SetItem(0, header) };
-        Assert.Throws<NotSupportedException>(() => state.ReadHeaderContacts506BA0(0));
-        state = state with { Headers = state.Headers.SetItem(0, header with { FirstContactIndex = 49 }) };
-        Assert.Throws<InvalidDataException>(() => state.ReadHeaderContacts506BA0(0));
-        state = state with { Headers = state.Headers.SetItem(0, header with { FirstContactIndex = 0 }) };
-        Assert.Throws<NotSupportedException>(() => state.ReadHeaderContacts506BA0(0));
+        NativeBattleActionPacketsState arena = NewArena();
+        (arena, var header) = arena.Prepare(Preparation());
+        Assert.Throws<NotSupportedException>(() => arena.ReadHeaderContacts(header));
+        Assert.Throws<NotSupportedException>(() => arena.ActivateHeader(header));
+        Assert.Throws<ArgumentOutOfRangeException>(() => arena.Publish(-1));
+        (arena, _) = arena.Publish(3);
+        Assert.Throws<NotSupportedException>(() => arena.ReadHeaderContacts(header));
+        Assert.Throws<NotSupportedException>(() => arena.ReadContact(arena.ResolveContact(header, 1)));
+        (NativeBattleActionPacketsState outOfRange, _) = arena.Prepare(Preparation());
+        (outOfRange, var unavailable) = outOfRange.Publish(1000);
+        Assert.Throws<InvalidDataException>(() => outOfRange.ReadHeaderContacts(unavailable));
+        Assert.Throws<InvalidDataException>(() => outOfRange.ResolveContact(unavailable, 0));
+
+        NativeBattleActionPacketsState filled = NewArena();
+        filled = filled.AppendContacts(Enumerable.Repeat(Contact(), 49));
+        (filled, var empty) = filled.Prepare(Preparation());
+        (filled, _) = filled.Publish(0);
+        filled = filled.ActivateHeader(empty);
+        Assert.Empty(filled.ReadHeaderContacts(empty));
+        Assert.Throws<NotSupportedException>(() => filled.AdvanceContact());
+        Assert.Throws<ArgumentOutOfRangeException>(() => filled.ReadActiveContact());
     }
 
     [Fact]
-    public void PreparationAndContactWritesDoNotPublishTheActionCount()
+    public void Roster_replacement_preserves_retired_facts_and_rejects_them_only_when_reached()
     {
-        NativeBattleActionPacketsState state = NativeBattleActionPacketsState.Fresh();
-        (state, int header) = state.Prepare(Header());
-        Assert.Equal(0, header);
-        Assert.Equal(0, state.ActionCount);
-        Assert.Equal(0, state.Headers[header].FirstContactIndex);
-        Assert.Equal(255, state.Headers[header].ReadByte(3));
-        Assert.Equal(101, state.Headers[header].ReadByte(4));
-        Assert.Throws<NotSupportedException>(() => state.Headers[header].ReadByte(16));
-        (state, int contact) = state.AppendContact(Contact(37));
-        Assert.Equal(0, contact);
-        Assert.Equal(0, state.ActionCount);
-        Assert.Equal(1, state.ContactCount);
-        (state, int published) = state.Publish(1);
-        Assert.Equal(header, published);
-        Assert.Equal(1, state.ActionCount);
-        Assert.Equal(1, state.Headers[header].ReadByte(16));
-        state.Validate();
+        NativeBattleActionPacketsState arena = NewArena();
+        (arena, var header) = arena.Prepare(Preparation() with { Source = Extra });
+        (arena, var occurrence) = arena.AppendContact(Contact());
+        (arena, _) = arena.Publish(1);
+        arena = arena.ActivateHeader(header);
+        BattleEnemyActorModel replacement = new(new("target-allocation-2"));
+        NativeBattleActionPacketsState rebound = arena.WithRoster(new([Source, replacement]));
+        rebound.Validate();
+
+        Assert.Equal(arena.ActiveHeader, rebound.ActiveHeader);
+        Assert.Equal(arena.ActiveContact, rebound.ActiveContact);
+        Assert.Throws<InvalidDataException>(() => rebound.ReadHeader(header));
+        Assert.Throws<InvalidDataException>(() => rebound.ReadContact(occurrence));
+        Assert.Throws<InvalidDataException>(() => rebound.AppendContact(Contact()));
+        Assert.Throws<InvalidDataException>(() => rebound.Prepare(Preparation() with { Source = Extra }));
+        Assert.Throws<InvalidDataException>(() => rebound.AppendContact(new(new(replacement, 4, 0, 8, 0, 37, 0) { CoverSource = ExtraCover }, null)));
+        Assert.Equal(Target, arena.ReadContact(occurrence).Primary.Recipient);
     }
 
     [Fact]
-    public void ResetAndSlotReusePreserveRepeatAndUnknownTrailingBytes()
+    public void Unencodable_fields_preserve_previous_bytes_and_mark_only_fields_without_native_encodings()
     {
-        NativeBattleActionPacketsState state = NativeBattleActionPacketsState.Fresh();
-        (state, _) = state.Prepare(Header());
-        (state, _) = state.AppendContact(Contact(37));
-        (state, _) = state.Publish(1);
-        state = state.WritePlayerRepeatMode(0, 3).ActivateHeader(0).ResetCounts();
-        Assert.Equal(0, state.ActiveHeaderIndex);
-        Assert.Equal(37, state.ReadContact(0).Primary.Amount6);
-        Assert.Equal(2, state.Headers[0].ReadByte(17));
-        (state, _) = state.Prepare(Header(2));
-        Assert.Equal(1, state.Headers[0].ReadByte(16));
-        Assert.Equal(2, state.Headers[0].ReadByte(17));
-        Assert.Throws<NotSupportedException>(() => state.Headers[0].ReadByte(18));
-        Assert.Throws<NotSupportedException>(() => state.Headers[0].ReadByte(19));
-        state.Validate();
-    }
+        var (bindings, models) = OriginalBindings();
+        NativeBattleRetainedActionPackets cold = Cold();
+        byte[] previousContact = new byte[24];
+        previousContact[0] = 5;
+        previousContact[3] = 0xC2;
+        NativeBattleRetainedActionHeaderSlot previousHeader = cold.Headers[0] with { Payload = cold.Headers[0].Payload.SetItem(0, 6).SetItem(8, 0xF3).SetItem(16, 7) };
+        cold = cold with { Headers = cold.Headers.SetItem(0, previousHeader), Contacts = cold.Contacts.SetItem(0, NativeBattleContactPacketCodec.Decode(previousContact)) };
+        NativeBattleActionPacketsState arena = NewArena(cold);
+        NativeBattleContactPacket contact = new(new(Extra, 4, 0, 8, 0, 37, 0) { CoverSource = ExtraCover }, null);
+        (arena, _) = arena.AppendContact(contact);
+        arena = arena.AppendContacts(Enumerable.Repeat(Contact(), 49));
+        (arena, var header) = arena.Prepare(Preparation() with { Source = Extra, Data = new(0x47E970, 6) });
+        (arena, _) = arena.Publish(300);
+        arena = arena.ActivateHeader(header);
+        NativeBattleRetainedActionPackets retained = arena.ExportRetained(bindings, models);
 
-    [Fact]
-    public void PlayerRepeatWriterUsesTheFirstHeaderOfItsDispatchGroup()
-    {
-        NativeBattleActionPacketsState state = NativeBattleActionPacketsState.Fresh();
-        (state, int first) = state.Prepare(Header());
-        (state, _) = state.Publish(0);
-        (state, int second) = state.Prepare(Header(2));
-        (state, _) = state.Publish(0);
-        state = state.WritePlayerRepeatMode(first, 0);
-        Assert.Equal(255, state.Headers[first].ReadByte(17));
-        Assert.Throws<NotSupportedException>(() => state.Headers[second].ReadByte(17));
-    }
-
-    [Fact]
-    public void LogicalDataAndRetainedActivePointerSurviveStandaloneJson()
-    {
-        NativeBattleActionPacketsState state = NativeBattleActionPacketsState.Fresh();
-        NativeBattleActionDataReference data = new(0x47E970, 12);
-        (state, _) = state.Prepare(Header(2) with { Data = data });
-        (state, _) = state.AppendContact(Contact(81));
-        (state, _) = state.Publish(1);
-        state = state.ActivateHeader(0).ResetCounts();
-        NativeBattleActionPacketsState restored = JsonSerializer.Deserialize<NativeBattleActionPacketsState>(JsonSerializer.Serialize(state))!;
+        Assert.Equal((byte)2, retained.UnknownCountMask);
+        Assert.Equal(0, retained.ContactCount);
+        Assert.Null(retained.ActiveContactIndex);
+        NativeBattleRetainedActionHeaderSlot rawHeader = retained.Headers[0];
+        Assert.Null(rawHeader.FirstContactIndex);
+        Assert.NotNull(rawHeader.Data);
+        Assert.Equal(0x1FF01u, rawHeader.UnknownByteMask);
+        Assert.Equal((byte)6, rawHeader.Payload[0]);
+        Assert.Equal((byte)0xF3, rawHeader.Payload[8]);
+        Assert.Equal((byte)7, rawHeader.Payload[16]);
+        NativeBattleRawContactPacket raw = retained.Contacts[0]!;
+        Assert.Equal(24, raw.UnknownBits.Length);
+        Assert.Equal((byte)0xFF, raw.UnknownBits[0]);
+        Assert.Equal((byte)0xC0, raw.UnknownBits[3]);
+        Assert.Equal(2, raw.UnknownBits.Count(bits => bits != 0));
+        Assert.Equal((byte)5, raw.Primary.ActorIndex);
+        Assert.Equal((byte)0xC8, raw.Primary.HitFlags3);
+        Assert.Equal((ushort)37, raw.Primary.Amount6);
+        Assert.Equal(byte.MaxValue, raw.Secondary.ActorIndex);
+        Assert.Throws<InvalidDataException>(() => NativeBattleContactPacketCodec.DecodeOriginal(raw, bindings, models));
+        string json = JsonSerializer.Serialize(retained);
+        Assert.DoesNotContain("extra-cover", json);
+        NativeBattleRetainedActionPackets restored = JsonSerializer.Deserialize<NativeBattleRetainedActionPackets>(json)!;
         restored.Validate();
-        Assert.Equal(data, restored.Headers[0].Data);
-        Assert.Equal(0, restored.ActiveHeaderIndex);
-        Assert.Equal(81, restored.ReadContact(0).Primary.Amount6);
-        Assert.Throws<NotSupportedException>(() => restored.Headers[0].ReadByte(12));
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleActionPacketsState>("{}"));
+        Assert.Equal(raw.UnknownBits.ToArray(), restored.Contacts[0]!.UnknownBits.ToArray());
+        Assert.Equal(NativeBattleContactPacketCodec.Encode(raw), NativeBattleContactPacketCodec.Encode(restored.Contacts[0]!));
     }
 
     [Fact]
-    public void SessionRestoreRequiresTheCanonicalPacketOwner()
+    public void Camera_flag_reads_known_bits_without_an_original_actor_or_cover_binding()
     {
-        BattleDefinition definition = new()
+        NativeBattleRetainedActionPackets retained = Cold();
+        byte[] unknown = new byte[24];
+        unknown[0] = 0xFF;
+        unknown[3] = 0xC0;
+        NativeBattleRawContactPacket raw = retained.Contacts[0]! with
         {
-            Combatants =
-            [
-                new() { Id = "party", IsPlayer = true, Name = "Party", MaximumHp = 1000, CurrentHp = 1000, Speed = 1 },
-                new() { Id = "enemy", Name = "Enemy", MaximumHp = 1000, CurrentHp = 1000, Speed = 1 }
-            ]
+            Primary = retained.Contacts[0]!.Primary with { ActorIndex = 0xF3, HitFlags3 = 0xCA },
+            UnknownBits = ImmutableArray.CreateRange(unknown)
         };
-        BattleSession battle = new(definition, BattleAtbMode.Normal);
-        BattleSnapshot snapshot = battle.Capture();
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
-        Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(restored.Capture()));
-        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(snapshot with { NativeActionPackets = null }));
+        retained = retained with { Contacts = retained.Contacts.SetItem(0, raw) };
+        NativeBattleActionPacketsState arena = NewArena(retained).Prepare(Preparation()).State.Publish(0).State.ActivateHeader(First);
+
+        Assert.Equal((short)2, NativeBattleActionPacketBoundary.ReadActiveCameraFlag50A6E0(arena));
+        Assert.Equal((short)0, NativeBattleActionPacketBoundary.ReadActiveCameraFlag50A6E0(arena.AppendContact(Contact()).State));
+        unknown[3] |= 2;
+        NativeBattleRawContactPacket unavailable = raw with { UnknownBits = ImmutableArray.CreateRange(unknown) };
+        retained = retained with { Contacts = retained.Contacts.SetItem(0, unavailable) };
+        NativeBattleActionPacketsState unknownArena = NewArena(retained).Prepare(Preparation()).State.Publish(0).State.ActivateHeader(First);
+        Assert.Throws<NotSupportedException>(() => NativeBattleActionPacketBoundary.ReadActiveCameraFlag50A6E0(unknownArena));
+        Assert.Throws<InvalidDataException>(() => NativeBattleContactPacketCodec.Validate(raw with { UnknownBits = [0] }));
     }
 
     [Fact]
-    public void CountsCannotAuthorizeUnknownPayloadOrCrossTheAdjacentArena()
+    public void Export_without_bindings_requires_an_arena_without_any_live_writes()
     {
-        NativeBattleActionPacketsState state = NativeBattleActionPacketsState.Fresh();
-        Assert.Throws<InvalidDataException>(() => (state with { ActionCount = 1 }).Validate());
-        Assert.Throws<NotSupportedException>(() => (state with { ContactCount = 1 }).Validate());
-        for (int index = 0; index < NativeBattleActionPacketsState.HeaderCapacity; index++)
-        {
-            (state, _) = state.Prepare(Header());
-            (state, _) = state.Publish(0);
-        }
-        Assert.Throws<InvalidOperationException>(() => state.Prepare(Header()));
-        state = state.ResetCounts();
-        for (int index = 0; index < NativeBattleActionPacketsState.ContactCapacity; index++)
-        {
-            (state, _) = state.AppendContact(Contact(1));
-        }
-        Assert.Throws<InvalidOperationException>(() => state.AppendContact(Contact(1)));
+        NativeBattleRetainedActionPackets retained = Cold() with { ActionCount = 3, ContactCount = 5, UnknownCountMask = 3, ActiveHeaderIndex = 1, ActiveContactIndex = 2 };
+        NativeBattleActionPacketsState fresh = NewArena(retained);
+        NativeBattleRetainedActionPackets exported = fresh.ExportUnmodifiedRetained();
+        Assert.Equal(retained.ResetCounts(), exported);
+        Assert.Equal(retained.Headers, exported.Headers);
+        Assert.Equal(retained.Contacts, exported.Contacts);
+        Assert.Equal(1, exported.ActiveHeaderIndex);
+        Assert.Equal(2, exported.ActiveContactIndex);
+
+        NativeBattleActionPacketsState prepared = fresh.Prepare(Preparation()).State;
+        NativeBattleActionPacketsState contacts = fresh.AppendContact(Contact()).State.ResetCounts();
+        NativeBattleActionPacketsState active = prepared.Publish(0).State.ActivateHeader(First).ResetCounts();
+        Assert.Throws<NotSupportedException>(() => prepared.ExportUnmodifiedRetained());
+        Assert.Throws<NotSupportedException>(() => contacts.ExportUnmodifiedRetained());
+        Assert.Throws<NotSupportedException>(() => active.ExportUnmodifiedRetained());
+    }
+
+    private static NativeBattleActionHeaderPreparation Preparation() => new(Source, 1, 7, -1, 101, 0, null);
+    private static NativeBattleContactPacket Contact() => new(new(Target, 4, 0, 0, 0, 37, 0), null);
+    private static NativeBattleRetainedActionPackets Cold() => NativeBattleRetainedActionPackets.FromColdLoaderStorage(new byte[640], new byte[1176]);
+
+    private static NativeBattleActionPacketsState NewArena(NativeBattleRetainedActionPackets? retained = null)
+    {
+        return NativeBattleActionPacketsState.Create(new([Source, Target, Extra, ExtraCover]), retained ?? NativeBattleRetainedActionPackets.Fresh());
+    }
+
+    private static (NativeBattleModelBoundary Bindings, BattleActorModels Models) OriginalBindings()
+    {
+        NativeBattleModelBoundary boundary = NativeBattleModelBoundary.FromRetainedMemory(null);
+        BattleActorModels models = new([]);
+        (boundary, models) = boundary.BindOriginalSlot(NativeBattleModelSlot.Decode(0), Source, models);
+        return boundary.BindOriginalSlot(NativeBattleModelSlot.Decode(3), Target, models);
     }
 }

@@ -57,7 +57,7 @@ public sealed class NativeBattleGraphicsRosterStateTests
         Assert.Throws<InvalidDataException>((state with { ActorIds = state.ActorIds.RemoveAt(7) }).Validate);
         Assert.Throws<InvalidDataException>((state with { ActorIds = state.ActorIds.SetItem(7, "other") }).Validate);
         Assert.Throws<InvalidDataException>((state with { ActorIds = state.ActorIds.SetItem(1, "unbound") }).Validate);
-        Assert.Throws<InvalidDataException>(() => new NativeBattleGraphicsRoster(state.PresentationRoster!.Rows.SetItem(7, new("enemy", true))));
+        Assert.Throws<InvalidDataException>(() => new BattleModelRoster(state.PresentationRoster!.Rows.SetItem(7, new("enemy", true))));
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public sealed class NativeBattleGraphicsRosterStateTests
     [Fact]
     public void Expanded_bank_preserves_each_native_retained_row_and_leaves_extra_fields_unknown()
     {
-        NativeBattleGraphicsRoster roster = CreateHostedState(25).PresentationRoster!;
+        BattleModelRoster roster = CreateHostedState(25).PresentationRoster!;
         ImmutableArray<NativeBattleModelRetainedFields> retained = Enumerable.Range(0, 7).Select(row =>
             NativeBattleModelRetainedFields.Capture(new(row, ushort.MaxValue) { Flags2 = (ushort)(0x8000 + row), Rotation14 = (short)(200 + row), Color44 = (uint)(100 + row) })).ToImmutableArray();
         NativeBattleGraphicsModel[] native = NativeBattleGraphicsModels.ClearBank(retainedTransformRows: retained);
@@ -110,10 +110,10 @@ public sealed class NativeBattleGraphicsRosterStateTests
 
     private static NativeBattleGraphicsState CreateHostedState(int count)
     {
-        NativeBattleGraphicsActor?[] rows = new NativeBattleGraphicsActor?[count];
+        BattleModelOwner?[] rows = new BattleModelOwner?[count];
         rows[0] = new("enemy", false);
         rows[count - 1] = new("party", true);
-        NativeBattleGraphicsRoster roster = new(rows.ToImmutableArray());
+        BattleModelRoster roster = new(rows.ToImmutableArray());
         return new(NativeBattleGraphicsModels.ClearPresentationBank(roster).ToImmutableArray(), roster.Rows.Select(row => row?.ActorId).ToImmutableArray(), 0, 0) { PresentationRoster = roster };
     }
 }

@@ -7,12 +7,9 @@ public sealed record NativeBattleContactEffectPlan(bool Loaded, bool StageTarget
 
 public static class NativeBattleContactEffects
 {
-    public static NativeBattleContactEffectPlan Plan(NativeBattleContactHalf half, NativeBattleGraphicsModel model, NativeBattleGraphicsRules rules, uint rawActorBattleStatuses, bool secondary = false)
+    public static NativeBattleContactEffectPlan Plan(NativeBattleContactHalf half, BattleActorModels models, NativeBattleGraphicsRules rules, uint rawActorBattleStatuses, bool secondary = false)
     {
-        if (half.ActorIndex != model.Index)
-        {
-            throw new InvalidDataException("Native506690 contact does not identify its physical graphics row.");
-        }
+        NativeBattleGraphicsModel model = models.Get(half.Recipient);
         bool stageTargetRefresh = !secondary && (model.ModelId4 ?? throw new NotSupportedException("Native506690 requires its retained graphics model BYTE4.")) == 140;
         //506690 only enters the secondary half after the primary loaded guard; it does not repeat that guard.
         bool loaded = secondary || (model.Flags0 & 2) != 0 && (model.Flags0 & 0x10) == 0;
@@ -34,7 +31,7 @@ public static class NativeBattleContactEffects
         return new(true, stageTargetRefresh, defer, immediate, ejection, selectSequence, half.Sequence, half.ContactFlags, half.PresentedAmount) { Secondary = secondary };
     }
 
-    public static NativeBattleEffectsState ProduceTasks(NativeBattleEffectsState effects, NativeBattleContactHalf half, NativeBattleContactEffectPlan plan, NativeBattleGraphicsRoster? roster = null)
+    public static NativeBattleEffectsState ProduceTasks(NativeBattleEffectsState effects, NativeBattleContactHalf half, NativeBattleContactEffectPlan plan, BattleModelRoster roster)
     {
         if (!plan.Loaded)
         {
@@ -42,8 +39,8 @@ public static class NativeBattleContactEffects
         }
         if (plan.DeferPetrify)
         {
-            effects = effects.AppendStatusReset(half.ActorIndex, roster);
+            effects = effects.AppendStatusReset(half.Recipient, roster);
         }
-        return effects.PrependDamageText(half.ActorIndex, plan.ContactFlags, plan.Amount, roster);
+        return effects.PrependDamageText(half.Recipient, plan.ContactFlags, plan.Amount, roster);
     }
 }

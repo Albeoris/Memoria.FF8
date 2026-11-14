@@ -1,4 +1,4 @@
-﻿namespace Memoria.FF8.Runtime;
+namespace Memoria.FF8.Runtime;
 
 internal sealed partial class NativeBattleFileStagingOverlay
 {
@@ -198,6 +198,10 @@ internal sealed partial class NativeBattleFileStagingOverlay
             foreach (var entry in pointers)
             {
                 destination.StorePointer(entry.Key, entry.Value);
+            }
+            foreach ((uint address, BattleExecutionReferenceEntry? entry) in executionChanges)
+            {
+                destination.StoreExecutionReference(address, entry);
             }
             destination.CommitNestedCheckpoint(depth);
         }

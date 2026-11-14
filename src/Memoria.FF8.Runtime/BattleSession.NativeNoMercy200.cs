@@ -9,7 +9,7 @@ public sealed partial class BattleSession
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new InvalidDataException("Native No Mercy requires its selected module.");
         NativeBattleEffectParameters parameters = effect.Parameters ?? throw new InvalidDataException("Native No Mercy requires its actual parameters.");
-        NativeBattleGraphicsModel model = graphics.Models[parameters.Actor78];
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(parameters.Source);
         NativeBattleVector rotation = new(model.Rotation12 ?? throw new NotSupportedException("Native No Mercy requires actor rotation X."), model.Rotation14 ?? throw new NotSupportedException("Native No Mercy requires actor rotation Y."), model.Rotation16 ?? throw new NotSupportedException("Native No Mercy requires actor rotation Z."));
         NativeBattleVector bone = ReadNativeGraphicsBone(graphics, parameters.Actor78, 241, 0);
         NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(parameters.TargetActors.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Native No Mercy requires actual target positions.")).ToArray());

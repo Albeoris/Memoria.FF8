@@ -1,9 +1,10 @@
-using System.Text.Json;
-
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleDamageTextTests
 {
+    private static readonly BattleEnemyActorModel Target = new(new("target"));
+    private static readonly BattleActorModels DefaultModels = new([new(Target, new(3) { Flags8 = 0, ResourceFlags44 = 1 })]);
+
     [Theory]
     [InlineData(0, 0, 32, 32)]
     [InlineData(-8, -8, 32, 32)]
@@ -19,8 +20,8 @@ public sealed class NativeBattleDamageTextTests
     [InlineData(256, new int[] { -12, -13, -14, -15, -16, -17, -18, -19, -20, -21 })]
     public void Whole_string_uses_ten_native_offsets_keeps_its_anchor_and_draws_the_release_frame(int flags, int[] offsets)
     {
-        NativeBattleEffectsState state = NativeBattleEffectsState.Clear().PrependDamageText(3, (ushort)flags, 123);
-        NativeBattleGraphicsModel[] models = NativeBattleGraphicsModels.ClearBank();
+        NativeBattleEffectsState state = NativeBattleEffectsState.Clear(BattleContactTaskStorageContract.OriginalArena).PrependDamageText(Target, (ushort)flags, 123, DefaultModels.Roster);
+        BattleActorModels models = DefaultModels;
         int projections = 0;
         for (int frame = 0; frame < 10; frame++)
         {
@@ -35,7 +36,6 @@ public sealed class NativeBattleDamageTextTests
             Assert.Equal(new byte[] { 57, 58, 59, 0 }, draw.Glyphs);
             uint color = flags == 0 ? 0x808080u : 0x408040u;
             Assert.Equal(frame == 9 ? ((color >> 1) & 0x7F7F7F) | 0x04000000u : frame == 8 ? color | 0x04000000u : color, draw.Color);
-            state = JsonSerializer.Deserialize<NativeBattleEffectsState>(JsonSerializer.Serialize(state))!;
         }
         Assert.Equal(1, projections);
         Assert.Equal(0, state.PublishedCount);
@@ -46,9 +46,9 @@ public sealed class NativeBattleDamageTextTests
     [Fact]
     public void Contact_suppression_and_miss_payload_remain_native()
     {
-        Assert.Null(NativeBattleEffectsState.Clear().PrependDamageText(3, 1, 100).Head);
-        NativeBattleEffectsState miss = NativeBattleEffectsState.Clear().PrependDamageText(3, 0x400, 0);
-        NativeBattleEffectsState step = miss.Advance(NativeBattleGraphicsModels.ClearBank(), _ => new(160, 100)).State;
+        Assert.Null(NativeBattleEffectsState.Clear(BattleContactTaskStorageContract.OriginalArena).PrependDamageText(Target, 1, 100, DefaultModels.Roster).Head);
+        NativeBattleEffectsState miss = NativeBattleEffectsState.Clear(BattleContactTaskStorageContract.OriginalArena).PrependDamageText(Target, 0x400, 0, DefaultModels.Roster);
+        NativeBattleEffectsState step = miss.Advance(DefaultModels, _ => new(160, 100)).State;
         Assert.Equal(new byte[] { 16, 0 }, Assert.Single(step.TextDraws).Glyphs);
         Assert.Equal(152, step.TextDraws[0].X);
     }

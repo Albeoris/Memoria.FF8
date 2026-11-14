@@ -323,7 +323,7 @@ public sealed class NativeBattleHostedPresentationRandomTests
         SetField(child, "hostedBattlePresentation", true);
         FieldInfo descriptors = typeof(BattleSession).GetField("hostedEntryDescriptors", PrivateInstance)!;
         descriptors.SetValue(child, Activator.CreateInstance(descriptors.FieldType));
-        NativeBattleGraphicsRoster roster = owner.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = owner.ReadExpandedPresentationRoster();
         SetProperty(child, nameof(BattleSession.NativeGraphics), new NativeBattleGraphicsState(NativeBattleGraphicsModels.ClearPresentationBank(roster).ToImmutableArray(), roster.Rows.Select(actor => actor?.ActorId).ToImmutableArray(), 0, 0)
         {
             PresentationRoster = roster,

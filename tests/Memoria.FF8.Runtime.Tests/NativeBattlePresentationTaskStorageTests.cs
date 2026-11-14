@@ -125,7 +125,7 @@ public sealed class NativeBattlePresentationTaskStorageTests
 
     private static NativeBattleOriginalEffectState HostedEffect()
     {
-        NativeBattleGraphicsRoster roster = new([new NativeBattleGraphicsActor("actor", true), null, null, null, null, null, null]);
+        BattleModelRoster roster = new([new BattleModelOwner("actor", true), null, null, null, null, null, null]);
         return new(5, 4, new(5, 1, 0), null, null) { PresentationRoster = roster };
     }
 }

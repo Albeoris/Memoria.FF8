@@ -106,7 +106,7 @@ public sealed class NativeBattleHostedModelTextureRoutingTests
         BattleSession session = fixture.Session;
         if (wrongRoster)
         {
-            NativeBattleGraphicsRoster other = new(fixture.Roster.Rows.SetItem(7, new("wrong", true)));
+            BattleModelRoster other = new(fixture.Roster.Rows.SetItem(7, new("wrong", true)));
             Set(session, nameof(BattleSession.NativeModelCpuResources), NativeBattleModelCpuResources.FromColdProcess().WithPresentationRoster(other));
         }
         else
@@ -128,12 +128,12 @@ public sealed class NativeBattleHostedModelTextureRoutingTests
         }
     }
 
-    private static (BattleSession Session, NativeBattleModelCpuResources Cpu, NativeBattleGraphicsRoster Roster) Fixture()
+    private static (BattleSession Session, NativeBattleModelCpuResources Cpu, BattleModelRoster Roster) Fixture()
     {
-        NativeBattleGraphicsActor?[] actors = new NativeBattleGraphicsActor?[25];
+        BattleModelOwner?[] actors = new BattleModelOwner?[25];
         actors[7] = new("first", true);
         actors[24] = new("second", true);
-        NativeBattleGraphicsRoster roster = new(actors.ToImmutableArray());
+        BattleModelRoster roster = new(actors.ToImmutableArray());
         NativeBattleModelTextureBinding body = new(new byte?[16].ToImmutableArray());
         ImmutableArray<NativeBattleGraphicsModel> models = [.. NativeBattleGraphicsModels.ClearPresentationBank(roster)];
         models = models.SetItem(7, models[7] with { BodyTextureSlots = body }).SetItem(24, models[24] with { BodyTextureSlots = body });

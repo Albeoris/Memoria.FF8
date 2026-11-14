@@ -257,7 +257,7 @@ public sealed partial class BattleSession
         NativeBattleModulePoolTask Model(NativeBattleModulePoolTask task)
         {
             bool swirl = task.Callback == 0x8BE4A0;
-            short yaw = graphics.Models[effect.Parameters!.Actor78].Rotation14 ?? throw new NotSupportedException("Native Dark Mist requires its caster yaw.");
+            short yaw = graphics.ActorModels.Get(effect.Parameters!.Source).Rotation14 ?? throw new NotSupportedException("Native Dark Mist requires its caster yaw.");
             int phase = task.ReadByte(0x29);
             if (swirl)
             {

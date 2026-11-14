@@ -149,7 +149,7 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         string before = LogicalState(logical);
         AssertUnselectedStageCamera(logical);
         ExpandedBattlePresentationProcess process = new(logical, selected);
-        NativeBattleGraphicsRoster roster = logical.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = logical.ReadExpandedPresentationRoster();
 
         Assert.Equal(roster.Rows.ToArray(), process.Graphics.PresentationRoster!.Rows.ToArray());
         Assert.Equal(allyCount, roster.PartyRows.Count());
@@ -209,7 +209,7 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         Assert.Equal(process.Graphics.Callback, prepared.Callback);
         Assert.Equal(process.Stage.ResourceStageId, prepared.StageResourceId);
         Assert.NotEmpty(prepared.Primitives.LastCommands);
-        Assert.Equal(roster.Rows.OfType<NativeBattleGraphicsActor>().Select(actor => actor.ActorId), prepared.Actors.Select(actor => actor.Id));
+        Assert.Equal(roster.Rows.OfType<BattleModelOwner>().Select(actor => actor.ActorId), prepared.Actors.Select(actor => actor.Id));
         foreach (int row in roster.PartyRows.Concat(roster.EnemyRows))
         {
             NativeBattlePreparedActor actor = Assert.Single(prepared.Actors, item => item.Id == roster[row].ActorId);
@@ -335,7 +335,7 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         return observed;
     }
 
-    private static void AssertCompletedModelOwners(ExpandedBattlePresentationProcess process, NativeBattleGraphicsRoster roster, NativeBattleGraphicsDefinition resources)
+    private static void AssertCompletedModelOwners(ExpandedBattlePresentationProcess process, BattleModelRoster roster, NativeBattleGraphicsDefinition resources)
     {
         NativeBattleGraphicsState graphics = process.Graphics;
         NativeBattleModelTextureCache cache = process.ModelTextureCache;

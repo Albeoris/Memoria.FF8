@@ -13,7 +13,7 @@ public sealed record NativeBattleModelTextureCache([property: JsonRequired] Immu
     private const ushort NativeEnemyBlockedSlots = 63;
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleGraphicsRoster? PresentationRoster { get; init; }
+    public BattleModelRoster? PresentationRoster { get; init; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ImmutableDictionary<int, int>? PresentationActors { get; init; }
@@ -29,7 +29,7 @@ public sealed record NativeBattleModelTextureCache([property: JsonRequired] Immu
         return this with { Rows = Rows.Select(row => row with { Kind = 0 }).ToImmutableArray(), BlockedSlots = NativeEnemyBlockedSlots, PresentationActors = PresentationActors?.Clear() };
     }
 
-    public NativeBattleModelTextureCache WithPresentationRoster(NativeBattleGraphicsRoster roster, ImmutableDictionary<int, int>? rowOwners = null)
+    public NativeBattleModelTextureCache WithPresentationRoster(BattleModelRoster roster, ImmutableDictionary<int, int>? rowOwners = null)
     {
         Validate();
         int required = NativeBattleModelResourceRowAddress.CapacityForRoster(roster);
@@ -159,7 +159,7 @@ public sealed record NativeBattleModelTextureCache([property: JsonRequired] Immu
     internal int SelectHostedLoadAlias(NativeBattleModelLoadTask task)
     {
         Validate();
-        NativeBattleGraphicsRoster roster = PresentationRoster ?? throw new InvalidDataException("Hosted texture loading requires its presentation roster.");
+        BattleModelRoster roster = PresentationRoster ?? throw new InvalidDataException("Hosted texture loading requires its presentation roster.");
         bool party = task.Callback is 0x5077B0 or 0x5079B0 or 0x507BF0;
         RequirePresentationActor(roster, task.PhysicalIndex, requireParty: party);
         return task.Callback switch
@@ -222,7 +222,7 @@ public sealed record NativeBattleModelTextureCache([property: JsonRequired] Immu
         return index;
     }
 
-    private static void RequirePresentationActor(NativeBattleGraphicsRoster roster, int index, bool requireParty)
+    private static void RequirePresentationActor(BattleModelRoster roster, int index, bool requireParty)
     {
         if ((uint)index >= roster.ActorCount || roster.Rows[index] is not { } actor || requireParty && !actor.IsParty)
         {

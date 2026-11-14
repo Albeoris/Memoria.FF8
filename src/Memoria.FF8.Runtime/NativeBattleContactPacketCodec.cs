@@ -1,5 +1,7 @@
 using System.Buffers.Binary;
+using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
@@ -11,7 +13,13 @@ public sealed record NativeBattleRawContactHalf(byte ActorIndex, byte Sequence, 
     public ushort ContactFlags => (ushort)(Flags2 | HitFlags3 << 8);
 }
 
-public sealed record NativeBattleRawContactPacket(NativeBattleRawContactHalf Primary, NativeBattleRawContactHalf Secondary);
+public sealed record NativeBattleRawContactPacket(NativeBattleRawContactHalf Primary, NativeBattleRawContactHalf Secondary)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public ImmutableArray<byte> UnknownBits { get; init; }
+
+    internal byte UnknownBitsAt(int offset) => UnknownBits.IsDefaultOrEmpty ? (byte)0 : UnknownBits[offset];
+}
 
 public static class NativeBattleContactPacketCodec
 {
@@ -38,9 +46,9 @@ public static class NativeBattleContactPacketCodec
     public static void Validate(NativeBattleRawContactPacket raw)
     {
         ArgumentNullException.ThrowIfNull(raw);
-        if (raw.Primary is null || raw.Secondary is null)
+        if (raw.Primary is null || raw.Secondary is null || !raw.UnknownBits.IsDefaultOrEmpty && raw.UnknownBits.Length != 2 * HalfSize)
         {
-            throw new InvalidDataException("A raw contact packet requires both retained halves.");
+            throw new InvalidDataException("A raw contact packet requires both retained halves and a valid 24-byte knownness mask.");
         }
         NativeBattleContactHalf.ValidateExtendedDamage(raw.Primary.ExtendedDamageAmount, raw.Primary.HitFlags3, raw.Primary.Amount6);
         NativeBattleContactHalf.ValidateExtendedDamage(raw.Secondary.ExtendedDamageAmount, raw.Secondary.HitFlags3, raw.Secondary.Amount6);
@@ -62,7 +70,26 @@ public static class NativeBattleContactPacketCodec
             };
         }
 
+        if (!HalfKnown(0) || raw.UnknownBitsAt(HalfSize) != 0 ||
+            raw.Secondary.ActorIndex != byte.MaxValue && !HalfKnown(HalfSize))
+        {
+            throw new InvalidDataException("Original contact decoding requires its observed actor and contact fields.");
+        }
         return new(DecodeHalf(raw.Primary), raw.Secondary.ActorIndex == byte.MaxValue ? null : DecodeHalf(raw.Secondary));
+
+        bool HalfKnown(int offset)
+        {
+            for (int lane = 0; lane < HalfSize; lane++)
+            {
+                byte required = lane == 3 && (raw.UnknownBitsAt(offset + lane) & 8) == 0 &&
+                    ((offset == 0 ? raw.Primary : raw.Secondary).HitFlags3 & 8) == 0 ? (byte)0x3F : byte.MaxValue;
+                if ((raw.UnknownBitsAt(offset + lane) & required) != 0)
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
     }
 
     public static bool TryEncodeOriginal(NativeBattleContactPacket live, NativeBattleModelBoundary bindings, BattleActorModels models, [NotNullWhen(true)] out NativeBattleRawContactPacket? raw)
