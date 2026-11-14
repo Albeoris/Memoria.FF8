@@ -131,10 +131,10 @@ public sealed partial class BattleSession
                     }
                     AcknowledgeExpandedEffectContact(command, contact.Packet);
                     NativeBattleGraphicsRoster roster = expandedModelRoster!;
-                    PublishExpandedPartyPresentedContact(roster, contact.Packet.Primary);
+                    PublishExpandedReadyContact(roster, contact.Packet.Primary, command.ActorId);
                     if (contact.Packet.Secondary.ActorIndex != byte.MaxValue)
                     {
-                        PublishExpandedPartyPresentedContact(roster, contact.Packet.Secondary);
+                        PublishExpandedReadyContact(roster, contact.Packet.Secondary, command.ActorId);
                     }
                     break;
                 case NativeBattlePresentationSoundCommitted sound:

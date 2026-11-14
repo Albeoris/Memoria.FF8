@@ -14,15 +14,20 @@ public sealed partial class BattleSession
         }
         NativeBattleGraphicsRoster roster = ReadExpandedPresentationRoster();
         ImmutableDictionary<string, NativeBattlePartyPresentedVital>.Builder rows = ImmutableDictionary.CreateBuilder<string, NativeBattlePartyPresentedVital>(StringComparer.Ordinal);
+        ImmutableDictionary<string, NativeBattleStatusMirror>.Builder statuses = ImmutableDictionary.CreateBuilder<string, NativeBattleStatusMirror>(StringComparer.Ordinal);
         foreach (int row in roster.PartyRows)
         {
             BattleCombatant actor = GetActor(roster[row].ActorId);
             rows.Add(actor.Id, new(checked((ushort)actor.CurrentHp), checked((ushort)actor.MaximumHp), null, null) { DisplayedHitPointsQ12 = actor.CurrentHp << 12 });
+            statuses.Add(actor.Id, new(NativeSavedStatusBits(actor), NativeBattleStatusBits(actor)));
         }
-        expandedPartyPresentation = rows.ToImmutable();
+        ImmutableDictionary<string, NativeBattlePartyPresentedVital> vitals = rows.ToImmutable();
+        ImmutableDictionary<string, NativeBattleStatusMirror> mirrors = statuses.ToImmutable();
+        expandedPartyPresentation = vitals;
+        expandedPartyReadyStatusMirrors = mirrors;
     }
 
-    private void PublishExpandedPartyPresentedContact(NativeBattleGraphicsRoster roster, NativeBattleContactHalf half)
+    private BattleCombatant? PublishExpandedPartyPresentedContact(NativeBattleGraphicsRoster roster, NativeBattleContactHalf half)
     {
         ImmutableDictionary<string, NativeBattlePartyPresentedVital> state = expandedPartyPresentation ?? throw new InvalidOperationException("Expanded contact presentation requires the current party cache.");
         if (!roster.ContainsRow(half.ActorIndex))
@@ -36,7 +41,7 @@ public sealed partial class BattleSession
         }
         if (!binding.IsParty)
         {
-            return;
+            return null;
         }
         NativeBattlePartyPresentedVital row = RequireExpandedPartyPresentedRow(state, actor.Id);
         if (actor.GuardianFormVitals is not null && (half.HitFlags3 & 0x20) != 0)
@@ -48,6 +53,7 @@ public sealed partial class BattleSession
             row = row.Apply(half);
         }
         expandedPartyPresentation = state.SetItem(actor.Id, row);
+        return actor;
     }
 
     private void AdvanceExpandedPresentedVitals4B0500()
