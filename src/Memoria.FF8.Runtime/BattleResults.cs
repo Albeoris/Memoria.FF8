@@ -90,7 +90,9 @@ public sealed partial record BattleResult([property: JsonRequired] BattleEncount
     public System.Collections.Immutable.ImmutableSortedDictionary<int, BattleEnemyRosterSource>? AddedEnemySources { get; init; }
 
     [JsonIgnore]
-    public int EffectiveEnemySlotCount => UsesExpandedRoster && !UsesOriginalEnemySlots ? ExpandedEnemyCount ?? ExpandedBattleFormation.DefaultEnemyCount(Party.Length) : NativeBattleSlots.FormationSlotCount;
+    public int EffectiveEnemySlotCount => UsesExpandedRoster && !UsesOriginalEnemySlots
+        ? ExpandedEnemyCount ?? ExpandedBattleFormation.DefaultEnemyCount(Party.Length)
+        : NativeBattleSlots.FormationSlotCount + (AddedEnemySources?.Count ?? 0);
 
     public void Validate()
     {
@@ -99,13 +101,21 @@ public sealed partial record BattleResult([property: JsonRequired] BattleEncount
             throw new InvalidDataException("Battle outcome requires its observed encounter occurrence.");
         }
         Encounter.Validate();
-        if (UsesExpandedRoster ? Party is null || Encounter.ScriptedOwner is not null || !ExpandedBattleFormation.SupportsRoster(Party.Length, ExpandedEnemyCount ?? EffectiveEnemySlotCount) : ExpandedEnemyCount.HasValue || UsesOriginalEnemySlots || AddedEnemySources is not null)
+        int addedCount = AddedEnemySources?.Count ?? 0;
+        int originalEnemyCount = (ExpandedEnemyCount ?? NativeBattleSlots.FormationSlotCount) - addedCount;
+        if (UsesExpandedRoster
+            ? Party is null || (UsesOriginalEnemySlots
+                ? Party.Length is < 1 or > ExpandedBattleFormation.MaximumAllies || originalEnemyCount is < 1 or > NativeBattleSlots.FormationSlotCount || addedCount > 0 && ExpandedEnemyCount is null
+                : !ExpandedBattleFormation.SupportsRoster(Party.Length, ExpandedEnemyCount ?? EffectiveEnemySlotCount))
+            : ExpandedEnemyCount.HasValue || UsesOriginalEnemySlots || AddedEnemySources is not null)
         {
             throw new InvalidDataException("Battle outcome has invalid expanded roster dimensions.");
         }
         if (AddedEnemySources is not null)
         {
-            if (UsesOriginalEnemySlots || AddedEnemySources.Count > 10 || AddedEnemySources.Any(entry => entry.Key < 1 || entry.Key >= EffectiveEnemySlotCount || entry.Value is null))
+            if (addedCount > ExpandedBattleFormation.MaximumAddedEnemies ||
+                UsesOriginalEnemySlots && !AddedEnemySources.Keys.SequenceEqual(Enumerable.Range(NativeBattleSlots.FormationSlotCount, addedCount)) ||
+                AddedEnemySources.Any(entry => entry.Key < 1 || entry.Key >= EffectiveEnemySlotCount || entry.Value is null))
             {
                 throw new InvalidDataException("Battle outcome has invalid added enemy placements.");
             }

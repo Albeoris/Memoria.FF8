@@ -35,9 +35,9 @@ public static class NativeBattleExpandedAi
         }
         foreach ((int selector, string description) in referenceUses)
         {
-            if (!storedReferences.Contains(selector))
+            if (!originalEnemySlots && !storedReferences.Contains(selector))
             {
-                MarkUnsupportedService(description);
+                RequireOriginalSlots(description);
             }
         }
         foreach ((int variable, int comparison, int value) in localConditions)
@@ -132,8 +132,7 @@ public static class NativeBattleExpandedAi
                         }
                         if (subject == 15 && !originalEnemySlots || subject == 10 && selector == 203 && comparison is not (0 or 3))
                         {
-                            admission = ExpandedAiAdmission.RequiresOriginalSlots;
-                            blockers?.Add($"physical-condition:{subject}/{selector}/{comparison}");
+                            RequireOriginalSlots($"physical-condition:{subject}/{selector}/{comparison}");
                         }
                         else if ((subject is 0 or 4 or 7 or >= 220 and <= 227) && selector is >= 220 and <= 227)
                         {
@@ -166,8 +165,7 @@ public static class NativeBattleExpandedAi
                         }
                         break;
                     case 27 or 31 or 43 or 44 or 49 or 50 or 51 or 52 or 53 or 54 or 55 or 56 or 57 or 58 or 59 when !originalEnemySlots:
-                        admission = ExpandedAiAdmission.RequiresOriginalSlots;
-                        blockers?.Add($"physical-opcode:{opcode}");
+                        RequireOriginalSlots($"physical-opcode:{opcode}");
                         break;
                     case 27:
                         MarkUnsupportedService($"opcode:{opcode}");
@@ -175,8 +173,7 @@ public static class NativeBattleExpandedAi
                     case 29:
                         if (script[pc] != 200 && !originalEnemySlots)
                         {
-                            admission = ExpandedAiAdmission.RequiresOriginalSlots;
-                            blockers?.Add($"physical-opcode:{opcode}");
+                            RequireOriginalSlots($"physical-opcode:{opcode}");
                         }
                         else if (script[pc] != 200 && script[pc] >= NativeBattleSlots.EnemyCount)
                         {
@@ -199,8 +196,7 @@ public static class NativeBattleExpandedAi
                     case 4:
                         if (script[pc] == 209 && !originalEnemySlots)
                         {
-                            admission = ExpandedAiAdmission.RequiresOriginalSlots;
-                            blockers?.Add($"actor-reference-target:{script[pc]}");
+                            RequireOriginalSlots($"actor-reference-target:{script[pc]}");
                         }
                         else if (script[pc] is >= 220 and <= 227)
                         {
@@ -243,8 +239,7 @@ public static class NativeBattleExpandedAi
                             }
                             else if (!originalEnemySlots)
                             {
-                                admission = ExpandedAiAdmission.RequiresOriginalSlots;
-                                blockers?.Add($"physical-variable:{opcode}/{script[pc]}");
+                                RequireOriginalSlots($"physical-variable:{opcode}/{script[pc]}");
                             }
                         }
                         else if (script[pc + 1] == 203 && (opcode != 14 || callback != 2))
@@ -275,9 +270,15 @@ public static class NativeBattleExpandedAi
         void MarkUnsupportedService(string reason)
         {
             blockers?.Add(reason);
+            admission = ExpandedAiAdmission.RequiresUnsupportedService;
+        }
+
+        void RequireOriginalSlots(string reason)
+        {
+            blockers?.Add(reason);
             if (admission == ExpandedAiAdmission.Supported)
             {
-                admission = ExpandedAiAdmission.RequiresUnsupportedService;
+                admission = ExpandedAiAdmission.RequiresOriginalSlots;
             }
         }
 

@@ -67,7 +67,7 @@ internal sealed partial class GameWorld : IDisposable
             throw new ArgumentOutOfRangeException(nameof(expandedBattleAllyCount));
         }
         legacyExpandedEnemyCount = expandedBattleEnemyCount;
-        if (legacyExpandedEnemyCount is < 1 or > ExpandedBattleFormation.MaximumSideSize)
+        if (legacyExpandedEnemyCount is < 1 or > ExpandedBattleFormation.MaximumEnemies)
         {
             throw new ArgumentOutOfRangeException(nameof(expandedBattleEnemyCount));
         }

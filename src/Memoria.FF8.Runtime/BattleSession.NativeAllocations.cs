@@ -35,9 +35,13 @@ public sealed partial class BattleSession
             throw new NotSupportedException("Expanded AI cannot allocate original enemy slots on this roster.");
         }
         RequireNoPendingEncounterAllocation();
+        if ((uint)sceneSlot >= NativeBattleSlots.FormationSlotCount)
+        {
+            throw new InvalidDataException("Native enemy allocation requires an original formation prototype.");
+        }
         BattleCombatantDefinition prototype = definition.Combatants.SingleOrDefault(candidate => !candidate.IsPlayer && candidate.SceneSlot == sceneSlot) ?? throw new InvalidDataException($"Native enemy allocation has no scene resource {sceneSlot}.");
         NativeBattleEnemyTemplate template = prototype.NativeTemplate ?? throw new InvalidDataException("Native enemy allocation lacks its installed resource template.");
-        int physicalIndex = requestedIndex == 0 ? Enumerable.Range(3, 4).FirstOrDefault(index => !enemies.Any(candidate => candidate.IsActive && candidate.Slot == NativeBattleSlots.Decode(index)) && !IsEncounterRetirementPending(index), -1) : requestedIndex;
+        int physicalIndex = requestedIndex == 0 ? Enumerable.Range(NativeBattleSlots.AllyCount, NativeBattleSlots.EnemyCount).FirstOrDefault(index => FindActiveNativeActor(index) is null && !IsEncounterRetirementPending(index), -1) : requestedIndex;
         if (physicalIndex is < 3 or > 6)
         {
             throw new InvalidDataException("Native enemy allocation requires one of physical slots3..6 and an available allocation.");
@@ -48,14 +52,14 @@ public sealed partial class BattleSession
         }
         StopTurnAdvance();
         BattleRosterSlot slot = NativeBattleSlots.Decode(physicalIndex);
-        BattleCombatant? previous = enemies.SingleOrDefault(candidate => candidate.Slot == slot);
-        foreach (BattleCombatant replaced in enemies.Where(candidate => candidate.Slot == slot).ToArray())
+        BattleCombatant? previous = FindAllocatedNativeActor(physicalIndex);
+        if (previous is not null)
         {
-            if (replaced.IsActive)
+            if (previous.IsActive)
             {
-                ReleaseNativeParticipant(replaced);
+                ReleaseNativeParticipant(previous);
             }
-            replaced.BindRosterSlot(null);
+            previous.BindRosterSlot(null);
         }
         int generation = checked(nativeAllocations.Count + 1);
         NativeBattleEnemyAllocation allocation = new($"native-allocation-{generation}", sceneSlot, generation);
@@ -138,7 +142,7 @@ public sealed partial class BattleSession
 
     private BattleCombatant CreateNativeAllocation(NativeBattleEnemyAllocation allocation)
     {
-        if (allocation.Generation != nativeAllocations.Count + 1 || allocation.Id != $"native-allocation-{allocation.Generation}" || byId.ContainsKey(allocation.Id))
+        if (allocation.Generation != nativeAllocations.Count + 1 || allocation.Id != $"native-allocation-{allocation.Generation}" || byId.ContainsKey(allocation.Id) || (uint)allocation.SceneSlot >= NativeBattleSlots.FormationSlotCount)
         {
             throw new InvalidDataException("Native allocation identity or generation is invalid.");
         }

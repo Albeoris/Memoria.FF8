@@ -4,6 +4,29 @@ namespace Memoria.FF8.GameUi;
 
 internal readonly record struct BattleHudPartyRow(float Top, float Height, float VitalHeight, float StatusOffset, float StatusTextScale, float GaugeOffset);
 
+internal readonly record struct BattleHudTargetList(UiRect Panel, float RowHeight, float ContentOffset, int Start, int VisibleCount, int TotalCount)
+{
+    public bool Scrolls => TotalCount > 4;
+    public int End => Start + VisibleCount;
+    public UiRect Caption => new(Panel.X, Panel.Y - 12, Panel.Width, ContentOffset + 12);
+    public UiRect PreviousPage => new(Panel.X + 12, Panel.Bottom - 29, 36, 24);
+    public UiRect NextPage => new(Panel.Right - 48, Panel.Bottom - 29, 36, 24);
+    public UiRect Row(int index) => new(Panel.X, Panel.Y + ContentOffset + (index - Start) * RowHeight, Panel.Width, RowHeight);
+
+    public int HitIndex(BattleHudLayout viewport, float x, float y)
+    {
+        for (int index = Start; index < End; index++)
+        {
+            UiRect row = Row(index);
+            if (viewport.Rect(row.X, row.Y, row.Width, row.Height).Contains(x, y))
+            {
+                return index;
+            }
+        }
+        return -1;
+    }
+}
+
 internal readonly record struct BattleHudLayout(UiRect Bounds)
 {
     public const float CommandX = 30;
@@ -75,6 +98,31 @@ internal readonly record struct BattleHudLayout(UiRect Bounds)
         float height = 4 * rowHeight + contentOffset + 12;
         float y = Math.Min(609 - 4 * rowHeight, 660 - height);
         return (new UiRect(54, y, columnWidth * columns, height), columnWidth, rowHeight, contentOffset);
+    }
+
+    public BattleHudTargetList MeasureTargetList(IUiCanvas canvas, UiTheme theme, string[] names, float textScale, float helpSpace, int previousStart, int selectedIndex)
+    {
+        if (names.Length <= 4)
+        {
+            var (panel, _, nativeRowHeight, offset) = MeasureTargets(canvas, theme, names, 1, textScale);
+            return new(panel, nativeRowHeight, offset, 0, names.Length, names.Length);
+        }
+
+        const float bottom = 660;
+        const float top = 108;
+        const float footerHeight = 34;
+        float fontSize = 24 * Scale * textScale;
+        float captionSize = UiTheme.DefaultCaptionFontSize * Scale * textScale;
+        float contentOffset = Math.Max(27, Math.Max(theme.CaptionContentHeight(captionSize), captionSize * 0.75f) / Scale);
+        float rowHeight = Math.Max(39, canvas.MeasureText("Mg", fontSize, float.PositiveInfinity).Height / Scale + Math.Max(12, 11 * textScale));
+        int visible = Math.Clamp((int)((bottom - top - helpSpace - contentOffset - footerHeight) / rowHeight), 1, Math.Min(7, names.Length));
+        int start = Math.Clamp(previousStart, 0, names.Length - visible);
+        if (selectedIndex >= 0)
+        {
+            start = Math.Clamp(start, Math.Max(0, selectedIndex - visible + 1), Math.Min(selectedIndex, names.Length - visible));
+        }
+        float height = contentOffset + visible * rowHeight + footerHeight;
+        return new(new UiRect(54, bottom - height, 442, height), rowHeight, contentOffset, start, visible, names.Length);
     }
 
     public void DrawVitals(IUiCanvas canvas, string name, long hp, long maximumHp, float y, float textScale, UiColor nameColor, UiColor hpColor, int? mp = null, int maximumMp = 0, float? compactHeight = null)

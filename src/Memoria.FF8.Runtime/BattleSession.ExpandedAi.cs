@@ -12,13 +12,16 @@ public sealed record BattleAiRecipients(ImmutableArray<string> ActorIds)
     public BattleAiTargetPolicy TargetPolicy { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public BattleAiSelection Selection { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public ushort? NativeSelectionMask { get; init; }
 }
 
 public enum BattleAiSelection
 {
     Selected,
     Group,
-    Physical
+    Physical,
+    NativeMask
 }
 
 public enum BattleAiTargetPolicy
@@ -186,8 +189,10 @@ public sealed partial class BattleSession
 
     private void ValidateExpandedOriginalEnemySlots()
     {
-        BattleCombatant[] allocated = enemies.Where(actor => actor.Slot is not null).ToArray();
-        if (allocated.Select(actor => actor.Slot).Distinct().Count() != allocated.Length || allocated.Any(actor => actor.ResolvedNativeLevel is null || actor.NativeAllocationPendingStatistics || actor.NativeTemplate is null))
+        BattleCombatant[] allocated = enemies.Where(actor => !IsAddedEnemy(actor) && actor.Slot is not null).ToArray();
+        if (allocated.Select(actor => actor.NativeActorIndex).Distinct().Count() != allocated.Length ||
+            allocated.Any(actor => actor.NativeActorIndex is null || actor.ResolvedNativeLevel is null || actor.NativeAllocationPendingStatistics || actor.NativeTemplate is null) ||
+            enemies.Any(actor => IsAddedEnemy(actor) && actor.NativeActorIndex.HasValue))
         {
             throw new InvalidDataException("Expanded original enemy slots require unique owners with resolved allocation statistics.");
         }
@@ -199,11 +204,7 @@ public sealed partial class BattleSession
         {
             return new([targetId]);
         }
-        if ((actor.AiVariables[index] & 31) >= 16)
-        {
-            return new([]);
-        }
-        throw new NotSupportedException("Expanded battle AI cannot target a numeric local variable as an actor slot.");
+        return new([]) { Selection = BattleAiSelection.NativeMask, NativeSelectionMask = NativeAiIndexMask(unchecked((int)actor.AiVariables[index])) };
     }
 
     private static void StoreExpandedAiLastAttacker(BattleCombatant actor, int variable, bool add)
@@ -238,10 +239,10 @@ public sealed partial class BattleSession
 
     internal BattleCombatant[] CurrentExpandedAiTargets(BattleAiRecipients recipients, BattleNativeAction? action = null)
     {
-        if (!Enum.IsDefined(recipients.Selection) || recipients.Selection != BattleAiSelection.Selected && (!UsesOriginalEnemySlots || recipients.TargetPolicy != BattleAiTargetPolicy.Standard || recipients.RandomSide is not null) ||
-            recipients.Selection == BattleAiSelection.Physical && recipients.ActorIds.Length != 1)
+        ValidateExpandedAiTargetSelection(recipients);
+        if (recipients.NativeSelectionMask is ushort mask)
         {
-            throw new InvalidDataException("Expanded AI target selection has invalid roster or recipient ownership.");
+            return ResolveExpandedNativeTargetMask(ExpandedNativeTargetRequest(mask, action));
         }
         IEnumerable<BattleCombatant> targets = recipients.RandomSide is BattleSide side ? Roster(side) : recipients.ActorIds.Select(GetActor);
         if (recipients.TargetPolicy == BattleAiTargetPolicy.Compelled)
@@ -263,6 +264,66 @@ public sealed partial class BattleSession
             return targets.Where(candidate => IsExpandedAiTarget(candidate) || candidate.IsPlayer && candidate.IsActive && !candidate.Untargetable && !candidate.IsEjected && !candidate.IsAlive).ToArray();
         }
         return targets.Where(target => IsExpandedAiTarget(target) || target.IsActive && target.Id == recipients.DeathSelfTargetId).ToArray();
+    }
+
+    private void ValidateExpandedAiTargetSelection(BattleAiRecipients recipients)
+    {
+        bool nativeMask = recipients.Selection == BattleAiSelection.NativeMask;
+        bool requiresOriginalSlots = recipients.Selection is BattleAiSelection.Group or BattleAiSelection.Physical ||
+            recipients.NativeSelectionMask is ushort mask && new NativeBattleTargetRequest(mask).Selection != 0;
+        if (!Enum.IsDefined(recipients.Selection) ||
+            requiresOriginalSlots && !UsesOriginalEnemySlots ||
+            recipients.Selection != BattleAiSelection.Selected && (recipients.TargetPolicy != BattleAiTargetPolicy.Standard || recipients.RandomSide is not null) ||
+            recipients.Selection == BattleAiSelection.Physical && recipients.ActorIds.Length != 1 ||
+            nativeMask != recipients.NativeSelectionMask.HasValue ||
+            nativeMask && (recipients.ActorIds.IsDefault || !recipients.ActorIds.IsEmpty || recipients.DeathSelfTargetId is not null))
+        {
+            throw new InvalidDataException("Expanded AI target selection has invalid roster or recipient ownership.");
+        }
+    }
+
+    private static NativeBattleTargetRequest ExpandedNativeTargetRequest(ushort mask, BattleNativeAction? action)
+    {
+        if (action is { Command: 2 or 4 })
+        {
+            byte flags = action.TargetFlags.GetValueOrDefault();
+            mask |= (ushort)(((flags & 1) != 0 ? 0x4000 : 0) | ((flags & 2) != 0 ? 0x2000 : 0));
+        }
+        else if (action is { Command: 8 } && (action.AttackFlags & 0x80) != 0)
+        {
+            mask |= 0x4000;
+        }
+        return new(mask);
+    }
+
+    private BattleCombatant[] ResolveExpandedNativeTargetMask(NativeBattleTargetRequest request)
+    {
+        if (request.SelectsRandomTarget)
+        {
+            return Roster(request.Side).Where(IsExpandedAiTarget).ToArray();
+        }
+        if (request.SelectsGroup)
+        {
+            IEnumerable<BattleCombatant> group = request.Selection == 255 ? combatants : Roster(request.Side);
+            return group.Where(IsAvailable).ToArray();
+        }
+
+        ushort available = 0;
+        foreach (BattleCombatant actor in NativeTargetActors().Where(IsAvailable))
+        {
+            available |= NativeAiIndexMask(actor.NativeActorIndex!.Value);
+        }
+        var (resolved, _) = NativeBattleActionTargetMask.Resolve(request, NativeBattlePhysicalTargets.FromNativeWord(available), nativeScriptState.DisableAutomaticTargetReplacement);
+        if ((resolved >> NativeBattleSlots.Count) != 0)
+        {
+            throw new NotSupportedException($"Expanded AI resolved an unowned native target mask 0x{resolved:X4}.");
+        }
+        return NativeTargetActors().Where(actor => actor.IsActive && (resolved & NativeAiIndexMask(actor.NativeActorIndex!.Value)) != 0).OrderBy(actor => actor.NativeActorIndex).ToArray();
+
+        bool IsAvailable(BattleCombatant actor)
+        {
+            return actor.IsActive && !actor.Untargetable && ((NativeSavedStatusBits(actor) & 1) == 0 || request.IncludesKnockedOutAllies && actor.IsPlayer);
+        }
     }
 
     private BattleCombatant[] ResolveExpandedOriginalAiTargets(BattleAiRecipients recipients, BattleNativeAction? action, BattleCombatant[] selected)
@@ -325,10 +386,11 @@ public sealed partial class BattleSession
 
     private void EnqueueExpandedAiAction(BattleCombatant actor, byte command, ushort actionId, byte sequence, BattleAiRecipients? recipients, BattleNativeAction? native = null, BattleNativeGraphicCommand? graphic = null)
     {
-        if (recipients is null || recipients.ActorIds.IsEmpty && graphic is null)
+        if (recipients is null || recipients.ActorIds.IsEmpty && recipients.Selection != BattleAiSelection.NativeMask && graphic is null)
         {
             return;
         }
+        ValidateExpandedAiTargetSelection(recipients);
         if (nativeAiCallbackStage == 3 && recipients.RandomSide is null && recipients.ActorIds.Contains(actor.Id) && (NativeSavedStatusBits(actor) & 1) == 0)
         {
             recipients = recipients with { DeathSelfTargetId = actor.Id };

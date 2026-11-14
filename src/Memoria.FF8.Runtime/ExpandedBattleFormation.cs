@@ -3,15 +3,18 @@
 /// <summary>Placement for battle rosters without an authored position table.</summary>
 public static class ExpandedBattleFormation
 {
-    public const int MaximumSideSize = NativeCharacterVitals.ExtendedRecordCount;
+    public const int MaximumAllies = NativeCharacterVitals.ExtendedRecordCount;
+    public const int MaximumAddedEnemies = GameplayPreferences.MaximumAdditionalEnemies;
+    public const int MaximumEnemies = NativeBattleSlots.EnemyCount + MaximumAddedEnemies;
+    public const int MaximumRewardSlots = NativeBattleSlots.FormationSlotCount + MaximumAddedEnemies;
 
     public static int DefaultEnemyCount(int allyCount) => allyCount == 4 ? 6 : 8;
 
-    public static bool SupportsRoster(int allyCount, int enemyCount) => allyCount is >= 1 and <= MaximumSideSize && enemyCount is >= 1 and <= MaximumSideSize;
+    public static bool SupportsRoster(int allyCount, int enemyCount) => allyCount is >= 1 and <= MaximumAllies && enemyCount is >= 1 and <= MaximumEnemies;
 
     public static NativeBattleVector Position(int slot, int count, bool isAlly)
     {
-        if (count is < 1 or > MaximumSideSize)
+        if (count < 1 || count > (isAlly ? MaximumAllies : MaximumEnemies))
         {
             throw new ArgumentOutOfRangeException(nameof(count));
         }
@@ -21,8 +24,8 @@ public static class ExpandedBattleFormation
         }
 
         // Rear and front positions occupy the gaps between the four middle positions.
-        int rowSlot = slot < 4 ? slot : slot == 10 ? 0 : (slot - 4) % 3;
-        int rowCapacity = slot < 4 ? Math.Min(4, count) : slot == 10 ? 1 : 3;
+        int rowSlot = slot < 4 ? slot : slot >= 10 ? slot - 10 : (slot - 4) % 3;
+        int rowCapacity = slot < 4 ? Math.Min(4, count) : slot >= 10 ? Math.Min(4, count - 10) : 3;
         int x = (2 * rowSlot - rowCapacity + 1) * 600;
         int distance = slot switch
         {

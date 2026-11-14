@@ -68,8 +68,8 @@ public sealed class ExpandedBattleResultTests
         Assert.Equal(expectedEnemyCount, restored.EffectiveEnemySlotCount);
         Assert.Equal(expectedEnemyCount - 1, restored.EnemyDefeats[^1].Slot);
         Assert.Throws<InvalidDataException>(() => (restored with { ExpandedEnemyCount = expectedEnemyCount - 1 }).Validate());
-        Assert.Throws<InvalidDataException>(() => (restored with { ExpandedEnemyCount = ExpandedBattleFormation.MaximumSideSize + 1 }).Validate());
-        if (expectedEnemyCount < ExpandedBattleFormation.MaximumSideSize)
+        Assert.Throws<InvalidDataException>(() => (restored with { ExpandedEnemyCount = ExpandedBattleFormation.MaximumEnemies + 1 }).Validate());
+        if (expectedEnemyCount < ExpandedBattleFormation.MaximumEnemies)
         {
             BattleResult largerRoster = restored with { ExpandedEnemyCount = expectedEnemyCount + 1 };
             largerRoster.Validate();

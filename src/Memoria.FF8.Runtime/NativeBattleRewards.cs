@@ -25,7 +25,7 @@ public sealed record BattleEnemyDefeat([property: JsonRequired] int Slot, [prope
     public string AllocationKey => AllocationId ?? $"scene-{Slot}";
     public void Validate()
     {
-        if (Slot is < 0 or >= ExpandedBattleFormation.MaximumSideSize || AllocationId is not null && string.IsNullOrWhiteSpace(AllocationId) || Level is < 1 or > 100 || !Enum.IsDefined(Credit) || KillerRow is >= NativeCharacterVitals.ExtendedRecordCount || GuardianForceId is >= 16 || DropSelection is < -1 or > 3 || Credit == BattleDefeatCredit.Unattributed && (KillerRow is not null || GuardianForceId is not null) || Credit == BattleDefeatCredit.Character && (KillerRow is null || GuardianForceId is not null) || Credit == BattleDefeatCredit.GuardianForce && (KillerRow is null || GuardianForceId is null))
+        if (Slot is < 0 or >= ExpandedBattleFormation.MaximumRewardSlots || AllocationId is not null && string.IsNullOrWhiteSpace(AllocationId) || Level is < 1 or > 100 || !Enum.IsDefined(Credit) || KillerRow is >= NativeCharacterVitals.ExtendedRecordCount || GuardianForceId is >= 16 || DropSelection is < -1 or > 3 || Credit == BattleDefeatCredit.Unattributed && (KillerRow is not null || GuardianForceId is not null) || Credit == BattleDefeatCredit.Character && (KillerRow is null || GuardianForceId is not null) || Credit == BattleDefeatCredit.GuardianForce && (KillerRow is null || GuardianForceId is null))
         {
             throw new InvalidDataException("Enemy defeat fact lacks its observed level, credit or selected reward branch.");
         }
@@ -70,7 +70,7 @@ public sealed record BattleEnemyRemainingExperience(int Slot, byte Level, int Ma
 {
     public void Validate()
     {
-        if (NativeIndex is < 3 or > 6 || Slot < 0 || Slot >= (NativeIndex.HasValue ? NativeBattleSlots.FormationSlotCount : ExpandedBattleFormation.MaximumSideSize) || Level is < 1 or > 100 || MaximumHp < 1 || CurrentHp < 0 || CurrentHp > MaximumHp)
+        if (NativeIndex is < 3 or > 6 || Slot < 0 || Slot >= (NativeIndex.HasValue ? NativeBattleSlots.FormationSlotCount : ExpandedBattleFormation.MaximumRewardSlots) || Level is < 1 or > 100 || MaximumHp < 1 || CurrentHp < 0 || CurrentHp > MaximumHp)
         {
             throw new InvalidDataException("Remaining enemy experience requires its current slot, level and HP operands.");
         }

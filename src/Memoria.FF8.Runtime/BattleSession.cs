@@ -124,7 +124,16 @@ public sealed partial class BattleSession
             }
             else
             {
-                actor.BindRosterSlot(actor.IsActive ? BattleRosterSlot.Enemy(enemySlot++) : null);
+                bool addedEnemy = IsAddedEnemy(actor);
+                if (UsesOriginalEnemySlots && addedEnemy)
+                {
+                    int position = NativeBattleSlots.EnemyCount + actor.SourceDefinition.SceneSlot!.Value - NativeBattleSlots.FormationSlotCount;
+                    actor.BindRosterSlot(BattleRosterSlot.Enemy(position), bindNative: false);
+                }
+                else
+                {
+                    actor.BindRosterSlot(actor.IsActive ? BattleRosterSlot.Enemy(enemySlot++) : null, bindNative: !addedEnemy);
+                }
             }
             if (initializeNativeAi && actor.IsActive && HasNativeRosterSlot(actor) && !UsesExpandedRoster)
             {
@@ -1266,26 +1275,39 @@ public sealed partial class BattleSession
     private void ValidateDefinition(BattleDefinition source)
     {
         int enemyCount = source.Combatants.Count(actor => !actor.IsPlayer);
-        int enemySlotCount = source.UsesExpandedRoster && !source.UsesOriginalEnemySlots ? enemyCount : NativeBattleSlots.FormationSlotCount;
-        if (source.UsesExpandedRoster && (source.NativeGraphics is not null || !ExpandedBattleFormation.SupportsRoster(source.Combatants.Length - enemyCount, enemyCount) || source.Combatants.Any(actor => !actor.InitialActive && (actor.IsPlayer || !source.UsesOriginalEnemySlots))))
+        int addedCount = source.AddedEnemySources?.Count ?? 0;
+        int enemySlotCount = source.UsesExpandedRoster && !source.UsesOriginalEnemySlots ? enemyCount : NativeBattleSlots.FormationSlotCount + addedCount;
+        int activeEnemyCount = source.Combatants.Count(actor => !actor.IsPlayer && actor.InitialActive);
+        if (source.UsesExpandedRoster && (source.NativeGraphics is not null || !ExpandedBattleFormation.SupportsRoster(source.Combatants.Length - enemyCount, activeEnemyCount) || source.Combatants.Any(actor => !actor.InitialActive && (actor.IsPlayer || !source.UsesOriginalEnemySlots))))
         {
             throw new NotSupportedException("The expanded battle host requires a supported roster and host-owned actions.");
         }
         if (source.UsesOriginalEnemySlots)
         {
-            BattleCombatantDefinition[] originalEnemies = source.Combatants.Where(actor => !actor.IsPlayer).ToArray();
-            int activeEnemies = originalEnemies.Count(actor => actor.InitialActive);
-            if (!source.UsesExpandedRoster || activeEnemies is < 1 or > NativeBattleSlots.EnemyCount || originalEnemies.Any(actor => actor.SceneSlot is null || actor.NativeTemplate is null) || originalEnemies.Select(actor => actor.SceneSlot).Distinct().Count() != enemyCount || source.AddedEnemySources is { Count: > 0 })
+            BattleCombatantDefinition[] enemyDefinitions = source.Combatants.Where(actor => !actor.IsPlayer).ToArray();
+            BattleCombatantDefinition[] originalEnemies = enemyDefinitions.Where(actor => !IsAddedEnemy(actor)).ToArray();
+            int activeOriginalEnemies = originalEnemies.Count(actor => actor.InitialActive);
+            if (!source.UsesExpandedRoster || activeOriginalEnemies is < 1 or > NativeBattleSlots.EnemyCount ||
+                originalEnemies.Any(actor => actor.SceneSlot is null or < 0 or >= NativeBattleSlots.FormationSlotCount || actor.NativeTemplate is null || actor.RewardSlot >= NativeBattleSlots.FormationSlotCount) ||
+                originalEnemies.Select(actor => actor.SceneSlot).Distinct().Count() != originalEnemies.Length)
             {
                 throw new InvalidDataException("Original enemy slots require unique formation prototypes, native templates and one to four initial enemy allocations.");
+            }
+            BattleCombatantDefinition[] addedEnemies = enemyDefinitions.Where(IsAddedEnemy).ToArray();
+            if (addedEnemies.Length != addedCount || addedEnemies.Select(actor => actor.SceneSlot).Distinct().Count() != addedCount ||
+                addedEnemies.Any(actor => !actor.InitialActive || actor.NativeTemplate is not null || actor.Rewards is not null && actor.RewardSlot != actor.SceneSlot))
+            {
+                throw new InvalidDataException("Mixed battle additions require a unique active logical enemy for each added placement.");
             }
         }
         if (source.AddedEnemySources is { } added)
         {
             int authoredCount = enemyCount - added.Count;
-            if (!source.UsesExpandedRoster || source.UsesOriginalEnemySlots || authoredCount is < 1 or > NativeBattleSlots.EnemyCount ||
-                !added.Keys.SequenceEqual(Enumerable.Range(authoredCount, added.Count)) ||
-                !source.Combatants.Where(actor => !actor.IsPlayer).Select(actor => actor.RewardSlot).SequenceEqual(Enumerable.Range(0, enemyCount).Select(slot => (int?)slot)))
+            int firstAddedSlot = source.UsesOriginalEnemySlots ? NativeBattleSlots.FormationSlotCount : authoredCount;
+            if (!source.UsesExpandedRoster || added.Count > ExpandedBattleFormation.MaximumAddedEnemies ||
+                !added.Keys.SequenceEqual(Enumerable.Range(firstAddedSlot, added.Count)) ||
+                !source.UsesOriginalEnemySlots && (authoredCount is < 1 or > NativeBattleSlots.EnemyCount ||
+                    !source.Combatants.Where(actor => !actor.IsPlayer).Select(actor => actor.RewardSlot).SequenceEqual(Enumerable.Range(0, enemyCount).Select(slot => (int?)slot))))
             {
                 throw new InvalidDataException("Added enemy provenance does not match the ordered battle roster.");
             }
@@ -1338,7 +1360,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native persistent battle AI bank requires all eight executed DWORDs.");
         }
-        int maximumCombatants = source.UsesExpandedRoster ? 2 * ExpandedBattleFormation.MaximumSideSize : 16;
+        int maximumCombatants = source.UsesExpandedRoster ? ExpandedBattleFormation.MaximumAllies + (source.UsesOriginalEnemySlots ? ExpandedBattleFormation.MaximumRewardSlots : ExpandedBattleFormation.MaximumEnemies) : 16;
         if (string.IsNullOrWhiteSpace(source.Name) || source.StageId < 0 || source.EncounterId < 0 || source.Combatants.Length < 2 || source.Combatants.Length > maximumCombatants || !source.Combatants.Any(actor => actor.IsPlayer) || !source.Combatants.Any(actor => !actor.IsPlayer))
         {
             throw new ArgumentException($"Battle requires a name and both player and enemy combatants (2–{maximumCombatants} total).");
@@ -1706,10 +1728,14 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Saved compelled command lacks its player action and target selection.");
         }
-        if (aiRecipients is { } logical && (!UsesExpandedRoster || !compelled && (actor.NativeAi is null || ability != BattleAbility.EnemyAbility || nativeAction is null && graphic is null) || nativeTargetMask != 0 || nativeHeaderIndex is not null || logical.ActorIds.IsDefault || (logical.ActorIds.IsEmpty ? graphic is null || actorId != targetId : logical.ActorIds[0] != targetId) || logical.ActorIds.Distinct().Count() != logical.ActorIds.Length || logical.ActorIds.Any(id => id is null || !byId.ContainsKey(id)) ||
+        if (aiRecipients is { } logical && (!UsesExpandedRoster || !compelled && (actor.NativeAi is null || ability != BattleAbility.EnemyAbility || nativeAction is null && graphic is null) || nativeTargetMask != 0 || nativeHeaderIndex is not null || logical.ActorIds.IsDefault || (logical.ActorIds.IsEmpty ? graphic is null && logical.Selection != BattleAiSelection.NativeMask || actorId != targetId : logical.ActorIds[0] != targetId) || logical.ActorIds.Distinct().Count() != logical.ActorIds.Length || logical.ActorIds.Any(id => id is null || !byId.ContainsKey(id)) ||
             logical.DeathSelfTargetId is string self && (aiCallbackStage != 3 || logical.RandomSide is not null || self != actorId || !logical.ActorIds.Contains(self))))
         {
             throw new InvalidDataException("Saved expanded AI command has invalid logical recipients.");
+        }
+        if (aiRecipients is not null)
+        {
+            ValidateExpandedAiTargetSelection(aiRecipients);
         }
         if (aiRecipients is { } selected && (!Enum.IsDefined(selected.TargetPolicy) ||
             selected.TargetPolicy == BattleAiTargetPolicy.DrawnMagic && (nativeQueuedCommand != 2 || nativeAction is null || !ExpandedBattleActionRules.SupportsDrawnEnemyMagic(nativeAction))))

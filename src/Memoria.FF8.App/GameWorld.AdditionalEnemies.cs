@@ -90,7 +90,7 @@ internal sealed partial class GameWorld
     private ImmutableSortedDictionary<int, BattleEnemyRosterSource> SelectAdditionalEnemies(BattleEncounter encounter, int count, byte seed)
     {
         int originalCount = encounter.Enemies.Count;
-        int available = Math.Min(count, ExpandedBattleFormation.MaximumSideSize - originalCount);
+        int available = Math.Min(count, ExpandedBattleFormation.MaximumEnemies - originalCount);
         ImmutableSortedDictionary<int, BattleEnemyRosterSource>.Builder sources = ImmutableSortedDictionary.CreateBuilder<int, BattleEnemyRosterSource>();
         if (available <= 0)
         {
@@ -168,7 +168,7 @@ internal sealed partial class GameWorld
             {
                 throw new InvalidDataException($"Added enemy source formation {source.Formation} is outside the suspended exploration encounter table.");
             }
-            if (slot != placements.Count || slot >= ExpandedBattleFormation.MaximumSideSize || !BattleResources.FormationSourceHash(source.Formation).Equals(source.FormationHash, StringComparison.OrdinalIgnoreCase))
+            if (slot != placements.Count || slot >= ExpandedBattleFormation.MaximumEnemies || !BattleResources.FormationSourceHash(source.Formation).Equals(source.FormationHash, StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidDataException("The added enemy roster disagrees with its installed source formation.");
             }

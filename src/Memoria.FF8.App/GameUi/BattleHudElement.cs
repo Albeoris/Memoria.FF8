@@ -14,10 +14,10 @@ internal sealed partial class BattleHudElement : UiElement
     private float CommandPanelY { get; set; } = 516;
     private float CommandContentY { get; set; } = 530;
     private float CommandPanelHeight { get; set; } = 132;
-    private UiRect TargetPanel { get; set; }
-    private float TargetContentOffset { get; set; } = 27;
-    private float TargetColumnWidth { get; set; }
-    private float TargetRowHeight { get; set; }
+    private BattleHudTargetList targetList;
+    private string[] drawnTargetIds = [];
+    private int? requestedTargetListStart;
+    private string? lastDrawnTargetId;
     private float Top => Layout.Top;
 
     public BattleHudElement(BattleHudController controller)
@@ -303,40 +303,70 @@ internal sealed partial class BattleHudElement : UiElement
         bool group = controller.SelectingTargetGroup;
         string? selectedTargetId = controller.SelectedTarget?.Id;
         DrawTargetModelPointers(canvas, theme, targets, group, selectedTargetId);
-        int columns = Math.Max(1, (targets.Count + 3) / 4);
-        (TargetPanel, TargetColumnWidth, TargetRowHeight, TargetContentOffset) = Layout.MeasureTargets(canvas, theme, targets.Select(controller.CombatantDisplayName), columns, controller.TextScale);
-        float x = TargetPanel.X;
-        float y = TargetPanel.Y;
-        float textInset = columns > 1 ? 54 : 30;
-        float textWidth = TargetColumnWidth - textInset - 12;
+        string help = controller.CanConfirmMagicTargets ? controller.MagicConfirmCaption : group ? controller.TargetGroupDescription : controller.PhysicalOverrideCaption;
+        float actionHeight = canvas.MeasureText("Mg", 20 * Scale * controller.TextScale, float.PositiveInfinity).Height / Scale;
+        float helpHeight = string.IsNullOrEmpty(help) ? 0 : canvas.MeasureText("Mg", 15 * Scale * controller.TextScale, float.PositiveInfinity).Height / Scale + 4;
+        float helpPanelHeight = 14 + actionHeight + helpHeight;
+        float helpGap = Math.Max(18, UiTheme.DefaultCaptionFontSize * controller.TextScale * 0.75f + 8);
+        string[] ids = targets.Select(actor => actor.Id).ToArray();
+        string[] names = targets.Select(controller.CombatantDisplayName).ToArray();
+        bool sameTargets = drawnTargetIds.SequenceEqual(ids);
+        int previousStart = sameTargets ? requestedTargetListStart ?? targetList.Start : 0;
+        bool revealSelection = !group || !sameTargets || requestedTargetListStart is null && lastDrawnTargetId != selectedTargetId;
+        targetList = Layout.MeasureTargetList(canvas, theme, names, controller.TextScale, helpPanelHeight + helpGap, previousStart, revealSelection ? Array.IndexOf(ids, selectedTargetId) : -1);
+        requestedTargetListStart = null;
+        lastDrawnTargetId = selectedTargetId;
+        drawnTargetIds = ids;
+        UiRect panel = targetList.Panel;
         float captionSize = UiTheme.DefaultCaptionFontSize * Scale * controller.TextScale;
         string caption = controller.CanChangeTargetSide ? controller.SelectedTarget?.IsPlayer == true ? controller.SystemText("battle.hud.target-allies", "TARGET  < ALLIES >") : controller.SystemText("battle.hud.target-enemies", "TARGET  < ENEMIES >") : controller.SystemText("battle.hud.target", "TARGET");
-        theme.Panel(canvas, Rect(TargetPanel.X, TargetPanel.Y, TargetPanel.Width, TargetPanel.Height), caption, captionSize);
-        for (int index = 0; index < targets.Count; index++)
+        theme.Panel(canvas, Rect(panel.X, panel.Y, panel.Width, panel.Height), caption, captionSize);
+        for (int index = targetList.Start; index < targetList.End; index++)
         {
             BattleCombatant actor = targets[index];
-            float rowY = y + TargetContentOffset + index % 4 * TargetRowHeight;
-            float columnX = x + index / 4 * TargetColumnWidth;
+            UiRect row = targetList.Row(index);
+            float statusHeight = Math.Max(12, 11 * controller.TextScale);
+            float statusOffset = targetList.Scrolls ? row.Height - statusHeight : 25;
+            UiRect text = Rect(row.X + 30, row.Y, row.Width - 42, targetList.Scrolls ? statusOffset : row.Height);
             if (group || selectedTargetId == actor.Id)
             {
-                theme.Pointer(canvas, Left + (columnX + (columns > 1 ? 3 : -48)) * Scale, Top + (rowY + 5) * Scale, 24 * Scale);
+                theme.Pointer(canvas, Left + (row.X - 48) * Scale, Top + (row.Y + 5) * Scale, 24 * Scale);
             }
-            canvas.PushClip(Rect(columnX + textInset, rowY, textWidth, TargetRowHeight));
+            canvas.PushClip(text);
             try
             {
-                canvas.Text(controller.CombatantDisplayName(actor), 24 * Scale * controller.TextScale, Rect(columnX + textInset, rowY, textWidth, TargetRowHeight), theme.Foreground, UiAlignment.Start, UiTextFlow.SingleLine);
+                canvas.Text(names[index], 24 * Scale * controller.TextScale, text, theme.Foreground, UiAlignment.Start, UiTextFlow.SingleLine);
             }
             finally
             {
                 canvas.PopClip();
             }
-            DrawStatuses(canvas, theme, controller.Session.ReadStatusPresentation(actor.Id), columnX + textInset, rowY + 25, textWidth);
+            if (targetList.Scrolls)
+            {
+                canvas.PushClip(Rect(row.X, row.Y, row.Width, row.Height));
+            }
+            try
+            {
+                DrawStatuses(canvas, theme, controller.Session.ReadStatusPresentation(actor.Id), row.X + 30, row.Y + statusOffset, row.Width - 42);
+            }
+            finally
+            {
+                if (targetList.Scrolls)
+                {
+                    canvas.PopClip();
+                }
+            }
         }
-        string help = controller.CanConfirmMagicTargets ? controller.MagicConfirmCaption : group ? controller.TargetGroupDescription : controller.PhysicalOverrideCaption;
-        float actionHeight = canvas.MeasureText("Mg", 20 * Scale * controller.TextScale, float.PositiveInfinity).Height / Scale;
-        float helpHeight = string.IsNullOrEmpty(help) ? 0 : canvas.MeasureText("Mg", 15 * Scale * controller.TextScale, float.PositiveInfinity).Height / Scale + 4;
-        float helpPanelHeight = 14 + actionHeight + helpHeight;
-        float helpY = y - Math.Max(18, UiTheme.DefaultCaptionFontSize * controller.TextScale * 0.75f + 8) - helpPanelHeight;
+        if (targetList.Scrolls)
+        {
+            UiRect previous = targetList.PreviousPage;
+            UiRect next = targetList.NextPage;
+            Text(canvas, theme, "▲", previous.X + 8, previous.Y, previous.Width - 8, previous.Height, 16, targetList.Start == 0);
+            Text(canvas, theme, "▼", next.X + 8, next.Y, next.Width - 8, next.Height, 16, targetList.End == targetList.TotalCount);
+            string range = controller.FormatSystemText("battle.hud.target-range", "{0}–{1} / {2}", targetList.Start + 1, targetList.End, targetList.TotalCount);
+            canvas.AlignedText(range, 16 * Scale, Rect(previous.Right, previous.Y, next.X - previous.Right, previous.Height), theme.Foreground, UiAlignment.Center);
+        }
+        float helpY = panel.Y - helpGap - helpPanelHeight;
         theme.Panel(canvas, Rect(54, helpY, 440, helpPanelHeight));
         Text(canvas, theme, controller.TargetActionCaption, 68, helpY + 7, 412, actionHeight, 20);
         Text(canvas, theme, help, 68, helpY + 7 + actionHeight + 4, 412, helpHeight, 15, true);
@@ -408,11 +438,52 @@ internal sealed partial class BattleHudElement : UiElement
         return true;
     }
 
-    private int TargetIndex(float x, float y)
+    private bool TargetContains(UiRect bounds, float x, float y)
     {
-        int row = (int)Math.Floor((y - Rect(0, TargetPanel.Y + TargetContentOffset, 0, 0).Y) / (TargetRowHeight * Scale));
-        int column = (int)Math.Floor((x - Rect(TargetPanel.X, 0, 0, 0).X) / (TargetColumnWidth * Scale));
-        return row is >= 0 and < 4 && column >= 0 ? column * 4 + row : -1;
+        return Rect(bounds.X, bounds.Y, bounds.Width, bounds.Height).Contains(x, y);
+    }
+
+    private void PointAtTarget(float x, float y, bool confirm)
+    {
+        int index = targetList.HitIndex(Layout, x, y);
+        if (index >= 0 && index < drawnTargetIds.Length)
+        {
+            controller.SelectTarget(drawnTargetIds[index], confirm);
+        }
+    }
+
+    private bool ClickTargetPage(float x, float y)
+    {
+        if (!targetList.Scrolls)
+        {
+            return false;
+        }
+        if (TargetContains(targetList.PreviousPage, x, y))
+        {
+            if (targetList.Start > 0)
+            {
+                MoveTargetPage(Math.Max(0, targetList.Start - targetList.VisibleCount));
+            }
+            return true;
+        }
+        if (TargetContains(targetList.NextPage, x, y))
+        {
+            if (targetList.End < targetList.TotalCount)
+            {
+                MoveTargetPage(targetList.End);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private void MoveTargetPage(int index)
+    {
+        requestedTargetListStart = index;
+        if (!controller.SelectingTargetGroup)
+        {
+            controller.SelectTarget(drawnTargetIds[index], false);
+        }
     }
 
     public override void PointerHover(float x, float y)
@@ -432,15 +503,11 @@ internal sealed partial class BattleHudElement : UiElement
             HoverMagicList(x, y);
             return;
         }
-        if (controller.CommandMenuHidden || !controller.SelectingTarget || !Rect(TargetPanel.X, TargetPanel.Y + TargetContentOffset, TargetPanel.Width, TargetPanel.Height - TargetContentOffset).Contains(x, y))
+        if (controller.CommandMenuHidden || !controller.SelectingTarget)
         {
             return;
         }
-        int index = TargetIndex(x, y);
-        if (index >= 0 && index < controller.VisibleTargets.Count)
-        {
-            controller.SelectTarget(controller.VisibleTargets[index].Id, false);
-        }
+        PointAtTarget(x, y, false);
     }
 
     public override void Pointer(float x, float y)
@@ -484,12 +551,12 @@ internal sealed partial class BattleHudElement : UiElement
             ClickMagicList(x, y);
             return;
         }
-        if (controller.CanChangeTargetSide && Rect(TargetPanel.X, TargetPanel.Y - 12, TargetPanel.Width, TargetContentOffset + 12).Contains(x, y))
+        if (controller.CanChangeTargetSide && TargetContains(targetList.Caption, x, y))
         {
             controller.ChangeTargetSide();
             return;
         }
-        if (controller.SelectingTarget && Rect(TargetPanel.X, TargetPanel.Y, TargetPanel.Width, TargetPanel.Height).Contains(x, y) || !controller.SelectingTarget && Rect(30, CommandPanelY, CommandWidth, Math.Max(132, CommandPanelHeight)).Contains(x, y))
+        if (controller.SelectingTarget && TargetContains(targetList.Panel, x, y) || !controller.SelectingTarget && Rect(30, CommandPanelY, CommandWidth, Math.Max(132, CommandPanelHeight)).Contains(x, y))
         {
             if (controller.Session.Outcome != BattleOutcome.Active)
             {
@@ -497,10 +564,9 @@ internal sealed partial class BattleHudElement : UiElement
             }
             else if (controller.SelectingTarget)
             {
-                int index = TargetIndex(x, y);
-                if (index >= 0 && index < controller.VisibleTargets.Count)
+                if (!ClickTargetPage(x, y))
                 {
-                    controller.SelectTarget(controller.VisibleTargets[index].Id, true);
+                    PointAtTarget(x, y, true);
                 }
             }
             else

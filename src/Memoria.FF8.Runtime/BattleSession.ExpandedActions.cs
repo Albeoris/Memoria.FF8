@@ -277,8 +277,10 @@ public sealed partial class BattleSession
             BeginExpandedGuardianSummon(actor, command with { NativeAction = native }, recipients);
             return;
         }
-        bool randomTarget = command.AiRecipients?.RandomSide is not null ||
-            command.IndependentGuardian is null && (drawSpell is not null || command.Ability is BattleAbility.Magic or BattleAbility.Item or BattleAbility.NativeCommand or BattleAbility.EnemyAbility) && (native.TargetFlags.GetValueOrDefault() & 2) != 0;
+        bool randomTarget = command.AiRecipients?.NativeSelectionMask is ushort nativeMask
+            ? ExpandedNativeTargetRequest(nativeMask, native).SelectsRandomTarget
+            : command.AiRecipients?.RandomSide is not null ||
+                command.IndependentGuardian is null && (drawSpell is not null || command.Ability is BattleAbility.Magic or BattleAbility.Item or BattleAbility.NativeCommand or BattleAbility.EnemyAbility) && (native.TargetFlags.GetValueOrDefault() & 2) != 0;
         BattleCombatant[][] hitPlan = PlanExpandedHits(recipients, native.HitCount, randomTarget);
         bool hasReflector = hitPlan.Any(targets => targets.Any(recipient => NativeActionReflects(recipient, native)));
         bool spellPresentation = command.Ability == BattleAbility.Magic || drawSpell is not null || command.FreeNativeMagic && native.Command == 2;
@@ -568,7 +570,8 @@ public sealed partial class BattleSession
                 {
                     // Native48E830 stops the remaining pass when a previously selected target is KO.
                     bool deathSelfContact = recipient == actor && recipient.Id == command.AiRecipients?.DeathSelfTargetId && command.NativeAiCallbackStage == 3;
-                    bool targetsKnockedOutAlly = recipient.IsPlayer && (IsNativeRevive(action) || EnemyActionTargetsKnockedOutAllies(native));
+                    bool targetsKnockedOutAlly = recipient.IsPlayer && (IsNativeRevive(action) || EnemyActionTargetsKnockedOutAllies(native) ||
+                        command.AiRecipients?.NativeSelectionMask is ushort mask && ExpandedNativeTargetRequest(mask, native).IncludesKnockedOutAllies);
                     if (!recipient.IsActive || (NativeSavedStatusBits(recipient) & 1) != 0 && !deathSelfContact && !targetsKnockedOutAlly)
                     {
                         return (contacts.ToImmutable(), firstReflector);
@@ -645,6 +648,10 @@ public sealed partial class BattleSession
 
     private BattleCombatant[] ExpandedActionTargets(BattleCombatant actor, string targetId, BattleAbility ability, int actionId, BattleAiRecipients? aiRecipients, BattleNativeAction? native = null)
     {
+        if (aiRecipients?.Selection == BattleAiSelection.NativeMask)
+        {
+            return CurrentExpandedAiTargets(aiRecipients, native);
+        }
         if (ability == BattleAbility.EnemyAbility && IsExpandedAutomaticGuardianAction(native))
         {
             return ExpandedAutomaticGuardianTargets();
