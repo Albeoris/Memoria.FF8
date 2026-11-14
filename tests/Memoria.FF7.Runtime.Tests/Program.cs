@@ -240,6 +240,16 @@ if (args.Contains("--world-departure-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--field-fade-only", StringComparer.Ordinal))
+{
+    NativeProcessTests.RunFade();
+    NativeMovieFadeTests.Run();
+    NativeNewFadeTests.Run();
+    NativeEntryFadeTests.Run();
+    NativeQuadFadeTests.Run();
+    return 0;
+}
+
 if (args.Contains("--eyes-only", StringComparer.Ordinal))
 {
     NativeEyeControlTests.Run();
@@ -263,6 +273,7 @@ var tests = new (string Name, Action Run)[]
     ("native movie field hiding and cold continuation", NativeMovieFadeTests.Run),
     ("native new-fade endpoint and cold continuation", NativeNewFadeTests.Run),
     ("native entry fade table and cold continuation", NativeEntryFadeTests.Run),
+    ("native fullscreen quad fade and cold continuation", NativeQuadFadeTests.Run),
     ("native field item acquisition and cold continuation", NativeItemTests.Run),
     ("native gil acquisition and cold continuation", NativeGilTests.Run),
     ("native fixed animation move and cold continuation", NativeProcessTests.RunFixedAnimationMove),

@@ -64,10 +64,6 @@ public static class Ff7NativeFade
         if (type is 1 or 2)
         {
             fieldColor |= command.Red is > 20 and < 220 || command.Green is > 20 and < 220 || command.Blue is > 20 and < 220;
-            if (!fieldColor && !(command.Red == 0 && command.Green == 0 && command.Blue == 0) && !(type == 1 && previous?.EntryCurve == true))
-            {
-                throw new NotSupportedException("FFVII fullscreen fade composition requires its native quad output contract.");
-            }
         }
         Ff7FadeProcess next = new(type, command.Type is 11 or 12 ? 0 : command.Type is 1 or 5 or 9 ? command.Adjustment + 1 : command.Type is 2 or 6 or 10 ? command.Adjustment : previous?.Position ?? 0, command.Speed, command.Red, command.Green, command.Blue, fieldColor, previous?.FieldColorArgb ?? 0x80FFFFFF, QuadBlend: command.Type is 5 or 6 or 9 or 10 or 11 ? Ff7FadeQuadBlend.Additive : Ff7FadeQuadBlend.Alpha, EntryCurve: previous?.EntryCurve ?? false, FieldHidden: previous?.HidesField ?? false);
         next.Validate();
@@ -131,9 +127,11 @@ public static class Ff7NativeFade
             uint quad = 0x80000000u | (uint)(position * process.Red / 256) << 16 | (uint)(position * process.Green / 256) << 8 | (uint)(position * process.Blue / 256);
             return process with { Type = process.Type == 5 && position == 0 ? 0 : process.Type, Position = position, QuadColorArgb = quad, QuadBlend = Ff7FadeQuadBlend.Additive };
         }
-        if (process.Red == 0 && process.Green == 0 && process.Blue == 0)
+        bool usesFieldColor = process.UsesFieldColor && !(process.Red == 0 && process.Green == 0 && process.Blue == 0);
+        if (!usesFieldColor)
         {
-            return process with { Type = process.Type == 1 && position == 0 ? 0 : process.Type, Position = position, UsesFieldColor = false, QuadColorArgb = (uint)Math.Min(position, 255) << 24 };
+            uint quad = (uint)Math.Min(position, 255) << 24 | (uint)unchecked((byte)(256 - process.Red)) << 16 | (uint)unchecked((byte)(256 - process.Green)) << 8 | unchecked((byte)(256 - process.Blue));
+            return process with { Type = process.Type == 1 && position == 0 ? 0 : process.Type, Position = position, UsesFieldColor = false, QuadColorArgb = quad, QuadBlend = Ff7FadeQuadBlend.Alpha };
         }
         int red = unchecked((byte)((256 - position / 2) * process.Red / 256));
         int green = unchecked((byte)((272 - position) * process.Green / 256));

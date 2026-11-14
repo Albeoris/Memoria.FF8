@@ -10,6 +10,18 @@ internal sealed partial class RecreateGame
     {
         switch (request.Command.ToLowerInvariant())
         {
+            case "world-observe":
+                if (!InFf7)
+                {
+                    throw new InvalidOperationException("FFVII observation requires its active world.");
+                }
+                return ff7Scene!.ObserveDiagnostic();
+            case "world-plan":
+                if (!InFf7 || !options.ControlStep)
+                {
+                    throw new InvalidOperationException("FFVII planning requires its active world and --control-step.");
+                }
+                return ff7Scene!.PlanDiagnostic(request.Name ?? throw new ArgumentException("Planning requires a target Name."));
             case "world-status":
                 return new { ActiveGame = InFf7 ? "FFVII" : "FFVIII", UpdatePaused = updateSave.Paused, SwitchUnavailable = InFf7 ? ff7Scene?.CanSave == true ? null : "Saving is unavailable." : Ff8WorldSwitchUnavailable(), Ff7Field = ff7Scene?.Session?.Field.Name, Ff7Tick = ff7Scene?.Session?.Host.Process.Tick, Ff7World = ff7Scene?.Session?.World?.Process, Ff7Error = ff7Scene?.Error, Mappings = crossover?.Mappings ?? [] };
             case "world-autoplay":

@@ -538,16 +538,22 @@ internal static class NativeProcessTests
             (332, cancelledCommand with { Type = 1, Red = 255, Green = 255, Blue = 255 })
         })
         {
-            bool rejected = false;
-            try
-            {
-                Host(fieldId: id).Execute(Request(816, command));
-            }
-            catch (NotSupportedException)
-            {
-                rejected = true;
-            }
-            Equal(true, rejected);
+            Ff7FieldHost ordinary = Host(fieldId: id);
+            Equal(true, ordinary.Execute(Request(816, command)).Completed);
+            Equal(command.Type, ordinary.Process.FadeState!.Type);
+            Equal(command.Type == 1 ? 1 : 0, ordinary.Process.FadeState.Position);
+            Equal(false, ordinary.Process.FadeState.UsesFieldColor);
+            Equal(false, ordinary.Execute(Request(817, new FieldFadeCommand(0, Wait: true))).Completed);
+            ordinary.AdvanceActors();
+            uint expectedAlpha = command.Type == 1 ? 0u : 255u;
+            uint expectedQuad = expectedAlpha << 24 | (uint)(256 - command.Red) << 16 | (uint)(256 - command.Green) << 8 | (uint)(256 - command.Blue);
+            Equal(command.Type == 1 ? 0 : 2, ordinary.Process.FadeState!.Type);
+            Equal((int)expectedAlpha, ordinary.Process.FadeState.Position);
+            Equal((uint?)expectedQuad, ordinary.Process.FadeState.QuadColorArgb);
+            Equal(Ff7FadeQuadBlend.Alpha, ordinary.Process.FadeState.QuadBlend);
+            Equal(true, ordinary.Execute(Request(817, new FieldFadeCommand(0, Wait: true))).Completed);
+            ordinary.AdvanceActors();
+            Equal(command.Type == 1 ? null : (uint?)expectedQuad, ordinary.Process.FadeState!.QuadColorArgb);
         }
     }
     public static void RunViewOffset()
