@@ -8,27 +8,27 @@
   "effects": [
     {
       "source": "src/Memoria.FF8.App/Shaders/Triangles.fx",
-      "sourceSha256": "080f42a4a780776d6668fe9339f5b974b3607acc4a3f004d4fa81d7ed1aad7ae",
+      "sourceSha256": "eedecccd1b52c267b6982ef514d28c132a9a8e4cefacb27c66b2c6a68e74a2de",
       "profile": "DirectX_11",
       "defines": "",
       "output": "src/Memoria.FF8.App/Shaders/Triangles.mgfxo",
-      "outputSha256": "5e4b139c3840c862c2a0031a67768099265e720630dddf8bac7009d5cbb412a1"
+      "outputSha256": "68afad8ffc239527643e41df87ccdb78288d1966e112e60230d851bf7c654fa7"
     },
     {
       "source": "src/Memoria.FF8.App/Shaders/Triangles.fx",
-      "sourceSha256": "080f42a4a780776d6668fe9339f5b974b3607acc4a3f004d4fa81d7ed1aad7ae",
+      "sourceSha256": "eedecccd1b52c267b6982ef514d28c132a9a8e4cefacb27c66b2c6a68e74a2de",
       "profile": "DirectX_12",
       "defines": "DIRECTX12=1",
       "output": "src/Memoria.FF8.App/Shaders/Triangles.dx12.mgfxo",
-      "outputSha256": "8f025152ccfa2149944b04a5fed7fcdc84a04a2f02e0f5565272a504441c85d9"
+      "outputSha256": "efe8ca01fd7cb41849f604339cb4d3df9808406e5a0bf4421118b5a114aeb83b"
     },
     {
       "source": "src/Memoria.FF8.App/Shaders/Triangles.fx",
-      "sourceSha256": "080f42a4a780776d6668fe9339f5b974b3607acc4a3f004d4fa81d7ed1aad7ae",
+      "sourceSha256": "eedecccd1b52c267b6982ef514d28c132a9a8e4cefacb27c66b2c6a68e74a2de",
       "profile": "Vulkan",
       "defines": "",
       "output": "src/Memoria.FF8.App/Shaders/Triangles.vulkan.mgfxo",
-      "outputSha256": "8220d17b4a748437a212cbdae2e9564da65bdba9bebd83efcc45f89fddd73a2f"
+      "outputSha256": "025eaf5c917acb8fa42cd84644c721e0d1f19bb63a7baaeea1a2f2056aa1b782"
     },
     {
       "source": "src/Memoria.FF8.App/Shaders/FrameDifference.fx",

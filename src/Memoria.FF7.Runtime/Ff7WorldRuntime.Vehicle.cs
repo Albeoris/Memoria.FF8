@@ -11,6 +11,7 @@ public sealed record Ff7WorldVehicleState(int[] RideStack, int CancelHeldTicks =
     public int? FlightBasePitch { get; init; }
     public int? FlightBaseDistance { get; init; }
     public int HighwindPropellerFrame { get; init; }
+    public int? HighwindPropellerPoseFrame { get; init; }
     public int ChocoboFloatOffset { get; init; }
     public int BuggyTiltX { get; init; }
     public int BuggyTiltZ { get; init; }
@@ -22,6 +23,10 @@ public sealed partial class Ff7WorldRuntime
 
     private Ff7WorldEntity CreateWorldEntity(int model)
     {
+        if (freeEntities.Count > (Machine.Capture().FreeModels?.Length ?? 0))
+        {
+            freeEntities.RemoveAt(0);
+        }
         Ff7WorldEntity created = new(model) { FrameDivisor = model switch { 5 or SubmarineModel => 0, 10 => 128, _ => 32 } };
         for (int i = 0; i < 6; i++)
         {
@@ -69,6 +74,27 @@ public sealed partial class Ff7WorldRuntime
         int[] arguments = request.Command.Arguments;
         switch (request.Command.Operation)
         {
+            case WorldOperation.DeleteActiveModel:
+                if (request.FreeModelIndex is not null)
+                {
+                    throw new InvalidDataException("FFVII world cannot link an already freed object into its native free pool twice.");
+                }
+                int removed = request.ActiveModel;
+                RecordFreedWorldEntity(removed);
+                foreach (Ff7WorldEntity linked in entities.Values.Where(entity => entity.AttachedModel == removed).ToArray())
+                {
+                    UpdateEntity(linked with { AttachedModel = null });
+                }
+                if (controlledModel == removed)
+                {
+                    controlledModel = -1;
+                    PresentationCameraEpoch++;
+                }
+                if (chocobo?.Model == removed)
+                {
+                    chocobo = null;
+                }
+                return true;
             case WorldOperation.StartLeaveVehicle:
                 vehicle ??= new([]);
                 vehicle = vehicle with { DismountPhase = 1 };
@@ -108,8 +134,13 @@ public sealed partial class Ff7WorldRuntime
         }
         if (request.Command.Operation == WorldOperation.ChangeModelIdentity)
         {
-            Ff7WorldEntity previous = RequireEntity(request.ActiveModel);
+            Ff7WorldEntity previous = ResolveHostEntity(request);
             int replacement = arguments[0];
+            if (request.FreeModelIndex is int freeIndex)
+            {
+                freeEntities[freeIndex] = previous with { Model = replacement };
+                return true;
+            }
             entities.Remove(previous.Model);
             entities.Add(replacement, previous with { Model = replacement, PresentationEpoch = previous.PresentationEpoch + 1 });
             if (controlledModel == previous.Model)
@@ -144,7 +175,7 @@ public sealed partial class Ff7WorldRuntime
             Ff7WorldEntity previousEntity = RequireEntity(previous);
             removed = previousEntity.AttachedModel ?? (chocobo?.Model == previous ? chocobo.RiderModel : null);
             Machine.RemoveModel(previous);
-            entities.Remove(previous);
+            RecordFreedWorldEntity(previous);
         }
         if (chocobo is not null && removedModels.Contains(chocobo.Model))
         {
@@ -270,7 +301,7 @@ public sealed partial class Ff7WorldRuntime
 
     private void ValidateVehicleState(Ff7WorldProcess state)
     {
-        if (state.Vehicle is { } saved && (saved.RideStack is null || saved.RideStack.Length > 8 || saved.RideStack.Any(model => model is < 0 or > 255) || saved.CancelHeldTicks is < 0 or > 15 || saved.DismountPhase is < 0 or > 2 || saved.BuggyAnimation is < 0 or > 4 || saved.FlightState is < -1 or > 1 || saved.FlightProgress is < 0 or > 256 || saved.FlightVelocity is < -64 or > 64 || saved.FlightSpeed is < 0 or > 720 || saved.FlightMaxHeight is not (0 or 2000 or 4000) || saved.FlightPreviousView is < 0 or > 3 || saved.FlightPitch is < -10 or > 10 || saved.FlightRoll is < -128 or > 128 || saved.HighwindPropellerFrame < 0 || saved.ChocoboFloatOffset is < -270 or > 0))
+        if (state.Vehicle is { } saved && (saved.RideStack is null || saved.RideStack.Length > 8 || saved.RideStack.Any(model => model is < 0 or > 255) || saved.CancelHeldTicks is < 0 or > 15 || saved.DismountPhase is < 0 or > 2 || saved.BuggyAnimation is < 0 or > 4 || saved.FlightState is < -1 or > 1 || saved.FlightProgress is < 0 or > 256 || saved.FlightVelocity is < -64 or > 64 || saved.FlightSpeed is < 0 or > 720 || saved.FlightMaxHeight is not (0 or 2000 or 4000) || saved.FlightPreviousView is < 0 or > 3 || saved.FlightPitch is < -10 or > 10 || saved.FlightRoll is < -128 or > 128 || saved.HighwindPropellerFrame < 0 || saved.HighwindPropellerPoseFrame is < 0 || saved.ChocoboFloatOffset is < -270 or > 0))
         {
             throw new InvalidDataException("FFVII world vehicle state is corrupt.");
         }

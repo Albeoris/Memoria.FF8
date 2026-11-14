@@ -62,6 +62,15 @@ public sealed class Ff7WorldPresentationTests
         Assert.Equal("djc.hrc", Ff7PcExecutableData.LoadWorldCharacterDescriptor(installation, 21, world: 3).HrcName);
         Assert.Equal(((short)-30, (short)50, (short)50), Ff7PcExecutableData.LoadWorldCharacterDescriptor(installation, 19, tint: 2, resourceArea: 1).ColorOffset);
         Assert.Equal(((short)0, (short)-255, (short)-255), Ff7PcExecutableData.LoadWorldCharacterDescriptor(installation, 19, tint: 5, resourceArea: 1).ColorOffset);
+        Ff7WorldCharacterDescriptor barrier = Ff7PcExecutableData.LoadWorldCharacterDescriptor(installation, 24);
+        Assert.True(barrier.Transparent);
+        IReadOnlyList<Ff7WorldModelTriangle> barrierTriangles = new Ff7WorldModelAdapter(barrier, barrier.Load(resources)).Create(Vector3.Zero, 0, 0, 0);
+        Assert.All(barrierTriangles, triangle =>
+        {
+            Assert.Equal(TriangleBlend.Alpha, triangle.Material.Blend);
+            Assert.False(triangle.Material.DepthWrite);
+            Assert.Equal(128 / 255f, triangle.A.Color.W);
+        });
     }
 
     [Fact]
@@ -128,6 +137,7 @@ public sealed class Ff7WorldPresentationTests
                         Assert.NotEmpty(triangles);
                         Assert.All(triangles, triangle => Assert.True(float.IsFinite(triangle.A.Position.X) && float.IsFinite(triangle.A.Position.Y) && float.IsFinite(triangle.A.Position.Z)));
                         Assert.All(triangles, triangle => Assert.Equal(TriangleDepthMapping.Positive, triangle.Material.DepthMapping));
+                        Assert.All(triangles, triangle => Assert.True(triangle.Material.CentroidTextureSampling));
                         if (clip == 0 && frame == 0)
                         {
                             Vector3[] vertices = triangles.SelectMany(triangle => new[] { triangle.A.Position, triangle.B.Position, triangle.C.Position }).ToArray();

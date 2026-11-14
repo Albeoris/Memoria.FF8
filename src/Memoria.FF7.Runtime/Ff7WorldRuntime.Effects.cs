@@ -40,7 +40,7 @@ public sealed partial class Ff7WorldRuntime
         int[] arguments = request.Command.Arguments;
         if (operation == WorldOperation.Effect)
         {
-            EmitWorldEffect(RequireEntity(request.ActiveModel), arguments[0]);
+            EmitWorldEffect(ResolveHostEntity(request), arguments[0]);
             return true;
         }
         int slot = arguments[0];
@@ -65,7 +65,7 @@ public sealed partial class Ff7WorldRuntime
         Vector3 translated = inputMath.TransformRotation(offset, 0, positionAngle, 0);
         Vector3 motion = inputMath.TransformRotation(velocity, 0, velocityAngle, 0);
         bool fadeIn = (sprite.Flags & 0x1C) == 8;
-        Ff7WorldEffectParticle particle = new(effects.NextId, (int)position.X + (int)translated.X, (int)position.Y + (int)translated.Y, (int)position.Z + (int)translated.Z, unchecked((short)(int)motion.X), unchecked((short)(int)motion.Y), unchecked((short)(int)motion.Z), (groundAngle ?? entity.Direction) ^ 2048, start.FirstSprite, sprite.Duration & 127, start.GroundAligned, unchecked((byte)gravity), fadeIn ? 0 : 128, false, fadeIn ? 0x80000000u : 0x80808080u);
+        Ff7WorldEffectParticle particle = new(effects.NextId, (int)position.X + (int)translated.X, (int)position.Y + (int)translated.Y, (int)position.Z + (int)translated.Z, unchecked((short)(int)motion.X), unchecked((short)(int)motion.Y), unchecked((short)(int)motion.Z), unchecked((short)((groundAngle ?? entity.Direction) ^ 2048)), start.FirstSprite, sprite.Duration & 127, start.GroundAligned, unchecked((byte)gravity), fadeIn ? 0 : 128, false, fadeIn ? 0x80000000u : 0x80808080u);
         effects = effects with { Particles = [particle, .. effects.Particles], NextId = checked(effects.NextId + 1) };
     }
 
@@ -141,7 +141,7 @@ public sealed partial class Ff7WorldRuntime
             int gravity = particle.Gravity;
             if (sprite.Flags == 2)
             {
-                intensity--;
+                intensity = unchecked((short)(intensity - 1));
                 if (particle.Sprite == 0x7C)
                 {
                     uint channel = unchecked((byte)((byte)color - 1));
@@ -157,17 +157,17 @@ public sealed partial class Ff7WorldRuntime
                 switch (sprite.Flags & 0x1C)
                 {
                     case 4:
-                        intensity = Math.Max(0, intensity - 12);
-                        color = color & 0xFF000000 | (uint)intensity * 0x010101;
+                        intensity = Math.Max((short)0, unchecked((short)(intensity - 12)));
+                        color = color & 0xFF000000 | (uint)unchecked((byte)intensity) * 0x010101;
                         effects.Widths[particle.Sprite] = effects.Heights[particle.Sprite] = unchecked((byte)(effects.Heights[particle.Sprite] + 16));
                         break;
                     case 8:
-                        intensity = falling ? Math.Max(0, intensity - 8) : intensity + 8;
+                        intensity = falling ? Math.Max((short)0, unchecked((short)(intensity - 8))) : unchecked((short)(intensity + 8));
                         if (falling)
                         {
-                            color = color & 0xFF000000 | (uint)intensity * 0x010101;
+                            color = color & 0xFF000000 | (uint)unchecked((byte)intensity) * 0x010101;
                         }
-                        falling |= intensity >= 128;
+                        falling |= unchecked((byte)intensity) >= 128;
                         break;
                     case 12 when !falling:
                         falling = true;
@@ -176,8 +176,8 @@ public sealed partial class Ff7WorldRuntime
                         break;
                     case 16:
                     case 20:
-                        intensity = Math.Max(0, intensity - ((sprite.Flags & 0x1C) == 16 ? 16 : 8));
-                        color = color & 0xFF000000 | (uint)intensity * 0x010101;
+                        intensity = Math.Max((short)0, unchecked((short)(intensity - ((sprite.Flags & 0x1C) == 16 ? 16 : 8))));
+                        color = color & 0xFF000000 | (uint)unchecked((byte)intensity) * 0x010101;
                         break;
                     case 24:
                         int size = effects.Heights[particle.Sprite];
@@ -245,10 +245,15 @@ public sealed partial class Ff7WorldRuntime
         {
             return;
         }
-        if (state.Particles is null || state.Particles.Length > 32 || state.RetiredCount < 0 || state.RetiredCount + state.Particles.Length > 32 || state.Emitters is not { Length: 2 } || state.Widths is not { Length: 145 } || state.Heights is not { Length: 145 } || state.NextId < 1 || state.Particles.Any(particle => particle is null || particle.Id < 1 || particle.Id >= state.NextId || particle.Sprite is < 0 or >= 145 || particle.Remaining is < 0 or > 255 || particle.Gravity is < 0 or > 255) || state.Particles.Select(particle => particle.Id).Distinct().Count() != state.Particles.Length || state.DisplayParticles is { } displayed && (displayed.Length > 32 || displayed.Any(particle => particle is null || particle.Id < 1 || particle.Id >= state.NextId || particle.Sprite is < 0 or >= 145)) || state.DisplayWidths is { Length: not 145 } || state.DisplayHeights is { Length: not 145 })
+        if (state.Particles is null || state.Particles.Length > 32 || state.RetiredCount < 0 || state.RetiredCount + state.Particles.Length > 32 || state.Emitters is not { Length: 2 } || state.Widths is not { Length: 145 } || state.Heights is not { Length: 145 } || state.NextId < 1 || state.Particles.Any(particle => !ValidWorldEffectParticle(particle, state.NextId)) || state.Particles.Select(particle => particle.Id).Distinct().Count() != state.Particles.Length || state.DisplayParticles is { } displayed && (displayed.Length > 32 || displayed.Any(particle => !ValidWorldEffectParticle(particle, state.NextId)) || displayed.Select(particle => particle.Id).Distinct().Count() != displayed.Length) || state.DisplayWidths is { Length: not 145 } || state.DisplayHeights is { Length: not 145 } || state.Emitters.Any(emitter => emitter is { } entry && (entry.Model is < sbyte.MinValue or > sbyte.MaxValue || entry.Type is < sbyte.MinValue or > sbyte.MaxValue || entry.Delay is < sbyte.MinValue or > sbyte.MaxValue || entry.Countdown is < sbyte.MinValue or > sbyte.MaxValue)))
         {
             throw new InvalidDataException("FFVII world effects have corrupt native particle or emitter storage.");
         }
+    }
+
+    private static bool ValidWorldEffectParticle(Ff7WorldEffectParticle? particle, long nextId)
+    {
+        return particle is not null && particle.Id >= 1 && particle.Id < nextId && particle.Sprite is >= 0 and < 145 && particle.Remaining is >= 0 and <= 255 && particle.Gravity is >= 0 and <= 255 && particle.Angle is >= short.MinValue and <= short.MaxValue && particle.VelocityX is >= short.MinValue and <= short.MaxValue && particle.VelocityY is >= short.MinValue and <= short.MaxValue && particle.VelocityZ is >= short.MinValue and <= short.MaxValue && particle.Intensity is >= short.MinValue and <= short.MaxValue;
     }
 
     private void RestoreWorldEffects(Ff7WorldEffectsState? state)

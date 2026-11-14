@@ -4,13 +4,21 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7Session
 {
+    private bool worldPartyMenuPending;
+
+    public void CompleteWorldPlayerMenu()
+    {
+        World?.SynchronizeMenuParty(Progress.Party);
+        worldPartyMenuPending = false;
+    }
+
     public bool CanUsePlayerMenu => Battle is null && !HasPendingTick && !tickTailInProgress && (World is { } world
         ? CanOpenWorldPlayerMenu(world.Process)
         : CanOpenFieldPlayerMenu(Host.Process));
 
     public static bool CanOpenFieldPlayerMenu(Ff7FieldProcess process) => !process.MenuDisabled && !process.PlayerLocked && process.GlobalCommand == Ff7GlobalCommand.None && process.Transition is null && process.Movie is not { Playing: true } && process.Dialogues.All(dialogue => dialogue.Completed);
 
-    public static bool CanOpenWorldPlayerMenu(Ff7WorldProcess process) => process.MainState == 1 && process.FadeRate == 0 && process.FadeDisplayedAlpha == 0 && process.MovementEnabled && process.Dialogue is not { Completed: false };
+    public static bool CanOpenWorldPlayerMenu(Ff7WorldProcess process) => process.MainState == 1 && process.FadeRate == 0 && process.FadeDisplayedAlpha == 0 && process.MovementEnabled && process.ControlledModel is 0 or 1 or 2 or 6 && process.Entities.Any(entity => entity.Model == process.ControlledModel && (entity.Terrain & 31) != 14) && process.Dialogue is not { Completed: false };
 
     public bool CanUseMenuPhs
     {

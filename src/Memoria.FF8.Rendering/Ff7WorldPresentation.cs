@@ -26,6 +26,8 @@ public sealed record Ff7WorldRenderFrame(int ControlledModel, bool Initialized, 
     public IReadOnlyList<Ff7WorldEffectVisual> Effects { get; init; } = [];
     public int HighwindPropellerFrame { get; init; }
     public Ff7FieldPoseBlend? HighwindPropellerBlend { get; init; }
+    public IReadOnlyList<Ff7WorldMarshSegment> MarshSegments { get; init; } = [];
+    public IReadOnlyList<Ff7WorldSnowLayer> SnowLayers { get; init; } = [];
     public Ff7WorldBridgeDeformation? BridgeDeformation { get; init; }
     public int HeightSmoothVelocity { get; init; }
     public int CurvatureThreshold { get; init; } = 5000;
@@ -51,6 +53,8 @@ public sealed class Ff7WorldPresentation
     private readonly Ff7WorldFootShadowAdapter? shadows;
     private Ff7WorldApproachBubbleAdapter? approachBubbleRenderer;
     private Ff7WorldEffectsAdapter? effectsRenderer;
+    private Ff7WorldMarshAdapter? marshRenderer;
+    private Ff7WorldSnowAdapter? snowRenderer;
     private readonly Dictionary<(int Block, int Mesh, int Bridge), PcWorldMesh> meshes = [];
     private readonly Dictionary<(int Model, int? Tint, int? Area), Ff7WorldModelAdapter?> models = [];
 
@@ -66,7 +70,7 @@ public sealed class Ff7WorldPresentation
         bridges = new(Ff7PcExecutableData.LoadWorldBridges(installation), new Ff7WorldMath(data));
         terrain = new(textures, resources.World == 2);
         environment = Ff7WorldEnvironmentResources.Load(installation, resources);
-        environmentRenderer = new(environment, data);
+        environmentRenderer = new(environment, data, resources.World == 0 ? PcTexture.Read(resources.ReadRequired("midlmap2.tex")) : null);
         if (resources.World == 0)
         {
             textureCycles = new(installation, resources, textures.Descriptors);
@@ -133,6 +137,11 @@ public sealed class Ff7WorldPresentation
                 PcWorldMesh mesh = ReadMesh(placement, bridge);
                 terrain.DrawRetained(hardware, mesh, placement.Origin, view, TextureFrame, curvatureThreshold, bridge, bridges.RotationAxis(bridge, frame.BridgeDeformation));
             }
+            if (frame.MarshSegments.Count != 0)
+            {
+                marshRenderer ??= new(PcTexture.Read(resources.ReadRequired("midg.tex")), Ff7PcExecutableData.LoadWorldPresentation(installation, resources));
+                marshRenderer.Draw(renderer, view, focus, nativeCamera.GroundHeight, curvatureThreshold, nativeChunks, frame.MarshSegments);
+            }
             List<(Ff7WorldVisual Entity, Vector3 Position, int Curvature, Ff7WorldModelAdapter Model)> visible = [];
             foreach (Ff7WorldVisual entity in frame.Models)
             {
@@ -159,7 +168,8 @@ public sealed class Ff7WorldPresentation
             {
                 int storyCharacter = entity.Model switch { 0 => 0, 1 => 2, 2 => 8, _ => -1 };
                 Vector3 bodyPosition = position + new Vector3(0, entity.Elevation - curvature, 0);
-                Ff7WorldModelAdapter.Draw(renderer, model.Create(bodyPosition, entity.Direction, entity.Animation, entity.Frame, appearance, storyCharacter, entity.AnimationBlend, new(entity.TiltX, entity.TiltY, entity.TiltZ), entity.Model == 6 ? 4096 : 256), view);
+                int colorWeight = underwater && entity.Model is 17 or 18 or 26 or 27 or 28 or 30 ? Ff7WorldLighting.UnderwaterModelWeight((int)MathF.Round(Vector3.Transform(bodyPosition, view.NativeView).Z, MidpointRounding.ToEven)) : 255;
+                Ff7WorldModelAdapter.Draw(renderer, model.Create(bodyPosition, entity.Direction, entity.Animation, entity.Frame, appearance, storyCharacter, entity.AnimationBlend, new(entity.TiltX, entity.TiltY, entity.TiltZ), entity.Model == 6 ? 4096 : 256), view, underwater, colorWeight);
                 if (entity.Model == 3 && frame.ResourceArea is 1 or 2 or 5 or 7)
                 {
                     var propellerKey = (9, (int?)null, frame.ResourceArea);
@@ -182,7 +192,15 @@ public sealed class Ff7WorldPresentation
                 effectsRenderer ??= new(PcTexture.Read(resources.ReadRequired("dfx.tex")), Ff7PcExecutableData.LoadWorldEffects(installation), Ff7PcExecutableData.LoadWorldPresentation(installation, resources));
                 effectsRenderer.Draw(renderer, view, focus, nativeCamera.Roll, curvatureThreshold, frame.Effects);
             }
-            environmentRenderer?.DrawRadar(renderer, width, height, frame.RadarMode, frame.ViewMode, nativeCamera.Heading, frame.Counter, frame.Models.Select(entity => new Ff7WorldRadarMarker(entity.Model, (int)entity.Position.X, (int)entity.Position.Z, entity.Model == frame.ControlledModel)).ToArray());
+            if (frame.SnowLayers.Count != 0)
+            {
+                snowRenderer ??= new(PcTexture.Read(resources.ReadRequired("snow4.tex")), PcTexture.Read(resources.ReadRequired("snow5.tex")));
+                snowRenderer.Draw(renderer, width, height, frame.SnowLayers);
+            }
+            if (resources.World != 3)
+            {
+                environmentRenderer?.DrawRadar(renderer, width, height, frame.RadarMode, frame.ViewMode, nativeCamera.Heading, frame.Counter, frame.Models.Select(entity => new Ff7WorldRadarMarker(entity.Model, (int)entity.Position.X, (int)entity.Position.Z, entity.Model == frame.ControlledModel)).ToArray(), alternateMap: resources.World == 0 && frame.ResourceArea is >= 1 and <= 8 or 10);
+            }
         }
         finally
         {

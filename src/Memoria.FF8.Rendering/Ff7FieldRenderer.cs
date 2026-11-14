@@ -390,7 +390,7 @@ public sealed partial class Ff7FieldRenderer
         return image;
     }
 
-    public static PixelImage DecodeTexture(PcTexture texture, bool useColorKey = false)
+    public static PixelImage DecodeTexture(PcTexture texture, bool useColorKey = false, int? paletteOverride = null)
     {
         if (texture.RenderInfo.UsePaletteColorKey != 0)
         {
@@ -400,7 +400,7 @@ public sealed partial class Ff7FieldRenderer
         {
             throw new NotSupportedException("FF7 model texture requires the admitted indexed8 or BGRA32 profile.");
         }
-        int palette = checked((int)texture.RenderInfo.PaletteIndex);
+        int palette = paletteOverride ?? checked((int)texture.RenderInfo.PaletteIndex);
         if (texture.BytesPerPixel == 1 && (texture.RenderInfo.UsePalette == 0 || texture.RenderInfo.BitsPerIndex != 8 || (uint)palette >= texture.Palettes.Count))
         {
             throw new NotSupportedException("FF7 indexed texture has an unsupported selected-palette or index-width contract.");

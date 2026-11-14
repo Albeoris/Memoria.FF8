@@ -18,6 +18,7 @@ internal sealed partial class Ff7Scene
     private bool menuPointerPressed;
     private bool playerMenuClockChanged;
     private bool pendingPlayerMenuRequest;
+    private bool nativePlayerMenuActive;
     private static readonly IReadOnlySet<string> PlayerPreferenceKeys = new[] { "config-graphics", "config-frame-limits", "config-audio", "config-interface", "config-text", "config-speed" }.SelectMany(page => SettingsPlacement.Pages[page].Items).Where(key => !key.StartsWith("config-", StringComparison.Ordinal)).Concat(["Battle ATB mode", "Battle policy", "Random encounters"]).ToHashSet(StringComparer.Ordinal);
 
     internal MenuController? ActivePlayerMenu => guestPlayerMenu?.IsOpen == true ? guestPlayerMenu : playerMenu?.IsOpen == true ? playerMenu : null;
@@ -215,6 +216,7 @@ internal sealed partial class Ff7Scene
             Session.Host.InitializeNativeMenuAudio();
             playerMenu!.Presentation = PresentationPreferences.MenuPresentation;
             playerMenu.Open();
+            nativePlayerMenuActive = true;
             pendingPressedKeys = 0;
             sharedInput.SuppressHeldUiInput();
             menuPointerPressed = pointerState.LeftButton == ButtonState.Pressed;
@@ -309,6 +311,11 @@ internal sealed partial class Ff7Scene
 
     private void ClosePlayerMenu()
     {
+        if (nativePlayerMenuActive)
+        {
+            Session?.CompleteWorldPlayerMenu();
+            nativePlayerMenuActive = false;
+        }
         playerMenu?.Close();
         guestPlayerMenu?.Close();
         pendingPressedKeys = 0;
@@ -334,6 +341,7 @@ internal sealed partial class Ff7Scene
 
     private void DisposePlayerMenu()
     {
+        nativePlayerMenuActive = false;
         playerMenu?.Close();
         playerMenu = null;
         storyPartyMenuRequest = null;

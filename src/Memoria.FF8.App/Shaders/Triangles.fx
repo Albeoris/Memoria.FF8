@@ -56,6 +56,18 @@ struct WorldVSInput
     float3 Normal : NORMAL0;
     float Deform : TEXCOORD1;
 };
+VSOutput Ff7WorldProjection(float3 camera, float2 uv, float4 color)
+{
+    VSOutput ff7 = (VSOutput)0;
+    ff7.Position = float4((camera.x * WorldFocal + WorldFf7Projection.w * camera.z) * 2 / ViewportSize.x, -camera.y * WorldFocal * 2 / ViewportSize.y + (1 - WorldFf7Projection.y * 2 / ViewportSize.y) * camera.z, camera.z - 1, camera.z);
+    ff7.Color = color;
+    ff7.Uv = float3(uv / TextureSize, 1);
+    ff7.TextureUv = ff7.Uv;
+    ff7.Depth = camera.z;
+    ff7.TextureScreenRectangle = 0;
+    ff7.TextureTexelRectangle = 0;
+    return ff7;
+}
 VSOutput WorldVertexMain(WorldVSInput input)
 {
     float3 terrainPosition = input.Position + WorldOffset;
@@ -80,15 +92,7 @@ VSOutput WorldVertexMain(WorldVSInput input)
         float3 normal = mul(float4(input.Normal, 0), WorldView).xyz;
         float factor = (normal.x + normal.y + normal.z) * (110.0 / 255) + 64.0 / 255;
         float color = round(clamp(factor * 255, 0, 255)) / 255;
-        VSOutput ff7;
-        ff7.Position = float4((camera.x * WorldFocal + WorldFf7Projection.w * camera.z) * 2 / ViewportSize.x, -camera.y * WorldFocal * 2 / ViewportSize.y + (1 - WorldFf7Projection.y * 2 / ViewportSize.y) * camera.z, camera.z - 1, camera.z);
-        ff7.Color = float4(color, color, color, 1);
-        ff7.Uv = float3(input.Uv / TextureSize, 1);
-        ff7.TextureUv = ff7.Uv;
-        ff7.Depth = camera.z;
-        ff7.TextureScreenRectangle = 0;
-        ff7.TextureTexelRectangle = 0;
-        return ff7;
+        return Ff7WorldProjection(camera, input.Uv, float4(color, color, color, 1));
     }
     if (WorldNativeCurvature > 0)
     {
@@ -133,12 +137,8 @@ float3 Ff7UnderwaterPalette(int index)
 }
 VSOutput Ff7UnderwaterVertexMain(Ff7UnderwaterVSInput input)
 {
-    WorldVSInput original;
-    original.Position = input.Position;
-    original.Uv = input.Uv;
-    original.Normal = input.Normal;
-    original.Deform = input.Deform;
-    VSOutput output = WorldVertexMain(original);
+    float3 camera = mul(float4(input.Position + WorldOffset, 1), WorldView).xyz;
+    VSOutput output = Ff7WorldProjection(camera, input.Uv, 0);
     float current = mul(float4(input.Position + WorldOffset, 1), WorldView).z;
     float next = mul(float4(input.Next + WorldOffset, 1), WorldView).z;
     float last = mul(float4(input.Last + WorldOffset, 1), WorldView).z;

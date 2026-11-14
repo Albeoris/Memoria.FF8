@@ -106,4 +106,30 @@ public sealed class CommittedPresentationHistoryTests
             Assert.Equal(0, sampled.Frame);
         }
     }
+
+    [Fact]
+    public void Ff7WorldEffectsKeepSmoothMotionAcrossSpriteChangesAndShareTheBridgeAndCloudInterval()
+    {
+        Ff7WorldVisual leader = new(0, Vector3.Zero, 0, 0, 0, 2);
+        Ff7WorldEffectVisual particle = new(1, Vector3.Zero, 0, 4094, false, 16, 16, Vector4.Zero);
+        Ff7WorldRenderFrame previous = new(0, true, 1, 0, 0, 0, 0, 255, new(0, 0, 100, 0, 0, 400), [leader], []) { Effects = [particle], BridgeDeformation = new(0, -8), MarshSegments = [new(0, Vector3.Zero, 4094)], SnowLayers = [new(1, 16, 255, 1)] };
+        Ff7WorldRenderFrame current = previous with { CloudPhase = 1, Effects = [particle with { Position = new(20, 0, 0), Sprite = 1, Angle = 2, Width = 32, Height = 32, Color = Vector4.One }], BridgeDeformation = new(0, 8), MarshSegments = [new(0, new(20, 0, 0), 2)], SnowLayers = [new(1, 32, 1, 255)] };
+        Ff7WorldRenderFrame sampled = Ff7WorldRenderInterpolation.Interpolate(previous, current, 0.5f);
+        Assert.Equal(new Vector3(10, 0, 0), sampled.Effects[0].Position);
+        Assert.Equal(1, sampled.Effects[0].Sprite);
+        Assert.Equal(32, sampled.Effects[0].Width);
+        Assert.Equal(new Vector4(0.5f), sampled.Effects[0].Color);
+        Assert.Equal(0, sampled.Effects[0].Angle);
+        Assert.Equal(0, sampled.CloudPhase);
+        Assert.Equal(0, sampled.BridgeDeformation!.Tilt);
+        Assert.Equal(new Vector3(10, 0, 0), sampled.MarshSegments[0].Position);
+        Assert.Equal(0, sampled.MarshSegments[0].Direction % 4096);
+        Assert.Equal(24, sampled.SnowLayers[0].Brightness);
+        Assert.Equal(0, sampled.SnowLayers[0].U % 256);
+        Assert.Equal(0, sampled.SnowLayers[0].V % 256);
+        Ff7WorldRenderFrame growing = current with { Effects = [current.Effects[0] with { Sprite = 0 }] };
+        Assert.Equal(24, Ff7WorldRenderInterpolation.Interpolate(previous, growing, 0.5f).Effects[0].Width);
+        Assert.Equal(Vector3.Zero, previous.Effects[0].Position);
+        Assert.Equal(Vector4.One, current.Effects[0].Color);
+    }
 }

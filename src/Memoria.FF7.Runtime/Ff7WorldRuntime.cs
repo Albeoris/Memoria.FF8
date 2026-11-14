@@ -13,7 +13,7 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
     private readonly Dictionary<int, Ff7WorldLight> lights = [];
     private readonly int entrySelector;
     private int entryModule;
-    private readonly int playerModel;
+    private int playerModel;
     private int controlledModel = -1;
     private bool movementEnabled = true;
     private int controlLock;
@@ -107,9 +107,12 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
                 FieldDeparture = fieldDeparture,
                 BattleState = CaptureWorldBattleState(),
                 Chocobo = CopyChocoboState(chocobo),
+                ChocoboPathControl = CopyChocoboPathControl(chocoboPathControl),
                 Vehicle = CopyVehicleState(vehicle),
                 ChocoboTint = chocoboTint,
-                Snow = snow,
+                Snow = CopySnowState(snow),
+                PartyChange = partyChange,
+                FreeEntities = freeEntities.Count == 0 ? null : freeEntities.Select(entity => entity with { TerrainCache = entity.TerrainCache?.ToArray() }).ToArray(),
                 EntryModule = entryModule,
                 SubmarineTint = submarineTint,
                 ApproachBubble = approachBubble,
@@ -195,6 +198,7 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
         ResolvePlayerTerrain();
         AdvanceEmeraldPresentation();
         AdvanceChocoboTransport();
+        AdvanceChocoboPathControl();
         AdvanceSurfaceVehicleTransport();
         if (mainState < 0)
         {
@@ -233,6 +237,7 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
         AdvanceWorldEffects();
         tick++;
         presentationCounter = unchecked(presentationCounter + 2);
+        AdvanceSnowWindLayers();
         AdvanceRandomWorldBattle();
         if (pendingWorldBattle is { } encounter)
         {
@@ -256,7 +261,12 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
 
     public int ReadSpecial(int selector, int activeModel)
     {
-        Ff7WorldEntity entity = activeModel == -1 ? new(-1) : RequireEntity(activeModel);
+        return ReadSpecial(selector, activeModel, null);
+    }
+
+    public int ReadSpecial(int selector, int activeModel, int? freeModelIndex)
+    {
+        Ff7WorldEntity entity = activeModel == -1 ? new(-1) : ResolveHostEntity(activeModel, freeModelIndex);
         return selector switch
         {
             0 => entity.X >> 13,
@@ -276,7 +286,10 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
             14 => playerModel,
             15 => entity.Model,
             16 => WorldRandom.Next(),
-            17 or 18 or 19 or 20 => 0,
+            17 => partyChange?.Joined0 ?? 0,
+            18 => partyChange?.Joined1 ?? 0,
+            19 => partyChange?.Left0 ?? 0,
+            20 => partyChange?.Left1 ?? 0,
             _ => throw new NotSupportedException($"Unsupported FFVII world special selector {selector:X4}.")
         };
     }
@@ -288,11 +301,16 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
 
     public int ReadModelDistance(int activeModel, int targetModel)
     {
+        return ReadModelDistance(activeModel, targetModel, null);
+    }
+
+    public int ReadModelDistance(int activeModel, int targetModel, int? freeModelIndex)
+    {
         if (!Machine.IsModelAttached(targetModel))
         {
             return 0;
         }
-        Ff7WorldEntity active = RequireEntity(activeModel);
+        Ff7WorldEntity active = ResolveHostEntity(activeModel, freeModelIndex);
         Ff7WorldEntity target = RequireEntity(targetModel);
         return WorldDistance(active, target.X, target.Y, target.Z) >> 4;
     }
@@ -317,16 +335,26 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
 
     public int ReadZoneDistance(int activeModel, int zone)
     {
-        return SelectLight(zone, -1) is { } light ? WorldDistance(RequireEntity(activeModel), light.X, 0, light.Z) >> 5 : 0;
+        return ReadZoneDistance(activeModel, zone, null);
+    }
+
+    public int ReadZoneDistance(int activeModel, int zone, int? freeModelIndex)
+    {
+        return SelectLight(zone, -1) is { } light ? WorldDistance(ResolveHostEntity(activeModel, freeModelIndex), light.X, 0, light.Z) >> 5 : 0;
     }
 
     public int ReadZoneDirection(int activeModel, int zone)
+    {
+        return ReadZoneDirection(activeModel, zone, null);
+    }
+
+    public int ReadZoneDirection(int activeModel, int zone, int? freeModelIndex)
     {
         if (SelectLight(zone, -1) is not { } light)
         {
             return 0;
         }
-        Ff7WorldEntity entity = RequireEntity(activeModel);
+        Ff7WorldEntity entity = ResolveHostEntity(activeModel, freeModelIndex);
         return inputMath.Direction(light.X - entity.X, light.Z - entity.Z);
     }
 
@@ -334,6 +362,11 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
     {
         int[] values = request.Command.Arguments;
         WorldOperation operation = request.Command.Operation;
+        WorldHostReply? pathReply = ExecuteChocoboPathControl(request);
+        if (pathReply is not null)
+        {
+            return pathReply;
+        }
         if (ExecuteWorldEffect(request))
         {
             return new(true);
@@ -476,7 +509,7 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
             PlaceDismountedRider(request);
             return new(true);
         }
-        Ff7WorldEntity entity = RequireEntity(request.ActiveModel);
+        Ff7WorldEntity entity = ResolveHostEntity(request);
         switch (operation)
         {
             case WorldOperation.SetPlayer:
@@ -559,7 +592,7 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
             default:
                 throw new NotSupportedException($"Unsupported FFVII world host operation {operation} at word {request.ProgramCounter:X4}.");
         }
-        entities[entity.Model] = entity;
+        PublishHostEntity(request, entity);
         return new(true);
     }
 
@@ -607,7 +640,7 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
     public void Restore(Ff7WorldProcess state)
     {
         ArgumentNullException.ThrowIfNull(state);
-        if (state.WorldId != Resources.World || state.EntryModule is < 0 or > 2 || state.EntrySelector != entrySelector || state.PlayerModel != playerModel || state.Entities is null || state.Entities.Any(value => value is null || value.Model is < 0 or > 255) || state.Entities.Select(value => value.Model).Distinct().Count() != state.Entities.Length || state.ControlledModel != -1 && !state.Entities.Any(value => value.Model == state.ControlledModel) || state.Lights is null || state.Lights.Any(value => value is null || value.Index is < 0 or > 15) || state.Lights.Select(value => value.Index).Distinct().Count() != state.Lights.Length || state.SelectedLight != -1 && !state.Lights.Any(value => value.Index == state.SelectedLight) || state.Marsh is null || state.Vm is null || state.Vm.Models is null || state.Vm.Models.Any(value => value is null) || state.Input is { Horizontal: < -1 or > 1 } or { Vertical: < -1 or > 1 } || state.Tick < 0 || state.Vm.Tick != state.Tick + (state.Initialized ? 1 : 0) || state.ControlLock is < 0 or > 6 || !IsValidFieldDeparture(state) || state.ViewMode is < 0 or > 3 || state.RadarMode is < 0 or > 3 || state.FadeAlpha is < 0 or > 255 || state.FadeDisplayedAlpha is < 0 or > 255)
+        if (state.WorldId != Resources.World || state.EntryModule is < 0 or > 2 || state.EntrySelector != entrySelector || state.PlayerModel is < 0 or > 2 || state.Entities is null || state.Entities.Any(value => value is null || value.Model is < 0 or > 255) || state.Entities.Select(value => value.Model).Distinct().Count() != state.Entities.Length || state.ControlledModel != -1 && !state.Entities.Any(value => value.Model == state.ControlledModel) || state.Lights is null || state.Lights.Any(value => value is null || value.Index is < 0 or > 15) || state.Lights.Select(value => value.Index).Distinct().Count() != state.Lights.Length || state.SelectedLight != -1 && !state.Lights.Any(value => value.Index == state.SelectedLight) || state.Marsh is null || state.Vm is null || state.Vm.Models is null || state.Vm.Models.Any(value => value is null) || state.Input is { Horizontal: < -1 or > 1 } or { Vertical: < -1 or > 1 } || state.Tick < 0 || state.Vm.Tick != state.Tick + (state.Initialized ? 1 : 0) || state.ControlLock is < 0 or > 6 || !IsValidFieldDeparture(state) || state.ViewMode is < 0 or > 3 || state.RadarMode is < 0 or > 3 || state.FadeAlpha is < 0 or > 255 || state.FadeDisplayedAlpha is < 0 or > 255)
         {
             throw new InvalidDataException("FFVII world process snapshot is corrupt or incompatible with its resources.");
         }
@@ -650,15 +683,23 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
             throw new InvalidDataException("FFVII world approach presentation has invalid effect state.");
         }
         ValidateChocoboState(state);
+        ValidateChocoboRelease(state.ChocoboPathControl?.Path, state.WorldMapState);
         if (state.ChocoboTint is < 0 or > 5)
         {
             throw new InvalidDataException("FFVII world snapshot has an invalid Chocobo tint.");
         }
         ValidateVehicleState(state);
         ValidateSnowState(state.Snow, state.WorldId);
+        ValidateFreeWorldEntities(state);
+        if (state.PartyChange is { } changed && new[] { changed.Joined0, changed.Joined1, changed.Left0, changed.Left1 }.Any(model => model != 0 && model is < 32 or > 63))
+        {
+            throw new InvalidDataException("FFVII world party-change model slots are corrupt.");
+        }
         ValidateWorldBattleState(state.BattleState);
         Machine.Restore(state.Vm);
         entities.Clear();
+        freeEntities.Clear();
+        freeEntities.AddRange((state.FreeEntities ?? (state.Vm.FreeModels ?? []).Select(model => new Ff7WorldEntity(model.Model)).ToArray()).Select(entity => entity with { TerrainCache = entity.TerrainCache?.ToArray() }));
         foreach (Ff7WorldEntity entity in state.Entities)
         {
             entities.Add(entity.Model, entity with { TerrainCache = entity.TerrainCache?.ToArray() });
@@ -669,10 +710,13 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
             lights.Add(light.Index, light);
         }
         controlledModel = state.ControlledModel;
+        playerModel = state.PlayerModel;
         chocobo = CopyChocoboState(state.Chocobo);
+        chocoboPathControl = CopyChocoboPathControl(state.ChocoboPathControl);
         chocoboTint = state.ChocoboTint;
         vehicle = CopyVehicleState(state.Vehicle);
-        snow = state.Snow;
+        snow = CopySnowState(state.Snow);
+        partyChange = state.PartyChange;
         entryModule = state.EntryModule;
         movementEnabled = state.MovementEnabled;
         viewMode = state.ViewMode;
@@ -685,7 +729,7 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
         whiteFadeDisplayed = state.WhiteFadeDisplayed;
         marsh = CopyMarshState(state.Marsh);
         selectedLight = state.SelectedLight;
-        encounterRate = state.BattleState is null && state.EncounterRate == 0 ? 1 : state.EncounterRate;
+        encounterRate = state.EncounterRate;
         controlLock = state.ControlLock;
         mainState = state.MainState;
         fadeAlpha = state.FadeAlpha;

@@ -10,11 +10,16 @@ public sealed partial class Ff7WorldRuntime
 
     public int ReadStoredPositionDistance(int activeModel, int slot)
     {
+        return ReadStoredPositionDistance(activeModel, slot, null);
+    }
+
+    public int ReadStoredPositionDistance(int activeModel, int slot, int? freeModelIndex)
+    {
         if ((uint)slot >= 3)
         {
             return 0;
         }
-        Ff7WorldEntity entity = RequireEntity(activeModel);
+        Ff7WorldEntity entity = ResolveHostEntity(activeModel, freeModelIndex);
         Ff7WorldStoredPosition point = storedPositions?[slot] ?? new();
         return (Math.Abs(WrappedDifference(entity.X - point.X, 0x48000)) + Math.Abs(WrappedDifference(entity.Z - point.Z, 0x38000))) >> 4;
     }
@@ -26,13 +31,13 @@ public sealed partial class Ff7WorldRuntime
         {
             return false;
         }
-        Ff7WorldEntity entity = RequireEntity(request.ActiveModel);
+        Ff7WorldEntity entity = ResolveHostEntity(request);
         int value = request.Command.Arguments[0];
         if (operation == WorldOperation.CopyModelPosition)
         {
             if (Machine.IsModelAttached(value) && entities.TryGetValue(value, out Ff7WorldEntity? source))
             {
-                UpdateEntity(entity with { X = source.X, Y = source.Y, Z = source.Z, PreviousX = source.PreviousX, PreviousY = source.PreviousY, PreviousZ = source.PreviousZ, Flags = entity.Flags | 1, PresentationEpoch = entity.PresentationEpoch + 1 });
+                PublishHostEntity(request, entity with { X = source.X, Y = source.Y, Z = source.Z, PreviousX = source.PreviousX, PreviousY = source.PreviousY, PreviousZ = source.PreviousZ, Flags = entity.Flags | 1, PresentationEpoch = entity.PresentationEpoch + 1 });
             }
         }
         else if ((uint)value < 3)
@@ -46,7 +51,7 @@ public sealed partial class Ff7WorldRuntime
             {
                 Ff7WorldStoredPosition point = storedPositions[value];
                 int heading = inputMath.Direction(point.X - entity.X, point.Z - entity.Z);
-                UpdateEntity(entity with { Direction = heading, TargetDirection = heading, ScriptDirection = null });
+                PublishHostEntity(request, entity with { Direction = heading, TargetDirection = heading, ScriptDirection = null });
             }
         }
         return true;

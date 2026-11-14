@@ -56,12 +56,28 @@ internal static class WorldSnowTests
         int heading = windy.Input!.CameraHeadingTarget ?? windy.Camera!.Heading;
         Advance(original, cold);
         Check(original.Process.Snow is { Countdown: 63 } && original.Process.Input!.CameraHeadingTarget == (heading + 16 & 4095), "The original moving wind boundary must capture facing and turn the camera target by16.");
+        Ff7WorldSnowLayerState firstLayer = original.Process.Snow!.Layers!.Single(layer => layer.Layer == 1);
+        Check(firstLayer is { Brightness: 16, Delta: 16, Lifetime: 99, DisplayedBrightness: 0, DisplayedU: 0, DisplayedV: 0, Displayed: true }, "Starting snow must draw its pre-update zero brightness and UV while advancing its native fade and lifetime.");
         original.SetMovement(0, 0, true);
         cold.SetMovement(0, 0, true);
         original.SetButtons(32, 32);
         cold.SetButtons(32, 32);
         Advance(original, cold);
         Check(original.Process.Snow is { Countdown: 62, PoleIndex: 1 }, "The native storm must continue while idle and reject marker placement during wind.");
+        Ff7WorldSnowLayerState nextLayer = original.Process.Snow!.Layers!.Single(layer => layer.Layer == 1);
+        Check(nextLayer.Brightness == 32 && nextLayer.DisplayedBrightness == 16 && nextLayer.DisplayedU == firstLayer.U && nextLayer.DisplayedV == firstLayer.V, "Snow layer display must retain the original one-callback brightness and UV publication order.");
+        original.SetButtons(0, 0);
+        cold.SetButtons(0, 0);
+        for (int callback = 0; callback < 98; callback++)
+        {
+            Advance(original, cold);
+        }
+        Check(original.Process.Snow!.Layers!.All(layer => layer is { Brightness: 128, Delta: -16, Lifetime: 0, DisplayedBrightness: 128, Displayed: true }), "The native100-callback snow lifetime must schedule its fade-out after drawing the current brightness.");
+        for (int callback = 0; callback < 8; callback++)
+        {
+            Advance(original, cold);
+        }
+        Check(original.Process.Snow!.Layers!.All(layer => layer is { Brightness: 0, Delta: 0, Displayed: false }), "Native snow layers must stop drawing exactly when post-update brightness reaches zero.");
         Console.WriteLine("PASS original snow-world entry, four-block terrain, wind, marker input and cold continuation");
     }
 

@@ -12,6 +12,7 @@ public sealed partial class WorldMachine
         public byte Priority;
         public bool Disabled;
         public bool Detached;
+        public Entity? Next;
         public int CalledModel;
         public List<WorldCallSnapshot> Calls = [];
     }
@@ -22,6 +23,7 @@ public sealed partial class WorldMachine
     private readonly byte[] local = new byte[64];
     private readonly List<WorldStackValue> stack = [];
     private readonly List<Entity> models = [];
+    private readonly Stack<Entity> freeModels = [];
     private Entity system = new(-1);
     private Entity active;
     private Entity executing;
@@ -106,6 +108,8 @@ public sealed partial class WorldMachine
     {
         Entity entity = models.Single(entity => entity.Model == model);
         entity.Detached = true;
+        entity.Next = null;
+        LinkResidentModels();
     }
 
     public void ReattachModel(int model)
@@ -114,6 +118,7 @@ public sealed partial class WorldMachine
         models.Remove(entity);
         models.Insert(0, entity);
         entity.Detached = false;
+        LinkResidentModels();
     }
 
     public void RestoreTransportRider(int model)
@@ -132,6 +137,10 @@ public sealed partial class WorldMachine
     {
         Entity entity = models.Single(entity => entity.Model == model);
         models.Remove(entity);
+        entity.Detached = false;
+        entity.Next = freeModels.TryPeek(out Entity? nextFree) ? nextFree : null;
+        freeModels.Push(entity);
+        LinkResidentModels();
         if (active == entity)
         {
             active = system;
@@ -190,15 +199,14 @@ public sealed partial class WorldMachine
     {
         Run(system);
         // Allocation prepends to the native list; models created by the system participate in this tick.
-        Entity? entity = models.FirstOrDefault();
+        Entity? entity = models.FirstOrDefault(entity => !entity.Detached);
         while (entity is not null)
         {
             if (!entity.Detached)
             {
                 Run(entity);
             }
-            int index = models.IndexOf(entity);
-            entity = index + 1 < models.Count ? models[index + 1] : null;
+            entity = entity.Next;
         }
     }
 
@@ -324,10 +332,10 @@ public sealed partial class WorldMachine
         {
             int value = opcode switch
             {
-                0x18 => host.ReadZoneDistance(active.Model, right),
-                0x19 => host.ReadModelDistance(active.Model, right),
-                0x1A => host.ReadStoredPositionDistance(active.Model, right),
-                _ => host.ReadZoneDirection(active.Model, right) >> 4
+                0x18 => host.ReadZoneDistance(active.Model, right, ActiveFreeModelIndex()),
+                0x19 => host.ReadModelDistance(active.Model, right, ActiveFreeModelIndex()),
+                0x1A => host.ReadStoredPositionDistance(active.Model, right, ActiveFreeModelIndex()),
+                _ => host.ReadZoneDirection(active.Model, right, ActiveFreeModelIndex()) >> 4
             };
             Push(new(0x110, value));
             return;
@@ -385,7 +393,7 @@ public sealed partial class WorldMachine
         WorldStackValue operand = Take();
         if ((operand.Opcode & 3) == 3)
         {
-            return host.ReadSpecial(operand.Value, active.Model);
+            return host.ReadSpecial(operand.Value, active.Model, ActiveFreeModelIndex());
         }
         if ((operand.Opcode & ~3) == 0x110)
         {

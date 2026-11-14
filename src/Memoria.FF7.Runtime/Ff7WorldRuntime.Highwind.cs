@@ -116,13 +116,14 @@ public sealed partial class Ff7WorldRuntime
         AdvanceWorldModelPresentation();
         if (aircraft.Model == 3 && leaderAnimations.TryGetValue(3, out var resources))
         {
+            vehicle ??= new([]);
+            vehicle = vehicle with { HighwindPropellerPoseFrame = vehicle.HighwindPropellerFrame };
             int dx = WrappedDifference(aircraft.X - aircraft.PreviousX, 0x48000);
             int dz = WrappedDifference(aircraft.Z - aircraft.PreviousZ, 0x38000);
             if (dx * dx + dz * dz >= 200)
             {
                 int animation = RequireEntity(3).PoseAnimation;
                 int frames = resources.Models.Animations[resources.Descriptor.Animations[animation]].Frames.Count;
-                vehicle ??= new([]);
                 int next = vehicle.HighwindPropellerFrame + 1;
                 vehicle = vehicle with { HighwindPropellerFrame = next >= frames ? 0 : next };
             }

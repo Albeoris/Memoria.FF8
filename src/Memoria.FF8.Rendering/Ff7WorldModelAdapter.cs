@@ -28,7 +28,7 @@ public sealed class Ff7WorldModelAdapter(Ff7WorldCharacterDescriptor descriptor,
                 float fieldScale = descriptor.ScaleWord / 4096f * 30.43090057373047f;
                 Matrix4x4 transform = Matrix4x4.CreateRotationX(-MathF.PI / 2) * Matrix4x4.CreateScale(descriptor.Scale / fieldScale) * Rotation(direction, nativeTilt ?? Vector3.Zero, pitchUnits) * Matrix4x4.CreateTranslation(nativePosition);
                 Ff7WorldVertex Convert(Ff7WorldVertex vertex) => vertex with { Position = Vector3.Transform(vertex.Position, transform), Normal = vertex.Normal is Vector3 normal ? Vector3.TransformNormal(normal, transform) : null };
-                return mapped.Select(triangle => new Ff7WorldModelTriangle(Convert(triangle.A), Convert(triangle.B), Convert(triangle.C), triangle.Material with { DepthComparison = TriangleDepthComparison.GreaterEqual, DepthMapping = TriangleDepthMapping.Positive, DepthScale = 1 }, false)).ToArray();
+                return mapped.Select(triangle => new Ff7WorldModelTriangle(Convert(triangle.A), Convert(triangle.B), Convert(triangle.C), triangle.Material with { DepthComparison = TriangleDepthComparison.GreaterEqual, DepthMapping = TriangleDepthMapping.Positive, DepthScale = 1, CentroidTextureSampling = true }, false)).ToArray();
             }
         }
         Matrix4x4 normalBasis = Matrix4x4.CreateRotationX(MathF.PI) * Rotation(direction, nativeTilt ?? Vector3.Zero, pitchUnits);
@@ -50,7 +50,7 @@ public sealed class Ff7WorldModelAdapter(Ff7WorldCharacterDescriptor descriptor,
     private IReadOnlyList<Ff7WorldModelTriangle> CreateOriginal(PcFieldAnimation animation, int animationFrame, float scale, Matrix4x4 basis, Matrix4x4 normalBasis, Ff7FieldPoseBlend? animationBlend = null)
     {
         IReadOnlyList<Matrix4x4> pose = Ff7FieldPoseSampler.Sample(resources, animation, new(checked(animationFrame * 16)) { Blend = animationBlend }, scale).Bones;
-        Ff7ModelMaterialState materialState = new();
+        Ff7ModelMaterialState materialState = new() { Blend = descriptor.Transparent ? TriangleBlend.Alpha : TriangleBlend.Replace, BlendMode = descriptor.Transparent ? 0 : 4, DepthWrite = !descriptor.Transparent };
         List<Ff7WorldModelTriangle> triangles = new();
         foreach (Ff7BoneGeometry part in resources.Geometry)
         {
@@ -81,6 +81,7 @@ public sealed class Ff7WorldModelAdapter(Ff7WorldCharacterDescriptor descriptor,
                 {
                     DepthMapping = TriangleDepthMapping.Positive,
                     DepthScale = 1,
+                    CentroidTextureSampling = true,
                     PreserveTargetAlpha = false
                 };
                 Ff7WorldVertex Vertex(int local)
@@ -96,7 +97,8 @@ public sealed class Ff7WorldModelAdapter(Ff7WorldCharacterDescriptor descriptor,
                         green = Math.Clamp(green + offset.Green, 0, 255);
                         blue = Math.Clamp(blue + offset.Blue, 0, 255);
                     }
-                    Vector4 rgba = new(red / 255f, green / 255f, blue / 255f, (color >> 24) / 255f * state.VertexAlpha / 255f);
+                    float vertexAlpha = descriptor.Transparent ? 128 : state.VertexAlpha;
+                    Vector4 rgba = new(red / 255f, green / 255f, blue / 255f, (color >> 24) / 255f * vertexAlpha / 255f);
                     Vector3? normal = normals[local] < 0 ? null : Vector3.TransformNormal(model.Normals[normals[local]], normalTransform);
                     return new(Vector3.Transform(model.Vertices[index], transform), image is null ? Vector2.Zero : model.TextureCoordinates[group.TextureCoordinateStart + local], rgba) { Normal = normal };
                 }
@@ -118,14 +120,18 @@ public sealed class Ff7WorldModelAdapter(Ff7WorldCharacterDescriptor descriptor,
         return triangles.AsReadOnly();
     }
 
-    public static int Draw(ITriangleRenderer renderer, IReadOnlyList<Ff7WorldModelTriangle> triangles, Ff7WorldView view)
+    public static int Draw(ITriangleRenderer renderer, IReadOnlyList<Ff7WorldModelTriangle> triangles, Ff7WorldView view, bool underwater = false, int nativeColorWeight = 255)
     {
         int submitted = 0;
         foreach (Ff7WorldModelTriangle triangle in triangles)
         {
             CameraSpaceVertex Vertex(Ff7WorldVertex vertex)
             {
-                Vector4 color = vertex.Normal is Vector3 normal ? Ff7WorldLighting.Character(Vector3.TransformNormal(normal, view.NativeRotation), vertex.Color) : vertex.Color;
+                Vector4 color = vertex.Normal is Vector3 normal ? Ff7WorldLighting.Character(Vector3.TransformNormal(normal, view.NativeRotation), vertex.Color, underwater) : vertex.Color;
+                if (nativeColorWeight != 255)
+                {
+                    color = Ff7WorldLighting.BlendModelColor(color, nativeColorWeight);
+                }
                 return new(view.ToCamera(vertex.Position), vertex.Uv, color);
             }
             submitted += CameraSpaceTriangleSubmission.Draw(renderer, Vertex(triangle.A), Vertex(triangle.B), Vertex(triangle.C), view.Width, view.Height, view.Focal, triangle.Material, triangle.Cull);

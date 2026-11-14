@@ -37,6 +37,15 @@ internal sealed partial class Ff7Scene
         Ff7WorldEffectParticle[] particles = effects?.DisplayParticles ?? effects?.Particles ?? [];
         byte[]? widths = effects?.DisplayWidths ?? effects?.Widths;
         byte[]? heights = effects?.DisplayHeights ?? effects?.Heights;
+        Ff7WorldEntity? controlled = state.Entities.SingleOrDefault(entity => entity.Model == state.ControlledModel);
+        Ff7WorldMarsh marsh = state.Marsh;
+        Ff7WorldMarshSegment[] marshSegments = marsh.Initialized && marsh.Points is { Length: 48 } && controlled is { X: >= 0x30000 and < 0x40000, Z: >= 0x1C000 and < 0x2C000 }
+            ? Enumerable.Range(0, 12).Select(index =>
+            {
+                Ff7WorldMarshPoint point = marsh.Points[(marsh.Head + 3 + index * 4) % 48];
+                return new Ff7WorldMarshSegment(index, new(point.X + 0x34000, unchecked((short)point.Height), point.Z + 0x20000), point.Direction & 4095);
+            }).ToArray()
+            : [];
         return new(state.ControlledModel, state.Initialized, state.MainState, state.ViewMode, state.RadarMode, state.WorldMapState, state.PresentationCounter, state.Sky?.CloudPhase ?? 0,
             new(camera.Heading, camera.Pitch, camera.Distance, camera.GroundHeight, camera.Roll, camera.Focal),
             state.Entities.Where(entity => entity.Model != state.Chocobo?.RiderModel).Select(entity => new Ff7WorldVisual(entity.Model, new(entity.X, entity.Y, entity.Z), (entity.Direction + entity.TurnOffset) & 4095, entity.PoseAnimation, entity.PoseFrame, entity.Flags)
@@ -57,7 +66,9 @@ internal sealed partial class Ff7Scene
             ResourceArea = resourceArea,
             ChocoboTint = state.ChocoboTint,
             MeteorVisible = state.MeteorVisible,
-            HighwindPropellerFrame = state.Vehicle?.HighwindPropellerFrame ?? 0,
+            MarshSegments = marshSegments,
+            SnowLayers = (state.Snow?.Layers ?? []).Where(layer => layer.Displayed).Select(layer => new Ff7WorldSnowLayer(layer.Layer, layer.DisplayedBrightness, layer.DisplayedU, layer.DisplayedV)).ToArray(),
+            HighwindPropellerFrame = state.Vehicle?.HighwindPropellerPoseFrame ?? state.Vehicle?.HighwindPropellerFrame ?? 0,
             Effects = particles.Select(particle => new Ff7WorldEffectVisual(particle.Id, new(particle.X, particle.Y, particle.Z), particle.Sprite, particle.Angle, particle.GroundAligned, widths![particle.Sprite], heights![particle.Sprite], new((particle.Color >> 16 & 255) / 255f, (particle.Color >> 8 & 255) / 255f, (particle.Color & 255) / 255f, (particle.Color >> 24) / 255f))).ToArray(),
             CurvatureThreshold = 5000 - ((state.Vehicle?.FlightProgress ?? 0) * 2500 >> 8),
             HeightSmoothVelocity = state.Input?.HeightSmoothVelocity ?? 0,
@@ -112,8 +123,13 @@ internal static class Ff7WorldRenderInterpolation
             InterpolateAngle(first.Roll, second.Roll, fraction),
             Lerp(first.Focal, second.Focal, fraction));
         Dictionary<long, Ff7WorldEffectVisual> oldEffects = previous.Effects.ToDictionary(effect => effect.Id);
-        Ff7WorldEffectVisual[] effects = current.Effects.Select(effect => oldEffects.TryGetValue(effect.Id, out Ff7WorldEffectVisual? old) && old.Sprite == effect.Sprite && old.GroundAligned == effect.GroundAligned ? effect with { Position = System.Numerics.Vector3.Lerp(old.Position, effect.Position, fraction), Angle = InterpolateAngle(old.Angle, effect.Angle, fraction), Color = System.Numerics.Vector4.Lerp(old.Color, effect.Color, fraction) } : effect).ToArray();
-        return current with { Camera = camera, Models = models, Effects = effects, CurvatureThreshold = Lerp(previous.CurvatureThreshold, current.CurvatureThreshold, fraction), HighwindPropellerBlend = new(previous.HighwindPropellerFrame, current.HighwindPropellerFrame, fraction) };
+        Ff7WorldEffectVisual[] effects = current.Effects.Select(effect => oldEffects.TryGetValue(effect.Id, out Ff7WorldEffectVisual? old) && old.GroundAligned == effect.GroundAligned ? effect with { Position = System.Numerics.Vector3.Lerp(old.Position, effect.Position, fraction), Angle = InterpolateAngle(old.Angle, effect.Angle, fraction), Color = System.Numerics.Vector4.Lerp(old.Color, effect.Color, fraction), Width = old.Sprite == effect.Sprite ? old.Width + (effect.Width - old.Width) * fraction : effect.Width, Height = old.Sprite == effect.Sprite ? old.Height + (effect.Height - old.Height) * fraction : effect.Height } : effect).ToArray();
+        Dictionary<int, Ff7WorldMarshSegment> oldSegments = previous.MarshSegments.ToDictionary(segment => segment.Index);
+        Ff7WorldMarshSegment[] segments = current.MarshSegments.Select(segment => oldSegments.TryGetValue(segment.Index, out Ff7WorldMarshSegment? old) ? segment with { Position = System.Numerics.Vector3.Lerp(old.Position, segment.Position, fraction), Direction = InterpolateTilt(old.Direction, segment.Direction, fraction) } : segment).ToArray();
+        Dictionary<int, Ff7WorldSnowLayer> oldLayers = previous.SnowLayers.ToDictionary(layer => layer.Layer);
+        Ff7WorldSnowLayer[] layers = current.SnowLayers.Select(layer => oldLayers.TryGetValue(layer.Layer, out Ff7WorldSnowLayer? old) ? layer with { Brightness = old.Brightness + (layer.Brightness - old.Brightness) * fraction, U = InterpolateWrapping(old.U, layer.U, 256, fraction), V = InterpolateWrapping(old.V, layer.V, 256, fraction) } : layer).ToArray();
+        Memoria.FF7.Resources.Ff7WorldBridgeDeformation? bridge = current.BridgeDeformation is { } after && previous.BridgeDeformation is { } before && before.Index == after.Index ? after with { Tilt = Lerp(before.Tilt, after.Tilt, fraction) } : current.BridgeDeformation;
+        return current with { Camera = camera, Models = models, Effects = effects, MarshSegments = segments, SnowLayers = layers, BridgeDeformation = bridge, CloudPhase = InterpolatePeriodic(previous.CloudPhase, current.CloudPhase, 256, fraction), ShakeX = Lerp(previous.ShakeX, current.ShakeX, fraction), ShakeY = Lerp(previous.ShakeY, current.ShakeY, fraction), CurvatureThreshold = Lerp(previous.CurvatureThreshold, current.CurvatureThreshold, fraction), HighwindPropellerBlend = new(previous.HighwindPropellerFrame, current.HighwindPropellerFrame, fraction) };
     }
 
     private static bool Compatible(Ff7WorldVisual previous, Ff7WorldVisual current)
@@ -147,14 +163,19 @@ internal static class Ff7WorldRenderInterpolation
 
     private static float InterpolateTilt(float previous, float current, float fraction)
     {
-        float difference = (current - previous) % 4096;
-        if (difference > 2048)
+        return InterpolateWrapping(previous, current, 4096, fraction);
+    }
+
+    private static float InterpolateWrapping(float previous, float current, float period, float fraction)
+    {
+        float difference = (current - previous) % period;
+        if (difference > period / 2)
         {
-            difference -= 4096;
+            difference -= period;
         }
-        else if (difference < -2048)
+        else if (difference < -period / 2)
         {
-            difference += 4096;
+            difference += period;
         }
         return previous + difference * fraction;
     }
@@ -171,5 +192,20 @@ internal static class Ff7WorldRenderInterpolation
             difference += 4096;
         }
         return Lerp(previous, previous + difference, fraction) & 4095;
+    }
+
+    private static int InterpolatePeriodic(int previous, int current, int period, float fraction)
+    {
+        int difference = (current - previous) % period;
+        if (difference > period / 2)
+        {
+            difference -= period;
+        }
+        else if (difference < -period / 2)
+        {
+            difference += period;
+        }
+        int value = Lerp(previous, previous + difference, fraction) % period;
+        return value < 0 ? value + period : value;
     }
 }

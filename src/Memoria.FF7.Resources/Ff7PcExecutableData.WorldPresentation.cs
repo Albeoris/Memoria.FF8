@@ -10,6 +10,7 @@ public sealed record Ff7WorldPresentationData(IReadOnlyList<Ff7WorldCameraProfil
 public sealed record Ff7WorldCharacterDescriptor(string HrcName, int ScaleWord, IReadOnlyList<string> Animations)
 {
     public (short Red, short Green, short Blue)? ColorOffset { get; init; }
+    public bool Transparent { get; init; }
 
     public float Scale => Math.Max(1, ScaleWord / 512f) * 15.2f;
 
@@ -120,7 +121,8 @@ public sealed partial class Ff7PcExecutableData
         {
             animations[index] = ReadWorldPresentationName(stream, pe, BinaryPrimitives.ReadUInt32LittleEndian(pointers.AsSpan(index * 4)));
         }
-        descriptor = new(hrc, BinaryPrimitives.ReadInt32LittleEndian(row.AsSpan(12)), Array.AsReadOnly(animations));
+        string name = ReadWorldPresentationName(stream, pe, BinaryPrimitives.ReadUInt32LittleEndian(row));
+        descriptor = new(hrc, BinaryPrimitives.ReadInt32LittleEndian(row.AsSpan(12)), Array.AsReadOnly(animations)) { Transparent = name.Equals("barrier", StringComparison.Ordinal) };
         int? colorRow = (world, character, tint) switch
         {
             (0, 4, _) => 0,

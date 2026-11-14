@@ -1,4 +1,5 @@
 using System.Numerics;
+using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
 using Memoria.FF8.Rendering;
 
@@ -99,6 +100,15 @@ public sealed class Ff7WorldEnvironmentTests
         Capture hidden = new();
         adapter.DrawRadar(hidden, 320, 240, 2, 0, 0, 0, []);
         Assert.Empty(hidden.Triangles);
+        Ff7WorldEnvironmentAdapter later = new(resources, presentation, PcTexture.Read(world.ReadRequired("midlmap2.tex")));
+        Capture originalMap = new();
+        Capture alternateMap = new();
+        later.DrawRadar(originalMap, 320, 240, 1, 0, 0, 0, []);
+        later.DrawRadar(alternateMap, 320, 240, 1, 0, 0, 0, [], alternateMap: true);
+        Assert.Equal(originalMap.Triangles[0].A.Position, alternateMap.Triangles[0].A.Position);
+        Assert.Equal(originalMap.Triangles[0].A.Uv, alternateMap.Triangles[0].A.Uv);
+        Assert.NotSame(originalMap.Triangles[0].Material.Texture, alternateMap.Triangles[0].Material.Texture);
+        Assert.False(originalMap.Triangles[0].Material.Texture!.Pixels.SequenceEqual(alternateMap.Triangles[0].Material.Texture!.Pixels));
     }
 
     private sealed class Capture : ITriangleRenderer

@@ -57,15 +57,19 @@ public sealed class Ff7PlayerMenuTests
     }
 
     [Fact]
-    public void WorldMenuIsIndependentOfTerrainAndSaveBitButKeepsNativeControlAndFadeGates()
+    public void WorldMenuKeepsNativeModelTerrainControlAndFadeGatesWithoutRequiringTheSaveBit()
     {
-        Ff7WorldProcess idle = new(0, 0, 1, null!, [], 0, true, 0, 0, null, [], -1, new(), 0, 0, MainState: 1, FadeAlpha: 0, FadeDisplayedAlpha: 0);
+        Ff7WorldProcess idle = new(0, 0, 1, null!, [new(0)], 0, true, 0, 0, null, [], -1, new(), 0, 0, MainState: 1, FadeAlpha: 0, FadeDisplayedAlpha: 0);
         string before = JsonSerializer.Serialize(idle);
         Assert.True(Ff7Session.CanOpenWorldPlayerMenu(idle));
         Assert.False(Ff7Session.CanOpenWorldPlayerMenu(idle with { MovementEnabled = false }));
         Assert.True(Ff7Session.CanOpenWorldPlayerMenu(idle with { ControlLock = 1 }));
         Assert.True(Ff7Session.CanOpenWorldPlayerMenu(idle with { ControlLock = 3 }));
         Assert.False(Ff7Session.CanOpenWorldPlayerMenu(idle with { ControlLock = 3, MovementEnabled = false }));
+        Assert.False(Ff7Session.CanOpenWorldPlayerMenu(idle with { Entities = [new(0, Terrain: 14)] }));
+        Assert.False(Ff7Session.CanOpenWorldPlayerMenu(idle with { ControlledModel = 4, Entities = [new(4)] }));
+        Assert.False(Ff7Session.CanOpenWorldPlayerMenu(idle with { ControlledModel = 13, Entities = [new(13)] }));
+        Assert.True(Ff7Session.CanOpenWorldPlayerMenu(idle with { ControlledModel = 6, Entities = [new(6)] }));
         Assert.False(Ff7Session.CanOpenWorldPlayerMenu(idle with { FadeDisplayedAlpha = 1 }));
         Assert.False(Ff7Session.CanOpenWorldPlayerMenu(idle with { Dialogue = new(1, 0, 0, null, null, 0) }));
         Assert.Equal(before, JsonSerializer.Serialize(idle));

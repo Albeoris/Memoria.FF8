@@ -39,6 +39,7 @@ internal static class WorldEffectsTests
         PhaseAndPool(world, ready, actor, table);
         EmittersAndCold(world, ready, actor, table, installation);
         TerrainProducers(world, ready, actor, table);
+        CorruptionAndNativeWidths(world, ready, actor, table);
         Console.WriteLine("PASS original world sprite table, immediate effects, render/update phase, pool quarantine, emitters, gravity, mutable dimensions, terrain producers and cold continuation");
     }
 
@@ -152,6 +153,43 @@ internal static class WorldEffectsTests
     private static void ProduceTerrain(Ff7WorldRuntime world, Ff7WorldEntity entity)
     {
         typeof(Ff7WorldRuntime).GetMethod("EmitWorldTerrainEffect", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(world, [entity]);
+    }
+
+    private static void CorruptionAndNativeWidths(Ff7WorldRuntime world, Ff7WorldProcess ready, Ff7WorldEntity actor, Ff7WorldEffectTable table)
+    {
+        Ff7WorldEffectParticle particle = new(1, actor.X, actor.Y, actor.Z, 0, 0, 0, 0, 10, 3, false, 0, 128, false, 0x80808080);
+        Ff7WorldEffectsState valid = new([particle], new Ff7WorldEffectEmitter?[2], table.Sprites.Select(sprite => (byte)sprite.Width).ToArray(), table.Sprites.Select(sprite => (byte)sprite.Height).ToArray(), NextId: 2);
+        foreach (Ff7WorldEffectParticle invalid in new[] { particle with { VelocityX = 32768 }, particle with { VelocityY = -32769 }, particle with { VelocityZ = 32768 }, particle with { Angle = 32768 }, particle with { Gravity = 256 }, particle with { Remaining = -1 }, particle with { Intensity = 32768 } })
+        {
+            Reject(world, ready with { Effects = valid with { Particles = [invalid] } });
+        }
+        Reject(world, ready with { Effects = valid with { Particles = [particle, particle] } });
+        Reject(world, ready with { Effects = valid with { DisplayParticles = [particle, particle] } });
+        Reject(world, ready with { Effects = valid with { DisplayParticles = [particle with { Angle = -32769 }] } });
+        foreach (Ff7WorldEffectEmitter emitter in new[] { new Ff7WorldEffectEmitter(-129, 1, 1), new Ff7WorldEffectEmitter(0, 128, 1), new Ff7WorldEffectEmitter(0, 1, -129), new Ff7WorldEffectEmitter(0, 1, 1, 128) })
+        {
+            Reject(world, ready with { Effects = valid with { Emitters = [emitter, null] } });
+        }
+        Ff7WorldEffectParticle boundary = particle with { X = int.MinValue, Y = int.MaxValue, VelocityX = short.MinValue, VelocityY = short.MaxValue, VelocityZ = short.MinValue, Angle = short.MinValue, Gravity = byte.MaxValue, Remaining = byte.MaxValue, Intensity = short.MinValue, Color = uint.MaxValue };
+        world.Restore(ready with { Effects = valid with { Particles = [boundary], DisplayParticles = [boundary], Emitters = [new(sbyte.MinValue, sbyte.MaxValue, sbyte.MinValue, sbyte.MaxValue), null] } });
+        world.Advance();
+        Check(world.Process.Effects!.Particles[0] is { Intensity: short.MaxValue, VelocityY: 32512 }, "Legitimate native signed-short intensity wraps before color processing; maximum byte gravity and signed velocities remain supported.");
+        world.Restore(ready with { Effects = valid with { Particles = [particle with { Sprite = 0x13, Intensity = short.MinValue }] } });
+        world.Advance();
+        Check(world.Process.Effects!.Particles[0] is { Intensity: 32756, Color: 0x80F4F4F4 }, "Native short storage wraps before the negative clamp and RGB assignment narrows independently to a byte.");
+    }
+
+    private static void Reject(Ff7WorldRuntime world, Ff7WorldProcess state)
+    {
+        try
+        {
+            world.Restore(state);
+        }
+        catch (InvalidDataException)
+        {
+            return;
+        }
+        throw new InvalidOperationException("Corrupt world particle or emitter storage was accepted.");
     }
 
     private static void Command(Ff7WorldRuntime world, int model, WorldOperation operation, int[] arguments)

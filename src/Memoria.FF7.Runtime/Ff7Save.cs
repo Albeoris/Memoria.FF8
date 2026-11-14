@@ -94,6 +94,8 @@ public sealed record Ff7SessionSave
     public byte BattleCameraPresentationCounter { get; init; }
     public Ff7TickContinuation? TickContinuation { get; init; }
     public Ff7WorldProcess? World { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? WorldPartyMenuPending { get; init; }
     public AutoPlayEventCoverageState? EventCoverage { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Ff7BattleSnapshot? Battle { get; init; }

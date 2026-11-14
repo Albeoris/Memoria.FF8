@@ -48,11 +48,17 @@ public sealed record Ff7WorldProcess(int WorldId, long Tick, int EntrySelector, 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Ff7WorldChocoboState? Chocobo { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7WorldChocoboPathControl? ChocoboPathControl { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Ff7WorldVehicleState? Vehicle { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public int ChocoboTint { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Ff7WorldSnowState? Snow { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7WorldPartyChange? PartyChange { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7WorldEntity[]? FreeEntities { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public int EntryModule { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

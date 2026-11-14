@@ -105,8 +105,8 @@ internal static class NativeMenuEquipmentTests
         Check(session.World!.ReadPersistentByte(75) == 0xA2 && session.World.ReadPersistentByte(122) == 0x40, "Equip failed to publish its flags to the world owner.");
         Check(session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 75) == 0xA0 && session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 122) == 0xC0, "A world Equip update changed the suspended field flags.");
         Check(session.Capture().Vm.PersistentVariables[122] == 0x40, "Equip flags were absent from the captured world overlay.");
-        session.World.Restore(session.World.Process with { ControlLock = 1 });
-        Check(!session.TryEquipMenuItem(0, Ff7EquipmentSlot.Armor, 257), "Equip ignored the world control lock.");
+        session.World.Restore(session.World.Process with { ControlLock = 1, MovementEnabled = false });
+        Check(!session.TryEquipMenuItem(0, Ff7EquipmentSlot.Armor, 257), "Equip ignored the disabled world controls.");
     }
 
     private static uint ReadMateria(byte[] record, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(record.AsSpan(offset));

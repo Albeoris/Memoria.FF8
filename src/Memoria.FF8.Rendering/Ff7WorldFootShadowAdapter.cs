@@ -48,8 +48,14 @@ public sealed class Ff7WorldFootShadowAdapter(PcTexture texture, Ff7WorldMath ma
         Matrix4x4 rotation = math.Rotation(0, 0x800 + entity.Direction + cameraRoll * 4, 0);
         Vector3 offset = entity.Model switch { 3 => new(-10, 0, 80), 11 => new(0, 0, -360), _ => Vector3.Zero };
         offset = Vector3.Transform(offset, math.Rotation(0, entity.Direction + cameraRoll * 4, 0));
+        (int u, int v, int width, int height) = entity.Model switch { 3 => (24, 16, 14, 31), 11 => (0, 0, 23, 47), _ => (24, 0, 15, 15) };
+        return DrawGroundQuad(renderer, image, view, new(position.X + offset.X, unchecked((short)ground), position.Z + offset.Z), halfWidth, halfLength, rotation, new(u, v, u + width, v + height), new(64 / 255f, 64 / 255f, 64 / 255f, 128 / 255f), TriangleBlend.Alpha);
+    }
+
+    public static int DrawGroundQuad(ITriangleRenderer renderer, PixelImage image, Ff7WorldView view, Vector3 center, short halfWidth, short halfLength, Matrix4x4 rotation, Vector4 atlas, Vector4 color, TriangleBlend blend)
+    {
         Vector3[] corners = [new(-halfWidth, 0, -halfLength), new(halfWidth, 0, -halfLength), new(-halfWidth, 0, halfLength), new(halfWidth, 0, halfLength)];
-        Vector3[] camera = corners.Select(corner => Vector3.Transform(Vector3.Transform(corner, rotation) + new Vector3(position.X + offset.X, unchecked((short)ground), position.Z + offset.Z), view.NativeView)).ToArray();
+        Vector3[] camera = corners.Select(corner => Vector3.Transform(Vector3.Transform(corner, rotation) + center, view.NativeView)).ToArray();
         if (camera.Any(point => MathF.Round(point.Z, MidpointRounding.ToEven) <= 0))
         {
             return 0;
@@ -61,18 +67,16 @@ public sealed class Ff7WorldFootShadowAdapter(PcTexture texture, Ff7WorldMath ma
             return 0;
         }
         float depth = 1 / camera.Min(point => point.Z);
-        Vector4 color = new(64 / 255f, 64 / 255f, 64 / 255f, 128 / 255f);
-        (int u, int v, int width, int height) = entity.Model switch { 3 => (24, 16, 14, 31), 11 => (0, 0, 23, 47), _ => (24, 0, 15, 15) };
-        Vector2[] uv = [new(u, v), new(u + width, v), new(u, v + height), new(u + width, v + height)];
+        Vector2[] uv = [new(atlas.X, atlas.Y), new(atlas.Z, atlas.Y), new(atlas.X, atlas.W), new(atlas.Z, atlas.W)];
         TriangleVertex Vertex(int index)
         {
             Vector3 point = camera[index];
             float x = view.Width / 2f + view.OffsetX + point.X * view.Focal / point.Z;
             float y = view.CenterY + point.Y * view.Focal / point.Z;
             Vector2 screen = new(MathF.Round(x, MidpointRounding.ToEven), MathF.Round(y, MidpointRounding.ToEven));
-            return new(screen, depth, 1, uv[index] / new Vector2(texture.Width, texture.Height), color);
+            return new(screen, depth, 1, uv[index] / new Vector2(image.Width, image.Height), color);
         }
-        TriangleMaterial material = new(image, TriangleBlend.Alpha, TriangleDepthComparison.GreaterEqual, false, Sampler: TriangleSampler.PointWrap)
+        TriangleMaterial material = new(image, blend, TriangleDepthComparison.GreaterEqual, false, Sampler: TriangleSampler.PointWrap)
         {
             DepthMapping = TriangleDepthMapping.Positive,
             DepthScale = 1,

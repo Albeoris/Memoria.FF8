@@ -5,7 +5,10 @@ using Memoria.FF7.Resources;
 namespace Memoria.FF7.Runtime;
 
 public sealed record Ff7WorldChocoboPathFace(Ff7WorldTerrainReference Triangle, int TriedEdges = 0);
-public sealed record Ff7WorldChocoboRelease(bool TowardFarm, Ff7WorldChocoboPathFace[] Path, Ff7WorldTerrainReference[] Visited, bool SearchComplete = false, int RunPhase = 0, int PathIndex = 0, int TargetX = 0, int TargetZ = 0, int Direction = 0, int PreviousDistance = 0);
+public sealed record Ff7WorldChocoboRelease(bool TowardFarm, Ff7WorldChocoboPathFace[] Path, Ff7WorldTerrainReference[] Visited, bool SearchComplete = false, int RunPhase = 0, int PathIndex = 0, int TargetX = 0, int TargetZ = 0, int Direction = 0, int PreviousDistance = 0)
+{
+    public bool SearchFailed { get; init; }
+}
 
 public sealed partial class Ff7WorldRuntime
 {
@@ -36,7 +39,7 @@ public sealed partial class Ff7WorldRuntime
         {
             release = SearchChocoboReleasePath(release);
         }
-        if (state.ReleaseRequested && release.SearchComplete)
+        if (state.ReleaseRequested && release.SearchComplete && !release.SearchFailed)
         {
             Ff7WorldEntity bird = RequireEntity(YellowChocoboModel);
             if (release.RunPhase == 0)
@@ -53,7 +56,7 @@ public sealed partial class Ff7WorldRuntime
                 if (release.RunPhase == 0)
                 {
                     Machine.RemoveModel(YellowChocoboModel);
-                    entities.Remove(YellowChocoboModel);
+                    RecordFreedWorldEntity(YellowChocoboModel);
                     chocobo = null;
                     return;
                 }
@@ -73,7 +76,7 @@ public sealed partial class Ff7WorldRuntime
         {
             if (release.Path.Length == 1)
             {
-                return release with { SearchComplete = true };
+                return release with { SearchComplete = true, SearchFailed = true };
             }
             return release with { Path = release.Path[..^1] };
         }
@@ -254,7 +257,7 @@ public sealed partial class Ff7WorldRuntime
             return triangle.Triangle < Resources.Map.ReadMesh(block, (triangle.ChunkZ & 3) * 4 + (triangle.ChunkX & 3)).Triangles.Count;
         }
         if (release.Path is null || release.Path.Length is 0 or >= ChocoboPathCapacity || release.Visited is null || release.Visited.Length < release.Path.Length ||
-            release.PathIndex < 0 || release.PathIndex >= release.Path.Length || release.RunPhase is not (0 or 10 or 11) || release.Direction is < 0 or > 4095 || release.RunPhase != 0 && !release.SearchComplete ||
+            release.PathIndex < 0 || release.PathIndex >= release.Path.Length || release.RunPhase is not (0 or 7 or 10 or 11) || release.Direction is < 0 or > 4095 || release.RunPhase != 0 && !release.SearchComplete || release.SearchFailed && !release.SearchComplete ||
             release.Path.Any(face => face is null || face.TriedEdges is < 0 or > 7 || !Valid(face.Triangle) || !release.Visited.Contains(face.Triangle)) ||
             release.Visited.Any(triangle => !Valid(triangle)) || release.Visited.Distinct().Count() != release.Visited.Length)
         {

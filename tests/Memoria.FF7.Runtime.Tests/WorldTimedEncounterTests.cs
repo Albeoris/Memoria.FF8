@@ -48,6 +48,7 @@ internal static class WorldTimedEncounterTests
             }
         }
         Ff7WorldProcess ready = session.World!.Process;
+        int approachSprite = Ff7PcExecutableData.LoadWorldEffects(installation).Sequences[7].FirstSprite;
         Check(ready is { WorldId: 2, ControlledModel: 13, MovementEnabled: true } && ready.Entities.Any(entity => entity.Model == 30), "The original WM2 startup must allocate and give control of the submarine with Emerald active.");
         using Ff7Session cold = Ff7Session.Restore(installation, Cold(session));
         int routeTicks = 0;
@@ -69,7 +70,7 @@ internal static class WorldTimedEncounterTests
             cold.MovePlayer(horizontal, vertical, true);
             session.AdvanceTick(false);
             cold.AdvanceTick(false);
-            sawBubble |= session.World.Process.ApproachBubble is not null;
+            sawBubble |= session.World.Process.Effects?.DisplayParticles?.Any(particle => particle.Sprite == approachSprite) == true;
             sawFlash |= session.World.Process.WhiteFadeCallbacks > 0;
         }
         Ff7WorldBattleRequest? occurrence = session.World.PendingBattle;

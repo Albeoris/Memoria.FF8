@@ -21,8 +21,7 @@ public sealed partial class WorldMachine
                     {
                         throw new InvalidDataException("FFVII world model pool is exhausted.");
                     }
-                    found = new(modelId);
-                    models.Insert(0, found);
+                    found = AllocateModel(modelId);
                     active = found;
                     Send(WorldOperation.CreateModel, address, [modelId]);
                     StartModel(modelId, 0);
@@ -47,7 +46,7 @@ public sealed partial class WorldMachine
                 {
                     throw new InvalidDataException("FFVII world attachment requires distinct resident model identities.");
                 }
-                rider.Detached = true;
+                DetachModel(rider.Model);
                 Entity? transport = models.Find(value => value.Model == transportId && !value.Detached);
                 if (transport is null)
                 {
@@ -55,11 +54,19 @@ public sealed partial class WorldMachine
                     {
                         throw new InvalidDataException("FFVII world attachment cannot allocate its transport model.");
                     }
-                    transport = new(transportId);
-                    models.Insert(0, transport);
+                    transport = AllocateModel(transportId);
                 }
                 active = transport;
                 Send(WorldOperation.AttachRider, address, [rider.Model, transportId]);
+                return false;
+            case 0x31A:
+                if (active.Model < 0)
+                {
+                    throw new InvalidDataException("FFVII world deletion requires an active native model.");
+                }
+                int deletedModel = active.Model;
+                Send(WorldOperation.DeleteActiveModel, address, []);
+                RemoveModel(deletedModel);
                 return false;
             case 0x346:
                 int replacement = unchecked((byte)Pop());
@@ -101,7 +108,7 @@ public sealed partial class WorldMachine
                 }
                 return false;
             case 0x327:
-                if (!unloading && host.ReadSpecial(12, active.Model) < 0)
+                if (!unloading && host.ReadSpecial(12, active.Model, ActiveFreeModelIndex()) < 0)
                 {
                     executing.Pc--;
                     return true;
@@ -109,20 +116,19 @@ public sealed partial class WorldMachine
                 return false;
             case 0x32D:
             case 0x32E:
-                if (!unloading && !host.Execute(new(nextRequestId++, executing.Model, active.Model, address, new((WorldOperation)opcode, []))).Completed)
+            case 0x341:
+            case 0x342:
+                if (!unloading && !host.Execute(new(nextRequestId++, executing.Model, active.Model, address, new((WorldOperation)opcode, [])) { FreeModelIndex = ActiveFreeModelIndex() }).Completed)
                 {
                     executing.Pc--;
                     return true;
                 }
                 return false;
-            case 0x341:
-            case 0x342:
-                throw Unsupported(opcode, address);
         }
         int count = opcode switch
         {
-            0x302 or 0x30C or 0x30D or 0x320 or 0x331 or 0x332 or 0x335 or 0x338 or 0x339 or 0x33C or 0x353 => 0,
-            0x303 or 0x304 or 0x307 or 0x30A or 0x30B or 0x317 or 0x319 or 0x31C or 0x31D or 0x31E or 0x31F or 0x321 or 0x325 or 0x328 or 0x329 or 0x32A or 0x32B or 0x32F or 0x336 or 0x337 or 0x33A or 0x33D or 0x33E or 0x344 or 0x345 or 0x347 or 0x349 or 0x34A or 0x34B or 0x34C or 0x34E or 0x34F or 0x350 or 0x351 or 0x352 or 0x355 => 1,
+            0x302 or 0x30C or 0x30D or 0x320 or 0x331 or 0x332 or 0x335 or 0x338 or 0x339 or 0x33C or 0x33F or 0x353 => 0,
+            0x303 or 0x304 or 0x307 or 0x30A or 0x30B or 0x317 or 0x319 or 0x31C or 0x31D or 0x31E or 0x31F or 0x321 or 0x325 or 0x328 or 0x329 or 0x32A or 0x32B or 0x32F or 0x336 or 0x337 or 0x33A or 0x33D or 0x33E or 0x340 or 0x344 or 0x345 or 0x347 or 0x349 or 0x34A or 0x34B or 0x34C or 0x34E or 0x34F or 0x350 or 0x351 or 0x352 or 0x355 => 1,
             0x308 or 0x309 or 0x30E or 0x310 or 0x311 or 0x312 or 0x314 or 0x318 or 0x32C or 0x333 or 0x33B or 0x348 => 2,
             0x313 or 0x315 or 0x316 or 0x326 or 0x34D => 3,
             0x324 => 4,
@@ -139,17 +145,21 @@ public sealed partial class WorldMachine
 
     private void Send(WorldOperation operation, int address, int[] arguments)
     {
-        WorldHostReply reply = host.Execute(new(nextRequestId++, executing.Model, active.Model, address, new(operation, arguments)));
+        WorldHostReply reply = host.Execute(new(nextRequestId++, executing.Model, active.Model, address, new(operation, arguments)) { FreeModelIndex = ActiveFreeModelIndex() });
         if (!reply.Completed)
         {
             throw new NotSupportedException($"FFVII world immediate operation {operation} cannot suspend in the host.");
+        }
+        if (reply.ActiveModel is int model)
+        {
+            active = models.Find(entity => entity.Model == model && !entity.Detached) ?? throw new InvalidDataException("FFVII world host selected a model without a resident script context.");
         }
     }
 
     public WorldSnapshot Capture()
     {
         EnsureHealthy();
-        return new(1, program.Identity, TickCount, nextRequestId, unloading, (byte[])local.Clone(), stack.ToArray(), CaptureEntity(system), models.Select(CaptureEntity).ToArray());
+        return new(1, program.Identity, TickCount, nextRequestId, unloading, (byte[])local.Clone(), stack.ToArray(), CaptureEntity(system), models.Select(CaptureEntity).ToArray()) { FreeModels = freeModels.Count == 0 ? null : freeModels.Select(CaptureEntity).ToArray() };
     }
 
     private static WorldEntitySnapshot CaptureEntity(Entity entity)
@@ -166,6 +176,11 @@ public sealed partial class WorldMachine
         }
         Entity newSystem = RestoreEntity(snapshot.System);
         List<Entity> newModels = snapshot.Models.Select(RestoreEntity).ToList();
+        Entity[] newFree = (snapshot.FreeModels ?? []).Select(RestoreEntity).ToArray();
+        if (newFree.Length + newModels.Count > 16 || newFree.Any(entity => entity.Model is < 0 or > 255 || entity.Detached))
+        {
+            throw new InvalidDataException("FFVII world free model pool has invalid native nodes.");
+        }
         if (newModels.Any(value => (uint)value.Model > 255) || newModels.Select(value => value.Model).Distinct().Count() != newModels.Count)
         {
             throw new InvalidDataException("FFVII world snapshot has invalid or duplicate models.");
@@ -186,6 +201,13 @@ public sealed partial class WorldMachine
         stack.AddRange(snapshot.Stack);
         models.Clear();
         models.AddRange(newModels);
+        LinkResidentModels();
+        freeModels.Clear();
+        for (int index = newFree.Length - 1; index >= 0; index--)
+        {
+            newFree[index].Next = freeModels.TryPeek(out Entity? nextFree) ? nextFree : null;
+            freeModels.Push(newFree[index]);
+        }
         system = newSystem;
         active = executing = system;
         TickCount = snapshot.Tick;

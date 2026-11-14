@@ -132,6 +132,7 @@ public sealed partial class Ff7Session : IDisposable
                 byte[] persistent = (byte[])save.Vm.PersistentVariables.Clone();
                 session.World = new(installation, persistent, world.EntrySelector, Enumerable.Range(9, 3).Select(address => persistent[256 + address]).ToArray(), world.WorldId);
                 session.World.Restore(world);
+                session.worldPartyMenuPending = save.WorldPartyMenuPending ?? session.World.RequiresMenuPartySynchronization(session.Progress.Party);
                 session.ConfigureWorldPresentation();
             }
             if (save.Battle is { } battle)
@@ -178,6 +179,10 @@ public sealed partial class Ff7Session : IDisposable
                 }
                 AdvanceBattle(waitForBattleCommand, confirmBattleLimit, escapeBattleHeld, turnBasedBattle);
                 return;
+            }
+            if (worldPartyMenuPending)
+            {
+                CompleteWorldPlayerMenu();
             }
             ConfigureWorldPresentation();
             world.Advance();
@@ -289,7 +294,7 @@ public sealed partial class Ff7Session : IDisposable
         {
             vm = vm with { PersistentVariables = World.Machine.CopyPersistent() };
         }
-        return new Ff7SessionSave { NativeSaveData = nativeSaveData?.ToArray(), ResourceProfile = installation.Layout.ToString(), Language = installation.Language, FieldName = Field.Name, FieldGeneration = FieldGeneration, Progress = Progress, Vm = vm, Process = Host.Capture(), TickContinuation = tickContinuation is null ? null : tickContinuation with { ScriptReturns = tickContinuation.ScriptReturns?.ToArray() }, World = World?.Process, EventCoverage = EventCoverage is null ? null : new Memoria.AutoPlay.AutoPlayEventCoverageLedger(EventCoverage).Capture(), Battle = Battle?.Capture(), BattleBigShotChargeRotation = Battle?.BigShotChargeRotation ?? battleBigShotChargeRotation, BattleBigShotCounterRotation = Battle?.BigShotCounterRotation ?? battleBigShotCounterRotation, BattleSearchScopeScaleCounter = Battle?.SearchScopeScaleCounter ?? battleSearchScopeScaleCounter, BattleSilkDirection = Battle?.SilkDirection ?? battleSilkDirection, BattleCameraPresentationCounter = Battle?.CameraPresentationCounter ?? battleCameraPresentationCounter };
+        return new Ff7SessionSave { NativeSaveData = nativeSaveData?.ToArray(), ResourceProfile = installation.Layout.ToString(), Language = installation.Language, FieldName = Field.Name, FieldGeneration = FieldGeneration, Progress = Progress, Vm = vm, Process = Host.Capture(), TickContinuation = tickContinuation is null ? null : tickContinuation with { ScriptReturns = tickContinuation.ScriptReturns?.ToArray() }, World = World?.Process, WorldPartyMenuPending = World is null ? null : worldPartyMenuPending, EventCoverage = EventCoverage is null ? null : new Memoria.AutoPlay.AutoPlayEventCoverageLedger(EventCoverage).Capture(), Battle = Battle?.Capture(), BattleBigShotChargeRotation = Battle?.BigShotChargeRotation ?? battleBigShotChargeRotation, BattleBigShotCounterRotation = Battle?.BigShotCounterRotation ?? battleBigShotCounterRotation, BattleSearchScopeScaleCounter = Battle?.SearchScopeScaleCounter ?? battleSearchScopeScaleCounter, BattleSilkDirection = Battle?.SilkDirection ?? battleSilkDirection, BattleCameraPresentationCounter = Battle?.CameraPresentationCounter ?? battleCameraPresentationCounter };
     }
 
     private bool fieldLoadIncomplete;
@@ -518,6 +523,7 @@ public sealed partial class Ff7Session : IDisposable
     private void PublishFieldParty(Ff7Progress progress)
     {
         bool changed = !Progress.Party.SequenceEqual(progress.Party);
+        worldPartyMenuPending |= World is not null && changed;
         Progress = progress;
         if (changed)
         {

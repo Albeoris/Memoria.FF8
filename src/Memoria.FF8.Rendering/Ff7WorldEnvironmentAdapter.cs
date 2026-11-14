@@ -1,5 +1,6 @@
 using System.Numerics;
 using Albeoris.Games.FF8.Imaging;
+using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
 
 namespace Memoria.FF8.Rendering;
@@ -15,8 +16,9 @@ public sealed class Ff7WorldEnvironmentAdapter
     private readonly PixelImage clouds;
     private readonly PixelImage meteor;
     private readonly PixelImage largeMap;
+    private readonly PixelImage? alternateLargeMap;
 
-    public Ff7WorldEnvironmentAdapter(Ff7WorldEnvironmentResources resources, Ff7WorldPresentationData presentation)
+    public Ff7WorldEnvironmentAdapter(Ff7WorldEnvironmentResources resources, Ff7WorldPresentationData presentation, PcTexture? alternateLargeMap = null)
     {
         this.resources = resources ?? throw new ArgumentNullException(nameof(resources));
         math = new(presentation);
@@ -25,6 +27,7 @@ public sealed class Ff7WorldEnvironmentAdapter
         clouds = Ff7FieldRenderer.DecodeTexture(resources.Clouds);
         meteor = Ff7FieldRenderer.DecodeTexture(resources.Meteor);
         largeMap = Ff7FieldRenderer.DecodeTexture(resources.LargeMap);
+        this.alternateLargeMap = alternateLargeMap is null ? null : Ff7FieldRenderer.DecodeTexture(alternateLargeMap);
     }
 
     public void DrawSky(ITriangleRenderer renderer, Ff7WorldView view, Vector3 player, int heading, int distance, int groundHeight, int roll, bool visible, int cloudPhase, Vector3 upperColor, Vector3 lowerColor, bool meteorVisible = false, int curvatureThreshold = 5000)
@@ -33,6 +36,11 @@ public sealed class Ff7WorldEnvironmentAdapter
         if (!visible)
         {
             return;
+        }
+        if (view.Width * 3L > view.Height * 4L)
+        {
+            Vector4 bottomColor = new(lowerColor / 255f, 1);
+            Quad(renderer, null, Vector2.Zero, new(view.Width, 0), new(0, view.Height), new(view.Width, view.Height), Vector2.Zero, Vector2.One, bottomColor, bottomColor, TriangleBlend.Replace);
         }
         float scale = view.Height / 240f;
         Vector3 offset = Vector3.Transform(new(0, 0, -0x4000), math.Rotation(0, -heading, 0));
@@ -77,7 +85,7 @@ public sealed class Ff7WorldEnvironmentAdapter
         }
     }
 
-    public void DrawRadar(ITriangleRenderer renderer, int width, int height, int radarMode, int viewMode, int heading, uint counter, IReadOnlyList<Ff7WorldRadarMarker> markers)
+    public void DrawRadar(ITriangleRenderer renderer, int width, int height, int radarMode, int viewMode, int heading, uint counter, IReadOnlyList<Ff7WorldRadarMarker> markers, bool alternateMap = false)
     {
         ArgumentNullException.ThrowIfNull(renderer);
         if (radarMode >= 2)
@@ -112,7 +120,8 @@ public sealed class Ff7WorldEnvironmentAdapter
         }
         else
         {
-            Rectangle(renderer, largeMap, x, y, 216 * scale, 168 * scale, new(1f / 256, 1f / 256), new(215f / 256, 167f / 256), new(1, 1, 1, 128 / 255f), TriangleBlend.Alpha);
+            PixelImage selected = alternateMap ? alternateLargeMap ?? throw new InvalidDataException("FFVII's selected world area requires the alternate original large map.") : largeMap;
+            Rectangle(renderer, selected, x, y, 216 * scale, 168 * scale, new(1f / 256, 1f / 256), new(215f / 256, 167f / 256), new(1, 1, 1, 128 / 255f), TriangleBlend.Alpha);
         }
         int[] modelIds = [-1, 6, 5, 3, 19, 25];
         uint[] colors = [0x80800000, 0x80006000, 0x80006060, 0x80606060, 0x80600060, 0x80606000];

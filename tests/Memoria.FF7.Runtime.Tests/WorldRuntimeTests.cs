@@ -78,6 +78,9 @@ internal static class WorldRuntimeTests
         CheckControlOptions(original, restored, ready);
         CheckAnimationRestart(restored, ready);
         CheckFacingDirection(restored, ready);
+        CheckNativeModelPool(restored, ready, installation);
+        restored.Restore(ready with { EncounterRate = 0, BattleState = null });
+        Check(restored.Process.EncounterRate == 0, "A recorded zero encounter rate must remain disabled even when older random-process metadata is absent.");
         WorldScriptCameraTests.Run(original, restored, ready, installation);
         WorldStoredPositionTests.Run(original, restored, ready, installation);
         restored.Restore(ready with { Entities = ready.Entities.Select(value => value with { Terrain = 14 }).ToArray() });
@@ -132,6 +135,22 @@ internal static class WorldRuntimeTests
         }
         Ff7WorldEntity cold = JsonSerializer.Deserialize<Ff7WorldEntity>(JsonSerializer.Serialize(world.Process.Entities.Single(entity => entity.Model == before.Model)))!;
         Check(cold.PresentationAnimationEpoch == 0, "Presentation animation epochs must remain transient and absent from standalone save contracts.");
+    }
+
+    private static void CheckNativeModelPool(Ff7WorldRuntime world, Ff7WorldProcess ready, Ff7Installation installation)
+    {
+        world.Restore(ready);
+        Ff7WorldEntity removed = ready.Entities.First(entity => entity.Model != ready.ControlledModel && ready.Vm.Models.Any(model => model.Model == entity.Model && !model.Detached));
+        world.Execute(new(ready.Vm.NextRequestId, removed.Model, removed.Model, 0, new(WorldOperation.DeleteActiveModel, [])));
+        world.Machine.RemoveModel(removed.Model);
+        world.Execute(new(ready.Vm.NextRequestId + 1, removed.Model, removed.Model, 0, new(WorldOperation.Speed, [77])) { FreeModelIndex = 0 });
+        Check(world.Process.FreeEntities is [{ Speed: 77 }] && !world.Process.Entities.Any(entity => entity.Model == removed.Model) && world.ReadSpecial(2, removed.Model, 0) == (removed.X & 8191), "A freed native object must retain independent position and property owners for free-list script continuation.");
+        using Ff7WorldRuntime cold = new(installation, world.Machine.CopyPersistent(), ready.EntrySelector, new byte[] { 0, 1, 2 }, ready.WorldId);
+        cold.Restore(JsonSerializer.Deserialize<Ff7WorldProcess>(JsonSerializer.Serialize(world.Process))!);
+        Check(JsonSerializer.Serialize(world.Process) == JsonSerializer.Serialize(cold.Process), "Native free-pool object and script memory must cold-restore without re-executing the deleted actor.");
+        world.Machine.EnsurePresentationModel(removed.Model);
+        cold.Machine.EnsurePresentationModel(removed.Model);
+        Check(world.Process.FreeEntities is null && world.Process.Vm.FreeModels is null && world.Process.Entities.Single(entity => entity.Model == removed.Model).Speed == 0 && world.Process.Vm.Models.Single(model => model.Model == removed.Model).ProgramCounter == 0 && JsonSerializer.Serialize(world.Process) == JsonSerializer.Serialize(cold.Process), "Reusing a native free-pool object must reset its properties, avoid inventing on_load and retain cold equality.");
     }
 
     private static void CheckFacingDirection(Ff7WorldRuntime world, Ff7WorldProcess ready)

@@ -72,7 +72,30 @@ internal static class WorldVehicleTests
         Check(world.ControlledModel == leader.Model && world.Process.Vehicle?.RideStack.Length == 0 && world.Process.Vm.Models.Single(model => model.Model == leader.Model) is { Detached: false, ProgramCounter: 0 }, "A successful native side-step must restore its rider without replaying on_load.");
         Check(world.Process.Entities.Single(entity => entity.Model == 6).AttachedModel is null, "A parked buggy must release its rider attachment.");
         CheckColoredChocobos(world, cold, ready);
+        CheckVehicleMenuParty(world, ready);
         Console.WriteLine("PASS original buggy controls, native rider ownership, dismount and cold continuation");
+    }
+
+    private static void CheckVehicleMenuParty(Ff7WorldRuntime world, Ff7WorldProcess ready)
+    {
+        Ff7WorldEntity leader = ready.Entities.Single(entity => entity.Model == ready.ControlledModel);
+        Ff7WorldEntity buggy = new(6, leader.X, leader.Y, leader.Z, Terrain: leader.Terrain, TerrainResolved: true, PreviousX: leader.X, PreviousZ: leader.Z, GroundHeight: leader.GroundHeight) { PreviousY = leader.Y };
+        world.Restore(ready with
+        {
+            Entities = [.. ready.Entities.Where(entity => entity.Model != 6), buggy],
+            Vm = ready.Vm with { Models = [.. ready.Vm.Models.Where(model => model.Model != 6), new WorldEntitySnapshot(6, 0, 0, 0, false, 0, [])] }
+        });
+        world.Execute(new(ready.Vm.NextRequestId, 6, 6, 0, new(WorldOperation.BoardTransport, [])));
+        world.SynchronizeMenuParty([1, 2, 6]);
+        Check(world.Process is { ControlledModel: 6, PlayerModel: 1, Vehicle.RideStack: [1] } && !world.Process.Entities.Any(entity => entity.Model == 1), "PHS inside a vehicle must update its stored leader identity while retaining the vehicle and native model-pool ownership.");
+        world.SetButtons(64, 64);
+        world.Advance();
+        world.SetButtons(0, 0);
+        for (int callback = 0; callback < 3; callback++)
+        {
+            world.Advance();
+        }
+        Check(world.ControlledModel == 1 && world.Process.Vehicle?.RideStack.Length == 0 && world.Process.Entities.Any(entity => entity.Model == 1), "Leaving a vehicle after PHS must recreate the newly selected native Tifa identity rather than the previous leader.");
     }
 
     private static void CheckColoredChocobos(Ff7WorldRuntime world, Ff7WorldRuntime cold, Ff7WorldProcess ready)

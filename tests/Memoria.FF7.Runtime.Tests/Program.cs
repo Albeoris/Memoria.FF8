@@ -145,6 +145,13 @@ if (args.Contains("--world-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--world-return-regressions-only", StringComparer.Ordinal))
+{
+    NativeMenuEquipmentTests.Run();
+    WorldTimedEncounterTests.Run();
+    return 0;
+}
+
 if (args.Contains("--world-checkpoint-only", StringComparer.Ordinal))
 {
     WorldCheckpointTests.Run();
@@ -178,6 +185,12 @@ if (args.Contains("--world-effects-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--world-chocobo-path-only", StringComparer.Ordinal))
+{
+    WorldChocoboPathControlTests.Run();
+    return 0;
+}
+
 if (args.Contains("--world-vehicles-only", StringComparer.Ordinal))
 {
     WorldVehicleTests.Run();
@@ -187,6 +200,12 @@ if (args.Contains("--world-vehicles-only", StringComparer.Ordinal))
 if (args.Contains("--world-snow-only", StringComparer.Ordinal))
 {
     WorldSnowTests.Run();
+    return 0;
+}
+
+if (args.Contains("--world-party-only", StringComparer.Ordinal))
+{
+    WorldPartyTests.Run();
     return 0;
 }
 
@@ -253,6 +272,7 @@ var tests = new (string Name, Action Run)[]
     ("native world entry, facing and animation ownership", WorldRuntimeTests.Run),
     ("original standalone world movement and cold continuation", WorldCheckpointTests.Run),
     ("native surface vehicles and colored Chocobos", WorldVehicleTests.Run),
+    ("native world PHS party synchronization", WorldPartyTests.Run),
     ("native snow world wind and markers", WorldSnowTests.Run),
     ("native Midgar Zolom pursuit and collision", WorldMarshTests.Run),
     ("native timed underwater encounter and world return", WorldTimedEncounterTests.Run),
@@ -260,6 +280,7 @@ var tests = new (string Name, Action Run)[]
     ("native Highwind flight and landing", WorldHighwindTests.Run),
     ("native world particle simulation and presentation", WorldEffectsTests.Run),
     ("FFVII native ordinary yellow Chocobo transport", WorldChocoboTests.Run),
+    ("native Chocobo path control and cold continuation", WorldChocoboPathControlTests.Run),
     ("FFVII native world shared random stream", WorldRandomTests.Run),
     ("native world input displacement and terrain arithmetic", WorldInputTests.Run),
     ("native autoplay event observations and coverage ledger", NativeEventCoverageTests.Run),

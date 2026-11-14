@@ -242,6 +242,7 @@ public sealed partial class Ff7WorldRuntime
                 input = input with { CollisionSide = result.Side, CollisionAge = 0 };
             }
             input = input with { CollisionRecovery = 0, GroundTriangle = result.Triangle ?? input.GroundTriangle };
+            InitializeRequestedChocoboPath(result.Triangle ?? input.GroundTriangle, player);
         }
         else
         {

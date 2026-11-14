@@ -49,6 +49,10 @@ public sealed partial class GpuTriangleRenderer
         {
             return;
         }
+        if ((view.Ff7 is { Underwater: true }) != !mesh.Ff7Triangles.IsEmpty)
+        {
+            throw new InvalidDataException("FFVII underwater projection and retained triangle metadata must use the same vertex contract.");
+        }
         Flush();
         VertexBuffer buffer = TerrainVertices(mesh);
         bool transient = mesh.Vertices.Length > MaximumCachedTerrainVertices;

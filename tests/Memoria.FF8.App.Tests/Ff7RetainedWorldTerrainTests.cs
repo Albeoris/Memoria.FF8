@@ -13,6 +13,88 @@ namespace Memoria.FF8.App.Tests;
 public sealed class Ff7RetainedWorldTerrainTests(ITestOutputHelper output)
 {
     [Fact]
+    public void SnowWorldDrawsItsFourBlockTerrainMarkerAndBothOriginalWindLayers()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(root), "Select original FFVII resources for snow-world rendering.");
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer renderer = new(device.Device);
+        Ff7Installation installation = Ff7Installation.Discover(root!);
+        using Ff7WorldResources resources = Ff7WorldResources.Load(installation, 3);
+        Assert.Equal(4, resources.Map.BlockCount);
+        int ground = (int)resources.Map.ReadMesh(0, 0).Vertices.Average(vertex => vertex.Y);
+        Ff7WorldPresentation scene = new(installation, resources);
+        Ff7WorldRenderFrame frame = new(0, true, 1, 0, 0, 0, 0, 0, new(0, 1500, 10000, ground, 0, 400), [new(0, new(4096, ground, 4096), 0, 0, 0, 2), new(21, new(4296, ground, 4096), 0, 0, 0, 2)], []) { ResourceArea = 12 };
+        scene.Render(renderer, 640, 480, frame);
+        Color[] ordinary = GpuTestDevice.Read(renderer.Target);
+        Assert.True(ordinary.Count(pixel => pixel != Color.Black) > 100);
+        scene.Render(renderer, 640, 480, frame with { SnowLayers = [new(1, 128, 64, 32), new(2, 64, 32, 64)] });
+        Assert.Equal(0, renderer.FrameTerrainUploads);
+        Color[] snow = GpuTestDevice.Read(renderer.Target);
+        Assert.True(ordinary.Zip(snow).Count(pair => pair.First != pair.Second) > 100);
+    }
+
+    [Fact]
+    public void WideSteepCameraExtendsTheOriginalLowerSkyBehindTheCurvedFarTerrain()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(root), "Select original FFVII resources for the wide steep world camera.");
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer renderer = new(device.Device);
+        Ff7Installation installation = Ff7Installation.Discover(root!);
+        using Ff7WorldResources resources = Ff7WorldResources.Load(installation);
+        Ff7WorldPresentation scene = new(installation, resources);
+        Ff7WorldRenderFrame frame = new(0, true, 1, 2, 0, 0, 0, 0, new(3712, 1660, 7000, 308, 0, 400), [new(0, new(185636, 308, 123325), 330, 0, 0, 2)], [new(0, 185636, 123325, 1, 10, 10, new(0, 0, 65), new(145, 255, 190))]);
+        scene.Render(renderer, 1720, 667, frame);
+        Color[] pixels = GpuTestDevice.Read(renderer.Target);
+        Assert.Equal(new Color(145, 255, 190), pixels[20 * 1720 + 1600]);
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF7_WORLD_RENDER_OUTPUT");
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+            using FileStream image = File.Create(Path.Combine(directory, "wide-steep-sky.png"));
+            renderer.Target.SaveAsPng(image, 1720, 667);
+        }
+    }
+
+    [Theory]
+    [InlineData(15000)]
+    [InlineData(16000)]
+    [InlineData(16512)]
+    [InlineData(24192)]
+    public void UnderwaterTriangleFogMatchesOriginalPaletteAndRetainsGpuGeometry(int depth)
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(root), "Select original FFVII resources for underwater palette rendering.");
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer renderer = new(device.Device);
+        Ff7Installation installation = Ff7Installation.Discover(root!);
+        using Ff7WorldResources resources = Ff7WorldResources.Load(installation, 2);
+        Ff7WorldTextureResources textures = new(installation, resources);
+        Ff7WorldTextureDescriptor descriptor = textures.Descriptors[0];
+        PcWorldTriangle triangle = new(0, 1, 2, 0, new(descriptor.UOffset, descriptor.VOffset), new(descriptor.UOffset + 15, descriptor.VOffset), new(descriptor.UOffset, descriptor.VOffset + 15), 0);
+        PcWorldMesh mesh = new(0, 0, [new(-1000, -1000, depth), new(1000, -1000, depth + 50), new(0, 1000, depth + 100)], [new(0, 4096, 0), new(0, 4096, 0), new(0, 4096, 0)], [triangle]);
+        Ff7WorldView view = new(Matrix4x4.Identity, Matrix4x4.Identity, 400, 640, 480, 240);
+        Ff7WorldTerrainReference reference = new(textures, underwater: true);
+        Ff7WorldTerrainAdapter retained = new(textures, underwater: true);
+        renderer.Begin(640, 480, Vector4.UnitW, 0);
+        reference.DrawNative(renderer, mesh, Vector3.Zero, view, _ => 0, int.MaxValue);
+        renderer.End();
+        Color[] expected = GpuTestDevice.Read(renderer.Target);
+        Assert.True(expected.Count(pixel => pixel != Color.Black) > 200);
+        renderer.Begin(640, 480, Vector4.UnitW, 0);
+        retained.DrawRetained(renderer, mesh, Vector3.Zero, view, _ => 0, int.MaxValue);
+        renderer.End();
+        Assert.Equal(1, renderer.FrameTerrainUploads);
+        AssertSimilar(expected, GpuTestDevice.Read(renderer.Target));
+        renderer.Begin(640, 480, Vector4.UnitW, 0);
+        retained.DrawRetained(renderer, mesh, Vector3.Zero, view, _ => 0, int.MaxValue);
+        renderer.End();
+        Assert.Equal(0, renderer.FrameTerrainUploads);
+        AssertSimilar(expected, GpuTestDevice.Read(renderer.Target));
+    }
+
+    [Fact]
     public void WideSurfaceCameraMatchesClippedOriginalTerrain()
     {
         string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");

@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
@@ -92,7 +93,35 @@ internal static class WorldHighwindTests
         }
         Check(world.ControlledModel == leader.Model && world.Process.Vehicle is { FlightState: 0, FlightProgress: 0, DismountPhase: 0, RideStack.Length: 0 }, "Landing reaches its native ground endpoint and restores the saved rider without replaying on_load.");
         Check((world.Process.Entities.Single(entity => entity.Model == 3).Flags & 128) == 0 && world.Process.ViewMode == ready.ViewMode, "Parked Highwind clears the flight flag and restores its previous view.");
+        PropellerPresentationPhase(installation, world.Machine.CopyPersistent(), airborne);
         Console.WriteLine("PASS original Highwind boarding, takeoff, flight controls, terrain clearance, landing, rider restoration and cold continuation");
+    }
+
+    private static void PropellerPresentationPhase(Ff7Installation installation, byte[] sourcePersistent, Ff7WorldProcess airborne)
+    {
+        byte[] diagnosticPersistent = sourcePersistent.ToArray();
+        BinaryPrimitives.WriteInt16LittleEndian(diagnosticPersistent, 1000);
+        diagnosticPersistent[0x7A] &= 0xFE;
+        using Ff7WorldRuntime diagnostic = new(installation, diagnosticPersistent, 1, new byte[] { 0, 1, 2 });
+        Check(diagnostic.PresentationArea == 1, "The authored story1000 fixture must select the original propeller-era descriptor table.");
+        Ff7WorldCharacterDescriptor descriptor = Ff7PcExecutableData.LoadWorldCharacterDescriptor(installation, 3, resourceArea: diagnostic.PresentationArea);
+        Ff7FieldModelResources models = descriptor.Load(diagnostic.Resources);
+        int[] frames = descriptor.Animations.Select(animation => models.Animations[animation].Frames.Count).ToArray();
+        Check(frames is [15], "The selected original propeller-era Highwind must load its15-frame body clip rather than exercising an unadmitted model.");
+        Ff7WorldEntity aircraft = airborne.Entities.Single(entity => entity.Model == 3) with { Direction = 0, TargetDirection = 0, Animation = 0, AnimationFrame = 0 };
+        diagnostic.Restore(airborne with { Entities = airborne.Entities.Select(entity => entity.Model == 3 ? aircraft : entity).ToArray(), Input = airborne.Input! with { Horizontal = 0, Vertical = 0, Held = 0x20, Pressed = 0x20, PreviousControlHeld = 0, CameraHeadingTarget = 0 }, Vehicle = airborne.Vehicle! with { FlightState = 0, FlightSpeed = 240, FlightPitch = 0, FlightRoll = 0, HighwindPropellerFrame = 4, HighwindPropellerPoseFrame = null } });
+        using Ff7WorldRuntime cold = new(installation, diagnostic.Machine.CopyPersistent(), 1, new byte[] { 0, 1, 2 });
+        cold.Restore(Cold(diagnostic.Process));
+        Advance(diagnostic, cold);
+        Check(diagnostic.Process.Vehicle is { HighwindPropellerPoseFrame: 4, HighwindPropellerFrame: 5 }, "Native propeller presentation publishes the old frame before advancing its movement-driven counter.");
+        cold.Restore(Cold(diagnostic.Process));
+        Advance(diagnostic, cold);
+        Check(diagnostic.Process.Vehicle is { HighwindPropellerPoseFrame: 5, HighwindPropellerFrame: 6 }, "Cold propeller continuation displays the following committed phase and advances exactly once in the original15-frame clip.");
+        Ff7WorldProcess stopped = diagnostic.Process;
+        diagnostic.Restore(stopped with { Input = stopped.Input! with { Held = 0, Pressed = 0, PreviousControlHeld = 0 }, Vehicle = stopped.Vehicle! with { FlightSpeed = 0 } });
+        cold.Restore(Cold(diagnostic.Process));
+        Advance(diagnostic, cold);
+        Check(diagnostic.Process.Vehicle is { HighwindPropellerPoseFrame: 6, HighwindPropellerFrame: 6 }, "A stationary native Highwind retains its displayed propeller phase without advancing the movement threshold counter.");
     }
 
     private static (int X, int Y, int Z) FindGrassLanding(Ff7WorldRuntime world, int x, int z)

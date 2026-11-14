@@ -5,7 +5,7 @@ using Memoria.FF7.Resources;
 
 namespace Memoria.FF8.Rendering;
 
-public sealed record Ff7WorldEffectVisual(long Id, Vector3 Position, int Sprite, int Angle, bool GroundAligned, int Width, int Height, Vector4 Color);
+public sealed record Ff7WorldEffectVisual(long Id, Vector3 Position, int Sprite, int Angle, bool GroundAligned, float Width, float Height, Vector4 Color);
 
 /// <summary>Original world sprite sequences, palettes, native quad depth and blend ownership.</summary>
 public sealed class Ff7WorldEffectsAdapter(PcTexture texture, Ff7WorldEffectTable table, Ff7WorldPresentationData data)
