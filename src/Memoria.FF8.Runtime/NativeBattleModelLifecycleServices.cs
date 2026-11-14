@@ -22,6 +22,7 @@ internal sealed class NativeBattleModelLifecycleServices(ImmutableArray<NativeBa
     private readonly ImmutableArray<NativeBattlePresentationReceipt>.Builder receipts = ImmutableArray.CreateBuilder<NativeBattlePresentationReceipt>();
 
     internal ImmutableArray<NativeBattleModelActorFacts?> Facts { get; } = facts;
+    internal ImmutableDictionary<string, float>? ActorOpacities { get; init; }
 
     internal ImmutableArray<NativeBattleModelLifecycleReceipt> ReadReceipts() => receipts.OfType<NativeBattleModelLifecycleReceipt>().ToImmutableArray();
 

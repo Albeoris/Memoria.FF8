@@ -20,6 +20,7 @@ public sealed class ExpandedBattlePresentationProcess
     public NativeBattleStageState Stage => presentation.NativeStage!;
     public NativeExamTimerState? Timer => presentation.NativeExamTimer;
     public bool EntryReady => Graphics.EntryReady;
+    public NativeBattlePreparedPresentation? PreparedPresentation => presentation.PreparedPresentation;
     public NativeBattleEffectPresentationStep LastStep { get; private set; } = new([], []);
 
     internal ulong GlobalRandomCalls => presentation.NativeGlobalRandomChange!.Calls;
@@ -58,6 +59,7 @@ public sealed class ExpandedBattlePresentationProcess
         ArgumentNullException.ThrowIfNull(logicalOwner);
         long? actionToken = ActiveActionToken;
         NativeBattleModelLifecycleServices services = presentation.AdvanceHostedBattlePresentationFrame(logicalOwner, timerObservation ?? logicalOwner.NativeExamTimer);
+        presentation.RefreshHostedPreparedPresentation(logicalOwner, services);
         LastStep = presentation.ReadAndClearHostedPresentationFrameOutputs();
         LastStepActionToken = actionToken;
         return services;

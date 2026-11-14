@@ -75,6 +75,20 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         Assert.Equal((byte)4, process.Graphics.EntryLifecycle);
         Assert.Equal((byte?)1, process.Memory.ActionPhaseDEA);
         Assert.Equal(beforeReady + 1, process.Graphics.Callback);
+        NativeBattlePreparedPresentation prepared = Assert.IsType<NativeBattlePreparedPresentation>(process.PreparedPresentation);
+        Assert.Equal(logical.Frame, prepared.Frame);
+        Assert.Equal(process.Graphics.Callback, prepared.Callback);
+        Assert.Equal(process.Stage.ResourceStageId, prepared.StageResourceId);
+        Assert.NotEmpty(prepared.Primitives.LastCommands);
+        Assert.Equal(roster.Rows.OfType<NativeBattleGraphicsActor>().Select(actor => actor.ActorId), prepared.Actors.Select(actor => actor.Id));
+        foreach (int row in roster.PartyRows.Concat(roster.EnemyRows))
+        {
+            NativeBattlePreparedActor actor = Assert.Single(prepared.Actors, item => item.Id == roster[row].ActorId);
+            NativeBattleGraphicsModel model = process.Graphics.Models[row];
+            Assert.Same(model.BodyTextureSlots, actor.BodyTextures);
+            Assert.Same(model.LinkedTextureSlots, actor.LinkedTextures);
+            Assert.Equal(selected.NativeGraphics!.Bindings.Single(binding => binding.ActorId == actor.Id).InitialPosition, model.Transform?.Initial20);
+        }
 
         var states = roster.PartyRows.Concat(roster.EnemyRows).ToDictionary(row => row, row => IdleState(process.Graphics.Models[row]));
         HashSet<int> advanced = [];
@@ -90,6 +104,8 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
             }
         }
         Assert.Equal(states.Keys.Order().ToArray(), advanced.Order().ToArray());
+        Assert.True(process.PreparedPresentation!.Version > prepared.Version);
+        Assert.Equal(prepared.Frame, process.PreparedPresentation.Frame);
         AssertCompletedModelOwners(process, roster, selected.NativeGraphics!);
         Assert.True(string.Equals(before, LogicalState(logical), StringComparison.Ordinal), "Presentation entry or idle changed the logical battle.");
     }

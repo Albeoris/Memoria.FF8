@@ -29,7 +29,7 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Expanded model lifecycle roster contains an actor without a current allocation.");
             }
         }
-        return new(facts.ToImmutableArray());
+        return new(facts.ToImmutableArray()) { ActorOpacities = ReadPreparedActorOpacities() ?? ImmutableDictionary<string, float>.Empty };
     }
 
     private NativeBattleGraphicsState PublishHostedModelLifecycleCue(NativeBattleGraphicsState graphics, NativeBattleGraphicsModel model, NativeBattleModelActorFacts actor, NativeBattleSequenceCue cue, NativeBattleModelLifecycleServices services)
