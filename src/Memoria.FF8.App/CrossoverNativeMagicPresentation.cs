@@ -152,7 +152,7 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
         {
             NativeBattleEffectInitializerAsset common = game.ReadNativeCommonEffectTexture();
             (textures, _) = textures.EnqueueTim505E30(new(common.Name, common.Data));
-            textures = textures.Drain505D20(NativeBattleEffectMemory.FromColdProcess().Arena).State;
+            textures = textures.Drain505D20().State;
         }
         CrossoverNativeCastState cast = CrossoverNativeCastPresentation.Begin(source, currentResource, game.ReadNativeBattleCommandSequences(), command, action.ActionId, service);
         return new(cast, processState?.Auxiliary ?? NativeBattleAuxiliaryState.Clear(), processState?.Modules ?? NativeBattleModuleState.Clear(), textures, source.BodyTextureSlots!, currentResource.TextureAnimations ?? throw new InvalidDataException("Native casting requires the source texture animation table."), random, hostTarget, contact) { Ability = action.ActionId, Command = command, Action = action, GlobalRandom = globalRandom, Arena = retained?.Arena ?? arena, Participants = readParticipants?.Invoke() ?? [], Effect = retained, ReinvokePending = retained is not null, ParticipantBindings = participantBindings.IsDefault ? [] : participantBindings, InheritedSequenceGlobals = sourceMemory is null ? null : new(sourceMemory.SequenceSine, sourceMemory.SequenceCosine) };
@@ -336,7 +336,7 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
         {
             CollectNativeStep(effect.CompleteInvocation(), false);
         }
-        textures = textures.Drain505D20(NativeBattleEffectMemory.FromColdProcess().Arena).State;
+        textures = textures.Drain505D20().State;
         return new(source with { Cast = cast, Auxiliary = auxiliary, Modules = modules, Textures = textures, TextureAnimations = motion, Random = random, GlobalRandom = effect?.GlobalRandom ?? source.GlobalRandom, Effect = effect, BodyTextures = cast.Model.BodyTextureSlots ?? source.BodyTextures, Draws = draws, PublishedContacts = source.PublishedContacts + contactOrdinals.Count, PublishedContactOrdinals = previousOrdinals.AddRange(contactOrdinals), PublishedTargetMask = published, ReinvokePending = false }, contact, shared.Draws.Where(draw => draw.Kind == NativeBattleModuleDrawKind.Sound).ToImmutableArray()) { EffectSounds = effectSounds, ContactTargets = contactTargets.ToImmutable(), ContactOrdinals = contactOrdinals.ToImmutable(), Sequences = sequences };
 
         void CollectNativeStep(NativeBattleEffectPresentationStep next, bool advanceSource = true)

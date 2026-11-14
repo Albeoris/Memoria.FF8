@@ -19,7 +19,8 @@ public sealed record Ff7NativeModelEffectState
 
     public void Validate()
     {
-        if (Profile is not (Ff7NativeModelEffect.Profile or Ff7NativeModelEffect.SinglePart35Profile or Ff7NativeModelEffect.SinglePartDefaultProfile or Ff7NativeModelEffect.SinglePart72_140Profile or Ff7NativeModelEffect.FourPartDefaultProfile) || NativeScale is < short.MinValue or > short.MaxValue || Phase is < 0 or > 288 || Phase % 16 != 0 || Counter is < 0 or > 100 || Stage is < 0 or > 3 || SampleFrame is < 0 or > 18 || Applied && !Initialized || Completed && !Restored)
+        int step = Profile == Ff7NativeModelEffect.FourPart35_36Profile ? 24 : 16;
+        if (Profile is not (Ff7NativeModelEffect.Profile or Ff7NativeModelEffect.SinglePart35Profile or Ff7NativeModelEffect.SinglePartDefaultProfile or Ff7NativeModelEffect.SinglePart72_140Profile or Ff7NativeModelEffect.FourPartDefaultProfile or Ff7NativeModelEffect.FourPart35_36Profile) || NativeScale is < short.MinValue or > short.MaxValue || Phase is < 0 or > 288 || Phase % step != 0 || Counter is < 0 or > 100 || Stage is < 0 or > 3 || SampleFrame < 0 || SampleFrame > 288 / step || Applied && !Initialized || Completed && !Restored)
         {
             throw new InvalidDataException("The native KAWAI13 presentation continuation is invalid or unsupported.");
         }
@@ -35,6 +36,7 @@ public static class Ff7NativeModelEffect
 {
     public const string Profile = "pc-kawai13-four-part-16-42-v1";
     public const string FourPartDefaultProfile = "pc-kawai13-four-part-default-v1";
+    public const string FourPart35_36Profile = "pc-kawai13-four-part-35-36-v1";
     public const string SinglePart35Profile = "pc-kawai13-single-part-35-v1";
     public const string SinglePartDefaultProfile = "pc-kawai13-single-part-default-v1";
     public const string SinglePart72_140Profile = "pc-kawai13-single-part-72-140-v1";
@@ -54,7 +56,11 @@ public static class Ff7NativeModelEffect
             {
                 profile = Profile;
             }
-            else if (partVertexCounts[0] == 35 && partVertexCounts[1] == 36 || partVertexCounts[0] == 36 && partVertexCounts[1] == 36)
+            else if (partVertexCounts[0] == 35 && partVertexCounts[1] == 36)
+            {
+                profile = FourPart35_36Profile;
+            }
+            else if (partVertexCounts[0] == 36 && partVertexCounts[1] == 36)
             {
                 throw new NotSupportedException("This native four-part procedural color topology selects a distinct unsupported orbit contract.");
             }
@@ -157,7 +163,7 @@ public static class Ff7NativeModelEffect
         ArgumentOutOfRangeException.ThrowIfNegative(part);
         bool singlePart = state.Profile is SinglePart35Profile or SinglePartDefaultProfile or SinglePart72_140Profile;
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(part, singlePart ? 1 : 4);
-        return !state.Initialized || state.Restored || state.Applied && (singlePart || state.Profile == FourPartDefaultProfile || part is 1 or 3);
+        return !state.Initialized || state.Restored || state.Applied && (singlePart || state.Profile == FourPartDefaultProfile || (state.Profile == FourPart35_36Profile ? part is 1 or 2 : part is 1 or 3));
     }
 
     public static Vector3 OrbitPoint(Ff7NativeModelEffectState state, int frame, IReadOnlyList<short> nativeSinCos)
@@ -171,9 +177,9 @@ public static class Ff7NativeModelEffect
         int phase = frame * PhaseStep(state) & 255;
         int sine = nativeSinCos[phase * 2];
         int cosine = nativeSinCos[phase * 2 + 1];
-        int xyShift = UsesDefaultOrbit(state) ? 4 : state.Profile == SinglePart35Profile ? 7 : 6;
-        int zShift = state.Profile == SinglePart35Profile ? 6 : 5;
-        int zOffset = UsesDefaultOrbit(state) ? 0 : 16;
+        int xyShift = UsesDefaultOrbit(state) ? 4 : state.Profile == SinglePart35Profile ? 7 : state.Profile == FourPart35_36Profile ? 5 : 6;
+        int zShift = state.Profile is SinglePart35Profile or FourPart35_36Profile ? 6 : 5;
+        int zOffset = UsesDefaultOrbit(state) ? 0 : state.Profile == FourPart35_36Profile ? 40 : 16;
         return new(unchecked((short)((cosine >> xyShift) * scale)), unchecked((short)((-sine >> xyShift) * scale)), unchecked((short)(((sine >> zShift) + zOffset) * scale)));
     }
 
@@ -226,7 +232,7 @@ public static class Ff7NativeModelEffect
         }
     }
 
-    private static int PhaseStep(Ff7NativeModelEffectState state) => state.Profile == SinglePart72_140Profile ? 32 : 16;
+    private static int PhaseStep(Ff7NativeModelEffectState state) => state.Profile == SinglePart72_140Profile ? 32 : state.Profile == FourPart35_36Profile ? 24 : 16;
     private static bool UsesDefaultOrbit(Ff7NativeModelEffectState state) => state.Profile is SinglePartDefaultProfile or SinglePart72_140Profile or FourPartDefaultProfile;
 
     private static bool Finite(Vector3 value)

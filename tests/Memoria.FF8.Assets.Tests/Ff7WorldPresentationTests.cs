@@ -153,6 +153,49 @@ public sealed class Ff7WorldPresentationTests
     }
 
     [Fact]
+    public void MountedLeadersUseOriginalRideClipsAndRetargetAllMappedAppearancesWithTheBirdBlend()
+    {
+        string? ff7 = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        string? ff8 = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(ff7) || string.IsNullOrWhiteSpace(ff8), "Select both original games for mounted world appearance contracts.");
+        Ff7Installation installation = Ff7Installation.Discover(ff7!);
+        using GameAssets assets = new(ff8!);
+        using Ff7WorldResources resources = Ff7WorldResources.Load(installation);
+        Ff7WorldCharacterDescriptor birdDescriptor = Ff7PcExecutableData.LoadWorldCharacterDescriptor(installation, 4);
+        Ff7FieldModelResources bird = birdDescriptor.Load(resources);
+        Assert.Equal("aja.hrc", birdDescriptor.HrcName);
+        Assert.Equal(28, bird.Hierarchy.Bones.Count);
+        for (int leader = 0; leader < 3; leader++)
+        {
+            Ff7WorldCharacterDescriptor descriptor = Ff7PcExecutableData.LoadWorldCharacterDescriptor(installation, leader);
+            Ff7FieldModelResources original = descriptor.Load(resources);
+            Memoria.FF7.Formats.PcFieldModelDescriptor field = new(descriptor.HrcName, 0, descriptor.HrcName, descriptor.ScaleWord.ToString(System.Globalization.CultureInfo.InvariantCulture), [], 0, descriptor.Animations);
+            Ff7WorldModelAdapter adapter = new(descriptor, original);
+            for (int parentClip = 0; parentClip < birdDescriptor.Animations.Count; parentClip++)
+            {
+                int last = bird.Animations[birdDescriptor.Animations[parentClip]].Frames.Count - 1;
+                int riderClip = parentClip == 0 ? 2 : 3;
+                Assert.True(last < original.Animations[descriptor.Animations[riderClip]].Frames.Count);
+                Ff7WorldVisual mounted = new(4, new(100, 200, 300), 512, parentClip, 0, 2) { RiderModel = leader, AnimationBlend = new(last, 0, 0.5f) };
+                Ff7WorldVisual rider = mounted.CreateRider()!;
+                Assert.Equal(riderClip, rider.Animation);
+                Assert.Equal(mounted.AnimationBlend, rider.AnimationBlend);
+                IReadOnlyList<Ff7WorldModelTriangle> native = adapter.Create(rider.Position, rider.Direction, rider.Animation, rider.Frame, animationBlend: rider.AnimationBlend);
+                Assert.NotEmpty(native);
+                Assert.Equal(adapter.Create(mounted.Position, mounted.Direction, riderClip, mounted.Frame, animationBlend: mounted.AnimationBlend), native);
+                for (int appearance = 0; appearance < 11; appearance++)
+                {
+                    Ff7ModelAppearance profile = Ff7ModelAppearance.CreateFieldCharacter(assets, appearance, field, original, worldModel: true);
+                    IReadOnlyList<Ff7WorldModelTriangle> mapped = adapter.Create(rider.Position, rider.Direction, rider.Animation, rider.Frame, profile, leader switch { 0 => 0, 1 => 2, _ => 8 }, rider.AnimationBlend);
+                    Assert.NotEmpty(mapped);
+                    Assert.All(mapped, triangle => Assert.True(float.IsFinite(triangle.A.Position.X) && float.IsFinite(triangle.A.Position.Y) && float.IsFinite(triangle.A.Position.Z)));
+                    Assert.All(mapped, triangle => Assert.True(triangle.Material.CentroidTextureSampling));
+                }
+            }
+        }
+    }
+
+    [Fact]
     public void InstalledYellowChocoboUsesOriginalPosesAndTint()
     {
         string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");

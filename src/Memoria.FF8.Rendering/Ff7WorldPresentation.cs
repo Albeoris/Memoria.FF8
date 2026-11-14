@@ -13,10 +13,25 @@ public sealed record Ff7WorldVisual(int Model, Vector3 Position, int Direction, 
     public int Terrain { get; init; }
     public int NativeAnimation { get; init; }
     public int Elevation { get; init; }
+    public int? RiderModel { get; init; }
+
     public Ff7FieldPoseBlend? AnimationBlend { get; init; }
     public float TiltX { get; init; }
     public float TiltY { get; init; }
     public float TiltZ { get; init; }
+
+    public Ff7WorldVisual? CreateRider()
+    {
+        if (RiderModel is not int rider)
+        {
+            return null;
+        }
+        if (rider is < 0 or > 2)
+        {
+            throw new NotSupportedException("A mounted world rider requires its original human model descriptor.");
+        }
+        return this with { Model = rider, Animation = Animation == 0 ? 2 : 3, RiderModel = null };
+    }
 }
 public sealed record Ff7WorldRenderFrame(int ControlledModel, bool Initialized, int MainState, int ViewMode, int RadarMode, int WorldMapState, uint Counter, int CloudPhase, Ff7WorldCameraView Camera, IReadOnlyList<Ff7WorldVisual> Models, IReadOnlyList<Ff7WorldSkyZone> SkyZones)
 {
@@ -170,6 +185,18 @@ public sealed class Ff7WorldPresentation
                 Vector3 bodyPosition = position + new Vector3(0, entity.Elevation - curvature, 0);
                 int colorWeight = underwater && entity.Model is 17 or 18 or 26 or 27 or 28 or 30 ? Ff7WorldLighting.UnderwaterModelWeight((int)MathF.Round(Vector3.Transform(bodyPosition, view.NativeView).Z, MidpointRounding.ToEven)) : 255;
                 Ff7WorldModelAdapter.Draw(renderer, model.Create(bodyPosition, entity.Direction, entity.Animation, entity.Frame, appearance, storyCharacter, entity.AnimationBlend, new(entity.TiltX, entity.TiltY, entity.TiltZ), entity.Model == 6 ? 4096 : 256), view, underwater, colorWeight);
+                if (entity.CreateRider() is Ff7WorldVisual rider)
+                {
+                    var riderKey = (rider.Model, (int?)null, frame.ResourceArea);
+                    if (!models.TryGetValue(riderKey, out Ff7WorldModelAdapter? riderModel))
+                    {
+                        Ff7WorldCharacterDescriptor descriptor = Ff7PcExecutableData.LoadWorldCharacterDescriptor(installation, rider.Model, resources.World, resourceArea: frame.ResourceArea);
+                        riderModel = new(descriptor, descriptor.Load(resources));
+                        models.Add(riderKey, riderModel);
+                    }
+                    int riderStoryCharacter = rider.Model switch { 0 => 0, 1 => 2, _ => 8 };
+                    Ff7WorldModelAdapter.Draw(renderer, riderModel!.Create(bodyPosition, rider.Direction, rider.Animation, rider.Frame, appearance, riderStoryCharacter, rider.AnimationBlend, new(rider.TiltX, rider.TiltY, rider.TiltZ)), view, underwater, colorWeight);
+                }
                 if (entity.Model == 3 && frame.ResourceArea is 1 or 2 or 5 or 7)
                 {
                     var propellerKey = (9, (int?)null, frame.ResourceArea);

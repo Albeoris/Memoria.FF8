@@ -30,6 +30,19 @@ internal sealed partial class Ff7Scene
         worldHistory.Reset();
     }
 
+    private static int? WorldRiderModel(Ff7WorldProcess state, Ff7WorldEntity entity)
+    {
+        if (state.Chocobo is not { RiderModel: int rider } chocobo || chocobo.Model != entity.Model)
+        {
+            return null;
+        }
+        if (entity.AttachedModel is int attached && attached != rider)
+        {
+            throw new InvalidDataException("The mounted Chocobo and retained rider attachment disagree.");
+        }
+        return rider;
+    }
+
     internal static Ff7WorldRenderFrame WorldRenderFrame(Ff7WorldProcess state, int? resourceArea = null)
     {
         Ff7WorldCameraState camera = state.Camera ?? new();
@@ -55,6 +68,7 @@ internal sealed partial class Ff7Scene
                 Terrain = entity.Terrain,
                 NativeAnimation = entity.Animation,
                 Elevation = entity.Elevation,
+                RiderModel = WorldRiderModel(state, entity),
                 PresentationEpoch = entity.PresentationEpoch,
                 PresentationAnimationEpoch = entity.PresentationAnimationEpoch,
                 TiltX = entity.TiltX,
@@ -136,7 +150,7 @@ internal static class Ff7WorldRenderInterpolation
     private static bool Compatible(Ff7WorldVisual previous, Ff7WorldVisual current)
     {
         const int VisibilityFlags = 2 | 8;
-        return previous.PresentationEpoch == current.PresentationEpoch && (previous.Flags & VisibilityFlags) == (current.Flags & VisibilityFlags);
+        return previous.PresentationEpoch == current.PresentationEpoch && previous.RiderModel == current.RiderModel && (previous.Flags & VisibilityFlags) == (current.Flags & VisibilityFlags);
     }
 
     private static Ff7WorldVisual InterpolateModel(Ff7WorldVisual previous, Ff7WorldVisual current, float fraction)

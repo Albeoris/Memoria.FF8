@@ -58,6 +58,7 @@ internal static class NativeModelEffectTests
         RunSinglePart(table);
         RunStep32(table);
         RunFourPartDefault();
+        RunFourPart35_36();
         RunInstalled();
     }
 
@@ -157,7 +158,7 @@ internal static class NativeModelEffectTests
         Check(state.Profile == Ff7NativeModelEffect.FourPartDefaultProfile, "The reached four-part topology did not select original defaults.");
         Check(Ff7NativeModelEffect.Request(null, 0, [71, 79, 13, 17]).Profile == state.Profile, "A generic nonexception four-part topology did not retain native defaults.");
         Check(Ff7NativeModelEffect.Request(null, 0, [70, 78, 12, 16], partPolygonCounts: [1, 2, 3, 4]).Profile == state.Profile, "The native four-part classifier incorrectly used polygon counts.");
-        Throws<NotSupportedException>(() => Ff7NativeModelEffect.Request(null, 0, [35, 36, 12, 16]));
+        Check(Ff7NativeModelEffect.Request(null, 0, [35, 36, 12, 16]).Profile == Ff7NativeModelEffect.FourPart35_36Profile, "The native first-count pair must select its distinct step24 profile independently of the remaining parts.");
         Throws<NotSupportedException>(() => Ff7NativeModelEffect.Request(null, 0, [36, 36, 12, 16]));
         state = Ff7NativeModelEffect.Advance(state, true);
         Check(Enumerable.Range(0, 4).All(part => !Ff7NativeModelEffect.PartVisible(state, part)), "Create did not hide every four-part default component.");
@@ -181,6 +182,56 @@ internal static class NativeModelEffectTests
         state = Ff7NativeModelEffect.Advance(state, true);
         Check(state.Restored && Enumerable.Range(0, 4).All(part => Ff7NativeModelEffect.PartVisible(state, part)), "Default four-part reset did not restore all original components.");
         Check(Ff7NativeModelEffect.Advance(state, true).Completed, "Default four-part reset did not complete on its second processed callback.");
+    }
+
+    private static void RunFourPart35_36()
+    {
+        int[] vertices = [35, 36, 36, 40];
+        Ff7NativeModelEffectState state = Ff7NativeModelEffect.Request(null, 0, vertices, 384, [18, 50, 56, 20]);
+        Check(state.Profile == Ff7NativeModelEffect.FourPart35_36Profile && Ff7NativeModelEffect.Request(null, 1, vertices, 384, [1, 2, 3, 4]).Profile == state.Profile, "The native35/36 pair must select the step24 profile without consulting polygon counts.");
+        Check(Ff7NativeModelEffect.Advance(state, false) == state, "An ineligible native depth gate must preserve the new profile's complete owner.");
+        state = Ff7NativeModelEffect.Advance(state, true);
+        Check(state.Initialized && !state.Applied && Enumerable.Range(0, 4).All(part => !Ff7NativeModelEffect.PartVisible(state, part)), "Step24 initialization must hide all original rigid parts.");
+        for (int callback = 0; callback < 100; callback++)
+        {
+            state = Ff7NativeModelEffect.Advance(state, true);
+        }
+        Check(state is { Stage: 1, Phase: 0, Counter: 100 } && !Ff7NativeModelEffect.PartVisible(state, 0) && Ff7NativeModelEffect.PartVisible(state, 1) && Ff7NativeModelEffect.PartVisible(state, 2) && !Ff7NativeModelEffect.PartVisible(state, 3), "Native35/36 Apply must preserve its100-callback hold and hide only parts0/3.");
+        for (int callback = 0; callback < 12; callback++)
+        {
+            state = Ff7NativeModelEffect.Advance(state, true);
+        }
+        Check(state is { Stage: 2, Phase: 288, Counter: 0, SampleFrame: 11 }, "Step24 must reach its native endpoint after twelve pre-advance cache selections.");
+        for (int callback = 0; callback < 10; callback++)
+        {
+            state = Ff7NativeModelEffect.Advance(state, true);
+        }
+        Check(state is { Stage: 3, Phase: 0, SampleFrame: 12 }, "The endpoint hold must display cache12 before the native second ramp.");
+        for (int callback = 0; callback < 12; callback++)
+        {
+            state = Ff7NativeModelEffect.Advance(state, true);
+        }
+        Check(state is { Stage: 0, Phase: 288, Counter: 0, SampleFrame: 11 }, "The second native step24 ramp must return to the long hold after twelve callbacks.");
+        state = Ff7NativeModelEffect.Advance(state, true);
+        Check(state.SampleFrame == 12, "The following long hold must reuse the endpoint cache instead of resetting its presentation phase.");
+        for (int callback = 0; callback < 320; callback++)
+        {
+            Ff7NativeModelEffectState cold = JsonSerializer.Deserialize<Ff7NativeModelEffectState>(JsonSerializer.Serialize(state))!;
+            bool eligible = callback % 17 != 0;
+            Check(Ff7NativeModelEffect.Advance(state, eligible) == Ff7NativeModelEffect.Advance(cold, eligible), "Step24 independent JSON continuation must preserve every gated phase/cache field.");
+            state = Ff7NativeModelEffect.Advance(state, eligible);
+        }
+        short[] directions = new short[512];
+        directions[1] = 4096;
+        directions[144] = 4096;
+        directions[64] = -4096;
+        Check(Ff7NativeModelEffect.OrbitPoint(state, 0, directions) == new Vector3(128, 0, 40) && Ff7NativeModelEffect.OrbitPoint(state, 3, directions) == new Vector3(0, -128, 104) && Ff7NativeModelEffect.OrbitPoint(state, 12, directions) == new Vector3(0, 128, -24), "The native step24 orbit must retain shifts5/5/6, offset40 and the wrapped phase288 sample.");
+        Throws<InvalidDataException>(() => (state with { Phase = 16 }).Validate());
+        Throws<InvalidDataException>(() => (state with { SampleFrame = 13 }).Validate());
+        Throws<InvalidDataException>(() => Ff7NativeModelEffect.OrbitPoint(state, 13, directions));
+        state = Ff7NativeModelEffect.Advance(Ff7NativeModelEffect.Request(state, 2, vertices, 384), true);
+        Check(state.Restored && !state.Completed && Enumerable.Range(0, 4).All(part => Ff7NativeModelEffect.PartVisible(state, part)), "The new profile reset must restore original parts/lighting before its completion callback.");
+        Check(Ff7NativeModelEffect.Advance(state, true).Completed, "Step24 reset must finish only on its next eligible native callback.");
     }
 
     private static void RunInstalled()
@@ -215,6 +266,34 @@ internal static class NativeModelEffectTests
         Ff7FieldModelResources save = Ff7FieldModelResources.Load(characters, tunnel.Models.Models[2]);
         Check(save.HrcName.Equals("AVFE.hrc", StringComparison.OrdinalIgnoreCase) && save.Geometry.Select(part => part.Polygon.Vertices.Count).SequenceEqual(new[] { 70, 78, 12, 16 }) && save.Geometry.Select(part => part.Polygon.Polygons.Count).SequenceEqual(new[] { 72, 72, 8, 28 }), "The reached native four-part save icon topology changed.");
         CheckInstalledPulse(save, native);
+        Ff7FieldResources mine = Ff7FieldResources.Load(installation, "psdun_2");
+        Ff7FieldModelResources chest = Ff7FieldModelResources.Load(characters, mine.Models.Models[6]);
+        Check(chest.HrcName.Equals("AVHE.hrc", StringComparison.OrdinalIgnoreCase) && mine.Models.Models[6].Scale == "384" && chest.Geometry.Select(part => part.Polygon.Vertices.Count).SequenceEqual(new[] { 35, 36, 36, 40 }) && chest.Geometry.Select(part => part.Polygon.Polygons.Count).SequenceEqual(new[] { 18, 50, 56, 20 }), "The reached original Mine chest topology/scale changed.");
+        CheckInstalledPulse(chest, native, 384);
+        RunInstalledCheckpoint(installation);
+    }
+
+    private static void RunInstalledCheckpoint(Ff7Installation installation)
+    {
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_MODEL_EFFECT_SAVE");
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            Console.WriteLine("SKIP reached model-effect standalone: configure MEMORIA_FF7_MODEL_EFFECT_SAVE.");
+            return;
+        }
+        using FileStream source = File.OpenRead(path);
+        Ff7SessionSave saved = CombinedSessionCodec.Read(source).Ff7 ?? throw new InvalidDataException("The configured model-effect standalone has no FFVII owner.");
+        Check(saved.FieldName == "psdun_2", "The configured model-effect standalone must contain the reached Mine initializer.");
+        using Ff7Session warm = Ff7Session.Restore(installation, saved);
+        using Ff7Session cold = Ff7Session.Restore(installation, JsonSerializer.Deserialize<Ff7SessionSave>(JsonSerializer.Serialize(saved))!);
+        for (int callback = 0; callback < 3; callback++)
+        {
+            warm.AdvanceTick(advanceClock: false);
+            cold.AdvanceTick(advanceClock: false);
+            Check(JsonSerializer.Serialize(warm.Capture()) == JsonSerializer.Serialize(cold.Capture()), "The reached original Mine initializer and next procedural callback must retain exact independent JSON continuation.");
+        }
+        Ff7Actor actor = warm.Host.Process.Actors.Single(actor => actor.Entity == 8 && actor.EntityBound);
+        Check(actor.Model == 6 && actor.ModelEffect is { Profile: Ff7NativeModelEffect.FourPart35_36Profile, Initialized: true, Applied: true }, "Original entity8 initialization must enter its resource-selected step24 pulse instead of a default or script bypass.");
     }
 
     private static void CheckInstalledPulse(Ff7FieldModelResources model, Ff7PcExecutableData native, int nativeScale = 512)
