@@ -111,11 +111,9 @@ public sealed partial class Ff7FieldHost
         {
             return;
         }
-        if (Process.Movie is { Completed: false })
-        {
-            throw new NotSupportedException("FFVII model effects during a movie require the current native movie camera.");
-        }
-        PcFieldCamera camera = field.Cameras[0];
+        PcFieldCamera camera = Process.Movie is { Playing: true, CameraDisabled: false } && !Process.MovieCameraDisabled
+            ? (NativeBlinkCamera ?? throw new NotSupportedException("FFVII model effects during a movie require the current native movie camera."))() ?? throw new NotSupportedException("FFVII model effects require an available native camera snapshot.")
+            : field.Cameras[0];
         Process = Process with
         {
             Actors = Process.Actors.Select(actor => actor with

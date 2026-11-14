@@ -64,7 +64,67 @@ internal static class NativeMovieCameraServiceTests
         Check(Ff7NativeMovieCamera.ResolvePresentationCamera(host.Process, fieldCamera, empty.SnapshotAt)!.AxisZ == Vector3.Zero, "A present empty native camera track must retain its explicit blank-camera gate.");
         Throws<NotSupportedException>(() => Ff7NativeMovieCamera.ResolvePresentationCamera(host.Process, fieldCamera, null));
         Check(Ff7NativeMovieCamera.ResolvePresentationCamera(host.Process with { MovieCameraDisabled = true }, fieldCamera, null) == fieldCamera, "Native MVCAM disable must use the ordinary field camera without requiring a camera member.");
+        ModelEffectCamera();
         Installed();
+        InstalledModelEffectCheckpoint();
+    }
+
+    private static void ModelEffectCamera()
+    {
+        PcFieldCamera far = new(Vector3.UnitX * 4096, Vector3.UnitY * 4096, Vector3.UnitZ * 4096, 0, new(0, 0, 15360), 0, 200);
+        PcFieldCamera near = far with { Translation = new(0, 0, 15356) };
+        Ff7Actor actor = new()
+        {
+            Slot = 0,
+            Entity = 0,
+            Model = 0,
+            Z4096 = 10 * 4096,
+            NativeEyeControlPending = true,
+            NativeColorOffset = Ff7NativeColorOffset.Request(null, [1, 0, 2, 0, 3, 0]),
+            ModelEffect = Ff7NativeModelEffect.Request(null, 0, [35])
+        };
+        Ff7FieldProcess initial = new() { BlinkStateInitialized = true, Actors = [actor], Movie = new(53, true, 0, false, 1), GlobalCommand = Ff7GlobalCommand.Movie, GlobalRequestId = 1 };
+        Ff7FieldHost Host(PcFieldCamera fieldCamera, Ff7FieldProcess process)
+        {
+            Ff7FieldResources field = new("movie-model-camera-fixture", null!, null!, null!, [fieldCamera], [], null!, null!, null!);
+            return new(field, (_, _) => 1, process);
+        }
+        Ff7MovieCameraTrack track = new([new(near, 0), new(far, 0)]);
+        Ff7FieldHost host = Host(far, initial);
+        int reads = 0;
+        host.NativeBlinkCamera = () =>
+        {
+            reads++;
+            return Ff7NativeMovieCamera.ResolvePresentationCamera(host.Process, far, track.SnapshotAt);
+        };
+        Ff7MovieCameraConsumption? budget = host.Process.Movie!.CameraConsumption;
+        host.AdvanceActors();
+        Check(reads == 1 && host.GetActor(0) is { NativeEyeControlPending: false, NativeColorOffset.Pending: false, ModelEffect.Initialized: true }, "Movie model effects did not use the current native camera below depth3840.");
+        Check(host.Process.Movie!.CameraConsumption == budget, "Movie model effects consumed a camera row.");
+        host = Host(near, initial with { Movie = initial.Movie! with { Frame = 1, CameraConsumption = new(1, 0, 10) } });
+        host.NativeBlinkCamera = () => Ff7NativeMovieCamera.ResolvePresentationCamera(host.Process, near, track.SnapshotAt);
+        Ff7FieldHost cold = Host(near, JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
+        cold.NativeBlinkCamera = () => Ff7NativeMovieCamera.ResolvePresentationCamera(cold.Process, near, track.SnapshotAt);
+        host.AdvanceActors();
+        cold.AdvanceActors();
+        Check(host.GetActor(0) is { NativeEyeControlPending: true, NativeColorOffset.Pending: true, ModelEffect.Initialized: false }, "Depth3840 from the movie camera did not suspend model effects.");
+        Check(JsonSerializer.Serialize(host.Capture()) == JsonSerializer.Serialize(cold.Capture()), "Cold movie model-effect continuation changed the next callback.");
+        foreach (Ff7FieldProcess process in new[]
+        {
+            initial with { MovieCameraDisabled = true },
+            initial with { Movie = initial.Movie! with { CameraDisabled = true } },
+            initial with { Movie = initial.Movie! with { Playing = false } },
+            initial with { Movie = initial.Movie! with { Playing = false, Completed = true } }
+        })
+        {
+            host = Host(near, process);
+            host.NativeBlinkCamera = () => throw new InvalidOperationException("An inactive movie camera was read.");
+            host.AdvanceActors();
+            Check(!host.GetActor(0).NativeEyeControlPending, "Prepared, disabled or completed movies must retain the ordinary field-camera effect gate.");
+        }
+        host = Host(near, initial);
+        Throws<NotSupportedException>(host.AdvanceActors);
+        Check(host.GetActor(0).NativeEyeControlPending, "A missing required movie camera advanced model effects.");
     }
 
     private static void Installed()
@@ -92,6 +152,30 @@ internal static class NativeMovieCameraServiceTests
         using Ff7Session cold = Ff7Session.Restore(installation, JsonSerializer.Deserialize<Ff7SessionSave>(JsonSerializer.Serialize(session.Capture()))!);
         Check(session.ReadNativeMovieCamera() == cold.ReadNativeMovieCamera(), "Cold headless native camera resolution changed.");
         Check(cold.Host.Process.Movie!.CameraConsumption == session.Host.Process.Movie!.CameraConsumption, "Cold camera observation consumed a saved row.");
+    }
+
+    private static void InstalledModelEffectCheckpoint()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_MOVIE_MODEL_EFFECT_SAVE");
+        if (string.IsNullOrWhiteSpace(root) || string.IsNullOrWhiteSpace(path))
+        {
+            Console.WriteLine("SKIP installed movie model-effect continuation: optional original resources or standalone fixture are unset.");
+            return;
+        }
+        byte[] original = File.ReadAllBytes(path);
+        using MemoryStream input = new(original);
+        Ff7SessionSave saved = CombinedSessionCodec.Read(input).Ff7 ?? throw new InvalidDataException("The movie model-effect fixture lacks its FFVII session.");
+        Ff7Installation installation = Ff7Installation.Discover(root);
+        using Ff7Session session = Ff7Session.Restore(installation, saved);
+        using Ff7Session cold = Ff7Session.Restore(installation, JsonSerializer.Deserialize<Ff7SessionSave>(JsonSerializer.Serialize(saved))!);
+        long tick = session.Host.Process.Tick;
+        session.AdvanceTick();
+        cold.AdvanceTick();
+        Check(session.Host.Process.Tick == tick + 1, "The original movie-entry fixture did not complete its first neutral callback.");
+        Check(JsonSerializer.Serialize(session.Capture()) == JsonSerializer.Serialize(cold.Capture()), "The original movie-entry fixture changed its first callback after cold restore.");
+        Check(File.ReadAllBytes(path).SequenceEqual(original), "Movie model-effect validation changed the original standalone fixture.");
+        Console.WriteLine($"PASS original movie model-effect first callback: field={session.Field.Name} tick={session.Host.Process.Tick} movie={session.Host.Process.Movie?.PreparedId} playing={session.Host.Process.Movie?.Playing} cameraDisabled={session.Host.Process.MovieCameraDisabled}");
     }
 
     private static void Check(bool condition, string message)
