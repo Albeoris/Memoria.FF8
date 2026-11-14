@@ -367,6 +367,31 @@ internal static class NativeBattleTests
         ExpectInvalid(() => BattleModelData.Read(ReadMember("aqaa"), malformedPack));
     }
 
+    public static void RunHammerBlasterClips()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            Console.WriteLine("SKIP original Hammer Blaster clips: installation is unset.");
+            return;
+        }
+        Ff7Installation installation = Ff7Installation.Discover(root);
+        using LgpArchive archive = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
+        byte[] ReadMember(string name) => archive.ReadEntry(archive.Find(name).Single());
+        BattleModelData model = BattleModelData.Read(ReadMember("ccaa"), ReadMember("ccda"));
+        int[] counts = [22, 8, 6, 29, 3];
+        Check(model.BodyClips.Count == counts.Length, "The original Hammer Blaster support model changed its clip directory.");
+        for (int index = 0; index < counts.Length; index++)
+        {
+            BattlePackedClip clip = model.BodyClips[index];
+            IReadOnlyList<BattleClipFrame> frames = BattleClipDecoder.Decode(clip);
+            Check(frames.Count == counts[index] && frames.All(frame => frame.X == 0 && frame.Y == 0 && frame.Z == 0 && frame.Rotations.SequenceEqual(new BattleRotationWords[2])), "Original Hammer Blaster support-model frames differ from the native zero motion.");
+        }
+        BattlePackedClip idle = model.BodyClips[0];
+        int packedSize = BinaryPrimitives.ReadUInt16LittleEndian(idle.PackedData.Span[2..]);
+        ExpectInvalid(() => BattleClipDecoder.Decode(idle with { PackedData = idle.PackedData[..(5 + packedSize)] }));
+    }
+
     private static string ClipHash(BattlePackedClip clip)
     {
         using MemoryStream output = new();

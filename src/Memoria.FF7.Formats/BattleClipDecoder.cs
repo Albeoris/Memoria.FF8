@@ -24,11 +24,12 @@ public static class BattleClipDecoder
         int byteCount = BinaryPrimitives.ReadUInt16LittleEndian(data[2..]);
         int key = data[4];
         long minimumBits = 48L + 3 * rotations * (12 - key) + (clip.FrameCount - 1L) * (24 + 3 * rotations);
-        if (key > 11 || byteCount > data.Length - 5 || minimumBits > byteCount * 8L)
+        if (key > 11 || byteCount == 0 || byteCount > data.Length - 5 || minimumBits > (data.Length - 5) * 8L)
         {
             throw new InvalidDataException("FFVII packed animation exceeds its declared bitstream.");
         }
-        ClipBits bits = new(data.Slice(5, byteCount));
+        // The native decoder checks the packed byte count after consuming a whole frame.
+        ClipBits bits = new(data[5..]);
         BattleClipFrame[] frames = new BattleClipFrame[clip.FrameCount];
         for (int frame = 0; frame < frames.Length; frame++)
         {
@@ -59,6 +60,10 @@ public static class BattleClipDecoder
                 }
             }
             frames[frame] = new(x, y, z, Array.AsReadOnly(joints));
+            if (bits.BytesConsumed >= byteCount && frame + 1 != frames.Length)
+            {
+                throw new InvalidDataException("FFVII packed animation terminates before its declared frame count.");
+            }
         }
         return Array.AsReadOnly(frames);
     }
@@ -72,6 +77,8 @@ public static class BattleClipDecoder
         {
             this.data = data;
         }
+
+        public readonly int BytesConsumed => (position + 7) / 8;
 
         private int Read(int count)
         {

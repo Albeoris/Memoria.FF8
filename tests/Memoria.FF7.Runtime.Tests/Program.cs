@@ -230,6 +230,7 @@ var tests = new (string Name, Action Run)[]
     ("native Shinra elevator bosses", NativeBattleShinraTests.RunElevator),
     ("native Shinra Rufus", NativeBattleShinraTests.RunRufus),
     ("installed opening arena and battle actor resources", NativeBattleTests.RunOpeningRoster),
+    ("installed Hammer Blaster support-model packed frames", NativeBattleTests.RunHammerBlasterClips),
     ("native opening combat damage", NativeBattleDamageTests.Run),
     ("native opening action transactions and Limit reel", NativeBattleActionTests.Run),
     ("native Cross-slash action and settlement", NativeBattleCrossSlashTests.Run),
