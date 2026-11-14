@@ -78,8 +78,16 @@ public sealed partial class BattleSession
         {
             Publish(current);
             NativeBattleGraphicsModel model = graphics.Models[index];
-            NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
-            NativeBattleDuel215BoundsStep bounds = NativeBattleDuel215Bounds.Read69D360(current.Staging, model, resource.PoseSource ?? throw new NotSupportedException("Native Duel215 bounds require its actual selected skeleton."), DiablosActorGeometry(resource, model));
+            NativeBattleDuel215BoundsStep bounds;
+            if (ReadNativeGraphicsForeignModel(graphics, index) is { } foreign)
+            {
+                bounds = NativeBattleDuel215Bounds.ReadForeign69D360(current.Staging, model, foreign);
+            }
+            else
+            {
+                NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
+                bounds = NativeBattleDuel215Bounds.Read69D360(current.Staging, model, resource.PoseSource ?? throw new NotSupportedException("Native Duel215 bounds require its actual selected skeleton."), DiablosActorGeometry(resource, model));
+            }
             WriteModel(index, bounds.Model);
             return new(current with { Staging = bounds.Staging }, bounds.Maximum, bounds.Minimum);
         }

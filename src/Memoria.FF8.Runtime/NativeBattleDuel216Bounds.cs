@@ -6,6 +6,14 @@ public sealed record NativeBattleDuel216BoundsStep(NativeBattleFileStaging Stagi
 
 public static class NativeBattleDuel216Bounds
 {
+    public static NativeBattleDuel216BoundsStep ReadForeign695F60(NativeBattleFileStaging staging, NativeBattleGraphicsModel model, NativeBattleForeignModelGeometry geometry, Func<NativeBattleActionMatrix, NativeBattleVector, short> projectIr2)
+    {
+        NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Host vertex bounds require the current actor position.");
+        NativeBattleActionMatrix world = geometry.World with { X = transform.Position28.X, Y = transform.Position28.Y, Z = transform.Position28.Z };
+        (short maximum, short minimum) = NativeBattleForeignModelDrawing.VertexBounds(geometry, vertex => projectIr2(world, vertex));
+        return new(staging, model, maximum, minimum);
+    }
+
     public static NativeBattleDuel216BoundsStep Read695F60(NativeBattleFileStaging staging, NativeBattleGraphicsModel model, NativeBattlePoseSource source, ImmutableArray<NativeBattleRawMesh> geometry, Func<NativeBattleActionMatrix, NativeBattleRawVertex, short> projectIr2)
     {
         ArgumentNullException.ThrowIfNull(projectIr2);

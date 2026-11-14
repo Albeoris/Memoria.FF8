@@ -150,8 +150,14 @@ internal sealed partial class CrossoverGunbladeHostAttack : IFf7BattleGuestAttac
     private NativeBattleGraphicsModel PresentModel(NativeBattleGraphicsModel model)
     {
         NativeBattleSummonColors colors = graphicsRules.SummonColors ?? throw new NotSupportedException("Guest presentation requires its selected graphics colors.");
-        return model with { Color40 = model.Color40 ?? colors.Transition, Color44 = model.Color44 ?? (colors.Normal & 0xFFFFFFu) | 0x32000000u };
+        return PresentModel(model, colors);
     }
+
+    internal static NativeBattleGraphicsModel PresentModel(NativeBattleGraphicsModel model, NativeBattleSummonColors colors)
+    {
+        return model with { Color40 = model.Color40 ?? colors.Transition, Color44 = model.Color44 ?? (colors.Normal & 0xFFFFFFu) | 0x32000000u, Alpha7 = model.Alpha7 ?? (model.Kind5 == 0 ? (byte?)0 : null) };
+    }
+
     public CrossoverGunbladeHostSnapshot Capture() => state with
     {
         IdleTextures = state.IdleTextures is { } textures ? NativeBattleEffectComponentStorage.Capture(textures) : null,

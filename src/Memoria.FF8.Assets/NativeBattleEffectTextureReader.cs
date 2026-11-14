@@ -65,11 +65,12 @@ public static partial class NativeBattleEffectTextureReader
 
     private static bool HasSameVramRange(NativeBattleEffectTextureState previous, NativeBattleEffectTextureState current, int offset, int length)
     {
-        if (offset < 0 || length < 0 || offset > NativeBattleEffectArena.Length - length)
+        if (offset < 0 || length < 0 || offset > NativeBattleEffectArena.Length + NativeBattleEffectTextureState.PcPageReadTailLength - length)
         {
             throw new ArgumentOutOfRangeException(nameof(offset));
         }
-        if (ReferenceEquals(previous.VramPublicationIdentity, current.VramPublicationIdentity))
+        bool tail = offset + length > NativeBattleEffectArena.Length;
+        if (ReferenceEquals(previous.VramPublicationIdentity, current.VramPublicationIdentity) && (!tail || previous.VramReadTail is not null && previous.VramReadTail == current.VramReadTail))
         {
             return true;
         }
@@ -78,8 +79,8 @@ public static partial class NativeBattleEffectTextureReader
         for (int copied = 0; copied < length;)
         {
             int count = Math.Min(before.Length, length - copied);
-            previous.ReadVramInto(offset + copied, before[..count]);
-            current.ReadVramInto(offset + copied, after[..count]);
+            NativeBattlePcTextureWindowPixels.ReadSourceRow(previous, offset + copied, before[..count]);
+            NativeBattlePcTextureWindowPixels.ReadSourceRow(current, offset + copied, after[..count]);
             if (!before[..count].SequenceEqual(after[..count]))
             {
                 return false;
@@ -164,7 +165,7 @@ public static partial class NativeBattleEffectTextureReader
                     }
                     // Invalid runs retain scalar reads so the first invalid sample or used CLUT entry still fails in order.
                 }
-                ushort word = pixelWords is null ? Word(wordX, y) : retainedRun.IsEmpty ? pixelWords.ReadWord(wordX, y) : BinaryPrimitives.ReadUInt16LittleEndian(retainedRun[(2 * (wordX - runFirstWord))..]);
+                ushort word = pixelWords is null ? Word(wordX, y, true) : retainedRun.IsEmpty ? pixelWords.ReadWord(wordX, y) : BinaryPrimitives.ReadUInt16LittleEndian(retainedRun[(2 * (wordX - runFirstWord))..]);
                 int first = x & (pixelsPerWord - 1);
                 int count = Math.Min(width - column, pixelsPerWord - first);
                 if (depth < 2)
@@ -227,10 +228,11 @@ public static partial class NativeBattleEffectTextureReader
             return new((byte)(packed >> 16), (byte)(packed >> 8), (byte)packed, (byte)(packed >> 24));
         }
 
-        ushort Word(int x, int y)
+        ushort Word(int x, int y, bool image = false)
         {
             int index = checked(y * 1024 + x);
-            if (x < 0 || y < 0 || index >= 1024 * 512 || !pcPalette && (x >= 1024 || y >= 512))
+            int extent = 1024 * 512 + (pcPalette && image ? NativeBattleEffectTextureState.PcPageReadTailLength / 2 : 0);
+            if (x < 0 || y < 0 || index >= extent || !pcPalette && (x >= 1024 || y >= 512))
             {
                 InvalidDataException error = new("Native texture page or CLUT sample leaves1024x512 word VRAM.");
                 error.Data["TexturePage"] = texturePage.ToString("X4");
@@ -241,7 +243,7 @@ public static partial class NativeBattleEffectTextureReader
                 error.Data["PcPalette"] = pcPalette;
                 throw error;
             }
-            return state.ReadVramWord(index % 1024, index / 1024);
+            return pcPalette && image ? NativeBattlePcTextureWindowPixels.ReadSourceWord(state, x, y) : state.ReadVramWord(index % 1024, index / 1024);
         }
     }
 }

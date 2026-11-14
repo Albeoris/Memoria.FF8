@@ -81,14 +81,26 @@ public sealed class NativeBattleDirectEntryTests
     [Fact]
     public void DirectInvocationReusesTheLoadedEntryWithoutLoadingAndIgnoresItsReturnedDescriptor()
     {
-        var fixture = Fixture(0x50BEE0, 0xED, 0);
-        var result = Poll(fixture.Session, fixture.Graphics, 0);
+        var fixture = Fixture(0x50BEE0, 0xED, 0, 188);
+        NativeBattleEffectBinding binding = new(188, 0x5BE340, 0x5BE320);
+        NativeBattleEffectMemory memory = fixture.Session.NativeEffectMemory! with { Shot188 = NativeBattleShot188State.FromColdProcess() };
+        NativeBattleOriginalEffectState selected = new(188, 187, binding, new(0, 0, 8, 0, 0, 0) { Parameter80 = 0 }, null);
+        NativeBattleShot188Frame opened = NativeBattleShot188.Enter(new(memory, selected, new(1)), fixture.Session.NativeActionPackets);
+        memory = opened.Memory.PublishEntry50AF20(binding, false);
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(fixture.Session, memory);
+        typeof(BattleSession).GetField("nativeCrtRandom", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(fixture.Session, opened.Random);
+        NativeBattleGraphicsState graphics = fixture.Graphics with { OriginalEffect = opened.Effect };
+        var result = Poll(fixture.Session, graphics, 0);
         Assert.Equal((byte)1, result.Phase);
         Assert.False(result.Complete);
-        Assert.Equal((uint?)0, result.Graphics.OriginalEffect!.ReturnedDescriptor);
-        Assert.Equal(2, result.Graphics.OriginalEffect.Pools.Length);
+        Assert.Equal(opened.Effect.ReturnedDescriptor, result.Graphics.OriginalEffect!.ReturnedDescriptor);
+        Assert.Equal(3, result.Graphics.OriginalEffect.Pools.Length);
         Assert.Equal((byte?)2, result.Graphics.OriginalEffect.Parameters!.Parameter80);
-        Assert.Equal(1, fixture.Session.NativeEffectMemory!.Active);
+        Assert.Equal(0x5BE4D0u, result.Graphics.OriginalEffect.Pools[1].Slots[1].Callback);
+        Assert.Equal(1, fixture.Session.NativeEffectMemory!.Shot188!.ShotSerial);
+        Assert.Equal(memory.ReturnedTaskPointer1D96AAC, fixture.Session.NativeEffectMemory.ReturnedTaskPointer1D96AAC);
+        Assert.Equal(binding, fixture.Session.NativeEffectMemory.Entry21DFEC4);
+        Assert.Equal(1, fixture.Session.NativeEffectMemory.Active);
         Assert.Equal(0, fixture.Session.NativeEffectMemory.Cursor);
         Assert.Null(fixture.Session.NativeEffectMemory.Entry21DFEC0);
     }
@@ -141,14 +153,14 @@ public sealed class NativeBattleDirectEntryTests
         Assert.Same(random, typeof(BattleSession).GetField("nativeCrtRandom", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(fixture.Session));
     }
 
-    private static (BattleSession Session, NativeBattleGraphicsState Graphics) Fixture(uint callback, byte command, ushort action)
+    private static (BattleSession Session, NativeBattleGraphicsState Graphics) Fixture(uint callback, byte command, ushort action, ushort effect = 2)
     {
         NativeBattleEffectBinding binding = new(2, 0x6298A0, 0x629880);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().PublishEntry50AF20(binding, false) with { Active = 1 };
         BattleSession session = new(new BattleDefinition { NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess() with { EffectMemory = memory }, Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.Normal);
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeCamera))!.SetValue(session, NativeBattleCameraState.FromColdProcess());
         NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
-        (packets, _) = packets.Prepare(new(0, command, 0, 0, action, 2, null));
+        (packets, _) = packets.Prepare(new(0, command, 0, 0, action, effect, null));
         (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
         packets = packets.WritePlayerRepeatMode(0, 1);
         (packets, _) = packets.Publish(1);

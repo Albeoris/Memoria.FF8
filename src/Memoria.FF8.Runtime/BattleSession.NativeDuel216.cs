@@ -102,23 +102,33 @@ public sealed partial class BattleSession
         NativeBattleDuel216PreparationBounds Bounds(NativeBattleDuel216Frame current, int index)
         {
             NativeBattleGraphicsModel model = graphics.Models[index];
-            NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
             NativeBattleScriptedGraphicsMemory controls = current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Native Different Beat bounds require actual depth-cue controls.");
             NativeBattleScriptedColorRegisters registers = current.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Native Different Beat bounds require their actual packed V0 owner.");
-            NativeBattleDuel216BoundsStep result = NativeBattleDuel216Bounds.Read695F60(current.Staging, model, resource.PoseSource ?? throw new NotSupportedException("Native Different Beat bounds require their current skeleton."), DiablosActorGeometry(resource, model), (matrix, vertex) =>
+            NativeBattleDuel216BoundsStep result;
+            if (ReadNativeGraphicsForeignModel(graphics, index) is { } foreign)
+            {
+                result = NativeBattleDuel216Bounds.ReadForeign695F60(current.Staging, model, foreign, Project);
+            }
+            else
+            {
+                NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
+                result = NativeBattleDuel216Bounds.Read695F60(current.Staging, model, resource.PoseSource ?? throw new NotSupportedException("Native Different Beat bounds require their current skeleton."), DiablosActorGeometry(resource, model), (matrix, vertex) => Project(matrix, vertex.Position));
+            }
+            WriteModel(index, result.Model);
+            return new(current with { Staging = result.Staging, Memory = current.Memory with { ScriptedColorRegisters = registers } }, result.Maximum, result.Minimum);
+
+            short Project(NativeBattleActionMatrix matrix, NativeBattleVector vertex)
             {
                 byte[] input = registers.NormalInput?.ToArray() ?? new byte[8];
                 bool[] known = registers.NormalInputKnown?.ToArray() ?? Enumerable.Repeat(registers.NormalInput is not null, 8).ToArray();
-                BinaryPrimitives.WriteInt16LittleEndian(input, vertex.Position.X);
-                BinaryPrimitives.WriteInt16LittleEndian(input.AsSpan(2), vertex.Position.Y);
-                BinaryPrimitives.WriteInt16LittleEndian(input.AsSpan(4), vertex.Position.Z);
+                BinaryPrimitives.WriteInt16LittleEndian(input, vertex.X);
+                BinaryPrimitives.WriteInt16LittleEndian(input.AsSpan(2), vertex.Y);
+                BinaryPrimitives.WriteInt16LittleEndian(input.AsSpan(4), vertex.Z);
                 Array.Fill(known, true, 0, 6);
-                NativeBattleModuleDepthCueVertex projected = NativeBattleModuleProjection.ProjectWithCue45FAA0(matrix, vertex.Position, projection, controls.Dqa, controls.Dqb);
+                NativeBattleModuleDepthCueVertex projected = NativeBattleModuleProjection.ProjectWithCue45FAA0(matrix, vertex, projection, controls.Dqa, controls.Dqb);
                 registers = registers with { NormalInput = input.ToImmutableArray(), NormalInputKnown = known.ToImmutableArray(), Mac = [null, null, null], Ir = [null, projected.Ir2, null], Flags = projected.Projected.Flags };
                 return projected.Ir2;
-            });
-            WriteModel(index, result.Model);
-            return new(current with { Staging = result.Staging, Memory = current.Memory with { ScriptedColorRegisters = registers } }, result.Maximum, result.Minimum);
+            }
         }
         NativeBattleDuel216Frame RestoreFocal(NativeBattleDuel216Frame current)
         {

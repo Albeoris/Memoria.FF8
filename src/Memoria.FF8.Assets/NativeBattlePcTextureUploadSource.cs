@@ -47,7 +47,7 @@ internal static class NativeBattlePcTextureUploadSource
                 int x = u + column;
                 int wordX = pageX + x / pixelsPerWord;
                 int wordY = pageY + v + row;
-                ushort word = retainedPixels is null ? state.ReadVramWord(wordX, wordY) : retainedPixels.ReadWord(wordX, wordY);
+                ushort word = retainedPixels is null ? NativeBattlePcTextureWindowPixels.ReadSourceWord(state, wordX, wordY) : retainedPixels.ReadWord(wordX, wordY);
                 int index = depth == 0 ? word >> (4 * (x & 3)) & 15 : word >> (8 * (x & 1)) & 255;
                 BinaryPrimitives.WriteUInt32LittleEndian(pixels.AsSpan(4 * (row * width + column), 4), palette[index]);
             }

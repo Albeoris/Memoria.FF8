@@ -163,7 +163,7 @@ public sealed record NativeBattlePcTextureWindowPixels([property: JsonRequired] 
         for (int line = 0; line < captured.Height; line++)
         {
             int address = 2 * ((captured.Y + line) * 1024 + captured.X);
-            ReadRow(textures, address, row[..count]);
+            ReadSourceRow(textures, address, row[..count]);
             if (!row[..count].SequenceEqual(captured.Data.AsSpan(line * count, count)))
             {
                 return false;
@@ -172,9 +172,13 @@ public sealed record NativeBattlePcTextureWindowPixels([property: JsonRequired] 
         return true;
     }
 
-    private static void ReadRow(NativeBattleEffectTextureState textures, int address, Span<byte> destination)
+    public static void ReadSourceRow(NativeBattleEffectTextureState textures, int address, Span<byte> destination)
     {
-        int known = Math.Min(destination.Length, NativeBattleEffectArena.Length - address);
+        if (address < 0 || address > NativeBattleEffectArena.Length + NativeBattleEffectTextureState.PcPageReadTailLength - destination.Length)
+        {
+            throw new InvalidDataException("Native PC texture source read leaves its VRAM and retained trailing window.");
+        }
+        int known = Math.Clamp(NativeBattleEffectArena.Length - address, 0, destination.Length);
         if (known > 0)
         {
             textures.ReadVramInto(address, destination[..known]);
@@ -184,6 +188,22 @@ public sealed record NativeBattlePcTextureWindowPixels([property: JsonRequired] 
             ImmutableArray<byte> tail = textures.VramReadTail ?? throw new NotSupportedException("Native full-page capture reaches its unobserved trailing read window; explicitly migrate the standalone state.");
             tail.AsSpan().Slice(address + known - NativeBattleEffectArena.Length, destination.Length - known).CopyTo(destination[known..]);
         }
+    }
+
+    public static ushort ReadSourceWord(NativeBattleEffectTextureState textures, int x, int y)
+    {
+        int index = checked(y * 1024 + x);
+        if (x < 0 || y < 0 || index > (NativeBattleEffectArena.Length + NativeBattleEffectTextureState.PcPageReadTailLength) / 2 - 1)
+        {
+            throw new InvalidDataException("Native PC texture source read leaves its VRAM and retained trailing window.");
+        }
+        if (index < NativeBattleEffectArena.Length / 2)
+        {
+            return textures.ReadVramWord(index % 1024, index / 1024);
+        }
+        Span<byte> bytes = stackalloc byte[2];
+        ReadSourceRow(textures, index * 2, bytes);
+        return BinaryPrimitives.ReadUInt16LittleEndian(bytes);
     }
 
     private static NativeBattlePcTextureWindowPixels CaptureUncached(int row, NativeBattlePrimitiveTextureWindow rectangle, NativeBattleEffectTextureState textures)
@@ -201,7 +221,7 @@ public sealed record NativeBattlePcTextureWindowPixels([property: JsonRequired] 
         {
             int address = 2 * ((y + line) * 1024 + x);
             int count = 2 * width;
-            ReadRow(textures, address, data.AsSpan(2 * line * width, count));
+            ReadSourceRow(textures, address, data.AsSpan(2 * line * width, count));
         }
         NativeBattlePcTextureWindowPixels result = new(x, y, width, rectangle.Height, ImmutableCollectionsMarshal.AsImmutableArray(data)) { LiveTextureSources = textures.LiveTextureSources, TextureRegistrations = textures.TextureRegistrations, SceneCopies = NativeBattleSceneCopyProvenance.Intersect(textures.SceneCopies, x, y, width, rectangle.Height) };
         result.Validate();

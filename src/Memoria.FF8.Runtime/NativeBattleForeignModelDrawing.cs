@@ -93,6 +93,23 @@ public static partial class NativeBattleForeignModelDrawing
         return primitives.ToImmutable();
     }
 
+    public static (short Maximum, short Minimum) VertexBounds(NativeBattleForeignModelGeometry geometry, Func<NativeBattleVector, short> transform)
+    {
+        if (geometry.Vertices.IsDefaultOrEmpty)
+        {
+            throw new NotSupportedException("Host vertex bounds require their actual posed indexed vertices.");
+        }
+        int minimum = 65536;
+        int maximum = -65536;
+        foreach (NativeBattleVector vertex in geometry.Vertices)
+        {
+            short y = transform(vertex);
+            minimum = Math.Min(minimum, y);
+            maximum = Math.Max(maximum, y);
+        }
+        return (unchecked((short)maximum), unchecked((short)minimum));
+    }
+
     public static (short Maximum, short Minimum) VerticalBounds(NativeBattleForeignModelGeometry geometry, Func<NativeBattleVector, short> transform)
     {
         if (geometry.Faces.IsDefaultOrEmpty)

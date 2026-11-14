@@ -362,7 +362,7 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
             Ff7BattleCommandOption option = Assert.Single(host.Commands(0), choice => choice.Command == Ff7BattleCommand.Magic && choice.Argument == fire.ActionId);
             Assert.Null(option.UnsupportedReason);
             int target = host.Actors.First(actor => actor.Actor.Slot >= 4 && (option.ValidTargets & 1 << actor.Actor.Slot) != 0).Actor.Slot;
-            Assert.True(host.Submit(0, Ff7BattleCommand.Magic, fire.ActionId, (ushort)(1 << target)));
+            Assert.True(host.SubmitGuestMagicSequence(0, fire.ActionId, [(ushort)(1 << target)]));
             bool began = false;
             int contacts = 0;
             for (int tick = 0; tick < 4000; tick++)
@@ -389,6 +389,7 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
 
         public Ff7BattleSession ProcessHost => host;
         public CrossoverGuestHostActions ProcessProvider => provider;
+        private CrossoverGuestItemInventory ProcessItems => ((CrossoverGuestEncounter)typeof(CrossoverGuestHostActions).GetField("encounter", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(provider)!).Items!;
         public void OpenNativeSelection(ushort? selection = null)
         {
             Ff7BattleCommandOption invocation = Option(selection);
@@ -437,13 +438,19 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
             int completedPhases = 0;
             ushort? previousPhase = null;
             HashSet<ushort> seenPhases = [];
+            HashSet<(ushort Ability, long StartedAt)> ordinaryDuelInvocations = [];
             NativeBattleEffectPresentation? nativeProcessOwner = null;
             byte? recipeMoveSet = null;
             bool desiredRecipeSubmitted = false;
+            int submittedRecipes = 0;
             short? initialDuelTimer = null;
             short? remainingDuelTimer = null;
             for (int tick = 0; tick < 16000; tick++)
             {
+                if (queuedMove && !automaticDuel)
+                {
+                    provider.SetProcessButtons(0);
+                }
                 if (provider.DuelProcess is { Phase: BattleNativeDuelPhase.Ready })
                 {
                     inputSeen = true;
@@ -458,8 +465,9 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
                     {
                         provider.SetProcessButtons((pulse & 1) == 0 ? move.Buttons[pulse / 2] : (ushort)0);
                         pulse++;
-                        if (pulse >= 2 * move.Buttons.Length)
+                        if (pulse >= 2 * move.Buttons.Length - 1)
                         {
+                            submittedRecipes++;
                             queuedMove = true;
                             desiredRecipeSubmitted = duelAction is null || duelAction == move.ActionId;
                         }
@@ -490,6 +498,11 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
                 }
                 host.Advance(waitForCommand: true);
                 Assert.True(host.GuestAbilityFailure is null, host.GuestAbilityFailure?.Reason);
+                Assert.True(provider.ProcessFailure is null, provider.ProcessFailure);
+                if (provider.Invocation is { GuestAbility: >= 0xF100 and <= 0xF105 } duelInvocation)
+                {
+                    ordinaryDuelInvocations.Add((duelInvocation.GuestAbility, duelInvocation.StartedAt));
+                }
                 began |= provider.ProcessActive;
                 if (provider.DuelProcess is { } timer)
                 {
@@ -518,9 +531,19 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
             Assert.True(began);
             if (duelAction is byte expectedMove)
             {
-                Assert.Contains((ushort)(((expectedMove >= 6 ? 239 : 241) << 8) | expectedMove), seenPhases);
+                ushort expectedAbility = (ushort)(((expectedMove >= 6 ? 239 : 241) << 8) | expectedMove);
+                Assert.Contains(expectedAbility, seenPhases);
+                if (expectedMove == NativeBattleDuelRules.ActionId(kit.Limit, NativeBattleDuelRules.InitialMoveSet(kit.Limit, crisis)))
+                {
+                    Assert.True(ordinaryDuelInvocations.Count(invocation => invocation.Ability == expectedAbility) >= 2, "The requested input move must execute after its independent native opening phase.");
+                }
             }
             Assert.True(inputSeen || command == 19);
+            if (command == 11 && !automaticDuel && duelAction is null)
+            {
+                Assert.Equal(1, submittedRecipes);
+                Assert.Equal(2, ordinaryDuelInvocations.Count);
+            }
             Assert.True(completedPhases > 0);
             Assert.False(provider.ProcessActive, $"Native Limit still owns its turn: Duel {provider.DuelProcess?.Phase} timer {provider.DuelProcess?.RemainingTimer}/{initialDuelTimer}; Shot {provider.ShotProcess?.Phase}; invocation {provider.Invocation}.");
             Assert.Null(provider.Invocation);
@@ -532,11 +555,11 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
             OpenNativeSelection();
             AdvanceToNativeInput();
             Assert.IsType<NativeBattleEffectPresentation>(PresentedProcess()?.Presentation.Effect);
-            int beforeAmmo = provider.Capture().Items!.Slots.Single(item => item.ItemId == 101).Count;
+            int beforeAmmo = ProcessItems.Slots.Single(item => item.ItemId == 101).Count;
             if (acceptedShot)
             {
                 provider.TriggerProcessShot();
-                Assert.Equal(beforeAmmo - 1, provider.Capture().Items!.Slots.Single(item => item.ItemId == 101).Count);
+                Assert.Equal(beforeAmmo - 1, ProcessItems.Slots.Single(item => item.ItemId == 101).Count);
             }
             Ff7BattleSnapshot state = host.Capture();
             state = state with
@@ -574,8 +597,8 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
             if (acceptedShot)
             {
                 Assert.DoesNotContain((ushort)0xED00, phases);
-                Assert.Equal(beforeAmmo - 1, provider.Capture().Items!.Slots.Single(item => item.ItemId == 101).Count);
-                Assert.Single(provider.Capture().Items!.Ledger, debit => !debit.Refunded && debit.Selection.ItemId == 101);
+                Assert.Equal(beforeAmmo - 1, ProcessItems.Slots.Single(item => item.ItemId == 101).Count);
+                Assert.Single(ProcessItems.Ledger, debit => !debit.Refunded && debit.Selection.ItemId == 101);
             }
 
             CrossoverGuestFireHostState? PresentedProcess() => (CrossoverGuestFireHostState?)typeof(CrossoverGuestHostActions).GetProperty("PresentedFire", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(provider);
@@ -672,7 +695,8 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
                 {
                     continue;
                 }
-                foreach (BattleNativeDuelChoice choice in NativeBattleDuelRules.Choices(kit.Limit, state.MoveSet, learned.DuelFlags, assets.NativeActions))
+                IReadOnlyList<BattleNativeDuelChoice> choices = NativeBattleDuelRules.Choices(kit.Limit, state.MoveSet, learned.DuelFlags, assets.NativeActions);
+                foreach (BattleNativeDuelChoice choice in choices.Where(choice => DuelRecipeIsSelectable(choices, choice)))
                 {
                     BattleNativeDuelChoice first = state.First ?? choice;
                     if (choice.ActionId == desired)
@@ -686,6 +710,23 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
                 }
             }
             throw new InvalidDataException($"No native Duel recipe route reaches source action {desired}.");
+        }
+
+        private static bool DuelRecipeIsSelectable(IReadOnlyList<BattleNativeDuelChoice> choices, BattleNativeDuelChoice selected)
+        {
+            ImmutableArray<ushort> ring = ImmutableArray.Create<ushort>(0, 0, 0, 0, 0, 0, 0, 0);
+            byte cursor = 0;
+            for (int index = 0; index < selected.Buttons.Length; index++)
+            {
+                cursor = (byte)((cursor + 1) & 7);
+                ring = ring.SetItem(cursor, selected.Buttons[index]);
+                BattleNativeDuelChoice? matched = choices.FirstOrDefault(choice => NativeBattleDuelRules.Matches(choice, ring, cursor));
+                if (matched is not null)
+                {
+                    return index == selected.Buttons.Length - 1 && matched.MoveSetId == selected.MoveSetId;
+                }
+            }
+            return false;
         }
 
         private Ff7BattleSession Create(Ff7BattleSnapshot? saved = null) => new(formation, progress, kernel, executable.NativeMateriaStatModifiers, 1, requestFlags: 4, snapshot: saved, animations: animations);

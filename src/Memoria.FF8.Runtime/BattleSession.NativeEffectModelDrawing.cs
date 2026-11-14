@@ -6,6 +6,10 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsState DrawNativeEffectModelContext92(NativeBattleGraphicsState graphics, int index, NativeBattleActionMatrix matrix, NativeBattleVector pivot, NativeBattleCameraProjection projection, int shadowTableBase, byte shadowDepthShift, byte bodyDepthShift = 4, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
+        if (ReadNativeGraphicsForeignModel(graphics, index) is { } foreign)
+        {
+            return DrawNativeForeignEffectModel5099D0(graphics, index, foreign, matrix, projection, shadowTableBase, shadowDepthShift, bodyDepthShift, null, null, true, pilotIdentity, false, true);
+        }
         NativeBattleFileStaging staging = NativeFileStaging ?? throw new NotSupportedException("Native effect model context requires its retained physical temporary memory.");
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(staging, 92);
         staging = allocation.Staging;

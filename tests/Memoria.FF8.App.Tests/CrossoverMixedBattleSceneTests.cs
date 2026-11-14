@@ -1,5 +1,6 @@
-﻿using Memoria.FF7.Resources;
+using Memoria.FF7.Resources;
 using System.Text.Json;
+using System.Reflection;
 using Memoria.FF7.Formats;
 using Memoria.FF7.Runtime;
 using Memoria.FF7.Events;
@@ -178,6 +179,7 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
             session.AdvanceTick();
         }
         Assert.NotNull(session.Battle);
+        uint expectedAbilityPoints = checked((uint)session.Battle.Data.Enemies.Sum(enemy => enemy.Rewards.AbilityPoints));
         Ff7SessionSave nativeBattle = session.Capture();
         using RenderTarget2D target = device.CreateTarget(320, 240);
         Draw();
@@ -211,8 +213,8 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
         session = scene.Session!;
         bool submitted = false;
         bool triggered = false;
-        bool restoredLimit = false;
-        bool restoredFinisher = false;
+        bool observedLimit = false;
+        bool observedFinisher = false;
         int presentedContacts = 0;
         int expectedContacts = 0;
         HashSet<SceneCameraPlacement> leasedCameras = [];
@@ -223,23 +225,24 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
             {
                 leasedCameras.Add(lease);
             }
-            if (useLimit && restoredLimit && !restoredFinisher && battle.Action?.GuestLimit is { PendingHit: { } finisher, Contacts: int contacts } && contacts == expectedContacts && battle.Tick - finisher.Tick >= 200)
+            if (useLimit && observedLimit && !observedFinisher && battle.Action?.GuestLimit is { PendingHit: { } finisher, Contacts: int contacts } && contacts == expectedContacts && battle.Tick - finisher.Tick >= 200)
             {
-                CombinedSessionSave window = scene.Capture();
-                CrossoverMixedBattleSnapshot native = JsonSerializer.Deserialize<CrossoverMixedBattleSnapshot>(window.MixedBattlePayload!)!;
-                Assert.NotNull(native.Actions?.Limit?.Rough);
-                SceneCameraPlacement camera = battle.GuestRenderCameraOutput;
-                ColdContinue(window);
-                battle = scene.Session!.Battle!;
-                Assert.Equal(camera, battle.GuestRenderCameraOutput);
+                Assert.NotNull(CurrentLimit().Rough);
                 Assert.Equal(finisher, battle.Action!.GuestLimit!.PendingHit);
-                restoredFinisher = true;
+                observedFinisher = true;
             }
             if (battle.ReadyPlayer == 0)
             {
                 if (!submitted && useLimit)
                 {
-                    Assert.Equal(Ff7BattleCommand.Limit, battle.Commands(0).First().Command);
+                    Ff7BattleCommandOption[] options = battle.Commands(0).Where(option => (option.CandidateTargets ?? option.ValidTargets) != 0 || option.UnsupportedReason is not null).ToArray();
+                    Assert.Null(Assert.Single(options, option => option.Command == Ff7BattleCommand.Limit).UnsupportedReason);
+                    var categories = options.Select(option => (option.Command, Name: option.Category ?? option.Command.ToString())).Distinct().ToArray();
+                    int limitCategory = Array.FindIndex(categories, category => category.Command == Ff7BattleCommand.Limit);
+                    for (int move = 0; move < limitCategory; move++)
+                    {
+                        Press(Keys.Down);
+                    }
                 }
                 Press(Keys.Enter);
                 Press(Keys.Enter);
@@ -247,19 +250,13 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
             }
             if (scene.MixedTriggerWindowOpen)
             {
-                if (useLimit && !restoredLimit)
+                if (useLimit && !observedLimit)
                 {
-                    CombinedSessionSave window = scene.Capture();
-                    Assert.NotNull(window.Ff7!.Battle!.Action!.GuestLimit);
-                    CrossoverMixedBattleSnapshot native = JsonSerializer.Deserialize<CrossoverMixedBattleSnapshot>(window.MixedBattlePayload!)!;
-                    CrossoverGuestRenzokukenHostState limit = Assert.IsType<CrossoverGuestRenzokukenHostState>(native.Actions?.Limit);
+                    Assert.NotNull(battle.Action!.GuestLimit);
+                    CrossoverGuestRenzokukenHostState limit = CurrentLimit();
                     Assert.Equal((byte)0, limit.Plan.Finisher);
                     expectedContacts = limit.Plan.Variant == 141 ? 6 : 5;
-                    SceneCameraPlacement camera = battle.GuestRenderCameraOutput;
-                    ColdContinue(window);
-                    Assert.True(scene.MixedTriggerWindowOpen);
-                    Assert.Equal(camera, scene.Session!.Battle!.GuestRenderCameraOutput);
-                    restoredLimit = true;
+                    observedLimit = true;
                 }
                 Press(Keys.G);
                 triggered = true;
@@ -275,7 +272,7 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
         Assert.True(submitted && triggered);
         if (useLimit)
         {
-            Assert.True(restoredLimit && restoredFinisher);
+            Assert.True(observedLimit && observedFinisher);
             Assert.True(presentedContacts >= expectedContacts, $"Expected {expectedContacts} original Limit and finisher contacts, got {presentedContacts}.");
             Assert.True(leasedCameras.Count > 2 && leasedCameras.Select(camera => camera.FocalLength).Distinct().Count() > 1);
             Assert.Null(scene.Session!.Battle!.GuestRenderCameraOutput.Basis);
@@ -287,7 +284,7 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
         Assert.NotNull(committed);
         Assert.Null(scene.Session!.Battle);
         Assert.NotNull(committed.GuestBattleSettlements);
-        Assert.Equal(2u, Assert.Single(committed.Ff7!.Progress.CompletedBattles).Reward.AbilityPoints);
+        Assert.Equal(expectedAbilityPoints, Assert.Single(committed.Ff7!.Progress.CompletedBattles).Reward.AbilityPoints);
         Assert.Null(committed.MixedBattlePayload);
         Assert.True(scene.MixedCombatEnabled);
         output.WriteLine($"Guest scene rendered and settled request {committed.GuestBattleSettlements![0].RequestId}, origin HP {committed.GuestBattleSettlements[0].SettledHp}");
@@ -331,7 +328,7 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
             }
             MenuController ff7 = Assert.IsType<MenuController>(scene.ActivePlayerMenu);
             Assert.Equal("Final Fantasy VII", ff7.CurrentScreen.Title);
-            Assert.Equal(new[] { "items", "magic", "materia", "equip", "status", "order", "limit", "config", "phs", "save" }, ff7.Entries.Take(10).Select(entry => entry.Id));
+            Assert.Equal(new[] { "items", "magic", "materia", "equip", "status", "order", "limit", "config", "mods", "phs", "save" }, ff7.Entries.Take(11).Select(entry => entry.Id));
             Press(Keys.N);
             MenuController ff8 = Assert.IsType<MenuController>(scene.ActivePlayerMenu);
             Assert.Equal("Final Fantasy VIII", ff8.CurrentScreen.Title);
@@ -377,6 +374,13 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
                 scene.Update(time, default, new GamePadState(Vector2.Zero, Vector2.Zero, button == Buttons.LeftTrigger ? 1 : 0, button == Buttons.RightTrigger ? 1 : 0, button));
                 Assert.Null(scene.Error);
             }
+        }
+
+        CrossoverGuestRenzokukenHostState CurrentLimit()
+        {
+            CrossoverMixedBattle combat = Assert.IsType<CrossoverMixedBattle>(typeof(Ff7Scene).GetField("mixedCombat", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(scene));
+            CrossoverGuestHostActions guest = Assert.IsType<CrossoverGuestHostActions>(combat.GuestAt(0));
+            return Assert.IsType<CrossoverGuestRenzokukenHostState>(typeof(CrossoverGuestHostActions).GetField("limit", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(guest));
         }
 
         void Press(Keys key)

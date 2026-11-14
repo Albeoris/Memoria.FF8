@@ -28,11 +28,31 @@ public sealed class NativeBattlePcLinearVramAddressTests
     }
 
     [Fact]
-    public void Direct_PC_texture_pointer_uses_linear_row_stride_at_the_right_edge_and_rejects_the_actual_end()
+    public void Direct_PC_texture_pointer_uses_linear_row_stride_and_the_actual_retained_trailing_owner()
     {
         NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = [new(2 * 1024, [31, 0])] };
         PixelImage image = NativeBattleEffectTextureReader.DecodePcRegion(state, 0x10F, 0, 64, 0, 1, 1, directTextureFormat: NativeBattlePcDirectTextureFormat.Rgb555);
         Assert.Equal(new Rgba32(255, 0, 0, 255), image[0, 0]);
-        Assert.Throws<InvalidDataException>(() => NativeBattleEffectTextureReader.DecodePcRegion(state, 0x11F, 0, 64, 255, 1, 1, directTextureFormat: NativeBattlePcDirectTextureFormat.Rgb555));
+        state = state with { VramReadTail = state.VramReadTail!.Value.SetItem(0, 31) };
+        Assert.Equal(image[0, 0], NativeBattleEffectTextureReader.DecodePcRegion(state, 0x11F, 0, 64, 255, 1, 1, directTextureFormat: NativeBattlePcDirectTextureFormat.Rgb555)[0, 0]);
+        Assert.Throws<NotSupportedException>(() => NativeBattleEffectTextureReader.DecodePcRegion(state with { VramReadTail = null }, 0x11F, 0, 64, 255, 1, 1, directTextureFormat: NativeBattlePcDirectTextureFormat.Rgb555));
+        Assert.Throws<InvalidDataException>(() => NativeBattlePcTextureWindowPixels.ReadSourceWord(state, 1024 + NativeBattleEffectTextureState.PcPageReadTailLength / 2, 511));
+    }
+
+    [Fact]
+    public void Original_page_011D_scalar_decode_matches_cached_capture_and_tracks_changed_tail_words()
+    {
+        NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess();
+        state = state with { VramReadTail = state.VramReadTail!.Value.SetItem(0, 31).SetItem(127, 0x7C) };
+        NativeBattlePcTextureWindowPixels captured = NativeBattlePcTextureWindowPixels.Capture(64 + 29, new(0, 0, 256, 256), state);
+        PixelImage image = NativeBattleEffectTextureReader.DecodePcRegion(state, 0x11D, 0, 0, 0, 256, 256, directTextureFormat: NativeBattlePcDirectTextureFormat.Rgb555);
+        PixelImage cached = NativeBattleEffectTextureReader.DecodePcRegion(state, 0x11D, 0, 0, 0, 256, 256, directTextureFormat: NativeBattlePcDirectTextureFormat.Rgb555, pixelWords: captured);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), image[192, 255]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), image[255, 255]);
+        Assert.Equal(image.Pixels, cached.Pixels);
+        Assert.True(NativeBattleEffectTextureReader.HasSamePcRegionSource(state, state, 0x11D, 0, 0, 0, 256, 256));
+        NativeBattleEffectTextureState changed = state with { VramReadTail = state.VramReadTail!.Value.SetItem(0, 0xE0).SetItem(1, 3) };
+        Assert.False(NativeBattleEffectTextureReader.HasSamePcRegionSource(state, changed, 0x11D, 0, 0, 0, 256, 256));
+        Assert.Throws<NotSupportedException>(() => NativeBattleEffectTextureReader.HasSamePcRegionSource(state, state with { VramReadTail = null }, 0x11D, 0, 0, 0, 256, 256));
     }
 }

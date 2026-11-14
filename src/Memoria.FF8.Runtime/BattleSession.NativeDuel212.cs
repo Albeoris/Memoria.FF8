@@ -40,7 +40,7 @@ public sealed partial class BattleSession
         NativeBattleDuel212TargetServices actors = null!;
         NativeBattleDuel212Inputs drawing = new(view, Execute);
         preparation = new(index => graphics.Models[index], WriteModel, Anchor, targets, Capture, Bind, Select);
-        actors = new(index => graphics.Models[index], WriteModel, Bounds, index => (NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Burning Rave requires its current body skeleton.")).BoneCount, (index, bone, fraction) => ReadNativeGraphicsBone(graphics, index, bone, fraction), Body);
+        actors = new(index => graphics.Models[index], WriteModel, Bounds, index => ReadNativeGraphicsBoneCount(graphics, index), (index, bone, fraction) => ReadNativeGraphicsBone(graphics, index, bone, fraction), Body);
         NativeBattleDuel212SceneInputs scene = new(drawing, (index, bone, fraction) => ReadNativeGraphicsBone(graphics, index, bone, fraction), Anchor);
         frame = NativeBattleDuel212Controller.AdvanceRoot(frame, drawing, Child, ReloadComplete);
         Publish(frame);
@@ -51,6 +51,10 @@ public sealed partial class BattleSession
         NativeBattleModuleAnchor Anchor(int index) => ReadNativeModelAnchor(graphics, index) with { W = (graphics.Models[index].Transform ?? throw new NotSupportedException("Native571400 requires the actual model WORD36.")).Angle36 };
         (short Maximum, short Minimum) Bounds(int index)
         {
+            if (ReadNativeGraphicsForeignModel(graphics, index) is { } foreign)
+            {
+                return NativeBattleForeignModelDrawing.VertexBounds(foreign, point => NativeBattleGfMatrices.Transform460840(foreign.World, point).Y);
+            }
             NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
             return NativeBattleDiablos325Recipients.Bounds6DFD90(graphics.Models[index], resource.PoseSource ?? throw new NotSupportedException("Native6DFD90 requires its original skeleton."), DiablosActorGeometry(resource, graphics.Models[index]));
         }

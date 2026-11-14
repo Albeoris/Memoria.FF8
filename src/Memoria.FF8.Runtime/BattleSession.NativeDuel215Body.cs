@@ -4,6 +4,11 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsState DrawNativeDuel215Body69D100(NativeBattleGraphicsState graphics, int index, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
+        if (ReadNativeGraphicsForeignModel(graphics, index) is { } foreign)
+        {
+            NativeBattleActionMatrix basis = NativeBattleGfMatrices.Compose56C2F0(view, foreign.World);
+            return DrawNativeForeignEffectModel5099D0(graphics, index, foreign, basis, projection, 33, 6, 6, null, null, true, pilotIdentity, false, true);
+        }
         NativeBattleFileStaging staging = NativeFileStaging ?? throw new NotSupportedException("Native Duel215 body requires its physical temporary owner.");
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(staging, 76);
         staging = allocation.Staging;
