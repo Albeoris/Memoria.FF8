@@ -156,6 +156,31 @@ public sealed class Ff7KnownFieldPoseTests
         Assert.Throws<NotSupportedException>(() => original.ReadNativeBoneRotation(1, 21, 1));
     }
 
+    [Fact]
+    public void InstalledScarletMeetingMotionPreservesOriginalBodyAndSkirtLocals()
+    {
+        Ff7Installation installation = Installed();
+        Ff7FieldResources field = Ff7FieldResources.Load(installation, "blin66_1");
+        PcFieldModelDescriptor descriptor = field.Models.Models.First(model => model.Hrc.Equals("AMCC.HRC", StringComparison.OrdinalIgnoreCase));
+        using LgpArchive archive = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.CharacterArchive).Path);
+        Ff7FieldModelResources model = Ff7FieldModelResources.Load(archive, descriptor);
+        PcFieldAnimation original = PcFieldAnimation.Read(archive.ReadEntry(archive.Find("avfd.a").Single()));
+        PcFieldAnimation motion = model.Animations["avfd.a"];
+        PcFieldAnimation idle = model.Animations["anae.a"];
+        Assert.Equal(29, motion.BoneCount);
+        Assert.Equal(20, motion.Frames.Count);
+        int[] skirt = [17, 18, 19, 20, 25, 26, 27, 28];
+        for (int frame = 0; frame < motion.Frames.Count; frame++)
+        {
+            Assert.Equal(original.Frames[frame].RootRotation, motion.Frames[frame].RootRotation);
+            Assert.Equal(original.Frames[frame].RootTranslation, motion.Frames[frame].RootTranslation);
+            Assert.Equal(skirt.Select(index => idle.Frames[0].BoneRotations[index]), skirt.Select(index => motion.Frames[frame].BoneRotations[index]));
+            Assert.Equal(original.Frames[frame].BoneRotations, motion.Frames[frame].BoneRotations.Where((_, index) => !skirt.Contains(index)));
+            Assert.Equal(29, Ff7FieldRenderer.Pose(model, motion, frame).Count);
+        }
+        Assert.Throws<NotSupportedException>(() => original.ReadNativeBoneRotation(19, 21, 1));
+    }
+
     private sealed class Capture : ITriangleRenderer
     {
         public List<Vector2> Positions { get; } = [];

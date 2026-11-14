@@ -45,6 +45,10 @@ public sealed record Ff7FieldModelResources(string HrcName, HrcHierarchy Hierarc
             {
                 animation = Ff7KnownFieldPoseBinding.BindShinraWomanIdle(animation, animationBytes, hierarchy, hierarchyBytes, Read(characters, "edjd.hrc"));
             }
+            if (name.Equals("avfd.a", StringComparison.OrdinalIgnoreCase) && hrcName.Equals("amcc.hrc", StringComparison.OrdinalIgnoreCase))
+            {
+                animation = Ff7KnownFieldPoseBinding.BindScarletSeatedMotion(animation, animationBytes, hierarchy, hierarchyBytes, Read(characters, "aaaa.hrc"), Read(characters, "anae.a"));
+            }
             animations.TryAdd(name, animation);
         }
         Ff7KnownFieldPoseBinding? poseBinding = null;

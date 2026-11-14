@@ -112,10 +112,29 @@ public sealed class Ff7KnownFieldPoseBinding
         {
             return motion;
         }
-        HrcHierarchy source = HrcHierarchy.Read(sourceBytes);
-        if (source.Bones.Count != motion.BoneCount || target.Bones.Count != source.Bones.Count + 2)
+        return BindBodyChannels(motion, HrcHierarchy.Read(sourceBytes), target, ["none1", "hair"], null);
+    }
+
+    internal static PcFieldAnimation BindScarletSeatedMotion(PcFieldAnimation motion, ReadOnlySpan<byte> motionBytes, HrcHierarchy target, ReadOnlySpan<byte> hierarchyBytes, ReadOnlySpan<byte> sourceBytes, ReadOnlySpan<byte> idleBytes)
+    {
+        // TODO(TD-030): Preserve original Scarlet skirt locals where the shared body clip has no channels.
+        if (!Matches(motionBytes, "F849D21B15B0C4BC3F2DB28F4160814C99BB4E470CD87F2C5AA621A2830A19D9") || !Matches(hierarchyBytes, "99DD7CCA96CCE1FB4A65023422A94EE2AE3CE7BB1D2414FD122E63D8F43E8C3E") || !Matches(sourceBytes, "0D68FC022A40BFE2B05775FC1CEC8A7B5FE1EFCF7D0EEFAE02889AC7B97A1452") || !Matches(idleBytes, "AFAF602685706026DA7CA67220E997BDC90684824D962639545DFFF6EBC12D74"))
         {
-            throw new InvalidDataException("The original Shinra woman idle has inconsistent rig dimensions.");
+            return motion;
+        }
+        PcFieldAnimation idle = PcFieldAnimation.Read(idleBytes);
+        if (idle.BoneCount != target.Bones.Count || idle.Frames.Count != 1 || idle.RotationOrder != motion.RotationOrder)
+        {
+            throw new InvalidDataException("The original Scarlet idle does not match its rig.");
+        }
+        return BindBodyChannels(motion, HrcHierarchy.Read(sourceBytes), target, ["l_f_s1", "l_f_s2", "l_r_s1", "l_r_s2", "r_f_s1", "r_f_s2", "r_r_s1", "r_r_s2"], idle.Frames[0].BoneRotations);
+    }
+
+    private static PcFieldAnimation BindBodyChannels(PcFieldAnimation motion, HrcHierarchy source, HrcHierarchy target, string[] extras, IReadOnlyList<Vector3>? rest)
+    {
+        if (source.Bones.Count != motion.BoneCount || target.Bones.Count != source.Bones.Count + extras.Length)
+        {
+            throw new InvalidDataException("The original field pose has inconsistent rig dimensions.");
         }
         Dictionary<string, HrcBone> body = source.Bones.ToDictionary(bone => bone.Name, StringComparer.OrdinalIgnoreCase);
         int[] channels = new int[target.Bones.Count];
@@ -125,16 +144,16 @@ public sealed class Ff7KnownFieldPoseBinding
             {
                 channels[bone.Index] = original.Index;
             }
-            else if (bone is { Name: "none1", ParentName: "head" } or { Name: "hair", ParentName: "none1" })
+            else if (extras.Contains(bone.Name))
             {
                 channels[bone.Index] = -1;
             }
             else
             {
-                throw new InvalidDataException("The original Shinra woman idle has an unknown joint binding.");
+                throw new InvalidDataException("The original field pose has an unknown joint binding.");
             }
         }
-        return motion.BindBoneRotations(motion.Frames.Select(frame => (IReadOnlyList<Vector3>)channels.Select(channel => channel < 0 ? Vector3.Zero : frame.BoneRotations[channel]).ToArray()).ToArray());
+        return motion.BindBoneRotations(motion.Frames.Select(frame => (IReadOnlyList<Vector3>)channels.Select((channel, targetIndex) => channel < 0 ? rest?[targetIndex] ?? Vector3.Zero : frame.BoneRotations[channel]).ToArray()).ToArray());
     }
 
     private static bool Matches(ReadOnlySpan<byte> bytes, string expected) => Convert.ToHexString(SHA256.HashData(bytes)).Equals(expected, StringComparison.Ordinal);
