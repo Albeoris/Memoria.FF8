@@ -152,6 +152,12 @@ if (args.Contains("--world-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--flashback-party-only", StringComparer.Ordinal))
+{
+    FlashbackPartyTests.Run();
+    return 0;
+}
+
 if (args.Contains("--world-battle-only", StringComparer.Ordinal))
 {
     WorldBattleTests.Run();
@@ -368,6 +374,7 @@ var tests = new (string Name, Action Run)[]
     ("installed Hammer Blaster support-model packed frames", NativeBattleTests.RunHammerBlasterClips),
     ("native opening enemy command banks and Grasslands continuation", EnemyCommandBankTests.Run),
     ("native opening combat damage", NativeBattleDamageTests.Run),
+    ("native opening flashback party storage and equipment", FlashbackPartyTests.Run),
     ("native opening action transactions and Limit reel", NativeBattleActionTests.Run),
     ("native Cross-slash action and settlement", NativeBattleCrossSlashTests.Run),
     ("native Mindblow action and settlement", NativeBattleMindblowTests.Run),

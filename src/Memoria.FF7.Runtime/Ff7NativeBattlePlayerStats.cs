@@ -25,16 +25,31 @@ public static class Ff7NativeBattlePlayerStats
         {
             throw new InvalidDataException("FFVII player damage statistics reference absent equipment.");
         }
-        if (record[30] != byte.MaxValue)
-        {
-            throw new NotSupportedException($"FFVII battle accessory {record[30]} has no supported equipment effects.");
-        }
-
         ReadOnlySpan<byte> weapon = kernel[5].Data.Span.Slice(record[28] * 44, 44);
         ReadOnlySpan<byte> armor = kernel[6].Data.Span.Slice(record[29] * 36, 36);
         Span<byte> equipmentBonuses = stackalloc byte[6];
         AddGearBonuses(equipmentBonuses, weapon[20..]);
         AddGearBonuses(equipmentBonuses, armor[24..]);
+        if (record[30] != byte.MaxValue)
+        {
+            if (kernel[7].Data.Length != 32 * 16 || record[30] >= 32)
+            {
+                throw new InvalidDataException("FFVII player damage statistics reference an absent accessory record.");
+            }
+            ReadOnlySpan<byte> accessory = kernel[7].Data.Span.Slice(record[30] * 16, 16);
+            if (accessory[4] != byte.MaxValue || BinaryPrimitives.ReadUInt32LittleEndian(accessory[8..]) != 0 || accessory[5] != byte.MaxValue)
+            {
+                throw new NotSupportedException($"FFVII battle accessory {record[30]} requires its native affinity, status or special-effect consumer.");
+            }
+            for (int index = 0; index < 2; index++)
+            {
+                int stat = accessory[index];
+                if (stat < equipmentBonuses.Length)
+                {
+                    equipmentBonuses[stat] = unchecked((byte)(equipmentBonuses[stat] + accessory[2 + index]));
+                }
+            }
+        }
 
         Span<short> equippedBonuses = stackalloc short[6];
         ReadOnlySpan<byte> materia = kernel[8].Data.Span;

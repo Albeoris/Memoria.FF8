@@ -59,7 +59,7 @@ internal sealed partial class Ff7Scene
     {
         Ff7Session session = Session ?? throw new InvalidOperationException("Enemy levels require an active FFVII party.");
         Dictionary<int, int> guests = mixedFieldVitals?.ReadAll().ToDictionary(guest => guest.StoryCharacter, guest => guest.Level) ?? [];
-        return session.Progress.Party.Where(id => id != 255).Select(id => checked((byte)(guests.TryGetValue(id, out int level) ? level : session.Progress.Characters.Single(character => character.Id == id).Level))).ToArray();
+        return session.Progress.Party.Where(id => id != 255).Select(id => checked((byte)(guests.TryGetValue(id, out int level) ? level : session.Progress.Characters.Single(character => character.Id == Ff7NativeCharacterIdentity.RecordId(id)).Level))).ToArray();
     }
 
     private void PumpEnemyIntegration()

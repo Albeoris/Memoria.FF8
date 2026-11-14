@@ -156,7 +156,7 @@ public sealed partial class Ff7BattleSession
     {
         Formation = formation;
         SceneBattleData nativeData = SceneBattleData.Read(formation);
-        Ff7ResolvedEnemyExtension[] resolvedExtensions = snapshot is null ? ResolveEnemyExtensions(nativeData, enemyExtensions, enemyExtensionPartyLevels ?? progress.Party.Where(id => id != 255).Select(id => (byte)progress.Characters.Single(c => c.Id == id).Level).ToArray()) : snapshot.EnemyExtensions ?? [];
+        Ff7ResolvedEnemyExtension[] resolvedExtensions = snapshot is null ? ResolveEnemyExtensions(nativeData, enemyExtensions, enemyExtensionPartyLevels ?? progress.Party.Where(id => id != 255).Select(id => (byte)progress.Characters.Single(c => c.Id == Ff7NativeCharacterIdentity.RecordId(id)).Level).ToArray()) : snapshot.EnemyExtensions ?? [];
         Data = ApplyEnemyExtensions(nativeData, resolvedExtensions);
         Formation = formation with { EnemyRewards = formation.EnemyRewards.Select(reward => Data.Enemies.FirstOrDefault(e => e.Placement.EnemyId == reward.EnemyId)?.Rewards ?? reward).ToArray() };
         this.kernel = kernel;
@@ -178,7 +178,7 @@ public sealed partial class Ff7BattleSession
             {
                 continue;
             }
-            Ff7CharacterState character = progress.Characters.Single(character => character.Id == id);
+            Ff7CharacterState character = progress.Characters.Single(character => character.Id == Ff7NativeCharacterIdentity.RecordId(id));
             Ff7BattlePlayerStats stats = Ff7NativeBattlePlayerStats.Create(character, kernel, materiaModifiers);
             characters[slot] = character;
             party[slot] = stats;

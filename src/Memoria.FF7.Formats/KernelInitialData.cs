@@ -39,9 +39,9 @@ public sealed record KernelInitialData(ReadOnlyMemory<byte> NativeData, IReadOnl
         }
         cursor.Seek(0x4A4);
         byte[] party = cursor.Take(3).ToArray();
-        if (party.Any(id => id != 255 && id >= 9))
+        if (party.Any(id => id != 255 && id > 10))
         {
-            throw new InvalidDataException("FF7 initial party contains an unsupported character ID.");
+            throw new InvalidDataException("FF7 native party contains an unsupported character ID.");
         }
         cursor.Seek(0x4A8);
         KernelInventorySlot[] inventory = new KernelInventorySlot[320];

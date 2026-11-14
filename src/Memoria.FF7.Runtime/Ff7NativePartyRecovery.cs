@@ -16,7 +16,7 @@ public static class Ff7NativePartyRecovery
         Ff7PartyRecoveryResult prepared = Publish(progress, materiaRecords, statModifiers);
         Ff7CharacterState[] characters = prepared.Progress.Characters.Select(character =>
         {
-            if (character.Id != characterId || !progress.Party.Contains(characterId))
+            if (character.Id != Ff7NativeCharacterIdentity.RecordId(characterId) || !progress.Party.Contains(characterId))
             {
                 return character;
             }
@@ -58,7 +58,7 @@ public static class Ff7NativePartyRecovery
         bool underwater = false;
         Ff7CharacterState[] characters = progress.Characters.Select(character =>
         {
-            if (!progress.Party.Contains(character.Id) || guestStoryCharacters?.Contains(character.Id) == true)
+            if (!Ff7NativeCharacterIdentity.IsPartyMember(progress.Party, character.Id) || guestStoryCharacters?.Contains(character.Id) == true)
             {
                 return character;
             }

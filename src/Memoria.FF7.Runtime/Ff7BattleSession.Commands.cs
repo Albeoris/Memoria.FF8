@@ -940,7 +940,7 @@ public sealed partial class Ff7BattleSession
         foreach (Ff7BattleActorState actor in state.Actors.Where(actor => actor.Actor.Slot < 3 && !IsGuestVitalsSlot(actor.Actor.Slot)))
         {
             Ff7BattleAiActor native = actor.Actor;
-            int index = Array.FindIndex(updated, character => character.Id == actor.Identity);
+            int index = Array.FindIndex(updated, character => character.Id == Ff7NativeCharacterIdentity.RecordId(actor.Identity));
             Ff7CharacterState original = updated[index];
             byte[] record = (byte[])original.NativeRecord.Clone();
             record[15] = actor.LimitGauge;
