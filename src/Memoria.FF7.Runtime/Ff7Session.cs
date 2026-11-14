@@ -344,6 +344,7 @@ public sealed partial class Ff7Session : IDisposable
             ExternalCommand = ExecuteExternal,
             AdvanceDialogue = AdvanceDialogue
         };
+        ConfigureNativeWater(loadedHost, loadedField, loadedModels, map);
         loadedHost.ConfigureNativeSoundResources(ReadNativeSoundDescription, restoring: !enteringField);
         prepareHost?.Invoke(loadedHost);
         FieldMachine loadedMachine = new(FieldProgram.FromPcScripts(loadedField.Scripts), variables, host: loadedHost);

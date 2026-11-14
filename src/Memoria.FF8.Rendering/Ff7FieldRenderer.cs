@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Numerics;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF7.Formats;
@@ -20,7 +19,11 @@ public sealed record Ff7ActorVisual(int EntityId, int ModelIndex, int X4096, int
     public byte NativeEyeRight { get; init; }
     public Ff7ModelRenderOverrides? ModelEffects { get; init; }
 }
-public sealed record Ff7ModelRenderOverrides(Func<int, bool> PartVisible, Func<Vector3, Vector3, uint, uint>? VertexColor, bool SuppressNativeLighting, bool RequiresOriginalTopology = true);
+public sealed record Ff7ModelRenderOverrides(Func<int, bool> PartVisible, Func<Vector3, Vector3, uint, uint>? VertexColor, bool SuppressNativeLighting, bool RequiresOriginalTopology = true)
+{
+    public Func<int, int, uint, uint>? SourceVertexColor { get; init; }
+}
+public sealed record Ff7FieldWaterSplashVisual(int TextureIndex, Vector2 Position, float Depth, float HalfSize);
 public sealed record Ff7FieldPointerVisual(PixelImage Image, Vector2 Position, bool FlipHorizontal, bool FlipVertical);
 public sealed record Ff7FieldRenderFrame(int CameraIndex, Vector2 CameraOffsetPixels, IReadOnlyList<Ff7ActorVisual> Actors, IReadOnlyList<ushort> BackgroundParameters, bool MovieActive = false, PcFieldCamera? CameraOverride = null, bool DrawBackgroundDuringMovie = false, IReadOnlyList<ushort[]>? PaletteRows = null, long PaletteVersion = 0)
 {
@@ -36,6 +39,7 @@ public sealed record Ff7FieldRenderFrame(int CameraIndex, Vector2 CameraOffsetPi
     public uint? QuadColorArgb { get; init; }
     public TriangleBlend QuadBlend { get; init; } = TriangleBlend.Alpha;
     public Ff7FieldPointerVisual? PlayerPointer { get; init; }
+    public IReadOnlyList<Ff7FieldWaterSplashVisual> WaterSplashes { get; init; } = [];
 }
 
 public readonly record struct Ff7WorldVertex(Vector3 Position, Vector2 Uv, Vector4 Color)
@@ -54,11 +58,7 @@ public readonly record struct Ff7ProjectionDepth(float NearPlane, float FarPlane
 {
     public float Project(float cameraZ)
     {
-        if (!float.IsFinite(NearPlane) || !float.IsFinite(FarPlane) || NearPlane <= 0 || FarPlane <= NearPlane)
-        {
-            throw new InvalidDataException("FF7 rendering requires a finite admitted near/far projection contract.");
-        }
-        return FarPlane / (FarPlane - NearPlane) - FarPlane * NearPlane / ((FarPlane - NearPlane) * cameraZ);
+        return Ff7FieldProjectionMath.ProjectDepth(cameraZ, NearPlane, FarPlane);
     }
 
     public float ProjectBackground(ushort depth)
@@ -134,6 +134,7 @@ public sealed partial class Ff7FieldRenderer
             {
                 DrawActor(renderer, width, height, frame, actor, modelState);
             }
+            DrawWaterSplashes(renderer, width, height, frame, modelState);
             if (drawBackground)
             {
                 DrawBackground(renderer, width, height, frame, true);
@@ -170,12 +171,7 @@ public sealed partial class Ff7FieldRenderer
 
     public static Matrix4x4 ModelBasis(PcFieldModelDescriptor descriptor)
     {
-        float scale = float.Parse(descriptor.Scale, CultureInfo.InvariantCulture) / 4096 * 30.43090057373047f;
-        if (!float.IsFinite(scale) || scale <= 0)
-        {
-            throw new InvalidDataException("FFVII model scale must be finite and positive.");
-        }
-        return Matrix4x4.CreateRotationX(-MathF.PI / 2) * Matrix4x4.CreateScale(scale);
+        return Ff7NativeFieldPoseMath.ModelBasis(descriptor);
     }
 
     public static IReadOnlyList<Matrix4x4> Pose(Ff7FieldModelResources resources, PcFieldAnimation animation, int frameIndex, float nativeTranslationScale = float.NaN)
@@ -279,7 +275,7 @@ public sealed partial class Ff7FieldRenderer
         string animationName = Path.GetFileNameWithoutExtension(descriptor.Animations[actor.AnimationIndex]) + ".a";
         if (appearance is not null && appearance.TryCreate(actor, descriptor, resources, out IReadOnlyList<Ff7AppearanceTriangle> replacement))
         {
-            if (actor.ModelEffects is not null && (!appearance.SupportsPartVisibility || actor.ModelEffects.RequiresOriginalTopology && (actor.ModelEffects.VertexColor is not null || actor.ModelEffects.SuppressNativeLighting)))
+            if (actor.ModelEffects is not null && (!appearance.SupportsPartVisibility || actor.ModelEffects.RequiresOriginalTopology && (actor.ModelEffects.VertexColor is not null || actor.ModelEffects.SourceVertexColor is not null || actor.ModelEffects.SuppressNativeLighting)))
             {
                 throw new NotSupportedException("FFVII topology-owned model effects require an explicit replacement-appearance binding.");
             }
@@ -369,6 +365,10 @@ public sealed partial class Ff7FieldRenderer
                         {
                             originalColor = effectColor(model.Vertices[vertex], normalIndex >= 0 ? model.Normals[normalIndex] : Vector3.Zero, originalColor);
                         }
+                        if (actor.ModelEffects?.SourceVertexColor is { } sourceColor)
+                        {
+                            originalColor = sourceColor(partIndex, vertex, originalColor);
+                        }
                         Vector4 color = normalIndex >= 0 && actor.ModelEffects?.SuppressNativeLighting != true ? lighting.Shade(Vector3.TransformNormal(model.Normals[normalIndex], normalTransform), originalColor, frame.FieldColorArgb) : Tint(Color(originalColor), frame.FieldColorArgb);
                         color.W *= state.VertexAlpha / 255f;
                         return new(FieldPoint(new Vector2(position.X, position.Y), width, height), projection.Project(position.Z), 1 / position.Z, uv, color);
@@ -453,8 +453,7 @@ public sealed partial class Ff7FieldRenderer
 
     internal static Matrix4x4 Rotate(Vector3 degrees)
     {
-        Vector3 radians = degrees * (MathF.PI / 180);
-        return Matrix4x4.CreateRotationZ(radians.Z) * Matrix4x4.CreateRotationX(radians.X) * Matrix4x4.CreateRotationY(radians.Y);
+        return Ff7NativeFieldPoseMath.Rotate(degrees);
     }
 
     private static Vector4 Color(uint argb) => new((argb >> 16 & 255) / 255f, (argb >> 8 & 255) / 255f, (argb & 255) / 255f, (argb >> 24) / 255f);

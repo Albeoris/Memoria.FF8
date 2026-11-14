@@ -56,9 +56,17 @@ public static class Ff7NativeColorOffset
     public static uint Shade(Ff7NativeColorOffsetState state, uint original)
     {
         state.Validate();
-        uint red = (uint)Math.Clamp((int)((original >> 16) & 255) + state.Red, 0, 255);
-        uint green = (uint)Math.Clamp((int)((original >> 8) & 255) + state.Green, 0, 255);
-        uint blue = (uint)Math.Clamp((int)(original & 255) + state.Blue, 0, 255);
-        return (original & 0xFF000000) | (red << 16) | (green << 8) | blue;
+        return Shade(original, state.Red, state.Green, state.Blue);
+    }
+
+    public static uint Shade(uint original, short redOffset, short greenOffset, short blueOffset)
+    {
+        int packedRed = unchecked((int)(original & 0x00FF0000) + (redOffset << 16));
+        int packedGreen = unchecked((int)(original & 0x0000FF00) + (greenOffset << 8));
+        int packedBlue = unchecked((int)(original & 255) + blueOffset);
+        uint red = packedRed > 0x00FFFFFF ? 0x00FF0000u : packedRed < 0 ? 0 : (uint)packedRed & 0x00FF0000;
+        uint green = packedGreen > 0x0000FFFF ? 0x0000FF00u : packedGreen < 0 ? 0 : (uint)packedGreen & 0x0000FF00;
+        uint blue = packedBlue > 255 ? 255u : packedBlue < 0 ? 0 : (uint)packedBlue;
+        return (original & 0xFF000000) | red | green | blue;
     }
 }

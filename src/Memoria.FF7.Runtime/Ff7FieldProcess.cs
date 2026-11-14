@@ -135,6 +135,8 @@ public sealed record Ff7FieldProcess
     public Ff7Line[] Lines { get; init; } = [];
     public bool LineBlocked { get; init; }
     public Ff7Actor[] Actors { get; init; } = [];
+    public Ff7NativeWaterSplash[] NativeWaterSplashes { get; init; } = [];
+    public int NativeWaterSplashCursor { get; init; }
     public Ff7Window[] Windows { get; init; } = [];
     public Ff7Dialogue[] Dialogues { get; init; } = [];
     public Ff7HostReceipt[] Receipts { get; init; } = [];
@@ -223,6 +225,10 @@ public sealed record Ff7FieldProcess
 
     public void Validate()
     {
+        if (NativeWaterSplashCursor is < 0 or > 3 || NativeWaterSplashes is null || NativeWaterSplashes.Any(splash => splash is null || splash.ModelSlot < 0 || splash.BoneIndex < 0 || splash.TextureIndex is < 0 or > 3 || !float.IsFinite(splash.X) || !float.IsFinite(splash.Y) || !float.IsFinite(splash.Depth) || !float.IsFinite(splash.HalfSize) || splash.HalfSize <= 0))
+        {
+            throw new InvalidDataException("FFVII native water splash queues have invalid ownership, coordinates or texture selection.");
+        }
         CameraShakeX?.Validate();
         Menu?.Shop?.Validate();
         if (Menu is { Shop: { } shop } menu && (menu.Mode != 8 || shop.RequestId != menu.RequestId || shop.ShopId != menu.Parameter || menu.Completed != (shop.Phase == Ff7ShopPhase.Completed) || !menu.Completed && (GlobalCommand != Ff7GlobalCommand.Menu || GlobalRequestId != menu.RequestId) || GlobalCommand == Ff7GlobalCommand.Menu && GlobalRequestId != menu.RequestId))

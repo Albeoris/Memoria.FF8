@@ -4,6 +4,8 @@ namespace Memoria.FF7.Resources;
 
 public sealed record Ff7FieldResources(string Name, PcFieldFile Container, PcFieldScripts Scripts, PcFieldModels Models, IReadOnlyList<PcFieldCamera> Cameras, IReadOnlyList<PcWalkmeshTriangle> Walkmesh, PcFieldTriggers Triggers, PcFieldPalettes Palettes, PcFieldBackground Background)
 {
+    public IReadOnlyList<PcTexture> WaterSplashTextures { get; init; } = [];
+
     public static Ff7FieldResources Load(Ff7Installation installation, string fieldName)
     {
         ArgumentNullException.ThrowIfNull(installation);
@@ -20,6 +22,20 @@ public sealed record Ff7FieldResources(string Name, PcFieldFile Container, PcFie
             throw new InvalidDataException($"FF7 field '{fieldName}' resolves to {candidates.Count} archive members; exactly one is required.");
         }
         PcFieldFile file = PcFieldFile.ReadCompressed(archive.ReadEntry(candidates[0]));
-        return new Ff7FieldResources(fieldName, file, PcFieldScripts.Read(file.GetSection(PcFieldSectionKind.ScriptAndText).Span), PcFieldModels.Read(file.GetSection(PcFieldSectionKind.Models).Span), PcFieldCameras.Read(file.GetSection(PcFieldSectionKind.Camera).Span), PcFieldWalkmesh.Read(file.GetSection(PcFieldSectionKind.Walkmesh).Span), PcFieldTriggers.Read(file.GetSection(PcFieldSectionKind.TriggersAndGateways).Span), PcFieldPalettes.Read(file.GetSection(PcFieldSectionKind.Palettes).Span), PcFieldBackground.Read(file.GetSection(PcFieldSectionKind.Background).Span));
+        return new Ff7FieldResources(fieldName, file, PcFieldScripts.Read(file.GetSection(PcFieldSectionKind.ScriptAndText).Span), PcFieldModels.Read(file.GetSection(PcFieldSectionKind.Models).Span), PcFieldCameras.Read(file.GetSection(PcFieldSectionKind.Camera).Span), PcFieldWalkmesh.Read(file.GetSection(PcFieldSectionKind.Walkmesh).Span), PcFieldTriggers.Read(file.GetSection(PcFieldSectionKind.TriggersAndGateways).Span), PcFieldPalettes.Read(file.GetSection(PcFieldSectionKind.Palettes).Span), PcFieldBackground.Read(file.GetSection(PcFieldSectionKind.Background).Span)) { WaterSplashTextures = LoadWaterSplashTextures(archive) };
+    }
+
+    private static IReadOnlyList<PcTexture> LoadWaterSplashTextures(LgpArchive archive)
+    {
+        IReadOnlyList<LgpEntry>[] entries = Enumerable.Range(1, 4).Select(index => archive.Find($"sibuki{index}.tex")).ToArray();
+        if (entries.All(matches => matches.Count == 0))
+        {
+            return [];
+        }
+        if (entries.Any(matches => matches.Count != 1))
+        {
+            throw new InvalidDataException("Native field splashes require four unambiguous original texture members.");
+        }
+        return Array.AsReadOnly(entries.Select(matches => PcTexture.Read(archive.ReadEntry(matches[0]))).ToArray());
     }
 }

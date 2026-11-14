@@ -16,6 +16,7 @@ public sealed partial class Ff7FieldHost
         int? saved = Process.SavedNativeMusicTrack ?? (Process.SavedMusicTrack < 0 ? null : NormalizeNativeMusicTrack(ResolveNativeMusicTrack(Process.SavedMusicTrack)));
         return new Ff7FieldProcess
         {
+            NativeWaterSplashCursor = Process.NativeWaterSplashCursor,
             BlinkRandomIndex = Process.BlinkRandomIndex,
             BlinkStateInitialized = true,
             NativeMusicTrack = target,

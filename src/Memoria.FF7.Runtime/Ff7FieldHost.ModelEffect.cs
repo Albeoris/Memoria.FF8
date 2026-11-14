@@ -1,5 +1,6 @@
 using Memoria.FF7.Events;
 using Memoria.FF7.Formats;
+using Memoria.FF7.Resources;
 
 namespace Memoria.FF7.Runtime;
 
@@ -8,7 +9,7 @@ public sealed partial class Ff7FieldHost
     private FieldHostReply ModelEffect(int entity, FieldModelEffectCommand command)
     {
         FieldHostReply reply = ModelEffectCore(entity, command);
-        if (!command.Wait && command.Operation != 8 && reply.Completed && GetActor(entity).NativeWaterEffect is { Active: true })
+        if (!command.Wait && command.Operation is not (8 or 9) && reply.Completed && GetActor(entity).NativeWaterEffect is { Active: true })
         {
             SetActor(entity, current => current with { NativeWaterEffect = current.NativeWaterEffect! with { Active = false } });
         }
@@ -27,7 +28,7 @@ public sealed partial class Ff7FieldHost
             }
             return new(completed);
         }
-        if (command.Operation == 8)
+        if (command.Operation is 8 or 9)
         {
             byte[] payload = command.Payload ?? throw new InvalidDataException("FFVII water effects require their complete original payload.");
             if (payload.Length == 0 || command.Mode != payload[0])
@@ -157,8 +158,13 @@ public sealed partial class Ff7FieldHost
         return new(true);
     }
 
+    public Func<Ff7Actor, PcFieldCamera, Ff7FieldWaterParameters, Ff7FieldWaterGeometry>? NativeWaterGeometryCapture { get; set; }
+    public IReadOnlyList<bool>? NativeWaterSplashResources { get; set; }
+    public Func<Ff7Actor, PcFieldCamera, int>? NativeWaterEnvironmentProfile { get; set; }
+
     private void AdvanceModelEffects()
     {
+        Process = Process with { NativeWaterSplashes = [] };
         if (!Process.Actors.Any(actor => actor.ModelEffect is not null || actor.PartVisibility is { Completed: false } || actor.NativeEyeControlPending || actor.NativeColorOffset is { Pending: true } || actor.NativeColorTransition is { Pending: true } || actor.NativeWaterEffect is { Active: true }))
         {
             return;
@@ -166,17 +172,59 @@ public sealed partial class Ff7FieldHost
         PcFieldCamera camera = Process.Movie is { Playing: true, CameraDisabled: false } && !Process.MovieCameraDisabled
             ? (NativeBlinkCamera ?? throw new NotSupportedException("FFVII model effects during a movie require the current native movie camera."))() ?? throw new NotSupportedException("FFVII model effects require an available native camera snapshot.")
             : field.Cameras[0];
-        Process = Process with
+        Dictionary<int, Ff7Actor> actors = [];
+        List<Ff7NativeWaterSplash> splashes = [];
+        int cursor = Process.NativeWaterSplashCursor;
+        foreach (Ff7Actor original in Process.Actors.OrderBy(actor => actor.Slot))
         {
-            Actors = Process.Actors.Select(actor => AdvanceColorTransition(actor, ModelEffectDepth(actor, camera) < 3840)).Select(actor => actor with
+            bool eligible = ModelEffectDepth(original, camera) < 3840;
+            Ff7Actor actor = AdvanceColorTransition(original, eligible);
+            Ff7NativeModelEffectState? modelEffect = actor.ModelEffect is null ? null : Ff7NativeModelEffect.Advance(actor.ModelEffect, eligible);
+            bool proceduralColorWritten = eligible && modelEffect is not null && (modelEffect.Applied || modelEffect.Restored && actor.ModelEffect?.Restored != true);
+            bool colorWritten = eligible && (original.NativeColorOffset is { Pending: true } || !ReferenceEquals(actor.NativeColorOffset, original.NativeColorOffset) || proceduralColorWritten);
+            Ff7NativeWaterEffectState? water = actor.NativeWaterEffect;
+            if (water is not null)
             {
-                ModelEffect = actor.ModelEffect is null ? null : Ff7NativeModelEffect.Advance(actor.ModelEffect, ModelEffectDepth(actor, camera) < 3840),
-                PartVisibility = actor.PartVisibility is null ? null : Ff7NativePartVisibility.Advance(actor.PartVisibility, ModelEffectDepth(actor, camera) < 3840, fieldId ?? throw new NotSupportedException("Native part visibility requires its original field identity.")),
-                NativeColorOffset = actor.NativeColorOffset is null ? null : Ff7NativeColorOffset.Advance(actor.NativeColorOffset, ModelEffectDepth(actor, camera) < 3840),
-                NativeWaterEffect = actor.NativeWaterEffect is null ? null : Ff7NativeWaterEffect.Advance(actor.NativeWaterEffect, ModelEffectDepth(actor, camera) < 3840),
-                NativeEyeControlPending = actor.NativeEyeControlPending && ModelEffectDepth(actor, camera) >= 3840
-            }).ToArray()
-        };
+                if (colorWritten)
+                {
+                    water = water with { OwnsColors = false };
+                }
+                Ff7NativeWaterEffectSample? sample = null;
+                if (eligible && water.Active && water.RequestedPayload[0] == 1)
+                {
+                    Ff7FieldWaterParameters parameters = new(water.Parameter0, water.Parameter1, water.Parameter2, water.Parameter3, water.Flags, NativeWaterEnvironmentProfile?.Invoke(actor, camera) ?? throw new NotSupportedException("Native water colors require their selected field environment."));
+                    Ff7FieldWaterGeometry geometry = (NativeWaterGeometryCapture ?? throw new NotSupportedException("FFVII native water application requires the selected original model pose and environment."))(actor, camera, parameters);
+                    sample = new(parameters, geometry.Parts.Select(part => new Ff7FieldWaterPartMask(part.Part, (bool[])part.ModifiedVertices.Clone())).ToArray(), water.CycleIndex, water.SubcycleIndex);
+                    if (geometry.Splashes.Count != 0)
+                    {
+                        IReadOnlyList<bool> resources = NativeWaterSplashResources ?? throw new NotSupportedException("Native water splash allocation requires its four selected field resources.");
+                        if (resources.Count != 4)
+                        {
+                            throw new InvalidDataException("Native water splash allocation requires four resource slots.");
+                        }
+                        foreach (Ff7FieldWaterSplashCandidate candidate in geometry.Splashes)
+                        {
+                            if (!resources[cursor])
+                            {
+                                continue;
+                            }
+                            splashes.Add(new(actor.Slot, candidate.BoneIndex, cursor, candidate.X, candidate.Y, candidate.Depth, candidate.HalfSize));
+                            cursor = (cursor + 1) % 4;
+                        }
+                    }
+                }
+                water = Ff7NativeWaterEffect.Advance(water, eligible, sample);
+            }
+            actors.Add(actor.Slot, actor with
+            {
+                ModelEffect = modelEffect,
+                PartVisibility = actor.PartVisibility is null ? null : Ff7NativePartVisibility.Advance(actor.PartVisibility, eligible, fieldId ?? throw new NotSupportedException("Native part visibility requires its original field identity.")),
+                NativeColorOffset = actor.NativeColorOffset is null ? null : Ff7NativeColorOffset.Advance(actor.NativeColorOffset, eligible),
+                NativeWaterEffect = water,
+                NativeEyeControlPending = actor.NativeEyeControlPending && !eligible
+            });
+        }
+        Process = Process with { Actors = Process.Actors.Select(actor => actors[actor.Slot]).ToArray(), NativeWaterSplashes = splashes.ToArray(), NativeWaterSplashCursor = cursor };
     }
 
     private static Ff7Actor AdvanceColorTransition(Ff7Actor actor, bool eligible)

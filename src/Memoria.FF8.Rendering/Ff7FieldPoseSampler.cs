@@ -78,26 +78,7 @@ public static class Ff7FieldPoseSampler
         {
             return new(Ff7KnownFieldPoseRetargeter.Pose(resources, binding, frames), frames.Translation(animation));
         }
-        Matrix4x4 root = frames.Root(animation);
-        Matrix4x4[] transforms = new Matrix4x4[resources.Hierarchy.Bones.Count];
-        Dictionary<string, int> indices = resources.Hierarchy.Bones.ToDictionary(bone => bone.Name, bone => bone.Index, StringComparer.OrdinalIgnoreCase);
-        foreach (HrcBone bone in resources.Hierarchy.Bones)
-        {
-            Matrix4x4 parent = root;
-            if (!bone.ParentName.Equals("root", StringComparison.OrdinalIgnoreCase))
-            {
-                HrcBone parentBone = resources.Hierarchy.Bones[indices[bone.ParentName]];
-                parent = Matrix4x4.CreateTranslation(0, 0, -parentBone.Length) * transforms[parentBone.Index];
-            }
-            Vector3 rotation = resources.Hierarchy.IsRootOnly ? Vector3.Zero : animation.ReadNativeBoneRotation(frames.First, bone.Index, nativeTranslationScale);
-            Matrix4x4 local = Ff7FieldRenderer.Rotate(rotation);
-            if (frames.First != frames.Second && !resources.Hierarchy.IsRootOnly)
-            {
-                Vector3 next = animation.ReadNativeBoneRotation(frames.Second, bone.Index, nativeTranslationScale);
-                local = PoseInterpolation.Rotation(local, Ff7FieldRenderer.Rotate(next), frames.Fraction);
-            }
-            transforms[bone.Index] = local * parent;
-        }
-        return new(Array.AsReadOnly(transforms), frames.Translation(animation));
+        Ff7NativeFieldPose pose = Ff7NativeFieldPoseMath.SampleFrames(resources, animation, frames.First, frames.Second, frames.Fraction, nativeTranslationScale);
+        return new(pose.Bones, pose.RootTranslation);
     }
 }

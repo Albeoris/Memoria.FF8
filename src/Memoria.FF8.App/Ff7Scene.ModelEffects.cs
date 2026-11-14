@@ -10,6 +10,10 @@ internal sealed partial class Ff7Scene
 {
     private Ff7ModelRenderOverrides? ModelEffects(Ff7Actor actor, PcFieldCamera camera)
     {
+        if (actor.NativeWaterEffect is { OwnsColors: true } water)
+        {
+            return CreateWaterModelEffects(water, actor.PartVisibility);
+        }
         Ff7NativeModelEffectState? state = actor.ModelEffect;
         if (state is { Applied: true, Restored: false })
         {

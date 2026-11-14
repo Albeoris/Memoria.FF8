@@ -481,6 +481,7 @@ internal sealed partial class Ff7Scene : IDisposable
             Layer3ScrollX16 = state.BackgroundLayer3Scroll?.OffsetX16 ?? 0,
             Layer3ScrollY16 = state.BackgroundLayer3Scroll?.OffsetY16 ?? 0,
             BackgroundCameraShakePixels = cameraShake,
+            WaterSplashes = WaterSplashes(state),
             FieldHidden = state.FadeState?.HidesField == true,
             FieldColorArgb = state.FadeState?.FieldColorArgb,
             QuadColorArgb = state.FadeState?.QuadColorArgb,
