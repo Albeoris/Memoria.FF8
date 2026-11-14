@@ -111,11 +111,11 @@ public static class NativeBattleGraphicsModels
         return bank;
     }
 
-    public static NativeBattleGraphicsModel[] ClearPresentationBank(NativeBattleGraphicsRoster roster, ImmutableArray<NativeBattleModelRetainedFields>? retainedTransformRows = null)
+    public static NativeBattleGraphicsModel[] ClearPresentationBank(NativeBattleGraphicsRoster roster, ImmutableArray<NativeBattleModelRetainedFields>? retainedTransformRows = null, ImmutableArray<uint?>? retainedColors40 = null, ImmutableArray<ImmutableArray<byte?>>? retainedStatusTimers = null, ImmutableArray<NativeBattleActionMatrix?>? retainedWorldMatrices64 = null, ImmutableArray<ImmutableArray<short?>>? retainedSequenceLocals = null)
     {
         ArgumentNullException.ThrowIfNull(roster);
         roster.Validate();
-        NativeBattleGraphicsModel[] bank = ClearBank(retainedTransformRows: retainedTransformRows);
+        NativeBattleGraphicsModel[] bank = ClearBank(retainedColors40, retainedStatusTimers, retainedWorldMatrices64, retainedTransformRows, retainedSequenceLocals);
         if (bank.Length == roster.ActorCount)
         {
             return bank;
@@ -125,7 +125,7 @@ public static class NativeBattleGraphicsModels
         Array.Resize(ref bank, roster.ActorCount);
         for (int row = nativeCount; row < bank.Length; row++)
         {
-            bank[row] = ClearRow(row, null, null, null, null, null);
+            bank[row] = ClearRow(row, null, null, null, null, retainedSequenceLocals is null ? null : NativeBattleSequenceState.ColdProcessLocals());
         }
         return bank;
     }
@@ -142,7 +142,7 @@ public static class NativeBattleGraphicsModels
         return transform is null ? model : transform.Restore502340(model);
     }
 
-    public static NativeBattleGraphicsModel CompleteLoad(NativeBattleGraphicsModel model, byte modelId, uint projectedStatusFlags, ref NativeGlobalRandomState random, byte? information246 = null)
+    public static NativeBattleGraphicsModel CompleteLoad(NativeBattleGraphicsModel model, byte modelId, uint projectedStatusFlags, ref NativeGlobalRandomState random, byte? information246 = null, bool? isParty = null)
     {
         //5027D0 initializes BYTE145 from model identity and48B9F0's original information BYTE246.
         byte sequenceByte145 = modelId < 16 ? (byte)0 : InitializeSequenceByte145(information246 ?? throw new InvalidDataException("Native5027D0 requires the enemy's original information BYTE246."));
@@ -160,7 +160,7 @@ public static class NativeBattleGraphicsModels
             }
         }
         //5027D0 copies resourceDWORD100 to originalDWORD104, ending any temporary magic-resource override.
-        return model with { CurrentBodyBoneMatrices = null, ScaleVectorAddress48 = 0, Flags0 = 3, Flags2 = 4, ModelId4 = modelId, Kind5 = 0, Phase6 = null, Alpha7 = null, MinimumY146 = 0, CameraSequence130 = (byte)(frame % 6), CameraAccumulator131 = (byte)appearance, HasLinkedModelRing140 = false, LinkedModelIndex140 = null, BlinkCountdown144 = (byte)(blink % 45 + 15), SequenceByte145 = sequenceByte145, Flags8 = projectedStatusFlags, Flags8KnownMask = 0, Flags8KnownBits = 0, StatusTimers = timers, Rotation12 = 0, Rotation14 = model.Index >= 3 ? (short)2048 : (short)0, Rotation16 = 0, ResourceFlags44 = 1, ResourceMagicId = null, ResourceRenzokukenTargetBank = null, Sequence = 8, SequenceFrame = 0 };
+        return model with { CurrentBodyBoneMatrices = null, ScaleVectorAddress48 = 0, Flags0 = 3, Flags2 = 4, ModelId4 = modelId, Kind5 = 0, Phase6 = null, Alpha7 = null, MinimumY146 = 0, CameraSequence130 = (byte)(frame % 6), CameraAccumulator131 = (byte)appearance, HasLinkedModelRing140 = false, LinkedModelIndex140 = null, BlinkCountdown144 = (byte)(blink % 45 + 15), SequenceByte145 = sequenceByte145, Flags8 = projectedStatusFlags, Flags8KnownMask = 0, Flags8KnownBits = 0, StatusTimers = timers, Rotation12 = 0, Rotation14 = (isParty ?? model.Index < 3) ? (short)0 : (short)2048, Rotation16 = 0, ResourceFlags44 = 1, ResourceMagicId = null, ResourceRenzokukenTargetBank = null, Sequence = 8, SequenceFrame = 0 };
     }
 
     private static byte InitializeSequenceByte145(byte information246)

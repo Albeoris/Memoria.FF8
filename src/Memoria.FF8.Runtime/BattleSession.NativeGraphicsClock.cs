@@ -90,32 +90,43 @@ public sealed partial class BattleSession
         }
     }
 
-    private void AdvanceNativeGraphicsFrameCore()
+    private void AdvanceNativeGraphicsFrameCore(NativeBattleModelLifecycleServices? services = null)
     {
         if (NativeGraphics is not { } graphics)
         {
             return;
         }
+        if (services is not null)
+        {
+            NativeBattleGraphicsRoster roster = graphics.PresentationRoster ?? throw new InvalidDataException("Hosted graphics frames require their actual roster.");
+            services.Validate(roster, graphics);
+        }
         graphics.Validate();
         uint flags = graphics.Flags;
         if (graphics.EntryLifecycle == 1)
         {
-            graphics = QueueNativeEntryModels(graphics);
+            graphics = services is null ? QueueNativeEntryModels(graphics) : QueueHostedNativeEntryModels(graphics);
         }
         //500900: descriptor/callback listAA4, then published effect listAA8, then model listA94, then camera5033E0.
         try
         {
             graphics = AdvanceNativeGraphicsRequests(graphics);
-            graphics = AdvanceEncounterAllocationRetirements(graphics);
-            graphics = AdvanceEncounterAllocationPreparation(graphics);
-            graphics = AdvanceEncounterPolicySpawn(graphics);
+            if (services is null)
+            {
+                graphics = AdvanceEncounterAllocationRetirements(graphics);
+                graphics = AdvanceEncounterAllocationPreparation(graphics);
+                graphics = AdvanceEncounterPolicySpawn(graphics);
+            }
             flags = graphics.Flags;
             graphics = AdvanceNativeAuxiliary(graphics);
             graphics = AdvanceNativeModuleEffects(graphics);
             graphics = AdvanceNativeOriginalEffect(graphics);
-            graphics = AdvanceGuardianFormPresentation(graphics);
+            if (services is null)
+            {
+                graphics = AdvanceGuardianFormPresentation(graphics);
+            }
         }
-        catch when (GuardianFormOwnsCurrentPresentation())
+        catch when (services is null && GuardianFormOwnsCurrentPresentation())
         {
             FailOwnedGuardianFormPresentation();
             throw;
@@ -124,14 +135,17 @@ public sealed partial class BattleSession
         graphics = SubmitNativeModulePackets(graphics);
         graphics = ConsumeNativeGraphicsContacts(graphics);
         ImmutableArray<NativeBattleGraphicsModel> models = graphics.Models;
-        NativeBattleEffectsStep effects = graphics.Effects.Advance(models, index => ProjectNativeDamageText(graphics, index));
+        NativeBattleEffectsStep effects = graphics.Effects.Advance(models, index => ProjectNativeDamageText(graphics, index), graphics.PresentationRoster);
         foreach (byte index in effects.ResetModelStatuses)
         {
             graphics = ApplyNativeGraphicsStatus509CD0(graphics with { Models = models }, index, 16);
             models = graphics.Models;
         }
         graphics = graphics with { Models = models, Effects = effects.State };
-        graphics = FrameGuardianFormIdleCamera(graphics);
+        if (services is null)
+        {
+            graphics = FrameGuardianFormIdleCamera(graphics);
+        }
         using NativeBattleLogicalOrderingTransaction? ordering = definition.NativeGraphics?.PrimitiveTables is not null && graphics.PrimitiveFrame is { } primitiveFrame ? new(primitiveFrame.Pending) : null;
         using NativeBattleCommonPacketTransaction? common = ordering is not null ? new(NativeEffectMemory?.PrimitiveProcess ?? throw new NotSupportedException("Native model producers require their retained common packet process.")) : null;
         if (ordering is not null)
@@ -141,7 +155,7 @@ public sealed partial class BattleSession
         }
         try
         {
-            graphics = AdvanceNativeLoadedModels(graphics, flags);
+            graphics = AdvanceNativeLoadedModels(graphics, flags, services);
             graphics = AdvanceNativeStage506C30(graphics);
             if (ordering is not null)
             {

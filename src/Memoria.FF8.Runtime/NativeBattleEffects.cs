@@ -115,12 +115,12 @@ public sealed record NativeBattleEffectsState([property: JsonRequired] Immutable
         return this with { Slots = Slots.SetItem(slot, task), Head = slot };
     }
 
-    public NativeBattleEffectsStep Advance(IReadOnlyList<NativeBattleGraphicsModel> models, Func<byte, NativeBattleDamageTextAnchor>? projectTextAnchor = null)
+    public NativeBattleEffectsStep Advance(IReadOnlyList<NativeBattleGraphicsModel> models, Func<byte, NativeBattleDamageTextAnchor>? projectTextAnchor = null, NativeBattleGraphicsRoster? roster = null)
     {
         Validate();
-        if (models.Count != 7)
+        if (models.Count != (roster?.ActorCount ?? 7))
         {
-            throw new InvalidDataException("Native effect callbacks require the seven physical graphics models.");
+            throw new InvalidDataException(roster is null ? "Native effect callbacks require the seven physical graphics models." : "Hosted effect callbacks require their actual model bank extent.");
         }
         ImmutableArray<NativeBattleEffectTask> slots = Slots;
         ImmutableArray<byte>.Builder resetModels = ImmutableArray.CreateBuilder<byte>();
@@ -131,6 +131,10 @@ public sealed record NativeBattleEffectsState([property: JsonRequired] Immutable
         for (int? next = Head; next is int index;)
         {
             NativeBattleEffectTask task = slots[index];
+            if (roster is not null && (!roster.ContainsRow(task.ModelIndex) || models[task.ModelIndex]?.Index != task.ModelIndex))
+            {
+                throw new InvalidDataException("Hosted effect callback requires its bound model row.");
+            }
             bool release;
             if (task.Kind == NativeBattleEffectKind.StatusReset506860)
             {

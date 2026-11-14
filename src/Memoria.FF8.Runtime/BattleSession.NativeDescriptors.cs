@@ -61,6 +61,10 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState AdvanceNativeDescriptors(NativeBattleGraphicsState graphics)
     {
+        if (hostedBattlePresentation)
+        {
+            graphics = FeedHostedEntryDescriptors(graphics);
+        }
         NativeBattleDescriptorState final = graphics.Descriptors.Advance(Dispatch, Poll, (state, slot) => ObserveNativeDescriptorStack(graphics, state, slot), diagnosticInvocationPolicy is null ? null : ObserveDiagnosticInvocationPacketRemoved);
         return graphics with { Descriptors = final };
 
@@ -202,30 +206,36 @@ public sealed partial class BattleSession
                     graphics = graphics with { Descriptors = graphics.Descriptors with { Tasks = graphics.Descriptors.Tasks.SetItem(taskSlot, task with { Payload = wavePayload.ToImmutableArray() }) } };
                     break;
                 case NativeBattleDescriptorTaskKind.Load502670:
-                    int modelIndex = RequireDescriptorModel(packet.Index);
+                    int modelIndex = hostedBattlePresentation ? packet.Index : RequireDescriptorModel(packet.Index);
+                    NativeBattleModelEntryFacts? entryFacts = hostedBattlePresentation ? RequireHostedEntryFacts(graphics, modelIndex) : null;
                     NativeBattleGraphicsModel loading = graphics.Models[modelIndex];
-                    BattleCombatant loadingActor = combatants.Single(candidate => candidate.EncodeNativeSlot() == modelIndex);
+                    BattleCombatant? loadingActor = entryFacts is null ? combatants.Single(candidate => candidate.EncodeNativeSlot() == modelIndex) : null;
+                    bool partyLoad = entryFacts?.IsParty ?? loadingActor!.IsPlayer;
                     if (phase == 0)
                     {
                         if ((loading.Flags0 & 1) != 0)
                         {
                             return new(descriptors, false);
                         }
-                        NativeBattleGraphicsBinding loadingBinding = FindNativeGraphicsBinding(loadingActor.Id) ?? throw new InvalidDataException("Native502670 has no original resource binding.");
+                        NativeBattleGraphicsBinding loadingBinding = entryFacts is not null ? RequireHostedEntryBinding(entryFacts) : FindNativeGraphicsBinding(loadingActor!.Id) ?? throw new InvalidDataException("Native502670 has no original resource binding.");
+                        if (entryFacts is not null && packet.Value != loadingBinding.ModelId)
+                        {
+                            throw new InvalidDataException("Hosted entry model load differs from its admitted resource binding.");
+                        }
                         loading = loading with { Flags0 = (ushort)(loading.Flags0 | 1), ModelId4 = checked((byte)packet.Value), FileSelector128 = loadingBinding.Resource.LinkedFileSelector128, FileSelector129 = loadingBinding.Resource.BodyFileSelector129, EffectCounter97 = 1 };
-                        graphics = graphics with { Models = graphics.Models.SetItem(modelIndex, loading), ActorIds = graphics.ActorIds.SetItem(modelIndex, loadingActor.Id), ModelLoadCount = graphics.ModelLoadCount + 1 };
+                        graphics = graphics with { Models = graphics.Models.SetItem(modelIndex, loading), ActorIds = graphics.ActorIds.SetItem(modelIndex, entryFacts?.ActorId ?? loadingActor!.Id), ModelLoadCount = graphics.ModelLoadCount + 1 };
                         QueueNativeModelResource507080(graphics, checked((ushort)packet.Value), checked((byte)modelIndex), packet.Argument);
                         phase = 1;
                     }
                     if (phase == 1 && PollNativeModelResource507070(ref graphics) == 0)
                     {
-                        if (loadingActor.IsPlayer && packet.Value != 7)
+                        if (partyLoad && packet.Value != 7)
                         {
                             QueueNativeModelResource507080(graphics, checked((ushort)(packet.Value + 0x1000)), checked((byte)modelIndex), packet.Argument);
                         }
                         phase = 2;
                     }
-                    if (phase == 2 && (!loadingActor.IsPlayer || PollNativeModelResource507070(ref graphics) == 0))
+                    if (phase == 2 && (!partyLoad || PollNativeModelResource507070(ref graphics) == 0))
                     {
                         graphics = graphics with { Models = graphics.Models.SetItem(modelIndex, graphics.Models[modelIndex] with { EffectCounter97 = 2 }), ModelLoadCount = graphics.ModelLoadCount - 1 };
                         completed = true;
@@ -338,14 +348,32 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState CompleteNativeGraphicsModel(NativeBattleGraphicsState graphics, NativeBattleDescriptorPacket packet)
     {
+        if (hostedBattlePresentation)
+        {
+            int hostedRow = packet.Index;
+            NativeBattleModelEntryFacts facts = RequireHostedEntryFacts(graphics, hostedRow);
+            NativeBattleGraphicsBinding hostedBinding = RequireHostedEntryBinding(facts);
+            ValidateHostedEntryModelCompletion(graphics, hostedRow, hostedBinding, facts.IsParty);
+            return CompleteNativeGraphicsModel(graphics, packet, hostedRow, hostedBinding, facts.ActorId, facts.IsParty, facts.Information246, facts.SavedStatus, facts.BattleStatus, ReadModelCompletionRandom(), hostedSide: facts.IsParty);
+        }
         int index = RequireDescriptorModel(packet.Index);
         BattleCombatant actor = FindNativeModelLoadOwner(graphics, index);
         NativeBattleGraphicsBinding binding = FindNativeGraphicsBinding(actor.Id) ?? throw new InvalidDataException("Native103 has no original allocation/resource binding.");
-        NativeGlobalRandomState randomState = nativeGlobalRandom ?? throw new NotSupportedException("Native103 requires saved534AA0 random state.");
-        uint flags = definition.NativeGraphics!.Rules.Project(NativeSavedStatusBits(actor), NativeBattleStatusBits(actor));
+        NativeGlobalRandomState randomState = ReadModelCompletionRandom();
+        return CompleteNativeGraphicsModel(graphics, packet, index, binding, actor.Id, actor.IsPlayer, actor.NativeInformation246, NativeSavedStatusBits(actor), NativeBattleStatusBits(actor), randomState);
+    }
+
+    private NativeGlobalRandomState ReadModelCompletionRandom()
+    {
+        return nativeGlobalRandom ?? throw new NotSupportedException("Native103 requires saved534AA0 random state.");
+    }
+
+    private NativeBattleGraphicsState CompleteNativeGraphicsModel(NativeBattleGraphicsState graphics, NativeBattleDescriptorPacket packet, int index, NativeBattleGraphicsBinding binding, string actorId, bool isParty, byte? information246, ushort savedStatus, uint battleStatus, NativeGlobalRandomState randomState, bool? hostedSide = null)
+    {
+        uint flags = definition.NativeGraphics!.Rules.Project(savedStatus, battleStatus);
         byte loadedModelId = graphics.Models[index].ModelId4 ?? throw new NotSupportedException("Native103 requires its actually loaded model BYTE4.");
-        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(graphics.Models[index], loadedModelId, 0, ref randomState, actor.NativeInformation246);
-        if (!actor.IsPlayer)
+        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(graphics.Models[index], loadedModelId, 0, ref randomState, information246, hostedSide);
+        if (!isParty)
         {
             if (model.EffectCounter97 != 2 || model.ActiveResourceRow100 is null || model.BodyTextureSlots is null)
             {
@@ -372,9 +400,9 @@ public sealed partial class BattleSession
         nativeGlobalRandom = randomState;
         nativeGlobalRandomCalls = checked(nativeGlobalRandomCalls + 3);
         //5027D0 clears DWORD8 before50A070 invokes509D10, including its palette/texture side effects.
-        model = SetNativeGraphicsFlags(model, flags, graphics with { Models = graphics.Models.SetItem(index, model), ActorIds = graphics.ActorIds.SetItem(index, actor.Id) });
-        byte standing = actor.IsPlayer ? NativeStandingSequence(model.Flags8!.Value) : (byte)1;
-        model = model with { Flags0 = (packet.Value & 0x100) != 0 ? (ushort)(model.Flags0 | 4) : model.Flags0, SequenceState = (model.SequenceState ?? new()).InitializeControl5027D0(standing, actor.IsPlayer && standing != 8 ? standing : (byte)0) };
+        model = SetNativeGraphicsFlags(model, flags, graphics with { Models = graphics.Models.SetItem(index, model), ActorIds = graphics.ActorIds.SetItem(index, actorId) });
+        byte standing = isParty ? NativeStandingSequence(model.Flags8!.Value) : (byte)1;
+        model = model with { Flags0 = (packet.Value & 0x100) != 0 ? (ushort)(model.Flags0 | 4) : model.Flags0, SequenceState = (model.SequenceState ?? new()).InitializeControl5027D0(standing, isParty && standing != 8 ? standing : (byte)0) };
         if (loadedModelId == 143)
         {
             model = model with { Flags2 = (ushort)(model.Flags2!.Value & ~4), Transform = model.Transform is { } transform ? transform with { Scale38 = 4096 } : throw new NotSupportedException("Native model143 requires its actual initialized transform.") };
@@ -389,9 +417,14 @@ public sealed partial class BattleSession
                 }
             }
         }
-        NativeBattleGraphicsState loaded = graphics with { Models = graphics.Models.SetItem(index, model), ActorIds = graphics.ActorIds.SetItem(index, actor.Id) };
+        NativeBattleGraphicsState loaded = graphics with { Models = graphics.Models.SetItem(index, model), ActorIds = graphics.ActorIds.SetItem(index, actorId) };
         NativeBattlePoseSource loadedSkeleton = NativeGraphicsPoseResource(loaded, index).PoseSource ?? throw new NotSupportedException("Native model completion requires its actual loaded body rig bytes.");
         model = NativeBattleBodyBoneMatrices.PublishLoadedSkeletons(model, loadedSkeleton, NativeGraphicsPoseResource(loaded, index).LinkedPoseSource);
+        if (hostedBattlePresentation && index >= NativeBattleGraphicsModelAddress.NativeRowCount && model.GeometryWorldMatrix is null)
+        {
+            // Entry sequences may read bone anchors before the first model-frame matrix update.
+            model = model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, loadedSkeleton) };
+        }
         return loaded with { Models = loaded.Models.SetItem(index, model) };
     }
 

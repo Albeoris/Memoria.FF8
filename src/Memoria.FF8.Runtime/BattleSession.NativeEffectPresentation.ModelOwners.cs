@@ -4,7 +4,7 @@ public sealed partial class BattleSession
 {
     private string HostedPresentationExecutableHash => definition.NativeRetainedMemory?.ColdExecutableSha256 ?? NativeFieldRuntimeProfile.FF8EnExecutableHash;
 
-    private void InitializeHostedPresentationModelOwners(NativeBattleGraphicsRoster roster)
+    private void InitializeHostedPresentationModelOwners(NativeBattleGraphicsRoster roster, bool useRetainedModelOwners = false)
     {
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Hosted model resources require their effect memory owner.");
         NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Hosted model resources require their texture owner.");
@@ -23,6 +23,12 @@ public sealed partial class BattleSession
             ValidateHostedPresentationTextureOwners(roster, textures);
         }
         NativeEffectMemory = memory with { Textures = textures };
+        if (useRetainedModelOwners)
+        {
+            NativeModelCpuResources = (NativeModelCpuResources ?? throw new InvalidDataException("Hosted entry lacks its initialized model CPU owner.")).WithPresentationRoster(roster);
+            NativeModelTextureCache = (NativeModelTextureCache ?? throw new InvalidDataException("Hosted entry lacks its initialized model texture cache.")).WithPresentationRoster(roster);
+            return;
+        }
         NativeModelCpuResources = (NativeBattleModelCpuResources.FromColdProcess(HostedPresentationExecutableHash) with { EnemyCursor = 0, ScratchMaximum = 0, EnemyLinkedSlots = 0 }).WithPresentationRoster(roster);
         NativeModelTextureCache = NativeBattleModelTextureCache.Initialize508260(NativeBattleModelTextureCache.FromColdProcess()).WithPresentationRoster(roster);
         NativeEffectIoResult = 0;

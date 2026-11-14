@@ -45,6 +45,16 @@ public sealed partial class BattleSession
             return;
         }
         ValidateNativeGraphicsDefinition(source);
+        InitializeNativeGraphicsProcessOwners();
+        InitializeNativePartyPresentation();
+        InitializeNativeGraphicsModelOwners();
+        NativeBattleGraphicsState graphics = new(NativeBattleGraphicsModels.ClearBank(definition.NativeRetainedMemory?.ModelColors40, definition.NativeRetainedMemory?.ModelStatusTimers, definition.NativeRetainedMemory?.ModelWorldMatrices64, definition.NativeRetainedMemory?.ModelTransformRows, definition.NativeRetainedMemory?.ModelSequenceLocals).ToImmutableArray(), Enumerable.Repeat<string?>(null, 7).ToImmutableArray(), 0, 0);
+        graphics = InitializeNativePrimitiveFrame500400(graphics);
+        NativeGraphics = QueueNativeEntryLoads(graphics);
+    }
+
+    private void InitializeNativeGraphicsProcessOwners()
+    {
         if (NativeCamera is not null)
         {
             NativeCamera = NativeCamera.Initialize500400();
@@ -57,12 +67,12 @@ public sealed partial class BattleSession
             NativeEffectMemory = effectMemory.InitializeReturnedTask500870() with { ScriptedGraphics = effectMemory.ScriptedGraphics?.InitializeGeom56BAA0(), SoundPublishedFlags = 0, Textures = effectMemory.Textures?.Initialize500400(), SummonStream = (effectMemory.SummonStream ?? NativeBattleSummonStreamState.Unknown()).Reset501160() };
         }
         InitializeNativeMusic501C60();
-        InitializeNativePartyPresentation();
+    }
+
+    private void InitializeNativeGraphicsModelOwners()
+    {
         NativeModelTextureCache = NativeBattleModelTextureCache.Initialize508260(NativeModelTextureCache);
         NativeModelCpuResources = (NativeModelCpuResources ?? NativeBattleModelCpuResources.Unknown()).InvalidateResourceExtents() with { ScratchMaximum = 0, EnemyCursor = 0, EnemyLinkedSlots = 0 };
-        NativeBattleGraphicsState graphics = new(NativeBattleGraphicsModels.ClearBank(definition.NativeRetainedMemory?.ModelColors40, definition.NativeRetainedMemory?.ModelStatusTimers, definition.NativeRetainedMemory?.ModelWorldMatrices64, definition.NativeRetainedMemory?.ModelTransformRows, definition.NativeRetainedMemory?.ModelSequenceLocals).ToImmutableArray(), Enumerable.Repeat<string?>(null, 7).ToImmutableArray(), 0, 0);
-        graphics = InitializeNativePrimitiveFrame500400(graphics);
-        NativeGraphics = QueueNativeEntryLoads(graphics);
     }
 
     private static byte NativeStandingSequence(uint flags) => NativeBattleGraphicsModels.PlayerStandingSequence(flags);

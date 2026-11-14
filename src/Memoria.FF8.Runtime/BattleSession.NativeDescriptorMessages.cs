@@ -32,10 +32,15 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState QueueNativeEntryAdvantageMessage(NativeBattleGraphicsState graphics)
     {
+        return CreateNativeEntryAdvantageMessage() is { } message ? QueueNativeDescriptorMessage(graphics, message, 86) : graphics;
+    }
+
+    private BattleEvent? CreateNativeEntryAdvantageMessage()
+    {
         int text = NativeEntryAdvantage switch { 1 => 46, 2 => 45, 3 => 44, 4 => 47, _ => -1 };
         if (text < 0)
         {
-            return graphics;
+            return null;
         }
         if (text >= definition.NativeGlobalMessages.Length)
         {
@@ -43,6 +48,6 @@ public sealed partial class BattleSession
         }
         int duration = 8 * (definition.NativeMessageSpeed ?? throw new NotSupportedException("Native entry message requires the saved message speed BYTE.")) + 8;
         string message = definition.NativeGlobalMessages[text] ?? throw new NotSupportedException("Native entry advantage text is absent from its original kernel bank.");
-        return QueueNativeDescriptorMessage(graphics, new(Frame, "NativeText", null, null, duration, message) { NativeMessageMode = 3, NativeTextIdentity = BattleTextIdentity.Global(text) }, 86);
+        return new(Frame, "NativeText", null, null, duration, message) { NativeMessageMode = 3, NativeTextIdentity = BattleTextIdentity.Global(text) };
     }
 }
