@@ -29,7 +29,7 @@ public sealed class NativeBattleModelBoundaryTests
         var (rebound, replacement) = unbound.BindOriginalSlot(slot, next, removed);
         Assert.Same(updated, replacement.Get(next));
         Assert.Equal(next, rebound.DecodeLiteral(3, replacement));
-        Assert.False(rebound.EncodeExactActor(first, replacement, out _));
+        Assert.False(rebound.TryEncodeExactActor(first, replacement, out _));
         Assert.Same(cells[3], bound.ReadOriginalCell(slot, models));
 
         var (direct, directModels) = bound.BindOriginalSlot(slot, next, changed);
@@ -60,17 +60,17 @@ public sealed class NativeBattleModelBoundaryTests
         Assert.Equal(left, boundary.DecodeLiteral(3, models));
         BattleModelTargets selection = boundary.DecodeTargetMask(0x4C, models);
         Assert.Equal<BattleModelOwner>([party, left, right], selection.Enumerate());
-        Assert.True(boundary.EncodeExactActor(right, models, out byte operand));
+        Assert.True(boundary.TryEncodeExactActor(right, models, out byte operand));
         Assert.Equal(6, operand);
-        Assert.True(boundary.EncodeExactTargetMask(selection, models, out ushort mask));
+        Assert.True(boundary.TryEncodeExactTargetMask(selection, models, out ushort mask));
         Assert.Equal(0x4C, mask);
         Assert.Same(BattleModelTargets.Empty, boundary.DecodeTargetMask(0, models));
-        Assert.True(boundary.EncodeExactTargetMask(BattleModelTargets.Empty, models, out mask));
+        Assert.True(boundary.TryEncodeExactTargetMask(BattleModelTargets.Empty, models, out mask));
         Assert.Equal(0, mask);
 
-        Assert.False(boundary.EncodeExactTargetMask(selection.Add(extras[^1]), models, out mask));
+        Assert.False(boundary.TryEncodeExactTargetMask(selection.Add(extras[^1]), models, out mask));
         Assert.Equal(0, mask);
-        Assert.False(boundary.EncodeExactActor(extras[0], models, out _));
+        Assert.False(boundary.TryEncodeExactActor(extras[0], models, out _));
         Assert.Throws<InvalidDataException>(() => boundary.DecodeTargetMask(0x4D, models));
         Assert.Throws<ArgumentOutOfRangeException>(() => boundary.DecodeTargetMask(0x8C, models));
         Assert.Throws<ArgumentOutOfRangeException>(() => boundary.DecodeLiteral(7, models));
@@ -96,8 +96,8 @@ public sealed class NativeBattleModelBoundaryTests
         Assert.Throws<ArgumentException>(() => new NativeBattleModelBoundary(retained.Append(retained[0])));
         Assert.Throws<ArgumentException>(() => new NativeBattleModelBoundary([.. retained.Take(6), null!]));
         BattleActorModels incomplete = models.Remove(owner);
-        Assert.False(boundary.EncodeExactActor(owner, incomplete, out _));
-        Assert.False(boundary.EncodeExactTargetMask(BattleModelTargets.From([owner]), incomplete, out _));
+        Assert.False(boundary.TryEncodeExactActor(owner, incomplete, out _));
+        Assert.False(boundary.TryEncodeExactTargetMask(BattleModelTargets.From([owner]), incomplete, out _));
         Assert.Throws<InvalidDataException>(() => boundary.DecodeLiteral(3, incomplete));
         Assert.Throws<InvalidDataException>(() => boundary.BindOriginalSlot(other, Enemy("other"), incomplete));
         Assert.Throws<InvalidDataException>(() => boundary.UnbindOriginalSlot(other, incomplete));
@@ -114,7 +114,7 @@ public sealed class NativeBattleModelBoundaryTests
 
     private static NativeBattleGraphicsModel[] OriginalCells()
     {
-        return Enumerable.Range(0, 7).Select(offset => new NativeBattleGraphicsModel(0, 0) { ResourceFlags44 = (ushort)offset }).ToArray();
+        return Enumerable.Range(0, 7).Select(offset => new NativeBattleGraphicsModel(0) { ResourceFlags44 = (ushort)offset }).ToArray();
     }
 
     private static BattleEnemyActorModel Enemy(string actorId) => new(new(actorId));

@@ -22,7 +22,7 @@ public readonly record struct NativeBattleModelSlot
     }
 }
 
-internal sealed class NativeBattleModelBoundary
+public sealed partial class NativeBattleModelBoundary
 {
     internal const int CellCount = 7;
     private const ushort AvailableTargetBits = (1 << CellCount) - 1;
@@ -88,7 +88,7 @@ internal sealed class NativeBattleModelBoundary
         return BattleModelTargets.From(selected);
     }
 
-    internal bool EncodeExactActor(BattleModelOwner owner, BattleActorModels models, out byte operand)
+    internal bool TryEncodeExactActor(BattleModelOwner owner, BattleActorModels models, out byte operand)
     {
         ArgumentNullException.ThrowIfNull(owner);
         ArgumentNullException.ThrowIfNull(models);
@@ -107,14 +107,14 @@ internal sealed class NativeBattleModelBoundary
         return false;
     }
 
-    internal bool EncodeExactTargetMask(BattleModelTargets targets, BattleActorModels models, out ushort mask)
+    internal bool TryEncodeExactTargetMask(BattleModelTargets targets, BattleActorModels models, out ushort mask)
     {
         ArgumentNullException.ThrowIfNull(targets);
         ArgumentNullException.ThrowIfNull(models);
         ushort encoded = 0;
         foreach (BattleModelOwner owner in targets.Enumerate())
         {
-            if (!EncodeExactActor(owner, models, out byte operand))
+            if (!TryEncodeExactActor(owner, models, out byte operand))
             {
                 mask = default;
                 return false;

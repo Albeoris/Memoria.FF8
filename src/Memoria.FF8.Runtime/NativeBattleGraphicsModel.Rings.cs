@@ -1,27 +1,21 @@
-using System.Collections.Immutable;
-
 namespace Memoria.FF8.Runtime;
 
 public sealed partial record NativeBattleGraphicsModel
 {
-    public int? LinkedModelIndex140 { get; init; }
+    public BattleModelOwner? LinkedModel { get; init; }
 
-    public int? ReadLinkedModelIndex140()
+    public BattleModelOwner? ReadLinkedModel()
     {
-        if (LinkedModelIndex140 is int index)
+        if (LinkedModel is { } owner)
         {
-            return index is >= 0 and < 7 && HasLinkedModelRing140 == true ? index : throw new InvalidDataException("Native model DWORD140 contradicts its physical model pointer.");
+            return HasLinkedModelRing140 == true ? owner : throw new InvalidDataException("Native model DWORD140 contradicts its linked model owner.");
         }
         return HasLinkedModelRing140 == false ? null : throw new NotSupportedException("Native model DWORD140 pointer has not been established.");
     }
 
-    public NativeBattleGraphicsModel WriteLinkedModelIndex140(int? index)
+    public NativeBattleGraphicsModel WriteLinkedModel(BattleModelOwner? owner)
     {
-        if (index is < 0 or >= 7)
-        {
-            throw new NotSupportedException("Native linked-model pointer leaves its actual seven-model bank.");
-        }
-        return this with { LinkedModelIndex140 = index, HasLinkedModelRing140 = index is not null };
+        return this with { LinkedModel = owner, HasLinkedModelRing140 = owner is not null };
     }
 }
 
@@ -29,34 +23,36 @@ public static class NativeBattleModelRings
 {
     public static uint PreservedStatusMask50A000(ushort sourceFlags2) => (sourceFlags2 & 0x40) != 0 ? 0x831E0u : 0x21E35F0u;
 
-    public static NativeBattleGraphicsModel BindWorldMatrix502AB0(ImmutableArray<NativeBattleGraphicsModel> models, NativeBattleGraphicsModel model)
+    public static NativeBattleGraphicsModel BindWorldMatrix502AB0(BattleActorModels models, BattleModelOwner owner, NativeBattleGraphicsModel model)
     {
-        if (model.ReadLinkedModelIndex140() is null)
+        if (model.ReadLinkedModel() is null)
         {
             return model;
         }
-        int owner = NativeBattleScanModelSelection.Minimum501FF0(models.SetItem(model.Index, model), model.Index);
-        if (owner == model.Index)
+        BattleModelOwner ringOwner = NativeBattleScanModelSelection.Minimum501FF0(models.Set(owner, model), owner);
+        if (ringOwner == owner)
         {
             return model;
         }
-        NativeBattleActionMatrix matrix = models[owner].GeometryWorldMatrix ?? throw new NotSupportedException("Native502AB0 requires its ring owner's retained model matrix.");
+        NativeBattleActionMatrix matrix = models.Get(ringOwner).GeometryWorldMatrix ?? throw new NotSupportedException("Native502AB0 requires its ring owner's retained model matrix.");
         return model with { GeometryWorldMatrix = matrix };
     }
 
-    public static ImmutableArray<NativeBattleGraphicsModel> Bind90(ImmutableArray<NativeBattleGraphicsModel> models, int source, byte selector)
+    public static BattleActorModels Bind90(BattleActorModels models, BattleModelOwner source, byte selector, NativeBattleModelBoundary boundary)
     {
+        ArgumentNullException.ThrowIfNull(boundary);
+        NativeBattleGraphicsModel sourceModel = models.Get(source);
         if (selector >= 16)
         {
-            int target = Enumerable.Range(3, 4).FirstOrDefault(index => models[index].ModelId4 == selector, -1);
-            return target < 0 ? models : models.SetItem(source, models[source].WriteLinkedModelIndex140(target));
+            BattleModelEntry<BattleEnemyModelOwner>? target = models.Enemies.Entries.FirstOrDefault(entry => entry.State.ModelId4 == selector);
+            return target is null ? models : models.Set(source, sourceModel.WriteLinkedModel(target.Owner));
         }
         if (selector >= 3)
         {
-            return models.SetItem(source, models[source].WriteLinkedModelIndex140(selector));
+            return models.Set(source, sourceModel.WriteLinkedModel(boundary.DecodeLiteral(selector, models)));
         }
-        List<int> ring = [];
-        int current = source;
+        List<BattleModelOwner> ring = [];
+        BattleModelOwner current = source;
         do
         {
             if (ring.Contains(current))
@@ -64,32 +60,34 @@ public static class NativeBattleModelRings
                 throw new InvalidDataException("Native90 unlink chain does not return to its source.");
             }
             ring.Add(current);
-            current = models[current].ReadLinkedModelIndex140() ?? throw new InvalidDataException("Native90 unlink dereferences a NULL link before closing its ring.");
+            current = models.Get(current).ReadLinkedModel() ?? throw new InvalidDataException("Native90 unlink dereferences a NULL link before closing its ring.");
         }
         while (current != source);
-        foreach (int index in ring)
+        foreach (BattleModelOwner owner in ring)
         {
-            models = models.SetItem(index, models[index].WriteLinkedModelIndex140(null));
+            models = models.Set(owner, models.Get(owner).WriteLinkedModel(null));
         }
         return models;
     }
 
-    public static IEnumerable<int> Walk(ImmutableArray<NativeBattleGraphicsModel> models, int source)
+    public static IEnumerable<BattleModelOwner> Walk(BattleActorModels models, BattleModelOwner source)
     {
-        HashSet<int> visited = [];
-        int? current = source;
-        while (current is int index)
+        ArgumentNullException.ThrowIfNull(source);
+        HashSet<BattleModelOwner> visited = [];
+        BattleModelOwner? current = source;
+        while (current is not null)
         {
-            if (!visited.Add(index))
+            if (!visited.Add(current))
             {
-                if (index == source)
+                if (current == source)
                 {
                     yield break;
                 }
                 throw new InvalidDataException("Native model ring enters a cycle that does not return to its source.");
             }
-            yield return index;
-            current = models[index].ReadLinkedModelIndex140();
+            NativeBattleGraphicsModel model = models.Get(current);
+            yield return current;
+            current = model.ReadLinkedModel();
         }
     }
 }

@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Owned fields of one156-byte native graphics model, distinct from the208-byte battle participant.</summary>
-public sealed partial record NativeBattleGraphicsModel(int Index, ushort Flags0)
+public sealed partial record NativeBattleGraphicsModel(ushort Flags0)
 {
     public byte? ModelId4 { get; init; }
     public byte? Kind5 { get; init; }
@@ -73,66 +73,9 @@ public static class NativeBattleGraphicsModels
         return model with { Flags0 = (ushort)(model.Flags0 | 0xC), ResourceFlags44 = (ushort)(flags | 0x40) };
     }
 
-    public static NativeBattleGraphicsModel[] ClearBank(System.Collections.Immutable.ImmutableArray<uint?>? retainedColors40 = null, System.Collections.Immutable.ImmutableArray<System.Collections.Immutable.ImmutableArray<byte?>>? retainedStatusTimers = null, System.Collections.Immutable.ImmutableArray<NativeBattleActionMatrix?>? retainedWorldMatrices64 = null, System.Collections.Immutable.ImmutableArray<NativeBattleModelRetainedFields>? retainedTransformRows = null, System.Collections.Immutable.ImmutableArray<System.Collections.Immutable.ImmutableArray<short?>>? retainedSequenceLocals = null)
+    internal static NativeBattleGraphicsModel ClearUnloadedModel(uint? color, ImmutableArray<byte?>? statusTimers, NativeBattleActionMatrix? worldMatrix, NativeBattleModelRetainedFields? transform, ImmutableArray<short?>? sequenceLocals)
     {
-        //502340 clears only Flags0 of each of seven records. Unknown retained fields must not be supplied as zeros.
-        if (retainedColors40 is { } colors && (colors.IsDefault || colors.Length != 7))
-        {
-            throw new InvalidDataException("Native502340 requires the retained seven model-color DWORDs.");
-        }
-        if (retainedStatusTimers is { } timers && (timers.IsDefault || timers.Length != 7 || timers.Any(row => row.IsDefault || row.Length != 32)))
-        {
-            throw new InvalidDataException("Native502340 requires seven retained32-byte status timer rows.");
-        }
-        if (retainedWorldMatrices64 is { } matrices)
-        {
-            if (matrices.IsDefault || matrices.Length != 7)
-            {
-                throw new InvalidDataException("Native502340 requires the retained seven model matrix fields.");
-            }
-            foreach (NativeBattleActionMatrix? matrix in matrices)
-            {
-                matrix?.Validate();
-            }
-        }
-        if (retainedTransformRows is { } transforms && (transforms.IsDefault || transforms.Length != 7 || transforms.Any(row => row is null)))
-        {
-            throw new InvalidDataException("Native502340 requires seven retained rotation, transform and normal-color rows.");
-        }
-        if (retainedSequenceLocals is { } locals && (locals.IsDefault || locals.Length != 7 || locals.Any(row => row.IsDefault || row.Length != 8)))
-        {
-            throw new InvalidDataException("Native graphics sequence locals require seven physical eight-WORD rows.");
-        }
-        NativeBattleGraphicsModel[] bank = new NativeBattleGraphicsModel[NativeBattleGraphicsModelAddress.NativeRowCount];
-        for (int row = 0; row < bank.Length; row++)
-        {
-            bank[row] = ClearRow(row, retainedColors40?[row], retainedStatusTimers?[row], retainedWorldMatrices64?[row], retainedTransformRows?[row], retainedSequenceLocals?[row]);
-        }
-        return bank;
-    }
-
-    public static NativeBattleGraphicsModel[] ClearPresentationBank(NativeBattleGraphicsRoster roster, ImmutableArray<NativeBattleModelRetainedFields>? retainedTransformRows = null, ImmutableArray<uint?>? retainedColors40 = null, ImmutableArray<ImmutableArray<byte?>>? retainedStatusTimers = null, ImmutableArray<NativeBattleActionMatrix?>? retainedWorldMatrices64 = null, ImmutableArray<ImmutableArray<short?>>? retainedSequenceLocals = null)
-    {
-        ArgumentNullException.ThrowIfNull(roster);
-        roster.Validate();
-        NativeBattleGraphicsModel[] bank = ClearBank(retainedColors40, retainedStatusTimers, retainedWorldMatrices64, retainedTransformRows, retainedSequenceLocals);
-        if (bank.Length == roster.ActorCount)
-        {
-            return bank;
-        }
-
-        int nativeCount = bank.Length;
-        Array.Resize(ref bank, roster.ActorCount);
-        for (int row = nativeCount; row < bank.Length; row++)
-        {
-            bank[row] = ClearRow(row, null, null, null, null, retainedSequenceLocals is null ? null : NativeBattleSequenceState.ColdProcessLocals());
-        }
-        return bank;
-    }
-
-    private static NativeBattleGraphicsModel ClearRow(int index, uint? color, ImmutableArray<byte?>? statusTimers, NativeBattleActionMatrix? worldMatrix, NativeBattleModelRetainedFields? transform, ImmutableArray<short?>? sequenceLocals)
-    {
-        NativeBattleGraphicsModel model = new(index, 0)
+        NativeBattleGraphicsModel model = new(0)
         {
             Color40 = color,
             StatusTimers = statusTimers ?? ImmutableArray.CreateRange(new byte?[32]),
@@ -142,7 +85,7 @@ public static class NativeBattleGraphicsModels
         return transform is null ? model : transform.Restore502340(model);
     }
 
-    public static NativeBattleGraphicsModel CompleteLoad(NativeBattleGraphicsModel model, byte modelId, uint projectedStatusFlags, ref NativeGlobalRandomState random, byte? information246 = null, bool? isParty = null)
+    public static NativeBattleGraphicsModel CompleteLoad(NativeBattleGraphicsModel model, byte modelId, uint projectedStatusFlags, bool isParty, ref NativeGlobalRandomState random, byte? information246 = null)
     {
         //5027D0 initializes BYTE145 from model identity and48B9F0's original information BYTE246.
         byte sequenceByte145 = modelId < 16 ? (byte)0 : InitializeSequenceByte145(information246 ?? throw new InvalidDataException("Native5027D0 requires the enemy's original information BYTE246."));
@@ -160,7 +103,7 @@ public static class NativeBattleGraphicsModels
             }
         }
         //5027D0 copies resourceDWORD100 to originalDWORD104, ending any temporary magic-resource override.
-        return model with { CurrentBodyBoneMatrices = null, ScaleVectorAddress48 = 0, Flags0 = 3, Flags2 = 4, ModelId4 = modelId, Kind5 = 0, Phase6 = null, Alpha7 = null, MinimumY146 = 0, CameraSequence130 = (byte)(frame % 6), CameraAccumulator131 = (byte)appearance, HasLinkedModelRing140 = false, LinkedModelIndex140 = null, BlinkCountdown144 = (byte)(blink % 45 + 15), SequenceByte145 = sequenceByte145, Flags8 = projectedStatusFlags, Flags8KnownMask = 0, Flags8KnownBits = 0, StatusTimers = timers, Rotation12 = 0, Rotation14 = (isParty ?? model.Index < 3) ? (short)0 : (short)2048, Rotation16 = 0, ResourceFlags44 = 1, ResourceMagicId = null, ResourceRenzokukenTargetBank = null, Sequence = 8, SequenceFrame = 0 };
+        return model with { CurrentBodyBoneMatrices = null, ScaleVectorAddress48 = 0, Flags0 = 3, Flags2 = 4, ModelId4 = modelId, Kind5 = 0, Phase6 = null, Alpha7 = null, MinimumY146 = 0, CameraSequence130 = (byte)(frame % 6), CameraAccumulator131 = (byte)appearance, HasLinkedModelRing140 = false, LinkedModel = null, BlinkCountdown144 = (byte)(blink % 45 + 15), SequenceByte145 = sequenceByte145, Flags8 = projectedStatusFlags, Flags8KnownMask = 0, Flags8KnownBits = 0, StatusTimers = timers, Rotation12 = 0, Rotation14 = isParty ? (short)0 : (short)2048, Rotation16 = 0, ResourceFlags44 = 1, ResourceMagicId = null, ResourceRenzokukenTargetBank = null, Sequence = 8, SequenceFrame = 0 };
     }
 
     private static byte InitializeSequenceByte145(byte information246)

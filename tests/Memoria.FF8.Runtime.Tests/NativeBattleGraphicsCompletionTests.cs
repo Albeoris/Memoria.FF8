@@ -7,7 +7,7 @@ public sealed class NativeBattleGraphicsCompletionTests
     {
         byte completion = 0;
 
-        Assert.Equal(2, NativeBattleGraphicsCompletion.PollTask112(0, Models(), 0, ref completion));
+        Assert.Equal(2, NativeBattleGraphicsCompletion.PollTask112(0, new BattleActorModels([]), 0, ref completion));
         Assert.Equal(255, completion);
     }
 
@@ -18,7 +18,7 @@ public sealed class NativeBattleGraphicsCompletionTests
     {
         byte completion = 7;
 
-        Assert.Equal(0, NativeBattleGraphicsCompletion.PollTask112(effects, effects != 0 ? null : Models(), camera, ref completion));
+        Assert.Equal(0, NativeBattleGraphicsCompletion.PollTask112(effects, effects != 0 ? null : new BattleActorModels([]), camera, ref completion));
         Assert.Equal(7, completion);
     }
 
@@ -32,8 +32,7 @@ public sealed class NativeBattleGraphicsCompletionTests
     [InlineData(2, 0, 0, 64, 2)]
     public void Task112UsesTheOriginalGraphicsModelPredicate(ushort flags, byte kind, uint state, ushort resource, int expected)
     {
-        NativeBattleGraphicsModelCompletion[] models = Models();
-        models[6] = new(flags, kind, state, resource);
+        BattleActorModels models = Models(new(flags) { Kind5 = kind, Flags8 = state, ResourceFlags44 = resource });
         byte completion = 0;
 
         Assert.Equal(expected, NativeBattleGraphicsCompletion.PollTask112(0, models, 0, ref completion));
@@ -43,17 +42,48 @@ public sealed class NativeBattleGraphicsCompletionTests
     [Fact]
     public void UnknownResourceFlagsFailOnlyWhenTheNativePredicateReadsThem()
     {
-        NativeBattleGraphicsModelCompletion[] models = Models();
-        models[0] = new(2, 0, 0, null);
+        BattleActorModels models = Models(new(2) { Kind5 = 0, Flags8 = 0 });
         byte completion = 0;
 
         Assert.Throws<NotSupportedException>(() => NativeBattleGraphicsCompletion.PollTask112(0, models, 0, ref completion));
-        models[0] = models[0] with { Flags8 = 8 };
+        models = Models(new(2) { Kind5 = 0, Flags8 = 8 });
         Assert.Equal(2, NativeBattleGraphicsCompletion.PollTask112(0, models, 0, ref completion));
     }
 
-    private static NativeBattleGraphicsModelCompletion[] Models()
+    [Fact]
+    public void Task112WaitsForAnExtraOwnerBeforeObservingCamera()
     {
-        return Enumerable.Repeat(new NativeBattleGraphicsModelCompletion(0, 0, 0, null), 7).ToArray();
+        BattlePartyActorModel party = new(new("party"));
+        BattleEnemyActorModel extra = new(new("extra-enemy"));
+        BattleEnemyActorModel later = new(new("later-enemy"));
+        BattleActorModels models = new([new(party, new(0)), new(extra, new(2) { Kind5 = 1, Flags8 = 0 }), new(later, new(2))]);
+        int cameraReads = 0;
+        byte completion = 7;
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => NativeBattleGraphicsCompletion.PollTask112(-1, null, ReadCamera, ref completion));
+        Assert.Equal(0, NativeBattleGraphicsCompletion.PollTask112(256, null, ReadCamera, ref completion));
+        Assert.Equal(0, NativeBattleGraphicsCompletion.PollTask112(0, models, ReadCamera, ref completion));
+        Assert.Equal(0, cameraReads);
+        Assert.Equal(7, completion);
+
+        models = models.Set(extra, new(2) { Kind5 = 0, Flags8 = 0, ResourceFlags44 = 0x40 });
+        Assert.Throws<InvalidDataException>(() => NativeBattleGraphicsCompletion.PollTask112(0, models, ReadCamera, ref completion));
+        Assert.Equal(0, cameraReads);
+        models = models.Set(later, new(0));
+        Assert.Equal(2, NativeBattleGraphicsCompletion.PollTask112(0, models, ReadCamera, ref completion));
+        Assert.Equal(1, cameraReads);
+        Assert.Equal(255, completion);
+
+        byte ReadCamera()
+        {
+            cameraReads++;
+            return 0;
+        }
+    }
+
+    private static BattleActorModels Models(NativeBattleGraphicsModel model)
+    {
+        BattleEnemyActorModel owner = new(new("enemy"));
+        return new([new(owner, model)]);
     }
 }

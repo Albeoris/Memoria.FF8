@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -46,19 +45,55 @@ public sealed class NativeBattleModelRingTests
     [Fact]
     public void Opcode90MatchesUnloadedPhysicalEnemyIdsAndUnlinksTheWholeClosedRing()
     {
-        ImmutableArray<NativeBattleGraphicsModel> models = NativeBattleGraphicsModels.ClearBank().ToImmutableArray();
-        models = models.SetItem(3, models[3] with { ModelId4 = 17 });
-        models = NativeBattleModelRings.Bind90(models, 0, 17);
-        Assert.Equal((int?)3, models[0].ReadLinkedModelIndex140());
-        Assert.Equal((ushort)0, models[3].Flags0);
-        models = NativeBattleModelRings.Bind90(models, 3, 3);
-        models = models.SetItem(3, models[3].WriteLinkedModelIndex140(0));
-        models = JsonSerializer.Deserialize<ImmutableArray<NativeBattleGraphicsModel>>(JsonSerializer.Serialize(models));
-        Assert.Equal(new int[] { 0, 3 }, NativeBattleModelRings.Walk(models, 0));
-        models = NativeBattleModelRings.Bind90(models, 0, 0);
-        Assert.Null(models[0].ReadLinkedModelIndex140());
-        Assert.Null(models[3].ReadLinkedModelIndex140());
-        Assert.Throws<InvalidDataException>(() => NativeBattleModelRings.Bind90(models, 0, 0));
+        BattlePartyActorModel source = new(new("party"));
+        BattleEnemyActorModel enemy = new(new("native-enemy"));
+        NativeBattleModelBoundary boundary = EmptyBoundary();
+        var models = new BattleActorModels([]);
+        (boundary, models) = boundary.BindOriginalSlot(NativeBattleModelSlot.Decode(0), source, models);
+        (boundary, models) = boundary.BindOriginalSlot(NativeBattleModelSlot.Decode(3), enemy, models);
+        models = models.Set(enemy, models.Get(enemy) with { ModelId4 = 17 });
+
+        models = NativeBattleModelRings.Bind90(models, source, 17, boundary);
+        Assert.Equal(enemy, models.Get(source).ReadLinkedModel());
+        Assert.Equal((ushort)0, models.Get(enemy).Flags0);
+        models = NativeBattleModelRings.Bind90(models, enemy, 3, boundary);
+        Assert.Equal(enemy, models.Get(enemy).ReadLinkedModel());
+        models = models.Set(enemy, models.Get(enemy).WriteLinkedModel(source));
+        Assert.Equal<BattleModelOwner>([source, enemy], NativeBattleModelRings.Walk(models, source));
+
+        models = NativeBattleModelRings.Bind90(models, source, 0, boundary);
+        Assert.Null(models.Get(source).ReadLinkedModel());
+        Assert.Null(models.Get(enemy).ReadLinkedModel());
+        Assert.Equal<BattleModelOwner>([source], NativeBattleModelRings.Walk(models, source));
+        Assert.Throws<InvalidDataException>(() => NativeBattleModelRings.Bind90(models, source, 0, boundary));
+    }
+
+    [Fact]
+    public void Opcode90SeparatesEnemyLookupFromAuthoredSlotsAndRejectsAnotherOwnersCycle()
+    {
+        BattlePartyActorModel source = new(new("party"));
+        BattleEnemyActorModel literal = new(new("native-enemy"));
+        BattleEnemyActorModel first = new(new("extra-first"));
+        BattleEnemyActorModel second = new(new("extra-second"));
+        NativeBattleModelBoundary boundary = EmptyBoundary();
+        BattleActorModels models = new([new(first, new(0) { ModelId4 = 17 }), new(second, new(3) { ModelId4 = 17 })]);
+        (boundary, models) = boundary.BindOriginalSlot(NativeBattleModelSlot.Decode(3), literal, models);
+        (boundary, models) = boundary.BindOriginalSlot(NativeBattleModelSlot.Decode(0), source, models);
+        models = models.Set(source, models.Get(source) with { ModelId4 = 17 });
+
+        models = NativeBattleModelRings.Bind90(models, source, 3, boundary);
+        Assert.Equal(literal, models.Get(source).ReadLinkedModel());
+        Assert.Throws<InvalidDataException>(() => NativeBattleModelRings.Bind90(models, source, 4, boundary));
+        Assert.Throws<ArgumentOutOfRangeException>(() => NativeBattleModelRings.Bind90(models, source, 7, boundary));
+        Assert.Same(models, NativeBattleModelRings.Bind90(models, source, 18, boundary));
+        Assert.Throws<KeyNotFoundException>(() => NativeBattleModelRings.Bind90(models, new BattlePartyActorModel(new("unbound")), 18, boundary));
+
+        models = NativeBattleModelRings.Bind90(models, source, 17, boundary);
+        Assert.Equal(first, models.Get(source).ReadLinkedModel());
+        models = models.Set(first, models.Get(first).WriteLinkedModel(second));
+        models = models.Set(second, models.Get(second).WriteLinkedModel(first));
+        Assert.Throws<InvalidDataException>(() => NativeBattleModelRings.Walk(models, source).ToArray());
+        Assert.Throws<InvalidDataException>(() => NativeBattleModelRings.Bind90(models, source, 2, boundary));
     }
 
     [Fact]
@@ -78,5 +113,10 @@ public sealed class NativeBattleModelRingTests
         Assert.Null(state.Tail);
         Assert.Equal(0x831E0u, NativeBattleModelRings.PreservedStatusMask50A000(0x40));
         Assert.Equal(0x21E35F0u, NativeBattleModelRings.PreservedStatusMask50A000(0));
+    }
+
+    private static NativeBattleModelBoundary EmptyBoundary()
+    {
+        return new(Enumerable.Repeat(new NativeBattleGraphicsModel(0), 7));
     }
 }

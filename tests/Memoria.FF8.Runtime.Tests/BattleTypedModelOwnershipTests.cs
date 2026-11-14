@@ -33,7 +33,7 @@ public sealed class BattleTypedModelOwnershipTests
         BattlePartyActorModel party = new(new("party"));
         BattleForeignEnemyModel foreignEnemy = new(new("enemy-proxy"));
         BattleForeignPartyModel foreignParty = new(new("party-proxy"));
-        NativeBattleGraphicsModel physicalState = new(0, 0);
+        NativeBattleGraphicsModel physicalState = new(0);
         BattleActorModels models = new([new(enemy, physicalState), new(party, physicalState), new(foreignEnemy, physicalState), new(foreignParty, physicalState)]);
 
         Assert.Equal<BattleModelOwner>([enemy, party, foreignEnemy, foreignParty], models.Owners);
@@ -53,7 +53,7 @@ public sealed class BattleTypedModelOwnershipTests
         BattleEnemyActorModel sameActor = new(new("shared"));
         BattleForeignEnemyModel foreign = new(new("shared"));
         BattleForeignPartyModel sameForeign = new(new("shared"));
-        NativeBattleGraphicsModel state = new(0, 0);
+        NativeBattleGraphicsModel state = new(0);
 
         BattleActorModels models = new([new(actor, state), new(foreign, state)]);
         Assert.True(models.Contains(actor));
@@ -76,7 +76,7 @@ public sealed class BattleTypedModelOwnershipTests
         BattleEnemyActorModel retired = new(new("enemy-allocation-1"));
         BattleEnemyActorModel current = new(new("enemy-allocation-2"));
         BattlePartyActorModel last = new(new("last"));
-        NativeBattleGraphicsModel state = new(0, 0);
+        NativeBattleGraphicsModel state = new(0);
         NativeBattleGraphicsModel updated = state with { Flags0 = 2 };
         BattleActorModels empty = new([]);
         BattleActorModels initial = empty.Add(first, state).Add(retired, state).Add(last, state);

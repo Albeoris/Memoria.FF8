@@ -23,13 +23,15 @@ public sealed class NativeBattleActionGeometryTests
     }
 
     [Fact]
-    public void Unresolved_target_fields_remain_unknown_and_invalid_physical_indices_are_rejected()
+    public void Unresolved_target_fields_remain_unknown_and_resolved_targets_must_belong_to_the_selection()
     {
-        NativeBattleActionGeometry context = new(0, 0xA007);
+        BattlePartyActorModel source = new(new("ally"));
+        BattleEnemyActorModel enemy = new(new("enemy"));
+        NativeBattleActionGeometry context = new(source, BattleModelTargets.From([source, enemy]), true);
         context.Validate();
-        Assert.Null(context.PhysicalTargetMask);
+        Assert.Null(context.TargetActors);
         Assert.Null(context.ContactDistance);
-        Assert.Throws<InvalidDataException>(() => (context with { TargetIndex = 7 }).Validate());
-        Assert.Throws<InvalidDataException>(() => (context with { PhysicalTargetMask = 0x8000 }).Validate());
+        Assert.Throws<InvalidDataException>(() => (context with { Target = enemy }).Validate());
+        Assert.Throws<InvalidDataException>(() => (context with { TargetActors = BattleModelTargets.From([enemy]), Target = source }).Validate());
     }
 }

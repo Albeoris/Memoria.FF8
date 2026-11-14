@@ -7,7 +7,7 @@ public sealed record NativeBattleEffect326Frame(NativeBattleEffectMemory Memory,
 
 public sealed record NativeBattleEffect326Step(NativeBattleEffect326Frame Frame, int Result);
 public sealed record NativeBattleEffect326PointStep(NativeBattleEffect326Frame Frame, NativeBattleEffectArena Point8);
-public sealed record NativeBattleEffect326Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect326Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect326Frame, uint> ReadFlags, Func<NativeBattleEffect326Frame, NativeBattleEffect326Step> ReadStep508500, Func<NativeBattleEffect326Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect326Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect326Frame, short> ReadCameraRoll, Func<NativeBattleEffect326Frame, NativeBattleCameraPose> ReadCameraPose, Func<NativeBattleEffect326Frame, short?> ReadEyePadding, Func<NativeBattleEffect326Frame, short?> ReadTargetPadding, Func<NativeBattleEffect326Frame, int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleEffect326Frame, int, NativeBattlePackedMatrix32> ReadWorld, Func<NativeBattleEffect326Frame, NativeBattleGraphicsActorSet, NativeBattleEffectArena, NativeBattleEffectArena> ReadTargetCenter5020A0, Func<NativeBattleEffect326Frame, int, int, int, NativeBattleEffectArena, NativeBattleEffect326PointStep> ReadBone502170, Func<NativeBattleEffect326Frame, int, bool> ReadVibrationPlaying4A2900, Func<NativeBattleEffect326Frame, NativeBattleEffect326Operation, NativeBattleEffect326Frame> Execute)
+public sealed record NativeBattleEffect326Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect326Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect326Frame, uint> ReadFlags, Func<NativeBattleEffect326Frame, NativeBattleEffect326Step> ReadStep508500, Func<NativeBattleEffect326Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect326Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect326Frame, short> ReadCameraRoll, Func<NativeBattleEffect326Frame, NativeBattleCameraPose> ReadCameraPose, Func<NativeBattleEffect326Frame, short?> ReadEyePadding, Func<NativeBattleEffect326Frame, short?> ReadTargetPadding, Func<NativeBattleEffect326Frame, BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleEffect326Frame, BattleModelOwner, NativeBattlePackedMatrix32> ReadWorld, Func<NativeBattleEffect326Frame, BattleModelTargets, NativeBattleEffectArena, NativeBattleEffectArena> ReadTargetCenter5020A0, Func<NativeBattleEffect326Frame, BattleModelOwner, int, int, NativeBattleEffectArena, NativeBattleEffect326PointStep> ReadBone502170, Func<NativeBattleEffect326Frame, int, bool> ReadVibrationPlaying4A2900, Func<NativeBattleEffect326Frame, NativeBattleEffect326Operation, NativeBattleEffect326Frame> Execute)
 {
     [System.Text.Json.Serialization.JsonIgnore]
     public bool CapturePresentation { get; init; }
@@ -16,7 +16,7 @@ public sealed record NativeBattleEffect326Inputs(NativeBattleSummonColors Colors
     internal NativeBattlePilotVisualIdentity? PresentationTask { get; init; }
 
     public byte? EntryLifecycle { get; init; }
-    public Func<NativeBattleEffect326Frame, int, NativeBattleEffectArena, NativeBattleEffect326PointStep>? ReadAnchor571400 { get; init; }
+    public Func<NativeBattleEffect326Frame, BattleModelOwner, NativeBattleEffectArena, NativeBattleEffect326PointStep>? ReadAnchor571400 { get; init; }
     public NativeBattleShadowSource? ShadowSource { get; init; }
     public NativeBattlePrimitiveCapabilities? PrimitiveCapabilities { get; init; }
     public Func<NativeBattleEffect326Frame, uint, uint>? ReadColor { get; init; }
@@ -37,8 +37,8 @@ public sealed record NativeBattleEffect326Vibration4A29A0(uint SourceAddress, in
 public sealed record NativeBattleEffect326StopVibration4A2940(int Handle) : NativeBattleEffect326Operation;
 public sealed record NativeBattleEffect326Stage5713E0(int Intensity, int Selector) : NativeBattleEffect326Operation;
 public sealed record NativeBattleEffect326StageGroupFlags(byte AndMask, byte OrMask) : NativeBattleEffect326Operation;
-public sealed record NativeBattleEffect326ModelFlags(int Actor, ushort AndMask, ushort OrMask) : NativeBattleEffect326Operation;
-public sealed record NativeBattleEffect326ModelColor(int Actor, uint Value) : NativeBattleEffect326Operation;
+public sealed record NativeBattleEffect326ModelFlags(BattleModelOwner Actor, ushort AndMask, ushort OrMask) : NativeBattleEffect326Operation;
+public sealed record NativeBattleEffect326ModelColor(BattleModelOwner Actor, uint Value) : NativeBattleEffect326Operation;
 public sealed record NativeBattleEffect326PublishCameraPose(NativeBattleCameraPose Pose, short? EyePadding, short? TargetPadding) : NativeBattleEffect326Operation;
 public sealed record NativeBattleEffect326Contacts506BA0 : NativeBattleEffect326Operation;
 public sealed record NativeBattleEffect326DeliverBatch(NativeBattleGfGeometryBatch Batch, uint CursorGlobal, ushort Flags = 0) : NativeBattleEffect326Operation;
@@ -47,6 +47,6 @@ public sealed record NativeBattleEffect326Flash5712C0(int Rise, int Hold, int Fa
 
 public sealed record NativeBattleEffect326QueueTextureRelease508630(uint SourceAddress, uint CompletionAddress) : NativeBattleEffect326Operation;
 
-public sealed record NativeBattleEffect326WriteModelBytes(int Actor, int Offset, NativeBattleEffectArena Data, int Length) : NativeBattleEffect326Operation;
+public sealed record NativeBattleEffect326WriteModelBytes(BattleModelOwner Actor, int Offset, NativeBattleEffectArena Data, int Length) : NativeBattleEffect326Operation;
 
-public sealed record NativeBattleEffect326ActorAnimation505C00(int Actor, short Animation) : NativeBattleEffect326Operation;
+public sealed record NativeBattleEffect326ActorAnimation505C00(BattleModelOwner Actor, short Animation) : NativeBattleEffect326Operation;

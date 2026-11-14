@@ -22,8 +22,8 @@ public sealed partial record NativeBattleGraphicsDefinition(NativeBattleGraphics
 {
     public NativeBattlePrimitiveCapabilities? PrimitiveCapabilities { get; init; }
 }
-public sealed record NativeBattleGraphicsRequest(ushort Command, byte? ModelIndex, byte State = 0, bool Entry = false);
-public sealed partial record NativeBattleGraphicsState([property: JsonRequired] ImmutableArray<NativeBattleGraphicsModel> Models, [property: JsonRequired] ImmutableArray<string?> ActorIds, [property: JsonRequired] uint Flags, [property: JsonRequired] long Callback)
+public sealed record NativeBattleGraphicsRequest(ushort Command, BattleModelOwner? ModelOwner, byte State = 0, bool Entry = false);
+public sealed partial record NativeBattleGraphicsState([property: JsonRequired] BattleActorModels ActorModels, [property: JsonRequired] NativeBattleModelBoundary NativeBindings, [property: JsonRequired] uint Flags, [property: JsonRequired] long Callback)
 {
     [JsonRequired]
     public ImmutableArray<NativeBattleContactPacket> PendingContacts { get; init; } = [];
@@ -55,11 +55,11 @@ public sealed partial record NativeBattleGraphicsState([property: JsonRequired] 
     public NativeBattleTriggerWidget? TriggerWidget { get; init; }
     [JsonRequired]
     public NativeBattleTriggerReceipt? PendingTrigger { get; init; }
-    public byte? PendingTriggerSoundActorIndex { get; init; }
+    public BattleModelOwner? PendingTriggerSoundActor { get; init; }
     [JsonIgnore]
     public bool? NativeMenuControl942Bit8 => UiServices is null ? null : (UiServices.Flags942 & 8) != 0;
     [JsonIgnore]
-    public ImmutableArray<NativeBattleGraphicsRequest> Requests => Descriptors.Queue.Select(slot => new NativeBattleGraphicsRequest(Descriptors.Packets[slot].Command, Descriptors.Packets[slot].Index is >= 0 and < 7 ? (byte)Descriptors.Packets[slot].Index : null, Descriptors.Packets[slot].PriorityState == 255 ? (byte)255 : (byte)(Descriptors.Packets[slot].PriorityState & 15), slot == EntryBarrierPacket)).ToImmutableArray();
+    public ImmutableArray<NativeBattleGraphicsRequest> Requests => Descriptors.Queue.Select(slot => new NativeBattleGraphicsRequest(Descriptors.Packets[slot].Command, null, Descriptors.Packets[slot].PriorityState == 255 ? (byte)255 : (byte)(Descriptors.Packets[slot].PriorityState & 15), slot == EntryBarrierPacket)).ToImmutableArray();
     [JsonRequired]
     public string? ActionActorId { get; init; }
     [JsonRequired]
@@ -75,22 +75,6 @@ public sealed partial record NativeBattleGraphicsState([property: JsonRequired] 
     public long PresentationSubticks { get; init; }
 
     public bool PresentationHalfSubtick { get; init; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleGraphicsRoster? PresentationRoster { get; init; }
-
-    public bool IsPartyActor(int row)
-    {
-        if (PresentationRoster is { } roster)
-        {
-            return roster[row].IsParty;
-        }
-        if ((uint)row >= NativeBattleGraphicsModelAddress.NativeRowCount)
-        {
-            throw new ArgumentOutOfRangeException(nameof(row));
-        }
-        return row < NativeBattleSlots.AllyCount;
-    }
 
     public void Validate()
     {

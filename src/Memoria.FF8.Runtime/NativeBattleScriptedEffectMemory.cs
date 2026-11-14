@@ -9,7 +9,7 @@ public sealed record NativeBattleScriptedEffectMemory([property: JsonRequired] N
     public const uint Address = 0x2797068;
     public const int Length = 0x1BB0;
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonIgnore]
     public NativeBattleCinematicActorContext? PresentationActors { get; init; }
 
     public static NativeBattleScriptedEffectMemory FromColdProcess() => new(NativeBattleEffectArena.Clear());

@@ -9,7 +9,7 @@ public sealed record NativeBattleWaterHeader([property: JsonRequired] ImmutableA
 {
     public const int Length = 0x17C;
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonIgnore]
     public NativeBattleCinematicActorContext? PresentationActors { get; init; }
 
     public static NativeBattleWaterHeader FromColdProcess() => new(new byte[Length].ToImmutableArray(), Enumerable.Repeat(true, Length).ToImmutableArray());

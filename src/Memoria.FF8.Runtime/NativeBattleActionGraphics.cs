@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>50BF90's copied globals; header and contact storage remain in their canonical physical arenas.</summary>
-public sealed record NativeBattleActionGraphicsState([property: JsonRequired] int HeaderIndex, [property: JsonRequired] byte ActorIndex, [property: JsonRequired] int FirstContactIndex, [property: JsonRequired] ushort TargetMask, [property: JsonRequired] ushort CoverMask, [property: JsonRequired] byte? CoverSource, [property: JsonRequired] byte? FirstTarget, [property: JsonRequired] byte HitFlags, [property: JsonRequired] NativeBattleActionDataReference? PendingData, [property: JsonRequired] uint Callback)
+public sealed record NativeBattleActionGraphicsState([property: JsonRequired] BattleActionHeaderReference Header, [property: JsonRequired] BattleModelOwner Actor, [property: JsonRequired] BattleContactCursor FirstContact, [property: JsonRequired] BattleModelTargets TargetActors, [property: JsonRequired] BattleModelTargets CoverActors, [property: JsonRequired] BattleModelOwner? CoverSource, [property: JsonRequired] BattleModelOwner? FirstTarget, [property: JsonRequired] byte HitFlags, [property: JsonRequired] NativeBattleActionDataReference? PendingData, [property: JsonRequired] uint Callback)
 {
     [JsonRequired]
     public bool? UseActionCamera { get; init; }
@@ -14,47 +14,8 @@ public sealed record NativeBattleActionGraphicsState([property: JsonRequired] in
     public ushort? CastingWatchdog8E { get; init; }
     public NativeBattleGuardianServiceState? Guardian { get; init; }
     public int? FirstHeaderTargetCount { get; init; }
-    public byte? IndependentSummonPartyMask6C { get; init; }
-    public byte? ActorSelector56 { get; init; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleGraphicsActorSet? PresentationTargets { get; init; }
-
-    [JsonIgnore]
-    public NativeBattleGraphicsActorSet TargetActors
-    {
-        get
-        {
-            if (PresentationTargets is not { } targets)
-            {
-                return NativeBattleGraphicsActorSet.FromNative(TargetMask);
-            }
-            if (targets.NativePhysicalBits != TargetMask)
-            {
-                throw new InvalidDataException("Hosted action graphics target set contradicts its native physical mask.");
-            }
-            return targets;
-        }
-    }
-
-    internal void ValidatePresentationTargets(NativeBattleGraphicsRoster? roster)
-    {
-        if (roster is null || FirstHeaderTargetCount is < 0 or > NativeBattleContactAddress.MaximumRowCount)
-        {
-            throw new InvalidDataException("Hosted action graphics require an explicit roster and valid first-header contact count.");
-        }
-        NativeBattleActionGeometry.ValidatePresentationRows(roster, ActorIndex, default, TargetActors);
-        ValidateRetainedRow(FirstTarget);
-        ValidateRetainedRow(CoverSource);
-
-        void ValidateRetainedRow(byte? row)
-        {
-            if (row is byte index && (index >= roster.ActorCount || roster.Rows[index] is null))
-            {
-                throw new InvalidDataException($"Hosted action graphics require a bound actor at row {index}.");
-            }
-        }
-    }
+    public BattleModelTargets? HiddenPartyActors { get; init; }
+    public BattleModelOwner? CameraActor { get; init; } = Actor;
 }
 public sealed record NativeBattleGuardianServiceState(byte HiddenPartyMask47, byte CameraSelector4E, ushort Control44, byte? Neighbor70 = null);
 public sealed record NativeBattleActionServiceSelection(uint Callback, uint SetGraphicsFlags = 0, byte? Sequence = null);

@@ -1,11 +1,9 @@
 using System.Collections.Immutable;
-using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleCinematicActorCache(
-    [property: JsonRequired] uint ModelAddress,
-    [property: JsonRequired] ushort Flags0,
+    ushort Flags0,
     NativeBattleVector? Position28,
     short? Vertical34,
     short? Rotation12,
@@ -14,196 +12,188 @@ public sealed record NativeBattleCinematicActorCache(
     NativeBattleVector? Scale148,
     short? Scale154);
 
-/// <summary>Hosted actor fields and retained selection state for the scripted-effect header.</summary>
-public sealed record NativeBattleCinematicActorContext(
-    [property: JsonRequired] NativeBattleGraphicsRoster Roster,
-    [property: JsonRequired] ImmutableArray<NativeBattleCinematicActorCache?> CachedActors,
-    [property: JsonRequired] ImmutableArray<byte> CurrentActors,
-    [property: JsonRequired] byte? FirstActor,
-    [property: JsonRequired] ImmutableArray<byte>? SavedActors,
-    [property: JsonRequired] ImmutableArray<byte?> ActorOrdinals,
-    [property: JsonRequired] int ContactCursor)
+/// <summary>Actor fields and retained selection state for the scripted-effect header.</summary>
+public sealed record NativeBattleCinematicActorContext
 {
-    public static NativeBattleCinematicActorContext FromGraphics(NativeBattleGraphicsRoster roster, ImmutableArray<NativeBattleGraphicsModel> models)
+    private readonly ImmutableArray<BattleModelOwner> ownerOrder;
+
+    private NativeBattleCinematicActorContext(BattleActorModels models)
     {
-        ArgumentNullException.ThrowIfNull(roster);
-        roster.Validate();
-        ImmutableArray<NativeBattleCinematicActorCache?> cached = CaptureRows(roster, models);
-        return new(roster, cached, [], null, null, ImmutableArray.CreateRange(new byte?[roster.ActorCount]), 0);
+        ownerOrder = models.Owners.ToImmutableArray();
+        CachedActors = CaptureActors(models);
+        ActorOrdinals = ownerOrder.ToImmutableDictionary(owner => owner, _ => (int?)null);
+    }
+
+    public IEnumerable<BattleModelOwner> Owners => ownerOrder;
+    public ImmutableDictionary<BattleModelOwner, NativeBattleCinematicActorCache> CachedActors { get; init; }
+    public ImmutableArray<BattleModelOwner> CurrentActors { get; init; } = [];
+    public BattleModelOwner? FirstActor { get; init; }
+    public ImmutableArray<BattleModelOwner>? SavedActors { get; init; }
+    public ImmutableDictionary<BattleModelOwner, int?> ActorOrdinals { get; init; }
+    // Number of contacts already processed within the active header.
+    public int ContactsProcessed { get; init; }
+
+    public static NativeBattleCinematicActorContext FromGraphics(BattleActorModels models)
+    {
+        ArgumentNullException.ThrowIfNull(models);
+        return new(models);
     }
 
     public void Validate()
     {
-        if (Roster is null)
+        if (CachedActors is null || ActorOrdinals is null || CachedActors.Count != ownerOrder.Length || ActorOrdinals.Count != ownerOrder.Length)
         {
-            throw new InvalidDataException("Hosted cinematic actors require their graphics roster.");
+            throw new InvalidDataException("Cinematic actor cache and ordinals must cover the model owners.");
         }
-        Roster.Validate();
-        if (CachedActors.IsDefault || CachedActors.Length != Roster.ActorCount || ActorOrdinals.IsDefault || ActorOrdinals.Length != Roster.ActorCount)
+        foreach (BattleModelOwner owner in ownerOrder)
         {
-            throw new InvalidDataException("Hosted cinematic actor cache and ordinals must cover the graphics bank.");
-        }
-        for (int row = 0; row < Roster.ActorCount; row++)
-        {
-            NativeBattleCinematicActorCache? cached = CachedActors[row];
-            byte? ordinal = ActorOrdinals[row];
-            if (Roster.Rows[row] is null)
+            if (!CachedActors.TryGetValue(owner, out NativeBattleCinematicActorCache? cached) || cached is null ||
+                !ActorOrdinals.TryGetValue(owner, out int? ordinal) || (ordinal is int index && (index < 0 || index >= ownerOrder.Length)))
             {
-                if (cached is not null || ordinal.HasValue)
-                {
-                    throw new InvalidDataException("An unbound graphics row cannot own cinematic actor data.");
-                }
-            }
-            else if (cached is null || cached.ModelAddress != NativeBattleGraphicsModelAddress.Encode(row) || ordinal >= Roster.ActorCount)
-            {
-                throw new InvalidDataException("Hosted cinematic actor cache or ordinal disagrees with its graphics row.");
+                throw new InvalidDataException("Cinematic actor cache or ordinal disagrees with its model owner.");
             }
         }
         ValidateList(CurrentActors);
         if (!CurrentActors.IsEmpty && FirstActor != CurrentActors[0])
         {
-            throw new InvalidDataException("Hosted cinematic selection disagrees with its retained first actor.");
+            throw new InvalidDataException("Cinematic selection disagrees with its retained first actor.");
         }
-        if (FirstActor is byte first)
+        if (FirstActor is { } first)
         {
-            RequireBoundRow(first);
+            RequireOwner(first);
         }
         if (SavedActors is { } saved)
         {
             ValidateList(saved);
         }
-        ValidateCursor(ContactCursor);
+        ValidateContactsProcessed(ContactsProcessed);
     }
 
-    public NativeBattleCinematicActorCache ReadCachedActor(int row)
+    public NativeBattleCinematicActorCache ReadCachedActor(BattleModelOwner owner)
     {
-        RequireBoundRow(row);
-        return CachedActors[row] ?? throw new InvalidDataException("Hosted cinematic actor lacks its cached graphics row.");
+        return RequireOwner(owner);
     }
 
-    public byte ReadActorOrdinal(int row)
+    public int ReadActorOrdinal(BattleModelOwner owner)
     {
-        RequireBoundRow(row);
-        return ActorOrdinals[row] ?? throw new NotSupportedException("Hosted cinematic actor has no retained ordinal.");
+        RequireOwner(owner);
+        if (!ActorOrdinals.TryGetValue(owner, out int? ordinal))
+        {
+            throw new InvalidDataException("Cinematic actor lacks its ordinal entry.");
+        }
+        return ordinal ?? throw new NotSupportedException("Cinematic actor has no retained ordinal.");
     }
 
-    public byte ReadFirstActor() => FirstActor ?? throw new NotSupportedException("Hosted cinematic selection has no retained first actor.");
+    public BattleModelOwner ReadFirstActor() => FirstActor ?? throw new NotSupportedException("Cinematic selection has no retained first actor.");
 
-    public ImmutableArray<byte> ReadSavedActors() => SavedActors ?? throw new NotSupportedException("Hosted cinematic selection has no saved actor list.");
+    public ImmutableArray<BattleModelOwner> ReadSavedActors() => SavedActors ?? throw new NotSupportedException("Cinematic selection has no saved actor list.");
 
-    public NativeBattleCinematicActorContext CaptureCurrentContacts(ImmutableArray<byte> occurrences, byte firstHeaderFirstActor)
+    public NativeBattleCinematicActorContext CaptureCurrentContacts(ImmutableArray<BattleModelOwner> occurrences, BattleModelOwner firstHeaderFirstActor)
     {
-        RequireBoundRow(firstHeaderFirstActor);
+        RequireOwner(firstHeaderFirstActor);
         if (occurrences.IsDefault)
         {
-            throw new InvalidDataException("Hosted cinematic contact capture requires its ordered occurrences.");
+            throw new InvalidDataException("Cinematic contact capture requires its ordered occurrences.");
         }
-        NativeBattleGraphicsActorSet seen = default;
-        ImmutableArray<byte>.Builder actors = ImmutableArray.CreateBuilder<byte>();
-        ImmutableArray<byte?>.Builder ordinals = ActorOrdinals.ToBuilder();
-        foreach (byte actor in occurrences)
+        HashSet<BattleModelOwner> seen = [];
+        ImmutableArray<BattleModelOwner>.Builder actors = ImmutableArray.CreateBuilder<BattleModelOwner>();
+        ImmutableDictionary<BattleModelOwner, int?>.Builder ordinals = ActorOrdinals.ToBuilder();
+        foreach (BattleModelOwner owner in occurrences)
         {
-            RequireBoundRow(actor);
-            if (seen.Contains(actor))
+            RequireOwner(owner);
+            if (seen.Add(owner))
             {
-                continue;
+                ordinals[owner] = actors.Count;
+                actors.Add(owner);
             }
-            seen = seen.Add(actor);
-            ordinals[actor] = checked((byte)actors.Count);
-            actors.Add(actor);
         }
-        byte first = actors.Count == 0 ? firstHeaderFirstActor : actors[0];
-        return this with { CurrentActors = actors.ToImmutable(), FirstActor = first, ActorOrdinals = ordinals.MoveToImmutable() };
+        BattleModelOwner first = actors.Count == 0 ? firstHeaderFirstActor : actors[0];
+        return this with { CurrentActors = actors.ToImmutable(), FirstActor = first, ActorOrdinals = ordinals.ToImmutable() };
     }
 
-    public NativeBattleCinematicActorContext WithCurrentActors(ImmutableArray<byte> actors)
+    public NativeBattleCinematicActorContext WithCurrentActors(ImmutableArray<BattleModelOwner> actors)
     {
         ValidateList(actors);
         return this with { CurrentActors = actors, FirstActor = actors.IsEmpty ? FirstActor : actors[0] };
     }
 
-    public NativeBattleCinematicActorContext WithSavedActors(ImmutableArray<byte> actors)
+    public NativeBattleCinematicActorContext WithSavedActors(ImmutableArray<BattleModelOwner> actors)
     {
         ValidateList(actors);
         return this with { SavedActors = actors };
     }
 
-    public NativeBattleCinematicActorContext WithContactCursor(int cursor)
+    public NativeBattleCinematicActorContext WithContactsProcessed(int count)
     {
-        ValidateCursor(cursor);
-        return this with { ContactCursor = cursor };
+        ValidateContactsProcessed(count);
+        return this with { ContactsProcessed = count };
     }
 
-    public NativeBattleCinematicActorContext RefreshCache(ImmutableArray<NativeBattleGraphicsModel> models) => this with { CachedActors = CaptureRows(Roster, models) };
-
-    public NativeBattleCinematicActorContext RefreshFlags(ImmutableArray<NativeBattleGraphicsModel> models)
+    public NativeBattleCinematicActorContext RefreshCache(BattleActorModels models)
     {
-        Validate();
-        ValidateModelBank(Roster, models);
-        ImmutableArray<NativeBattleCinematicActorCache?>.Builder cached = CachedActors.ToBuilder();
-        for (int row = 0; row < models.Length; row++)
+        RequireModelOrder(models);
+        return this with { CachedActors = CaptureActors(models) };
+    }
+
+    public NativeBattleCinematicActorContext RefreshFlags(BattleActorModels models)
+    {
+        RequireModelOrder(models);
+        ImmutableDictionary<BattleModelOwner, NativeBattleCinematicActorCache>.Builder cached = CachedActors.ToBuilder();
+        foreach (BattleModelEntry<BattleModelOwner> entry in models.Entries)
         {
-            if (cached[row] is { } actor)
-            {
-                cached[row] = actor with { Flags0 = models[row].Flags0 };
-            }
+            cached[entry.Owner] = RequireOwner(entry.Owner) with { Flags0 = entry.State.Flags0 };
         }
-        return this with { CachedActors = cached.MoveToImmutable() };
+        return this with { CachedActors = cached.ToImmutable() };
     }
 
-    private static ImmutableArray<NativeBattleCinematicActorCache?> CaptureRows(NativeBattleGraphicsRoster roster, ImmutableArray<NativeBattleGraphicsModel> models)
+    private static ImmutableDictionary<BattleModelOwner, NativeBattleCinematicActorCache> CaptureActors(BattleActorModels models)
     {
-        ValidateModelBank(roster, models);
-        ImmutableArray<NativeBattleCinematicActorCache?>.Builder cached = ImmutableArray.CreateBuilder<NativeBattleCinematicActorCache?>(models.Length);
-        for (int row = 0; row < models.Length; row++)
+        var cached = ImmutableDictionary.CreateBuilder<BattleModelOwner, NativeBattleCinematicActorCache>();
+        foreach (BattleModelEntry<BattleModelOwner> entry in models.Entries)
         {
-            NativeBattleGraphicsModel model = models[row];
+            NativeBattleGraphicsModel model = entry.State;
             NativeBattleModelTransform? transform = model.Transform;
-            cached.Add(roster.Rows[row] is null ? null : new(NativeBattleGraphicsModelAddress.Encode(row), model.Flags0, transform?.Position28, transform?.Vertical34, model.Rotation12, model.Rotation14, model.Rotation16, transform?.Scale148, transform?.Scale154));
+            cached.Add(entry.Owner, new(model.Flags0, transform?.Position28, transform?.Vertical34, model.Rotation12, model.Rotation14, model.Rotation16, transform?.Scale148, transform?.Scale154));
         }
-        return cached.MoveToImmutable();
+        return cached.ToImmutable();
     }
 
-    private static void ValidateModelBank(NativeBattleGraphicsRoster roster, ImmutableArray<NativeBattleGraphicsModel> models)
+    private void RequireModelOrder(BattleActorModels models)
     {
-        if (models.IsDefault || models.Length != roster.ActorCount)
+        ArgumentNullException.ThrowIfNull(models);
+        Validate();
+        if (!ownerOrder.SequenceEqual(models.Owners))
         {
-            throw new InvalidDataException("Hosted cinematic cache requires the complete graphics bank.");
-        }
-        for (int row = 0; row < models.Length; row++)
-        {
-            if (models[row] is not { } model || model.Index != row)
-            {
-                throw new InvalidDataException("Hosted cinematic cache requires graphics models in row order.");
-            }
+            throw new InvalidDataException("Cinematic cache requires the same ordered model owners.");
         }
     }
 
-    private void ValidateList(ImmutableArray<byte> actors)
+    private void ValidateList(ImmutableArray<BattleModelOwner> actors)
     {
-        if (actors.IsDefault || actors.Length > byte.MaxValue)
+        if (actors.IsDefault)
         {
-            throw new InvalidDataException("Hosted cinematic actor list exceeds its authored byte count.");
+            throw new InvalidDataException("Cinematic selection requires its ordered actor list.");
         }
-        foreach (byte actor in actors)
+        foreach (BattleModelOwner owner in actors)
         {
-            RequireBoundRow(actor);
-        }
-    }
-
-    private void RequireBoundRow(int row)
-    {
-        if ((uint)row >= (uint)Roster.ActorCount || Roster.Rows[row] is null)
-        {
-            throw new InvalidDataException($"Cinematic actor row {row} has no graphics binding.");
+            RequireOwner(owner);
         }
     }
 
-    private static void ValidateCursor(int cursor)
+    private NativeBattleCinematicActorCache RequireOwner(BattleModelOwner owner)
     {
-        if ((uint)cursor > NativeBattleContactAddress.MaximumRowCount)
+        if (owner is null || !CachedActors.TryGetValue(owner, out NativeBattleCinematicActorCache? cached) || cached is null)
         {
-            throw new InvalidDataException("Hosted cinematic contact cursor leaves its maximum storage extent.");
+            throw new InvalidDataException("Cinematic actor has no cached model owner.");
+        }
+        return cached;
+    }
+
+    private static void ValidateContactsProcessed(int count)
+    {
+        if (count < 0)
+        {
+            throw new InvalidDataException("Cinematic contact progress cannot be negative.");
         }
     }
 }

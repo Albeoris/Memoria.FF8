@@ -1,126 +1,80 @@
 namespace Memoria.FF8.Runtime;
 
-/// <summary>Addresses original model rows and engine-owned handles for hosted extension rows.</summary>
+/// <summary>Addresses the seven original graphics model cells in native memory.</summary>
 public static class NativeBattleGraphicsModelAddress
 {
     public const int NativeRowCount = NativeBattleSlots.Count;
-    public const int MaximumRowCount = ExpandedBattleFormation.MaximumAllies + ExpandedBattleFormation.MaximumEnemies;
     public const int RowSize = 156;
 
     private const uint NativeBase = 0x1D972C0;
     private const uint NativeEnd = NativeBase + NativeRowCount * RowSize;
-    private const uint HostedBase = 0xF1000000;
-    private const uint HostedEnd = HostedBase + (MaximumRowCount - NativeRowCount) * RowSize;
 
-    public static uint Encode(int row)
+    public static uint EncodeOriginalCell(NativeBattleModelSlot slot)
     {
-        if ((uint)row >= MaximumRowCount)
-        {
-            throw new ArgumentOutOfRangeException(nameof(row));
-        }
-        return row < NativeRowCount ? NativeBase + (uint)(row * RowSize) : HostedBase + (uint)((row - NativeRowCount) * RowSize);
+        return NativeBase + (uint)(slot.Offset * RowSize);
     }
 
-    public static int Decode(uint address, int actorCount = NativeRowCount)
+    public static NativeBattleModelSlot DecodeOriginalCell(uint address)
     {
-        if (!TryDecode(address, out int row, actorCount))
+        if (!TryDecodeOriginalCell(address, out NativeBattleModelSlot slot))
         {
-            throw new ArgumentOutOfRangeException(nameof(address), address, "The address is not a model row base owned by this actor bank.");
+            throw new ArgumentOutOfRangeException(nameof(address), address, "The address is not an original model cell base.");
         }
-        return row;
+        return slot;
     }
 
-    public static bool TryDecode(uint address, out int row, int actorCount = NativeRowCount)
+    public static bool TryDecodeOriginalCell(uint address, out NativeBattleModelSlot slot)
     {
-        if (TryResolveField(address, out int candidate, out int offset, actorCount) && offset == 0)
+        if (TryResolveOriginalField(address, out NativeBattleModelSlot candidate, out int offset) && offset == 0)
         {
-            row = candidate;
+            slot = candidate;
             return true;
         }
-        row = -1;
+        slot = default;
         return false;
     }
 
-    public static bool TryDecode(uint address, out int row, NativeBattleGraphicsRoster? roster)
+    /// <summary>Resolves a field within one original cell. A zero-length field still starts at an owned byte.</summary>
+    public static (NativeBattleModelSlot Slot, int Offset) ResolveOriginalField(uint address, int byteLength)
     {
-        if (TryDecode(address, out row, roster?.ActorCount ?? NativeRowCount) && (roster is null || roster.ContainsRow(row)))
+        if (!TryResolveOriginalField(address, out NativeBattleModelSlot slot, out int offset))
         {
-            return true;
-        }
-        row = -1;
-        return false;
-    }
-
-    /// <summary>Resolves a field within one owned row. A zero-length field still starts at an owned byte.</summary>
-    public static (int ActorIndex, int Offset) ResolveField(uint address, int byteLength, int actorCount = NativeRowCount)
-    {
-        if (!TryResolveField(address, out int row, out int offset, actorCount))
-        {
-            throw new ArgumentOutOfRangeException(nameof(address), address, "The address is not a byte owned by this actor bank.");
+            throw new ArgumentOutOfRangeException(nameof(address), address, "The address is outside the original model cells.");
         }
         ValidateFieldLength(offset, byteLength);
-        return (row, offset);
+        return (slot, offset);
     }
 
-    /// <summary>Identifies the row owning a field's first byte.</summary>
-    public static bool TryResolveField(uint address, out int actorIndex, out int offset, int actorCount = NativeRowCount)
-    {
-        ValidateActorCount(actorCount);
-        if (TryResolveAddress(address, out actorIndex, out offset) && actorIndex < actorCount)
-        {
-            return true;
-        }
-        actorIndex = -1;
-        offset = -1;
-        return false;
-    }
-
-    /// <summary>Encodes a field within one row. Offsets from zero through 155 identify owned bytes.</summary>
-    public static uint EncodeField(int row, int offset, int byteLength)
-    {
-        uint address = Encode(row);
-        if ((uint)offset >= RowSize)
-        {
-            throw new ArgumentOutOfRangeException(nameof(offset));
-        }
-        ValidateFieldLength(offset, byteLength);
-        return address + (uint)offset;
-    }
-
-    private static bool TryResolveAddress(uint address, out int row, out int offset)
+    /// <summary>Identifies the original cell owning a field's first byte.</summary>
+    public static bool TryResolveOriginalField(uint address, out NativeBattleModelSlot slot, out int offset)
     {
         if (address is >= NativeBase and < NativeEnd)
         {
             int relative = (int)(address - NativeBase);
-            row = relative / RowSize;
+            slot = NativeBattleModelSlot.Decode((byte)(relative / RowSize));
             offset = relative % RowSize;
             return true;
         }
-        if (address is >= HostedBase and < HostedEnd)
-        {
-            int relative = (int)(address - HostedBase);
-            row = NativeRowCount + relative / RowSize;
-            offset = relative % RowSize;
-            return true;
-        }
-        row = -1;
+        slot = default;
         offset = -1;
         return false;
     }
 
-    private static void ValidateActorCount(int actorCount)
+    public static uint EncodeOriginalField(NativeBattleModelSlot slot, int offset, int length)
     {
-        if (actorCount is < 1 or > MaximumRowCount)
+        if ((uint)offset >= RowSize)
         {
-            throw new ArgumentOutOfRangeException(nameof(actorCount));
+            throw new ArgumentOutOfRangeException(nameof(offset));
         }
+        ValidateFieldLength(offset, length);
+        return EncodeOriginalCell(slot) + (uint)offset;
     }
 
     private static void ValidateFieldLength(int offset, int byteLength)
     {
         if (byteLength < 0 || byteLength > RowSize - offset)
         {
-            throw new ArgumentOutOfRangeException(nameof(byteLength), byteLength, "The field must stay within one model row.");
+            throw new ArgumentOutOfRangeException(nameof(byteLength), byteLength, "The field must stay within one original model cell.");
         }
     }
 }

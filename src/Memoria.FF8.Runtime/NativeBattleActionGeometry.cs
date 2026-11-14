@@ -3,13 +3,11 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-/// <summary>Owned50D300 actor/selected-recipient and scalar geometry globals; unresolved packet masks retain unknown fields.</summary>
-public sealed record NativeBattleActionGeometry(byte ActorIndex, ushort SourceTargetMask)
+/// <summary>Source, selection and scalar geometry state for 50D300.</summary>
+public sealed record NativeBattleActionGeometry(BattleModelOwner Source, BattleModelTargets SourceTargets, bool SourceHasNonActorSelectors)
 {
-    internal const ushort NativeRowBits = (1 << NativeBattleGraphicsModelAddress.NativeRowCount) - 1;
-
-    public ushort? PhysicalTargetMask { get; init; }
-    public byte? TargetIndex { get; init; }
+    public BattleModelTargets? TargetActors { get; init; }
+    public BattleModelOwner? Target { get; init; }
     public short? DistanceScale { get; init; }
     public int? UnadjustedDistance { get; init; }
     public int? ContactDistance { get; init; }
@@ -17,33 +15,19 @@ public sealed record NativeBattleActionGeometry(byte ActorIndex, ushort SourceTa
     public ImmutableArray<NativeBattleActionMatrix>? Matrices { get; init; }
     public NativeBattleActionMatrix? TargetMatrix { get; init; }
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleGraphicsActorSet? PresentationTargets { get; init; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleGraphicsActorSet? PresentationSourceTargets { get; init; }
-
     [JsonIgnore]
-    public NativeBattleGraphicsActorSet? TargetActors => PresentationTargets ?? (PhysicalTargetMask is ushort mask ? NativeBattleGraphicsActorSet.FromNative(mask) : null);
-
-    [JsonIgnore]
-    public bool IsSelfTarget => PresentationSourceTargets is { } source ? (SourceTargetMask & ~NativeRowBits) == 0 && source.IsSingle(ActorIndex) : SourceTargetMask == 1 << ActorIndex;
+    public bool IsSelfTarget => !SourceHasNonActorSelectors && SourceTargets.IsSingle(Source);
 
     public void Validate()
     {
-        if (PresentationTargets.HasValue || PresentationSourceTargets.HasValue)
+        if (Source is null || SourceTargets is null)
         {
-            if (ActorIndex >= NativeBattleGraphicsModelAddress.MaximumRowCount || PresentationTargets is not { } targets ||
-                PresentationSourceTargets is not { } source || targets.IsEmpty ||
-                TargetIndex is not byte target || !targets.Contains(target) ||
-                (SourceTargetMask & NativeRowBits) != source.NativePhysicalBits || PhysicalTargetMask != targets.NativePhysicalBits)
-            {
-                throw new InvalidDataException("Hosted action geometry requires consistent source and recipient sets and a resolved recipient.");
-            }
+            throw new InvalidDataException("Action geometry requires a model source and its selection.");
         }
-        else if (ActorIndex >= 7 || TargetIndex >= 7 || PhysicalTargetMask is ushort mask && (mask & ~127) != 0)
+        if (TargetActors is { } targets && (targets.IsEmpty || Target is not { } target || !targets.Contains(target)) ||
+            TargetActors is null && Target is not null)
         {
-            throw new InvalidDataException("Native action geometry requires physical graphics indices and a seven-bit target mask.");
+            throw new InvalidDataException("Action geometry requires a resolved target within its target set.");
         }
         if (Matrices is { } matrices)
         {
@@ -61,20 +45,6 @@ public sealed record NativeBattleActionGeometry(byte ActorIndex, ushort SourceTa
             }
         }
         TargetMatrix?.Validate();
-    }
-
-    internal static void ValidatePresentationRows(NativeBattleGraphicsRoster roster, int actorIndex, NativeBattleGraphicsActorSet sourceTargets, NativeBattleGraphicsActorSet targets)
-    {
-        sourceTargets.ValidateCapacity(roster.ActorCount);
-        targets.ValidateCapacity(roster.ActorCount);
-        if ((uint)actorIndex >= (uint)roster.ActorCount || roster.Rows[actorIndex] is null)
-        {
-            throw new InvalidDataException("Hosted action geometry requires a bound source row.");
-        }
-        foreach (int row in sourceTargets.EnumerateRows().Concat(targets.EnumerateRows()))
-        {
-            _ = roster[row];
-        }
     }
 }
 

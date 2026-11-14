@@ -3,38 +3,17 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-/// <summary>50AFC0's parameter block beginning1D99A78;7C is a logical physical-header reference.</summary>
-public sealed record NativeBattleEffectParameters([property: JsonRequired] byte Actor78, [property: JsonRequired] byte Flags79, [property: JsonRequired] ushort TargetMask7A, [property: JsonRequired] int HeaderIndex7C, [property: JsonRequired] byte Parameter81, [property: JsonRequired] byte Parameter83)
+/// <summary>Typed action parameters for the 50AFC0 effect service.</summary>
+public sealed record NativeBattleEffectParameters([property: JsonRequired] BattleModelOwner Source, [property: JsonRequired] byte Flags79, [property: JsonRequired] BattleModelTargets TargetActors, [property: JsonRequired] BattleActionHeaderReference Header, [property: JsonRequired] byte Parameter81, [property: JsonRequired] byte Parameter83)
 {
     public byte? Parameter80 { get; init; }
     public byte? Parameter82 { get; init; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleGraphicsActorSet? PresentationTargets { get; init; }
-
-    [JsonIgnore]
-    public NativeBattleGraphicsActorSet TargetActors
-    {
-        get
-        {
-            ValidatePresentationTargets();
-            return PresentationTargets ?? NativeBattleGraphicsActorSet.FromNative(TargetMask7A);
-        }
-    }
-
-    public void ValidatePresentationTargets()
-    {
-        if (PresentationTargets is { } targets && targets.NativePhysicalBits != TargetMask7A)
-        {
-            throw new InvalidDataException("Presentation targets disagree with the original physical parameter mask.");
-        }
-    }
 }
 public sealed record NativeBattleEffectResourcePointer([property: JsonRequired] uint GlobalAddress, [property: JsonRequired] int ArenaOffset);
 public sealed record NativeBattleEffectHeapResourcePointer([property: JsonRequired] uint GlobalAddress, [property: JsonRequired] int AllocationIndex);
 
 /// <summary>50AF20's selected module and the descriptor returned by its original entry.</summary>
-public sealed partial record NativeBattleOriginalEffectState([property: JsonRequired] ushort RequestedEffect, [property: JsonRequired] int SelectedIndex, [property: JsonRequired] NativeBattleEffectBinding Binding, [property: JsonRequired] NativeBattleEffectParameters? Parameters, [property: JsonRequired] uint? ReturnedDescriptor)
+public sealed partial record NativeBattleOriginalEffectState([property: JsonRequired] ushort RequestedEffect, [property: JsonRequired] int SelectedIndex, [property: JsonRequired] NativeBattleEffectBinding Binding, [property: JsonIgnore] NativeBattleEffectParameters? Parameters, [property: JsonRequired] uint? ReturnedDescriptor)
 {
     [JsonRequired]
     public ImmutableArray<NativeBattleEffectTaskPool> Pools { get; init; } = [];
@@ -67,9 +46,6 @@ public sealed partial record NativeBattleOriginalEffectState([property: JsonRequ
     public NativeBattleRecoveryState? Recovery { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleFiragaState? Firaga { get; init; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleGraphicsRoster? PresentationRoster { get; init; }
 
     public void Validate()
     {

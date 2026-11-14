@@ -5,36 +5,26 @@ public sealed record NativeBattleGraphicsModelCompletion(ushort Flags0, byte Kin
 
 public static class NativeBattleGraphicsCompletion
 {
-    public static int PollTask112(int effectTaskCount, IReadOnlyList<NativeBattleGraphicsModelCompletion>? models, byte cameraTaskMask, ref byte completionByte, NativeBattleGraphicsRoster? roster = null)
+    public static int PollTask112(int effectTaskCount, BattleActorModels? models, byte cameraTaskMask, ref byte completionByte)
     {
-        return PollTask112Core(effectTaskCount, models, static model => model, () => cameraTaskMask, ref completionByte, roster);
+        return PollTask112(effectTaskCount, models, () => cameraTaskMask, ref completionByte);
     }
 
-    internal static int PollHostedTask112(int effectTaskCount, IReadOnlyList<NativeBattleGraphicsModel>? models, Func<byte> readCameraTaskMask, ref byte completionByte, NativeBattleGraphicsRoster roster)
-    {
-        return PollTask112Core(effectTaskCount, models, static model => model.CompletionInputs(), readCameraTaskMask, ref completionByte, roster);
-    }
-
-    private static int PollTask112Core<TModel>(int effectTaskCount, IReadOnlyList<TModel>? models, Func<TModel, NativeBattleGraphicsModelCompletion> readModel, Func<byte> readCameraTaskMask, ref byte completionByte, NativeBattleGraphicsRoster? roster)
+    internal static int PollTask112(int effectTaskCount, BattleActorModels? models, Func<byte> readCameraTaskMask, ref byte completionByte)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(effectTaskCount);
-        //5085F0 preserves short-circuit order and returns the508420 unlink bit only after all three owners clear.
+        // 5085F0 returns the 508420 unlink bit only after effects, models, and camera clear.
         if (effectTaskCount != 0)
         {
             return 0;
         }
-        roster?.Validate();
-        if (models is null || models.Count != (roster?.ActorCount ?? NativeBattleGraphicsModelAddress.NativeRowCount))
+        if (models is null)
         {
             throw new NotSupportedException("Native graphics task112 requires its owned graphics model records.");
         }
-        for (int index = 0; index < models.Count; index++)
+        foreach (BattleModelEntry<BattleModelOwner> entry in models.Entries)
         {
-            if (roster is not null && roster.Rows[index] is null)
-            {
-                continue;
-            }
-            NativeBattleGraphicsModelCompletion model = readModel(models[index]);
+            NativeBattleGraphicsModelCompletion model = entry.State.CompletionInputs();
             if ((model.Flags0 & 2) == 0 || (model.Flags0 & 8) != 0 || (model.Flags8 & 0x18) != 0)
             {
                 continue;
