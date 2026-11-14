@@ -46,6 +46,18 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         Assert.True(process.EntryReady, $"Installed entry stalled at callback {process.Graphics.Callback}.");
         Assert.Equal((byte)4, process.Graphics.EntryLifecycle);
 
+        BattleSession.PreparedHostedAction stale = process.PrepareAction(attackHeader, [attackPacket]);
+        process.ValidatePreparedAction(stale);
+        long previousCallback = process.Graphics.Callback;
+        process.Advance(logical);
+        Assert.Equal(previousCallback + 1, process.Graphics.Callback);
+        NativeBattleGraphicsState afterIdle = process.Graphics;
+        NativeBattleEffectMemory idleMemory = process.Memory;
+        Assert.Throws<InvalidOperationException>(() => process.PublishAction(stale));
+        Assert.Same(afterIdle, process.Graphics);
+        Assert.Same(idleMemory, process.Memory);
+        Assert.Null(process.ActiveActionToken);
+
         var originalModelOwners = Models(process);
         NativeBattleModelCpuResources originalCpu = process.ModelCpuResources;
         NativeBattleModelTextureCache originalCache = process.ModelTextureCache;
@@ -60,7 +72,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         Assert.Same(beforeInvalid, process.Graphics);
         Assert.Null(process.ActiveActionToken);
 
-        long attackToken = process.BeginAction(attackHeader, [attackPacket]);
+        long attackToken = process.PublishAction(process.PrepareAction(attackHeader, [attackPacket]));
         Descriptor attackDescriptor = ReadDescriptor(process);
         Assert.Throws<InvalidOperationException>(() => process.BeginAction(attackHeader, [attackPacket]));
         ActionObservation attackResult = AdvanceAction(process, logical, attackToken, attackDescriptor, attackHeader, 0x50BB00, attackTarget);

@@ -37,6 +37,7 @@ public sealed partial class BattleSession
         NativeBattleModelLifecycleServices services = logicalOwner.CaptureExpandedModelLifecycleServices(roster);
         services.Validate(roster, graphics);
 
+        hostedPreparationEpoch = checked(hostedPreparationEpoch + 1);
         NativeExamTimer = graphics.Callback == 0
             ? timerObservation?.SetDisplayIntensity4A6CB0(0).SetDisplayEnabled4A6CC0(false)
             : timerObservation;

@@ -33,6 +33,21 @@ public sealed class ExpandedBattlePresentationProcess
         return presentation.BeginHostedAction(header, contacts);
     }
 
+    internal BattleSession.PreparedHostedAction PrepareAction(NativeBattleActionHeaderPreparation header, ImmutableArray<NativeBattleContactPacket> contacts)
+    {
+        return presentation.PrepareHostedAction(header, contacts);
+    }
+
+    internal void ValidatePreparedAction(BattleSession.PreparedHostedAction prepared)
+    {
+        presentation.ValidatePreparedHostedAction(prepared);
+    }
+
+    internal long PublishAction(BattleSession.PreparedHostedAction prepared)
+    {
+        return presentation.PublishHostedAction(prepared);
+    }
+
     internal bool IsActionComplete(long token)
     {
         return presentation.IsHostedActionComplete(token);
