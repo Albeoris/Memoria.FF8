@@ -53,7 +53,7 @@ internal static class ExpandedBattleActionRules
 
     public static bool HasNativeSpellPresentation(BattleNativeAction action, int recipientCount)
     {
-        return action.HitCount == 1 && (action.MagicId == 38 || recipientCount < NativeBattleSlots.Count &&
+        return action is { MagicId: 1, HitCount: > 0 } || action.HitCount == 1 && (action.MagicId == 38 || recipientCount < NativeBattleSlots.Count &&
             (action.ActionId is >= 1 and <= 9 or >= 21 and <= 27 || action.MagicId == 39));
     }
 }

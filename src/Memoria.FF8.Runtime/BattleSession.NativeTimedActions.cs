@@ -78,6 +78,9 @@ public sealed partial class BattleSession
 
     private void PublishExpandedRenzokukenContact(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command, BattleNativeAction formula, bool deferred)
     {
+        NativeBattleGraphicsRoster roster = ReadExpandedPresentationRoster();
+        _ = RequireExpandedPresentationRow(roster, actor);
+        byte row = RequireExpandedPresentationRow(roster, target);
         BattleActionPresentation? previous = resolvingNativeAction;
         bool previousSuppression = suppressNativeImmediateCounter;
         nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = deferred, Command = formula.Command };
@@ -86,7 +89,7 @@ public sealed partial class BattleSession
         try
         {
             BattleActionDefinition action = new(command.Ability, command.ActionId, formula.Command == 251 ? "Renzokuken" : formula.Name ?? "Renzokuken finisher", BattleActionEffect.Native, formula.Power, false) { NativeAction = formula };
-            NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, target, resolvingNativeAction, action, formula, 255, presentationRow: 0);
+            NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, target, resolvingNativeAction, action, formula, 255, presentationRow: row);
             CommitExpandedEnemyDraw(target.Id, ref pendingEnemyDraw);
             PublishExpandedImpacts(command, [new(target.Id, packet)]);
         }

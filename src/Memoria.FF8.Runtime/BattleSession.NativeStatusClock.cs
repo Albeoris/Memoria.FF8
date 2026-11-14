@@ -54,7 +54,7 @@ public sealed partial class BattleSession
                         {
                             BattleNativeAction regen = NativePostActionEffect(4);
                             BattleActionDefinition action = new(BattleAbility.EnemyAbility, 4, regen.Name!, BattleActionEffect.Native, 0, true) { NativeAction = regen };
-                            ResolveInstalledNativeHitWithContact(actor, actor, new(actor.Id, actor.Id, BattleActionPhase.Recovery, 1, action.Ability, action.Id) { NativeAction = regen }, action, regen, 255, presentationRow: 0);
+                            ResolveInstalledNativeHitWithContact(actor, actor, new(actor.Id, actor.Id, BattleActionPhase.Recovery, 1, action.Ability, action.Id) { NativeAction = regen }, action, regen, 255, presentationRow: ExpandedPresentationRow(actor));
                         }
                         else
                         {
@@ -119,6 +119,7 @@ public sealed partial class BattleSession
             return false;
         }
 
+        byte row = RequireExpandedPresentationRow(ReadExpandedPresentationRoster(), actor);
         // 483470 -> 4877F0 callback 5 -> 48D200 command 246 / action 43 / effect 9.
         actor.NativeStatusTimers[10] = -1111;
         actor.NativeStatus1 &= ~0x400u;
@@ -138,7 +139,7 @@ public sealed partial class BattleSession
         resolvingNativeAction = command;
         try
         {
-            packet = ResolveInstalledNativeHitWithContact(actor, actor, command, definition, action, 255, presentationRow: 0);
+            packet = ResolveInstalledNativeHitWithContact(actor, actor, command, definition, action, 255, presentationRow: row);
         }
         finally
         {

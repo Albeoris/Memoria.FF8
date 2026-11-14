@@ -200,7 +200,7 @@ public sealed partial class BattleSession
         nativeActionScratch = nativeActionScratch with { Command = 0, Action = revival.ActionId };
         try
         {
-            (var contacts, _) = ResolveExpandedHitPlan(actor, command, action, revival, [recipients], presentsNativeEffect: false);
+            (var contacts, _) = ResolveExpandedHitPlan(actor, command, action, revival, [recipients]);
             return (command, contacts);
         }
         finally

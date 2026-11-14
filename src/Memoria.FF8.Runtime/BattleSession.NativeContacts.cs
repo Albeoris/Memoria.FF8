@@ -241,7 +241,7 @@ public sealed partial class BattleSession
         if (nativeContactWorking is { } contact)
         {
             contact.PrimaryStatusSnapshot = NativeContactStatusMirror(contact.Recipient);
-            contact.Secondary = NativeBattleContactHalf.FromScratch(UsesExpandedRoster ? (byte)0 : checked((byte)actor.EncodeNativeSlot()), 0, 0, healing ? (byte)1 : (byte)0, 0, damage, 0);
+            contact.Secondary = NativeBattleContactHalf.FromScratch(UsesExpandedRoster ? ExpandedPresentationRow(actor) : checked((byte)actor.EncodeNativeSlot()), 0, 0, healing ? (byte)1 : (byte)0, 0, damage, 0);
             contact.CommittingSecondary = true;
         }
     }

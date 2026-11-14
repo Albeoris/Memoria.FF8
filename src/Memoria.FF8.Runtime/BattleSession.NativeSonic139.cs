@@ -14,7 +14,7 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Sonic Wave requires its color arithmetic.");
         NativeBattleSonic139Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, address) => graphics.Models[Actor(address)], (_, address) => (graphics.Models[Actor(address)].Transform ?? throw new NotSupportedException("Sonic Wave requires its actual actor heading.")).Angle36, Emitter, Anchor, AdvanceAct, Execute)
         {
-            AllowFourthTarget = presentationNativeTargets?.Count == NativeBattleSonic139Profile.HostedTargetCapacity
+            AllowFourthTarget = presentationNativeTargets is not null && effect.Parameters?.TargetActors.Count == NativeBattleSonic139Profile.HostedTargetCapacity
         };
         frame = initialize ? NativeBattleSonic139Controller.Initialize(frame, resources, inputs) : NativeBattleSonic139Controller.Advance(frame, resources, inputs);
         if (!initialize && frame.Effect.ReturnedDescriptor == 0)
@@ -32,9 +32,9 @@ public sealed partial class BattleSession
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Sonic Wave requires its current camera.");
         NativeBattleCameraProjection Projection() => Camera().Projection ?? throw new NotSupportedException("Sonic Wave requires its current projection.");
         NativeBattlePoseSource Pose(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Sonic Wave requires its actual current actor skeleton.");
-        static int Actor(uint address)
+        int Actor(uint address)
         {
-            if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int actorIndex))
+            if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int actorIndex, graphics.Models.Length) || graphics.PresentationRoster is { } roster && roster.Rows[actorIndex] is null)
             {
                 throw new InvalidDataException("Sonic Wave actor pointer leaves its actual model bank.");
             }

@@ -203,7 +203,7 @@ public sealed partial class BattleSession
                 nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = false, EventLane = 2, Command = 2, Action = native.ActionId };
                 bool presentsNativeEffect = expandedPresentationHost is not null && ExpandedBattleActionRules.HasNativeSpellPresentation(native, hitPlan[0].Length);
                 deferringExpandedImpacts = presentsNativeEffect;
-                (ImmutableArray<ExpandedBattleContact> contacts, BattleCombatant? reflector) = ResolveExpandedHitPlan(actor, cast, action, native, hitPlan, presentsNativeEffect);
+                (ImmutableArray<ExpandedBattleContact> contacts, BattleCombatant? reflector) = ResolveExpandedHitPlan(actor, cast, action, native, hitPlan);
                 deferringExpandedImpacts = false;
                 (BattleActionPresentation? reflection, ImmutableArray<ExpandedBattleContact> reflectedContacts, bool presentsReflection) = ResolveExpandedReflection(actor, cast, action, reflector, reflected);
                 completed++;

@@ -17,10 +17,11 @@ public sealed partial class BattleSession
     private void BeginExpandedGuardianSummon(BattleCombatant caster, BattleActionPresentation command, BattleCombatant[] targets)
     {
         BattleNativeAction action = command.NativeAction!;
-        byte row = targets.Length == 1 ? (byte)NativeBattleSlots.AllyCount : (byte)1;
+        NativeBattleGraphicsRoster roster = ReadExpandedPresentationRoster();
+        _ = RequireExpandedPresentationRow(roster, caster);
         ImmutableArray<ExpandedBattleContact> layout = targets.Select(target =>
         {
-            byte index = target != caster && row < NativeBattleSlots.Count ? row++ : (byte)0;
+            byte index = RequireExpandedPresentationRow(roster, target);
             RefreshNativePresentationStatus(target);
             (ushort saved, uint status) = NativeContactStatusMirror(target);
             return new ExpandedBattleContact(target.Id, new(new(index, 0, 0, 0, saved, 0, status), new(255, 0, 0, 0, 0, 0, 0)));
@@ -55,7 +56,7 @@ public sealed partial class BattleSession
         try
         {
             deferringExpandedImpacts = true;
-            (contacts, _) = ResolveExpandedHitPlan(caster, command, action, native, [expandedGuardianSummonTargets!], presentsNativeEffect: true);
+            (contacts, _) = ResolveExpandedHitPlan(caster, command, action, native, [expandedGuardianSummonTargets!]);
             CompleteNativeOrdinaryCommand(caster, command);
             if (CompleteNativeActionInventory(caster, command, false))
             {
@@ -75,7 +76,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("The expanded summon lost an admitted contact while its presentation owned battle time.");
         }
-        SetExpandedEffectContacts(contacts);
+        SetExpandedEffectContacts(caster, contacts);
         expandedEffect!.ReplaceHostedContacts(expandedModelContacts.Select(contact => contact.Packet));
         FlushExpandedEnemyReactions();
     }
@@ -92,10 +93,12 @@ public sealed partial class BattleSession
             throw new InvalidOperationException("A GF form entrance already owns expanded battle presentation.");
         }
         BattleNativeAction summon = FindAction(BattleAbility.GuardianForce, form.GuardianForceId).NativeAction!;
-        NativeBattleContactPacket positioning = new(new(0, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0));
+        NativeBattleGraphicsRoster roster = ReadExpandedPresentationRoster();
+        byte source = RequireExpandedPresentationRow(roster, actor);
+        NativeBattleContactPacket positioning = new(new(source, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0));
         try
         {
-            expandedGuardianFormEntry = new(actor.Id, form.InvocationId, expandedPresentationHost.PrepareEffect(this, actor, summon, 0, [new(actor.Id, positioning)], GuardianFormInvocationMode.EntryOnly));
+            expandedGuardianFormEntry = new(actor.Id, form.InvocationId, PrepareExpandedEffect(actor, summon, 0, [new(actor.Id, positioning)], GuardianFormInvocationMode.EntryOnly, roster));
         }
         catch
         {

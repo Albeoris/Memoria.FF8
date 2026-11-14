@@ -46,7 +46,7 @@ public sealed partial class BattleSession
                 }
             }
         }
-        foreach (ExpandedBattleContact contact in candidate.expandedModelContacts.Concat(candidate.expandedSharedContacts))
+        foreach (ExpandedBattleContact contact in candidate.expandedModelContacts)
         {
             _ = GetActor(contact.RecipientId);
         }
@@ -98,9 +98,8 @@ public sealed partial class BattleSession
         expandedEffectCommand = candidate.expandedEffectCommand;
         expandedContactBridge = candidate.expandedContactBridge;
         expandedExpectedContacts = candidate.expandedExpectedContacts;
-        expandedSharedContacts = candidate.expandedSharedContacts;
         expandedModelContacts = candidate.expandedModelContacts;
-        expandedModelRecipients = candidate.expandedModelRecipients;
+        expandedModelRoster = candidate.expandedModelRoster;
         expandedPresentedOccurrences.Clear();
         expandedPresentedOccurrences.UnionWith(candidate.expandedPresentedOccurrences);
         expandedEffectEnemyDraw = candidate.expandedEffectEnemyDraw;
@@ -117,9 +116,8 @@ public sealed partial class BattleSession
         candidate.expandedEffectCommand = null;
         candidate.expandedContactBridge = null;
         candidate.expandedExpectedContacts = 0;
-        candidate.expandedSharedContacts = [];
         candidate.expandedModelContacts = [];
-        candidate.expandedModelRecipients = null;
+        candidate.expandedModelRoster = null;
         candidate.expandedPresentedOccurrences.Clear();
         candidate.expandedEffectEnemyDraw = null;
         candidate.expandedMagicPresentation = null;
