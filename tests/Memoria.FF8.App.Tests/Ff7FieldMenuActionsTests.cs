@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Text.Json;
+using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 using Memoria.FF8.GameUi;
@@ -12,6 +13,44 @@ namespace Memoria.FF8.App.Tests;
 [Collection("GPU rendering")]
 public sealed class Ff7FieldMenuActionsTests
 {
+    [Fact]
+    public void ScriptedReformMenuSwapsAnUnlockedSlotAndCompletesItsRequest()
+    {
+        string? ff7Root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        string? ff8Root = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(ff7Root) && !string.IsNullOrWhiteSpace(ff8Root), "Select both original game installations.");
+        Ff7Installation installation = Ff7Installation.Discover(ff7Root!);
+        using Ff7Session original = Ff7Session.NewGame(installation);
+        Ff7SessionSave source = original.Capture();
+        Ff7Progress progress = source.Progress with { Party = [0, 1, 2], AvailableCharacters = 15, LockedCharacters = 1 };
+        using GpuTestDevice device = new();
+        using SpriteBatch batch = new(device.Device);
+        using Ff7Scene scene = new(device.Device, installation, "", new(50, 32000), _ => throw new InvalidOperationException("The Reform fixture has no movie."), audioEnabled: false);
+        scene.ConfigureSharedDialogueDefaults(batch, ff8Root!, Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")));
+        scene.Continue(new() { ActiveGame = SessionGame.Ff7, Ff7 = source with { Progress = progress } });
+        Ff7Session session = scene.Session!;
+        FieldHostRequest request = new(1L << 40, session.Host.Process.Actors.First().Entity, 6, 0, new FieldMenuCommand(7, 0));
+        Assert.False(session.Host.Execute(request).Completed);
+        scene.Update(new GameTime(), default);
+        MenuController menu = Assert.IsType<MenuController>(scene.ActivePlayerMenu);
+        Assert.False(session.CompleteStoryPartyMenu(request.Id, [1, 0, 2]));
+        Choose("ff7-story-party", "slot-1");
+        Choose("ff7-story-party-reserve", "ff7-character/3");
+        Choose("ff7-story-party", "confirm");
+        Assert.Null(scene.ActivePlayerMenu);
+        Assert.Equal(new[] { 0, 3, 2 }, session.Progress.Party);
+        Assert.True(session.Host.Process.Menu!.Completed);
+        Assert.False(session.CompleteStoryPartyMenu(request.Id, [0, 1, 2]));
+
+        void Choose(string screen, string entry)
+        {
+            menu.SelectEntry(screen, entry);
+            scene.Update(new GameTime(), default);
+            scene.Update(new GameTime(), new KeyboardState(Keys.X));
+            Assert.Null(scene.Error);
+        }
+    }
+
     [Fact]
     public void Resident_field_actions_apply_through_the_menu_and_survive_a_cold_save()
     {

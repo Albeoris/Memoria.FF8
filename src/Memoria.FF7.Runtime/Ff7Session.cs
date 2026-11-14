@@ -352,7 +352,7 @@ public sealed partial class Ff7Session : IDisposable
 
     private FieldHostReply ExecuteExternal(FieldCommand command)
     {
-        if (command is FieldMenuCommand { Mode: 18 })
+        if (command is FieldMenuCommand { Mode: 21 })
         {
             ApplyHighwayHealth();
             return new(true);

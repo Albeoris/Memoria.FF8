@@ -56,6 +56,7 @@ internal sealed partial class Ff7Scene
                 if (storyPartyMenuRequest is long request && Session!.CompleteStoryPartyMenu(request, storyPartyMembers))
                 {
                     storyPartyMenuRequest = null;
+                    autoPlay?.ResetIdleDeadline();
                     ClosePlayerMenu();
                 }
                 return true;

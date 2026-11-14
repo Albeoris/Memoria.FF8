@@ -133,6 +133,29 @@ public sealed class Ff7KnownFieldPoseTests
         Assert.Throws<NotSupportedException>(() => original.ReadNativeBoneRotation(0, 21, 1));
     }
 
+    [Fact]
+    public void InstalledShinraWomanIdlePreservesBothBodyPosesAndTheHairRestOrientation()
+    {
+        Ff7Installation installation = Installed();
+        Ff7FieldResources field = Ff7FieldResources.Load(installation, "blin60_1");
+        PcFieldModelDescriptor descriptor = field.Models.Models.First(model => model.Hrc.Equals("EDEA.HRC", StringComparison.OrdinalIgnoreCase));
+        using LgpArchive archive = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.CharacterArchive).Path);
+        Ff7FieldModelResources model = Ff7FieldModelResources.Load(archive, descriptor);
+        PcFieldAnimation original = PcFieldAnimation.Read(archive.ReadEntry(archive.Find("bocb.a").Single()));
+        PcFieldAnimation idle = model.Animations["bocb.a"];
+        Assert.Equal(23, idle.BoneCount);
+        Assert.Equal(2, idle.Frames.Count);
+        for (int frame = 0; frame < idle.Frames.Count; frame++)
+        {
+            Assert.Equal(original.Frames[frame].RootRotation, idle.Frames[frame].RootRotation);
+            Assert.Equal(original.Frames[frame].RootTranslation, idle.Frames[frame].RootTranslation);
+            Assert.All(idle.Frames[frame].BoneRotations.Skip(3).Take(2), rotation => Assert.Equal(Vector3.Zero, rotation));
+            Assert.Equal(original.Frames[frame].BoneRotations, idle.Frames[frame].BoneRotations.Take(3).Concat(idle.Frames[frame].BoneRotations.Skip(5)));
+            Assert.Equal(23, Ff7FieldRenderer.Pose(model, idle, frame).Count);
+        }
+        Assert.Throws<NotSupportedException>(() => original.ReadNativeBoneRotation(1, 21, 1));
+    }
+
     private sealed class Capture : ITriangleRenderer
     {
         public List<Vector2> Positions { get; } = [];

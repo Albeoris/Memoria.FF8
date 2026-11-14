@@ -97,6 +97,33 @@ public sealed class Ff7HighwayPresentationTests
         }
     }
 
+    [Fact]
+    public void LobbyStartBindingLaunchesTheHighway()
+    {
+        Ff7Installation installation = FindInstallation();
+        using Ff7Session initial = Ff7Session.NewGame(installation);
+        FieldVariables variables = new(initial.Machine.Variables.CopyPersistent(), new byte[256]);
+        variables.WriteWord(FieldBank.Persistent0Word, 0, 332);
+        variables.WriteByte(FieldBank.Persistent3Byte, 0x5B, 4);
+        Ff7NativeSaveSlot slot = Ff7NativeSaveCodec.ExportField(initial.Progress, variables.CopyPersistent(), 103, 0, 0, 3, 128);
+        using GpuTestDevice device = new();
+        using Ff7Scene scene = new(device.Device, installation, "", new(50, 32000), _ => throw new InvalidOperationException("The lobby fixture contains no movie."), audioEnabled: false);
+        scene.Continue(new CombinedSessionSave { ActiveGame = SessionGame.Ff7, Ff7 = Ff7NativeSaveCodec.Import(slot, installation) });
+        Ff7Session session = scene.Session!;
+        TimeSpan step = TimeSpan.FromMilliseconds(34);
+        for (int tick = 1; tick <= 2000 && session.Highway is null; tick++)
+        {
+            foreach (Ff7Dialogue dialogue in session.Host.Process.Dialogues.Where(dialogue => dialogue.AwaitingInput && !dialogue.Completed && session.Host.CanConfirmDialogue(dialogue.RequestId)))
+            {
+                session.Host.UpdateDialogue(Ff7DialogueCursor.Confirm(dialogue, FieldText.Read(session.Field.Scripts.Texts[dialogue.Text].Span)));
+            }
+            bool start = tick % 2 == 0 && session.Host.Process.Dialogues.Any(dialogue => dialogue is { Text: 6, Completed: false });
+            scene.Update(new GameTime(step * tick, step), start ? new KeyboardState(Keys.A) : default);
+            Assert.Null(scene.Error);
+        }
+        Assert.NotNull(session.Highway);
+    }
+
     private static Ff7Installation FindInstallation()
     {
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");

@@ -13,6 +13,79 @@ internal static class NativeMinigameTests
         TypedOpcode();
         StoryHealthConversion();
         InstalledStoryDeparture();
+        InstalledLobbyDeparture();
+    }
+
+    private static void InstalledLobbyDeparture()
+    {
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            return;
+        }
+        Ff7Installation installation = Ff7Installation.Discover(directory);
+        using Ff7Session initial = Ff7Session.NewGame(installation);
+        FieldVariables variables = new(initial.Machine.Variables.CopyPersistent(), new byte[256]);
+        variables.WriteWord(FieldBank.Persistent0Word, 0, 326);
+        variables.WriteByte(FieldBank.Persistent1Byte, 0xA7, 4);
+        Ff7Progress progress = PrepareMotorballParty(initial.Progress) with { Party = [3, 1, 4] };
+        for (int index = 0; index < progress.Party.Length; index++)
+        {
+            variables.WriteByte(FieldBank.Persistent1Byte, (byte)(9 + index), (byte)progress.Party[index]);
+        }
+        Ff7NativeSaveSlot slot = Ff7NativeSaveCodec.ExportField(progress, variables.CopyPersistent(), 234, 1672, 882, 141, 252);
+        using Ff7Session session = Ff7Session.Restore(installation, Ff7NativeSaveCodec.Import(slot, installation));
+        Ff7AutoplayDriver driver = new(session);
+        Ff7MidgarAutoPlayPolicy policy = new(session);
+        Ff7MovieResources bike = Ff7MovieResources.Load(installation, 30);
+        Check(File.Exists(bike.Path) && Path.GetFileName(bike.Path).Equals("bike.avi", StringComparison.OrdinalIgnoreCase) && bike.Cameras is { Count: > 0 }, "The native lobby bike movie and camera track must be installed.");
+        const int lastBikeFrame = 750;
+        int movieTicks = 0;
+        for (int tick = 0; tick < 4000 && session.Host.PendingMinigame is null; tick++)
+        {
+            if (session.Host.Process.Movie is { PreparedId: 30, Playing: true })
+            {
+                int frame = movieTicks++ / 2;
+                session.Host.PublishMovieFrame(frame, frame == lastBikeFrame);
+            }
+            foreach (Ff7Dialogue dialogue in session.Host.Process.Dialogues.Where(dialogue => dialogue.AwaitingInput && !dialogue.Completed && session.Host.CanConfirmDialogue(dialogue.RequestId)))
+            {
+                session.Host.UpdateDialogue(Ff7DialogueCursor.Confirm(dialogue, FieldText.Read(session.Field.Scripts.Texts[dialogue.Text].Span)));
+            }
+            try
+            {
+                if (policy.TryChooseInput(driver, out Ff7AutoplayInput input))
+                {
+                    driver.Apply(input);
+                }
+            }
+            catch (NotSupportedException failure)
+            {
+                Ff7Actor? controlled = session.Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
+                throw new InvalidOperationException($"Lobby movement failed at {session.Field.Name}/{session.Machine.Tick}, actor {controlled?.Entity}, triangle {controlled?.Triangle}, position {controlled?.X4096 >> 12}/{controlled?.Y4096 >> 12}.", failure);
+            }
+            session.AdvanceTick();
+        }
+        Ff7Actor? player = session.Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
+        Check(movieTicks == lastBikeFrame * 2 + 1, $"The installed lobby did not wait for its authored bike movie. Movie ticks {movieTicks}, field {session.Field.Name}/{session.Machine.Tick}, player triangle {player?.Triangle}, position {player?.X4096 >> 12}/{player?.Y4096 >> 12}, locked {session.Host.Process.PlayerLocked}, pending {string.Join(',', session.Machine.Capture().PendingRequests!.Select(request => $"{request.Entity}/{request.ProgramCounter:X4}"))}.");
+        Check(session.Host.PendingMinigame is { Entity: 5, ProgramCounter: 0x06CB, Command: FieldMinigameCommand { Game: 0, Return.Map: 103 } }, $"The original lobby departure did not start G-bike at {session.Field.Name}/{session.Machine.Tick}, story {session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0)}, flags {session.Machine.Variables.ReadByte(FieldBank.Persistent1Byte, 0x88):X2}/{session.Machine.Variables.ReadByte(FieldBank.Persistent3Byte, 0x5B):X2}, PCs {string.Join(',', session.Machine.Capture().Entities.Select(entity => entity.ProgramCounter.ToString("X")))}, dialogs {string.Join(',', session.Host.Process.Dialogues.Where(dialogue => !dialogue.Completed).Select(dialogue => $"{dialogue.Text}/{dialogue.AwaitingInput}"))}.");
+        session.SetFullCombatEnabled(true);
+        long beforeChase = session.FieldGeneration;
+        for (int tick = 0; tick < 4200 && session.FieldGeneration == beforeChase; tick++)
+        {
+            session.SetHighwayInput(tick % 240 < 30 ? (ushort)0x2000 : (ushort)0, tick % 60 == 5 ? (ushort)0x20 : (ushort)0);
+            session.AdvanceTick();
+        }
+        ushort truckGauge = unchecked((ushort)session.Machine.Variables.ReadWord(FieldBank.Persistent1Word, 0x74));
+        int cloudHp = session.Progress.Characters.Single(character => character.Id == 0).HitPoints;
+        for (int tick = 0; tick < 200 && session.Battle is null; tick++)
+        {
+            session.AdvanceTick();
+        }
+        Check(session.Field.Name == "blackbgb" && session.Highway is null && session.Host.Process.Menu is { Mode: 21, Completed: true } && session.Battle?.Capture().FormationId == 468, "The original lobby highway return must run its HP conversion and request Motorball.");
+        Check(session.Progress.Characters.Single(character => character.Id == 0).HitPoints == Math.Max(1, cloudHp * truckGauge / ushort.MaxValue), "The native lobby return must apply the saved highway gauge once before Motorball.");
+        RunMotorball(installation, session);
+        Console.WriteLine("PASS original lobby blackbgb Start prompt, highway, HP conversion, Motorball victory and world exit");
     }
 
     private static void TypedOpcode()
@@ -51,7 +124,7 @@ internal static class NativeMinigameTests
             System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(record.AsSpan(44), (ushort)hp[index]);
             Ff7CharacterState source = new(index, string.Empty, 1, 0, hp[index], 0, record);
             Ff7CharacterState result = Ff7Session.ApplyHighwayHealth(source, variables);
-            Check(result.HitPoints == expected[index] && System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(result.NativeRecord.AsSpan(44)) == expected[index], $"Highway menu mode 18 changed the original HP scaling for slot {index}.");
+            Check(result.HitPoints == expected[index] && System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(result.NativeRecord.AsSpan(44)) == expected[index], $"Highway menu mode 21 changed the original HP scaling for slot {index}.");
         }
         Console.WriteLine("PASS highway native menu HP conversion and unaffected character slots");
     }
@@ -76,20 +149,7 @@ internal static class NativeMinigameTests
         using Ff7Session initial = Ff7Session.NewGame(installation);
         FieldVariables variables = new(initial.Machine.Variables.CopyPersistent(), new byte[256]);
         variables.WriteWord(FieldBank.Persistent0Word, 0, 326);
-        Ff7CharacterState[] characters = initial.Progress.Characters.Select(character =>
-        {
-            if (character.Id > 2)
-            {
-                return character;
-            }
-            byte[] record = character.NativeRecord.ToArray();
-            foreach (int offset in new[] { 44, 46, 56 })
-            {
-                System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(record.AsSpan(offset), 1200);
-            }
-            return character with { HitPoints = 1200, NativeRecord = record };
-        }).ToArray();
-        Ff7Progress progress = initial.Progress with { Characters = characters, Party = [0, 1, 2], Inventory = [new(0, 15), new(1, 10), new(7, 10)] };
+        Ff7Progress progress = PrepareMotorballParty(initial.Progress);
         Ff7NativeSaveSlot slot = Ff7NativeSaveCodec.ExportField(progress, variables.CopyPersistent(), 101, 0, 0, 3, 0);
         Ff7SessionSave entry = Ff7Session.ImportNativeField(slot, installation);
         using Ff7Session session = Ff7Session.Restore(installation, entry);
@@ -123,7 +183,7 @@ internal static class NativeMinigameTests
         FieldHostRequest arcadeRequest = arcadePending.Vm.PendingRequests!.Single(value => value.Command is FieldMinigameCommand);
         RequireHighwayBoundary(arcade, arcadePending, arcadeRequest);
         Check(arcade.HighwayStart is { Arcade: true, HighScore: 0xFEDC, FirstDueEvent: { Segment: 1, Code: 12 } }, "The original highway mode and unsigned high score did not select the arcade course.");
-        Console.WriteLine("PASS installed story chase, original course timing, fresh return and Motorball victory");
+        Console.WriteLine("PASS installed story chase, Motorball victory, Reform and physical exit to world entry 1");
     }
 
     private static void PlayHighwayToReturn(Ff7Installation installation, Ff7Session session, Ff7Session cold, Ff7SessionSave pending)
@@ -169,6 +229,24 @@ internal static class NativeMinigameTests
         session.AdvanceTick();
         Check(session.Battle?.Capture().FormationId == 468, "The original blackbg9 director did not start Motorball after the chase.");
         RunMotorball(installation, session);
+    }
+
+    private static Ff7Progress PrepareMotorballParty(Ff7Progress progress)
+    {
+        Ff7CharacterState[] characters = progress.Characters.Select(character =>
+        {
+            if (character.Id > 4)
+            {
+                return character;
+            }
+            byte[] record = character.NativeRecord.ToArray();
+            foreach (int offset in new[] { 44, 46, 56 })
+            {
+                System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(record.AsSpan(offset), 1200);
+            }
+            return character with { HitPoints = 1200, NativeRecord = record };
+        }).ToArray();
+        return progress with { Characters = characters, Party = [0, 1, 2], Inventory = [new(0, 15), new(1, 10), new(7, 10)] };
     }
 
     private static void RunMotorball(Ff7Installation installation, Ff7Session session)
@@ -217,7 +295,7 @@ internal static class NativeMinigameTests
             }
         }
         Check(sawClockPause && sawDelayedEffect && battle.ResultReady && battle.Outcome == Ff7BattleOutcome.Victory && session.ConfirmBattleVictory(), $"Motorball did not complete with native victory: {battle.Outcome} at callback {battle.Tick}, action {battle.Action?.Command.AttackId}, HP {string.Join(',', battle.Actors.Select(actor => actor.Actor.HitPoints))}.");
-        for (int tick = 0; tick < 900 && session.Field.Name == "blackbg9"; tick++)
+        for (int tick = 0; tick < 900 && session.Field.Name is "blackbg9" or "blackbgb"; tick++)
         {
             session.AdvanceTick();
         }
@@ -254,11 +332,10 @@ internal static class NativeMinigameTests
             session.AdvanceTick();
         }
         Ff7Actor? exiting = session.Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
-        if (session.World is null)
-        {
-            Console.WriteLine(JsonSerializer.Serialize(session.Host.Process.Actors.Select(actor => new { actor.Entity, X = actor.X4096 >> 12, Y = actor.Y4096 >> 12, Z = actor.Z4096 >> 12, actor.Triangle, actor.CollisionEnabled, actor.MoveSpeed, actor.CollisionRadius, ScriptedMotion = session.Host.HasScriptedMotion(actor), actor.Visible })));
-        }
         Check(checkedPartyMenu && session.World is { Process.WorldId: 0, Process.EntrySelector: 1 }, $"The road-end route remained at {session.Field.Name}/{session.Machine.Tick}, story {session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0)}, locked {session.Host.Process.PlayerLocked}, mapjump disabled {session.Host.Process.MapJumpDisabled}, triangle {exiting?.Triangle}, position ({exiting?.X4096 >> 12},{exiting?.Y4096 >> 12},{exiting?.Z4096 >> 12}), PCs {string.Join(',', session.Machine.Capture().Entities.Take(4).Select(entity => entity.ProgramCounter.ToString("X")))}.");
+        Ff7SessionSave world = RoundTrip(session.Capture());
+        using Ff7Session coldWorld = Ff7Session.Restore(installation, world);
+        Check(coldWorld.World is { Process.WorldId: 0, Process.EntrySelector: 1 }, "The physical Midgar exit was lost on cold restore.");
     }
 
     private static void RequireHighwayBoundary(Ff7Session session, Ff7SessionSave pending, FieldHostRequest request)

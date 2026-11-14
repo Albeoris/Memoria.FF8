@@ -65,7 +65,7 @@ internal sealed partial class Ff7Scene
         sharedInput.TextEntryEnabled = error is null && namingMenus?.IsTypingName == true;
         sharedInput.NamingNavigationEnabled = error is null && namingMenus?.IsOpen == true;
         semanticInput = sharedInput.Read(keys, pad, acceptsInput);
-        if (sharedInput.PauseRequested && playerMenu?.IsCapturingControls != true)
+        if (sharedInput.PauseRequested && !HighwayDeparturePrompt && playerMenu?.IsCapturingControls != true)
         {
             userPaused = !userPaused;
             SetAudioPaused(userPaused);
@@ -89,6 +89,9 @@ internal sealed partial class Ff7Scene
             Session?.ConfigureWorldMovementSpeed(preferences.WorldMovementSpeedPercent);
         }
     }
+
+    private bool HighwayDeparturePrompt => Session is { Field.Name: "blackbgb", Highway: null, Battle: null } session
+        && session.Host.Process.Dialogues.Any(dialogue => dialogue is { Text: 6, Completed: false });
 }
 
 internal static class Ff7ControlButtons

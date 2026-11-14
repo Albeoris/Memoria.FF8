@@ -67,7 +67,7 @@ public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDr
         {
             try
             {
-                if (session.Highway is not null || CompleteIfReached())
+                if (UsesManualScene() || CompleteIfReached())
                 {
                     return;
                 }
@@ -152,7 +152,7 @@ public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDr
                     advanceTick();
                 }
                 Steps++;
-                if (session.Highway is not null || CompleteIfReached())
+                if (UsesManualScene() || CompleteIfReached())
                 {
                     return;
                 }
@@ -177,6 +177,11 @@ public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDr
                 }
             }
         });
+    }
+
+    private bool UsesManualScene()
+    {
+        return session.Highway is not null || session.Host.Process.Menu is { Mode: 7, Completed: false };
     }
 
     private bool CompleteIfReached()

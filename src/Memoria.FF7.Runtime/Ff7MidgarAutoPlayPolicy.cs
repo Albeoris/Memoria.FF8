@@ -56,23 +56,36 @@ public sealed partial class Ff7MidgarAutoPlayPolicy(Ff7Session session)
         {
             return true;
         }
-        if (field == "mds5_5" && story is >= 332 and < 341)
+        if (field == "blin1" && story == 326)
+        {
+            if (session.Host.Process.Tick != 0 && !session.Host.Process.PlayerLocked && session.Host.Process.Lines.Any(line => line.Entity == 19 && line.Enabled == 1))
+            {
+                input = ApproachLine(driver, 19, 8);
+            }
+            return true;
+        }
+        if (field == "blackbgb" && story >= 326)
+        {
+            if ((session.Machine.Input.Held & 0x0800) == 0)
+            {
+                input = new(Held: 0x0800);
+            }
+            return true;
+        }
+        if (field == "mds5_5" && story >= 332)
         {
             Ff7Actor? exiting = session.Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
             if (session.Host.Process.Tick != 0 && exiting is { Ladder: null, Jump: null } && !session.Host.Process.PlayerLocked && !session.Host.HasScriptedMotion(exiting))
             {
-                input = exiting.Triangle == 14 ? driver.Steer(new(663, -2860, 0), run: false) : driver.Approach(new(775, -2880, 0), 14, run: false);
-            }
-            return true;
-        }
-        if (field == "mds5_5" && story >= 341)
-        {
-            if (session.Host.Process.Tick != 0 && !session.Host.Process.PlayerLocked && session.Host.Process.Actors.Any(actor => actor.PlayerControlled && !session.Host.HasScriptedMotion(actor)))
-            {
-                Ff7Actor exiting = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
-                input = exiting.Triangle == 14
-                    ? driver.Steer(new(472, -2920, 0))
-                    : driver.Gateway(1);
+                if (story < 341)
+                {
+                    // The east approach to LINE8 leaves Cloud room to reach the scripted dialogue position.
+                    input = exiting.Triangle == 14 ? driver.Steer(new(663, -2860, 0), run: false) : driver.Approach(new(775, -2880, 0), 14, run: false);
+                }
+                else
+                {
+                    input = exiting.Triangle == 14 ? driver.Steer(new(472, -2920, 0)) : driver.Gateway(1);
+                }
             }
             return true;
         }

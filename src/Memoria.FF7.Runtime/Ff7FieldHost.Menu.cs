@@ -19,7 +19,7 @@ public sealed partial class Ff7FieldHost
         {
             return new(false);
         }
-        if (command.Mode is not (6 or 7 or 8 or 17 or 18))
+        if (command.Mode is not (6 or 7 or 8 or 17 or 21))
         {
             throw new NotSupportedException($"FFVII menu mode {command.Mode} requires its native menu process.");
         }
@@ -37,7 +37,7 @@ public sealed partial class Ff7FieldHost
 
     public void AdvanceNativeMenu()
     {
-        if (Process.Menu is not { Mode: 17 or 18, Completed: false } menu || Process.GlobalCommand != Ff7GlobalCommand.Menu || Process.GlobalRequestId != menu.RequestId)
+        if (Process.Menu is not { Mode: 17 or 21, Completed: false } menu || Process.GlobalCommand != Ff7GlobalCommand.Menu || Process.GlobalRequestId != menu.RequestId)
         {
             return;
         }

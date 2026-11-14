@@ -25,11 +25,32 @@ public sealed class PcFieldAnimation
     public PcFieldAnimation BindSingleFrame(IReadOnlyList<Vector3> rotations)
     {
         ArgumentNullException.ThrowIfNull(rotations);
-        if (Frames.Count != 1 || rotations.Count == 0 || rotations.Any(rotation => !float.IsFinite(rotation.X) || !float.IsFinite(rotation.Y) || !float.IsFinite(rotation.Z)))
+        if (Frames.Count != 1)
         {
-            throw new InvalidDataException("A field bind pose requires one frame and finite bone rotations.");
+            throw new InvalidDataException("A field bind pose requires one frame.");
         }
-        return new(Version, RotationOrder, ReservedHeader.ToArray(), rotations.Count, [Frames[0] with { BoneRotations = Array.AsReadOnly(rotations.ToArray()) }]);
+        return BindBoneRotations([rotations]);
+    }
+
+    public PcFieldAnimation BindBoneRotations(IReadOnlyList<IReadOnlyList<Vector3>> frames)
+    {
+        ArgumentNullException.ThrowIfNull(frames);
+        if (frames.Count != Frames.Count)
+        {
+            throw new InvalidDataException("A field pose binding must preserve the original frame count.");
+        }
+        int bones = frames[0].Count;
+        PcFieldAnimationFrame[] bound = new PcFieldAnimationFrame[frames.Count];
+        for (int index = 0; index < frames.Count; index++)
+        {
+            IReadOnlyList<Vector3> rotations = frames[index];
+            if (bones == 0 || rotations.Count != bones || rotations.Any(rotation => !float.IsFinite(rotation.X) || !float.IsFinite(rotation.Y) || !float.IsFinite(rotation.Z)))
+            {
+                throw new InvalidDataException("A field pose binding requires a consistent set of finite bone rotations.");
+            }
+            bound[index] = Frames[index] with { BoneRotations = Array.AsReadOnly(rotations.ToArray()) };
+        }
+        return new(Version, RotationOrder, ReservedHeader.ToArray(), bones, bound);
     }
 
     /// <summary>Reads an ordinal channel from the native contiguous frame allocation, without extending its bounds.</summary>

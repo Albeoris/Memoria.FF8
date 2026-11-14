@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Numerics;
 using Memoria.FF7.Formats;
 
 namespace Memoria.FF7.Resources;
@@ -102,6 +103,38 @@ public sealed class Ff7KnownFieldPoseBinding
             }
         }
         return idle.BindSingleFrame(rotations);
+    }
+
+    internal static PcFieldAnimation BindShinraWomanIdle(PcFieldAnimation motion, ReadOnlySpan<byte> motionBytes, HrcHierarchy target, ReadOnlySpan<byte> hierarchyBytes, ReadOnlySpan<byte> sourceBytes)
+    {
+        // TODO(TD-029): BOCB has body rotations only. Keep EDEA's extra hair joints in their HRC rest orientation.
+        if (!Matches(motionBytes, "2260E9DD8496C1E97649A5461DA69659B4CD52F3806A4C85277CDAF742803AF3") || !Matches(hierarchyBytes, "5D09B317F02691EC6057A5E66EAE833F94140FEB95FFE38F8786BB60DC5FA917") || !Matches(sourceBytes, "69638FA2B50F534ACF82D0C45C9B9BB074916F6DB20DB3998412C951F054EE8A"))
+        {
+            return motion;
+        }
+        HrcHierarchy source = HrcHierarchy.Read(sourceBytes);
+        if (source.Bones.Count != motion.BoneCount || target.Bones.Count != source.Bones.Count + 2)
+        {
+            throw new InvalidDataException("The original Shinra woman idle has inconsistent rig dimensions.");
+        }
+        Dictionary<string, HrcBone> body = source.Bones.ToDictionary(bone => bone.Name, StringComparer.OrdinalIgnoreCase);
+        int[] channels = new int[target.Bones.Count];
+        foreach (HrcBone bone in target.Bones)
+        {
+            if (body.TryGetValue(bone.Name, out HrcBone? original) && original.ParentName == bone.ParentName)
+            {
+                channels[bone.Index] = original.Index;
+            }
+            else if (bone is { Name: "none1", ParentName: "head" } or { Name: "hair", ParentName: "none1" })
+            {
+                channels[bone.Index] = -1;
+            }
+            else
+            {
+                throw new InvalidDataException("The original Shinra woman idle has an unknown joint binding.");
+            }
+        }
+        return motion.BindBoneRotations(motion.Frames.Select(frame => (IReadOnlyList<Vector3>)channels.Select(channel => channel < 0 ? Vector3.Zero : frame.BoneRotations[channel]).ToArray()).ToArray());
     }
 
     private static bool Matches(ReadOnlySpan<byte> bytes, string expected) => Convert.ToHexString(SHA256.HashData(bytes)).Equals(expected, StringComparison.Ordinal);
