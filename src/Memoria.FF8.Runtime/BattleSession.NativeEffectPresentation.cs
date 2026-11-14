@@ -129,13 +129,13 @@ public sealed partial class BattleSession
         {
             NativeGraphics = InitializeEffectPresentationSourceResources(NativeGraphics, inputs.SourceResource, preserveSelectedProgram: true);
         }
-        if (inputs.SequenceGlobals is { } sequenceGlobals)
-        {
-            NativeEffectMemory = NativeEffectMemory with { SequenceSine = sequenceGlobals.Sine, SequenceCosine = sequenceGlobals.Cosine };
-        }
         else if (presentationNativeTargets.Values.Any(binding => binding.CanActivate))
         {
             NativeGraphics = InitializeEffectPresentationEnemyResources(NativeGraphics);
+        }
+        if (inputs.SequenceGlobals is { } sequenceGlobals)
+        {
+            NativeEffectMemory = NativeEffectMemory with { SequenceSine = sequenceGlobals.Sine, SequenceCosine = sequenceGlobals.Cosine };
         }
         InitializeEffectPresentationServices(inputs.Parameters);
         if (roster is not null)

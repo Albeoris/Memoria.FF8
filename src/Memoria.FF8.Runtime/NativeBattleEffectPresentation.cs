@@ -80,12 +80,15 @@ public sealed class NativeBattleEffectPresentation : IDisposable
         InitialHostCameraPose = inputs.HostCameraPose;
     }
 
-    private NativeBattleEffectPresentation(BattleSession owner)
+    private NativeBattleEffectPresentation(NativeBattleEffectPresentation source)
     {
-        this.owner = owner;
+        owner = source.owner.ForkEffectPresentation();
+        projection = source.projection;
+        actors = source.actors;
+        InitialHostCameraPose = source.InitialHostCameraPose;
     }
 
-    public NativeBattleEffectPresentation Fork() => new(owner.ForkEffectPresentation());
+    public NativeBattleEffectPresentation Fork() => new(this);
 
     public NativeBattleGraphicsState Graphics => owner.NativeGraphics!;
     public NativeBattleEffectMemory Memory => owner.NativeEffectMemory!;

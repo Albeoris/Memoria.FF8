@@ -4,9 +4,13 @@ public sealed partial class BattleSession
 {
     private BattleSession(BattleSession source)
     {
-        if (source.presentationForeignActors is null)
+        if (source.presentationForeignActors is null || source.NativeGraphics?.PresentationRoster is not null)
         {
             throw new InvalidOperationException("Only an isolated presentation owner can fork its capability probe.");
+        }
+        if (source.hostedGuardianFormMode is not null || source.presentationNativeTargets?.Values.Any(binding => binding.CanActivate) == true || source.presentationActivations.Count != 0 || source.presentationActivationSequences.Count != 0)
+        {
+            throw new InvalidOperationException("A presentation with model activation or guardian form ownership cannot fork a capability probe.");
         }
         definition = source.definition;
         combatants = [];
@@ -54,11 +58,16 @@ public sealed partial class BattleSession
         nativeGlobalRandomCalls = source.nativeGlobalRandomCalls;
         nativeEffectResourceResolver = source.nativeEffectResourceResolver;
         presentationForeignActors = new(source.presentationForeignActors);
+        presentationNativeTargets = source.presentationNativeTargets is null ? null : new(source.presentationNativeTargets);
         presentationArena = source.presentationArena?.Fork(preservePresentation: true);
         presentationSceneContext = source.presentationSceneContext;
         presentationRibbonProjectionPolicy = source.presentationRibbonProjectionPolicy;
         presentationModelTransformPolicy = source.presentationModelTransformPolicy;
         presentationSourceResource = source.presentationSourceResource;
+        presentationSourceIndex = source.presentationSourceIndex;
+        presentationSourceModelId = source.presentationSourceModelId;
+        presentationSourceIsParty = source.presentationSourceIsParty;
+        presentationCameraMode = source.presentationCameraMode;
         presentationFirstAdvance = source.presentationFirstAdvance;
         presentationHostCamera = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(source.presentationHostCamera));
         presentationInitialStage = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(source.presentationInitialStage));

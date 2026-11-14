@@ -25,7 +25,7 @@ public sealed partial class BattleSession
 
     internal void PublishEffectPresentationSource(NativeBattleGraphicsModel source)
     {
-        if (presentationForeignActors is null || source.Index != 0)
+        if (presentationForeignActors is null || presentationSourceIndex != 0 || source.Index != 0 || NativeGraphics?.PresentationRoster is not null)
         {
             throw new InvalidDataException("The presentation source publication requires physical source slot zero and its presentation owner.");
         }

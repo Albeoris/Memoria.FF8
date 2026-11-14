@@ -41,7 +41,7 @@ public sealed partial class BattleSession
 
     internal void ReinvokeEffectPresentationDirect(NativeBattleActionPacketsState packets, NativeBattleGraphicsModel source, NativeCrtRandomState randomState, NativeBattleEffectTextureState textures, NativeBattleEffectParameters parameters, ImmutableArray<NativeBattleForeignActor> foreignActors)
     {
-        if (presentationForeignActors is null || !EffectPresentationInvoked)
+        if (presentationForeignActors is null || !EffectPresentationInvoked || presentationSourceIndex != 0 || source.Index != 0 || NativeGraphics?.PresentationRoster is not null)
         {
             throw new InvalidOperationException("A direct presentation phase requires its invoked retained presentation owner.");
         }
@@ -73,7 +73,7 @@ public sealed partial class BattleSession
         nativeActionPackets = packets.ActivateHeader(parameters.HeaderIndex7C);
         nativeCrtRandom = randomState;
         NativeEffectMemory = memory with { Textures = textures };
-        NativeGraphics = graphics with { Models = BindPresentationForeignModels(graphics.Models.SetItem(0, source), previousForeignActors) };
+        NativeGraphics = graphics with { Models = BindPresentationForeignModels(graphics.Models.SetItem(0, source), roster: null, previous: previousForeignActors) };
         InitializeEffectPresentationServices(parameters);
         graphics = NativeGraphics!;
         NativeBattleActionGraphicsState context = graphics.ActionGraphics ?? throw new InvalidDataException("The direct presentation phase lost its normalized source service.");

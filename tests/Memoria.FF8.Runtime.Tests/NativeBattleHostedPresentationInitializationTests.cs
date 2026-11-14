@@ -41,6 +41,58 @@ public sealed class NativeBattleHostedPresentationInitializationTests
         Assert.Equal((ushort)91, owner.NativeActionPackets.ReadContact(255).Primary.Amount6);
     }
 
+    [Fact]
+    public void HostedActivationBindingKeepsItsRosterResourceOwnerWithoutSequenceGlobals()
+    {
+        NativeBattleEffectPresentationInputs inputs = Inputs(7, 24, NativeBattleScriptedEffectMemory.FromColdProcess(), 1);
+        inputs = inputs with { NativeTargets = [inputs.NativeTargets[0] with { CanActivate = true }] };
+
+        BattleSession owner = BattleSession.CreateEffectPresentation(inputs);
+
+        Assert.Same(inputs.Packets.PresentationRoster, owner.NativeModelCpuResources!.Cpu.PresentationRoster);
+        Assert.Equal("target", owner.NativeGraphics!.ActorIds[24]);
+    }
+
+    [Fact]
+    public void RetainedSequenceGlobalsDoNotBypassNativeEnemyActivationResources()
+    {
+        NativeBattleEffectPresentationInputs inputs = Inputs(0, 3, NativeBattleScriptedEffectMemory.FromColdProcess(), 1, hosted: false);
+        inputs = inputs with
+        {
+            Source = inputs.Source with { ModelId4 = 16 },
+            SourceIsParty = false,
+            NativeTargets = [inputs.NativeTargets[0] with { CanActivate = true }],
+            SequenceGlobals = new(123, 456)
+        };
+
+        NotSupportedException error = Assert.Throws<NotSupportedException>(() => BattleSession.CreateEffectPresentation(inputs));
+
+        Assert.Contains("Native500EA0 requires its installed stage", error.Message);
+    }
+
+    [Fact]
+    public void PhysicalPresentationForkPreservesSourceRowAndRejectsHostedOwnership()
+    {
+        NativeBattleScriptedEffectMemory core = NativeBattleScriptedEffectMemory.FromColdProcess();
+        NativeBattleEffectPresentationInputs physical = Inputs(1, 3, core, 1, hosted: false);
+        using NativeBattleEffectPresentation original = new(physical);
+        using NativeBattleEffectPresentation fork = original.Fork();
+
+        Assert.Equal(1, fork.Source.Index);
+        Assert.Equal(original.Source, fork.Source);
+        NativeBattleGraphicsState before = original.Graphics;
+        Assert.Throws<InvalidDataException>(() => original.PublishSource(original.Source with { Index = 0 }));
+        Assert.Same(before, original.Graphics);
+
+        using NativeBattleEffectPresentation activation = new(physical with { NativeTargets = [physical.NativeTargets[0] with { CanActivate = true }] });
+        Assert.Throws<InvalidOperationException>(() => activation.Fork());
+
+        using NativeBattleEffectPresentation hosted = new(Inputs(7, 24, core, 1));
+        Assert.Throws<InvalidOperationException>(() => hosted.Fork());
+        Assert.Throws<InvalidDataException>(() => hosted.PublishSource(hosted.Source with { Index = 0 }));
+        Assert.Equal(7, hosted.Source.Index);
+    }
+
     [Theory]
     [InlineData("known")]
     [InlineData("count-unknown")]
