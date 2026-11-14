@@ -6,7 +6,7 @@ public sealed record NativeBattleCannonBlow151Frame(NativeBattleEffectMemory Mem
 }
 
 public sealed record NativeBattleCannonBlow151PointStep(NativeBattleCannonBlow151Frame Frame, NativeBattleEffectArena Point8);
-public sealed record NativeBattleCannonBlow151Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleCannonBlow151Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleCannonBlow151Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleCannonBlow151Frame, int, NativeBattleActionMatrix> ReadModelWorld, Func<NativeBattleCannonBlow151Frame, int, int, int, NativeBattleCannonBlow151PointStep> ReadBone502170, Func<NativeBattleCannonBlow151Frame, ushort, NativeBattleCannonBlow151PointStep> ReadTargetCenter, Func<NativeBattleCannonBlow151Frame, NativeBattleCannonBlow151Operation, NativeBattleCannonBlow151Frame> Execute);
+public sealed record NativeBattleCannonBlow151Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleCannonBlow151Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleCannonBlow151Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleCannonBlow151Frame, int, NativeBattleActionMatrix> ReadModelWorld, Func<NativeBattleCannonBlow151Frame, int, int, int, NativeBattleCannonBlow151PointStep> ReadBone502170, Func<NativeBattleCannonBlow151Frame, NativeBattleGraphicsActorSet, NativeBattleCannonBlow151PointStep> ReadTargetCenter, Func<NativeBattleCannonBlow151Frame, NativeBattleCannonBlow151Operation, NativeBattleCannonBlow151Frame> Execute);
 
 public abstract record NativeBattleCannonBlow151Operation
 {

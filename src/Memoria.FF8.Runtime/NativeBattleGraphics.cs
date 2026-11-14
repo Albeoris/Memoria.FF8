@@ -116,6 +116,11 @@ public sealed partial record NativeBattleGraphicsState([property: JsonRequired] 
             throw new InvalidDataException("Native506CF0 stage has no initialized4A94D0 UI service owner; migrate the standalone snapshot explicitly.");
         }
         PresentationRoster?.Validate();
+        if (ActionContext is { PresentationTargets: { } targets, PresentationSourceTargets: { } sourceTargets } geometry)
+        {
+            NativeBattleGraphicsRoster geometryRoster = PresentationRoster ?? throw new InvalidDataException("Hosted action geometry requires its explicit presentation roster.");
+            NativeBattleActionGeometry.ValidatePresentationRows(geometryRoster, geometry.ActorIndex, sourceTargets, targets);
+        }
         int actorCount = PresentationRoster?.ActorCount ?? NativeBattleGraphicsModelAddress.NativeRowCount;
         if (Models.IsDefault || Models.Length != actorCount || ActorIds.IsDefault || ActorIds.Length != actorCount || Callback < 0 || PresentationSubticks is < 0 or >= TimeSpan.TicksPerSecond || ModelLoadCount < 0 || EntryGatePhase > 2 || EntryBarrierCompletion is not (0 or 255) || EntryLifecycle > 4 || EntryBarrierPacket is < 0 or >= 30 || Descriptors is null || PendingContacts.IsDefault || Models.Where((model, index) => model is null || model.Index != index).Any())
         {

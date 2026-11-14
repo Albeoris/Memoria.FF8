@@ -13,7 +13,7 @@ public sealed record NativeBattleEffect173Inputs(NativeBattleSummonColors Colors
 public abstract record NativeBattleEffect173Operation;
 public sealed record NativeBattleEffect173UploadTim505E30(uint SourceAddress) : NativeBattleEffect173Operation;
 public sealed record NativeBattleEffect173RegisterCamera5099A0(uint SourceAddress) : NativeBattleEffect173Operation;
-public sealed record NativeBattleEffect173TargetCenter5020A0(ushort Selector, uint Destination) : NativeBattleEffect173Operation;
+public sealed record NativeBattleEffect173TargetCenter5020A0(NativeBattleGraphicsActorSet Targets, uint Destination) : NativeBattleEffect173Operation;
 public sealed record NativeBattleEffect173Stage5713E0(int Amount, uint Color) : NativeBattleEffect173Operation;
 public sealed record NativeBattleEffect173Sound501330(uint SourceAddress, uint Flags, byte Pan) : NativeBattleEffect173Operation;
 public sealed record NativeBattleEffect173AllContacts506BA0(int FirstContactIndex, int Count) : NativeBattleEffect173Operation;

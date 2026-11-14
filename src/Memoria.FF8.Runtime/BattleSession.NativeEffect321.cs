@@ -50,9 +50,9 @@ public sealed partial class BattleSession
             return new(second.Frame, retained.Write(6, BitConverter.GetBytes(transform.Angle36)));
         }
 
-        NativeBattleEffect321PointStep Center(NativeBattleEffect321Frame current, ushort mask, NativeBattleEffectArena retained)
+        NativeBattleEffect321PointStep Center(NativeBattleEffect321Frame current, NativeBattleGraphicsActorSet targets, NativeBattleEffectArena retained)
         {
-            NativeBattleVector point = NativeBattleActionGeometryRules.TargetCenter(Enumerable.Range(0, 7).Where(actor => (mask & (1 << actor)) != 0).Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Effect321 requires actual current target positions.")).ToArray());
+            NativeBattleVector point = NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Effect321 requires actual current target positions.")).ToArray());
             return new(current, retained.Write(0, BitConverter.GetBytes(point.X)).Write(2, BitConverter.GetBytes(point.Y)).Write(4, BitConverter.GetBytes(point.Z)));
         }
     }

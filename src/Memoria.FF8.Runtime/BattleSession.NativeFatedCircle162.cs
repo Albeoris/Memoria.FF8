@@ -38,9 +38,9 @@ public sealed partial class BattleSession
             return anchor with { W = (graphics.Models[actor].Transform ?? throw new NotSupportedException("Native571400 requires the actor angleWORD36.")).Angle36 };
         }
 
-        NativeBattleModuleAnchor Target5020A0(ushort mask)
+        NativeBattleModuleAnchor Target5020A0(NativeBattleGraphicsActorSet targets)
         {
-            NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(Enumerable.Range(0, 7).Where(actor => (mask & (1 << actor)) != 0).Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Native5020A0 requires each selected physical model position.")).ToArray());
+            NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Native5020A0 requires each selected physical model position.")).ToArray());
             return new(center.X, center.Y, center.Z, 0);
         }
 

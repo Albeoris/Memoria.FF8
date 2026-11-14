@@ -37,9 +37,9 @@ public sealed partial class BattleSession
             return RawVector(ReadNativeGraphicsBone(graphics, actor, selector, fraction));
         }
 
-        ImmutableArray<byte> ReadCentroid(ushort mask)
+        ImmutableArray<byte> ReadCentroid(NativeBattleGraphicsActorSet targets)
         {
-            NativeBattleVector[] positions = Enumerable.Range(0, 7).Where(actor => (mask & (1 << actor)) != 0).Select(actor => (graphics.Models[actor].Transform ?? throw new NotSupportedException("Native Cactuar requires its target's actual transform.")).Position28).ToArray();
+            NativeBattleVector[] positions = targets.EnumerateRows().Select(actor => (graphics.Models[actor].Transform ?? throw new NotSupportedException("Native Cactuar requires its target's actual transform.")).Position28).ToArray();
             return RawVector(NativeBattleActionGeometryRules.TargetCenter(positions));
         }
 

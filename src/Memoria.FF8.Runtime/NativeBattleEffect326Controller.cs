@@ -41,7 +41,7 @@ public static partial class NativeBattleEffect326Controller
         short yaw = unchecked((short)((inputs.ReadModel(frame, target).Rotation14 ?? throw new NotSupportedException("Effect326 requires its actual target rotation.")) + 0x800));
         NativeBattleActionMatrix orientation = NativeBattleGfMatrices.Euler56CD50(new(0, yaw, 0));
         frame = WriteBytes(frame, BaseMatrix, PackedArena(NativeBattlePackedMatrix32.FromMatrix(orientation, null)), 32);
-        NativeBattleEffectArena center = inputs.ReadTargetCenter5020A0(frame, parameters.TargetMask7A, Context(frame, 0x24F1308, 8));
+        NativeBattleEffectArena center = inputs.ReadTargetCenter5020A0(frame, parameters.TargetActors, Context(frame, 0x24F1308, 8));
         frame = PublishContext(frame, 0x24F1308, center, 8);
         short centerZ = BinaryPrimitives.ReadInt16LittleEndian(center.Read(4, 2));
         NativeBattleVector offset = NativeBattleGfMatrices.RotateShort56C4F0(inputs.ReadWorld(frame, target).ReadMatrix(), new(0, 0, -4400));

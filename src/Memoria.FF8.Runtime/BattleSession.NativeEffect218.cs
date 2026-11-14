@@ -45,7 +45,7 @@ public sealed partial class BattleSession
             return actorIndex;
         }
 
-        NativeBattleVector Center(ushort mask) => NativeBattleActionGeometryRules.TargetCenter(Enumerable.Range(0, 7).Where(actor => (mask & (1 << actor)) != 0).Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Effect218 requires its selected target position WORDs.")).ToArray());
+        NativeBattleVector Center(NativeBattleGraphicsActorSet targets) => NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Effect218 requires its selected target position WORDs.")).ToArray());
 
         void Publish(NativeBattleEffect218Frame current)
         {

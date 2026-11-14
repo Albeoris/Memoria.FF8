@@ -20,7 +20,7 @@ public static partial class NativeBattleRayBomb10Controller
             {
                 NativeBattleVector anchor = inputs.ReadBone(caster, 240, 0x680);
                 NativeBattleVector offset = NativeBattleGfMatrices.RotateShort56C4F0(matrix, new(0, 0x320, -930));
-                NativeBattleVector centre = inputs.ReadCentre(Frame.Effect.Parameters?.TargetMask7A ?? throw new NotSupportedException("Native627F10 requires its actual target mask."));
+                NativeBattleVector centre = inputs.ReadCentre(Frame.Effect.Parameters?.TargetActors ?? throw new NotSupportedException("Native627F10 requires its actual target mask."));
                 Process = Process with { Muzzle = new(unchecked((short)(anchor.X + offset.X)), unchecked((short)(anchor.Y + offset.Y)), unchecked((short)(anchor.Z + offset.Z)), Process.Muzzle.W), Centre = new(centre.X, centre.Y, centre.Z, Process.Centre.W) };
             }
             if (counter == 1)

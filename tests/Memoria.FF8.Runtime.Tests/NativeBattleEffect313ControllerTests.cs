@@ -43,7 +43,7 @@ public sealed class NativeBattleEffect313ControllerTests
         frame = frame with { State = frame.State.WriteView(CenterAddress + 6, NativeBattleEffectArena.Clear().Write(0, new byte[] { 0x34, 0x56 }).MarkUnknown(1, 1), 2) };
         NativeBattleEffect313Frame result = AdvanceMain59B180(frame, ChildBank, null!, harness.Inputs()).Frame;
         Assert.Equal((ModelAddress(3), 0xF0, 4096), Assert.Single(harness.Points));
-        Assert.Equal((ushort)0x15, harness.TargetMask);
+        Assert.Equal(NativeBattleGraphicsActorSet.FromNative(0x15), harness.Targets);
         Assert.Equal((ushort)100, result.State.ReadWord(CenterAddress));
         Assert.Equal((ushort)400, result.State.ReadWord(CenterAddress + 2));
         Assert.Equal((ushort)350, result.State.ReadWord(CenterAddress + 4));
@@ -256,7 +256,7 @@ public sealed class NativeBattleEffect313ControllerTests
     private sealed class Harness
     {
         public uint Flags { get; init; }
-        public ushort TargetMask;
+        public NativeBattleGraphicsActorSet Targets;
         public List<(uint, int, int)> Points = [];
         public List<NativeBattleEffect313Operation> Operations = [];
         public NativeBattleActionPacketsState Packets = NativeBattleActionPacketsState.Fresh();
@@ -277,9 +277,9 @@ public sealed class NativeBattleEffect313ControllerTests
         {
             Points.Add((model, selector, fraction));
             return new(frame with { State = frame.State.WriteDword(InitializerGlobal, 456) }, PutPoint(retained, 0, new(100, 200, 300)));
-        }, (frame, _, retained) => new(frame, retained), (frame, mask, retained) =>
+        }, (frame, _, retained) => new(frame, retained), (frame, targets, retained) =>
         {
-            TargetMask = mask;
+            Targets = targets;
             return new(frame with { State = frame.State.WriteDword(InitializerGlobal, 789) }, PutPoint(retained, 0, new(10, 20, 30)));
         }, (_, _) => 0, (frame, operation) =>
         {

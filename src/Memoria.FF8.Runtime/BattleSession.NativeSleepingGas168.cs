@@ -96,7 +96,7 @@ public sealed partial class BattleSession
             {
                 NativeBattleVector anchor = ReadNativeGraphicsBone(graphics, effect.Parameters!.Actor78, 0xF0, 4096);
                 anchor = anchor with { Y = unchecked((short)(anchor.Y - 160)) };
-                NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(Enumerable.Range(0, 7).Where(actor => (effect.Parameters.TargetMask7A & (1 << actor)) != 0).Select(actor => graphics.Models[actor].Transform!.Position28).ToArray());
+                NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(effect.Parameters.TargetActors.EnumerateRows().Select(actor => graphics.Models[actor].Transform!.Position28).ToArray());
                 int x = center.X - anchor.X;
                 int y = center.Y - anchor.Y;
                 int z = center.Z - anchor.Z;

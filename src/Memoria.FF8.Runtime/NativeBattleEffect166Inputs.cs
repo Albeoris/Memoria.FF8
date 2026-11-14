@@ -24,7 +24,7 @@ public abstract record NativeBattleEffect166Operation
 }
 public sealed record NativeBattleEffect166UploadTim505E30(uint SourceAddress) : NativeBattleEffect166Operation;
 public sealed record NativeBattleEffect166RegisterCamera5099A0(uint SourceAddress) : NativeBattleEffect166Operation;
-public sealed record NativeBattleEffect166TargetCenter5020A0(ushort Mask, uint DestinationAddress) : NativeBattleEffect166Operation;
+public sealed record NativeBattleEffect166TargetCenter5020A0(NativeBattleGraphicsActorSet Targets, uint DestinationAddress) : NativeBattleEffect166Operation;
 public sealed record NativeBattleEffect166Flash5712C0(int Rise, int Hold, int Fall, byte Color) : NativeBattleEffect166Operation;
 public sealed record NativeBattleEffect166Stage5713E0(int Intensity, uint Color) : NativeBattleEffect166Operation;
 public sealed record NativeBattleEffect166Sound501330(uint SourceAddress, uint Flags, byte Pan) : NativeBattleEffect166Operation;

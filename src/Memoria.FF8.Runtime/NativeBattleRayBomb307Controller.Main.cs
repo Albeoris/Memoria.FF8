@@ -29,7 +29,7 @@ public static partial class NativeBattleRayBomb307Controller
         }
         if (age == 0)
         {
-            NativeBattleRayBomb307PointStep center = inputs.ReadTargetCenter5020A0(frame, Parameters(frame).TargetMask7A);
+            NativeBattleRayBomb307PointStep center = inputs.ReadTargetCenter5020A0(frame, Parameters(frame).TargetActors);
             frame = center.Frame with { State = center.Frame.State.WriteWord(0x2242568, unchecked((ushort)center.Position.X)).WriteWord(0x224256A, unchecked((ushort)center.Position.Y)).WriteWord(0x224256C, unchecked((ushort)center.Position.Z)) };
             int scale = inputs.ReadModel(caster).Transform?.Scale38 ?? throw new NotSupportedException("Ray-Bomb requires its caster's current scale.");
             frame = Write(frame, address, Read(frame, address).WriteWord(0x16, unchecked((ushort)(unchecked(scale * 1900) >> 12))));

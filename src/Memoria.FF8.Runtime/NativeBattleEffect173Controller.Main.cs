@@ -30,7 +30,7 @@ public static partial class NativeBattleEffect173Controller
         if (age == 1)
         {
             NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect173 requires its current target selector.");
-            frame = inputs.Execute(frame, new NativeBattleEffect173TargetCenter5020A0(parameters.TargetMask7A, TargetPointAddress));
+            frame = inputs.Execute(frame, new NativeBattleEffect173TargetCenter5020A0(parameters.TargetActors, TargetPointAddress));
             frame = InitializeCommonBank(frame);
         }
         if (age == 2)

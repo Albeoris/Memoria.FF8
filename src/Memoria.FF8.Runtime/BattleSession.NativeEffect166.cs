@@ -80,7 +80,7 @@ public sealed partial class BattleSession
                     NativeCamera = Camera().RegisterControlResource(textures.Animation);
                     return current with { Memory = current.Memory with { Textures = textures } };
                 case NativeBattleEffect166TargetCenter5020A0 target:
-                    NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(Enumerable.Range(0, 7).Where(actor => (target.Mask & (1 << actor)) != 0).Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Effect166 target center requires its actual selected physical positions.")).ToArray());
+                    NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(target.Targets.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Effect166 target center requires its actual selected physical positions.")).ToArray());
                     NativeBattleEffectArena vector = NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(center.X)).Write(2, BitConverter.GetBytes(center.Y)).Write(4, BitConverter.GetBytes(center.Z));
                     return NativeBattleEffect166Controller.WriteBytes(current, target.DestinationAddress, vector, 6);
                 case NativeBattleEffect166Flash5712C0 flash:

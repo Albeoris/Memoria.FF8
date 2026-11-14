@@ -36,7 +36,7 @@ public static class NativeBattleDoomtrain191Controller
         NativeBattleGraphicsModel target = inputs.ReadModel(actor);
         short yaw = target.Rotation14 ?? throw new NotSupportedException("Native Doomtrain requires its first target's current yaw.");
         NativeBattleActionMatrix rotation = NativeBattleGfMatrices.Euler56CD50(new(0, unchecked((short)(yaw + 0x800)), 0));
-        NativeBattleVector center = inputs.ReadCentroid(parameters.TargetMask7A);
+        NativeBattleVector center = inputs.ReadCentroid(parameters.TargetActors);
         NativeBattleVector offset = NativeBattleGfMatrices.RotateShort56C4F0(target.GeometryWorldMatrix ?? throw new NotSupportedException("Native Doomtrain requires its first target's current geometry matrix."), new(0, 0, 0));
         rotation = rotation with { X = offset.X, Y = offset.Y, Z = unchecked(center.Z + offset.Z) };
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(MainDescriptor, MainBank, 0x10, 2);

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
@@ -14,9 +15,31 @@ public sealed record NativeBattleActionGeometry(byte ActorIndex, ushort SourceTa
     public ImmutableArray<NativeBattleActionMatrix>? Matrices { get; init; }
     public NativeBattleActionMatrix? TargetMatrix { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleGraphicsActorSet? PresentationTargets { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleGraphicsActorSet? PresentationSourceTargets { get; init; }
+
+    [JsonIgnore]
+    public NativeBattleGraphicsActorSet? TargetActors => PresentationTargets ?? (PhysicalTargetMask is ushort mask ? NativeBattleGraphicsActorSet.FromNative(mask) : null);
+
+    [JsonIgnore]
+    public bool IsSelfTarget => PresentationSourceTargets is { } source ? source.IsSingle(ActorIndex) : SourceTargetMask == 1 << ActorIndex;
+
     public void Validate()
     {
-        if (ActorIndex >= 7 || TargetIndex >= 7 || PhysicalTargetMask is ushort mask && (mask & ~127) != 0)
+        if (PresentationTargets.HasValue || PresentationSourceTargets.HasValue)
+        {
+            if (ActorIndex >= NativeBattleGraphicsModelAddress.MaximumRowCount || PresentationTargets is not { } targets ||
+                PresentationSourceTargets is not { } source || targets.IsEmpty ||
+                TargetIndex is not byte target || !targets.Contains(target) ||
+                SourceTargetMask != source.NativePhysicalBits || PhysicalTargetMask != targets.NativePhysicalBits)
+            {
+                throw new InvalidDataException("Hosted action geometry requires consistent source and recipient sets and a resolved recipient.");
+            }
+        }
+        else if (ActorIndex >= 7 || TargetIndex >= 7 || PhysicalTargetMask is ushort mask && (mask & ~127) != 0)
         {
             throw new InvalidDataException("Native action geometry requires physical graphics indices and a seven-bit target mask.");
         }
@@ -36,6 +59,20 @@ public sealed record NativeBattleActionGeometry(byte ActorIndex, ushort SourceTa
             }
         }
         TargetMatrix?.Validate();
+    }
+
+    internal static void ValidatePresentationRows(NativeBattleGraphicsRoster roster, int actorIndex, NativeBattleGraphicsActorSet sourceTargets, NativeBattleGraphicsActorSet targets)
+    {
+        sourceTargets.ValidateCapacity(roster.ActorCount);
+        targets.ValidateCapacity(roster.ActorCount);
+        if ((uint)actorIndex >= (uint)roster.ActorCount || roster.Rows[actorIndex] is null)
+        {
+            throw new InvalidDataException("Hosted action geometry requires a bound source row.");
+        }
+        foreach (int row in sourceTargets.EnumerateRows().Concat(targets.EnumerateRows()))
+        {
+            _ = roster[row];
+        }
     }
 }
 

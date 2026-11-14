@@ -27,9 +27,9 @@ public sealed partial class BattleSession
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };
 
-        NativeBattleVector ReadCentre(ushort mask)
+        NativeBattleVector ReadCentre(NativeBattleGraphicsActorSet targets)
         {
-            NativeBattleVector[] positions = Enumerable.Range(0, 7).Where(actor => (mask & (1 << actor)) != 0).Select(actor => (graphics.Models[actor].Transform ?? throw new NotSupportedException("Native Ray-Bomb requires actual target positions.")).Position28).ToArray();
+            NativeBattleVector[] positions = targets.EnumerateRows().Select(actor => (graphics.Models[actor].Transform ?? throw new NotSupportedException("Native Ray-Bomb requires actual target positions.")).Position28).ToArray();
             return NativeBattleActionGeometryRules.TargetCenter(positions);
         }
 

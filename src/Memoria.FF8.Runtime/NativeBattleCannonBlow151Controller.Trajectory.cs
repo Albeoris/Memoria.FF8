@@ -14,7 +14,7 @@ public static partial class NativeBattleCannonBlow151Controller
         NativeBattleActionMatrix world = inputs.ReadModelWorld(frame, caster);
         NativeBattleVector offset = NativeBattleGfMatrices.RotateShort56C4F0(world, new(200, -250, -250));
         frame = Word(Word(Word(frame, start, Word(frame, start) + offset.X), start + 2, Word(frame, start + 2) + offset.Y), start + 4, Word(frame, start + 4) + offset.Z);
-        NativeBattleCannonBlow151PointStep center = inputs.ReadTargetCenter(frame, Parameters(frame).TargetMask7A);
+        NativeBattleCannonBlow151PointStep center = inputs.ReadTargetCenter(frame, Parameters(frame).TargetActors);
         frame = center.Frame with { State = center.Frame.State.WriteView(target, center.Point8, 6) };
         frame = DrawRandom(frame, out ushort randomX);
         frame = Word(frame, target, Word(frame, target) + randomX % 800 - 400);

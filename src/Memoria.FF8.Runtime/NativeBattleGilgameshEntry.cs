@@ -29,7 +29,7 @@ public static class NativeBattleGilgameshEntry
         NativeBattleGraphicsModel first = models[actor];
         short yaw = first.Rotation14 ?? throw new NotSupportedException("Native Gilgamesh entry requires current actor rotation WORD0E.");
         NativeBattleActionMatrix actorMatrix = first.GeometryWorldMatrix ?? throw new NotSupportedException("Native Gilgamesh entry requires the current published actor matrix at40h.");
-        NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(models.Where((_, index) => (parameters.TargetMask7A & (1 << index)) != 0).Select(model => model.Transform?.Position28 ?? throw new NotSupportedException("Native Gilgamesh target bounds require each selected physical position row.")).ToArray());
+        NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(parameters.TargetActors.EnumerateRows().Select(index => models[index]).Select(model => model.Transform?.Position28 ?? throw new NotSupportedException("Native Gilgamesh target bounds require each selected physical position row.")).ToArray());
         NativeBattleActionMatrix world = NativeBattleGfMatrices.Euler56CD50(new(0, unchecked((short)(yaw + 0x800)), 0));
         NativeBattleVector offset = NativeBattleGfMatrices.RotateShort56C4F0(actorMatrix, new(0, 0, -4500));
         world = world with { X = offset.X, Y = offset.Y, Z = unchecked(center.Z + offset.Z) };

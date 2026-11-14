@@ -33,8 +33,8 @@ public static partial class NativeBattleEffect321Controller
         }
         if (age == 92)
         {
-            ushort mask = frame.Effect.Parameters?.TargetMask7A ?? throw new NotSupportedException("Effect321 requires its actual target mask.");
-            NativeBattleEffect321PointStep point = inputs.TargetCenter5020A0(frame, mask, NativeBattleEffectArena.Clear().MarkUnknown(0, 8));
+            NativeBattleGraphicsActorSet targets = frame.Effect.Parameters?.TargetActors ?? throw new NotSupportedException("Effect321 requires its actual target mask.");
+            NativeBattleEffect321PointStep point = inputs.TargetCenter5020A0(frame, targets, NativeBattleEffectArena.Clear().MarkUnknown(0, 8));
             frame = inputs.Execute(point.Frame, new NativeBattleEffect321PositionalSound5013A0(SecondSoundAddress, 0, point.Output8));
         }
         if (age == 97)

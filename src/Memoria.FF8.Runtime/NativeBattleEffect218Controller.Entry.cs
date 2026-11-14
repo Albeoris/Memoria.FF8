@@ -3,7 +3,7 @@ using static Memoria.FF8.Runtime.NativeBattleEffect218Profile;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleEffect218EntryInputs(NativeBattleActionPacketsState Packets, Func<int, NativeBattleGraphicsModel> ReadModel, Func<ushort, NativeBattleVector> TargetCenter5020A0);
+public sealed record NativeBattleEffect218EntryInputs(NativeBattleActionPacketsState Packets, Func<int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleGraphicsActorSet, NativeBattleVector> TargetCenter5020A0);
 
 public static partial class NativeBattleEffect218Controller
 {
@@ -56,7 +56,7 @@ public static partial class NativeBattleEffect218Controller
         short heading = recipient.Rotation14 ?? throw new NotSupportedException("Effect218 entry requires its actual recipient heading.");
         NativeBattleActionMatrix basis = NativeBattleGfMatrices.Euler56CD50(new(0, unchecked((short)(heading + 2048)), 0));
         frame = WriteMatrixFields218(frame, CameraBasis, basis);
-        NativeBattleVector center = inputs.TargetCenter5020A0(parameters.TargetMask7A);
+        NativeBattleVector center = inputs.TargetCenter5020A0(parameters.TargetActors);
         frame = WriteBytes(frame, 0x24F3548, PointView(center), 6);
         NativeBattleActionMatrix recipientWorld = recipient.GeometryWorldMatrix ?? throw new NotSupportedException("Effect218 entry requires its current recipient world matrix.");
         NativeBattleVector offset = NativeBattleGfMatrices.RotateShort56C4F0(recipientWorld, new(0, 0, -4500));

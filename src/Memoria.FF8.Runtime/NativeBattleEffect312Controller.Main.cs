@@ -32,9 +32,22 @@ public static partial class NativeBattleEffect312Controller
         int age = Signed(Read(frame, address), 12);
         if (age == 0)
         {
-            NativeBattleEffectArena parameters = inputs.ReadPhysical(frame, frame.State.ReadDword(ParametersGlobal), 8);
-            ushort mask = BinaryPrimitives.ReadUInt16LittleEndian(parameters.Read(2, 2));
-            NativeBattleEffect312PointStep target = inputs.TargetCenter5020A0(frame, mask, ReadBytes(frame, TargetPointAddress, 8));
+            uint parameterAddress = frame.State.ReadDword(ParametersGlobal);
+            NativeBattleGraphicsActorSet targets;
+            if (frame.Effect.Parameters is { PresentationTargets: not null } parameters)
+            {
+                if (parameterAddress != OriginalParameterAddress)
+                {
+                    throw new InvalidDataException("Effect312's hosted selection requires its current original parameter address.");
+                }
+                targets = parameters.TargetActors;
+            }
+            else
+            {
+                NativeBattleEffectArena bytes = inputs.ReadPhysical(frame, parameterAddress, 8);
+                targets = NativeBattleGraphicsActorSet.FromNative(BinaryPrimitives.ReadUInt16LittleEndian(bytes.Read(2, 2)));
+            }
+            NativeBattleEffect312PointStep target = inputs.TargetCenter5020A0(frame, targets, ReadBytes(frame, TargetPointAddress, 8));
             frame = WriteBytes(target.Frame, TargetPointAddress, target.Output8, 8);
             frame = frame with { State = frame.State.WriteDword(CueGlobal, 0) };
         }

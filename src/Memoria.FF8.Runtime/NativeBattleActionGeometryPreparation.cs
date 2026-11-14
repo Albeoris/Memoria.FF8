@@ -1,5 +1,3 @@
-using System.Numerics;
-
 namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleActionGeometryRules
@@ -14,29 +12,46 @@ public static partial class NativeBattleActionGeometryRules
         {
             throw new NotSupportedException("Native50D300 requires a nonempty seven-bit physical target mask.");
         }
-        int recipientIndex = BitOperations.Log2(physicalMask);
+        NativeBattleGraphicsActorSet targetActors = NativeBattleGraphicsActorSet.FromNative(physicalMask);
+        return PrepareGeometryCore(graphics, actorIndex, sourceMask, targetActors, null, globals, readBone);
+    }
+
+    public static NativeBattleGraphicsState PrepareGeometry50D300(NativeBattleGraphicsState graphics, int actorIndex, NativeBattleGraphicsActorSet sourceTargets, NativeBattleGraphicsActorSet targetActors, NativeBattleActionGeometryGlobals globals, Func<NativeBattleGraphicsState, int, byte, short, NativeBattleVector> readBone)
+    {
+        NativeBattleGraphicsRoster roster = graphics.PresentationRoster ?? throw new InvalidDataException("Hosted50D300 requires an explicit presentation roster.");
+        if (graphics.Models.IsDefault || graphics.Models.Length != roster.ActorCount || targetActors.IsEmpty)
+        {
+            throw new InvalidDataException("Hosted50D300 requires models for its presentation roster and a nonempty target set.");
+        }
+        NativeBattleActionGeometry.ValidatePresentationRows(roster, actorIndex, sourceTargets, targetActors);
+        return PrepareGeometryCore(graphics, actorIndex, sourceTargets.NativePhysicalBits, targetActors, sourceTargets, globals, readBone);
+    }
+
+    private static NativeBattleGraphicsState PrepareGeometryCore(NativeBattleGraphicsState graphics, int actorIndex, ushort sourceMask, NativeBattleGraphicsActorSet targetActors, NativeBattleGraphicsActorSet? sourceTargets, NativeBattleActionGeometryGlobals globals, Func<NativeBattleGraphicsState, int, byte, short, NativeBattleVector> readBone)
+    {
+        int recipientIndex = targetActors.HighestRow;
         NativeBattleActionGeometry context = new(checked((byte)actorIndex), sourceMask)
         {
-            PhysicalTargetMask = physicalMask,
+            PhysicalTargetMask = targetActors.NativePhysicalBits,
+            PresentationTargets = sourceTargets.HasValue ? targetActors : null,
+            PresentationSourceTargets = sourceTargets,
             TargetIndex = checked((byte)recipientIndex),
             ContactDistance = globals.ContactDistance,
             TargetYaw = globals.TargetYaw
         };
-        bool group = BitOperations.PopCount(physicalMask) >= 2;
-        for (int index = 0; index < 7; index++)
+        bool group = targetActors.Count >= 2;
+        foreach (int index in targetActors.EnumerateRows())
         {
-            if ((physicalMask & (1 << index)) != 0)
-            {
-                NativeBattleGraphicsModel selected = graphics.Models[index];
-                ushort flags = selected.Flags2 ?? throw new NotSupportedException("Native50D300 target grouping requires its model flags WORD2.");
-                graphics = graphics with { Models = graphics.Models.SetItem(index, selected with { Flags2 = group ? (ushort)(flags | 0x10) : (ushort)(flags & ~0x10) }) };
-            }
+            NativeBattleGraphicsModel selected = graphics.Models[index];
+            ushort flags = selected.Flags2 ?? throw new NotSupportedException("Native50D300 target grouping requires its model flags WORD2.");
+            graphics = graphics with { Models = graphics.Models.SetItem(index, selected with { Flags2 = group ? (ushort)(flags | 0x10) : (ushort)(flags & ~0x10) }) };
         }
         NativeBattleGraphicsModel model = graphics.Models[actorIndex];
         NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native50D300 action geometry requires its actor position/scale WORDs.");
+        short neutralYaw = graphics.IsPartyActor(actorIndex) ? (short)0 : (short)2048;
         if (group)
         {
-            return PrepareMatrices50D300(graphics with { Models = graphics.Models.SetItem(actorIndex, model with { Rotation12 = 0, Rotation14 = actorIndex >= 3 ? (short)2048 : (short)0, Rotation16 = 0 }), ActionContext = context }, readBone);
+            return PrepareMatrices50D300(graphics with { Models = graphics.Models.SetItem(actorIndex, model with { Rotation12 = 0, Rotation14 = neutralYaw, Rotation16 = 0 }), ActionContext = context }, readBone);
         }
         NativeBattleGraphicsModel recipient = graphics.Models[recipientIndex];
         NativeBattleModelTransform recipientTransform = recipient.Transform ?? throw new NotSupportedException("Native50D300 action geometry requires its recipient position/scale WORDs.");
@@ -45,8 +60,8 @@ public static partial class NativeBattleActionGeometryRules
         second = second with { Y = recipientTransform.Angle36 };
         short scale = DistanceScale(first, second);
         short? yaw = actorIndex == recipientIndex ? context.TargetYaw : unchecked((short)NativeWorldScriptedPathMath.NativeAngle(second.X - first.X, second.Z - first.Z));
-        short actorYaw = actorIndex == recipientIndex ? actorIndex >= 3 ? (short)2048 : (short)0 : unchecked((short)NativeWorldScriptedPathMath.NativeAngle(first.X - second.X, first.Z - second.Z));
-        bool self = sourceMask == 1 << actorIndex;
+        short actorYaw = actorIndex == recipientIndex ? neutralYaw : unchecked((short)NativeWorldScriptedPathMath.NativeAngle(first.X - second.X, first.Z - second.Z));
+        bool self = context.IsSelfTarget;
         context = context with
         {
             DistanceScale = scale,

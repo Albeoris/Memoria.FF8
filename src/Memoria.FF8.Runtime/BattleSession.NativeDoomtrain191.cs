@@ -19,9 +19,9 @@ public sealed partial class BattleSession
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };
 
-        NativeBattleVector ReadCentroid(ushort mask)
+        NativeBattleVector ReadCentroid(NativeBattleGraphicsActorSet targets)
         {
-            return NativeBattleActionGeometryRules.TargetCenter(Enumerable.Range(0, 7).Where(actor => (mask & (1 << actor)) != 0).Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Native Doomtrain requires every selected target's current position.")).ToArray());
+            return NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Native Doomtrain requires every selected target's current position.")).ToArray());
         }
 
         NativeBattleCameraPose ReadPose()
@@ -171,7 +171,7 @@ public sealed partial class BattleSession
                 int count = header.ReadByte(0x10);
                 int first = count == 0 ? 0 : header.FirstContactIndex ?? throw new NotSupportedException("Native Doomtrain knockback requires its actual current contact pointer.");
                 ImmutableArray<int> actors = Enumerable.Range(first, count).Select(index => (int)nativeActionPackets.ReadContact(index).Primary.ActorIndex).ToImmutableArray();
-                return NativeBattleDoomtrain191Knockback.Spawn646AA0(current, actors, ReadCentroid(parameters.TargetMask7A), KnockbackServices());
+                return NativeBattleDoomtrain191Knockback.Spawn646AA0(current, actors, ReadCentroid(parameters.TargetActors), KnockbackServices());
             }
             if (address == 0x6437F0)
             {

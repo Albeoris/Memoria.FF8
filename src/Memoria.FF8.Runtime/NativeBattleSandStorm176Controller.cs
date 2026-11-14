@@ -135,7 +135,7 @@ public static partial class NativeBattleSandStorm176Controller
             int age = S(task, 12);
             if (age == 0)
             {
-                NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(Enumerable.Range(0, 7).Where(actor => (current.Effect.Parameters!.TargetMask7A & (1 << actor)) != 0).Select(actor => inputs.ReadModel(actor).Transform?.Position28 ?? throw new NotSupportedException("Native Sand Storm target centre requires its position WORDs.")).ToArray());
+                NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(current.Effect.Parameters!.TargetActors.EnumerateRows().Select(actor => inputs.ReadModel(actor).Transform?.Position28 ?? throw new NotSupportedException("Native Sand Storm target centre requires its position WORDs.")).ToArray());
                 W(0x2374298, center.X);
                 W(0x237429A, center.Y);
                 W(0x237429C, center.Z);

@@ -16,7 +16,7 @@ public sealed record NativeBattleEffect312Inputs(
     Func<NativeBattleEffect312Frame, uint, NativeBattleEffectArena> ReadModelArena9C,
     Func<NativeBattleEffect312Frame, uint, NativeBattlePackedMatrix32> ReadWorld,
     Func<NativeBattleEffect312Frame, uint, int, NativeBattlePackedMatrix32> ReadBoneMatrix59D3C0,
-    Func<NativeBattleEffect312Frame, ushort, NativeBattleEffectArena, NativeBattleEffect312PointStep> TargetCenter5020A0,
+    Func<NativeBattleEffect312Frame, NativeBattleGraphicsActorSet, NativeBattleEffectArena, NativeBattleEffect312PointStep> TargetCenter5020A0,
     Func<NativeBattleEffect312Frame, uint, NativeBattleEffectArena, NativeBattleEffect312PointStep> Point571400,
     Func<NativeBattleEffect312Frame, uint, byte> ReadCurrentSequenceByte,
     Func<NativeBattleEffect312Frame, NativeBattlePackedMatrix32> ReadView,

@@ -49,7 +49,7 @@ public sealed partial class BattleSession
         short dqa = registers.Dqa;
         int dqb = registers.Dqb;
         int caster = effect.Parameters!.Actor78;
-        int target = Enumerable.Range(0, 7).First(actor => (effect.Parameters.TargetMask7A & (1 << actor)) != 0);
+        int target = effect.Parameters.TargetActors.EnumerateRows().First();
         NativeBattleEffectTaskStep advanced = children.Advance((pool, slot) =>
         {
             children = pool;

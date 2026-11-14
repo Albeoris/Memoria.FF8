@@ -28,7 +28,7 @@ public static class NativeBattleCactuar199Controller
         NativeBattleGraphicsModel target = inputs.ReadModel(actor);
         NativeBattleActionMatrix targetMatrix = target.GeometryWorldMatrix ?? throw new NotSupportedException("Native Cactuar placement requires its first target's current raw matrix.");
         short yaw = target.Rotation14 ?? throw new NotSupportedException("Native Cactuar orientation requires its first target's current yaw.");
-        NativeBattleVector center = Vector(inputs.ReadCentroid(effect.Parameters.TargetMask7A));
+        NativeBattleVector center = Vector(inputs.ReadCentroid(effect.Parameters.TargetActors));
         NativeBattleVector displacement = NativeBattleGfMatrices.RotateShort56C4F0(targetMatrix, new(0, 0, -4500));
         NativeBattleActionMatrix basis = NativeBattleGfMatrices.Euler56CD50(new(0, unchecked((short)(yaw + 2048)), 0)) with { X = displacement.X, Y = displacement.Y, Z = unchecked(center.Z + displacement.Z) };
         if (resources.EntryModelCopySeed.Data.IsDefault || resources.EntryModelCopySeed.Data.Length != 0x21EC)
@@ -408,7 +408,7 @@ public static class NativeBattleCactuar199Controller
                 task = task.WriteWord(0x10, unchecked((ushort)bone.X)).WriteWord(0x12, unchecked((ushort)(bone.Y - 600))).WriteWord(0x14, unchecked((ushort)(bone.Z + 900)));
                 NativeBattleVector rotated = NativeBattleGfMatrices.RotateShort56C4F0(Basis(), new(Word(task, 0x10), Word(task, 0x12), Word(task, 0x14)));
                 NativeBattleVector origin = new(unchecked((short)(rotated.X + Basis().X)), unchecked((short)(rotated.Y + Basis().Y)), unchecked((short)(rotated.Z + Basis().Z)));
-                Cache(origin, Vector(inputs.ReadCentroid(parameters.TargetMask7A)));
+                Cache(origin, Vector(inputs.ReadCentroid(parameters.TargetActors)));
             }
             if (Word(task, 0xC) == 1)
             {

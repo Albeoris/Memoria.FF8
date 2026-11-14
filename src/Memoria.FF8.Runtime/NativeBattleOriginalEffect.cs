@@ -8,6 +8,27 @@ public sealed record NativeBattleEffectParameters([property: JsonRequired] byte 
 {
     public byte? Parameter80 { get; init; }
     public byte? Parameter82 { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleGraphicsActorSet? PresentationTargets { get; init; }
+
+    [JsonIgnore]
+    public NativeBattleGraphicsActorSet TargetActors
+    {
+        get
+        {
+            ValidatePresentationTargets();
+            return PresentationTargets ?? NativeBattleGraphicsActorSet.FromNative(TargetMask7A);
+        }
+    }
+
+    public void ValidatePresentationTargets()
+    {
+        if (PresentationTargets is { } targets && targets.NativePhysicalBits != TargetMask7A)
+        {
+            throw new InvalidDataException("Presentation targets disagree with the original physical parameter mask.");
+        }
+    }
 }
 public sealed record NativeBattleEffectResourcePointer([property: JsonRequired] uint GlobalAddress, [property: JsonRequired] int ArenaOffset);
 public sealed record NativeBattleEffectHeapResourcePointer([property: JsonRequired] uint GlobalAddress, [property: JsonRequired] int AllocationIndex);

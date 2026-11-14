@@ -4,6 +4,8 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect312Controller
 {
+    private const uint OriginalParameterAddress = 0x1D99A78;
+
     public static NativeBattleEffect312Frame Initialize(NativeBattleEffect312Frame frame, NativeBattleEffect312Resources resources, NativeBattleEffect312Inputs inputs)
     {
         RequireBinding(frame);
@@ -20,7 +22,7 @@ public static partial class NativeBattleEffect312Controller
         int target = packets.ReadContact(header.FirstContactIndex ?? throw new NotSupportedException("Effect312 requires its actual first contact pointer.")).Primary.ActorIndex;
         int textureOffset = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Effect312 requires its actual executed initializer pointer.");
         uint source = checked(CommonAddress + (uint)textureOffset);
-        frame = frame with { State = frame.State.WriteDword(InitializerGlobal, source).WriteDword(ArenaGlobal, CommonAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, (uint)actor).WriteDword(TargetGlobal, (uint)target) };
+        frame = frame with { State = frame.State.WriteDword(InitializerGlobal, source).WriteDword(ArenaGlobal, CommonAddress).WriteDword(ParametersGlobal, OriginalParameterAddress).WriteDword(CasterGlobal, (uint)actor).WriteDword(TargetGlobal, (uint)target) };
         NativeBattleEffectTaskPool root = InitializeBank(frame, 0);
         NativeBattleEffectTaskPool child = InitializeBank(frame, 1);
         (root, int rootSlot) = root.Append(RootCallback);

@@ -32,7 +32,7 @@ public static partial class NativeBattleEffect166Controller
         int age = Signed(Read(frame, address), 12);
         if (age == 0)
         {
-            frame = inputs.Execute(frame, new NativeBattleEffect166TargetCenter5020A0(frame.Effect.Parameters!.TargetMask7A, TargetPointAddress));
+            frame = inputs.Execute(frame, new NativeBattleEffect166TargetCenter5020A0(frame.Effect.Parameters!.TargetActors, TargetPointAddress));
             frame = frame with { State = frame.State.WriteDword(CueGlobal, 0) };
         }
         if (age == 43)

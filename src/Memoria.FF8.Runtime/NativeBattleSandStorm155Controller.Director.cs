@@ -14,7 +14,7 @@ public static partial class NativeBattleSandStorm155Controller
             NativeBattleSandStorm155AnchorStep anchor = inputs.ReadAnchor571400(frame, checked((int)frame.State.ReadDword(0x23F2950)));
             frame = anchor.Frame;
             frame = Word(Word(Word(Word(frame, 0x23F2958, anchor.Anchor.X), 0x23F295A, anchor.Anchor.W), 0x23F295C, anchor.Anchor.Z), 0x23F295E, anchor.Anchor.Y);
-            NativeBattleSandStorm155PointStep center = inputs.ReadTargetCenter(frame, Parameters(frame).TargetMask7A);
+            NativeBattleSandStorm155PointStep center = inputs.ReadTargetCenter(frame, Parameters(frame).TargetActors);
             frame = center.Frame;
             frame = Word(Word(Word(frame, 0x23F2938, center.Point.X), 0x23F293A, center.Point.Y), 0x23F293C, center.Point.Z);
             frame = NativeBattleSandStorm155Geometry.Sort607090(frame, resources);

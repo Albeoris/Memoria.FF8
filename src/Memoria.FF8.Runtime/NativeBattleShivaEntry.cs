@@ -34,7 +34,7 @@ public static class NativeBattleShivaEntry
         NativeBattleGraphicsModel model = models[target];
         short yaw = model.Rotation14 ?? throw new NotSupportedException("Native Shiva entry requires current first-contact rotation WORD0E.");
         NativeBattleActionMatrix actorMatrix = model.GeometryWorldMatrix ?? throw new NotSupportedException("Native Shiva entry requires the current first-contact matrix at40h.");
-        NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(models.Where((_, index) => (parameters.TargetMask7A & (1 << index)) != 0).Select(selected => selected.Transform?.Position28 ?? throw new NotSupportedException("Native Shiva target bounds require every selected physical position row.")).ToArray());
+        NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(parameters.TargetActors.EnumerateRows().Select(index => models[index]).Select(selected => selected.Transform?.Position28 ?? throw new NotSupportedException("Native Shiva target bounds require every selected physical position row.")).ToArray());
         NativeBattleActionMatrix world = NativeBattleGfMatrices.Euler56CD50(new(0, unchecked((short)(yaw + 0x800)), 0));
         NativeBattleVector offset = NativeBattleGfMatrices.RotateShort56C4F0(actorMatrix, new(0, 0, -4000));
         world = world with { X = offset.X, Y = offset.Y, Z = unchecked(center.Z + offset.Z) };

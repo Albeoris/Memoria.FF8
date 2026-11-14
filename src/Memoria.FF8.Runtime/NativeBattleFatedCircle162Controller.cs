@@ -12,7 +12,7 @@ public sealed record NativeBattleFatedCircle162Flash : NativeBattleFatedCircle16
 public sealed record NativeBattleFatedCircle162Contacts : NativeBattleFatedCircle162Operation;
 public sealed record NativeBattleFatedCircle162Geometry(NativeBattleGfGeometryBatch Batch) : NativeBattleFatedCircle162Operation;
 public sealed record NativeBattleFatedCircle162Sprite(NativeBattleModulePacketBatch Batch) : NativeBattleFatedCircle162Operation;
-public sealed record NativeBattleFatedCircle162Inputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<int> Pending508500, Func<byte, NativeBattleModuleAnchor> ReadAnchor571400, Func<ushort, NativeBattleModuleAnchor> ReadTarget5020A0, Func<byte, NativeBattleModuleAnchor> ReadBone240, Func<byte, NativeBattleGraphicsModel> ReadModel, Func<byte, short> ReadScale26, Func<NativeBattleFatedCircle162Frame, NativeBattleFatedCircle162Operation, NativeBattleFatedCircle162Frame> Execute, Func<NativeBattleFatedCircle162Frame, NativeBattleModuleAnchor, NativeBattleFatedCircle162Frame> Capture5FC5E0)
+public sealed record NativeBattleFatedCircle162Inputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<int> Pending508500, Func<byte, NativeBattleModuleAnchor> ReadAnchor571400, Func<NativeBattleGraphicsActorSet, NativeBattleModuleAnchor> ReadTarget5020A0, Func<byte, NativeBattleModuleAnchor> ReadBone240, Func<byte, NativeBattleGraphicsModel> ReadModel, Func<byte, short> ReadScale26, Func<NativeBattleFatedCircle162Frame, NativeBattleFatedCircle162Operation, NativeBattleFatedCircle162Frame> Execute, Func<NativeBattleFatedCircle162Frame, NativeBattleModuleAnchor, NativeBattleFatedCircle162Frame> Capture5FC5E0)
 {
     [System.Text.Json.Serialization.JsonIgnore]
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
@@ -77,7 +77,7 @@ public static partial class NativeBattleFatedCircle162Controller
                 Set(first, 28, 1280);
                 Set(first, 30, 213);
                 Set(first, 24, inputs.ReadModel(actor).Rotation14 ?? throw new NotSupportedException("Native5F91D0 requires its actual actor rotationWORD14."));
-                NativeBattleModuleAnchor center = inputs.ReadTarget5020A0(parameters.TargetMask7A);
+                NativeBattleModuleAnchor center = inputs.ReadTarget5020A0(parameters.TargetActors);
                 int second = Append(0x5FB630, center with { Y = -1400, Z = unchecked((short)(center.Z + 3000)) }, false);
                 Set(second, 14, 22);
                 Set(second, 24, Rand() % 4096);
@@ -85,7 +85,7 @@ public static partial class NativeBattleFatedCircle162Controller
                 Set(second, 30, 256);
                 break;
             case 71:
-                NativeBattleModuleAnchor target = inputs.ReadTarget5020A0(parameters.TargetMask7A);
+                NativeBattleModuleAnchor target = inputs.ReadTarget5020A0(parameters.TargetActors);
                 target = target with { Z = unchecked((short)(target.Z - 800)) };
                 task = PositionXyz(task, target);
                 frame = inputs.Capture5FC5E0(frame, target);

@@ -27,7 +27,7 @@ public static partial class NativeBattleMeltEye158Controller
             NativeBattleVector rotated = NativeBattleGfMatrices.RotateShort56C4F0(WorldRotation(frame, Caster(frame), inputs), new(source.X, source.Y, source.Z));
             NativeBattleVector start = new(unchecked((short)(rotated.X + anchor.Position.X)), unchecked((short)(rotated.Y + anchor.Position.Y)), unchecked((short)(rotated.Z + anchor.Position.Z)));
             frame = WriteVector(frame, curve, start);
-            NativeBattleMeltEye158PointStep center = inputs.ReadTargetCenter5020A0(frame, Parameters(frame).TargetMask7A);
+            NativeBattleMeltEye158PointStep center = inputs.ReadTargetCenter5020A0(frame, Parameters(frame).TargetActors);
             frame = WriteVector(center.Frame, curve + 8, center.Position);
             frame = Random(frame, out ushort xRoll);
             frame = Random(frame, out ushort zRoll);

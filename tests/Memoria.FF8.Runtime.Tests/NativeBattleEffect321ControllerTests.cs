@@ -111,7 +111,7 @@ public sealed class NativeBattleEffect321ControllerTests
         NativeBattleEffect321Frame result = AdvanceMain597AB0(frame, ChildBank, null!, harness.Inputs()).Frame;
         NativeBattleEffect321PositionalSound5013A0 sound = Assert.IsType<NativeBattleEffect321PositionalSound5013A0>(Assert.Single(harness.Operations));
         Assert.Equal(SecondSoundAddress, sound.SourceAddress);
-        Assert.Equal(0x15, harness.TargetMask);
+        Assert.Equal(NativeBattleGraphicsActorSet.FromNative(0x15), harness.Targets);
         Assert.Equal(new[] { true, true, true, true, true, true, false, false }, sound.Point8.ReadSnapshot(0, 8).Known);
         Assert.Equal(456u, result.State.ReadDword(InitializerGlobal));
     }
@@ -209,7 +209,7 @@ public sealed class NativeBattleEffect321ControllerTests
         public NativeBattleVector Anchor { get; init; } = new(100, 200, 300);
         public bool VibrationActive { get; init; }
         public int QueriedHandle { get; private set; }
-        public ushort TargetMask { get; private set; }
+        public NativeBattleGraphicsActorSet Targets { get; private set; }
         public List<uint> Anchors { get; } = [];
         public List<NativeBattleEffect321Operation> Operations { get; } = [];
         public NativeBattleActionPacketsState Packets { get; private set; } = NativeBattleActionPacketsState.Fresh();
@@ -230,9 +230,9 @@ public sealed class NativeBattleEffect321ControllerTests
         {
             Anchors.Add(model);
             return new(frame, PutPoint(retained, 0, Anchor));
-        }, (frame, mask, retained) =>
+        }, (frame, targets, retained) =>
         {
-            TargetMask = mask;
+            Targets = targets;
             return new(frame with { State = frame.State.WriteDword(InitializerGlobal, 456) }, PutPoint(retained, 0, new(10, 20, 30)));
         }, (frame, handle) =>
         {

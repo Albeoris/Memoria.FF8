@@ -65,9 +65,9 @@ public sealed partial class BattleSession
             return NativeBattlePackedMatrix32.FromMatrix(matrices[bone], null);
         }
 
-        NativeBattleRayBomb307PointStep TargetCenter(NativeBattleRayBomb307Frame current, ushort mask)
+        NativeBattleRayBomb307PointStep TargetCenter(NativeBattleRayBomb307Frame current, NativeBattleGraphicsActorSet targets)
         {
-            NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(Enumerable.Range(0, 7).Where(actor => (mask & (1 << actor)) != 0).Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Ray-Bomb requires its selected physical target positions.")).ToArray());
+            NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Ray-Bomb requires its selected physical target positions.")).ToArray());
             return new(current, center);
         }
 

@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleGraphicsModel model = graphics.Models[parameters.Actor78];
         NativeBattleVector rotation = new(model.Rotation12 ?? throw new NotSupportedException("Native No Mercy requires actor rotation X."), model.Rotation14 ?? throw new NotSupportedException("Native No Mercy requires actor rotation Y."), model.Rotation16 ?? throw new NotSupportedException("Native No Mercy requires actor rotation Z."));
         NativeBattleVector bone = ReadNativeGraphicsBone(graphics, parameters.Actor78, 241, 0);
-        NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(Enumerable.Range(0, 7).Where(actor => (parameters.TargetMask7A & (1 << actor)) != 0).Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Native No Mercy requires actual target positions.")).ToArray());
+        NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(parameters.TargetActors.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Native No Mercy requires actual target positions.")).ToArray());
         NativeBattleNoMercy200EntryStep entered = NativeBattleNoMercy200Controller.Enter6391D0(NativeEffectMemory ?? throw new NotSupportedException("Native No Mercy requires its retained process memory."), effect, NativeFileStaging ?? NativeBattleFileStaging.Unknown(), nativeActionPackets, resources, nativeCrtRandom ?? throw new NotSupportedException("Native No Mercy requires its retained CRT random owner."), rotation, model.RotationPadding18, bone, center);
         NativeEffectMemory = entered.Frame.Memory;
         NativeFileStaging = entered.Frame.Staging;

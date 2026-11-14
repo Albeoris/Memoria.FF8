@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleGraphicsModel model = graphics.Models[parameters.Actor78];
         NativeBattleVector rotation = new(model.Rotation12 ?? throw new NotSupportedException("Native Lion Heart requires actor rotationX."), model.Rotation14 ?? throw new NotSupportedException("Native Lion Heart requires actor rotationY."), model.Rotation16 ?? throw new NotSupportedException("Native Lion Heart requires actor rotationZ."));
         NativeBattleVector bone = ReadNativeGraphicsBone(graphics, parameters.Actor78, 241, 0);
-        NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(Enumerable.Range(0, 7).Where(actor => (parameters.TargetMask7A & (1 << actor)) != 0).Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Native Lion Heart requires actual target positions.")).ToArray());
+        NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(parameters.TargetActors.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Native Lion Heart requires actual target positions.")).ToArray());
         NativeBattleLionHeart165EntryStep entry = NativeBattleLionHeart165Controller.Enter5E9470(NativeEffectMemory ?? throw new NotSupportedException("Native Lion Heart requires its retained process memory."), effect, NativeFileStaging ?? NativeBattleFileStaging.Unknown(), nativeActionPackets, resources, nativeCrtRandom ?? throw new NotSupportedException("Native Lion Heart requires its retained CRT random owner."), rotation, bone, center, model.RotationPadding18);
         NativeEffectMemory = entry.Frame.Memory;
         NativeFileStaging = entry.Frame.Staging;
