@@ -37,6 +37,7 @@ public sealed partial class BattleSession
 
     internal NativeBattleModelLifecycleServices AdvanceHostedBattlePresentationFrame(BattleSession logicalOwner, NativeExamTimerState? timerObservation, Action? beforeCore = null, Action<NativeBattleUiServices, bool>? clockPoll = null, Action? clockReady = null)
     {
+        RequireHostedCompletionAcknowledged();
         if (hostedFrameServices is not null || nativePreRootStack is not null)
         {
             throw new InvalidOperationException("A hosted battle frame is already advancing.");

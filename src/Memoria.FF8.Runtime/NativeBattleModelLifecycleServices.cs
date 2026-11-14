@@ -11,6 +11,7 @@ internal sealed record NativeBattleModelActorFacts(string ActorId, bool IsParty,
 
 internal abstract record NativeBattlePresentationReceipt;
 internal sealed record NativeBattlePresentationContactReceived(NativeBattleContactPacket Packet) : NativeBattlePresentationReceipt;
+internal sealed record NativeBattlePresentationCompletionRequested(long Token, uint Callback, int Row, string ActorId) : NativeBattlePresentationReceipt;
 internal sealed record NativeBattlePresentationSoundCommitted(NativeBattleModuleSound Sound, string? ActorId, NativeBattleSequenceSound? Sequence) : NativeBattlePresentationReceipt;
 internal sealed record NativeBattlePresentationMusicCommandCommitted(NativeBattleMusicCommandReceipt Command) : NativeBattlePresentationReceipt;
 internal abstract record NativeBattleModelLifecycleReceipt(int Row, string ActorId) : NativeBattlePresentationReceipt;
@@ -36,6 +37,7 @@ internal sealed class NativeBattleModelLifecycleServices(ImmutableArray<NativeBa
     internal void Emit(NativeBattleModelLifecycleReceipt receipt) => receipts.Add(receipt);
 
     internal void EmitContact(NativeBattleContactPacket packet) => receipts.Add(new NativeBattlePresentationContactReceived(packet));
+    internal void EmitCompletion(NativeBattlePresentationCompletionRequested request) => receipts.Add(request);
     internal void EmitSound(NativeBattleModuleSound sound, string? actorId, NativeBattleSequenceSound? sequence) => receipts.Add(new NativeBattlePresentationSoundCommitted(sound, actorId, sequence));
     internal void EmitMusicCommand(NativeBattleMusicCommandReceipt command) => receipts.Add(new NativeBattlePresentationMusicCommandCommitted(command));
 

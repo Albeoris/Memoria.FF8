@@ -73,6 +73,7 @@ public sealed partial class BattleSession
         {
             observeRemoval?.Invoke(state, slot, packet);
             ObserveHostedActionPacketRemoved(slot, packet);
+            ObserveHostedCompletionRemoved(graphics, state, slot, packet);
         }
 
         NativeBattleDescriptorDispatch Dispatch(NativeBattleDescriptorState descriptors, int slot)
@@ -106,6 +107,11 @@ public sealed partial class BattleSession
                     graphics = PublishNativeDescriptorMessage(graphics, packet);
                     return new(graphics.Descriptors, 15);
                 case 10:
+                    if (hostedBattlePresentation && IsHostedCompletionCallback(packet.Argument))
+                    {
+                        ReachHostedCompletion(graphics, slot, packet);
+                        return new(graphics.Descriptors, 15);
+                    }
                     graphics = InvokeNativeDescriptorCallback(graphics, packet.Argument, packet.Data);
                     return new(graphics.Descriptors, 15);
                 case 13:

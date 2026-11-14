@@ -47,7 +47,8 @@ public sealed partial class BattleSession
     internal PreparedHostedAction PrepareHostedAction(NativeBattleActionHeaderPreparation header, ImmutableArray<NativeBattleContactPacket> contacts)
     {
         ArgumentNullException.ThrowIfNull(header);
-        if (!hostedBattlePresentation || NativeGraphics is not { EntryReady: true, PresentationRoster: { } roster } graphics || hostedFrameServices is not null || hostedPresentationInvocation is not null)
+        if (!hostedBattlePresentation || NativeGraphics is not { EntryReady: true, PresentationRoster: { } roster } graphics ||
+            hostedFrameServices is not null || hostedPresentationInvocation is not null || hostedCompletionInvocation is not null)
         {
             throw new InvalidOperationException("Hosted action admission requires an idle presentation process after entry.");
         }
@@ -83,7 +84,7 @@ public sealed partial class BattleSession
         ArgumentNullException.ThrowIfNull(prepared);
         if (!ReferenceEquals(prepared.Owner, this) || prepared.Epoch != hostedPreparationEpoch || prepared.Issued != lastHostedActionIssued ||
             !ReferenceEquals(prepared.Graphics, NativeGraphics) || !hostedBattlePresentation || NativeGraphics is not { EntryReady: true, PresentationRoster: not null } ||
-            hostedFrameServices is not null || hostedPresentationInvocation is not null)
+            hostedFrameServices is not null || hostedPresentationInvocation is not null || hostedCompletionInvocation is not null)
         {
             throw new InvalidOperationException("The prepared action no longer belongs to this idle hosted presentation process.");
         }

@@ -33,6 +33,7 @@ public sealed partial class BattleSession
     private void DispatchExpandedPresentationFrame(ExpandedBattlePresentationProcess process)
     {
         RequireExpandedPresentationDispatchIdle();
+        process.RequireCompletionAcknowledged();
         dispatchingExpandedPresentation = true;
         try
         {

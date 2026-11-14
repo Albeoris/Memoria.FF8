@@ -38,6 +38,7 @@ public sealed class ExpandedBattlePresentationProcess
     internal bool LastPostUiVitalsAdmitted { get; private set; }
     internal NativeBattleTriggerWidget? TriggerWidget => Graphics.TriggerWidget;
     internal NativeBattleTriggerReceipt? PendingTrigger => Graphics.PendingTrigger;
+    internal NativeBattlePresentationCompletionRequested? PendingCompletion => presentation.PendingHostedCompletion;
     internal ushort? TriggerOptions => presentation.HostedTriggerOptions;
 
     internal void RequireLogicalOwner(BattleSession owner)
@@ -51,7 +52,13 @@ public sealed class ExpandedBattlePresentationProcess
     internal long AccumulateElapsed(TimeSpan elapsed)
     {
         RequireIdle();
+        RequireCompletionAcknowledged();
         return presentation.AccumulateHostedPresentationElapsed(elapsed);
+    }
+
+    internal void RequireCompletionAcknowledged()
+    {
+        presentation.RequireHostedCompletionAcknowledged();
     }
 
     internal long BeginAction(NativeBattleActionHeaderPreparation header, ImmutableArray<NativeBattleContactPacket> contacts)
@@ -77,6 +84,47 @@ public sealed class ExpandedBattlePresentationProcess
     internal bool IsActionComplete(long token)
     {
         return presentation.IsHostedActionComplete(token);
+    }
+
+    internal BattleSession.PreparedHostedCompletion PrepareCompletion(uint callback, int row, string actorId)
+    {
+        RequireIdle();
+        return presentation.PrepareHostedCompletion(callback, row, actorId);
+    }
+
+    internal long PublishCompletion(BattleSession.PreparedHostedCompletion prepared)
+    {
+        RequireIdle();
+        return presentation.PublishHostedCompletion(prepared);
+    }
+
+    internal void ValidatePreparedCompletion(BattleSession.PreparedHostedCompletion prepared)
+    {
+        RequireIdle();
+        presentation.ValidatePreparedHostedCompletion(prepared);
+    }
+
+    internal bool IsCompletionAcknowledged(long token)
+    {
+        return presentation.IsHostedCompletionAcknowledged(token);
+    }
+
+    internal BattleSession.PreparedHostedCompletionAck PrepareCompletionAck(long token, bool resetCounts)
+    {
+        RequireIdle();
+        return presentation.PrepareHostedCompletionAck(token, resetCounts);
+    }
+
+    internal void ValidatePreparedCompletionAck(BattleSession.PreparedHostedCompletionAck prepared)
+    {
+        RequireIdle();
+        presentation.ValidatePreparedHostedCompletionAck(prepared);
+    }
+
+    internal void PublishCompletionAck(BattleSession.PreparedHostedCompletionAck prepared)
+    {
+        RequireIdle();
+        presentation.PublishHostedCompletionAck(prepared);
     }
 
     internal void PressGunblade(long token, byte actor, NativeBattleTriggerWidget widget)
@@ -111,6 +159,7 @@ public sealed class ExpandedBattlePresentationProcess
         ArgumentNullException.ThrowIfNull(logicalOwner);
         RequireLogicalOwner(logicalOwner);
         RequireIdle();
+        RequireCompletionAcknowledged();
 
         advancing = true;
         try

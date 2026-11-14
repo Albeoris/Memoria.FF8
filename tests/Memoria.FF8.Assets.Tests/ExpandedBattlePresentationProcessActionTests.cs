@@ -12,6 +12,60 @@ public sealed class ExpandedBattlePresentationProcessActionTests
     private const int StandingReturnBudget = 240;
     private static readonly NativeBattleContactHalf NoSecondary = new(byte.MaxValue, 0, 0, 0, 0, 0, 0);
 
+    [Fact]
+    public void Installed_zero_action_completion_retires_and_preserves_the_process_for_attack()
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        var (definition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
+        selected = selected with { NativeActionCameraRules = game.ReadNativeActionCameraRules() };
+        BattleSession logical = new(definition, BattleAtbMode.TurnBased);
+        ExpandedBattlePresentationProcess process = new(logical, selected);
+        for (int frame = 0; frame < EntryBudget && !process.EntryReady; frame++)
+        {
+            process.Advance(logical);
+        }
+        Assert.True(process.EntryReady);
+        const byte row = 7;
+        const byte target = 15;
+        string actorId = process.Graphics.PresentationRoster![row].ActorId;
+        var models = Models(process);
+        NativeBattleModelCpuResources cpu = process.ModelCpuResources;
+        string before = ExpandedBattlePresentationProcessEntryTests.LogicalState(logical);
+        BattleSession.PreparedHostedCompletion prepared = process.PrepareCompletion(0x47DDA0, row, actorId);
+        process.ValidatePreparedCompletion(prepared);
+        long token = process.PublishCompletion(prepared);
+        for (int frame = 0; frame < ActionBudget && process.PendingCompletion is null; frame++)
+        {
+            process.Advance(logical);
+            Assert.Null(process.ActiveActionToken);
+            Assert.Null(process.LastStepActionToken);
+            Assert.Empty(process.LastStep.Contacts);
+        }
+        Assert.Equal(before, ExpandedBattlePresentationProcessEntryTests.LogicalState(logical));
+        NativeBattlePresentationCompletionRequested receipt = Assert.Single(process.LastFrameServices!.ReadOrderedReceipts().OfType<NativeBattlePresentationCompletionRequested>());
+        Assert.Equal(new NativeBattlePresentationCompletionRequested(token, 0x47DDA0, row, actorId), receipt);
+        Assert.Same(receipt, process.PendingCompletion);
+        Assert.False(process.IsCompletionAcknowledged(token));
+        Assert.Throws<InvalidOperationException>(() => process.Advance(logical));
+        process.PublishCompletionAck(process.PrepareCompletionAck(token, true));
+        Assert.True(process.IsCompletionAcknowledged(token));
+        Assert.Null(process.PendingCompletion);
+
+        BattleCombatant actor = Assert.Single(logical.Combatants, candidate => candidate.Id == actorId);
+        NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals();
+        int record = Array.FindIndex(vitals.Records, value => value.CharacterId == actor.ModelId);
+        BattleNativeAction attack = assets.ReadPlayerNativeAttackData(vitals, record);
+        NativeBattleActionHeaderPreparation header = Prepare(row, attack, selected.NativeCommandSequences);
+        NativeBattleContactPacket packet = Contact(target, attack, 137);
+        long action = process.BeginAction(header, [packet]);
+        ActionObservation result = AdvanceAction(process, logical, action, ReadDescriptor(process), header, 0x50BB00, target);
+        Assert.Equal(packet, Assert.Single(result.Contacts));
+        Assert.True(process.IsActionComplete(action));
+        Assert.Equal(models, Models(process));
+        Assert.Same(cpu, process.ModelCpuResources);
+    }
+
     [Theory]
     [InlineData(BattleAbility.Draw, false)]
     [InlineData(BattleAbility.Magic, true)]
