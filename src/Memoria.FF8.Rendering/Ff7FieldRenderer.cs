@@ -22,6 +22,7 @@ public sealed record Ff7ActorVisual(int EntityId, int ModelIndex, int X4096, int
 public sealed record Ff7ModelRenderOverrides(Func<int, bool> PartVisible, Func<Vector3, Vector3, uint, uint>? VertexColor, bool SuppressNativeLighting, bool RequiresOriginalTopology = true)
 {
     public Func<int, int, uint, uint>? SourceVertexColor { get; init; }
+    public Func<int, uint, uint>? AppearanceVertexColor { get; init; }
 }
 public sealed record Ff7FieldWaterSplashVisual(int TextureIndex, Vector2 Position, float Depth, float HalfSize);
 public sealed record Ff7FieldPointerVisual(PixelImage Image, Vector2 Position, bool FlipHorizontal, bool FlipVertical);
@@ -45,11 +46,18 @@ public sealed record Ff7FieldRenderFrame(int CameraIndex, Vector2 CameraOffsetPi
 public readonly record struct Ff7WorldVertex(Vector3 Position, Vector2 Uv, Vector4 Color)
 {
     public Vector3? Normal { get; init; }
+    public int AppearanceVertexIndex { get; init; } = -1;
 }
 public sealed record Ff7AppearanceTriangle(Ff7WorldVertex A, Ff7WorldVertex B, Ff7WorldVertex C, TriangleMaterial Material);
 public interface IFf7ActorAppearance
 {
     bool SupportsPartVisibility => false;
+    bool SupportsVertexColorBindings => false;
+    bool TrySampleVertices(Ff7ActorVisual pose, PcFieldModelDescriptor descriptor, Ff7FieldModelResources original, out IReadOnlyList<Vector3> worldVertices)
+    {
+        worldVertices = [];
+        return false;
+    }
     bool TryCreate(Ff7ActorVisual actor, PcFieldModelDescriptor descriptor, Ff7FieldModelResources original, out IReadOnlyList<Ff7AppearanceTriangle> triangles);
 }
 
@@ -130,11 +138,12 @@ public sealed partial class Ff7FieldRenderer
                 DrawBackground(renderer, width, height, frame, false);
             }
             Ff7ModelMaterialState modelState = new();
+            TriangleMaterial? lastActorMaterial = null;
             foreach (Ff7ActorVisual actor in frame.Actors.Where(actor => actor.Visible))
             {
-                DrawActor(renderer, width, height, frame, actor, modelState);
+                DrawActor(renderer, width, height, frame, actor, modelState, ref lastActorMaterial);
             }
-            DrawWaterSplashes(renderer, width, height, frame, modelState);
+            DrawWaterSplashes(renderer, width, height, frame, modelState, lastActorMaterial);
             if (drawBackground)
             {
                 DrawBackground(renderer, width, height, frame, true);
@@ -255,7 +264,7 @@ public sealed partial class Ff7FieldRenderer
         }
     }
 
-    private void DrawActor(ITriangleRenderer renderer, int width, int height, Ff7FieldRenderFrame frame, Ff7ActorVisual actor, Ff7ModelMaterialState currentState)
+    private void DrawActor(ITriangleRenderer renderer, int width, int height, Ff7FieldRenderFrame frame, Ff7ActorVisual actor, Ff7ModelMaterialState currentState, ref TriangleMaterial? lastActorMaterial)
     {
         PcFieldCamera selectedCamera = frame.CameraOverride ?? field.Cameras[frame.CameraIndex];
         if (selectedCamera.AxisZ == Vector3.Zero && selectedCamera.Translation.Z <= 0)
@@ -275,7 +284,7 @@ public sealed partial class Ff7FieldRenderer
         string animationName = Path.GetFileNameWithoutExtension(descriptor.Animations[actor.AnimationIndex]) + ".a";
         if (appearance is not null && appearance.TryCreate(actor, descriptor, resources, out IReadOnlyList<Ff7AppearanceTriangle> replacement))
         {
-            if (actor.ModelEffects is not null && (!appearance.SupportsPartVisibility || actor.ModelEffects.RequiresOriginalTopology && (actor.ModelEffects.VertexColor is not null || actor.ModelEffects.SourceVertexColor is not null || actor.ModelEffects.SuppressNativeLighting)))
+            if (actor.ModelEffects is { } indexedEffects && (!appearance.SupportsPartVisibility || indexedEffects.SourceVertexColor is not null && indexedEffects.AppearanceVertexColor is null || indexedEffects.AppearanceVertexColor is not null && !appearance.SupportsVertexColorBindings || indexedEffects.RequiresOriginalTopology && (indexedEffects.VertexColor is not null || indexedEffects.SuppressNativeLighting)))
             {
                 throw new NotSupportedException("FFVII topology-owned model effects require an explicit replacement-appearance binding.");
             }
@@ -289,6 +298,14 @@ public sealed partial class Ff7FieldRenderer
                     {
                         original = effectColor(vertex.Position, vertex.Normal ?? Vector3.Zero, original);
                     }
+                    if (actor.ModelEffects?.AppearanceVertexColor is { } appearanceColor)
+                    {
+                        if (vertex.AppearanceVertexIndex < 0)
+                        {
+                            throw new InvalidDataException("Mapped vertex colors require the sampled appearance's explicit stable vertex identities.");
+                        }
+                        original = appearanceColor(vertex.AppearanceVertexIndex, original);
+                    }
                     Vector4 color = vertex.Normal is Vector3 normal ? lighting.Shade(normal, original, frame.FieldColorArgb) : Tint(Color(original), frame.FieldColorArgb);
                     return new(FieldPoint(new Vector2(point.X, point.Y), width, height), projection.Project(point.Z), 1 / point.Z, vertex.Uv, color);
                 }
@@ -297,7 +314,9 @@ public sealed partial class Ff7FieldRenderer
                 TriangleVertex c = Vertex(triangle.C);
                 if (a.ReciprocalW > 0 && b.ReciprocalW > 0 && c.ReciprocalW > 0)
                 {
-                    renderer.Draw(a, b, c, triangle.Material with { ClipRectangle = FieldClip(width, height) });
+                    TriangleMaterial submittedMaterial = triangle.Material with { ClipRectangle = FieldClip(width, height) };
+                    renderer.Draw(a, b, c, submittedMaterial);
+                    lastActorMaterial = submittedMaterial;
                 }
             }
             return;
@@ -388,6 +407,7 @@ public sealed partial class Ff7FieldRenderer
                     if (a.ReciprocalW > 0 && b.ReciprocalW > 0 && c.ReciprocalW > 0)
                     {
                         renderer.Draw(a, b, c, material);
+                        lastActorMaterial = material;
                     }
                 }
             }

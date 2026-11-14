@@ -1,3 +1,4 @@
+using System.Numerics;
 using Memoria.FF7.Events;
 using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
@@ -194,7 +195,13 @@ public sealed partial class Ff7FieldHost
                 {
                     Ff7FieldWaterParameters parameters = new(water.Parameter0, water.Parameter1, water.Parameter2, water.Parameter3, water.Flags, NativeWaterEnvironmentProfile?.Invoke(actor, camera) ?? throw new NotSupportedException("Native water colors require their selected field environment."));
                     Ff7FieldWaterGeometry geometry = (NativeWaterGeometryCapture ?? throw new NotSupportedException("FFVII native water application requires the selected original model pose and environment."))(actor, camera, parameters);
-                    sample = new(parameters, geometry.Parts.Select(part => new Ff7FieldWaterPartMask(part.Part, (bool[])part.ModifiedVertices.Clone())).ToArray(), water.CycleIndex, water.SubcycleIndex);
+                    Ff7NativeModelPresentation configuration = (NativeModelConfiguration ?? throw new NotSupportedException("Native water sampling requires the selected model presentation."))(actor.Slot);
+                    Vector3 position = Ff7NativeModelPosition.PresentationPoint(actor, configuration);
+                    sample = new(parameters, geometry.Parts.Select(part => new Ff7FieldWaterPartMask(part.Part, (bool[])part.ModifiedVertices.Clone())).ToArray(), water.CycleIndex, water.SubcycleIndex)
+                    {
+                        SamplingPose = new(actor.Model, actor.Animation, (actor.AnimationFrame16 >> 4) << 4, checked((byte)actor.Direction), position.X, position.Y, position.Z),
+                        ColorRegion = geometry.ColorRegion
+                    };
                     if (geometry.Splashes.Count != 0)
                     {
                         IReadOnlyList<bool> resources = NativeWaterSplashResources ?? throw new NotSupportedException("Native water splash allocation requires its four selected field resources.");

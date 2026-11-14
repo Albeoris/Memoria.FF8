@@ -6,7 +6,7 @@ namespace Memoria.FF8.Rendering;
 
 public sealed partial class Ff7FieldRenderer
 {
-    private void DrawWaterSplashes(ITriangleRenderer renderer, int width, int height, Ff7FieldRenderFrame frame, Ff7ModelMaterialState precedingState)
+    private void DrawWaterSplashes(ITriangleRenderer renderer, int width, int height, Ff7FieldRenderFrame frame, Ff7ModelMaterialState precedingState, TriangleMaterial? lastActorMaterial)
     {
         foreach (Ff7FieldWaterSplashVisual splash in frame.WaterSplashes.OrderBy(splash => splash.TextureIndex))
         {
@@ -20,8 +20,10 @@ public sealed partial class Ff7FieldRenderer
                 image = DecodeTexture(texture, useColorKey: true);
                 modelImages.Add(texture, image);
             }
-            TriangleSampler sampler = precedingState.Sampler is TriangleSampler.PointClamp or TriangleSampler.LinearClamp or TriangleSampler.CutoutLinearClamp ? TriangleSampler.PointClamp : TriangleSampler.PointWrap;
-            TriangleMaterial material = new(image, TriangleBlend.Alpha, precedingState.DepthTest ? TriangleDepthComparison.LessEqual : TriangleDepthComparison.Always, precedingState.DepthWrite, precedingState.AlphaReference, sampler) { PreserveTargetAlpha = false, ClipRectangle = FieldClip(width, height) };
+            TriangleSampler inheritedSampler = lastActorMaterial?.Sampler ?? precedingState.Sampler;
+            TriangleSampler sampler = inheritedSampler is TriangleSampler.PointClamp or TriangleSampler.LinearClamp or TriangleSampler.CutoutLinearClamp ? TriangleSampler.PointClamp : TriangleSampler.PointWrap;
+            TriangleDepthComparison comparison = lastActorMaterial?.DepthComparison ?? (precedingState.DepthTest ? TriangleDepthComparison.LessEqual : TriangleDepthComparison.Always);
+            TriangleMaterial material = new(image, TriangleBlend.Alpha, comparison, lastActorMaterial?.DepthWrite ?? precedingState.DepthWrite, lastActorMaterial?.MinimumAlpha ?? precedingState.AlphaReference, sampler) { PreserveTargetAlpha = false, ClipRectangle = FieldClip(width, height) };
             Vector2 origin = splash.Position - new Vector2(splash.HalfSize);
             Vector2 size = new(splash.HalfSize * 2 * height / 240f);
             TrianglePrimitives.Quad(renderer, FieldPoint(origin, width, height), size, splash.Depth, new Vector4(1, 1, 1, 128 / 255f), material, Vector2.One);

@@ -1,6 +1,7 @@
 using System.Numerics;
 using Memoria.FF7.Formats;
 using Memoria.FF7.Runtime;
+using Memoria.FF8.Rendering;
 
 namespace Memoria.FF8;
 
@@ -36,6 +37,7 @@ internal sealed partial class Ff7Scene
     private void ResetInterpolationPresentation()
     {
         fieldHistory.Reset();
+        waterAppearanceEffects.Clear();
     }
 
     private float PresentationFraction(int fps)
@@ -43,7 +45,7 @@ internal sealed partial class Ff7Scene
         return InterpolatePresentation && fps == 60 && !focusPaused && !userPaused && !debugMenu && error is null ? (float)Math.Clamp(tickRemainder * 30, 0, 1) : 1;
     }
 
-    private (Ff7Actor[] Actors, Vector2 Camera, Vector2 Shake) SampleFieldPresentation(Ff7Session session, Ff7FieldProcess state, PcFieldCamera? movieCamera)
+    private (Ff7Actor[] Actors, Vector2 Camera, Vector2 Shake, IReadOnlyDictionary<int, Ff7ModelRenderOverrides> WaterEffects) SampleFieldPresentation(Ff7Session session, Ff7FieldProcess state, PcFieldCamera? movieCamera)
     {
         float fraction = PresentationFraction(PresentationPreferences.FieldFps);
         var (previous, current) = fieldHistory.Sample((session.Host, state.Tick), fraction, () => PrepareFieldPresentation(session, state), frame => Ff7FieldPresentation.Matches(frame.State, state));
@@ -51,7 +53,7 @@ internal sealed partial class Ff7Scene
         Vector2 shake = Ff7NativeCamera.PresentationShakeOffset(state);
         if (previous is null)
         {
-            return (current.Actors, camera, shake);
+            return (current.Actors, camera, shake, current.WaterEffects);
         }
         if (previous.Camera is Vector2 before && Ff7FieldPresentation.CanInterpolateCamera(previous.State, current.State))
         {
@@ -59,10 +61,10 @@ internal sealed partial class Ff7Scene
             shake = Vector2.Lerp(Ff7NativeCamera.PresentationShakeOffset(previous.State), shake, fraction);
         }
         Ff7Actor[] actors = current.Actors.Select(actor => actor.Visible && previous.ActorsBySlot.TryGetValue(actor.Slot, out Ff7Actor? old) ? Ff7ActorPresentation.Interpolate(old, actor, fraction, current.AnimationFrames[actor.Slot]) : actor).ToArray();
-        return (actors, camera, shake);
+        return (actors, camera, shake, current.WaterEffects);
     }
 
-    private static Ff7FieldPresentationFrame PrepareFieldPresentation(Ff7Session session, Ff7FieldProcess state)
+    private Ff7FieldPresentationFrame PrepareFieldPresentation(Ff7Session session, Ff7FieldProcess state)
     {
         Ff7Actor[] actors = state.Actors.Select(actor => actor.Visible ? session.PrepareActorPresentation(actor) : actor).ToArray();
         Dictionary<int, int> animationFrames = [];
@@ -73,11 +75,11 @@ internal sealed partial class Ff7Scene
         }
         // Video supplies its own current camera on the draw path and never interpolates with field history.
         Vector2? camera = state.Movie is { Playing: true } ? null : FieldCameraOffset(state);
-        return new(state, actors, actors.ToDictionary(actor => actor.Slot), animationFrames, camera);
+        return new(state, actors, actors.ToDictionary(actor => actor.Slot), animationFrames, camera, PrepareWaterAppearanceEffects(session, state));
     }
 }
 
-internal sealed record Ff7FieldPresentationFrame(Ff7FieldProcess State, Ff7Actor[] Actors, IReadOnlyDictionary<int, Ff7Actor> ActorsBySlot, IReadOnlyDictionary<int, int> AnimationFrames, Vector2? Camera);
+internal sealed record Ff7FieldPresentationFrame(Ff7FieldProcess State, Ff7Actor[] Actors, IReadOnlyDictionary<int, Ff7Actor> ActorsBySlot, IReadOnlyDictionary<int, int> AnimationFrames, Vector2? Camera, IReadOnlyDictionary<int, Ff7ModelRenderOverrides> WaterEffects);
 
 internal static class Ff7FieldPresentation
 {

@@ -6,7 +6,26 @@ namespace Memoria.FF7.Resources;
 public sealed record Ff7FieldWaterParameters(short Level, short Red, short Green, short Blue, byte Flags, int EnvironmentProfile);
 public sealed record Ff7FieldWaterPartMask(int Part, bool[] ModifiedVertices);
 public sealed record Ff7FieldWaterSplashCandidate(int BoneIndex, float X, float Y, float Depth, float HalfSize);
-public sealed record Ff7FieldWaterGeometry(IReadOnlyList<Ff7FieldWaterPartMask> Parts, IReadOnlyList<Ff7FieldWaterSplashCandidate> Splashes);
+public sealed record Ff7FieldWaterGeometry(IReadOnlyList<Ff7FieldWaterPartMask> Parts, IReadOnlyList<Ff7FieldWaterSplashCandidate> Splashes)
+{
+    public Ff7FieldWaterColorRegion? ColorRegion { get; init; }
+}
+
+public sealed record Ff7FieldWaterColorRegion(bool HasThreshold, double Height, bool UseY, bool All = false)
+{
+    public void Validate()
+    {
+        if (!double.IsFinite(Height) || All && !HasThreshold)
+        {
+            throw new InvalidDataException("Native water color regions require a finite captured threshold or an explicit ordered-comparison result.");
+        }
+    }
+
+    public bool Contains(Vector3 position)
+    {
+        return HasThreshold && (All || (UseY ? position.Y : position.Z) > Height);
+    }
+}
 
 public static class Ff7FieldWaterGeometryMath
 {
@@ -22,7 +41,7 @@ public static class Ff7FieldWaterGeometryMath
         }
         if (parameters.EnvironmentProfile == 0)
         {
-            return new(model.Geometry.Select((part, index) => new Ff7FieldWaterPartMask(index, new bool[part.Polygon.Vertices.Count])).ToArray(), []);
+            return new(model.Geometry.Select((part, index) => new Ff7FieldWaterPartMask(index, new bool[part.Polygon.Vertices.Count])).ToArray(), []) { ColorRegion = new(false, 0, (parameters.Flags & 4) != 0) };
         }
         if (model.KnownPoseBinding is not null)
         {
@@ -61,7 +80,7 @@ public static class Ff7FieldWaterGeometryMath
         List<Ff7FieldWaterSplashCandidate> splashes = [];
         if (!emitSplashes || parameters.EnvironmentProfile == 0)
         {
-            return new(masks.AsReadOnly(), splashes.AsReadOnly());
+            return new(masks.AsReadOnly(), splashes.AsReadOnly()) { ColorRegion = Region(colorPlane, parameters.Flags) };
         }
         double? splashPlane = null;
         HashSet<int> drawableBones = model.Geometry.Select(part => part.BoneIndex).ToHashSet();
@@ -96,13 +115,23 @@ public static class Ff7FieldWaterGeometryMath
             short y = unchecked((short)(int)(projected.Y - 8));
             splashes.Add(new(bone.Index, x, y + 8, 1 - projected.Z, 12));
         }
-        return new(masks.AsReadOnly(), splashes.AsReadOnly());
+        return new(masks.AsReadOnly(), splashes.AsReadOnly()) { ColorRegion = Region(colorPlane, parameters.Flags) };
 
         Vector3 Project(Vector3 world)
         {
             Vector3 projected = PcFieldProjection.Project(world, camera, new(160 + cameraOffset.X, 120 + cameraOffset.Y));
             return new(projected.X, projected.Y, Ff7FieldProjectionMath.ProjectDepth(projected.Z, nearPlane, farPlane));
         }
+    }
+
+    private static Ff7FieldWaterColorRegion Region(double? plane, byte flags)
+    {
+        bool useY = (flags & 4) != 0;
+        if (plane is null || double.IsNaN(plane.Value) || double.IsPositiveInfinity(plane.Value))
+        {
+            return new(false, 0, useY);
+        }
+        return double.IsNegativeInfinity(plane.Value) ? new(true, 0, useY, All: true) : new(true, plane.Value, useY);
     }
 
     private static double PlaneHeight(float height, short level)

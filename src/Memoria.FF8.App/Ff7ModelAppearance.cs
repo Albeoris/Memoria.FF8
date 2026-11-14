@@ -47,15 +47,27 @@ internal sealed partial class Ff7ModelAppearance : IFf7ActorAppearance
     }
 
     public bool SupportsPartVisibility => true;
+    public bool SupportsVertexColorBindings => true;
 
     public bool TryCreate(Ff7ActorVisual actor, PcFieldModelDescriptor descriptor, Ff7FieldModelResources original, out IReadOnlyList<Ff7AppearanceTriangle> triangles)
     {
+        return TryCreateCore(actor, descriptor, original, true, out triangles, out _);
+    }
+
+    public bool TrySampleVertices(Ff7ActorVisual pose, PcFieldModelDescriptor descriptor, Ff7FieldModelResources original, out IReadOnlyList<Vector3> worldVertices)
+    {
+        return TryCreateCore(pose with { ModelEffects = null }, descriptor, original, false, out _, out worldVertices);
+    }
+
+    private bool TryCreateCore(Ff7ActorVisual actor, PcFieldModelDescriptor descriptor, Ff7FieldModelResources original, bool createTriangles, out IReadOnlyList<Ff7AppearanceTriangle> triangles, out IReadOnlyList<Vector3> worldVertices)
+    {
         triangles = [];
+        worldVertices = [];
         if (!Path.GetFileName(descriptor.Hrc).Equals(nativeHrc, StringComparison.OrdinalIgnoreCase))
         {
             if (variants.TryGetValue(Path.GetFileName(descriptor.Hrc), out Ff7ModelAppearance? variant))
             {
-                return variant.TryCreate(actor, descriptor, original, out triangles);
+                return variant.TryCreateCore(actor, descriptor, original, createTriangles, out triangles, out worldVertices);
             }
             if (actor.PartyCharacter == 0)
             {
@@ -118,6 +130,12 @@ internal sealed partial class Ff7ModelAppearance : IFf7ActorAppearance
             }
         }
         Matrix4x4 world = targetToFf7 * Matrix4x4.CreateScale(descriptorRatio) * Matrix4x4.CreateRotationZ(actor.Direction * MathF.Tau / 256) * Matrix4x4.CreateTranslation(actor.X4096 / 4096f, actor.Y4096 / 4096f, actor.Z4096 / 4096f);
+        Vector3[] vertices = posed.Select(vertex => Vector3.Transform(vertex, world)).ToArray();
+        worldVertices = Array.AsReadOnly(vertices);
+        if (!createTriangles)
+        {
+            return true;
+        }
         var eyeMaterial = EyeMaterial(actor, target);
         bool[]? visibleBones = null;
         if (actor.ModelEffects is { } effects)
@@ -151,7 +169,8 @@ internal sealed partial class Ff7ModelAppearance : IFf7ActorAppearance
             Ff7WorldVertex Vertex(int corner)
             {
                 Vector2 uv = face.TextureCoordinates[corner] / ResourceTextureList.LogicalSize(target.Textures, face.Texture);
-                return new(Vector3.Transform(posed[face.Vertices[corner]], world), uv, face.VertexColors?[corner] ?? Vector4.One);
+                int index = face.Vertices[corner];
+                return new(vertices[index], uv, face.VertexColors?[corner] ?? Vector4.One) { AppearanceVertexIndex = index };
             }
             TriangleMaterial material = new(image, face.SemiTransparent ? TriangleBlend.HalfAdd : TriangleBlend.Replace, TriangleDepthComparison.LessEqual, true, Sampler: TriangleSampler.PointClamp) { PreserveTargetAlpha = false };
             AddTriangle(Vertex(0), Vertex(1), Vertex(2), material);

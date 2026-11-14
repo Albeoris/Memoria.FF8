@@ -42,6 +42,7 @@ internal static class NativeWaterEffectTests
         Check(JsonSerializer.Serialize(Ff7NativeWaterEffect.Request(legacyActor.NativeWaterEffect, [1], legacyActor.Slot)) == JsonSerializer.Serialize(nativeZero), "An older actor with absent nonprogress cache must resolve native zeros without replay or a capability marker.");
         Throws<InvalidDataException>(() => Ff7NativeWaterEffect.Request(state, Payload(), 7));
         RunApplication(state);
+        RunSamplingMetadata(state);
         RunInstalled();
         Console.WriteLine("PASS native KAWAI8 mode0 cache, physical model ownership, depth eligibility, persistent wait, cancellation and cold state");
     }
@@ -133,7 +134,7 @@ internal static class NativeWaterEffectTests
         byte[] source = File.ReadAllBytes(path);
         using MemoryStream input = new(source);
         Ff7SessionSave save = CombinedSessionCodec.Read(input).Ff7 ?? throw new InvalidDataException("The shared-water fixture has no FFVII continuation.");
-        Check(save.FieldName == "ujunon2" && save.Vm.Tick == 1020, "The configured shared-water fixture must retain the reached native callback1020 appearance.");
+        Check(save.FieldName == "ujunon2", "The configured shared-water fixture must retain the selected native beach environment.");
         using Ff7Session live = Ff7Session.Restore(installation, save);
         using Ff7Session cold = Ff7Session.Restore(installation, JsonSerializer.Deserialize<Ff7SessionSave>(JsonSerializer.Serialize(save))!);
         Ff7NativeWaterEffectState before = live.Host.Process.Actors.Single(actor => actor.EntityBound && actor.Entity == 12).NativeWaterEffect ?? throw new InvalidDataException("The reached selector9 actor has no recorded shared native cache.");
@@ -141,7 +142,7 @@ internal static class NativeWaterEffectTests
         live.AdvanceTick(advanceClock: false);
         cold.AdvanceTick(advanceClock: false);
         Check(JsonSerializer.Serialize(live.Capture()) == JsonSerializer.Serialize(cold.Capture()), "The actual selector9 continuation diverged from its independent cold callback.");
-        Check(live.Machine.Capture().Tick == 1021 && cold.Machine.Capture().Tick == 1021, "The bounded selector9 continuation must reach native callback1021.");
+        Check(live.Machine.Capture().Tick == save.Vm.Tick + 1 && cold.Machine.Capture().Tick == save.Vm.Tick + 1, "The bounded selector9 continuation must advance exactly one native callback.");
         Ff7NativeWaterEffectState water = live.Host.Process.Actors.Single(actor => actor.EntityBound && actor.Entity == 12).NativeWaterEffect ?? throw new InvalidDataException("The reached selector9 actor lost its shared native cache.");
         Check(water is { Active: true, OwnsColors: true, Parameter0: -7, Parameter1: 0, Parameter2: 0, Parameter3: 128, Flags: 0, DisplayedSample: not null } && water.RequestedPayload.SequenceEqual(new byte[] { 1 }), "The original selector9 application did not preserve its initialized four-word cache and displayed color ownership.");
         Check(live.Host.Process.NativeWaterSplashCursor is >= 0 and < 4 && live.Host.Process.NativeWaterSplashCursor == cold.Host.Process.NativeWaterSplashCursor, "The original shared-water cursor lost its global cold continuation.");
@@ -157,6 +158,7 @@ internal static class NativeWaterEffectTests
             return new(field, (_, _) => 1, process, 429)
             {
                 NativeWaterEnvironmentProfile = (_, _) => 3,
+                NativeModelConfiguration = _ => new(0, 0, 1),
                 NativeWaterGeometryCapture = (_, _, _) => new([new(0, [true, false])], [])
             };
         }
@@ -195,21 +197,40 @@ internal static class NativeWaterEffectTests
         Throws<InvalidDataException>(() => Ff7NativeWaterEffect.Advance(Ff7NativeWaterEffect.Request(state, [1], state.ModelSlot), true));
     }
 
+    private static void RunSamplingMetadata(Ff7NativeWaterEffectState initialized)
+    {
+        Ff7NativeWaterEffectSample legacy = new(new(initialized.Parameter0, initialized.Parameter1, initialized.Parameter2, initialized.Parameter3, initialized.Flags, 3), [new(0, [true, false])], initialized.CycleIndex, initialized.SubcycleIndex);
+        string legacyJson = JsonSerializer.Serialize(legacy);
+        Check(!legacyJson.Contains("SamplingPose", StringComparison.Ordinal) && !legacyJson.Contains("ColorRegion", StringComparison.Ordinal), "Absent optional water pose/region metadata must preserve the earlier sample JSON shape.");
+        Ff7NativeWaterEffectSample restoredLegacy = JsonSerializer.Deserialize<Ff7NativeWaterEffectSample>(legacyJson)!;
+        Check(restoredLegacy.SamplingPose is null && restoredLegacy.ColorRegion is null && restoredLegacy.Parts[0].ModifiedVertices.SequenceEqual(new[] { true, false }), "An old water sample must preserve authoritative masks without requiring new metadata.");
+        Ff7NativeWaterEffectSample sample = legacy with { SamplingPose = new(7, 2, 48, 173, 12, -34, 56), ColorRegion = new(true, -17.5, false) };
+        Ff7NativeWaterEffectState state = Ff7NativeWaterEffect.Advance(Ff7NativeWaterEffect.Request(initialized, [1], initialized.ModelSlot), true, sample);
+        Ff7NativeWaterEffectState cold = JsonSerializer.Deserialize<Ff7NativeWaterEffectState>(JsonSerializer.Serialize(state))!;
+        cold.Validate();
+        Check(JsonSerializer.Serialize(cold) == JsonSerializer.Serialize(state) && cold.DisplayedSample?.SamplingPose == sample.SamplingPose, "Exact water sampling pose and finite color-region metadata must survive cold JSON.");
+        Throws<InvalidDataException>(() => (state with { DisplayedSample = sample with { SamplingPose = sample.SamplingPose! with { X = float.NaN } } }).Validate());
+        Throws<InvalidDataException>(() => (state with { DisplayedSample = sample with { SamplingPose = sample.SamplingPose! with { AnimationFrame16 = 49 } } }).Validate());
+    }
+
     private static void RunSplashQueues(Ff7FieldResources field, Ff7NativeWaterEffectState state)
     {
         Ff7Actor later = new() { Slot = 4, Entity = 14, Model = 8, Visible = false, NativeWaterEffect = Ff7NativeWaterEffect.Request(state with { ModelSlot = 4 }, [1], 4) };
-        Ff7Actor first = new() { Slot = 2, Entity = 13, Model = 8, NativeWaterEffect = Ff7NativeWaterEffect.Request(state with { ModelSlot = 2 }, [1], 2) };
+        Ff7Actor first = new() { Slot = 2, Entity = 13, Model = 8, OffsetX = 7, OffsetY = -4, OffsetZ = 9, Direction = 123, NativeWaterEffect = Ff7NativeWaterEffect.Request(state with { ModelSlot = 2 }, [1], 2) };
         Ff7FieldHost Configure(Ff7FieldProcess process)
         {
             return new(field, (_, _) => 1, process, 429)
             {
                 NativeWaterEnvironmentProfile = (_, _) => 3,
+                NativeModelConfiguration = _ => new(3, -2, 1),
                 NativeWaterSplashResources = [true, true, true, true],
-                NativeWaterGeometryCapture = (actor, _, _) => new([new(0, [true, false])], Enumerable.Range(0, 6).Select(bone => new Ff7FieldWaterSplashCandidate(bone, actor.Slot + 0.25f, bone + 0.5f, 0.75f, 12)).ToArray())
+                NativeWaterGeometryCapture = (actor, _, _) => new([new(0, [true, false])], Enumerable.Range(0, 6).Select(bone => new Ff7FieldWaterSplashCandidate(bone, actor.Slot + 0.25f, bone + 0.5f, 0.75f, 12)).ToArray()) { ColorRegion = new(true, -17.5, false) }
             };
         }
         Ff7FieldHost host = Configure(new() { Actors = [later, first], NativeWaterSplashCursor = 3 });
         host.AdvanceActors();
+        Ff7NativeWaterEffectSample captured = host.GetActor(13).NativeWaterEffect?.DisplayedSample ?? throw new InvalidDataException("The accepted callback did not capture its native water sample.");
+        Check(captured.SamplingPose == new Ff7NativeWaterEffectPose(8, 0, 0, 123, 7, -1, -3) && captured.ColorRegion is { HasThreshold: true, Height: -17.5, UseY: false }, "Water metadata must capture the exact native integer animation pose and final configured presentation point.");
         Check(host.Process.NativeWaterSplashes.Length == 12 && host.Process.NativeWaterSplashCursor == 3, "Four texture queues must retain all twelve candidates rather than impose a four-splash cap.");
         Check(host.Process.NativeWaterSplashes.Take(6).All(splash => splash.ModelSlot == 2) && host.Process.NativeWaterSplashes.Skip(6).All(splash => splash.ModelSlot == 4), "Water allocation must follow physical model-slot order even for hidden models.");
         Check(host.Process.NativeWaterSplashes.Select(splash => splash.TextureIndex).SequenceEqual(Enumerable.Range(0, 12).Select(index => (3 + index) % 4)), "Water texture selection must use the global cursor rather than per-model cache counters.");

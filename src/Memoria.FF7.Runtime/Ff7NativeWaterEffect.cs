@@ -1,12 +1,21 @@
 using System.Buffers.Binary;
 using System.Numerics;
-using Memoria.FF7.Formats;
 using System.Text.Json.Serialization;
+using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
 
 namespace Memoria.FF7.Runtime;
 
-public sealed record Ff7NativeWaterEffectSample(Ff7FieldWaterParameters Parameters, Ff7FieldWaterPartMask[] Parts, short CycleIndex, short SubcycleIndex);
+public sealed record Ff7NativeWaterEffectPose(int ModelIndex, int AnimationIndex, int AnimationFrame16, byte Direction, float X, float Y, float Z);
+
+public sealed record Ff7NativeWaterEffectSample(Ff7FieldWaterParameters Parameters, Ff7FieldWaterPartMask[] Parts, short CycleIndex, short SubcycleIndex)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7NativeWaterEffectPose? SamplingPose { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7FieldWaterColorRegion? ColorRegion { get; init; }
+}
+
 public sealed record Ff7NativeWaterSplash(int ModelSlot, int BoneIndex, int TextureIndex, float X, float Y, float Depth, float HalfSize);
 
 public sealed record Ff7NativeWaterEffectState
@@ -37,6 +46,11 @@ public sealed record Ff7NativeWaterEffectState
         {
             throw new InvalidDataException("FFVII water-effect color sample has invalid topology or counters.");
         }
+        if (DisplayedSample?.SamplingPose is { } pose && (pose.ModelIndex < 0 || pose.AnimationIndex < 0 || pose.AnimationFrame16 < 0 || (pose.AnimationFrame16 & 15) != 0 || !float.IsFinite(pose.X) || !float.IsFinite(pose.Y) || !float.IsFinite(pose.Z)))
+        {
+            throw new InvalidDataException("FFVII water-effect pose metadata has invalid model, animation or coordinates.");
+        }
+        DisplayedSample?.ColorRegion?.Validate();
     }
 }
 

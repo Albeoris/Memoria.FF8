@@ -459,7 +459,7 @@ internal sealed partial class Ff7Scene : IDisposable
         Ff7FieldProcess state = session.Host.Process;
         PcFieldCamera? camera = CurrentMovieCamera();
         PcFieldCamera effectCamera = camera ?? session.Field.Cameras[0];
-        var (sampledActors, cameraOffset, cameraShake) = SampleFieldPresentation(session, state, camera);
+        var (sampledActors, cameraOffset, cameraShake, waterEffects) = SampleFieldPresentation(session, state, camera);
         PcFieldCamera? eligibilityCamera = state.Movie is { Playing: true } ? BlinkCamera() : effectCamera;
         Ff7ActorVisual[] actors = sampledActors.Where(actor => IsDrawableActor(actor, eligibilityCamera, cameraOffset, state.CameraFollowPlayer == false)).Select(actor => new Ff7ActorVisual(actor.Entity, actor.Model, checked(actor.X4096 + actor.OffsetX * 4096), checked(actor.Y4096 + actor.OffsetY * 4096), checked(actor.Z4096 + actor.OffsetZ * 4096), checked((byte)actor.Direction), actor.Animation, actor.AnimationFrame16, actor.Visible)
         {
@@ -470,7 +470,7 @@ internal sealed partial class Ff7Scene : IDisposable
             FirstAnimationFrame = actor.FirstAnimationFrame,
             LastAnimationFrame = actor.LastAnimationFrame,
             AnimationLoop = actor.AnimationLoop && !actor.HoldAnimation && !actor.AnimationStopped,
-            ModelEffects = ModelEffects(actor, effectCamera)
+            ModelEffects = waterEffects.TryGetValue(actor.Slot, out Ff7ModelRenderOverrides? waterEffect) ? waterEffect : ModelEffects(actor, effectCamera)
         }).ToArray();
         Ff7FieldRenderFrame frame = new(0, cameraOffset, actors, state.BackgroundStates, state.Movie is { Playing: true }, camera, state.MovieBackgroundEnabled, state.PaletteRows, state.PaletteVersion)
         {

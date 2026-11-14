@@ -23,15 +23,29 @@ internal static class Ff7AppearanceSelection
         private readonly Dictionary<(int Story, int Appearance, string Hrc, bool World), Ff7ModelAppearance> profiles = [];
 
         public bool SupportsPartVisibility => true;
+        public bool SupportsVertexColorBindings => true;
 
         public bool TryCreate(Ff7ActorVisual actor, PcFieldModelDescriptor descriptor, Ff7FieldModelResources original, out IReadOnlyList<Ff7AppearanceTriangle> triangles)
         {
             triangles = [];
+            Ff7ModelAppearance? profile = Select(actor, descriptor, original);
+            return profile is not null && profile.TryCreate(actor, descriptor, original, out triangles);
+        }
+
+        public bool TrySampleVertices(Ff7ActorVisual pose, PcFieldModelDescriptor descriptor, Ff7FieldModelResources original, out IReadOnlyList<System.Numerics.Vector3> worldVertices)
+        {
+            worldVertices = [];
+            Ff7ModelAppearance? profile = Select(pose, descriptor, original);
+            return profile is not null && profile.TrySampleVertices(pose, descriptor, original, out worldVertices);
+        }
+
+        private Ff7ModelAppearance? Select(Ff7ActorVisual actor, PcFieldModelDescriptor descriptor, Ff7FieldModelResources original)
+        {
             int character = actor.PartyCharacter is >= 0 and <= 8 ? actor.PartyCharacter : CrossoverCharacterCatalog.IdentifyStoryCharacter(descriptor);
             CharacterAppearanceMapping? mapping = mappings.SingleOrDefault(mapping => mapping.StoryCharacter == character);
             if (mapping is null)
             {
-                return false;
+                return null;
             }
             string hrc = Path.GetFileName(descriptor.Hrc).ToLowerInvariant();
             var key = (character, mapping.AppearanceCharacter, hrc, actor.IsWorldModel);
@@ -41,7 +55,7 @@ internal static class Ff7AppearanceSelection
                 profile = legacy ? Ff7ModelAppearance.CreateStandardFieldSquall(installation, assets) : Ff7ModelAppearance.CreateFieldCharacter(assets, mapping.AppearanceCharacter, descriptor, original, actor.IsWorldModel);
                 profiles.Add(key, profile);
             }
-            return profile.TryCreate(actor, descriptor, original, out triangles);
+            return profile;
         }
     }
 }
