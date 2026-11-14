@@ -145,6 +145,18 @@ if (args.Contains("--world-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--world-battle-only", StringComparer.Ordinal))
+{
+    WorldBattleTests.Run();
+    return 0;
+}
+
+if (args.Contains("--enemy-command-banks-only", StringComparer.Ordinal))
+{
+    EnemyCommandBankTests.Run();
+    return 0;
+}
+
 if (args.Contains("--world-return-regressions-only", StringComparer.Ordinal))
 {
     NativeMenuEquipmentTests.Run();
@@ -336,6 +348,7 @@ var tests = new (string Name, Action Run)[]
     ("native Shinra Rufus", NativeBattleShinraTests.RunRufus),
     ("installed opening arena and battle actor resources", NativeBattleTests.RunOpeningRoster),
     ("installed Hammer Blaster support-model packed frames", NativeBattleTests.RunHammerBlasterClips),
+    ("native opening enemy command banks and Grasslands continuation", EnemyCommandBankTests.Run),
     ("native opening combat damage", NativeBattleDamageTests.Run),
     ("native opening action transactions and Limit reel", NativeBattleActionTests.Run),
     ("native Cross-slash action and settlement", NativeBattleCrossSlashTests.Run),

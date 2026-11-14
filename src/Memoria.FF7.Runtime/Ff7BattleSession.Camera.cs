@@ -224,6 +224,7 @@ public sealed partial class Ff7BattleSession
         {
             0x20 => Data.Attacks.Single(attack => attack.Slot == command.Argument && attack.Id == command.AttackId).Data,
             (byte)Ff7BattleCommand.Magic or (byte)Ff7BattleCommand.Summon => ReadKernelAttack(command.Argument),
+            (byte)Ff7BattleCommand.EnemySkill => ReadKernelAttack(0x48 + command.Argument),
             (byte)Ff7BattleCommand.Limit => limits[command.Argument - 0x80],
             _ => null
         };

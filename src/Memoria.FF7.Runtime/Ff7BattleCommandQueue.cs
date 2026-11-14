@@ -183,6 +183,10 @@ public static class Ff7BattleCommandQueue
             throw new InvalidDataException("FFVII battle command has invalid native fields.");
         }
         bool guestShape = command is { GuestAbility: 0, CommandId: 1, Argument: 0 } or { GuestAbility: 0, CommandId: 0x14, Argument: 0 } or { GuestAbility: > 0, CommandId: 2 } or { GuestAbility: > 0 and <= byte.MaxValue, CommandId: 4 };
+        if (command.CommandId == (byte)Ff7BattleCommand.EnemySkill && (command.ActorSlot < 4 || command.Argument >= 0x18 || command.AttackId != 0x48 + command.Argument))
+        {
+            throw new InvalidDataException("An enemy skill requires its matching global attack and native bank argument.");
+        }
         if (command.StatusCountdown && (command is not { Priority: 3, ActorSlot: >= 0, CommandId: 2, Argument: 0x36, GuestAttack: false, GroupTarget: false, AttackId: null, Message: null, Callback: null } || command.TargetMask != 0 && command.TargetMask != 1 << command.ActorSlot))
         {
             throw new InvalidDataException("A status countdown requires its native self-targeted Death command.");

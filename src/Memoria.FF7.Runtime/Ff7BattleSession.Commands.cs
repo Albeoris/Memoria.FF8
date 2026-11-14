@@ -10,6 +10,7 @@ public enum Ff7BattleCommand : byte
     Magic = 2,
     Summon = 3,
     Item = 4,
+    EnemySkill = 0x0D,
     Limit = 0x14,
     Change = 0x12,
     Defend = 0x13
@@ -308,9 +309,14 @@ public sealed partial class Ff7BattleSession
         if (command.ActorSlot >= 4 && command.CommandId == 0x20 && command.AttackId is < 0x100)
         {
             ushort attack = command.AttackId.Value;
-            if (attack < 0x38)
+            (Ff7BattleCommand bank, ushort argument) = Ff7NativeEnemyCommandBanks.Resolve(attack);
+            if (bank == Ff7BattleCommand.Magic)
             {
-                return command with { CommandId = (byte)Ff7BattleCommand.Magic, Argument = attack, AttackId = null };
+                return command with { CommandId = (byte)bank, Argument = argument, AttackId = null };
+            }
+            if (bank == Ff7BattleCommand.EnemySkill)
+            {
+                return command with { CommandId = (byte)bank, Argument = argument };
             }
             throw new NotSupportedException($"FFVII enemy attack {attack:X2} requires its native command-bank consumer.");
         }
@@ -323,7 +329,7 @@ public sealed partial class Ff7BattleSession
         {
             return 0x34;
         }
-        if (command.ActorSlot >= 4 && command.CommandId is 0x20 or (byte)Ff7BattleCommand.Magic)
+        if (command.ActorSlot >= 4 && command.CommandId is 0x20 or (byte)Ff7BattleCommand.Magic or (byte)Ff7BattleCommand.EnemySkill)
         {
             ushort attackId = command.AttackId ?? command.Argument;
             return Enemy(command.ActorSlot).Attacks.First(attack => attack.AttackId == attackId).ActionAnimation;
@@ -347,6 +353,7 @@ public sealed partial class Ff7BattleSession
         {
             0x20 => Data.Attacks.Single(attack => attack.Slot == command.Argument && attack.Id == command.AttackId).Data,
             (byte)Ff7BattleCommand.Magic or (byte)Ff7BattleCommand.Summon => ReadKernelAttack(command.Argument),
+            (byte)Ff7BattleCommand.EnemySkill => ReadKernelAttack(0x48 + command.Argument),
             (byte)Ff7BattleCommand.Item => ReadBattleItem(command.Argument),
             (byte)Ff7BattleCommand.Limit => limits[command.Argument - 0x80],
             _ => null
@@ -701,6 +708,7 @@ public sealed partial class Ff7BattleSession
         {
             0x20 => Data.Attacks.Single(attack => attack.Slot == command.Argument && attack.Id == command.AttackId).Data,
             (byte)Ff7BattleCommand.Magic => spell?.Attack ?? ReadKernelAttack(command.Argument),
+            (byte)Ff7BattleCommand.EnemySkill => ReadKernelAttack(0x48 + command.Argument),
             (byte)Ff7BattleCommand.Limit when beatRush => Ff7NativeBattleLimits.ReadBeatRush(kernel, state.BeatRush!.Reel.ReadResult(beatRushSymbols)),
             (byte)Ff7BattleCommand.Limit => limits[command.Argument - 0x80],
             (byte)Ff7BattleCommand.Item => ReadBattleItem(command.Argument) ?? throw new InvalidDataException("FFVII action references a non-battle item."),
