@@ -8,6 +8,7 @@ public interface IFf7BattleGuestLimit
     /// <summary>Prepare native readiness without mutating the source. The returned action publishes the prepared state without further validation or callbacks.</summary>
     Action? PrepareLimitReady(long hostTick, Ff7BattleAiActor source, int deadParty);
     bool SupportsLimit(Ff7BattleGuestAttackTarget target);
+    string? LimitTargetUnsupportedReason(Ff7BattleGuestAttackTarget target) => SupportsLimit(target) ? null : "The original Limit cannot use the selected target.";
 }
 
 public sealed record Ff7BattleGuestLimitState(int Contacts = 0, bool CounterPending = false, bool KnockedOut = false, bool PresentationCompleted = false)
@@ -118,6 +119,11 @@ public sealed partial class Ff7BattleSession
             if (current.PresentedContacts != contacts || current.TargetCue is not null)
             {
                 throw new InvalidDataException("The guest Limit completed before its last original contact was presented.");
+            }
+            if (update.Continuation is { } continuation)
+            {
+                DispatchGuestContinuation(active with { GuestLimit = current }, guest, continuation);
+                return;
             }
             int target = invocation.TargetSlot;
             if (current.CounterPending)

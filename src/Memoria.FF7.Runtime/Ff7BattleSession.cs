@@ -37,6 +37,8 @@ public sealed record Ff7BattleActionState(Ff7BattleQueuedCommand Command, long S
     public bool GrenadeStarted { get; init; }
     public Ff7BattleGuestLimitState? GuestLimit { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7BattleGuestContinuationState? GuestContinuation { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public Ff7BattleGuestCompositeState? GuestComposite { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public byte? GuestAttackTargetCue { get; init; }

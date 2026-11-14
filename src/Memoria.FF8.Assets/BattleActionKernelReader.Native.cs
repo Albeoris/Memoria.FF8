@@ -34,7 +34,7 @@ internal static partial class BattleActionKernelReader
         AddFamily(1, MagicLayout, kernel.MagicSpells.Count, index => kernel.MagicSpells[index].Name, 2);
         AddFamily(2, GuardianLayout, kernel.Guardians.Count, index => kernel.Guardians[index].AttackName, 254, 64);
         AddFamily(3, EnemyLayout, kernel.EnemyAttacks.Count, index => kernel.EnemyAttacks[index].Name, 8);
-        AddFamily(5, SquallLayout, kernel.SquallLimits.Count, index => kernel.SquallLimits[index].Name, 249, dispatch: 250, character: CharacterForCommand(5));
+        AddFamily(5, SquallLayout, kernel.SquallLimits.Count, index => kernel.SquallLimits[index].Name, 249, dispatch: 250, character: CharacterForCommand(5), presentationInvocation: new(250, ushort.MaxValue, 0));
         AddFamily(7, ItemLayout, kernel.BattleItems.Count, index => kernel.BattleItems[index].Name, 4);
         AddFamily(9, IndependentGuardianLayout, kernel.IndependentGuardianAttacks.Count, index => kernel.IndependentGuardianAttacks[index].AttackName, 240);
         AddFamily(21, IrvineLayout, kernel.IrvinLimits.Count, index => kernel.IrvinLimits[index].Name, 237, dispatch: 14, character: CharacterForCommand(14));
@@ -95,7 +95,7 @@ internal static partial class BattleActionKernelReader
             }
         }
 
-        void AddFamily(int section, Layout layout, int count, Func<int, string?> name, byte command, int idOffset = 0, byte? dispatch = null, int? character = null)
+        void AddFamily(int section, Layout layout, int count, Func<int, string?> name, byte command, int idOffset = 0, byte? dispatch = null, int? character = null, BattleNativePresentationInvocation? presentationInvocation = null)
         {
             if (sections[section].Length != count)
             {
@@ -103,7 +103,7 @@ internal static partial class BattleActionKernelReader
             }
             for (int index = 0; index < count; index++)
             {
-                BattleNativeAction action = Project(sections[section][index], layout, command, index + idOffset, section, index) with { Name = name(index), DispatchCommand = dispatch, CharacterId = character };
+                BattleNativeAction action = Project(sections[section][index], layout, command, index + idOffset, section, index) with { Name = name(index), DispatchCommand = dispatch, CharacterId = character, PresentationInvocation = presentationInvocation };
                 if (section == 3)
                 {
                     action = action with { HitCount = (byte)(action.HitCount & 0x7F) };

@@ -56,17 +56,23 @@ public sealed partial class BattleSession
 
     private void InitializeEffectPresentationServices(NativeBattleEffectParameters parameters)
     {
-        NativeBattleEffectMemory memory = NativeEffectMemory!;
-        NativeBattleActionGeometryGlobals globals = memory.ActionGeometryGlobals ?? NativeBattleActionGeometryGlobals.Unknown();
         NativeBattleActionGraphicsState action = NativeBattleActionGraphics.Normalize(nativeActionPackets, parameters.HeaderIndex7C, NativeGraphics?.ActionGraphics) with { UseActionCamera = false };
-        NativeBattleGraphicsState graphics = NativeBattleActionGeometryRules.PrepareGeometry50D300(NativeGraphics! with { ActionGraphics = action }, parameters.Actor78, parameters.TargetMask7A, parameters.TargetMask7A, globals, ReadNativeGraphicsBone);
-        NativeEffectMemory = memory with { CameraAliases = (memory.CameraAliases ?? NativeBattleCameraAliases.Unknown()).Observe50D300(parameters.Actor78, parameters.TargetMask7A), ActionGeometryGlobals = globals.Observe50D300(graphics.ActionContext!) };
-        NativeGraphics = graphics;
-        if (NativeEffectMemory.PrimitiveProcess is { Software: { } software } process)
+        NativeGraphics = PrepareEffectPresentationGeometry(NativeGraphics! with { ActionGraphics = action }, parameters.Actor78, parameters.TargetMask7A);
+        NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new InvalidDataException("Native presentation lost its initialized process owner.");
+        if (memory.PrimitiveProcess is { Software: { } software } process)
         {
             NativeSoftwareDrawingEnvironmentBuffers buffers = software.EnvironmentBuffers ?? throw new NotSupportedException("Native presentation requires its initialized drawing environments.");
             NativeSoftwareDrawingEnvironmentApplication application = buffers.Apply45B660(process.PacketBuffer, software.Environment);
-            NativeEffectMemory = NativeEffectMemory with { PrimitiveProcess = process with { Software = software with { EnvironmentBuffers = application.Buffers, Environment = application.Environment, SceneCapture = null } } };
+            NativeEffectMemory = memory with { PrimitiveProcess = process with { Software = software with { EnvironmentBuffers = application.Buffers, Environment = application.Environment, SceneCapture = null } } };
         }
+    }
+
+    private NativeBattleGraphicsState PrepareEffectPresentationGeometry(NativeBattleGraphicsState graphics, byte actor, ushort targets)
+    {
+        NativeBattleEffectMemory memory = NativeEffectMemory!;
+        NativeBattleActionGeometryGlobals globals = memory.ActionGeometryGlobals ?? NativeBattleActionGeometryGlobals.Unknown();
+        graphics = NativeBattleActionGeometryRules.PrepareGeometry50D300(graphics, actor, targets, targets, globals, ReadNativeGraphicsBone);
+        NativeEffectMemory = memory with { CameraAliases = (memory.CameraAliases ?? NativeBattleCameraAliases.Unknown()).Observe50D300(actor, targets), ActionGeometryGlobals = globals.Observe50D300(graphics.ActionContext!) };
+        return graphics;
     }
 }

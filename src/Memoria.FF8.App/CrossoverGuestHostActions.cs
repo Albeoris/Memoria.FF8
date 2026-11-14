@@ -74,11 +74,10 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         ValidateItemQueue();
         fire = saved?.Fire;
         NativeBattleGraphicsResource sourceResource = assets.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = kit.CharacterId, WeaponId = kit.Weapon });
-        fireProgram = new(game, sourceResource, assets, ReadSceneParticipants, ReadPresentationParticipant, ReadPresentationSceneContext, () => host.Actors.Count(actor => actor.Actor.Slot < 3));
+        fireProgram = new(game, sourceResource, assets, ReadSceneParticipants, ReadPresentationParticipant, ReadPresentationSceneContext, () => host.Actors.Count(actor => actor.Actor.Slot < 3), sourcePrograms: kit.Limit.Command == 5 ? game.ReadNativeRenzokukenResources() : default);
         limitResource = sourceResource;
         attack.BindNativeTargetGeometry((placement, slot) => encounter.GuestAt(slot) is null ? null : ReadAbilityForeign(placement, slot));
         limitProgram = new(game, sourceResource, graphicsRules);
-        roughDivideProgram = new(game, sourceResource, graphicsRules.SummonColors!);
         limitOptions = originLimitOptions;
         limitUiRandom = limitOptions is null ? null : saved?.LimitUiRandom ?? originLimitUiRandom;
         limitSelection = saved?.LimitSelection ?? CrossoverNativeRenzokukenSelection.Begin(host.RequestId, host.Formation.FormationId);
@@ -497,6 +496,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
             attack.ResumeStandingFromCast(current.Presentation.Cast.Model with { Index = ActorSlot }, hostTick, clock.Subticks, clock.HalfSubtick);
             current.Presentation.Effect?.Dispose();
             fire = null;
+            selectedContinuation = null;
         }
         return new(hit, fire is null) { GroupHits = groupHits, CompositeContacts = compositeContacts };
     }
@@ -526,6 +526,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
     public void CancelAtTerminal()
     {
         CancelProcess();
+        selectedContinuation = null;
         limit = null;
         if (fire is { } current)
         {

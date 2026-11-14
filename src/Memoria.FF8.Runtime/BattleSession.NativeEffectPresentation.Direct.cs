@@ -15,6 +15,10 @@ public sealed partial class BattleSession
         {
             return false;
         }
+        if (presentationSelectedModulePhase is not null)
+        {
+            return presentationSelectedModuleComplete;
+        }
         NativeBattleGraphicsState graphics = NativeGraphics ?? throw new InvalidOperationException("The presentation has no current graphics owner.");
         NativeBattleEffectParameters parameters = graphics.OriginalEffect?.Parameters ?? throw new InvalidDataException("The current presentation service lost its parameter owner.");
         NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[parameters.HeaderIndex7C];

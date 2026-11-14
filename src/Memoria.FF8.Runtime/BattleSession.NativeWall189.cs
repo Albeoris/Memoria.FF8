@@ -407,6 +407,10 @@ public sealed partial class BattleSession
         void Emit(NativeBattleGfGeometryBatch batch)
         {
             batch = NativeBattleWall189Presentation.Depths(batch);
+            if (presentationArena is { } arena && arena.TryReadCapture(384, 256, out NativeBattleArenaCaptureMaterial? captured))
+            {
+                batch = NativeBattleArenaDrawing.BindCaptureRegion(batch, captured!);
+            }
             NativeBattleRegionalPacketWrite written = NativeBattleRegionalPacketArena.Append(state.Packets, "2296A30", cursor, 0x1C000, graphics.PrimitiveFrame!.Pending, batch);
             state = state with { Packets = written.Arena };
             graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = written.Ordering } };

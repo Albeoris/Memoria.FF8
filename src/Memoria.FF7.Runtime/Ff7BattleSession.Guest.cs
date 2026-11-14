@@ -36,6 +36,7 @@ public sealed record Ff7BattleGuestAttackUpdate(Ff7BattleGuestPhysicalHit? Hit, 
     public byte? AttackTargetCue { get; init; }
     public int? LimitPresentedContact { get; init; }
     public byte? LimitTargetCue { get; init; }
+    public Ff7BattleGuestContinuation? Continuation { get; init; }
 }
 
 /// <summary>Owns one origin-specific physical presentation and its immutable contact description.</summary>
@@ -417,7 +418,7 @@ public sealed partial class Ff7BattleSession
 
     private void ApplyGuestHit(Ff7BattleQueuedCommand command, int targetSlot, Ff7BattleGuestPhysicalHit hit)
     {
-        PublishNativeActionContext(command, hit.Elements, hit.Attack.UsePhysicalStats ? (ushort)0 : (ushort)4);
+        PublishNativeActionContext(state.Action?.GuestContinuation?.Origin ?? command, hit.Elements, hit.Attack.UsePhysicalStats ? (ushort)0 : (ushort)4);
         Ff7BattleActorState source = Actor(command.ActorSlot);
         Ff7BattleActorState target = Actor(targetSlot);
         if (command.CommandId == (byte)Ff7BattleCommand.Item)
@@ -441,7 +442,12 @@ public sealed partial class Ff7BattleSession
             {
                 Replace(source with { Actor = source.Actor with { HitPoints = receipt.Source.Hp, MagicPoints = receipt.Source.Mp, Statuses = receipt.Source.Statuses } });
             }
-            PublishHit(command, target, attack, receipt);
+            bool continuation = state.Action?.GuestContinuation is not null;
+            PublishHit(command, target, attack, receipt, runCounters: !continuation);
+            if (continuation)
+            {
+                RecordGuestContinuationContact(targetSlot, !receipt.Damage.Missed, (receipt.AddedStatuses & Ff7NativeBattleActionResolver.Death) != 0, attack.UsePhysicalStats);
+            }
             if (!prepared.Receipt.Damage.Missed && hit.ProcessOperation is { } operation)
             {
                 if (RequireGuestAttack(command) is not IFf7BattleGuestProcess { ProcessActive: true } process || !operation.Supported)
@@ -457,7 +463,7 @@ public sealed partial class Ff7BattleSession
             if (!prepared.Receipt.Damage.Missed && !attack.Healing)
             {
                 state = state with { Reaction = new(targetSlot, Tick) };
-                if (targetSlot >= 4 && (receipt.AddedStatuses & Ff7NativeBattleActionResolver.Death) != 0)
+                if (!continuation && targetSlot >= 4 && (receipt.AddedStatuses & Ff7NativeBattleActionResolver.Death) != 0)
                 {
                     AdmitGuestKnockout(prepared.Invocation);
                 }

@@ -2,7 +2,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleGraphicsState InitializeEffectPresentationSourceResources(NativeBattleGraphicsState graphics, NativeBattleGraphicsResource resource)
+    private NativeBattleGraphicsState InitializeEffectPresentationSourceResources(NativeBattleGraphicsState graphics, NativeBattleGraphicsResource resource, bool preserveSelectedProgram = false)
     {
         if (resource.ModelLoadSources is not { IsEmpty: false })
         {
@@ -22,7 +22,12 @@ public sealed partial class BattleSession
         Load(model);
         Load(checked((ushort)(0x1000 + model)));
         loading = graphics.Models[0];
-        return graphics with { Models = graphics.Models.SetItem(0, loading with { Flags0 = source.Flags0, OriginalResourceRow104 = loading.ActiveResourceRow100 }) };
+        loading = loading with { Flags0 = source.Flags0, OriginalResourceRow104 = loading.ActiveResourceRow100 };
+        if (preserveSelectedProgram && source.ResourceMagicId is not null)
+        {
+            loading = loading with { ResourceMagicId = source.ResourceMagicId, ResourceRenzokukenTargetBank = source.ResourceRenzokukenTargetBank, ActiveAnimationDirectory = source.ActiveAnimationDirectory, ActiveAnimationBank = source.ActiveAnimationBank };
+        }
+        return graphics with { Models = graphics.Models.SetItem(0, loading) };
 
         void Load(ushort request)
         {

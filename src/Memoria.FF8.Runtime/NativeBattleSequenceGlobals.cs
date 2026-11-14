@@ -1,5 +1,8 @@
 namespace Memoria.FF8.Runtime;
 
+/// <summary>Shared sequence expression WORDs carried between source program invocations.</summary>
+public sealed record NativeBattleSequenceProcessGlobals(short? Sine, short? Cosine);
+
 public sealed partial record NativeBattleEffectMemory
 {
     public short? SequenceSine { get; init; }

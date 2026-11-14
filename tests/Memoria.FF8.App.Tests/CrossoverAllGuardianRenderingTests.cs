@@ -63,7 +63,7 @@ public sealed class CrossoverAllGuardianRenderingTests(ITestOutputHelper output)
         Run(name, false, character: character, crisis: crisis);
     }
 
-    private void Run(string name, bool friendly, int? targetSlot = null, byte character = 0, byte crisis = 0)
+    internal void Run(string name, bool friendly, int? targetSlot = null, byte character = 0, byte crisis = 0)
     {
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR")) && !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR")), "Select both original game installations.");
         using GpuTestDevice device = new();

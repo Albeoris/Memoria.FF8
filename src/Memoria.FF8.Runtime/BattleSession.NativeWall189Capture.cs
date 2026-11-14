@@ -15,43 +15,50 @@ public sealed partial class BattleSession
         state = state with { Environment = Link(NativeBattleDrawEnvironmentPackets.Restore45C0F0(state.Environment, alternate), "2295BC0", 0) };
         NativeBattleCameraProjection projection = NativeBattleWall189Motion.Capture(center);
         NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native Wall capture requires its current stage.");
-        NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(NativeFileStaging!, 44);
-        uint context = allocation.Address;
-        NativeBattleFileStaging staging = allocation.Staging.Write(context + 4, BitConverter.GetBytes(0x196B018u - checked((uint)(NativeModelCpuResources!.ScratchMaximum!.Value * 8)))).Write(context + 16, BitConverter.GetBytes(uint.MaxValue)).Write(context + 32, BitConverter.GetBytes(uint.MaxValue));
-        staging = staging.Write(context + 20, BitConverter.GetBytes((short)0)).Write(context + 22, BitConverter.GetBytes((short)0)).Write(context + 24, BitConverter.GetBytes((short)320)).Write(context + 26, BitConverter.GetBytes((short)216));
-        for (int index = 3; index >= 0; index--)
+        if (presentationArena is { } arena)
         {
-            NativeBattleStageGroup group = stage.Groups[index];
-            if ((group.Flags & 3) != 3)
-            {
-                continue;
-            }
-            NativeBattlePoseSource source = group.Source ?? throw new NotSupportedException("Native Wall capture requires its current stage skeleton.");
-            NativeBattleDecodedPose pose = source.Sample(group.Animation, group.Counter, group.PoseFlags);
-            group = group with { Matrices = NativeBattlePoseMatrices.ComposeStageCamera(NativeBattlePoseMatrices.StageBoneMatrices(source, pose), projection.View!, 0) };
-            stage = stage with { Groups = stage.Groups.SetItem(index, group) };
-            staging = staging.Write(context + 28, BitConverter.GetBytes(group.ColorFlags)).Write(context + 36, BitConverter.GetBytes(group.ColorDepth));
-            var gate = process.Enter5099D0(definition.NativeGraphics?.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Native Wall capture requires its actual renderer capability."));
-            process = gate.Process;
-            if (!gate.Draw)
-            {
-                continue;
-            }
-            ImmutableArray<NativeBattleRawMesh> geometry = RequireNativeStageGeometry().Where(mesh => mesh.StageGroup == index).ToImmutableArray();
-            int capacity = checked(NativeModelCpuResources!.ScratchMaximum!.Value * 8);
-            uint workspace = checked(0x196B018u - (uint)capacity);
-            (byte[] retained, _) = staging.ReadSnapshot(workspace, capacity);
-            NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(geometry, group.Matrices, projection, group.ColorFlags, uint.MaxValue, retained.ToImmutableArray(), definition.NativeGraphics!.Rules.SummonColors!, 16, new(0, 0, 320, 216), 17, group.ColorDepth, pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + index) } : null, pilotScreenSpace: true, pilotContinuous: false);
-            NativeBattleRegionalPacketWrite written = NativeBattleRegionalPacketArena.Append(state.Packets, "2296A30", cursor, 0x1C000, graphics.PrimitiveFrame!.Pending, pilotIdentity.HasValue ? NativeBattleWall189Presentation.Depths(drawn.Packets) : drawn.Packets);
-            state = state with { Packets = written.Arena };
-            graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = written.Ordering } };
-            cursor = written.Cursor;
-            staging = staging.Write(workspace, drawn.ProjectedScratch.AsSpan().Slice(0, drawn.ProjectedBytesWritten));
-            process = process.PublishModelColor(group.ColorFlags).Publish50FDF0(checked(0x2296A30u + (uint)cursor), null);
+            arena.Capture(pilotIdentity ?? throw new NotSupportedException("Host arena capture requires its actual task owner."), arena.Geometry, projection, 256, 256, 384, 256);
         }
-        NativeStage = stage;
+        else
+        {
+            NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(NativeFileStaging!, 44);
+            uint context = allocation.Address;
+            NativeBattleFileStaging staging = allocation.Staging.Write(context + 4, BitConverter.GetBytes(0x196B018u - checked((uint)(NativeModelCpuResources!.ScratchMaximum!.Value * 8)))).Write(context + 16, BitConverter.GetBytes(uint.MaxValue)).Write(context + 32, BitConverter.GetBytes(uint.MaxValue));
+            staging = staging.Write(context + 20, BitConverter.GetBytes((short)0)).Write(context + 22, BitConverter.GetBytes((short)0)).Write(context + 24, BitConverter.GetBytes((short)320)).Write(context + 26, BitConverter.GetBytes((short)216));
+            for (int index = 3; index >= 0; index--)
+            {
+                NativeBattleStageGroup group = stage.Groups[index];
+                if ((group.Flags & 3) != 3)
+                {
+                    continue;
+                }
+                NativeBattlePoseSource source = group.Source ?? throw new NotSupportedException("Native Wall capture requires its current stage skeleton.");
+                NativeBattleDecodedPose pose = source.Sample(group.Animation, group.Counter, group.PoseFlags);
+                group = group with { Matrices = NativeBattlePoseMatrices.ComposeStageCamera(NativeBattlePoseMatrices.StageBoneMatrices(source, pose), projection.View!, 0) };
+                stage = stage with { Groups = stage.Groups.SetItem(index, group) };
+                staging = staging.Write(context + 28, BitConverter.GetBytes(group.ColorFlags)).Write(context + 36, BitConverter.GetBytes(group.ColorDepth));
+                var gate = process.Enter5099D0(definition.NativeGraphics?.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Native Wall capture requires its actual renderer capability."));
+                process = gate.Process;
+                if (!gate.Draw)
+                {
+                    continue;
+                }
+                ImmutableArray<NativeBattleRawMesh> geometry = RequireNativeStageGeometry().Where(mesh => mesh.StageGroup == index).ToImmutableArray();
+                int capacity = checked(NativeModelCpuResources!.ScratchMaximum!.Value * 8);
+                uint workspace = checked(0x196B018u - (uint)capacity);
+                (byte[] retained, _) = staging.ReadSnapshot(workspace, capacity);
+                NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(geometry, group.Matrices, projection, group.ColorFlags, uint.MaxValue, retained.ToImmutableArray(), definition.NativeGraphics!.Rules.SummonColors!, 16, new(0, 0, 320, 216), 17, group.ColorDepth, pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + index) } : null, pilotScreenSpace: true, pilotContinuous: false);
+                NativeBattleRegionalPacketWrite written = NativeBattleRegionalPacketArena.Append(state.Packets, "2296A30", cursor, 0x1C000, graphics.PrimitiveFrame!.Pending, pilotIdentity.HasValue ? NativeBattleWall189Presentation.Depths(drawn.Packets) : drawn.Packets);
+                state = state with { Packets = written.Arena };
+                graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = written.Ordering } };
+                cursor = written.Cursor;
+                staging = staging.Write(workspace, drawn.ProjectedScratch.AsSpan().Slice(0, drawn.ProjectedBytesWritten));
+                process = process.PublishModelColor(group.ColorFlags).Publish50FDF0(checked(0x2296A30u + (uint)cursor), null);
+            }
+            NativeFileStaging = NativeBattleTemporaryMemory.Release5082D0(staging, 44);
+            NativeStage = stage;
+        }
         NativeEffectMemory = NativeEffectMemory with { PrimitiveProcess = process };
-        NativeFileStaging = NativeBattleTemporaryMemory.Release5082D0(staging, 44);
         state = state with { ClearPacket = Link(state.ClearPacket, "D1B490", 1) };
         state = state with { Area = Link(NativeBattleDrawEnvironmentPackets.Area45C940(state.Area, 384, 256, 256, 256), "2293F50", 0) };
         state = state with { Offset = Link(NativeBattleDrawEnvironmentPackets.Offset45C9B0(state.Offset, 384, 256), "2294DA0", 0), CaptureX = 384, CaptureY = 256 };

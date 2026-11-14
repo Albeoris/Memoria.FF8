@@ -11,6 +11,7 @@ internal sealed record CrossoverGuestRenzokukenHostState(Ff7BattleGuestInvocatio
 {
     public long? FinisherNumericTick { get; init; }
     public CrossoverNativeRoughDivideState? Rough { get; init; }
+    public ushort FinisherTargets { get; init; }
     public CrossoverNativeLimitCamera? Camera { get; init; }
 }
 
@@ -19,16 +20,25 @@ internal sealed partial class CrossoverGuestHostActions
     private readonly NativeBattleGraphicsResource limitResource;
     private readonly CrossoverNativeRenzokukenProgram limitProgram;
     private readonly ushort? limitOptions;
-    private readonly CrossoverNativeRoughDivideProgram roughDivideProgram;
     private NativeBattleUiRandomState? limitUiRandom;
     private CrossoverNativeRenzokukenSelection? limitSelection;
     private CrossoverGuestRenzokukenHostState? limit;
 
     public bool LimitReady => kit.Limit.Command == 5 && limitOptions is ushort options && ((options & 1) == 0 || limitUiRandom is not null) && limitSelection is { Crisis: > 0 } selected && SelectsSupported(selected);
-    public int PublishedContacts => limit is { } current ? current.Program.Trigger.Consumed + (current.FinisherNumericTick is null ? 0 : 1) : 0;
+    public int PublishedContacts => limit?.Program.Trigger.Consumed ?? 0;
     public SceneCameraPlacement? LeasedCamera => limit is { } current ? current.Camera?.ForHost(current.Placement) : null;
     public CrossoverNativeRenzokukenTrigger? RenzokukenTrigger => limit?.Program.Trigger;
-    public bool SupportsLimit(Ff7BattleGuestAttackTarget target) => attack.Supports(target);
+    public bool SupportsLimit(Ff7BattleGuestAttackTarget target) => LimitTargetUnsupportedReason(target) is null;
+
+    public string? LimitTargetUnsupportedReason(Ff7BattleGuestAttackTarget target)
+    {
+        if (!attack.Supports(target) || limitSelection is not { Crisis: > 0 } selection)
+        {
+            return "The original Limit source or selected target is not ready.";
+        }
+        _ = selection.Select(kit.FinisherFlags, out CrossoverNativeRenzokukenPlan plan);
+        return plan.Finisher is not byte finisher ? null : PresentationUnsupportedReason(SelectedFinisherAction(finisher), CrossoverGuestAbilityCatalog.Key(249, finisher), target.Slot);
+    }
 
     public Action? PrepareLimitReady(long hostTick, Ff7BattleAiActor source, int deadParty)
     {
@@ -57,7 +67,7 @@ internal sealed partial class CrossoverGuestHostActions
     private bool SelectsSupported(CrossoverNativeRenzokukenSelection selected)
     {
         _ = selected.Select(kit.FinisherFlags, out CrossoverNativeRenzokukenPlan plan);
-        return plan.Finisher is null or 0;
+        return plan.Finisher is not byte finisher || CrossoverBattleAbilityRules.UnsupportedReason(SelectedFinisherAction(finisher)) is null;
     }
 
     private CrossoverFf8BattleActorVisual? LimitVisual
@@ -68,8 +78,8 @@ internal sealed partial class CrossoverGuestHostActions
             {
                 return null;
             }
-            NativeBattleGraphicsModel model = current.Rough?.Model ?? current.Program.Model;
-            NativeBattleEffectMemory memory = current.Rough?.Frame.Memory ?? current.Program.Effect.Frame.Memory;
+            NativeBattleGraphicsModel model = current.Program.Model;
+            NativeBattleEffectMemory memory = current.Program.Effect.Frame.Memory;
             return basis with { Model = model, OriginToHost = current.Placement.Matrix, BodyTextures = model.BodyTextureSlots, Textures = memory.Textures };
         }
     }
@@ -82,11 +92,11 @@ internal sealed partial class CrossoverGuestHostActions
             {
                 return null;
             }
-            NativeBattleEffectMemory memory = current.Rough?.Frame.Memory ?? effect.Frame.Memory;
-            short depth = current.Rough?.StageDepth ?? effect.StageDepth;
-            return new(compositor, current.Rough is null ? current.Program.OpeningDraws : [], memory.Textures!, current.Placement.Matrix, CrossoverGunbladeHostPlacement.OriginToHostScale)
+            NativeBattleEffectMemory memory = effect.Frame.Memory;
+            short depth = effect.StageDepth;
+            return new(compositor, current.Program.OpeningDraws, memory.Textures!, current.Placement.Matrix, CrossoverGunbladeHostPlacement.OriginToHostScale)
             {
-                Ordering = current.Rough?.Ordering ?? effect.Ordering,
+                Ordering = effect.Ordering,
                 Memory = memory,
                 StageColor = depth == 0 ? null : new(graphicsRules.SummonColors!, depth)
             };
@@ -100,16 +110,12 @@ internal sealed partial class CrossoverGuestHostActions
             throw new InvalidDataException("The guest Renzokuken lacks its retained Crisis selection or loaded source occurrence.");
         }
         CrossoverNativeRenzokukenSelection next = limitSelection!.Select(kit.FinisherFlags, out CrossoverNativeRenzokukenPlan plan);
-        if (plan.Finisher is not (null or 0))
-        {
-            throw new NotSupportedException($"The selected Squall finisher {plan.Finisher} has no mixed-battle presentation contract.");
-        }
         CrossoverGunbladeHostPlacement placement = new(Ff7BattlePosition.FromVector(source.Position), source.Yaw);
         (_, short yaw, _, int distance) = placement.ResolveContact(target.Placement, target.CollisionRadius);
         CrossoverNativeRenzokukenProgramState program = limitProgram.Begin(visual.Model with { Index = 0 }, target.Slot, plan.Variant, plan.Finisher is not null, distance, yaw, encounter.CrtRandom, options, limitUiRandom);
         NativeBattleGraphicsPresentationStep clock = NativeBattleGraphicsPresentationClock.Advance(0, false, TimeSpan.FromTicks(HostTime(invocation.StartedAt)));
         CrossoverNativeLimitCamera camera = CrossoverNativeLimitCamera.Capture(program.Model, limitResource.PoseSource!, placement, target.Placement.Position, host.GuestEffectTargetAnchor(target.Slot));
-        limit = new(invocation, invocation.StartedAt, clock.Subticks, clock.HalfSubtick, placement, plan, program) { Camera = camera };
+        limit = new(invocation, invocation.StartedAt, clock.Subticks, clock.HalfSubtick, placement, plan, program) { Camera = camera, FinisherTargets = plan.Finisher is byte selected ? AbilityTargetMask(SelectedFinisherAction(selected), target.Slot) : (ushort)0 };
         limitSelection = next;
     }
 
@@ -132,66 +138,32 @@ internal sealed partial class CrossoverGuestHostActions
             }
             CrossoverNativeLimitCamera camera = current.Camera ?? throw new InvalidDataException("The active guest Limit has no source camera lease.");
             (NativeBattleCameraProjection projection, short roll) = camera.ForEffects(host.RenderCameraOutput, current.Placement);
-            if (current.Rough is { } rough || program.FinisherReady && current.FinisherNumericTick is not null)
+            CrossoverNativeRenzokukenProgramStep next = limitProgram.Advance(program, projection, roll);
+            program = next.State;
+            limitUiRandom = program.Trigger.Random;
+            encounter.CrtRandom = program.Effect.Frame.Random;
+            if (next.Timing is { } timing)
             {
-                rough = current.Rough ?? BeginRough(current);
-                CrossoverNativeRoughDivideStep next = roughDivideProgram.Advance(rough, limitProgram.BindReplacement(program.Effect), ReadForeignPosition, projection, roll);
-                current = current with { Rough = next.State };
-                encounter.CrtRandom = next.State.Frame.Random;
-                if (next.Contact)
-                {
-                    presented = program.Trigger.Consumed + 1;
-                }
-                targetCue = next.TargetCue;
-                foreach (NativeBattleModuleSound sound in next.Sounds)
-                {
-                    QueueLimitSound(sound, projection);
-                }
+                hit = CrossoverNativeRenzokukenPlan.ProjectContact(kit, timing.Timing);
             }
-            else
+            presented = next.Contact?.ContactIndex;
+            targetCue = next.TargetCue;
+            foreach (NativeBattleModuleSound sound in next.Sounds)
             {
-                CrossoverNativeRenzokukenProgramStep next = limitProgram.Advance(program, projection, roll);
-                program = next.State;
-                limitUiRandom = program.Trigger.Random;
-                encounter.CrtRandom = program.Effect.Frame.Random;
-                if (next.Timing is { } timing)
-                {
-                    hit = CrossoverNativeRenzokukenPlan.ProjectContact(kit, timing.Timing);
-                }
-                if (program.FinisherReleasePhase == 2 && current.FinisherNumericTick is null)
-                {
-                    if (hit is not null || current.Plan.Finisher != 0 || program.PreparedContact is not null)
-                    {
-                        throw new InvalidDataException("Rough Divide reached its native formula before the final ordinary contact was consumed.");
-                    }
-                    limitSelection = limitSelection!.ProjectRoughDivide(kit, RoughDivideAction(), out Ff7BattleGuestPhysicalHit finisher);
-                    hit = finisher;
-                    current = current with { FinisherNumericTick = hostTick };
-                }
-                presented = next.Contact?.ContactIndex;
-                targetCue = next.TargetCue;
-                foreach (NativeBattleModuleSound sound in next.Sounds)
-                {
-                    QueueLimitSound(sound, projection);
-                }
-                if (next.TriggerSound)
-                {
-                    NativeBattleGraphicsResource resource = program.Model.ResourceMagicId is null ? limitResource : limitProgram.BindReplacement(program.Effect);
-                    NativeBattleVector point = NativeBattlePoseMatrices.ReadBone(program.Model, resource.PoseSource!, 241, 0);
-                    NativeBattleModuleSound sound = NativeBattleTriggerAudio.Resolve501640(0, point, projection.ReadPan(point), graphicsRules.ActorSounds1120);
-                    QueueSound(hostTick, CrossoverGuestAudioKind.Trigger, sound, current.Placement.Matrix);
-                }
+                QueueLimitSound(sound, projection);
+            }
+            if (next.TriggerSound)
+            {
+                NativeBattleGraphicsResource resource = program.Model.ResourceMagicId is null ? limitResource : limitProgram.BindReplacement(program.Effect);
+                NativeBattleVector point = NativeBattlePoseMatrices.ReadBone(program.Model, resource.PoseSource!, 241, 0);
+                NativeBattleModuleSound sound = NativeBattleTriggerAudio.Resolve501640(0, point, projection.ReadPan(point), graphicsRules.ActorSounds1120);
+                QueueSound(hostTick, CrossoverGuestAudioKind.Trigger, sound, current.Placement.Matrix);
             }
             if (program.Opening is null && program.Effect.Callbacks > 0)
             {
-                NativeBattleGraphicsModel model = current.Rough?.Model ?? program.Model;
-                NativeBattleEffectTextureState textures = current.Rough?.Frame.Memory.Textures ?? program.Effect.Frame.Memory.Textures!;
-                NativeBattleGraphicsResource poseResource = model.ResourceMagicId switch
-                {
-                    163 => roughDivideProgram.ReadResource(current.Rough!.Frame),
-                    null => limitResource,
-                    _ => limitProgram.BindReplacement(program.Effect)
-                };
+                NativeBattleGraphicsModel model = program.Model;
+                NativeBattleEffectTextureState textures = program.Effect.Frame.Memory.Textures!;
+                NativeBattleGraphicsResource poseResource = model.ResourceMagicId is null ? limitResource : limitProgram.BindReplacement(program.Effect);
                 if (textures.Animation is { } animation)
                 {
                     camera = camera.Advance(animation, model, poseResource.PoseSource!, host.RenderCameraOutput, current.Placement);
@@ -199,10 +171,19 @@ internal sealed partial class CrossoverGuestHostActions
                 current = current with { Camera = camera };
             }
         }
-        bool complete = current.Rough?.Complete ?? program.Complete;
+        if (program.FinisherReady)
+        {
+            BattleNativeAction action = SelectedFinisherAction(current.Plan.Finisher ?? throw new InvalidDataException("The native handoff has no selected child action."));
+            ushort targets = current.FinisherTargets != 0 ? current.FinisherTargets : checked((ushort)(1 << current.Invocation.TargetSlot));
+            selectedContinuation = new(action, targets, program, current.Placement);
+            attack.ResumeStandingFromCast(program.Model with { Index = ActorSlot }, hostTick, clock.Subticks, clock.HalfSubtick, completed: false);
+            limit = null;
+            return new(hit, true) { LimitPresentedContact = presented, LimitTargetCue = targetCue, Continuation = new(CrossoverGuestAbilityCatalog.Key(action.Command, action.ActionId), targets) };
+        }
+        bool complete = program.Complete;
         if (complete)
         {
-            NativeBattleGraphicsModel final = current.Rough?.Model ?? program.Model;
+            NativeBattleGraphicsModel final = program.Model;
             attack.ResumeStandingFromCast(final with { Index = ActorSlot }, hostTick, clock.Subticks, clock.HalfSubtick);
             limit = null;
         }
@@ -221,34 +202,11 @@ internal sealed partial class CrossoverGuestHostActions
             QueueSound(hostTick, CrossoverGuestAudioKind.Module, sound, current.Placement.Matrix);
         }
 
-        NativeBattleModuleAnchor ReadForeignPosition()
-        {
-            if (!Matrix4x4.Invert(current.Placement.Matrix, out Matrix4x4 inverse))
-            {
-                throw new InvalidDataException("Rough Divide lost its origin-to-host placement.");
-            }
-            Vector3 anchor = Vector3.Transform(host.VisualPlacement(current.Invocation.TargetSlot).Position, inverse);
-            return new(Word(anchor.X), Word(anchor.Y), Word(anchor.Z), 0);
-        }
     }
 
-    private BattleNativeAction RoughDivideAction() => assets.NativeActions.Single(action => action is { Command: 249, ActionId: 0, MagicId: 163 });
+    private BattleNativeAction SelectedFinisherAction(byte id) => assets.NativeActions.Single(action => action.Command == 249 && action.ActionId == id);
 
-    private CrossoverNativeRoughDivideState BeginRough(CrossoverGuestRenzokukenHostState current)
-    {
-        if (host.LastHit is not { } hit || hit.Tick != current.FinisherNumericTick || hit.Source != ActorSlot || hit.Target != current.Invocation.TargetSlot)
-        {
-            throw new InvalidDataException("Rough Divide lost its original host numerical receipt.");
-        }
-        BattleNativeAction action = RoughDivideAction();
-        byte flags = hit.Damage.Missed ? (byte)4 : hit.Damage.Critical ? (byte)2 : (byte)0;
-        NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(action.DamagePresentation, 0, flags, (byte)(action.AttackFlags & 3), 255);
-        ushort death = (ushort)(host.Actors.Single(actor => actor.Actor.Slot == hit.Target).Actor.Statuses & 1);
-        NativeBattleContactHalf contact = NativeBattleContactHalf.FromScratch(3, presentation.Sequence, presentation.Flags2, presentation.HitFlags3, death, hit.Damage.Damage, 0);
-        return roughDivideProgram.Begin(current.Program, contact);
-    }
-
-    private CrossoverGuestRenzokukenHostState? CaptureLimit() => limit is { } current ? current with { Program = CrossoverNativeRenzokukenProgram.Capture(current.Program), Rough = current.Rough is { } rough ? CrossoverNativeRoughDivideProgram.Capture(rough) : null } : null;
+    private CrossoverGuestRenzokukenHostState? CaptureLimit() => limit is { } current ? current with { Program = CrossoverNativeRenzokukenProgram.Capture(current.Program) } : null;
 
     private CrossoverGuestRenzokukenHostState? RestoreLimit(CrossoverGuestRenzokukenHostState? saved)
     {
@@ -256,12 +214,12 @@ internal sealed partial class CrossoverGuestHostActions
         {
             return null;
         }
-        if (limitOptions != saved.Program.Trigger.Options || limitSelection is null || fire is not null || attack.Invocation is not null || saved.Invocation.GuestCommand != 5 || saved.Invocation.RequestId != host.RequestId || saved.Invocation.FormationId != host.Formation.FormationId || saved.Invocation.ActorSlot != ActorSlot || saved.Invocation.TargetSlot != saved.Program.Effect.HostTarget || saved.HostTick != host.Tick || saved.HostTick < saved.Invocation.StartedAt || saved.Plan.Finisher is not (null or 0) || saved.Plan.Variant != saved.Program.Effect.Frame.Effect.Binding.Effect || (saved.Rough?.Frame.Random ?? saved.Program.Effect.Frame.Random) != encounter.CrtRandom || saved.Program.Trigger.Random != limitUiRandom || saved.FinisherNumericTick > saved.HostTick || saved.Plan.Finisher is null && (saved.FinisherNumericTick is not null || saved.Rough is not null) || saved.Rough is not null && (saved.FinisherNumericTick is null || !saved.Program.FinisherReady))
+        if (limitOptions != saved.Program.Trigger.Options || limitSelection is null || fire is not null || attack.Invocation is not null || saved.Invocation.GuestCommand != 5 || saved.Invocation.RequestId != host.RequestId || saved.Invocation.FormationId != host.Formation.FormationId || saved.Invocation.ActorSlot != ActorSlot || saved.Invocation.TargetSlot != saved.Program.Effect.HostTarget || saved.HostTick != host.Tick || saved.HostTick < saved.Invocation.StartedAt || saved.Plan.Variant != saved.Program.Effect.Frame.Effect.Binding.Effect || saved.Program.Effect.Frame.Random != encounter.CrtRandom || saved.Program.Trigger.Random != limitUiRandom || saved.FinisherNumericTick > saved.HostTick || saved.FinisherNumericTick is not null || saved.Rough is not null)
         {
             throw new InvalidDataException("The saved guest Renzokuken contradicts its native source and host queue occurrence.");
         }
         CrossoverNativeLimitCamera camera = saved.Camera ?? CrossoverNativeLimitCamera.Capture(saved.Program.Model, limitResource.PoseSource!, saved.Placement, host.VisualPlacement(saved.Invocation.TargetSlot).Position, host.GuestEffectTargetAnchor(saved.Invocation.TargetSlot));
         camera.Validate();
-        return saved with { Camera = camera, Program = CrossoverNativeRenzokukenProgram.Restore(saved.Program), Rough = saved.Rough is { } rough ? CrossoverNativeRoughDivideProgram.Restore(rough) : null };
+        return saved with { Camera = camera, Program = CrossoverNativeRenzokukenProgram.Restore(saved.Program) };
     }
 }

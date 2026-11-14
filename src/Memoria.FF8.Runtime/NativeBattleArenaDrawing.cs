@@ -27,6 +27,7 @@ public static class NativeBattleArenaDrawing
 
     private static bool SamplesCapture(ImmutableArray<uint> words, NativeBattleArenaCaptureMaterial material)
     {
+        words = PolygonWords(words);
         if (words.Length < 2 || ((words[1] >> 24) & 0xE4) != 0x24)
         {
             return false;
@@ -66,6 +67,7 @@ public static class NativeBattleArenaDrawing
 
     public static NativeBattlePilotVisualGeometry BindCapture(NativeBattlePilotVisualGeometry geometry, ImmutableArray<uint> words, NativeBattleArenaCaptureMaterial material)
     {
+        words = PolygonWords(words);
         byte command = (byte)(words[1] >> 24);
         if ((command & 0xE4) != 0x24)
         {
@@ -83,6 +85,16 @@ public static class NativeBattleArenaDrawing
             uv.Add(new(((page & 15) * 64 - material.NativeX + (value & 255) / (float)pixelsPerWord) / material.Width, ((page & 16) * 16 - material.NativeY + (value >> 8 & 255)) / (float)material.Height));
         }
         return geometry with { ForeignSurface = new(material, uv.ToImmutable(), Enumerable.Repeat(Vector4.One, corners).ToImmutableArray()) };
+    }
+
+    private static ImmutableArray<uint> PolygonWords(ImmutableArray<uint> words)
+    {
+        int command = 1;
+        while (command < words.Length && words[command] >> 24 is >= 0xE1 and <= 0xE6)
+        {
+            command++;
+        }
+        return words.Slice(command - 1, words.Length - command + 1);
     }
 
     public static NativeBattleGfGeometryBatch Deform<TVertex>(NativeBattleArenaGeometry geometry, Func<NativeBattleVector, TVertex> deform, NativeBattlePilotVisualIdentity identity, Func<ImmutableArray<NativeBattleRawPolygon>, ImmutableArray<TVertex>, NativeBattlePilotVisualIdentity, NativeBattleGfGeometryBatch> emit)

@@ -27,6 +27,7 @@ public sealed record NativeBattleEffectPresentationInputs(BattleDefinition Resou
     public bool DeferInvocation { get; init; }
     public int? PartyActorCount { get; init; }
     public int? InitialMusicGain { get; init; }
+    public NativeBattleSequenceProcessGlobals? SequenceGlobals { get; init; }
 }
 
 public enum NativeBattleForeignSequenceKind
@@ -69,7 +70,7 @@ public sealed class NativeBattleEffectPresentation : IDisposable
     public bool ServiceComplete => owner.ReadEffectPresentationServiceComplete();
     public bool NativeBusy => owner.ReadEffectPresentationNativeBusy();
     public byte Parameter81 => Graphics.OriginalEffect?.Parameters?.Parameter81 ?? throw new InvalidOperationException("The presentation has no invoked parameter owner.");
-    public bool Complete => owner.EffectPresentationInvoked && Memory.ReadReturnedTask5044B0() == 0 && Graphics.ModuleEffects.Head is null && Graphics.Auxiliary.Head is null && !owner.HasPendingEffectPresentationEvents;
+    public bool Complete => owner.EffectPresentationInvoked && owner.EffectPresentationExecutionComplete && Memory.ReadReturnedTask5044B0() == 0 && Graphics.ModuleEffects.Head is null && Graphics.Auxiliary.Head is null && !owner.HasPendingEffectPresentationEvents;
     public NativeBattleStageColor StageColor => owner.ReadEffectPresentationStageColor();
     public short StageColorDepth => StageColor.Depth;
     public short ViewTranslationY => owner.NativeCamera?.ViewTranslationScratch?.Y ?? 0;

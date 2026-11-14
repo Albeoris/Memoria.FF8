@@ -32,6 +32,10 @@ internal sealed partial class CrossoverGuestHostActions
     private IReadOnlyList<CrossoverGuestAbility> ReadOriginAbilities()
     {
         IReadOnlyList<CrossoverGuestAbility> choices = ProcessAbilities(ReadIntegratedAbilities(ReadNativeAbilities()));
+        if (SelectedContinuationAbility is { } continuation)
+        {
+            choices = choices.Append(continuation).ToArray();
+        }
         if (host.GuestMagicPrepaidAbility(ActorSlot) is ushort prepaid && !choices.Any(choice => choice.Key == prepaid))
         {
             BattleNativeAction action = kit.Spells.Single(action => action.ActionId == prepaid);
@@ -80,6 +84,10 @@ internal sealed partial class CrossoverGuestHostActions
         if (choice is null)
         {
             return "The original ability is not available.";
+        }
+        if (IsSelectedContinuationTarget(ability, target))
+        {
+            return null;
         }
         return choice.NativeAction?.TargetFlags is byte flags && TargetSelectionUnsupportedReason(flags, target) is { } reason ? reason : AbilityUnsupportedReason(choice, target);
     }
@@ -180,7 +188,7 @@ internal sealed partial class CrossoverGuestHostActions
         }
         if (command == Ff7BattleCommand.Limit)
         {
-            return SupportsAbility(command, ability, target) ? null : "The selected native Limit process cannot target this actor.";
+            return ability == 0 ? LimitTargetUnsupportedReason(target) : "The selected native Limit process cannot target this actor.";
         }
         CrossoverGuestAbility? choice = ReadOriginAbilities().SingleOrDefault(choice => choice.Key == ability);
         if (choice?.NativeAction?.TargetFlags is not byte flags)
@@ -213,7 +221,7 @@ internal sealed partial class CrossoverGuestHostActions
             return ability == 0 && LimitReady && SupportsLimit(target);
         }
         CrossoverGuestAbility? choice = ReadOriginAbilities().SingleOrDefault(choice => choice.Key == ability);
-        return command == Ff7BattleCommand.Magic && choice?.NativeAction is { TargetFlags: byte flags } && CanSelectTarget(flags, target.Slot) && AbilityUnsupportedReason(choice, target.Slot) is null;
+        return command == Ff7BattleCommand.Magic && choice?.NativeAction is { TargetFlags: byte flags } && (IsSelectedContinuationTarget(ability, target.Slot) || CanSelectTarget(flags, target.Slot) && AbilityUnsupportedReason(choice, target.Slot) is null);
     }
 
     private bool CanSelectTarget(byte flags, int target) => TargetSelectionUnsupportedReason(flags, target) is null;
@@ -363,6 +371,10 @@ internal sealed partial class CrossoverGuestHostActions
 
     private ushort AbilityTargetMask(BattleNativeAction action, int target)
     {
+        if (selectedContinuation is { } continuation && action.Command == continuation.Action.Command && action.ActionId == continuation.Action.ActionId)
+        {
+            return continuation.Targets;
+        }
         byte flags = action.TargetFlags ?? throw new InvalidDataException("The original action has no target contract.");
         if ((flags & 0x30) == 0x10)
         {

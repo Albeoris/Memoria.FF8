@@ -7,7 +7,7 @@ internal sealed record CrossoverNativeCastState(NativeBattleGraphicsModel Model,
 {
     public bool GuardianInvocation { get; init; }
     public uint ServiceCallback { get; init; } = 0x50A9A0;
-    public bool ImmediateInvocation => ServiceCallback is 0x50BDC0 or 0x50BEE0 or 0x50B190;
+    public bool ImmediateInvocation => ServiceCallback is 0x50BDC0 or 0x50BEE0 or 0x50B190 or 0x50BC20;
     public bool RetainsProcess { get; init; }
     public byte? PendingSequence { get; init; }
     public bool Complete => Phase == 8 && (ReturnedToStanding || ImmediateInvocation || RetainsProcess);
@@ -24,12 +24,12 @@ internal static class CrossoverNativeCastPresentation
     public static CrossoverNativeCastState Begin(NativeBattleGraphicsModel model, NativeBattleGraphicsResource resource, ImmutableArray<byte> commandSequences, byte command, ushort action = 0, uint serviceCallback = 0x50A9A0)
     {
         byte sequence = NativeBattleActionGraphics.ResolvePlayerSequence(command, 0, action, commandSequences);
-        bool immediate = serviceCallback is 0x50BDC0 or 0x50BEE0 or 0x50B190;
+        bool immediate = serviceCallback is 0x50BDC0 or 0x50BEE0 or 0x50B190 or 0x50BC20;
         if (model is not { Index: 0, ModelId4: >= 0 and <= 10 } || !immediate && (model.Flags0 & 2) == 0 || commandSequences.Length != 39)
         {
             throw new InvalidDataException($"Mixed casting requires its loaded source character and command sequence (command {command}, action {action}, service {serviceCallback:X}, actor {model.Index}/{model.ModelId4}, flags {model.Flags0:X}, sequence {sequence}, available {resource.Contains(sequence)}).");
         }
-        if (serviceCallback is 0x50BDC0 or 0x50BEE0 or 0x50B190)
+        if (immediate)
         {
             return new(model, 0, false) { ServiceCallback = serviceCallback, RetainsProcess = serviceCallback is 0x50BDC0 or 0x50BEE0 };
         }

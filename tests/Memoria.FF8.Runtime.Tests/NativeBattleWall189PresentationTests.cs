@@ -53,6 +53,52 @@ public sealed class NativeBattleWall189PresentationTests
         Assert.All(native.Batch.Attempts, attempt => Assert.Null(attempt.Primitive?.PilotGeometry));
     }
 
+    [Theory]
+    [InlineData(19)]
+    [InlineData(20)]
+    [InlineData(48)]
+    public void Original_shield_clipping_composite_and_fade_packets_share_host_capture_region(short age)
+    {
+        NativeBattleStaticMeshResource mesh = Mesh();
+        byte[] bytes = mesh.Bytes.ToArray();
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(56), 0x00000000);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(60), 0x013600FF);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(54), 0xFF00);
+        mesh = mesh with { Bytes = bytes.ToImmutableArray() };
+        NativeBattleActionMatrix matrix = NativeBattleCuragaMatrices.Identity8DD770() with { Z = 4000 };
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
+        NativeBattlePilotVisualIdentity identity = new(189, 1, 2, 3, 4);
+        NativeBattleModuleMeshTemporaryResult drawn;
+        if (age < 20)
+        {
+            NativeBattleWall189Resources resources = new(null!, null!, null!, mesh, null!, 0, [], Selectors());
+            drawn = NativeBattleWall189ClipPackets.Emit5BD1C0(NativeBattleFileStaging.Unknown(), Temporary, resources, matrix, projection, age, 0x1D8E058, 0x2296A30, NativeBattleScriptedGraphicsMemory.FromColdProcess() with { Zsf3 = 0x155, Zsf4 = 0x100, Dqa = 0, Dqb = 0 }, identity);
+        }
+        else
+        {
+            drawn = NativeBattleWall189ShieldPackets.Emit64F6D0(NativeBattleFileStaging.Unknown(), Temporary, mesh, matrix, projection, age, NativeBattleGteColorInterpolation.CodeConstants45F270, identity);
+        }
+        NativeBattleForeignSurface source = new(new Material(), [Vector2.Zero, Vector2.UnitX, Vector2.UnitY], [Vector4.One, Vector4.One, Vector4.One]);
+        NativeBattleArenaGeometry arena = new([new(new(1, 2, 3), Vector3.Zero, Vector3.UnitX, Vector3.UnitZ, source)]);
+        NativeBattleArenaCaptureMaterial capture = new(arena, NativeBattleWall189Motion.Capture(new(0, 0, 0)), 256, 256) { NativeX = 384, NativeY = 256 };
+        NativeBattleGfGeometryBatch bound = NativeBattleArenaDrawing.BindCaptureRegion(drawn.Batch, capture);
+        Assert.Equal(drawn.Batch.AllocationBytes, bound.AllocationBytes);
+        Assert.Equal(drawn.Batch.Attempts.Select(attempt => attempt.Data), bound.Attempts.Select(attempt => attempt.Data));
+        Assert.Equal(drawn.Batch.Attempts.Select(attempt => attempt.WriteMask), bound.Attempts.Select(attempt => attempt.WriteMask));
+        NativeBattleGeometryPrimitive primitive = Assert.Single(bound.Attempts, attempt => attempt.Primitive is not null).Primitive!;
+        Assert.Same(capture, primitive.PilotGeometry!.ForeignSurface!.Material);
+        Assert.Equal(primitive.PilotGeometry.CornerCount, primitive.PilotGeometry.ForeignSurface.Uv.Length);
+        Assert.All(primitive.PilotGeometry.ForeignSurface.Uv, uv =>
+        {
+            Assert.InRange(uv.X, 0, 1);
+            Assert.InRange(uv.Y, 0, 1);
+        });
+    }
+
+    private sealed class Material : INativeBattleForeignMaterial
+    {
+    }
+
     [Fact]
     public void Particle_rows_retain_actual_task_owner_and_authored_row_and_break_on_successful_rebirth()
     {

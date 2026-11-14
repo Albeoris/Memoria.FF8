@@ -6,13 +6,13 @@ public sealed partial class Ff7BattleSession
 {
     public ImmutableArray<Ff7BattleGuestCompositeContact> PresentedGuestContacts { get; private set; } = [];
 
-    private void DispatchGuestCompositeAction(Ff7BattleQueuedCommand command, IFf7BattleGuestAttack guest, IFf7BattleGuestCompositeActions composite, Ff7BattleGuestCompositeAction program, Ff7BattleGuestInvocation invocation, bool groupPublication = false)
+    private void DispatchGuestCompositeAction(Ff7BattleQueuedCommand command, IFf7BattleGuestAttack guest, IFf7BattleGuestCompositeActions composite, Ff7BattleGuestCompositeAction program, Ff7BattleGuestInvocation invocation, bool groupPublication = false, Ff7BattleGuestContinuationState? continuation = null)
     {
         if (guest is not IFf7BattleGuestMagic magic)
         {
             throw new InvalidDataException("The composite action lost its origin source owner.");
         }
-        if (!CanAct(Actor(command.ActorSlot)) || GuestAbilityRequiresMagic(guest, command.GuestAbility) && !Ff7GuestBattleStatuses.CanCastMagic(Actor(command.ActorSlot).Actor.Statuses))
+        if (continuation is null && (!CanAct(Actor(command.ActorSlot)) || GuestAbilityRequiresMagic(guest, command.GuestAbility) && !Ff7GuestBattleStatuses.CanCastMagic(Actor(command.ActorSlot).Actor.Statuses)))
         {
             FinishTurn(command.ActorSlot);
             return;
@@ -53,12 +53,12 @@ public sealed partial class Ff7BattleSession
             }
             foreach (Ff7BattleActorState target in state.Actors.Where(actor => (mask & (1 << actor.Actor.Slot)) != 0))
             {
-                if (guest is not IFf7BattleGuestAbilities && (!GuestMagicTargetIsLegal(guest, command.GuestAbility, target) || !SupportsGuestAbility(guest, command.GuestAbility, DescribeGuestTarget(target.Actor.Slot))))
+                if (continuation is null && guest is not IFf7BattleGuestAbilities && (!GuestMagicTargetIsLegal(guest, command.GuestAbility, target) || !SupportsGuestAbility(guest, command.GuestAbility, DescribeGuestTarget(target.Actor.Slot))))
                 {
                     RejectGuestAbility(command, "The origin ability is unavailable for a selected target.");
                     return;
                 }
-                if (GuestAbilityTargetUnsupportedReason(command.ActorSlot, Ff7BattleCommand.Magic, command.GuestAbility, target.Actor.Slot) is { } unsupported)
+                if (continuation is null && GuestAbilityTargetUnsupportedReason(command.ActorSlot, Ff7BattleCommand.Magic, command.GuestAbility, target.Actor.Slot) is { } unsupported)
                 {
                     RejectGuestAbility(command, unsupported);
                     return;
@@ -91,7 +91,7 @@ public sealed partial class Ff7BattleSession
         guest.Begin(invocation, VisualPlacement(command.ActorSlot), DescribeGuestTarget(invocation.TargetSlot));
         random.Adopt(candidateRandom);
         preparation?.Commit();
-        state = state with { Action = new(command, Tick, -1) { GuestComposite = new(contacts) { GroupPublication = groupPublication } }, GuestAttackUsed = true };
+        state = state with { Action = new(command, Tick, -1) { GuestComposite = new(contacts) { GroupPublication = groupPublication }, GuestContinuation = continuation }, GuestAttackUsed = true };
     }
 
     private ImmutableArray<Ff7BattleGuestCompositeContact> PrepareGuestCompositeContacts(Ff7BattleQueuedCommand command, Ff7BattleGuestInvocation invocation, Ff7BattleGuestCompositeAction program, IReadOnlyList<(int Phase, int Hit, ushort Targets)> schedule, Ff7BattleRng candidateRandom)
@@ -144,6 +144,12 @@ public sealed partial class Ff7BattleSession
 
     private void AdvanceGuestCompositeAction(Ff7BattleActionState active, IFf7BattleGuestAttack guest)
     {
+        if (active.GuestContinuation is { ResponsesPublished: true })
+        {
+            AdvanceGuestIdle(guest);
+            CompleteGuestContinuationWhenReady(active);
+            return;
+        }
         Ff7BattleGuestCompositeState current = active.GuestComposite ?? throw new InvalidDataException("The composite action lost its contact cursor.");
         Ff7BattleGuestInvocation invocation = GuestInvocation(active.Command, active.StartedAt);
         if ((current.GroupPublication ? guest is not IFf7BattleGuestGroupMagic : guest is not IFf7BattleGuestCompositeActions) || guest.Invocation != invocation || guest.ContactPublished != (current.NextContact != 0))
@@ -201,7 +207,7 @@ public sealed partial class Ff7BattleSession
             current = current with { NextContact = current.NextContact + 1, SettledContacts = settled };
         }
         PresentedGuestContacts = ordinals.Select(ordinal => current.Contacts[ordinal]).ToImmutableArray();
-        active = active with { GuestComposite = current, Applied = current.NextContact == current.Contacts.Length };
+        active = active with { GuestComposite = current, Applied = current.NextContact == current.Contacts.Length, GuestContinuation = state.Action?.GuestContinuation ?? active.GuestContinuation };
         if (update.Completed)
         {
             if (!active.Applied || guest.Invocation is not null)
@@ -209,6 +215,12 @@ public sealed partial class Ff7BattleSession
                 throw new InvalidDataException("The composite presentation completed before settling its contact schedule.");
             }
             PublishGuestSourceInteraction(active.Command, invocation.TargetSlot);
+            if (active.GuestContinuation is { } continuation)
+            {
+                CompleteGuestContinuation(active);
+                CompleteGuestContinuationWhenReady(active with { GuestContinuation = continuation with { ResponsesPublished = true } });
+                return;
+            }
             CompleteGuestMagic(active.Command);
             state = state with { Action = null };
             FlushFormationAi();

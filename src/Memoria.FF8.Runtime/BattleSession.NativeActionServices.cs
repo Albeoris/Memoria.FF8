@@ -52,6 +52,10 @@ public sealed partial class BattleSession
             }
             actorIndex = selected ?? throw new NotSupportedException("Native50AFC0 command240 has no loaded party geometry source.");
         }
+        if (presentationForeignActors is not null)
+        {
+            return PrepareEffectPresentationGeometry(graphics, checked((byte)actorIndex), context.CoverMask != 0 ? context.CoverMask : context.TargetMask);
+        }
         BattleCombatant actor = GraphicsActor(graphics, actorIndex);
         string target = context.FirstTarget is byte first ? GraphicsActor(graphics, first).Id : actor.Id;
         BattleAttackCommand geometry = new(actor.Id, target) { NativeTargetMask = context.CoverMask != 0 ? context.CoverMask : context.TargetMask, NativeQueuedCommand = header.ReadByte(1) };

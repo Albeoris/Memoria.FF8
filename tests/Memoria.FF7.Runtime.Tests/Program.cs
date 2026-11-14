@@ -61,8 +61,15 @@ if (args.Contains("--enemy-extensions-only", StringComparer.Ordinal))
 if (args.Contains("--guest-only", StringComparer.Ordinal))
 {
     NativeGuestLimitTests.Run();
+    GuestContinuationTests.Run();
     GuestCompositeActionTests.Run();
     GuestBattleConversionTests.Run();
+    return 0;
+}
+
+if (args.Contains("--guest-continuation-only", StringComparer.Ordinal))
+{
+    GuestContinuationTests.Run();
     return 0;
 }
 
@@ -359,6 +366,7 @@ var tests = new (string Name, Action Run)[]
     ("native battle actor model callbacks", NativeBattleActorModelTests.Run),
     ("native Emerald Weapon linked actor models", NativeBattleActorModelTests.RunEmeraldLinkedModels),
     ("native guest limit contact continuation", NativeGuestLimitTests.Run),
+    ("guest selected continuation and deferred host responses", GuestContinuationTests.Run),
     ("guest composite action occurrences", GuestCompositeActionTests.Run),
     ("mixed battle element and status conversion", GuestBattleConversionTests.Run),
     ("native destroyed battle effect and cold continuation", NativeBattleDestroyedTests.Run),

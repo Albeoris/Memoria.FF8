@@ -94,6 +94,35 @@ public sealed class NativeBattleArenaDrawingTests
         Assert.Equal(batch.Attempts.Select(attempt => attempt.Data), bound.Attempts.Select(attempt => attempt.Data));
     }
 
+    [Theory]
+    [InlineData(0x24)]
+    [InlineData(0x26)]
+    public void Capture_region_binding_finds_polygon_after_native_environment_prefixes_without_changing_packet(byte opcode)
+    {
+        NativeBattleArenaCaptureMaterial material = new(Geometry(Vector3.Zero), Projection(), 256, 256) { NativeX = 384, NativeY = 256 };
+        NativeBattlePilotVisualGeometry geometry = new(new(189, 2, 3, 4, 5), new(10, 20, 30), new(40, 50, 60), new(70, 80, 90), default, 3);
+        ImmutableArray<uint> words = [0x0A000000, 0xE1000020, 0xE2000000, (uint)opcode << 24 | 0x808080, 0, 0xABCD2010, 0, 0x01164030, 0, 0x6050, 0xE1000220];
+        NativeBattleGeometryPrimitive primitive = new(17, words, [101, 102, 103, 0]) { PilotGeometry = geometry };
+        NativeBattleGfGeometryAttempt attempt = new(0, words.SelectMany(BitConverter.GetBytes).ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Known, words.Length * 4).ToImmutableArray(), primitive);
+        NativeBattleGfGeometryBatch batch = new([attempt], attempt.Data.Length);
+        NativeBattleGfGeometryBatch bound = NativeBattleArenaDrawing.BindCaptureRegion(batch, material);
+        NativeBattleGeometryPrimitive result = Assert.Single(bound.Attempts).Primitive!;
+        Assert.Equal(words, result.Words);
+        Assert.Equal(attempt.Data, bound.Attempts[0].Data);
+        Assert.Equal(attempt.WriteMask, bound.Attempts[0].WriteMask);
+        Assert.Equal(primitive.VertexPayload4, result.VertexPayload4);
+        Assert.Equal(geometry.A, result.PilotGeometry!.A);
+        Assert.Same(material, result.PilotGeometry.ForeignSurface!.Material);
+        Assert.Equal(new Vector2(16 / 256f, 32 / 256f), result.PilotGeometry.ForeignSurface.Uv[0]);
+        Assert.Equal(new Vector2(48 / 256f, 64 / 256f), result.PilotGeometry.ForeignSurface.Uv[1]);
+        Assert.Equal(new Vector2(80 / 256f, 96 / 256f), result.PilotGeometry.ForeignSurface.Uv[2]);
+        NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear().Prepend(17, new("captured", 0, 0), words, 0, primitive.VertexPayload4, pilotGeometry: geometry);
+        NativeBattleLogicalPacket packet = Assert.Single(NativeBattleArenaDrawing.BindCaptureRegion(ordering, material).Packets);
+        Assert.Equal(words, packet.Words);
+        Assert.Same(material, packet.PilotGeometry!.ForeignSurface!.Material);
+        Assert.Equal(result.PilotGeometry.ForeignSurface.Uv, packet.PilotGeometry.ForeignSurface.Uv);
+    }
+
     [Fact]
     public void Deformation_keeps_actual_material_and_native_output_coordinates()
     {

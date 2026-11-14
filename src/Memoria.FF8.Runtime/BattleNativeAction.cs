@@ -2,12 +2,16 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
+/// <summary>The graphics header contract is separate from the mechanics action identity and dispatch-packet selection.</summary>
+public sealed record BattleNativePresentationInvocation(byte Command, ushort Argument, byte? SourceSequence = null);
+
 /// <summary>Original kernel inputs for the shared48FE20/4922B0 action consumer, with their exact source record.</summary>
 public sealed record BattleNativeAction(byte Command, ushort ActionId, int KernelSection, int KernelIndex)
 {
     public bool PresentationOnly { get; init; }
     public bool PresentationSecondarySource { get; init; }
     public byte? DispatchCommand { get; init; }
+    public BattleNativePresentationInvocation? PresentationInvocation { get; init; }
     public string? Name { get; init; }
     public byte? CrisisLevel { get; init; }
     public int? CharacterId { get; init; }
@@ -30,4 +34,10 @@ public sealed record BattleNativeAction(byte Command, ushort ActionId, int Kerne
     public required byte? LevelModifier { get; init; }
     public required ImmutableArray<byte> RawRecord { get; init; }
     public required ImmutableArray<byte> SupplementalRecord { get; init; }
+
+    public BattleNativePresentationInvocation ReadPresentationInvocation()
+    {
+        byte command = DispatchCommand ?? Command;
+        return PresentationInvocation ?? new(command, command == 11 ? (ushort)65531 : command == 14 ? checked((ushort)(ActionId + 101)) : ActionId);
+    }
 }

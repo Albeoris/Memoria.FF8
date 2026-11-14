@@ -37,7 +37,8 @@ public sealed partial class Ff7BattleSession
             throw new NotSupportedException("The target has no original reaction animation owner.");
         }
         Ff7BattleAiActor actor = Actor(targetSlot).Actor;
-        AdmitImpactModel(new(sourceSlot, targetSlot, -1, -1, -1) { ModelAction = actor.HurtAction, PostActionKnockedOut = !IsAlive(Actor(targetSlot)) });
+        bool deferred = state.Action is { GuestContinuation: not null } active && active.Command.ActorSlot == sourceSlot;
+        AdmitImpactModel(new(sourceSlot, targetSlot, -1, -1, -1) { ModelAction = actor.HurtAction, PostActionKnockedOut = !deferred && !IsAlive(Actor(targetSlot)) });
         state = state with { Reaction = new(targetSlot, Tick) };
     }
 }

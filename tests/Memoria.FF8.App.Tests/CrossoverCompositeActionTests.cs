@@ -111,7 +111,7 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
         public int SourceMaximumHp => kit.MaximumHitPoints;
         public int NativeHitCount => action.HitCount;
 
-        public Fixture(string name, byte character, byte crisis, int? deadTarget = null, CrossoverArenaSurfaceCapture? arenaCapture = null, bool soloGuestParty = false, bool damagedAllies = false, int? sourceHP = null, bool nativeProcess = false)
+        public Fixture(string name, byte character, byte crisis, int? deadTarget = null, CrossoverArenaSurfaceCapture? arenaCapture = null, bool soloGuestParty = false, bool damagedAllies = false, int? sourceHP = null, bool nativeProcess = false, bool allFinishers = false)
         {
             string? ff8 = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
             string? ff7 = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
@@ -151,6 +151,11 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
                 origin.Records[row] = origin.Records[row] with { Junction = origin.Records[row].Junction with { Commands = (uint)(magicCommand | guardianCommand << 8), GuardianForces = checked((ushort)(1 << guardian.Id)) } };
                 NativeGuardianForceVital acquired = origin.GuardianForces[guardian.Id] with { Flags = (byte)(origin.GuardianForces[guardian.Id].Flags | 1) };
                 origin.GuardianForces[guardian.Id] = acquired with { HitPoints = origin.Definitions.GuardianForceMaximum(guardian.Id, acquired) };
+            }
+            if (allFinishers)
+            {
+                byte weapon = checked((byte)assets.WeaponDefinitions.Where(item => item.CharacterId == character).OrderByDescending(item => item.Tier).First().Id);
+                origin.Records[row] = origin.Records[row] with { Weapon = weapon };
             }
             kit = CrossoverFf8BattleKit.Read(origin, assets, character);
             separateLinkedRig = assets.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = kit.CharacterId, WeaponId = kit.Weapon }).LinkedPoseSource is not null;
@@ -358,6 +363,7 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
 
         public void FollowWithFire()
         {
+            int stockBefore = provider.WorkingStock.GetMagicCount(row, fire.ActionId);
             Ready();
             Ff7BattleCommandOption option = Assert.Single(host.Commands(0), choice => choice.Command == Ff7BattleCommand.Magic && choice.Argument == fire.ActionId);
             Assert.Null(option.UnsupportedReason);
@@ -384,7 +390,7 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
             Assert.Null(provider.Invocation);
             Assert.Null(host.Action);
             Assert.Equal(1, contacts);
-            Assert.Equal(3, provider.WorkingStock.GetMagicCount(row, fire.ActionId));
+            Assert.Equal(stockBefore - 1, provider.WorkingStock.GetMagicCount(row, fire.ActionId));
         }
 
         public Ff7BattleSession ProcessHost => host;
@@ -548,6 +554,82 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
             Assert.False(provider.ProcessActive, $"Native Limit still owns its turn: Duel {provider.DuelProcess?.Phase} timer {provider.DuelProcess?.RemainingTimer}/{initialDuelTimer}; Shot {provider.ShotProcess?.Phase}; invocation {provider.Invocation}.");
             Assert.Null(provider.Invocation);
             Assert.Null(host.Action);
+        }
+
+        public Result ExecuteSelectedFinisher(byte id, bool overkill = false, Action<Ff7BattleRenderer, Ff7BattleSession, CrossoverGuestHostActions>? observe = null)
+        {
+            BattleNativeAction selected = Assert.Single(assets.NativeActions, action => action.Command == 249 && action.ActionId == id);
+            CrossoverNativeRenzokukenSelection selection = Enumerable.Range(0, 256).Select(seed => new CrossoverNativeRenzokukenSelection(NativeBattleRandomState.Initialize((byte)seed), host.Tick, 4)).First(candidate =>
+            {
+                _ = candidate.Select(kit.FinisherFlags, out CrossoverNativeRenzokukenPlan plan);
+                return plan.Finisher == id;
+            });
+            if (overkill)
+            {
+                Ff7BattleSnapshot snapshot = host.Capture();
+                snapshot = snapshot with { Actors = snapshot.Actors.Select(actor => actor.Actor.Slot == 4 ? actor with { Actor = actor.Actor with { HitPoints = 1 } } : actor).ToArray() };
+                host = Create(snapshot);
+                Bind();
+            }
+            typeof(CrossoverGuestHostActions).GetField("limitSelection", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(provider, selection);
+            Assert.True(provider.LimitReady);
+            Assert.True(provider.SupportsLimit(host.GuestAbilityTarget(4)), provider.LimitTargetUnsupportedReason(host.GuestAbilityTarget(4)));
+            string stock = JsonSerializer.Serialize(provider.WorkingStock);
+            int[] expectedTargets = (selected.TargetFlags!.Value & 0x30) == 0x10 ? [4] : host.Actors.Where(actor => actor.Actor.Slot >= 4 && actor.Actor.HitPoints > 0).Select(actor => actor.Actor.Slot).Order().ToArray();
+            Assert.True(host.SubmitGuestLimit(0, 4));
+            List<Ff7BattleGuestCompositeContact> contacts = [];
+            HashSet<int> ordinals = [];
+            bool child = false;
+            bool parent = false;
+            int visualCallbacks = 0;
+            for (int tick = 0; tick < 16000; tick++)
+            {
+                if (provider.RenzokukenTrigger?.TriggerWindowOpen == true)
+                {
+                    provider.PressTrigger();
+                }
+                host.Advance(waitForCommand: true);
+                Assert.True(host.GuestAbilityFailure is null, host.GuestAbilityFailure?.Reason);
+                parent |= host.Action?.GuestLimit is not null;
+                if (host.Action?.GuestContinuation is { } continuation)
+                {
+                    child = true;
+                    Assert.Equal((byte)Ff7BattleCommand.Limit, continuation.Origin.CommandId);
+                    Assert.False(host.Actors.Single(actor => actor.Actor.Slot == 0).AwaitingTurn);
+                    Assert.Null(host.ReadyPlayer);
+                }
+                foreach (Ff7BattleGuestCompositeContact contact in host.PresentedGuestContacts)
+                {
+                    Assert.True(ordinals.Add(contact.Ordinal));
+                    contacts.Add(contact);
+                    Assert.Equal(CrossoverGuestAbilityCatalog.Key(selected.Command, selected.ActionId), contact.HitDescription.PreparedContact!.Invocation.GuestAbility);
+                }
+                if (provider.ActiveAbility?.Presentation.Effect is { } effect)
+                {
+                    Assert.Equal(0x50BC20u, effect.Graphics.ActionGraphics!.Callback);
+                }
+                if (provider.EffectVisual?.Ordering is { Packets.Count: > 0 })
+                {
+                    visualCallbacks++;
+                }
+                observe?.Invoke(renderer, host, provider);
+                if (parent && child && provider.Invocation is null && host.Action is null)
+                {
+                    break;
+                }
+            }
+            Assert.True(parent && child);
+            Assert.Equal(selected.HitCount * expectedTargets.Length, contacts.Count);
+            Assert.Equal(Enumerable.Range(0, contacts.Count), contacts.Select(contact => contact.Ordinal));
+            Assert.Equal(expectedTargets, contacts.Select(contact => contact.HitDescription.PreparedContact!.Invocation.TargetSlot).Distinct().Order());
+            Assert.True(visualCallbacks > 0);
+            Assert.Null(provider.Invocation);
+            Assert.Null(host.Action);
+            Assert.Null(provider.EffectVisual);
+            Assert.Null(provider.Visual!.Model.ResourceMagicId);
+            Assert.Equal((byte)1, provider.Visual.Model.Sequence);
+            Assert.Equal(stock, JsonSerializer.Serialize(provider.WorkingStock));
+            return new(contacts.ToImmutableArray(), JsonSerializer.Serialize(host.Capture().Random), JsonSerializer.Serialize(host.Actors.Select(actor => actor.Actor)), visualCallbacks);
         }
 
         public void AssertProcessCancellation(bool acceptedShot)

@@ -21,6 +21,9 @@ public sealed partial class BattleSession
     private readonly List<NativeBattleModuleSound> presentationSounds = [];
     private readonly List<NativeBattleForeignSequenceRequest> presentationSequences = [];
     internal bool EffectPresentationInvoked { get; private set; }
+    private byte? presentationSelectedModulePhase;
+    private bool presentationSelectedModuleComplete;
+    internal bool EffectPresentationExecutionComplete => presentationSelectedModulePhase is null || presentationSelectedModuleComplete;
 
     /// <summary>The host retains its camera projection. Native control resources may register without acquiring a camera lease; their control programs are not executed here.</summary>
     private BattleSession(NativeBattleEffectPresentationInputs inputs)
@@ -74,11 +77,25 @@ public sealed partial class BattleSession
         models = BindPresentationForeignModels(models);
         presentationInitialUi = NativeBattleUiServices.Initialize();
         NativeGraphics = InitializeNativePrimitiveFrame500400(new(models, Enumerable.Range(0, models.Length).Select(index => index == 0 ? "source" : presentationForeignActors.ContainsKey(index) ? $"host-{index}" : null).ToImmutableArray(), 0, 0) { UiServices = presentationInitialUi });
-        NativeGraphics = InitializeEffectPresentationSourceResources(NativeGraphics, inputs.SourceResource);
+        NativeGraphics = InitializeEffectPresentationSourceResources(NativeGraphics, inputs.SourceResource, preserveSelectedProgram: true);
+        if (inputs.SequenceGlobals is { } sequenceGlobals)
+        {
+            NativeEffectMemory = NativeEffectMemory with { SequenceSine = sequenceGlobals.Sine, SequenceCosine = sequenceGlobals.Cosine };
+        }
         InitializeEffectPresentationServices(inputs.Parameters);
         presentationInitialModels = NativeGraphics!.Models;
         InitializeNativePrimitiveDepth47CE10();
-        NativeGraphics = BeginNativeOriginalEffect(NativeGraphics!, inputs.Effect);
+        if (NativeGraphics.ActionGraphics!.Callback == 0x50BC20)
+        {
+            NativeBattleActionGraphicsState context = NativeGraphics.ActionGraphics;
+            (NativeBattleGraphicsState selectedGraphics, byte phase, _) = PollNativeUnsequencedGraphics(NativeGraphics, context, 0);
+            NativeGraphics = selectedGraphics;
+            presentationSelectedModulePhase = phase;
+        }
+        else
+        {
+            NativeGraphics = BeginNativeOriginalEffect(NativeGraphics!, inputs.Effect);
+        }
         NativeGraphics = NativeGraphics with { OriginalEffect = NativeGraphics.OriginalEffect! with { Parameters = inputs.Parameters } };
         if (!inputs.DeferInvocation)
         {
@@ -119,7 +136,10 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("The native presentation descriptor was already invoked.");
         }
-        NativeGraphics = InvokeNativeOriginalEffect(NativeGraphics!);
+        if (presentationSelectedModulePhase is null)
+        {
+            NativeGraphics = InvokeNativeOriginalEffect(NativeGraphics!);
+        }
         EffectPresentationInvoked = true;
     }
 
@@ -196,7 +216,20 @@ public sealed partial class BattleSession
         NativeGraphics = graphics;
         graphics = AdvanceNativeModuleEffects(graphics);
         NativeGraphics = graphics;
-        if (EffectPresentationInvoked)
+        if (EffectPresentationInvoked && presentationSelectedModulePhase is byte selectedPhase && !presentationSelectedModuleComplete)
+        {
+            NativeBattleActionGraphicsState context = graphics.ActionGraphics ?? throw new InvalidDataException("The selected module lost its original graphics service.");
+            (NativeBattleGraphicsState selectedGraphics, byte phase, bool complete) = PollNativeUnsequencedGraphics(graphics, context, selectedPhase);
+            graphics = selectedGraphics;
+            presentationSelectedModulePhase = phase;
+            presentationSelectedModuleComplete = complete;
+            if (complete)
+            {
+                NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[context.HeaderIndex];
+                nativeActionPackets = nativeActionPackets with { Headers = nativeActionPackets.Headers.SetItem(context.HeaderIndex, header with { Payload = header.Payload.SetItem(1, 255), UnknownByteMask = header.UnknownByteMask & ~2u }) };
+            }
+        }
+        if (EffectPresentationInvoked && (presentationSelectedModulePhase is null || presentationSelectedModulePhase >= 3 && !presentationSelectedModuleComplete))
         {
             graphics = AdvanceNativeOriginalEffect(graphics);
         }

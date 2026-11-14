@@ -67,6 +67,8 @@ public sealed partial class BattleSession
         presentationPartyActorCount = source.presentationPartyActorCount;
         presentationInitialMusicGain = source.presentationInitialMusicGain;
         EffectPresentationInvoked = source.EffectPresentationInvoked;
+        presentationSelectedModulePhase = source.presentationSelectedModulePhase;
+        presentationSelectedModuleComplete = source.presentationSelectedModuleComplete;
         presentationInvocationCompleted = source.presentationInvocationCompleted;
         presentationContacts.AddRange(source.presentationContacts);
         presentationSounds.AddRange(source.presentationSounds);

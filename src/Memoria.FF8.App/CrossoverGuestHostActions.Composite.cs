@@ -74,7 +74,7 @@ internal sealed partial class CrossoverGuestHostActions
             byte index = targets.Single(target => target.HostSlot == slot).Contact.ActorIndex;
             return new CrossoverNativeMagicTarget(slot, NativeContact(contact, index));
         }).ToImmutableArray();
-        return fireProgram.Begin(source with { Index = 0 }, stream[0].HostSlot, encounter.CrtRandom, stream[0].Contact, original, encounter.GlobalRandom, CreateArena(placement), RetainedProcessOwner(original), ProcessParticipantBindings, RetainedProcessState(original)) with { Targets = targets, Contacts = stream };
+        return fireProgram.Begin(source with { Index = 0 }, stream[0].HostSlot, encounter.CrtRandom, stream[0].Contact, original, encounter.GlobalRandom, CreateArena(placement), RetainedProcessOwner(original), ProcessParticipantBindings, RetainedProcessState(original), sourceTextures: selectedContinuation?.Source.Effect.Frame.Memory.Textures, sourceMemory: selectedContinuation?.Source.Effect.Frame.Memory) with { Targets = targets, Contacts = stream };
 
         NativeBattleContactHalf NativeContact(Ff7BattleGuestCompositeContact contact, byte index)
         {
