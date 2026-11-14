@@ -8,6 +8,10 @@ public sealed partial class Ff7MidgarAutoPlayPolicy(Ff7Session session)
 {
     public int? ChooseDialogueSelection(Ff7Dialogue dialogue)
     {
+        if (ChooseShinraCustodyDialogue(dialogue) is int custodyChoice)
+        {
+            return custodyChoice;
+        }
         if (Ff7FieldEventCoverageCatalog.RecognizesWallMarketInn(session) && session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) == 188 && dialogue.Text == 1 && dialogue.FirstChoice == 2 && dialogue.LastChoice == 3)
         {
             return 3;
@@ -31,7 +35,12 @@ public sealed partial class Ff7MidgarAutoPlayPolicy(Ff7Session session)
             ("mds6_2", 2, 5, 6) => 5,
             ("mrkt3", 40, 1, 2) => 1,
             ("mkt_w", 8 or 11, int first, _) => first,
-            ("eleout", 28 or 29 or 30, 0, _) when ReadFlags(0xE0) == 60 => 2,
+            ("blin59", 1, int first, _) => first,
+            ("eleout", 28 or 29 or 30, 0, _) when ReadFlags(0xE0) == 60 => NeedsShinraSupplies ? 0 : 2,
+            ("blin61", 1, 2, 3) => 3,
+            ("blin62_1", 9, 1, 7) => ChooseDominoPassword(),
+            ("blin65_2", 2, 1, 2) => 1,
+            ("blin66_3", 101, 0, 2) => 1,
             ("mktpb", 29 or 31, 2, 3) => 3,
             ("mkt_mens", 24, 1, 2) => 2,
             ("mkt_mens", 29, 2, 3) => 3,
@@ -135,7 +144,7 @@ public sealed partial class Ff7MidgarAutoPlayPolicy(Ff7Session session)
             }
             return true;
         }
-        if (story is 257 or 260 && TryChooseShinraEntrance(driver, field, out input))
+        if (story is >= 257 and <= 302 && TryChooseShinraEntrance(driver, field, story, out input))
         {
             return true;
         }
