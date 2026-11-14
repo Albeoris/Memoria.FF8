@@ -103,7 +103,15 @@ public sealed class NativeBattleAiDrawTests
         BattleSnapshot pending = battle.Capture();
         Assert.Equal(new BattlePendingEnemyDraw("enemy-10", 1, (byte)removed), pending.PendingEnemyDraw);
         string firstRecipient = group ? "ally-0" : "ally-9";
-        Assert.Equal(firstRecipient, pending.ActiveAction?.TargetId);
+        Assert.Equal(group ? "enemy-10" : firstRecipient, pending.ActiveAction?.TargetId);
+        if (group)
+        {
+            BattleAiRecipients recipients = Assert.IsType<BattleAiRecipients>(pending.ActiveAction!.AiRecipients);
+            Assert.Equal((ushort)0x8007, recipients.NativeSelectionMask);
+            Assert.Empty(recipients.ActorIds);
+            Assert.Equal(allies.Select(ally => ally.Id), battle.CurrentExpandedAiTargets(recipients, attack).Select(actor => actor.Id));
+        }
+        Assert.Equal((ushort)0, Assert.Single(pending.Combatants, actor => actor.Id == "enemy-10").NativeParticipant!.PreviousTargetMask);
         Assert.Equal("ally-10", Assert.Single(pending.QueuedActions).TargetId);
         BattleSession restored = BattleSession.Restore(pending);
 

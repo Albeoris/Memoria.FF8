@@ -6,7 +6,8 @@ public static class ExpandedBattleFormation
     public const int MaximumAllies = NativeCharacterVitals.ExtendedRecordCount;
     public const int MaximumAddedEnemies = GameplayPreferences.MaximumAdditionalEnemies;
     public const int MaximumEnemies = NativeBattleSlots.EnemyCount + MaximumAddedEnemies;
-    public const int MaximumRewardSlots = NativeBattleSlots.FormationSlotCount + MaximumAddedEnemies;
+    public const int OriginalEnemyPrototypeCount = NativeBattleSlots.FormationSlotCount;
+    public const int MaximumRewardSlots = OriginalEnemyPrototypeCount + MaximumAddedEnemies;
 
     public static int DefaultEnemyCount(int allyCount) => allyCount == 4 ? 6 : 8;
 

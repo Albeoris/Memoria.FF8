@@ -10,7 +10,7 @@ public enum ExpandedAiAdmission
 /// <summary>Checks reachable original AI bytecode against the services available in expanded battles.</summary>
 public static class NativeBattleExpandedAi
 {
-    public static ExpandedAiAdmission Evaluate(NativeBattleAiDefinition program, IReadOnlyList<BattleNativeAction> actions, int formation, ICollection<string>? blockers = null, bool originalEnemySlots = false, ICollection<string>? explicitModelReferences = null, ISet<int>? reserveSceneSlots = null)
+    public static ExpandedAiAdmission Evaluate(NativeBattleAiDefinition program, IReadOnlyList<BattleNativeAction> actions, int formation, ICollection<string>? blockers = null, bool originalEnemySlots = false, ICollection<string>? explicitModelReferences = null, ISet<int>? reserveSceneSlots = null, ISet<int>? explicitEnemyModelReferences = null)
     {
         if (program.Scripts.Length != 5 || program.LevelBand is < 0 or > 2 || program.Abilities.Length != 48)
         {
@@ -60,6 +60,15 @@ public static class NativeBattleExpandedAi
         }
         return admission;
 
+        void RecordModelReference(int model, string description)
+        {
+            explicitModelReferences?.Add(description);
+            if (model is >= 16 and < 200)
+            {
+                explicitEnemyModelReferences?.Add(model);
+            }
+        }
+
         void CheckScript(byte[] script, int callback)
         {
             if (script.Length == 0)
@@ -108,7 +117,7 @@ public static class NativeBattleExpandedAi
                     continue;
                 }
                 int next = pc + operands;
-                if (opcode is 31 or 52 or 59 && script[pc] < NativeBattleSlots.FormationSlotCount)
+                if (opcode is 31 or 52 or 59)
                 {
                     reserveSceneSlots?.Add(script[pc]);
                 }
@@ -124,11 +133,11 @@ public static class NativeBattleExpandedAi
                         int value = ReadWord(script, pc + 3);
                         if (selector < 200 && subject is 0 or 1 or 4 or 5 or 6 or 7 or >= 220 and <= 227)
                         {
-                            explicitModelReferences?.Add($"condition-model:{subject}/{selector}");
+                            RecordModelReference(selector, $"condition-model:{subject}/{selector}");
                         }
                         else if (value < 200 && (subject is 8 or 9 || subject == 10 && selector == 203))
                         {
-                            explicitModelReferences?.Add($"condition-model:{subject}/{value}");
+                            RecordModelReference(value, $"condition-model:{subject}/{value}");
                         }
                         if (subject == 15 && !originalEnemySlots || subject == 10 && selector == 203 && comparison is not (0 or 3))
                         {
@@ -204,11 +213,11 @@ public static class NativeBattleExpandedAi
                         }
                         else if (script[pc] < 200)
                         {
-                            explicitModelReferences?.Add($"target-model:{script[pc]}");
+                            RecordModelReference(script[pc], $"target-model:{script[pc]}");
                         }
                         break;
                     case 38 when script[pc + 1] < 200:
-                        explicitModelReferences?.Add($"target-filter-model:{script[pc + 1]}");
+                        RecordModelReference(script[pc + 1], $"target-filter-model:{script[pc + 1]}");
                         break;
                     case 11 or 12:
                         for (int i = 0; i < operands; i++)

@@ -14,6 +14,32 @@ public static class NativeBattleEntryRules
     /// <summary>Original48AFD0 advantageBYTE1D28E08 after level/stat allocation and before47DAC0 entry graphics.</summary>
     public static byte Resolve(uint battleFlags, byte fieldEncounterAbilities, IReadOnlyList<NativeBattleEntryEnemy>? enemySlots, ref NativeBattleRandomState random)
     {
+        if (ForcedAdvantage(battleFlags) is byte forced)
+        {
+            return forced;
+        }
+        if (enemySlots is null || enemySlots.Count != NativeBattleSlots.EnemyCount || enemySlots.Any(slot => slot is null))
+        {
+            throw new NotSupportedException("Native advantage requires all four physical enemy saved-status/DAT254 owners.");
+        }
+        return ResolveNatural(fieldEncounterAbilities, enemySlots, ref random);
+    }
+
+    public static byte ResolveExpanded(uint battleFlags, byte fieldEncounterAbilities, IReadOnlyList<NativeBattleEntryEnemy>? activeEnemies, ref NativeBattleRandomState random)
+    {
+        if (ForcedAdvantage(battleFlags) is byte forced)
+        {
+            return forced;
+        }
+        if (activeEnemies is null || activeEnemies.Count is < 1 or > ExpandedBattleFormation.MaximumEnemies || activeEnemies.Any(enemy => enemy is null))
+        {
+            throw new NotSupportedException("Expanded advantage requires one original saved-status/DAT254 owner for each active enemy.");
+        }
+        return ResolveNatural(fieldEncounterAbilities, activeEnemies, ref random);
+    }
+
+    private static byte? ForcedAdvantage(uint battleFlags)
+    {
         if ((battleFlags & 0x800000) != 0)
         {
             return 0;
@@ -26,10 +52,11 @@ public static class NativeBattleEntryRules
         {
             return 2;
         }
-        if (enemySlots is null || enemySlots.Count != 4 || enemySlots.Any(slot => slot is null))
-        {
-            throw new NotSupportedException("Native advantage requires all four physical enemy saved-status/DAT254 owners.");
-        }
+        return null;
+    }
+
+    private static byte ResolveNatural(byte fieldEncounterAbilities, IReadOnlyList<NativeBattleEntryEnemy> enemySlots, ref NativeBattleRandomState random)
+    {
         NativeBattleEntryEnemy[] eligible = enemySlots.Where(slot => (slot.SavedStatuses & 1) == 0).ToArray();
         if (eligible.Any(slot => slot.Information254 is null))
         {

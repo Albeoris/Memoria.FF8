@@ -148,9 +148,9 @@ public sealed partial class BattleSession
             201 => PickExpandedAiTarget(allies.Where(IsExpandedAiTarget)),
             202 => PickExpandedAiTarget(enemies.Where(IsExpandedAiTarget)),
             203 => actor.LastAttackerId is { } attacker ? new([attacker]) : new([]),
-            204 => ResolveExpandedAiGroup(allies),
-            205 => ResolveExpandedAiGroup(enemies),
-            206 => ResolveExpandedAiGroup(combatants),
+            204 => ExpandedAiNativeMask(0x8007),
+            205 => ExpandedAiNativeMask(0x80F8),
+            206 => ExpandedAiNativeMask(0x80FF),
             207 => PickExpandedAiTarget(enemies.Where(candidate => candidate != actor && IsExpandedAiTarget(candidate)).DefaultIfEmpty(actor).Where(IsExpandedAiTarget)),
             208 => new([.. allies.Where(IsExpandedAiTarget).Select(candidate => candidate.Id)]) { RandomSide = BattleSide.Allies },
             >= 220 and <= 227 => ResolveExpandedAiLocalTarget(actor, selector - 220),
@@ -160,9 +160,9 @@ public sealed partial class BattleSession
         };
     }
 
-    private BattleAiRecipients ResolveExpandedAiGroup(IEnumerable<BattleCombatant> actors)
+    private static BattleAiRecipients ExpandedAiNativeMask(ushort mask)
     {
-        return new([.. actors.Where(IsExpandedAiTarget).Select(candidate => candidate.Id)]) { Selection = UsesOriginalEnemySlots ? BattleAiSelection.Group : BattleAiSelection.Selected };
+        return new([]) { Selection = BattleAiSelection.NativeMask, NativeSelectionMask = mask };
     }
 
     private BattleAiRecipients ResolveExpandedModelTarget(int selector)
@@ -173,8 +173,20 @@ public sealed partial class BattleSession
 
     private BattleCombatant? ExpandedAiModelActor(int model)
     {
-        IEnumerable<BattleCombatant> candidates = combatants.Where(candidate => candidate.Slot is not null && NativeModelId(candidate) == model);
-        return UsesOriginalEnemySlots ? candidates.OrderBy(candidate => candidate.Side).ThenBy(candidate => candidate.Slot!.Value.Position).FirstOrDefault() : candidates.FirstOrDefault();
+        return ExpandedAiModelQueryPopulation(model).FirstOrDefault(candidate => NativeModelId(candidate) == model);
+    }
+
+    private IEnumerable<BattleCombatant> ExpandedAiModelQueryPopulation(int model)
+    {
+        if (!UsesOriginalEnemySlots)
+        {
+            return combatants.Where(HasAiRosterSlot);
+        }
+        if (model < 16)
+        {
+            return allies.Where(HasAiRosterSlot).OrderBy(candidate => candidate.Slot!.Value.Position);
+        }
+        return NativeTargetActors().OrderBy(candidate => candidate.NativeActorIndex);
     }
 
     private BattleAiRecipients ResolveExpandedOriginalTarget(int index)
@@ -204,7 +216,7 @@ public sealed partial class BattleSession
         {
             return new([targetId]);
         }
-        return new([]) { Selection = BattleAiSelection.NativeMask, NativeSelectionMask = NativeAiIndexMask(unchecked((int)actor.AiVariables[index])) };
+        return ExpandedAiNativeMask(NativeAiIndexMask(unchecked((int)actor.AiVariables[index])));
     }
 
     private static void StoreExpandedAiLastAttacker(BattleCombatant actor, int variable, bool add)
@@ -221,8 +233,11 @@ public sealed partial class BattleSession
 
     private BattleAiRecipients FilterExpandedAiTargets(byte allTargets, byte group, byte comparison, byte criterion)
     {
-        var filter = NativeAiTargetFilter(combatants.Where(HasAiRosterSlot).ToArray(), group, comparison, criterion);
-        IEnumerable<BattleCombatant> candidates = combatants.Where(candidate => !candidate.Untargetable && filter.Eligible(candidate));
+        BattleCombatant[] population = UsesOriginalEnemySlots && group >= 16 && group is not (200 or 201)
+            ? NativeTargetActors().OrderBy(candidate => candidate.NativeActorIndex).ToArray()
+            : combatants.Where(HasAiRosterSlot).ToArray();
+        var filter = NativeAiTargetFilter(population, group, comparison, criterion);
+        IEnumerable<BattleCombatant> candidates = population.Where(candidate => !candidate.Untargetable && filter.Eligible(candidate));
         return allTargets != 0 ? new([.. candidates.Select(candidate => candidate.Id)]) : PickExpandedAiTarget(candidates);
     }
 
@@ -254,7 +269,12 @@ public sealed partial class BattleSession
             bool includesKnockedOutAllies = (action?.TargetFlags.GetValueOrDefault() & 1) != 0;
             return targets.Where(candidate => IsExpandedDrawCastTarget(candidate, includesKnockedOutAllies)).ToArray();
         }
-        if (UsesOriginalEnemySlots && recipients.RandomSide is null && recipients.Selection != BattleAiSelection.Group)
+        if (recipients.Selection == BattleAiSelection.Group)
+        {
+            NativeBattleTargetRequest request = ExpandedNativeTargetRequest(0x8000, action);
+            return targets.Where(candidate => IsExpandedNativeMaskTargetAvailable(candidate, request)).ToArray();
+        }
+        if (UsesOriginalEnemySlots && recipients.RandomSide is null)
         {
             return ResolveExpandedOriginalAiTargets(recipients, action, targets.ToArray());
         }
@@ -270,7 +290,7 @@ public sealed partial class BattleSession
     {
         bool nativeMask = recipients.Selection == BattleAiSelection.NativeMask;
         bool requiresOriginalSlots = recipients.Selection is BattleAiSelection.Group or BattleAiSelection.Physical ||
-            recipients.NativeSelectionMask is ushort mask && new NativeBattleTargetRequest(mask).Selection != 0;
+            recipients.NativeSelectionMask is ushort mask && new NativeBattleTargetRequest(mask) is { Selection: not 0, SelectsGroup: false, SelectsRandomTarget: false };
         if (!Enum.IsDefined(recipients.Selection) ||
             requiresOriginalSlots && !UsesOriginalEnemySlots ||
             recipients.Selection != BattleAiSelection.Selected && (recipients.TargetPolicy != BattleAiTargetPolicy.Standard || recipients.RandomSide is not null) ||
@@ -305,11 +325,11 @@ public sealed partial class BattleSession
         if (request.SelectsGroup)
         {
             IEnumerable<BattleCombatant> group = request.Selection == 255 ? combatants : Roster(request.Side);
-            return group.Where(IsAvailable).ToArray();
+            return group.Where(actor => IsExpandedNativeMaskTargetAvailable(actor, request)).OrderBy(actor => actor.Side).ThenBy(actor => actor.Slot!.Value.Position).ToArray();
         }
 
         ushort available = 0;
-        foreach (BattleCombatant actor in NativeTargetActors().Where(IsAvailable))
+        foreach (BattleCombatant actor in NativeTargetActors().Where(actor => IsExpandedNativeMaskTargetAvailable(actor, request)))
         {
             available |= NativeAiIndexMask(actor.NativeActorIndex!.Value);
         }
@@ -319,11 +339,11 @@ public sealed partial class BattleSession
             throw new NotSupportedException($"Expanded AI resolved an unowned native target mask 0x{resolved:X4}.");
         }
         return NativeTargetActors().Where(actor => actor.IsActive && (resolved & NativeAiIndexMask(actor.NativeActorIndex!.Value)) != 0).OrderBy(actor => actor.NativeActorIndex).ToArray();
+    }
 
-        bool IsAvailable(BattleCombatant actor)
-        {
-            return actor.IsActive && !actor.Untargetable && ((NativeSavedStatusBits(actor) & 1) == 0 || request.IncludesKnockedOutAllies && actor.IsPlayer);
-        }
+    private static bool IsExpandedNativeMaskTargetAvailable(BattleCombatant actor, NativeBattleTargetRequest request)
+    {
+        return actor.IsActive && !actor.Untargetable && ((NativeSavedStatusBits(actor) & 1) == 0 || request.IncludesKnockedOutAllies && actor.IsPlayer);
     }
 
     private BattleCombatant[] ResolveExpandedOriginalAiTargets(BattleAiRecipients recipients, BattleNativeAction? action, BattleCombatant[] selected)
@@ -397,6 +417,7 @@ public sealed partial class BattleSession
         }
         actor.Atb = 0;
         actor.IsBusy = true;
+        actor.NativePreviousTargetMask = recipients.NativeSelectionMask ?? 0;
         actor.ExpandedPreviousAiTargetId = recipients.ActorIds.IsEmpty ? null : recipients.ActorIds[0];
         actions.Enqueue(new(actor.Id, actor.ExpandedPreviousAiTargetId ?? actor.Id, BattleAbility.EnemyAbility, actionId)
         {

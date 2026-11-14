@@ -26,6 +26,7 @@ public sealed record NativeBattleEffectPresentationInputs(BattleDefinition Resou
     public NativeBattleEffectModelTransformPolicy ModelTransformPolicy { get; init; } = NativeBattleEffectModelTransformPolicy.NativeCallerScratch;
     public bool DeferInvocation { get; init; }
     public int? PartyActorCount { get; init; }
+    public bool? SourceIsParty { get; init; }
     public int? InitialMusicGain { get; init; }
     public NativeBattleSequenceProcessGlobals? SequenceGlobals { get; init; }
     public NativeBattleEffectCameraMode CameraMode { get; init; }
@@ -38,6 +39,7 @@ public sealed record NativeBattleEffectPresentationInputs(BattleDefinition Resou
 public sealed record NativeBattleEffectModelBinding(string ActorId, NativeBattleGraphicsModel Model, NativeBattleGraphicsResource Resource)
 {
     public bool CanActivate { get; init; }
+    public bool? IsParty { get; init; }
 }
 
 public enum NativeBattleEffectCameraMode

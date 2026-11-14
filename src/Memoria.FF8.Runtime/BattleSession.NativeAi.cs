@@ -499,7 +499,7 @@ public sealed partial class BattleSession
         {
             throw new NotSupportedException($"Native battle AI status {status} lies outside its WORD/DWORD banks.");
         }
-        bool present = combatants.Any(candidate => candidate.IsActive && HasAiRosterSlot(candidate) && (selector == 200 ? candidate.Side == BattleSide.Allies : selector == 201 ? candidate.Side == BattleSide.Enemies : NativeModelId(candidate) == selector) && (status == 0 || (NativeSavedStatusBits(candidate) & 1) == 0) && NativeAiStatusPresent(candidate, status));
+        bool present = NativeConditionGroup(selector).Any(candidate => candidate.IsActive && (status == 0 || (NativeSavedStatusBits(candidate) & 1) == 0) && NativeAiStatusPresent(candidate, status));
         // Native forces equality for each candidate, then inverts the group result for any nonzero comparison.
         return comparison == 0 ? present : !present;
     }

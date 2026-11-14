@@ -51,7 +51,10 @@ public sealed class ExpandedBattleAiTests
         BattleSession battle = Start([4, selector, 7, 1, 6, 0], allyCount, enemyCount);
         BattleSnapshot snapshot = battle.Capture();
         string[] targets = battle.Combatants.Where(actor => selector == 206 || actor.IsPlayer == (selector == 204)).Select(actor => actor.Id).ToArray();
-        Assert.Equal(targets, battle.ActiveAction!.AiRecipients!.ActorIds);
+        BattleAiRecipients recipients = Assert.IsType<BattleAiRecipients>(battle.ActiveAction!.AiRecipients);
+        Assert.Empty(recipients.ActorIds);
+        Assert.Equal((ushort)(selector == 204 ? 0x8007 : selector == 205 ? 0x80F8 : 0x80FF), recipients.NativeSelectionMask);
+        Assert.Equal(targets, battle.CurrentExpandedAiTargets(recipients).Select(actor => actor.Id));
         Assert.Equal(0, battle.ActiveAction.NativeTargetMask);
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
         for (int i = 0; i < BattleSession.AttackWindupFrames + 1; i++)
@@ -125,7 +128,11 @@ public sealed class ExpandedBattleAiTests
         Assert.Equal((byte)17, windup.NativeSequence);
         Assert.Equal(new BattleNativeGraphicCommand(248), windup.NativeGraphic);
         Assert.Null(windup.NativeAction);
-        Assert.Equal(selectsTargets ? 11 : 0, windup.AiRecipients!.ActorIds.Length);
+        BattleAiRecipients recipients = Assert.IsType<BattleAiRecipients>(windup.AiRecipients);
+        Assert.Empty(recipients.ActorIds);
+        Assert.Equal(selectsTargets ? (ushort)0x8007 : null, recipients.NativeSelectionMask);
+        string[] targets = battle.CurrentExpandedAiTargets(recipients).Select(actor => actor.Id).ToArray();
+        Assert.Equal(selectsTargets ? 11 : 0, targets.Length);
         BattleSnapshot saved = battle.Capture();
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(saved))!);
         for (int tick = 0; tick <= BattleSession.AttackWindupFrames; tick++)
@@ -134,7 +141,7 @@ public sealed class ExpandedBattleAiTests
             restored.Tick();
         }
         BattleEvent[] contacts = battle.Events.Where(entry => entry.Kind == "EffectContact" && entry.ActorId == "enemy-4").ToArray();
-        Assert.Equal(windup.AiRecipients.ActorIds, contacts.Select(contact => contact.TargetId));
+        Assert.Equal(targets, contacts.Select(contact => contact.TargetId));
         Assert.All(contacts, contact => Assert.Equal(0, contact.Amount));
         Assert.All(battle.Combatants.Where(actor => actor.IsPlayer), ally =>
         {

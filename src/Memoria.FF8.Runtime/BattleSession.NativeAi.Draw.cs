@@ -13,12 +13,20 @@ public sealed partial class BattleSession
         BattleCombatant source;
         if (UsesExpandedRoster)
         {
-            if (actor.ExpandedPreviousAiTargetId is not string sourceId)
+            if (actor.ExpandedPreviousAiTargetId is string sourceId)
+            {
+                source = GetActor(sourceId);
+            }
+            else if (actor.NativePreviousTargetMask != 0)
+            {
+                int index = System.Numerics.BitOperations.TrailingZeroCount((uint)actor.NativePreviousTargetMask);
+                source = FindAllocatedNativeActor(index) ?? throw new NotSupportedException($"Expanded AI Draw previous target mask has no retained native allocation at actor index {index}.");
+            }
+            else
             {
                 actor.NativeDrawnSpell = 255;
                 return;
             }
-            source = GetActor(sourceId);
         }
         else
         {

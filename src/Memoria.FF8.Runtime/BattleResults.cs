@@ -131,14 +131,7 @@ public sealed partial record BattleResult([property: JsonRequired] BattleEncount
         ValidateNativeSpecialEffects();
         NativeGlobalRandomChange?.Validate();
         ValidateNativeDeathCounts();
-        if (RemainingEnemyExperience is null || RemainingEnemyExperience.Any(enemy => enemy is null || UsesExpandedRoster == enemy.NativeIndex.HasValue || enemy.Slot >= EffectiveEnemySlotCount) || RemainingEnemyExperience.Select(enemy => enemy.NativeIndex ?? enemy.Slot).Distinct().Count() != RemainingEnemyExperience.Length || RemainingEnemyExperience.Length > 0 && (RewardPolicy != BattleRewardPolicy.NativeCombat || Outcome != BattleOutcome.Escaped))
-        {
-            throw new InvalidDataException("Remaining enemy experience facts require unique current native escape allocations.");
-        }
-        foreach (BattleEnemyRemainingExperience enemy in RemainingEnemyExperience)
-        {
-            enemy.Validate();
-        }
+        ValidateRemainingEnemyExperience();
         if (NativeItemInventoryAfter is { } finalItems)
         {
             BattleSession.ValidateNativeItemInventory(finalItems);
@@ -202,6 +195,43 @@ public sealed partial record BattleResult([property: JsonRequired] BattleEncount
             defeat.Validate();
         }
         ValidateNativeGuardianForceCounters();
+    }
+
+    private void ValidateRemainingEnemyExperience()
+    {
+        const string invalidAllocations = "Remaining enemy experience facts require unique current native escape allocations.";
+        if (RemainingEnemyExperience is null || RemainingEnemyExperience.Length > 0 && (RewardPolicy != BattleRewardPolicy.NativeCombat || Outcome != BattleOutcome.Escaped))
+        {
+            throw new InvalidDataException(invalidAllocations);
+        }
+
+        HashSet<int> physicalIndices = [];
+        HashSet<int> physicalSourceSlots = [];
+        HashSet<int> logicalSourceSlots = [];
+        foreach (BattleEnemyRemainingExperience enemy in RemainingEnemyExperience)
+        {
+            if (enemy is null || enemy.Slot >= EffectiveEnemySlotCount)
+            {
+                throw new InvalidDataException(invalidAllocations);
+            }
+            enemy.Validate();
+            if (enemy.NativeIndex is int index)
+            {
+                if (UsesExpandedRoster && !UsesOriginalEnemySlots || !physicalIndices.Add(index))
+                {
+                    throw new InvalidDataException(invalidAllocations);
+                }
+                physicalSourceSlots.Add(enemy.Slot);
+            }
+            else if (!UsesExpandedRoster || !logicalSourceSlots.Add(enemy.Slot))
+            {
+                throw new InvalidDataException(invalidAllocations);
+            }
+        }
+        if (logicalSourceSlots.Overlaps(physicalSourceSlots))
+        {
+            throw new InvalidDataException(invalidAllocations);
+        }
     }
 
     public BattleResult DeepCopy()

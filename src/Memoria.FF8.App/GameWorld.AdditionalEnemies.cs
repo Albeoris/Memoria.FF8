@@ -14,36 +14,36 @@ internal sealed partial class GameWorld
     private bool NeedsOriginalEnemySlots(BattleEncounter encounter)
     {
         return encounter.Enemies.Any(slot => !IsOrdinaryEnemyPlacement(slot) || HasAuthoredEnemyAddresses(slot.ModelId, encounter.Id))
-            || encounter.Slots.Any(slot => !slot.Enabled && IsReservePlacement(slot));
+            || ReferencedReserveSlots(encounter).Count != 0;
     }
 
-    private static bool IsReservePlacement(BattleEnemyPlacement slot)
+    private static bool IsEnemyPrototype(BattleEnemyPlacement slot)
     {
-        return slot.IsEnemyModel && slot.NativeModelId != 255 && (slot.ModelId != 0 || slot.Hidden || slot.Untargetable || slot.InitiallySuspended);
+        return slot.IsEnemyModel && slot.NativeModelId != 255;
     }
 
     private static bool IsOrdinaryEnemyPlacement(BattleEnemyPlacement slot)
     {
-        return slot.IsEnemyModel && slot.NativeModelId != 255 && slot.Enabled && !slot.Hidden && !slot.Untargetable && !slot.InitiallySuspended;
+        return IsEnemyPrototype(slot) && slot.Enabled && !slot.Hidden && !slot.Untargetable && !slot.InitiallySuspended;
     }
 
     private bool HasAuthoredEnemyAddresses(int model, int formation)
     {
-        List<string> explicitModels = [];
+        HashSet<int> explicitModels = [];
         return EnemyAdmissions(model, formation, explicitModels).Contains(ExpandedAiAdmission.RequiresOriginalSlots) || explicitModels.Count != 0;
     }
 
-    private ExpandedAiAdmission[] EnemyAdmissions(int model, int formation, ICollection<string>? explicitModels = null)
+    private ExpandedAiAdmission[] EnemyAdmissions(int model, int formation, ISet<int> explicitEnemyModels)
     {
         NativeBattleAiDefinition program = BattleResources.ReadEnemyAi(model, 0);
-        return Enumerable.Range(0, 3).Select(band => NativeBattleExpandedAi.Evaluate(program with { LevelBand = band }, BattleResources.NativeActions, formation, explicitModelReferences: explicitModels)).ToArray();
+        return Enumerable.Range(0, 3).Select(band => NativeBattleExpandedAi.Evaluate(program with { LevelBand = band }, BattleResources.NativeActions, formation, explicitEnemyModelReferences: explicitEnemyModels)).ToArray();
     }
 
     private HashSet<int> ReferencedReserveSlots(BattleEncounter encounter)
     {
         HashSet<int> slots = [];
         HashSet<int> visitedModels = [];
-        Queue<BattleEnemyPlacement> pending = new(encounter.Slots.Where(slot => slot.IsEnemyModel && (slot.Enabled || IsReservePlacement(slot))));
+        Queue<BattleEnemyPlacement> pending = new(encounter.Enemies.Where(slot => slot.Enabled && IsEnemyPrototype(slot)));
         while (pending.TryDequeue(out BattleEnemyPlacement? placement))
         {
             if (!visitedModels.Add(placement.ModelId))
@@ -58,14 +58,51 @@ internal sealed partial class GameWorld
             }
             foreach (int slot in referenced.Where(slots.Add))
             {
-                BattleEnemyPlacement prototype = encounter.Slots.Single(candidate => candidate.Slot == slot);
-                if (prototype.IsEnemyModel && prototype.NativeModelId != 255)
+                if ((uint)slot >= ExpandedBattleFormation.OriginalEnemyPrototypeCount)
                 {
-                    pending.Enqueue(prototype);
+                    throw new InvalidDataException($"Formation {encounter.Id} model {placement.NativeModelId} references reserve slot {slot} outside the original formation slots.");
                 }
+                BattleEnemyPlacement prototype = encounter.Slots.SingleOrDefault(candidate => candidate.Slot == slot)
+                    ?? throw new InvalidDataException($"Formation {encounter.Id} model {placement.NativeModelId} references missing reserve slot {slot}.");
+                if (!IsEnemyPrototype(prototype))
+                {
+                    throw new InvalidDataException($"Formation {encounter.Id} model {placement.NativeModelId} references reserve slot {slot} with nonenemy model {prototype.NativeModelId}.");
+                }
+                pending.Enqueue(prototype);
             }
         }
         return slots;
+    }
+
+    private BattleEnemyPlacement[] OriginalExpandedEnemyPlacements(BattleEncounter encounter, BattleDefinition? restoredDefinition)
+    {
+        HashSet<int> referenced = ReferencedReserveSlots(encounter);
+        BattleEnemyPlacement[] required = encounter.Slots.Where(slot => slot.Enabled || referenced.Contains(slot.Slot)).ToArray();
+        if (restoredDefinition is null)
+        {
+            return required;
+        }
+        HashSet<int> retained = restoredDefinition.Combatants.Where(actor => !actor.IsPlayer && actor.SceneSlot.HasValue &&
+            restoredDefinition.AddedEnemySources?.ContainsKey(actor.SceneSlot.Value) != true).Select(actor => actor.SceneSlot!.Value).ToHashSet();
+        BattleEnemyPlacement[] placements = encounter.Slots.Where(slot => retained.Contains(slot.Slot)).ToArray();
+        if (placements.Length != retained.Count || required.Any(slot => !retained.Contains(slot.Slot)))
+        {
+            throw new InvalidDataException($"Saved formation {encounter.Id} does not contain its required original enemy scene slots.");
+        }
+        return placements;
+    }
+
+    private BattleEnemyPlacement[] EligibleAdditionalEnemyPlacements(BattleEncounter candidate, int destinationFormation)
+    {
+        return candidate.Enemies.Where(enemy =>
+        {
+            if (!IsOrdinaryEnemyPlacement(enemy))
+            {
+                return false;
+            }
+            HashSet<int> explicitEnemyModels = [];
+            return EnemyAdmissions(enemy.ModelId, destinationFormation, explicitEnemyModels).All(admission => admission == ExpandedAiAdmission.Supported) && explicitEnemyModels.Count == 0;
+        }).ToArray();
     }
 
     private ImmutableArray<ushort>? ReadLocalEnemyFormations()
@@ -106,15 +143,7 @@ internal sealed partial class GameWorld
                 continue;
             }
             BattleEncounter candidate = BattleResources.LoadEncounter(formation);
-            if (NeedsOriginalEnemySlots(candidate))
-            {
-                continue;
-            }
-            BattleEnemyPlacement[] enemies = candidate.Enemies.Where(enemy =>
-            {
-                List<string> explicitModels = [];
-                return EnemyAdmissions(enemy.ModelId, encounter.Id, explicitModels).All(admission => admission == ExpandedAiAdmission.Supported) && explicitModels.Count == 0;
-            }).ToArray();
+            BattleEnemyPlacement[] enemies = EligibleAdditionalEnemyPlacements(candidate, encounter.Id);
             if (enemies.Length != 0)
             {
                 pool.Add((formation, enemies));

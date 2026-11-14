@@ -66,9 +66,9 @@ public sealed partial class BattleSession
                     left = levelActor.Level;
                     break;
                 case 8:
-                    return CompareNativeConditionBit(combatants.Any(candidate => HasAiRosterSlot(candidate) && NativeModelId(candidate) == value), comparison);
+                    return CompareNativeConditionBit(NativeConditionModelActors(value).Any(), comparison);
                 case 9:
-                    return CompareNativeConditionBit(combatants.Any(candidate => HasAiRosterSlot(candidate) && (NativeSavedStatusBits(candidate) & 1) == 0 && NativeModelId(candidate) == value), comparison);
+                    return CompareNativeConditionBit(NativeConditionModelActors(value).Any(candidate => (NativeSavedStatusBits(candidate) & 1) == 0), comparison);
                 case 10:
                     return EvaluateNativeActionCondition(actor, selector, comparison, value);
                 case 11:
@@ -228,9 +228,19 @@ public sealed partial class BattleSession
         return combatants.Where(candidate => HasNativeRosterSlot(candidate)).OrderBy(candidate => candidate.EncodeNativeSlot()).FirstOrDefault(candidate => NativeModelId(candidate) == model)?.EncodeNativeSlot() ?? 255;
     }
 
+    private IEnumerable<BattleCombatant> NativeConditionModelActors(int model)
+    {
+        IEnumerable<BattleCombatant> population = UsesExpandedRoster ? ExpandedAiModelQueryPopulation(model) : NativeTargetActors();
+        return population.Where(candidate => NativeModelId(candidate) == model);
+    }
+
     private IEnumerable<BattleCombatant> NativeConditionGroup(int selector)
     {
         //48A830 scans physical slots0..2 or3..6; model selectors inspect exactly the same seven slots.
+        if (UsesExpandedRoster && selector is not (200 or 201))
+        {
+            return NativeConditionModelActors(selector);
+        }
         return combatants.Where(candidate => HasAiRosterSlot(candidate) && (selector == 200 ? candidate.Side == BattleSide.Allies : selector == 201 ? candidate.Side == BattleSide.Enemies : NativeModelId(candidate) == selector));
     }
 

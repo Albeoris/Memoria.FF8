@@ -11,6 +11,8 @@ public sealed partial class BattleSession
     private NativeBattleEffectModelTransformPolicy presentationModelTransformPolicy;
     private NativeBattleGraphicsResource? presentationSourceResource;
     private int presentationSourceIndex;
+    private byte? presentationSourceModelId;
+    private bool? presentationSourceIsParty;
     private Dictionary<int, NativeBattleEffectModelBinding>? presentationNativeTargets;
     private bool presentationFirstAdvance = true;
     private NativeBattleCameraState? presentationHostCamera;
@@ -60,6 +62,8 @@ public sealed partial class BattleSession
         nativeGlobalRandom = definition.NativeGlobalRandom;
         presentationSourceResource = inputs.SourceResource;
         presentationSourceIndex = inputs.Source.Index;
+        presentationSourceModelId = inputs.Source.ModelId4;
+        presentationSourceIsParty = inputs.SourceIsParty;
         presentationForeignActors = inputs.ForeignActors.ToDictionary(actor => actor.Index);
         presentationNativeTargets = inputs.NativeTargets.ToDictionary(target => target.Model.Index);
         if (!NativeBattleSlots.Contains(presentationSourceIndex) || inputs.Parameters.Actor78 != presentationSourceIndex ||

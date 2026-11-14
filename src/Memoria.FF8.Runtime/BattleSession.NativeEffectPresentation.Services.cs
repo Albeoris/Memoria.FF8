@@ -6,16 +6,8 @@ public sealed partial class BattleSession
 {
     private ImmutableArray<int> ReadRequiredPresentationPartyActors()
     {
-        if (presentationForeignActors is null)
-        {
-            return [0, 1, 2];
-        }
-        ImmutableArray<int> actors = presentationForeignActors.Values.Where(actor => actor.IsParty).Select(actor => actor.Index).Order().Prepend(0).ToImmutableArray();
-        if (presentationPartyActorCount is { } expected && actors.Length != expected)
-        {
-            throw new NotSupportedException("The native party presentation operation exceeds the host's available physical model bank.");
-        }
-        return actors;
+        return NativeBattlePresentationPartyRows.Resolve(presentationSourceIndex, presentationSourceModelId, presentationSourceIsParty, hostedGuardianFormMode,
+            presentationNativeTargets?.Values, presentationForeignActors?.Values, presentationPartyActorCount);
     }
 
     private NativeBattleStageState ReadNativeStageVisibilityOwner()
