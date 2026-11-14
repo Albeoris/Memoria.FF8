@@ -212,9 +212,7 @@ public sealed partial class Ff7Session
             return true;
         }
         int nativeResult = battle.ResolveNativeFieldResult(0);
-        battle.PublishNativeSaveWrites(Machine.Variables);
-        Host.PublishBattleResult(battle.RequestId, nativeResult);
-        FinishBattle(result, battle);
+        FinishFieldBattle(result, battle, nativeResult);
         return true;
     }
 
@@ -237,9 +235,7 @@ public sealed partial class Ff7Session
             return true;
         }
         int nativeResult = battle.ResolveNativeFieldResult(Ff7NativeBattleEscape.FieldResult);
-        battle.PublishNativeSaveWrites(Machine.Variables);
-        Host.PublishBattleResult(battle.RequestId, nativeResult);
-        FinishBattle(result, battle);
+        FinishFieldBattle(result, battle, nativeResult);
         return true;
     }
 
@@ -262,10 +258,20 @@ public sealed partial class Ff7Session
             return true;
         }
         int nativeResult = battle.ResolveNativeFieldResult(1);
+        FinishFieldBattle(result, battle, nativeResult);
+        return true;
+    }
+
+    private void FinishFieldBattle(Ff7Progress result, Ff7BattleSession battle, int nativeResult)
+    {
+        Host.ValidateBattleResultOwner(battle.RequestId);
+        if (battle.Outcome is Ff7BattleOutcome.Escaped or Ff7BattleOutcome.Defeat)
+        {
+            result = result with { FieldBattleResults = [.. (result.FieldBattleResults ?? []), new(FieldGeneration, battle.RequestId, battle.Formation.FormationId, battle.Outcome)] };
+        }
         battle.PublishNativeSaveWrites(Machine.Variables);
         Host.PublishBattleResult(battle.RequestId, nativeResult);
         FinishBattle(result, battle);
-        return true;
     }
 
     private bool TryFinishWorldBattle(Ff7Progress result, Ff7BattleSession battle)

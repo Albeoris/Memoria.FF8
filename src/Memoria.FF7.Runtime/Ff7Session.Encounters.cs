@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using Memoria.FF7.Events;
 using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
@@ -66,11 +65,13 @@ public sealed partial class Ff7Session
         int tableIndex = Host.Process.BattleTable != 0 ? 1 : 0;
         PcFieldEncounterTable table = encounterTables[tableIndex];
         bool disabled = !Progress.RandomEncountersEnabled || Host.Process.BattlesDisabled || Host.Process.Movie is { Playing: true };
+        Ff7EncounterModifiers modifiers = Ff7EncounterModifiers.Baseline;
         if (table.Enabled && !disabled && Progress.Encounters.MovementCounter == 224)
         {
-            ValidateEncounterMateria();
+            battleKernel ??= KernelArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.Kernel).Path));
+            modifiers = Ff7EncounterModifiers.Read(Progress, battleKernel[8].Data.Span);
         }
-        Ff7EncounterResult result = Ff7NativeEncounters.Step(Progress.Encounters, table, executable.NativeFieldRandomTable.ToArray(), actor.MoveSpeed, disabled);
+        Ff7EncounterResult result = Ff7NativeEncounters.Step(Progress.Encounters, table, executable.NativeFieldRandomTable.ToArray(), actor.MoveSpeed, disabled, modifiers.EncounterRate, modifiers.FieldInitiative);
         Progress = Progress with { Encounters = result.State };
         if (result.CountStep)
         {
@@ -100,26 +101,5 @@ public sealed partial class Ff7Session
     {
         battleKernel ??= KernelArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.Kernel).Path));
         return Ff7WorldEncounterModifiers.Read(Progress, battleKernel[8].Data.Span);
-    }
-
-    private void ValidateEncounterMateria()
-    {
-        battleKernel ??= KernelArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.Kernel).Path));
-        foreach (Ff7CharacterState character in Progress.Characters.Where(character => Progress.Party.Contains(character.Id)))
-        {
-            for (int slot = 0; slot < 16; slot++)
-            {
-                int id = (byte)BinaryPrimitives.ReadUInt32LittleEndian(character.NativeRecord.AsSpan(64 + slot * 4));
-                if (id == 255)
-                {
-                    continue;
-                }
-                ReadOnlySpan<byte> materia = battleKernel[8].Data.Span.Slice(id * 20, 20);
-                if ((materia[13] & 15) is 0 or 1)
-                {
-                    throw new NotSupportedException("FFVII independent materia encounter modifiers require their native equipment calculation.");
-                }
-            }
-        }
     }
 }

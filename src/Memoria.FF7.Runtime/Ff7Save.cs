@@ -122,12 +122,12 @@ public sealed record Ff7SessionSave
             bool hasOwner = World is { } world
                 ? world.BattleState?.Pending is { } occurrence && occurrence.Id == Battle.RequestId && occurrence.Formation == initialFormation
                 : Process.GlobalCommand == Ff7GlobalCommand.Battle && Process.GlobalRequestId == Battle.RequestId && Process.Receipts.Any(receipt => receipt.Request.Id == Battle.RequestId && receipt.Request.Command is FieldBattleCommand command && command.Formation == initialFormation && !receipt.Reply.Completed);
-            if (!hasOwner || Progress.CompletedBattles.Any(receipt => receipt.FieldGeneration == FieldGeneration && receipt.RequestId == Battle.RequestId) || Progress.WorldBattleResults.Any(receipt => receipt.FieldGeneration == FieldGeneration && receipt.RequestId == Battle.RequestId))
+            if (!hasOwner || Progress.CompletedBattles.Any(receipt => receipt.FieldGeneration == FieldGeneration && receipt.RequestId == Battle.RequestId) || Progress.WorldBattleResults.Any(receipt => receipt.FieldGeneration == FieldGeneration && receipt.RequestId == Battle.RequestId) || Progress.FieldBattleResults?.Any(receipt => receipt.FieldGeneration == FieldGeneration && receipt.RequestId == Battle.RequestId) == true)
             {
                 throw new InvalidDataException("The FFVII battle snapshot requires its matching unfinished encounter owner.");
             }
         }
-        if (World?.BattleState?.Pending is { } pending && (Progress.CompletedBattles.Any(receipt => receipt.FieldGeneration == FieldGeneration && receipt.RequestId == pending.Id) || Progress.WorldBattleResults.Any(receipt => receipt.FieldGeneration == FieldGeneration && receipt.RequestId == pending.Id)))
+        if (World?.BattleState?.Pending is { } pending && (Progress.CompletedBattles.Any(receipt => receipt.FieldGeneration == FieldGeneration && receipt.RequestId == pending.Id) || Progress.WorldBattleResults.Any(receipt => receipt.FieldGeneration == FieldGeneration && receipt.RequestId == pending.Id) || Progress.FieldBattleResults?.Any(receipt => receipt.FieldGeneration == FieldGeneration && receipt.RequestId == pending.Id) == true))
         {
             throw new InvalidDataException("An FFVII world encounter has already been settled.");
         }
@@ -257,6 +257,35 @@ public sealed record CombinedSessionSave
         }
     }
 
+    public CombinedSessionSave RestoreLegacyFieldBattleResults()
+    {
+        Validate();
+        if (Ff7 is null || GuestBattleSettlements is not { Length: > 0 } guests)
+        {
+            return this;
+        }
+        List<Ff7FieldBattleResultReceipt> results = [.. (Ff7.Progress.FieldBattleResults ?? [])];
+        int count = results.Count;
+        foreach (Ff7GuestBattleSettlementReceipt guest in guests)
+        {
+            if (guest.Outcome is not (Ff7BattleOutcome.Escaped or Ff7BattleOutcome.Defeat) || guest.FieldGeneration != Ff7.FieldGeneration || results.Any(result => result.FieldGeneration == guest.FieldGeneration && result.RequestId == guest.RequestId) || Ff7.Progress.WorldBattleResults.Any(result => result.FieldGeneration == guest.FieldGeneration && result.RequestId == guest.RequestId))
+            {
+                continue;
+            }
+            if (Ff7.Process.Receipts.Any(host => host.Request.Id == guest.RequestId && host.Request.Command is FieldBattleCommand command && command.Formation == guest.FormationId && host.Reply.Completed))
+            {
+                results.Add(new(guest.FieldGeneration, guest.RequestId, guest.FormationId, guest.Outcome));
+            }
+        }
+        if (results.Count == count)
+        {
+            return this;
+        }
+        CombinedSessionSave restored = this with { Ff7 = Ff7 with { Progress = Ff7.Progress with { FieldBattleResults = results.ToArray() } } };
+        restored.Validate();
+        return restored;
+    }
+
     private bool ValidGuestSettlementHost(Ff7GuestBattleSettlementReceipt receipt)
     {
         if (receipt.Outcome == Ff7BattleOutcome.Victory)
@@ -266,6 +295,11 @@ public sealed record CombinedSessionSave
         if (receipt.Outcome is not (Ff7BattleOutcome.Escaped or Ff7BattleOutcome.Defeat))
         {
             return false;
+        }
+        Ff7FieldBattleResultReceipt? field = Ff7!.Progress.FieldBattleResults?.SingleOrDefault(host => host.FieldGeneration == receipt.FieldGeneration && host.RequestId == receipt.RequestId);
+        if (field is not null)
+        {
+            return field.Formation == receipt.FormationId && field.Outcome == receipt.Outcome;
         }
         if (Ff7!.Progress.WorldBattleResults.Any(host => host.FieldGeneration == receipt.FieldGeneration && host.RequestId == receipt.RequestId && host.Formation == receipt.FormationId && host.Outcome == receipt.Outcome))
         {
@@ -356,8 +390,7 @@ public static class CombinedSessionCodec
                 throw new InvalidDataException("The crossover save payload is corrupt.");
             }
             CombinedSessionSave save = JsonSerializer.Deserialize<CombinedSessionSave>(payload, Options) ?? throw new InvalidDataException("The crossover save is empty.");
-            save.Validate();
-            return save;
+            return save.RestoreLegacyFieldBattleResults();
         }
         catch (Exception exception) when (exception is EndOfStreamException or JsonException or InvalidOperationException)
         {

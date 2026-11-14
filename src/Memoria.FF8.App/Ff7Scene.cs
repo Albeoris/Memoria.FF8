@@ -126,7 +126,7 @@ internal sealed partial class Ff7Scene : IDisposable
     public void Continue(CombinedSessionSave saved)
     {
         ArgumentNullException.ThrowIfNull(saved);
-        saved.Validate();
+        saved = saved.RestoreLegacyFieldBattleResults();
         Ff7SessionSave ff7 = saved.Ff7 ?? throw new InvalidDataException("This save contains no FFVII continuation.");
         BattleAtbMode? retainedMode = ReadRetainedBattleAtbMode(saved);
         Ff7Session restored = Ff7Session.Restore(installation, ff7);

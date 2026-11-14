@@ -38,7 +38,7 @@ internal static class NativeMenuEquipmentTests
             {
                 Party = [0, 1, 255],
                 Characters = source.Progress.Characters.Select(character => character.Id == 0 ? character with { NativeRecord = cloud } : character).ToArray(),
-                Inventory = [new(128, 2), new(130, 3), new(161, 1), new(257, 1), new(289, 1), new(131, 0)],
+                Inventory = [new(128, 2), new(130, 3), new(161, 1), new(257, 1), new(298, 1), new(131, 0)],
                 Materia = [new(49, 6, 1)]
             }
         };
@@ -68,8 +68,8 @@ internal static class NativeMenuEquipmentTests
         record = session.Progress.Characters.Single(character => character.Id == 0).NativeRecord;
         Check(record[29] == 1 && ReadMateria(record, 100) == uint.MaxValue && session.Progress.Materia[^1] == new Ff7MateriaState(52, 0xFFFFFE, 3), "Armor did not return its displaced materia with all AP bits.");
         Check(session.Progress.Inventory.All(item => item.ItemId != 257) && session.Progress.Inventory.Contains(new Ff7InventorySlot(258, 1)), "Armor inventory did not erase spent stock and return the previous armor.");
-        Check(session.MenuEquipmentChoices(0, Ff7EquipmentSlot.Accessory).Single(choice => choice.ItemId == 289).UnavailableReason is not null, "Accessory effects without battle support must remain unavailable.");
-        Check(!session.TryEquipMenuItem(0, Ff7EquipmentSlot.Accessory, 289) && session.TryEquipMenuItem(0, Ff7EquipmentSlot.Accessory, null), "Equip must permit clearing an accessory without equipping unsupported accessory effects.");
+        Check(session.MenuEquipmentChoices(0, Ff7EquipmentSlot.Accessory).Single(choice => choice.ItemId == 298).UnavailableReason is not null, "Accessory effects without battle support must remain unavailable.");
+        Check(!session.TryEquipMenuItem(0, Ff7EquipmentSlot.Accessory, 298) && session.TryEquipMenuItem(0, Ff7EquipmentSlot.Accessory, null), "Equip must permit clearing an accessory without equipping unsupported accessory effects.");
         Check(session.Progress.Characters.Single(character => character.Id == 0).NativeRecord[30] == byte.MaxValue && session.Progress.Inventory.Contains(new Ff7InventorySlot(288, 1)), "Removing the accessory did not restore it to item inventory.");
         Check(ReferenceEquals(dormant, session.Progress.Characters.Single(character => character.Id == 1)) && ReferenceEquals(reserve, session.Progress.Characters.Single(character => character.Id == 2)), "Equip updated a dormant guest or reserve character record.");
         Check(fixture.Progress.Characters[0].NativeRecord[28] == 2 && fixture.Progress.Inventory[0].Quantity == 2 && fixture.Progress.Materia.Length == 1, "Equip mutated the prior saved state.");

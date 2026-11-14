@@ -8,6 +8,20 @@ internal readonly record struct Ff7WorldEncounterModifiers(int EncounterRate, in
 
     public static Ff7WorldEncounterModifiers Read(Ff7Progress progress, ReadOnlySpan<byte> materiaData)
     {
+        return Ff7EncounterModifiers.Read(progress, materiaData).ToWorld();
+    }
+}
+
+internal readonly record struct Ff7EncounterModifiers(int EncounterRate, int InitiativeRate, int ChocoboLure, int SpecialRollShift)
+{
+    public static Ff7EncounterModifiers Baseline { get; } = new(16, 16, 0, 0);
+
+    public int FieldInitiative => InitiativeRate | (SpecialRollShift != 0 ? 128 : 0);
+
+    public Ff7WorldEncounterModifiers ToWorld() => new(WorldRate(EncounterRate), WorldRate(InitiativeRate), ChocoboLure, SpecialRollShift);
+
+    public static Ff7EncounterModifiers Read(Ff7Progress progress, ReadOnlySpan<byte> materiaData)
+    {
         int enemyLure = 0;
         int enemyAway = 0;
         byte chocoboLure = 0;
@@ -84,7 +98,7 @@ internal readonly record struct Ff7WorldEncounterModifiers(int EncounterRate, in
         int encounterRate = 16 + enemyLure - enemyAway;
         encounterRate = encounterRate < 0 ? 2 : Math.Min(32, (int)unchecked((byte)encounterRate));
         int initiativeRate = Math.Min(85, (int)initiative);
-        return new(WorldRate(encounterRate), WorldRate(initiativeRate), Math.Min(32, (int)chocoboLure), halveSpecialChance ? 1 : 0);
+        return new(encounterRate, initiativeRate, Math.Min(32, (int)chocoboLure), halveSpecialChance ? 1 : 0);
     }
 
     private static int WorldRate(int rate) => rate > 16 ? rate * 2 : rate;

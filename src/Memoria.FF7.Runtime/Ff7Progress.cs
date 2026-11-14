@@ -15,6 +15,7 @@ public sealed record Ff7VictoryItem(int ItemId, int Accepted, int Rejected);
 public sealed record Ff7VictoryProjection(Ff7Progress Progress, Ff7BattleReward Reward, IReadOnlyList<Ff7VictoryCharacterGrowth> Characters, IReadOnlyList<Ff7VictoryMateriaGrowth> Materia, IReadOnlyList<Ff7VictoryItem> Items);
 public sealed record Ff7BattleReceipt(long FieldGeneration, long RequestId, ushort Formation, Ff7BattleReward Reward);
 public sealed record Ff7WorldBattleResultReceipt(long FieldGeneration, long RequestId, int Formation, Ff7BattleOutcome Outcome);
+public sealed record Ff7FieldBattleResultReceipt(long FieldGeneration, long RequestId, int Formation, Ff7BattleOutcome Outcome);
 
 /// <summary>FFVII progression has no FFVIII character, item, variable or reward identifiers.</summary>
 public sealed record Ff7Progress
@@ -43,6 +44,8 @@ public sealed record Ff7Progress
     public string DebugVictoryPolicy { get; init; } = "instant-defeat-v1";
     public Ff7BattleReceipt[] CompletedBattles { get; init; } = [];
     public Ff7WorldBattleResultReceipt[] WorldBattleResults { get; init; } = [];
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7FieldBattleResultReceipt[]? FieldBattleResults { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public byte[]? PartyAiAliases { get; init; }
 
@@ -86,6 +89,10 @@ public sealed record Ff7Progress
         if (WorldBattleResults.Any(receipt => receipt is null || receipt.FieldGeneration < 0 || receipt.RequestId < 1 || receipt.Formation is < 0 or > 1023 || receipt.Outcome is not (Ff7BattleOutcome.Victory or Ff7BattleOutcome.Escaped or Ff7BattleOutcome.Defeat)) || WorldBattleResults.Select(receipt => (receipt.FieldGeneration, receipt.RequestId)).Distinct().Count() != WorldBattleResults.Length)
         {
             throw new InvalidDataException("FFVII world battle result receipts are invalid.");
+        }
+        if (FieldBattleResults is { } results && (results.Any(receipt => receipt is null || receipt.FieldGeneration < 0 || receipt.RequestId < 1 || receipt.Formation is < 0 or > 1023 || receipt.Outcome is not (Ff7BattleOutcome.Escaped or Ff7BattleOutcome.Defeat)) || results.Select(receipt => (receipt.FieldGeneration, receipt.RequestId)).Distinct().Count() != results.Length || results.Any(receipt => CompletedBattles.Any(victory => victory.FieldGeneration == receipt.FieldGeneration && victory.RequestId == receipt.RequestId) || WorldBattleResults.Any(world => world.FieldGeneration == receipt.FieldGeneration && world.RequestId == receipt.RequestId))))
+        {
+            throw new InvalidDataException("FFVII field battle result receipts are invalid.");
         }
         _ = Ff7NativeMateriaInventory.Normalize(Materia);
     }

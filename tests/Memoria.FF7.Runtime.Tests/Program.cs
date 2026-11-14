@@ -170,6 +170,24 @@ if (args.Contains("--character-names-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--field-battle-settlements-only", StringComparer.Ordinal))
+{
+    FieldBattleSettlementTests.Run();
+    return 0;
+}
+
+if (args.Contains("--world-encounter-modifiers-only", StringComparer.Ordinal))
+{
+    WorldEncounterModifierTests.Run();
+    return 0;
+}
+
+if (args.Contains("--field-encounter-modifiers-only", StringComparer.Ordinal))
+{
+    FieldEncounterModifierTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-guest-fury-only", StringComparer.Ordinal))
 {
     NativeGuestFuryTests.Run();
@@ -239,6 +257,18 @@ if (args.Contains("--world-battle-only", StringComparer.Ordinal))
 if (args.Contains("--enemy-command-banks-only", StringComparer.Ordinal))
 {
     EnemyCommandBankTests.Run();
+    return 0;
+}
+
+if (args.Contains("--stat-accessory-equipment-only", StringComparer.Ordinal))
+{
+    NativeAccessoryEquipmentTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-menu-equipment-only", StringComparer.Ordinal))
+{
+    NativeMenuEquipmentTests.Run();
     return 0;
 }
 
@@ -432,6 +462,7 @@ var tests = new (string Name, Action Run)[]
     ("FFVII Turn Based diagnostic encounter continuation", InstalledOpeningTests.RunTurnAdvanceContinuation),
     ("FFVII Order and PHS native party continuation", NativePartyRecoveryTests.RunMenuParty),
     ("FFVII native Equip transactions and cold continuation", NativeMenuEquipmentTests.Run),
+    ("FFVII stat accessory equipment and cold continuation", NativeAccessoryEquipmentTests.Run),
     ("FFVII native Limit level selection and cold continuation", NativeLimitMenuTests.Run),
     ("FFVII native field Item and Magic recovery", NativeFieldRecoveryTests.Run),
     ("native MP Turbo materia in battle", NativeBattleMpTurboTests.Run),
@@ -449,6 +480,8 @@ var tests = new (string Name, Action Run)[]
     ("native opening flashback party storage and equipment", FlashbackPartyTests.Run),
     ("native opening request reward suppression", RewardSuppressionTests.Run),
     ("native opening character display names", CharacterDisplayNameTests.Run),
+    ("durable field battle settlements and legacy continuation", FieldBattleSettlementTests.Run),
+    ("native field encounter materia modifiers and cold continuation", FieldEncounterModifierTests.Run),
     ("native guest fury ownership and cold continuation", NativeGuestFuryTests.Run),
     ("native fury producer, opposition and cold continuation", NativeFuryTests.Run),
     ("native enemy withdrawal effect and cold continuation", NativeEnemyWithdrawalTests.Run),

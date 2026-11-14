@@ -11,6 +11,8 @@ public readonly record struct Ff7BattlePlayerStats(Ff7BattleDamageActor Actor, F
 /// <summary>Projects the equipped PC character record into its native battle damage and weapon inputs.</summary>
 public static class Ff7NativeBattlePlayerStats
 {
+    internal static bool IsStatOnlyAccessory(ReadOnlySpan<byte> accessory) => accessory.Length == 16 && accessory[4] == byte.MaxValue && accessory[5] == byte.MaxValue && BinaryPrimitives.ReadUInt32LittleEndian(accessory[8..]) == 0;
+
     public static Ff7BattlePlayerStats Create(Ff7CharacterState character, IReadOnlyList<KernelSection> kernel, IReadOnlyList<short> materiaModifiers)
     {
         ArgumentNullException.ThrowIfNull(character);
@@ -37,7 +39,7 @@ public static class Ff7NativeBattlePlayerStats
                 throw new InvalidDataException("FFVII player damage statistics reference an absent accessory record.");
             }
             ReadOnlySpan<byte> accessory = kernel[7].Data.Span.Slice(record[30] * 16, 16);
-            if (accessory[4] != byte.MaxValue || BinaryPrimitives.ReadUInt32LittleEndian(accessory[8..]) != 0 || accessory[5] != byte.MaxValue)
+            if (!IsStatOnlyAccessory(accessory))
             {
                 throw new NotSupportedException($"FFVII battle accessory {record[30]} requires its native affinity, status or special-effect consumer.");
             }

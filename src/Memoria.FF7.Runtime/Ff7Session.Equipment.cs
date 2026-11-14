@@ -143,7 +143,12 @@ public sealed partial class Ff7Session
             }
             if (slot == Ff7EquipmentSlot.Accessory)
             {
-                return "FFVII accessory effects are unavailable in battle.";
+                var layout = EquipmentLayout(slot);
+                ReadOnlySpan<byte> accessory = EquipmentRecords(layout.Section, layout.Stride, layout.Count).Slice((incoming.ItemId - layout.FirstItemId) * layout.Stride, layout.Stride);
+                if (!Ff7NativeBattlePlayerStats.IsStatOnlyAccessory(accessory))
+                {
+                    return "FFVII accessory affinity, status or special effects are unavailable in battle.";
+                }
             }
             if (Progress.Materia.Length + DisplacedMateria(character, slot, incoming.ItemId).Count > 200)
             {
@@ -185,6 +190,10 @@ public sealed partial class Ff7Session
 
     private List<(int Offset, uint Encoded)> DisplacedMateria(Ff7CharacterState character, Ff7EquipmentSlot slot, int incoming)
     {
+        if (slot == Ff7EquipmentSlot.Accessory)
+        {
+            return [];
+        }
         var layout = EquipmentLayout(slot);
         ReadOnlySpan<byte> records = EquipmentRecords(layout.Section, layout.Stride, layout.Count);
         ReadOnlySpan<byte> slots = records.Slice((incoming - layout.FirstItemId) * layout.Stride + layout.KernelMateriaOffset, 8);
