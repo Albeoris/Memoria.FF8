@@ -63,7 +63,7 @@ public sealed class CrossoverAllGuardianRenderingTests(ITestOutputHelper output)
         Run(name, false, character: character, crisis: crisis);
     }
 
-    internal void Run(string name, bool friendly, int? targetSlot = null, byte character = 0, byte crisis = 0)
+    internal void Run(string name, bool friendly, int? targetSlot = null, byte character = 0, byte crisis = 0, bool requireArenaCapture = false)
     {
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR")) && !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR")), "Select both original game installations.");
         using GpuTestDevice device = new();
@@ -76,9 +76,10 @@ public sealed class CrossoverAllGuardianRenderingTests(ITestOutputHelper output)
         int renderedCallbacks = 0;
         int submittedTriangles = 0;
         bool zombieOverlayRendered = false;
+        bool arenaImageRendered = false;
         CrossoverCompositeActionTests.Result result = fixture.Execute(queuedRoundTrip: true, observe: Observe, targetSlot: targetSlot);
         int[] targets = result.Contacts.Select(contact => contact.HitDescription.PreparedContact!.Invocation.TargetSlot).Distinct().Order().ToArray();
-        if (targetSlot is int selected)
+        if (targetSlot is int selected && (fixture.NativeTargetFlags & 0x30) == 0x10)
         {
             Assert.Equal(new[] { selected }, targets);
         }
@@ -98,6 +99,7 @@ public sealed class CrossoverAllGuardianRenderingTests(ITestOutputHelper output)
         {
             Assert.True(zombieOverlayRendered, "The original age45 host-body wave must change actual GPU pixels.");
         }
+        Assert.True(!requireArenaCapture || arenaImageRendered, "The native capture consumer must sample an actual nonblack host-arena image.");
         fixture.FollowWithFire();
         capture.Reset();
         Assert.Equal(0, capture.RetainedImages);
@@ -121,6 +123,12 @@ public sealed class CrossoverAllGuardianRenderingTests(ITestOutputHelper output)
             string random = JsonSerializer.Serialize(provider.CurrentCrtRandom);
             CrossoverGuestFireHostState? invocation = provider.ActiveAbility;
             capture.Prepare(effect.Ordering?.Packets.Select(packet => packet.PilotGeometry?.ForeignSurface?.Material).OfType<INativeBattleForeignMaterial>() ?? []);
+            foreach (NativeBattleArenaCaptureMaterial image in requireArenaCapture ? effect.Ordering?.Packets.Select(packet => packet.PilotGeometry?.ForeignSurface?.Material).OfType<NativeBattleArenaCaptureMaterial>() ?? [] : [])
+            {
+                NativeBattleForeignRenderMaterial material = capture.Resolve(image);
+                Assert.Contains(material.Material.Texture!.Pixels, pixel => pixel.R != 0 || pixel.G != 0 || pixel.B != 0);
+                arenaImageRendered = true;
+            }
             Ff7BattleRenderFrame frame = Frame(host, provider);
             foreach ((int width, int height) in new[] { (320, 240), (640, 360) })
             {
@@ -196,7 +204,7 @@ public sealed class CrossoverAllGuardianRenderingTests(ITestOutputHelper output)
         return result.ToImmutableArray();
     }
 
-    private static Ff7BattleRenderFrame Frame(Ff7BattleSession host, CrossoverGuestHostActions provider)
+    internal static Ff7BattleRenderFrame Frame(Ff7BattleSession host, CrossoverGuestHostActions provider)
     {
         MethodInfo actorVisual = typeof(Ff7Scene).GetMethod("BattleActorVisual", BindingFlags.Static | BindingFlags.NonPublic)!;
         Ff7BattleActorVisual[] actors = host.Actors.Where(actor => actor.Actor.Slot != 0 && host.IsActorPresentationReady(actor.Actor.Slot) && !provider.SuppressForeignActor(actor.Actor.Slot)).Select(actor =>
@@ -223,7 +231,7 @@ public sealed class CrossoverAllGuardianRenderingTests(ITestOutputHelper output)
         };
     }
 
-    private sealed class ValidatingRenderer(GpuTriangleRenderer renderer) : ITriangleRenderer, ILineRenderer, IFramebufferCaptureRenderer
+    internal sealed class ValidatingRenderer(GpuTriangleRenderer renderer) : ITriangleRenderer, ILineRenderer, IFramebufferCaptureRenderer
     {
         public int Triangles { get; private set; }
 

@@ -126,10 +126,7 @@ internal sealed class CrossoverNativeMagicPresentation(GameAssets game, NativeBa
         {
             textures = retained.Memory.Textures ?? throw new InvalidDataException("The native Limit process lost its texture owner.");
         }
-        if (sourceTextures is null)
-        {
-            source = NativeBattlePoseMatrices.PublishShadowBounds5086F0(source, currentResource.PoseSource ?? throw new NotSupportedException("Native source presentation requires its posed skeleton."));
-        }
+        source = NativeBattlePoseMatrices.PublishShadowBounds5086F0(source, currentResource.PoseSource ?? throw new NotSupportedException("Native source presentation requires its posed skeleton."));
         NativeBattleSummonColors colors = game.ReadNativeBattleGraphicsRules().SummonColors!;
         source = source with { Color40 = source.Color40 ?? colors.Transition, Color44 = source.Color44 ?? colors.Normal };
         if (retained is null && sourceTextures is null)

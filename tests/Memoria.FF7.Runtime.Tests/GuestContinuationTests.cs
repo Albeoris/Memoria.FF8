@@ -26,6 +26,7 @@ internal static class GuestContinuationTests
         CheckContinuation(1, 0x10);
         CheckContinuation(17, 0x10);
         CheckContinuation(1, 0x30);
+        Console.WriteLine("PASS guest continuation: single, seventeen-contact and group children retain one turn through deferred host responses.");
 
         Ff7BattleSession Create(Ff7BattleSnapshot? snapshot = null) => new(formation, original.Progress, kernel, executable.NativeMateriaStatModifiers, 1, snapshot: snapshot, animations: animations);
 
@@ -56,6 +57,7 @@ internal static class GuestContinuationTests
             bool parentSeen = false;
             bool childSeen = false;
             bool waitingSeen = false;
+            bool blockedWaitSeen = false;
             bool finished = false;
             ushort retainedGauge = 0;
             int waitTicks = 0;
@@ -86,9 +88,11 @@ internal static class GuestContinuationTests
                     }
                     else
                     {
+                        bool blocked = !battle.NativeActorModelsReady || current.PrimaryEffects?.HasCallbacks == true;
                         waitingSeen = true;
+                        blockedWaitSeen |= blocked;
                         waitTicks++;
-                        Check(target.AiMemory[0] == 1 && source.ChildCompletions == 1 && !battle.NativeActorModelsReady, "The completed child must retain the turn while its one final KO presentation runs.");
+                        Check(target.AiMemory[0] == 1 && source.ChildCompletions == 1, $"The waiting child duplicated or omitted a final callback: deathCallbacks={target.AiMemory[0]}, childCompletions={source.ChildCompletions}.");
                         if ((targets & 0x20) != 0)
                         {
                             Ff7BattleActorState other = current.Actors.Single(actor => actor.Actor.Slot == 5);
@@ -98,7 +102,7 @@ internal static class GuestContinuationTests
                 }
                 if (childSeen && battle.Action is null)
                 {
-                    Check(waitingSeen && waitTicks > 0 && battle.NativeActorModelsReady && source.Invocation is null, "The child released before the deferred native model callbacks finished.");
+                    Check(waitingSeen && blockedWaitSeen && waitTicks > 0 && battle.NativeActorModelsReady && current.PrimaryEffects?.HasCallbacks != true && source.Invocation is null, "The child released before the deferred native model callbacks finished.");
                     Check(target.AiMemory[0] == 1 && source.ParentBegins == 1 && source.ChildBegins == 1 && source.Preparations == 1 && source.Published == repetitions * System.Numerics.BitOperations.PopCount((uint)targets), "The combined action duplicated a source invocation, contact, preparation or death callback.");
                     Check(current.Actors[0].Gauge < retainedGauge && battle.GetGuestLimitReadyAt(0) is null, "The completed parent and child failed to release their one ready turn.");
                     finished = true;
@@ -111,6 +115,7 @@ internal static class GuestContinuationTests
 
     private static SceneFormation CounterFormation(SceneFormation original)
     {
+        // Original encounter geometry with authored callback counters and no autonomous enemy turns.
         byte[] scene = original.RawScene.ToArray();
         scene.AsSpan(0xC80).Fill(255);
         const int bankLength = 65;
@@ -218,7 +223,9 @@ internal static class GuestContinuationTests
             }
             if (Published < contacts.Length)
             {
-                return new(null, false) { CompositeContacts = [Published++] };
+                int ordinal = Published;
+                Published++;
+                return new(null, false) { CompositeContacts = [ordinal] };
             }
             ChildCompletions++;
             Invocation = null;

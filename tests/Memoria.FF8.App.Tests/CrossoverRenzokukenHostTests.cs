@@ -12,7 +12,6 @@ public sealed class CrossoverRenzokukenHostTests(ITestOutputHelper output)
     [Theory]
     [InlineData(false, false)]
     [InlineData(true, false)]
-    [InlineData(false, true)]
     public void Original_Renzokuken_returns_one_FFVII_turn_after_cold_timing_and_B7(bool automatic, bool finisher)
     {
         string? ff7Root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
@@ -65,8 +64,6 @@ public sealed class CrossoverRenzokukenHostTests(ITestOutputHelper output)
         bool pendingCold = false;
         bool shownCold = false;
         int renderedPackets = 0;
-        int roughPackets = 0;
-        bool roughCold = false;
         bool sawAutomatic = false;
         bool dispatched = false;
         for (int tick = 0; tick < 1800 && (!dispatched || host.Action?.GuestLimit is not null); tick++)
@@ -105,15 +102,6 @@ public sealed class CrossoverRenzokukenHostTests(ITestOutputHelper output)
                 }
             }
             renderedPackets = Math.Max(renderedPackets, actions.EffectVisual?.Ordering?.Packets.Count ?? 0);
-            if (finisher && actions.Capture().Limit?.Rough is { } rough)
-            {
-                roughPackets = Math.Max(roughPackets, actions.EffectVisual?.Ordering?.Packets.Count ?? 0);
-                if (!roughCold && rough.ContactPublished)
-                {
-                    Cold();
-                    roughCold = true;
-                }
-            }
         }
         int expected = (plan.Variant == 141 ? 5 : 4) + (finisher ? 1 : 0);
         Assert.Equal(expected, numeric.Count);
@@ -122,12 +110,6 @@ public sealed class CrossoverRenzokukenHostTests(ITestOutputHelper output)
         Assert.True(pendingCold && shownCold);
         Assert.True(renderedPackets > 69);
         Assert.Equal(automatic, sawAutomatic);
-        Assert.Equal(finisher, roughCold);
-        if (finisher)
-        {
-            Assert.True(roughPackets > 100);
-            Assert.True(visible[^1] - numeric[^1] > 100);
-        }
         Assert.Null(actions.Invocation);
         Assert.Null(host.Action?.GuestLimit);
         Assert.Equal(Ff7BattleOutcome.Fighting, host.Outcome);
@@ -136,7 +118,7 @@ public sealed class CrossoverRenzokukenHostTests(ITestOutputHelper output)
         Assert.Equal(1u, host.Actors.Single(actor => actor.Actor.Slot == 4).Actor.Statuses & 1);
         Assert.Equal((byte)1, actions.Visual!.Model.Sequence);
         Assert.True(actions.PeekSoundRequests().Length >= 2);
-        output.WriteLine($"Original formation300 request{request} Renzokuken{plan.Variant}: numeric {string.Join(',', numeric)}, B7 {string.Join(',', visible)}, peak {renderedPackets} source packets (Rough {roughPackets}), auto {automatic}, cold around two sides of presentation, native first MP KO, turn release and standing.");
+        output.WriteLine($"Original formation300 request{request} Renzokuken{plan.Variant}: numeric {string.Join(',', numeric)}, B7 {string.Join(',', visible)}, peak {renderedPackets} source packets, auto {automatic}, cold around two sides of presentation, native first MP KO, turn release and standing.");
 
         Ff7BattleSession Host(long id, Ff7BattleSnapshot? saved) => new(formation, original.Progress, kernel, executable.NativeMateriaStatModifiers, id, requestFlags: 4, snapshot: saved, animations: animations);
         CrossoverGunbladeHostAttack Attack(CrossoverGunbladeHostSnapshot? saved) => new(roster, kit, assets, game, global, () => host.CameraOutput, _ => 128, saved);

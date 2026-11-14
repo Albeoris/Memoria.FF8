@@ -163,50 +163,6 @@ public sealed class CrossoverNativeRenzokukenEntryTests(ITestOutputHelper output
         Assert.Equal((state.Resources.AppearanceSound, 0x8000, 128), (sound.Descriptor, sound.First, sound.Second));
         output.WriteLine($"Original Renzokuken{variant}: host4/alias3, descriptor {state.Frame.Effect.ReturnedDescriptor:X}, replacement {swap.Sequence}, retained tip {standingTip.Position}, MP approach {distance}, timings {string.Join(',', timings.Select(timing => timing.Timing))}, timing callbacks {string.Join(',', timingAt)}, B7 callbacks {string.Join(',', contactsAt)}, AF {string.Join(',', targetAt)}, peak {peakPackets} native packets, return {live.Returned}, finisher handoff {live.FinisherHandoff?.Callback:X}.");
 
-        if (variant == 160 && finisherPending)
-        {
-            CrossoverNativeRoughDivideProgram rough = new(game, original, rules.SummonColors!);
-            NativeBattleContactPresentation nativeContact = NativeBattleContactPresentations.Complete(9, 0, 0, 0, 255);
-            NativeBattleContactHalf contact = NativeBattleContactHalf.FromScratch(3, nativeContact.Sequence, nativeContact.Flags2, nativeContact.HitFlags3, 0, 0, 0);
-            CrossoverNativeRoughDivideState divided = rough.Begin(live, contact);
-            Assert.Equal(0x23CA1C8u, divided.Frame.Effect.ReturnedDescriptor);
-            Assert.Equal(3, divided.Frame.FirstRecipient);
-            Assert.Equal((byte)250, divided.Packets.Headers[1].ReadByte(1));
-            int contactAt = -1;
-            int posedAt = -1;
-            int roughPeak = 0;
-            bool roughCold = false;
-            NativeBattleGraphicsResource prior = program.BindReplacement(live.Effect);
-            for (int callback = 0; callback < 240 && !divided.Complete; callback++)
-            {
-                CrossoverNativeRoughDivideStep step = rough.Advance(divided, prior, () => new(targetPoint.X, targetPoint.Y, targetPoint.Z, 0), projection, 0);
-                divided = step.State;
-                roughPeak = Math.Max(roughPeak, divided.Ordering.Packets.Count);
-                if (step.TargetCue == 6)
-                {
-                    Assert.Equal(-1, posedAt);
-                    posedAt = callback;
-                }
-                if (step.Contact)
-                {
-                    Assert.Equal(-1, contactAt);
-                    contactAt = callback;
-                    string retainedRough = JsonSerializer.Serialize(CrossoverNativeRoughDivideProgram.Capture(divided));
-                    divided = CrossoverNativeRoughDivideProgram.Restore(JsonSerializer.Deserialize<CrossoverNativeRoughDivideState>(retainedRough)!);
-                    Assert.Equal(retainedRough, JsonSerializer.Serialize(CrossoverNativeRoughDivideProgram.Capture(divided)));
-                    roughCold = true;
-                }
-            }
-            Assert.True(roughCold);
-            Assert.Equal(30, posedAt);
-            Assert.Equal(65, contactAt);
-            Assert.True(divided.Complete);
-            Assert.True(roughPeak > 100);
-            Assert.Equal((short)0, divided.StageDepth);
-            Assert.Equal((byte)1, divided.Model.Sequence);
-            output.WriteLine($"Original Rough Divide163: staged sequence and linked Revolver, AF-style cue at {posedAt}, contact at {contactAt}, peak {roughPeak} packets, cold and original common texture loader/return.");
-        }
-
         void Cold()
         {
             string savedProgram = JsonSerializer.Serialize(CrossoverNativeRenzokukenProgram.Capture(live));

@@ -8,13 +8,23 @@ public sealed partial class BattleSession
     private (NativeBattleLionHeart165Frame Frame, NativeBattleGraphicsState Graphics) DrawNativeLionHeart165Echo(NativeBattleLionHeart165Frame frame, NativeBattleGraphicsState graphics, byte actor, uint temporary, NativeBattleCameraProjection projection, NativeBattlePilotVisualIdentity pilotIdentity)
     {
         NativeBattleGraphicsModel model = graphics.Models[actor];
-        NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Lion Heart echo requires its actual view matrix.");
         if ((model.Flags0 & 0x20) == 0)
         {
             graphics = SubmitNativeShadowPackets5088A0(graphics, model, projection, 4121, false);
             frame = frame with { Memory = NativeEffectMemory ?? throw new NotSupportedException("Native Lion Heart echo lost its process owner."), Staging = NativeFileStaging ?? throw new NotSupportedException("Native Lion Heart echo lost its physical globals.") };
         }
+        if (ReadNativeGraphicsForeignModel(graphics, actor) is { } foreign)
+        {
+            NativeBattleScriptedGraphicsMemory registers = frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Host body clipping requires its current geometry registers.");
+            NativeBattleShivaPlane plane = new(ReadShort(frame.Staging, temporary + 184), ReadShort(frame.Staging, temporary + 186), ReadShort(frame.Staging, temporary + 188), ReadShort(frame.Staging, temporary + 190));
+            ImmutableArray<int> selectors = Enumerable.Range(0, 56).Select(index => ReadInt(frame.Staging, 0xD88850u + (uint)index * 4)).ToImmutableArray();
+            NativeBattleGfGeometryBatch batch = NativeBattleForeignModelDrawing.ClipPlane(foreign, projection, plane, selectors, model.Color40 ?? throw new NotSupportedException("Host body clipping requires its retained model color."), registers.Zsf3 ?? throw new NotSupportedException("Host body clipping requires ZSF3."), registers.Zsf4 ?? throw new NotSupportedException("Host body clipping requires ZSF4."), registers.Dqa, registers.Dqb, pilotIdentity);
+            NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Host body clipping requires its initialized ordering table.");
+            NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Host body clipping requires its common packet owner."), primitive.Pending, batch);
+            return (frame with { Memory = frame.Memory with { PrimitiveProcess = written.Process } }, graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } });
+        }
+        NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Native Lion Heart echo requires its actual CPU model resource owner.");
         ushort maximum = cpu.ScratchMaximum ?? throw new NotSupportedException("Native Lion Heart echo requires the actual507010 maximum WORD.");
         uint vertices = checked(0x196B018u - (uint)maximum * 8);

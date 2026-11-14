@@ -225,10 +225,10 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
             {
                 leasedCameras.Add(lease);
             }
-            if (useLimit && observedLimit && !observedFinisher && battle.Action?.GuestLimit is { PendingHit: { } finisher, Contacts: int contacts } && contacts == expectedContacts && battle.Tick - finisher.Tick >= 200)
+            if (useLimit && observedLimit && !observedFinisher && battle.Action?.GuestContinuation is { } continuation)
             {
-                Assert.NotNull(CurrentLimit().Rough);
-                Assert.Equal(finisher, battle.Action!.GuestLimit!.PendingHit);
+                Assert.NotNull(battle.Action.GuestComposite);
+                Assert.Equal(expectedContacts - 1, continuation.CompletedContacts);
                 observedFinisher = true;
             }
             if (battle.ReadyPlayer == 0)
@@ -263,7 +263,9 @@ public sealed class CrossoverMixedBattleSceneTests(ITestOutputHelper output)
             }
             scene.Update(new(TimeSpan.FromSeconds((frame + 1) / 60d), TimeSpan.FromSeconds(1d / 60)), new KeyboardState());
             Assert.Null(scene.Error);
-            presentedContacts = Math.Max(presentedContacts, scene.Session!.Battle!.Action?.GuestLimit?.PresentedContacts ?? 0);
+            Ff7BattleActionState? activeAction = scene.Session!.Battle!.Action;
+            int completedContacts = activeAction?.GuestContinuation is { } parent ? parent.CompletedContacts + (activeAction.GuestComposite?.NextContact ?? 0) : activeAction?.GuestLimit?.PresentedContacts ?? 0;
+            presentedContacts = Math.Max(presentedContacts, completedContacts);
             if (frame % 17 == 0)
             {
                 Draw();

@@ -110,6 +110,7 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
 
         public int SourceMaximumHp => kit.MaximumHitPoints;
         public int NativeHitCount => action.HitCount;
+        public byte NativeTargetFlags => action.TargetFlags!.Value;
 
         public Fixture(string name, byte character, byte crisis, int? deadTarget = null, CrossoverArenaSurfaceCapture? arenaCapture = null, bool soloGuestParty = false, bool damagedAllies = false, int? sourceHP = null, bool nativeProcess = false, bool allFinishers = false)
         {

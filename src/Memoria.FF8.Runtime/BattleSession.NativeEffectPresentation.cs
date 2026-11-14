@@ -212,6 +212,14 @@ public sealed partial class BattleSession
         NativeGraphics = graphics;
         PumpNativeFileIo482590();
         graphics = NativeGraphics!;
+        NativeBattleGraphicsModel currentSource = graphics.Models[0];
+        if ((currentSource.Flags0 & 6) == 2 && ((currentSource.Flags2 ?? throw new InvalidDataException("Native presentation lost its source model WORD2.")) & 0x84) == 0)
+        {
+            NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, 0).PoseSource ?? throw new NotSupportedException("Native5086F0 requires its current source skeleton.");
+            currentSource = NativeBattlePoseMatrices.PublishShadowBounds5086F0(currentSource, pose);
+            graphics = graphics with { Models = graphics.Models.SetItem(0, currentSource) };
+            NativeGraphics = graphics;
+        }
         graphics = AdvanceNativeAuxiliary(graphics);
         NativeGraphics = graphics;
         graphics = AdvanceNativeModuleEffects(graphics);

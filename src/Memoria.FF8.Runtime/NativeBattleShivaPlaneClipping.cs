@@ -26,6 +26,11 @@ public static class NativeBattleShivaPlaneClipping
 
     public static NativeBattleShivaClipVertex Intersect5C35F0(NativeBattleShivaClipVertex first, NativeBattleShivaClipVertex second, NativeBattleShivaPlane plane)
     {
+        return Intersect5C35F0(first, second, plane, out _);
+    }
+
+    private static NativeBattleShivaClipVertex Intersect5C35F0(NativeBattleShivaClipVertex first, NativeBattleShivaClipVertex second, NativeBattleShivaPlane plane, out int ratio)
+    {
         int dx = second.Position.X - first.Position.X;
         int dy = second.Position.Y - first.Position.Y;
         int dz = second.Position.Z - first.Position.Z;
@@ -35,14 +40,14 @@ public static class NativeBattleShivaPlaneClipping
             denominator = 1;
         }
         int numerator = unchecked((plane.W << 12) + plane.X * first.Position.X + plane.Y * first.Position.Y + plane.Z * first.Position.Z);
-        int ratio = unchecked(-(numerator / denominator));
+        ratio = unchecked(-(numerator / denominator));
         NativeBattleVector position = new(unchecked((short)(first.Position.X + (unchecked(ratio * dx) >> 12))), unchecked((short)(first.Position.Y + (unchecked(ratio * dy) >> 12))), unchecked((short)(first.Position.Z + (unchecked(ratio * dz) >> 12))));
         int u = unchecked((first.Uv & 0xFF) + (unchecked(ratio * ((second.Uv & 0xFF) - (first.Uv & 0xFF))) >> 12));
         int v = unchecked((first.Uv & 0xFF00) + (unchecked(ratio * ((second.Uv & 0xFF00) - (first.Uv & 0xFF00))) >> 12));
         return new(position, unchecked((ushort)((ushort)u | (ushort)(v & 0xFF00))));
     }
 
-    public static ImmutableArray<NativeBattleShivaClipVertex> Clip5C34B0(ImmutableArray<NativeBattleShivaClipVertex> triangle, NativeBattleShivaPlane plane, ImmutableArray<int> selectors)
+    public static ImmutableArray<NativeBattleShivaClipVertex> Clip5C34B0(ImmutableArray<NativeBattleShivaClipVertex> triangle, NativeBattleShivaPlane plane, ImmutableArray<int> selectors, Action<NativeBattleShivaClipVertex, NativeBattleShivaClipVertex, NativeBattleShivaClipVertex, int>? observeIntersection = null)
     {
         if (triangle.IsDefault || triangle.Length != 3 || triangle.Any(vertex => vertex is null))
         {
@@ -74,7 +79,11 @@ public static class NativeBattleShivaPlaneClipping
         {
             if ((mask & (1 << edge)) != 0)
             {
-                slots[3 + edge] = Intersect5C35F0(triangle[edge], triangle[(edge + 1) % 3], plane);
+                NativeBattleShivaClipVertex first = triangle[edge];
+                NativeBattleShivaClipVertex second = triangle[(edge + 1) % 3];
+                NativeBattleShivaClipVertex intersection = Intersect5C35F0(first, second, plane, out int ratio);
+                slots[3 + edge] = intersection;
+                observeIntersection?.Invoke(first, second, intersection, ratio);
             }
         }
         int row = mask * 8;

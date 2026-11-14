@@ -67,19 +67,6 @@ internal sealed record CrossoverNativeRenzokukenSelection([property: JsonRequire
         return new(random);
     }
 
-    public CrossoverNativeRenzokukenSelection ProjectRoughDivide(CrossoverFf8BattleKit kit, BattleNativeAction action, out Ff7BattleGuestPhysicalHit hit)
-    {
-        if (ReadyTick is not null || action is not { Command: 249, DispatchCommand: 250, ActionId: 0, MagicId: 163, AttackType: 9, Power: 48, HitCount: 1, Hit: null or 255, Critical: null or 0, AttackFlags: 3, TargetFlags: 0x58, Element: 0, StatusAttack: 0, Statuses0: 0, Statuses1: 0 })
-        {
-            throw new NotSupportedException("Guest Rough Divide requires its selected original finisher record.");
-        }
-        NativeBattleRandomState random = Random.Draw(out byte criticalRoll);
-        bool critical = NativeBattleDamage.PhysicalCritical(action.Critical.GetValueOrDefault(), kit.Stats.Luck, criticalRoll);
-        // The type9 physical formula uses P/16, matching the untriggered type10 multiplier of 2/32.
-        hit = CrossoverNativeRenzokukenPlan.ProjectPhysicalStrike(kit, action.Power, 2, critical);
-        return this with { Random = random };
-    }
-
     public void Validate(long hostTick)
     {
         if (Random is null || ReadyTick is < 0 || ReadyTick > hostTick || Crisis > 4 || ReadyTick is null && Crisis != 0)

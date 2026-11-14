@@ -10,7 +10,7 @@ namespace Memoria.FF8;
 internal sealed record CrossoverGuestRenzokukenHostState(Ff7BattleGuestInvocation Invocation, long HostTick, long Subticks, bool HalfSubtick, CrossoverGunbladeHostPlacement Placement, CrossoverNativeRenzokukenPlan Plan, CrossoverNativeRenzokukenProgramState Program)
 {
     public long? FinisherNumericTick { get; init; }
-    public CrossoverNativeRoughDivideState? Rough { get; init; }
+    public System.Text.Json.JsonElement? Rough { get; init; }
     public ushort FinisherTargets { get; init; }
     public CrossoverNativeLimitCamera? Camera { get; init; }
 }
@@ -214,7 +214,11 @@ internal sealed partial class CrossoverGuestHostActions
         {
             return null;
         }
-        if (limitOptions != saved.Program.Trigger.Options || limitSelection is null || fire is not null || attack.Invocation is not null || saved.Invocation.GuestCommand != 5 || saved.Invocation.RequestId != host.RequestId || saved.Invocation.FormationId != host.Formation.FormationId || saved.Invocation.ActorSlot != ActorSlot || saved.Invocation.TargetSlot != saved.Program.Effect.HostTarget || saved.HostTick != host.Tick || saved.HostTick < saved.Invocation.StartedAt || saved.Plan.Variant != saved.Program.Effect.Frame.Effect.Binding.Effect || saved.Program.Effect.Frame.Random != encounter.CrtRandom || saved.Program.Trigger.Random != limitUiRandom || saved.FinisherNumericTick > saved.HostTick || saved.FinisherNumericTick is not null || saved.Rough is not null)
+        if (saved.FinisherNumericTick is not null || saved.Rough is { ValueKind: not System.Text.Json.JsonValueKind.Null })
+        {
+            throw new NotSupportedException("This live mixed finisher uses a superseded execution contract; resume from a checkpoint outside the action.");
+        }
+        if (limitOptions != saved.Program.Trigger.Options || limitSelection is null || fire is not null || attack.Invocation is not null || saved.Invocation.GuestCommand != 5 || saved.Invocation.RequestId != host.RequestId || saved.Invocation.FormationId != host.Formation.FormationId || saved.Invocation.ActorSlot != ActorSlot || saved.Invocation.TargetSlot != saved.Program.Effect.HostTarget || saved.HostTick != host.Tick || saved.HostTick < saved.Invocation.StartedAt || saved.Plan.Variant != saved.Program.Effect.Frame.Effect.Binding.Effect || saved.Program.Effect.Frame.Random != encounter.CrtRandom || saved.Program.Trigger.Random != limitUiRandom)
         {
             throw new InvalidDataException("The saved guest Renzokuken contradicts its native source and host queue occurrence.");
         }
