@@ -10,6 +10,7 @@ public sealed partial class BattleSession
         {
             return graphics;
         }
+        NativeBattleHostedModelPackets? hosted = ordinaryModel && privateOrderingAddress is null && callerPilotIdentity is null ? hostedModelPackets : null;
         if (ordinaryModel)
         {
             ushort flags2 = model.Flags2 ?? throw new NotSupportedException("Native502D40 shadow requires modelWORD2.");
@@ -19,7 +20,7 @@ public sealed partial class BattleSession
                 return graphics;
             }
             NativeBattlePrimitiveProcess process = NativeEffectMemory?.PrimitiveProcess ?? throw new NotSupportedException("Native502D40 shadow requires its actual packet bank/cursor.");
-            if (process.NativeRemaining500820() <= 0xF0)
+            if (hosted is null && process.NativeRemaining500820() <= 0xF0)
             {
                 return graphics;
             }
@@ -43,6 +44,11 @@ public sealed partial class BattleSession
         if ((uint)model.Index < graphics.ActorIds.Length && graphics.ActorIds[model.Index] is string actorId)
         {
             batch = batch with { Attempts = batch.Attempts.Select(attempt => attempt.Primitive is { } primitive ? attempt with { Primitive = primitive with { PresentationActorId = actorId } } : attempt).ToImmutableArray() };
+        }
+        if (hosted is not null)
+        {
+            NativeBattleLogicalOrdering ordering = hosted.Append(packets, frame.Pending, batch);
+            return graphics with { PrimitiveFrame = frame with { Pending = ordering } };
         }
         if (privateOrderingAddress is uint table)
         {

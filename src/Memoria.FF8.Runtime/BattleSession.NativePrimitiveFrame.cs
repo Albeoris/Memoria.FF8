@@ -201,6 +201,18 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState AppendNativeModelRendererPackets(NativeBattleGraphicsState graphics, ImmutableArray<NativeBattleGeometryPrimitive> primitives, bool renderedObject, string? textureSourceOwner = null)
     {
+        if (definition.NativeGraphics?.PrimitiveTables is not null && hostedModelPackets is { } hosted)
+        {
+            NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Hosted model packet publication requires its initialized ordering table.");
+            NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Hosted model packet publication requires its process owner.");
+            NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Hosted model packet publication requires its selected draw bank.");
+            NativeBattleLogicalOrdering ordering = hosted.Append(process, frame.Pending, primitives, textureSourceOwner: textureSourceOwner);
+            if (renderedObject)
+            {
+                NativeEffectMemory = memory with { PrimitiveProcess = process.Publish50FDF0(checked((uint)hosted.GetCursor(process)), null) };
+            }
+            return graphics with { PrimitiveFrame = frame with { Pending = ordering } };
+        }
         graphics = AppendNativePrimitivePackets(graphics, primitives, textureSourceOwner: textureSourceOwner);
         if (renderedObject)
         {
@@ -263,6 +275,7 @@ public sealed partial class BattleSession
         {
             pending = pending.ClearRoots45D550();
         }
+        hostedModelPackets?.ResetFrame();
         return graphics with { PrimitiveFrame = frame with { Pending = pending, LastCommands = commands, LastModuleBlendModes = blends.ToImmutable(), LastDescriptorPerspective = descriptor, LastDepthState = depth, LastColorState = color, LastTextureSnapshots = textureSnapshots } };
     }
 
@@ -316,6 +329,11 @@ public sealed partial class BattleSession
 
     private byte[] ReadNativePhysicalPrimitive(NativeBattlePrimitiveReference reference, int count)
     {
+        if (NativeBattleHostedModelPackets.IsHostedReference(reference))
+        {
+            NativeBattleHostedModelPackets hosted = hostedModelPackets ?? throw new InvalidDataException("Hosted model packet reference has no presentation process owner.");
+            return hosted.Read(reference, count);
+        }
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native retained packet alias requires its process arena owners.");
         if (reference.Bank is "223CCA0" or "CDF6B0")
         {

@@ -9,6 +9,7 @@ public sealed partial class BattleSession
     private readonly bool hostedBattlePresentation;
     private readonly ImmutableArray<NativeBattleModelEntryFacts?> hostedEntryFacts;
     private readonly Queue<HostedEntryDescriptor>? hostedEntryDescriptors;
+    private readonly NativeBattleHostedModelPackets? hostedModelPackets;
 
     private sealed record HostedEntryDescriptor(ushort Command, uint Argument = 0, ushort? Index = null, ushort? Value = null, BattleEvent? Message = null);
 
@@ -43,6 +44,7 @@ public sealed partial class BattleSession
 
         hostedBattlePresentation = true;
         hostedEntryDescriptors = new();
+        hostedModelPackets = new();
         combatants = [];
         byId = new(StringComparer.Ordinal);
         handlers = [];
