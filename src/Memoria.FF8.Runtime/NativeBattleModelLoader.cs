@@ -42,14 +42,26 @@ public sealed record NativeBattleModelLoader(NativeBattleModelLoadTask? Task)
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattlePartyLoadPlan? PartyPlan { get; init; }
 
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleGraphicsRoster? PresentationRoster { get; init; }
+
     public void Validate()
     {
+        PresentationRoster?.Validate();
         PartyPlan?.Validate();
+        if (PartyPlan is { } plan)
+        {
+            NativeBattlePartyLoadPlan.RequireMatchingRoster(PresentationRoster, plan.PresentationRoster);
+        }
         if (Task is not { } task)
         {
             return;
         }
-        if (task.PhysicalIndex >= (task.Callback is 0x507120 or 0x507F80 ? 7 : 3) || task.Callback is not (0x507120 or 0x507F80 or 0x5077B0 or 0x5079B0 or 0x507BF0 or 0x507E20) || task.Phase > (task.Callback == 0x5079B0 ? 3 : 2) || task.Phase != 0 && task.File is null || task.Phase >= 2 && (task.TextureBinding is null || task.OriginalTexturePack is null))
+        bool enemyResource = task.Callback is 0x507120 or 0x507F80;
+        bool validRow = PresentationRoster is { } roster
+            ? task.PhysicalIndex < roster.ActorCount && roster.Rows[task.PhysicalIndex] is { } actor && (enemyResource || actor.IsParty && task.ModelId < 16)
+            : task.PhysicalIndex < (enemyResource ? 7 : 3);
+        if (!validRow || task.Callback is not (0x507120 or 0x507F80 or 0x5077B0 or 0x5079B0 or 0x507BF0 or 0x507E20) || task.Phase > (task.Callback == 0x5079B0 ? 3 : 2) || task.Phase != 0 && task.File is null || task.Phase >= 2 && (task.TextureBinding is null || task.OriginalTexturePack is null))
         {
             throw new InvalidDataException("Native507070 requires its original bounded task and staging owners.");
         }
@@ -67,25 +79,27 @@ public sealed record NativeBattleModelLoader(NativeBattleModelLoadTask? Task)
         }
     }
 
-    public static NativeBattleModelLoader Queue507080(ushort request, byte physicalIndex, uint argument, byte linkedSelector128, byte bodySelector129)
+    public static NativeBattleModelLoader Queue507080(ushort request, byte physicalIndex, uint argument, byte linkedSelector128, byte bodySelector129, NativeBattleGraphicsRoster? presentationRoster = null)
     {
-        if (physicalIndex >= 7)
+        presentationRoster?.Validate();
+        if (presentationRoster is null && physicalIndex >= 7)
         {
             throw new NotSupportedException("Native model reload currently requires a physical party CPU bank0..2.");
         }
+        NativeBattleGraphicsActor? actor = presentationRoster?[physicalIndex];
         bool linked = request >= 0x1000;
         int model = linked ? request - 0x1000 : request;
         if (model >= 16 && !linked)
         {
-            return new(Task: new(unchecked((byte)model), physicalIndex, argument, 0, model == 143 ? 0x507F80u : 0x507120u, 0));
+            return new(Task: new(unchecked((byte)model), physicalIndex, argument, 0, model == 143 ? 0x507F80u : 0x507120u, 0)) { PresentationRoster = presentationRoster };
         }
-        if (physicalIndex >= 3)
+        if (presentationRoster is null ? physicalIndex >= 3 : actor?.IsParty != true || model >= 16)
         {
             throw new NotSupportedException("Native party model reload requires its physical CPU bank0..2.");
         }
         uint callback = linked ? model is 1 or 9 ? 0x507E20u : 0x507BF0u : model == 7 ? 0x5079B0u : 0x5077B0u;
         //507080 reinitializes the one-slot list even when model7's linked request appends no callback.
-        return new(Task: linked && model == 7 ? null : new((byte)model, physicalIndex, argument, linked ? linkedSelector128 : bodySelector129, callback, 0));
+        return new(Task: linked && model == 7 ? null : new((byte)model, physicalIndex, argument, linked ? linkedSelector128 : bodySelector129, callback, 0)) { PresentationRoster = presentationRoster };
     }
 
     public NativeBattleModelLoadStep Poll507070(int signed508470Result, IReadOnlyList<NativeBattleModelDatSource> sources, NativeBattleFileStaging staging, ushort enemyBlockedSlots = 63, bool ownedEnemySource = false)
@@ -121,7 +135,9 @@ public sealed record NativeBattleModelLoader(NativeBattleModelLoadTask? Task)
             {
                 throw new InvalidOperationException("Native507F80 resource copy must execute against its actual model142 row and enemy heap.");
             }
-            ushort mask = task.Callback == 0x507120 ? unchecked((ushort)~enemyBlockedSlots) : task.Callback is 0x5077B0 or 0x5079B0 ? (ushort)(3 << (2 * task.PhysicalIndex)) : (ushort)(1 << (task.PhysicalIndex + 12));
+            // Extension uploads use the canonical actor-local body and linked texture slots.
+            int textureSlot = PresentationRoster is not null && task.PhysicalIndex >= NativeBattleSlots.AllyCount ? 0 : task.PhysicalIndex;
+            ushort mask = task.Callback == 0x507120 ? unchecked((ushort)~enemyBlockedSlots) : task.Callback is 0x5077B0 or 0x5079B0 ? (ushort)(3 << (2 * textureSlot)) : (ushort)(1 << (textureSlot + 12));
             NativeBattleEffectHeapAllocation pack = source.TexturePack(task.Callback);
             NativeBattleModelTextureLoad upload = NativeBattleModelTextures.Prepare507400(pack, unchecked((ushort)~mask));
             NativeBattleModelDatSource relocated = source.Relocate507400(task.Callback, upload);

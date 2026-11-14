@@ -96,6 +96,7 @@ public sealed partial record NativeBattleEffectTextureState([property: JsonRequi
 
     public void Validate()
     {
+        ValidatePresentationTextures();
         if (VramReadTail is { } tail && (tail.IsDefault || tail.Length != PcPageReadTailLength))
         {
             throw new InvalidDataException("Native PC texture captures require their complete retained trailing read window.");

@@ -19,18 +19,20 @@ public sealed record NativeBattlePartyLoadPlan(byte ModelId, byte PhysicalIndex,
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool PreferResourceStorage { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleGraphicsRoster? PresentationRoster { get; init; }
     [JsonIgnore]
-    public bool UseResourceStorage => RequiresResourceStorage || PreferResourceStorage;
+    public bool UseResourceStorage => RequiresResourceStorage || PreferResourceStorage || PresentationRoster is not null && PhysicalIndex >= NativeBattleSlots.AllyCount;
     [JsonIgnore]
     public int RequiredCapacity => checked(Body.CopiedLength + (Linked?.CopiedLength ?? 0));
     [JsonIgnore]
     public bool RequiresResourceStorage => RequiredCapacity > Layout.BankLength;
 
-    internal static NativeBattlePartyLoadPlan Create(byte model, byte physicalIndex, byte bodySelector129, byte linkedSelector128, NativeBattlePartyCpuLayout layout, IReadOnlyList<NativeBattleModelDatSource> sources)
+    internal static NativeBattlePartyLoadPlan Create(byte model, byte physicalIndex, byte bodySelector129, byte linkedSelector128, NativeBattlePartyCpuLayout layout, IReadOnlyList<NativeBattleModelDatSource> sources, NativeBattleGraphicsRoster? presentationRoster = null)
     {
-        NativeBattleModelLoadTask body = NativeBattleModelLoader.Queue507080(model, physicalIndex, 0, linkedSelector128, bodySelector129).Task ?? throw new InvalidDataException("A party body load requires its selected callback.");
-        NativeBattleModelLoadTask? linked = NativeBattleModelLoader.Queue507080(checked((ushort)(model + 0x1000)), physicalIndex, 0, linkedSelector128, bodySelector129).Task;
-        NativeBattlePartyLoadPlan plan = new(model, physicalIndex, layout, Part(body), linked is null ? null : Part(linked));
+        NativeBattleModelLoadTask body = NativeBattleModelLoader.Queue507080(model, physicalIndex, 0, linkedSelector128, bodySelector129, presentationRoster).Task ?? throw new InvalidDataException("A party body load requires its selected callback.");
+        NativeBattleModelLoadTask? linked = NativeBattleModelLoader.Queue507080(checked((ushort)(model + 0x1000)), physicalIndex, 0, linkedSelector128, bodySelector129, presentationRoster).Task;
+        NativeBattlePartyLoadPlan plan = new(model, physicalIndex, layout, Part(body), linked is null ? null : Part(linked)) { PresentationRoster = presentationRoster };
         plan.Validate();
         return plan;
 
@@ -43,7 +45,11 @@ public sealed record NativeBattlePartyLoadPlan(byte ModelId, byte PhysicalIndex,
 
     internal void Validate()
     {
-        if (ModelId >= 16 || PhysicalIndex >= 3 || Layout is null || Body is null)
+        PresentationRoster?.Validate();
+        bool validRow = PresentationRoster is { } roster
+            ? PhysicalIndex < roster.ActorCount && roster.Rows[PhysicalIndex]?.IsParty == true
+            : PhysicalIndex < 3;
+        if (ModelId >= 16 || !validRow || Layout is null || Body is null)
         {
             throw new InvalidDataException("Party load planning requires its physical party slot and selected body.");
         }
@@ -53,6 +59,14 @@ public sealed record NativeBattlePartyLoadPlan(byte ModelId, byte PhysicalIndex,
         if (Body.Callback != (ModelId == 7 ? 0x5079B0u : 0x5077B0u) || (ModelId == 7) != (Linked is null) || Linked is { } linked && linked.Callback != (ModelId is 1 or 9 ? 0x507E20u : 0x507BF0u) || Body.CopiedLength > int.MaxValue - (Linked?.CopiedLength ?? 0))
         {
             throw new InvalidDataException("Party load planning disagrees with its native body/linked copy callbacks.");
+        }
+    }
+
+    internal static void RequireMatchingRoster(NativeBattleGraphicsRoster? first, NativeBattleGraphicsRoster? second)
+    {
+        if (first is null ? second is not null : second is null || !first.Rows.SequenceEqual(second.Rows))
+        {
+            throw new InvalidDataException("The party load and its resource owner require the same presentation roster.");
         }
     }
 

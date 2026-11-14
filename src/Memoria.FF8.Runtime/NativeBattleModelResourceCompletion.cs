@@ -91,10 +91,7 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
             throw new InvalidDataException("Native auxiliary animation binding requires its section owner.");
         }
         animation.Validate();
-        if ((uint)physicalIndex >= 3)
-        {
-            throw new InvalidDataException("Native auxiliary animation requires its actual party header owner.");
-        }
+        _ = Cpu.PartyBankIndex(physicalIndex);
         return this with { AnimationSources = AnimationSources.SetItem(physicalIndex * 32 + animation.HeaderPointerField, animation) };
     }
 
@@ -154,9 +151,14 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
         RequireAnimationSourceOwners();
         foreach ((int header, NativeBattleModelAnimationCopy source) in AnimationSources)
         {
-            if (header < 0 || header >= 96 || header % 32 != source.HeaderPointerField)
+            if (header < 0 || header % 32 != source.HeaderPointerField)
             {
                 throw new InvalidDataException("Native auxiliary animation source requires its body or linked header field.");
+            }
+            int row = header / 32;
+            if (row >= NativeBattleSlots.AllyCount)
+            {
+                _ = Cpu.PartyBankIndex(row);
             }
             source.Validate();
         }
@@ -225,10 +227,6 @@ public static class NativeBattleModelResourceCopies
 
     internal static void RequirePlannedTransition(NativeBattleModelCpuResources previous, byte bank, NativeBattleGraphicsState graphics)
     {
-        if (bank >= 3)
-        {
-            throw new InvalidDataException("Party load admission requires its actual physical CPU bank.");
-        }
         if (!CanUseResourceStorage(previous, bank, graphics))
         {
             throw new NotSupportedException("Promoting a guest model bank to logical resources requires an unloaded model and no active resource consumers.");
@@ -237,11 +235,12 @@ public static class NativeBattleModelResourceCopies
 
     internal static bool CanUseResourceStorage(NativeBattleModelCpuResources previous, byte bank, NativeBattleGraphicsState graphics)
     {
-        if (bank >= 3)
+        if (previous.Cpu.PresentationRoster is { } roster)
         {
-            throw new InvalidDataException("Party load admission requires its actual physical CPU bank.");
+            NativeBattlePartyLoadPlan.RequireMatchingRoster(roster, graphics.PresentationRoster);
         }
-        return CanPromoteBanks(previous, previous.Cpu.Banks[bank].HasResourceStorage ? [] : [bank], graphics);
+        int selected = previous.Cpu.PartyBankIndex(bank);
+        return CanPromoteBanks(previous, previous.Cpu.GetBank(selected).HasResourceStorage ? [] : [selected], graphics);
     }
 
     private static void RequireInactiveBanks(NativeBattleModelCpuResources previous, HashSet<int> promoted, NativeBattleGraphicsState graphics)
@@ -280,11 +279,9 @@ public static class NativeBattleModelResourceCopies
         cpu.Validate();
         NativeBattleModelLoadTask task = bind.Task;
         NativeBattleModelDatSource source = bind.PreparedDat;
-        byte bank = task.PhysicalIndex;
-        if (bank >= 3)
-        {
-            throw new InvalidDataException("Native party resource copy leaves its three physical banks.");
-        }
+        NativeBattlePartyLoadPlan.RequireMatchingRoster(cpu.PresentationRoster, bind.PartyPlan?.PresentationRoster);
+        byte actorBank = checked((byte)cpu.PartyBankIndex(task.PhysicalIndex));
+        byte bank = actorBank;
         NativeBattleModelCpuResourceRow body = rows[bodyRow];
         int origin;
         int firstSection;
@@ -319,6 +316,7 @@ public static class NativeBattleModelResourceCopies
         {
             int row = linkedRow ?? throw new NotSupportedException("Native507BF0 requires its selected type2 resource-row alias.");
             NativeBattleModelCpuReference tail = body.Require(8);
+            ValidateTail(tail);
             bank = tail.Bank;
             origin = tail.Offset;
             firstSection = 0;
@@ -338,6 +336,7 @@ public static class NativeBattleModelResourceCopies
         else if (task.Callback == 0x507E20)
         {
             NativeBattleModelCpuReference tail = body.Require(8);
+            ValidateTail(tail);
             bank = tail.Bank;
             origin = tail.Offset;
             firstSection = 0;
@@ -352,15 +351,11 @@ public static class NativeBattleModelResourceCopies
         }
         int first = source.Section(firstSection);
         int length = source.Section(endSection) - first;
-        if (bank >= 3)
-        {
-            throw new InvalidDataException("Native resource row aliases an absent party CPU bank.");
-        }
-        NativeBattleModelCpuBank selected = cpu.Banks[bank];
+        NativeBattleModelCpuBank selected = cpu.GetBank(bank);
         if (bind.PartyPlan is { } plan)
         {
             plan.RequireSource(task, source, false);
-            if (plan.Layout != cpu.EffectiveLayout || bank != plan.PhysicalIndex || origin != (task.Callback is 0x507BF0 or 0x507E20 ? plan.Body.CopiedLength : 0))
+            if (plan.Layout != cpu.EffectiveLayout || bank != actorBank || origin != (task.Callback is 0x507BF0 or 0x507E20 ? plan.Body.CopiedLength : 0))
             {
                 throw new InvalidDataException("Party load completion left its planned bank, layout or body-tail placement.");
             }
@@ -396,10 +391,19 @@ public static class NativeBattleModelResourceCopies
             }
             rows = rows.SetItem(index, current);
         }
-        cpu = cpu with { Banks = cpu.Banks.SetItem(bank, changed) };
+        cpu = cpu.WithBank(bank, changed);
         return new(cpu, rows, bodyRow, task.Callback == 0x507BF0 ? linkedRow : null, animation, scratch);
 
-        NativeBattleModelCpuReference At(int section) => new(bank, checked(origin + source.Section(section) - source.Section(0))) { Layout = cpu.Layout };
+        void ValidateTail(NativeBattleModelCpuReference tail)
+        {
+            if (cpu.PresentationRoster is not null && (tail.Bank != actorBank || tail.EffectiveLayout != cpu.EffectiveLayout ||
+                !new NativeBattleResourcePointer(tail, null).HasValidOwner()))
+            {
+                throw new InvalidDataException("Hosted party resource tail does not belong to the actor's CPU bank.");
+            }
+        }
+
+        NativeBattleModelCpuReference At(int section) => new(bank, checked(origin + source.Section(section) - source.Section(0))) { Layout = cpu.Layout, ResourceOnly = NativeBattlePresentationCpuBanks.IsExtension(bank) };
         NativeBattleModelCpuResourceRow Section(NativeBattleModelCpuResourceRow row, int field, int section, bool absent = false)
         {
             row = row.Set(field, absent ? null : At(section));
