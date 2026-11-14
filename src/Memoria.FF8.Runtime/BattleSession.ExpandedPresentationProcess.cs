@@ -17,6 +17,7 @@ public sealed partial class BattleSession
             throw new InvalidOperationException("Hosted presentation can attach only before the expanded logical battle's first callback.");
         }
 
+        InitializeExpandedPartyPresentation();
         NativeExamTimer = definition.NativeExamTimerAtEntry;
         expandedPresentationProcess = process;
     }
@@ -42,6 +43,10 @@ public sealed partial class BattleSession
             }
 
             NativeExamTimerState? timer = NativeExamTimer;
+            for (int poll = 0; poll < 3; poll++)
+            {
+                AdvanceExpandedPresentedVitals4B0500();
+            }
             process.Advance(this, timer);
             NativeExamTimerState? presentedTimer = process.Timer;
             if (timer is null ? presentedTimer is not null : presentedTimer is null || !presentedTimer.HasSameClock(timer))
@@ -49,6 +54,8 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Hosted presentation must preserve the logical battle's timer clock.");
             }
             NativeExamTimer = presentedTimer;
+            ApplyExpandedHostedFrameReceipts(process.LastFrameServices!, process.LastStepActionToken);
+            AdvanceExpandedPresentedVitals4B0500();
             RefreshPreparedPresentation();
         }
         finally

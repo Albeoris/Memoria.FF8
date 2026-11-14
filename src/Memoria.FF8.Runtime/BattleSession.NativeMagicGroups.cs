@@ -147,6 +147,7 @@ public sealed partial class BattleSession
 
     private void ResolveExpandedMagicGroup(BattleCombatant actor, BattleActionPresentation command, ImmutableArray<string> targets)
     {
+        bool hosted = OwnsExpandedHostedInvocation;
         BattleActionDefinition action = FindAction(BattleAbility.Magic, command.ActionId);
         BattleNativeAction native = action.NativeAction!;
         uint statuses = NativeBattleStatusBits(actor);
@@ -201,11 +202,12 @@ public sealed partial class BattleSession
                 BattleActionPresentation cast = command with { TargetId = target.Id, ExpandedMagicTargets = null, NativeMagicCastMode = 0, NativeAction = native };
                 resolvingNativeAction = cast;
                 nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = false, EventLane = 2, Command = 2, Action = native.ActionId };
-                bool presentsNativeEffect = expandedPresentationHost is not null && ExpandedBattleActionRules.HasNativeSpellPresentation(native, hitPlan[0].Length);
+                NativeBattleActionHeaderPreparation? hostedHeader = hosted ? BuildExpandedActionHeaderPreparation(cast, native) : null;
+                bool presentsNativeEffect = hosted || expandedPresentationHost is not null && ExpandedBattleActionRules.HasNativeSpellPresentation(native, hitPlan[0].Length);
                 deferringExpandedImpacts = presentsNativeEffect;
                 (ImmutableArray<ExpandedBattleContact> contacts, BattleCombatant? reflector) = ResolveExpandedHitPlan(actor, cast, action, native, hitPlan);
                 deferringExpandedImpacts = false;
-                (BattleActionPresentation? reflection, ImmutableArray<ExpandedBattleContact> reflectedContacts, bool presentsReflection) = ResolveExpandedReflection(actor, cast, action, reflector, reflected);
+                (BattleActionPresentation? reflection, ImmutableArray<ExpandedBattleContact> reflectedContacts, bool presentsReflection, NativeBattleActionHeaderPreparation? reflectionHeader) = ResolveExpandedReflection(actor, cast, action, reflector, reflected);
                 completed++;
                 bool continueAffinity = true;
                 if (!singleCost)
@@ -218,14 +220,26 @@ public sealed partial class BattleSession
                     CompleteGuardianForceAffinity(actor, cast);
                 }
                 ExpandedBattleContact? first = contacts.FirstOrDefault() ?? reflectedContacts.FirstOrDefault();
-                if (first is not null)
+                BattlePendingEnemyDraw? hostedDraw = hosted && first is not null ? TakePendingHostedEnemyDraw() : null;
+                if (!hosted && first is not null)
                 {
                     CommitExpandedEnemyDraw(first.RecipientId, ref pendingEnemyDraw);
                 }
-                presentations.Enqueue(new(cast, contacts, presentsNativeEffect && !contacts.IsEmpty));
-                if (reflection is not null)
+                if (hostedHeader is not null)
                 {
-                    presentations.Enqueue(new(reflection, reflectedContacts, presentsReflection && !reflectedContacts.IsEmpty));
+                    StageExpandedHostedInvocation(cast, hostedHeader, contacts, contacts.IsEmpty ? null : hostedDraw);
+                    if (reflection is not null)
+                    {
+                        StageExpandedHostedInvocation(reflection, reflectionHeader!, reflectedContacts, contacts.IsEmpty ? hostedDraw : null);
+                    }
+                }
+                else
+                {
+                    presentations.Enqueue(new(cast, contacts, presentsNativeEffect && !contacts.IsEmpty));
+                    if (reflection is not null)
+                    {
+                        presentations.Enqueue(new(reflection, reflectedContacts, presentsReflection && !reflectedContacts.IsEmpty));
+                    }
                 }
                 if (!continueAffinity)
                 {
@@ -256,9 +270,13 @@ public sealed partial class BattleSession
             return;
         }
 
-        expandedMagicPresentation = presentations;
         expandedMagicCompletionMessage = "Repeated magic completed.";
         ActiveAction = command with { Phase = BattleActionPhase.Recovery, RemainingFrames = 1, MagicReservationId = null };
+        if (hosted)
+        {
+            return;
+        }
+        expandedMagicPresentation = presentations;
         AdvanceExpandedMagicPresentation(ActiveAction, preparing: true);
     }
 

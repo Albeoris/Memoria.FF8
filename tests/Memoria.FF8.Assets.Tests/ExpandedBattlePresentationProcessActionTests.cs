@@ -1,4 +1,6 @@
 using System.Collections.Immutable;
+using System.Reflection;
+using System.Text.Json;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets.Tests;
@@ -9,6 +11,221 @@ public sealed class ExpandedBattlePresentationProcessActionTests
     private const int ActionBudget = 1500;
     private const int StandingReturnBudget = 240;
     private static readonly NativeBattleContactHalf NoSecondary = new(byte.MaxValue, 0, 0, 0, 0, 0, 0);
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Main_queued_double_and_reflected_fire_admit_each_invocation_on_the_same_process(bool reflect)
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        var (logicalDefinition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
+        BattleActionDefinition fire = Assert.Single(assets.ActionDefinitions, action => action.Ability == BattleAbility.Magic && action.Name == "Fire");
+        const string caster = "party-1";
+        const string target = "enemy-8";
+        logicalDefinition = logicalDefinition with
+        {
+            NativeActions = assets.NativeActions.ToArray(),
+            ActionDefinitions = [fire],
+            NativeCommandSequences = selected.NativeCommandSequences,
+            NativeGlobalMessages = assets.ReadNativeGlobalBattleMessages(),
+            Combatants = logicalDefinition.Combatants.Select(actor => actor.Id == caster
+                ? actor with { Magic = 15, MaximumHp = 6000, CurrentHp = 6000, Abilities = [BattleAbility.Attack, BattleAbility.Magic], MagicStocks = [new(fire.Id, 5)], NativeStatus1 = reflect ? 0u : 0x20000u }
+                : actor.Id == target ? actor with { MaximumHp = 6000, CurrentHp = 6000, NativeStatus1 = reflect ? 0x80u : 0u }
+                : actor.NativeTemplate is { } template ? actor with { MaximumHp = template.Levels[actor.Level].MaximumHp, CurrentHp = template.Levels[actor.Level].MaximumHp }
+                : actor).ToArray()
+        };
+        selected = selected with
+        {
+            NativeDefensiveResources = game.ReadNativeBattleDefensiveResources(),
+            NativeEffectMeshes = game.ReadNativeEffectMeshes(),
+            NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([fire.NativeAction!.MagicId]),
+            NativeCommonEffectTexture = game.ReadNativeCommonEffectTexture(),
+            NativeActionCameraRules = game.ReadNativeActionCameraRules()
+        };
+        BattleSession logical = new(logicalDefinition, BattleAtbMode.TurnBased);
+        ExpandedBattlePresentationProcess process = new(logical, selected);
+        logical.AttachExpandedPresentationProcess(process);
+        for (int callback = 0; callback < EntryBudget && !logical.NativeEntryReady; callback++)
+        {
+            logical.Tick();
+        }
+        Assert.True(logical.NativeEntryReady);
+        var models = Models(process);
+
+        logical.QueueAction(caster, target, BattleAbility.Magic, fire.Id, magicTargets: reflect ? null : [target, target]);
+        List<long> tokens = [];
+        List<NativeBattleContactPacket> contacts = [];
+        for (int callback = 0; callback < ActionBudget && (logical.ActiveAction is not null || logical.QueuedActions.Count != 0); callback++)
+        {
+            logical.Tick();
+            if (process.LastStepActionToken is long token && (tokens.Count == 0 || tokens[^1] != token))
+            {
+                Assert.All(tokens, earlier => Assert.True(process.IsActionComplete(earlier)));
+                tokens.Add(token);
+            }
+            contacts.AddRange(process.LastStep.Contacts);
+        }
+
+        Assert.Null(logical.ActiveAction);
+        Assert.Equal(2, tokens.Count);
+        Assert.All(tokens, token => Assert.True(process.IsActionComplete(token)));
+        Assert.Equal(2, contacts.Count);
+        Assert.Equal((byte)15, contacts[0].Primary.ActorIndex);
+        if (reflect)
+        {
+            Assert.True(process.Graphics.PresentationRoster![contacts[1].Primary.ActorIndex].IsParty);
+            Assert.Equal(6000, logical.Combatants.Single(actor => actor.Id == target).CurrentHp);
+        }
+        else
+        {
+            Assert.Equal((byte)15, contacts[1].Primary.ActorIndex);
+            Assert.True(logical.Combatants.Single(actor => actor.Id == target).CurrentHp < 6000);
+        }
+        Assert.Equal(reflect ? 4 : 3, logical.GetAvailableMagicCasts(caster, fire.Id));
+        Assert.Equal(2, logical.Events.Count(item => item.Kind == "EffectContact" && item.ActorId == caster));
+        Assert.Single(logical.Events, item => item.Kind == "ActionComplete" && item.ActorId == caster);
+        Assert.Equal(models, Models(process));
+    }
+
+    [Theory]
+    [InlineData(4, 5, 15, 0)]
+    [InlineData(11, 14, 24, 14)]
+    public void Main_queued_attack_then_fire_use_the_attached_process_once(int allyCount, int enemyCount, byte targetRow, byte fireRow)
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        var (logicalDefinition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, allyCount, enemyCount, 4, expanded: true);
+        BattleActionDefinition fire = Assert.Single(assets.ActionDefinitions, action => action.Ability == BattleAbility.Magic && action.Name == "Fire");
+        NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals().WithGuestBattleRecords();
+        BattleCombatantDefinition[] actors = logicalDefinition.Combatants.Select(actor => actor.IsPlayer ? actor with
+        {
+            NativeAttack = assets.ReadPlayerNativeAttackData(vitals, Array.FindIndex(vitals.Records, row => row.CharacterId == actor.ModelId)),
+            Abilities = [BattleAbility.Attack, BattleAbility.Magic],
+            MagicStocks = [new(fire.Id, 5)],
+            Attack = 35,
+            Magic = 30,
+            NativeStatusResistances = new byte[40]
+        } : actor.NativeTemplate is { } template
+            ? actor with { MaximumHp = template.Levels[actor.Level].MaximumHp, CurrentHp = template.Levels[actor.Level].MaximumHp }
+            : actor with { MaximumHp = 6000, CurrentHp = 6000, NativeStatusResistances = new byte[40] }).ToArray();
+        logicalDefinition = logicalDefinition with { Combatants = actors, NativeActions = assets.NativeActions.ToArray(), ActionDefinitions = [fire], NativeCommandSequences = selected.NativeCommandSequences, NativeFieldBattleRules = 0 };
+        selected = selected with
+        {
+            NativeEffectMeshes = game.ReadNativeEffectMeshes(),
+            NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([fire.NativeAction!.MagicId]),
+            NativeCommonEffectTexture = game.ReadNativeCommonEffectTexture(),
+            NativeActionCameraRules = game.ReadNativeActionCameraRules()
+        };
+        BattleSession logical = new(logicalDefinition, BattleAtbMode.TurnBased);
+        BattleSession control = new(logicalDefinition, BattleAtbMode.TurnBased);
+        ExpandedBattlePresentationProcess process = new(logical, selected);
+        logical.AttachExpandedPresentationProcess(process);
+        for (int callback = 0; callback < EntryBudget && !logical.NativeEntryReady; callback++)
+        {
+            logical.Tick();
+        }
+        Assert.True(logical.NativeEntryReady);
+
+        const int attackRow = 7;
+        NativeBattleGraphicsRoster roster = process.Graphics.PresentationRoster!;
+        string attackActor = roster[attackRow].ActorId;
+        string fireActor = roster[fireRow].ActorId;
+        string target = roster[targetRow].ActorId;
+        var originalModels = Models(process);
+        NativeBattleModelCpuResources cpu = process.ModelCpuResources;
+        NativeBattleVector standing = HeaderDisplacement(process.Graphics.Models[attackRow]);
+        NativeBattleVector targetPosition = process.Graphics.Models[targetRow].Transform!.Position28;
+        double standingDistance = WorldDistance(process.Graphics.Models[attackRow], targetPosition);
+        RunMain(BattleAbility.Attack, 0, attackActor, attackRow, 0x50BB00);
+        RejectPreparedFireWithoutPublication();
+        RunMain(BattleAbility.Magic, fire.Id, fireActor, fireRow, 0x50A9A0, alreadyQueued: true);
+        Assert.True(ReturnedToStanding(process.Graphics.Models[attackRow], standing));
+        Assert.Equal(4, logical.GetAvailableMagicCasts(fireActor, fire.Id));
+        Assert.Equal(originalModels, Models(process));
+        Assert.Same(cpu, process.ModelCpuResources);
+        Assert.Same(process, logical.ExpandedPresentationProcess);
+        Assert.Null(logical.NativeGraphics);
+
+        void RunMain(BattleAbility ability, int id, string actor, int sourceRow, uint service, bool alreadyQueued = false)
+        {
+            int startHp = logical.Combatants.Single(item => item.Id == target).CurrentHp;
+            int firstEvent = logical.Events.Count;
+            if (!alreadyQueued)
+            {
+                logical.QueueAction(actor, target, ability, id);
+            }
+            control.QueueAction(actor, target, ability, id);
+            for (int callback = 0; callback < 150 && (control.ActiveAction is not null || control.QueuedActions.Count != 0); callback++)
+            {
+                control.Tick();
+            }
+            Assert.Null(control.ActiveAction);
+            List<NativeBattleContactPacket> contacts = [];
+            long? token = null;
+            bool reachedService = false;
+            for (int callback = 0; callback < ActionBudget && (logical.ActiveAction is not null || logical.QueuedActions.Count != 0); callback++)
+            {
+                logical.Tick();
+                token ??= process.LastStepActionToken;
+                if (process.Graphics.ActionGraphics is { } action && process.LastStepActionToken == token && token is not null)
+                {
+                    Assert.Equal(sourceRow, action.ActorIndex);
+                    reachedService |= action.Callback == service;
+                }
+                contacts.AddRange(process.LastStep.Contacts);
+                if (ability == BattleAbility.Attack && !process.LastStep.Contacts.IsEmpty)
+                {
+                    Assert.True(WorldDistance(process.Graphics.Models[sourceRow], targetPosition) < standingDistance);
+                }
+            }
+            Assert.Null(logical.ActiveAction);
+            Assert.True(reachedService);
+            Assert.True(process.IsActionComplete(Assert.IsType<long>(token)));
+            NativeBattleContactPacket contact = Assert.Single(contacts);
+            Assert.Equal(targetRow, contact.Primary.ActorIndex);
+            int hp = logical.Combatants.Single(item => item.Id == target).CurrentHp;
+            Assert.True(startHp > hp);
+            Assert.Equal(control.Combatants.Single(item => item.Id == target).CurrentHp, hp);
+            Assert.Equal(JsonSerializer.Serialize(control.Capture().Random), JsonSerializer.Serialize(logical.Capture().Random));
+            BattleEvent[] events = logical.Events.Skip(firstEvent).ToArray();
+            Assert.Single(events, item => item.Kind == "EffectContact" && item.ActorId == actor && item.TargetId == target);
+            Assert.Single(events, item => item.Kind == "ActionComplete" && item.ActorId == actor);
+        }
+
+        void RejectPreparedFireWithoutPublication()
+        {
+            const BindingFlags privateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
+            BattleSession child = (BattleSession)typeof(ExpandedBattlePresentationProcess).GetField("presentation", privateInstance)!.GetValue(process)!;
+            PropertyInfo graphicsProperty = typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!;
+            MethodInfo commit = typeof(BattleSession).GetMethod("PrepareAndPublishExpandedAction", privateInstance)!;
+            NativeBattleDescriptorState full = NativeBattleDescriptorState.Clear();
+            for (int index = 0; index < 29; index++)
+            {
+                (full, _) = full.Enqueue(112, 128, 0);
+            }
+            logical.QueueAction(fireActor, target, BattleAbility.Magic, fire.Id);
+            logical.Tick();
+            BattleActionPresentation action = Assert.IsType<BattleActionPresentation>(logical.ActiveAction);
+            Assert.Equal(BattleActionPhase.Windup, action.Phase);
+            NativeBattleGraphicsState original = process.Graphics;
+            NativeBattleGraphicsState blocked = original with { Descriptors = full };
+            graphicsProperty.SetValue(child, blocked);
+            string before = JsonSerializer.Serialize(logical.Capture());
+            try
+            {
+                TargetInvocationException failure = Assert.Throws<TargetInvocationException>(() => commit.Invoke(logical, [action]));
+                Assert.Contains("exhausted its physical nodes", Assert.IsType<InvalidOperationException>(failure.InnerException).Message);
+                Assert.Same(blocked, process.Graphics);
+                Assert.Null(process.ActiveActionToken);
+                Assert.Equal(before, JsonSerializer.Serialize(logical.Capture()));
+            }
+            finally
+            {
+                graphicsProperty.SetValue(child, original);
+            }
+        }
+    }
 
     [Theory]
     [InlineData(4, 5, 7, 15, 0)]

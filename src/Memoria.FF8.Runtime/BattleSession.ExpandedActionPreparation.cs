@@ -7,18 +7,39 @@ public sealed partial class BattleSession
         BattleSnapshot before = Capture();
         IBattleStatusEffectHandler[] customHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
         BattleSession candidate = Restore(before, customHandlers);
-        candidate.expandedPresentationHost = expandedPresentationHost;
+        ExpandedBattlePresentationProcess? process = expandedPresentationProcess;
+        candidate.preparingExpandedHostedAction = process is not null;
+        candidate.expandedPresentationHost = process is null ? expandedPresentationHost : null;
+        candidate.expandedPartyPresentation = expandedPartyPresentation;
         candidate.nativeAffinityAction = nativeAffinityAction;
         try
         {
             candidate.CommitExpandedAction(command);
             candidate.PrepareQueuedExpandedMagicEffects();
+            PreparedHostedAction? admission = null;
+            if (process is not null && !candidate.expandedHostedInvocations.IsEmpty)
+            {
+                NativeBattleGraphicsRoster roster = process.Graphics.PresentationRoster!;
+                candidate.ValidateExpandedHostedInvocations(roster);
+                ExpandedHostedInvocation first = candidate.expandedHostedInvocations[0];
+                admission = PrepareExpandedHostedInvocation(process, first);
+                candidate.BindExpandedHostedContactTracking(first, roster, PrepareExpandedHostedContactBridge(first, roster));
+            }
             BattleSnapshot prepared = candidate.CaptureState();
             BattleSession preflight = Restore(before, customHandlers);
+            preflight.expandedPartyPresentation = expandedPartyPresentation;
             preflight.CopyCandidateState(candidate, prepared, preparedExpandedAction: true);
             preflight.ValidatePreparedExpandedPresentation(candidate);
+            if (admission is not null)
+            {
+                process!.ValidatePreparedAction(admission);
+            }
             CopyCandidateState(candidate, prepared, preparedExpandedAction: true);
             TakeExpandedActionPresentation(candidate);
+            if (admission is not null)
+            {
+                expandedHostedActionToken = process!.PublishAction(admission);
+            }
         }
         catch
         {
@@ -95,6 +116,7 @@ public sealed partial class BattleSession
     private void TakeExpandedActionPresentation(BattleSession candidate)
     {
         expandedEffect = candidate.expandedEffect;
+        expandedHostedInvocations = candidate.expandedHostedInvocations;
         expandedEffectCommand = candidate.expandedEffectCommand;
         expandedContactBridge = candidate.expandedContactBridge;
         expandedExpectedContacts = candidate.expandedExpectedContacts;

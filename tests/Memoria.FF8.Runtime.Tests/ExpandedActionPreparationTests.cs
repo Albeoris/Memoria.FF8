@@ -49,6 +49,92 @@ public sealed class ExpandedActionPreparationTests
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Hosted_candidate_retains_successful_draw_context_and_header(bool cast)
+    {
+        BattleSession candidate = Create();
+        candidate.QueueAction("caster", "enemy", BattleAbility.Draw, 1, cast, drawCastTargetId: cast ? "enemy" : null);
+        ReachCommit(candidate);
+        (BattleActionPresentation command, NativeBattleActionHeaderPreparation header) = StageHostedInvocation(candidate);
+
+        Assert.Equal(cast, command.DrawCast);
+        Assert.Equal(cast ? "enemy" : null, command.DrawCastTargetId);
+        Assert.False(command.NativeDraw!.Failed);
+        Assert.Equal((byte)1, command.NativeDraw.Selection);
+        Assert.Equal((byte)6, header.Command);
+        Assert.Equal(NativeBattleCommandSequenceFixture.Values[cast ? 9 : 10], header.Sequence);
+        Assert.Equal(cast ? (ushort)1 : (ushort)15, header.Effect);
+    }
+
+    [Fact]
+    public void Hosted_candidate_preserves_queued_attack_header_when_Gunblade_uses_its_formula_clone()
+    {
+        BattleSession candidate = Create(gunblade: true);
+        candidate.SetGunbladeMode(BattleGunbladeMode.Automatic);
+        candidate.QueueAttack("caster", "enemy");
+        ReachCommit(candidate);
+        (BattleActionPresentation command, NativeBattleActionHeaderPreparation header) = StageHostedInvocation(candidate);
+
+        Assert.Equal((byte)1, command.NativeQueuedCommand);
+        Assert.Equal((byte)253, command.NativeAction!.Command);
+        Assert.Equal((byte)1, header.Command);
+        Assert.Equal((ushort)0, header.Effect);
+        Assert.Equal(NativeBattleCommandSequenceFixture.Values[1], header.Sequence);
+    }
+
+    [Fact]
+    public void Ordered_hosted_contact_debits_its_own_enemy_draw_once_and_keeps_newer_pending_draw()
+    {
+        const BindingFlags privateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
+        BattleSession owner = Create();
+        NativeBattleGraphicsRoster roster = owner.ReadExpandedPresentationRoster();
+        byte row = owner.ReadExpandedPresentationRow("caster");
+        BattleActionPresentation command = new("enemy", "caster", BattleActionPhase.Recovery, 1, BattleAbility.Magic, 1);
+        NativeBattleContactPacket packet = new(new(row, 0, 0, 0, 0, 0, 0), new(byte.MaxValue, 0, 0, 0, 0, 0, 0));
+        BattlePendingEnemyDraw original = new("enemy", 1, 1);
+        BattlePendingEnemyDraw newer = new("enemy", 1, 2);
+        FieldInfo pending = typeof(BattleSession).GetField("pendingEnemyDraw", privateInstance)!;
+        pending.SetValue(owner, original);
+        typeof(BattleSession).GetField("preparingExpandedHostedAction", privateInstance)!.SetValue(owner, true);
+        object? captured = typeof(BattleSession).GetMethod("TakePendingHostedEnemyDraw", privateInstance)!.Invoke(owner, []);
+        Assert.Same(original, captured);
+        Assert.Null(pending.GetValue(owner));
+        typeof(BattleSession).GetMethod("StageExpandedHostedInvocation", privateInstance)!.Invoke(owner, [command, new NativeBattleActionHeaderPreparation(3, 2, 5, -1, 1, 1, null), ImmutableArray.Create(new ExpandedBattleContact("caster", packet)), captured]);
+        object invocation = Assert.Single(((System.Collections.IEnumerable)typeof(BattleSession).GetField("expandedHostedInvocations", privateInstance)!.GetValue(owner)!).Cast<object>());
+        object bridge = typeof(BattleSession).GetMethod("PrepareExpandedHostedContactBridge", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [invocation, roster])!;
+        typeof(BattleSession).GetMethod("BindExpandedHostedContactTracking", privateInstance)!.Invoke(owner, [invocation, roster, bridge]);
+        typeof(BattleSession).GetMethod("InitializeExpandedPartyPresentation", privateInstance)!.Invoke(owner, []);
+        typeof(BattleSession).GetField("expandedHostedActionToken", privateInstance)!.SetValue(owner, 1L);
+        pending.SetValue(owner, newer);
+        NativeBattleModelLifecycleServices services = owner.CaptureExpandedModelLifecycleServices(roster);
+        services.EmitContact(packet);
+        MethodInfo acknowledger = typeof(BattleSession).GetMethod("ApplyExpandedHostedFrameReceipts", privateInstance)!;
+        int before = owner.GetAvailableMagicCasts("caster", 1);
+
+        acknowledger.Invoke(owner, [services, 1L]);
+
+        Assert.Equal(before - 1, owner.GetAvailableMagicCasts("caster", 1));
+        Assert.Same(newer, pending.GetValue(owner));
+        Assert.Single(owner.Events, item => item.Kind == "EnemyDrawStock");
+        Assert.Throws<TargetInvocationException>(() => acknowledger.Invoke(owner, [services, 1L]));
+        Assert.Equal(before - 1, owner.GetAvailableMagicCasts("caster", 1));
+        Assert.Same(newer, pending.GetValue(owner));
+        Assert.Single(owner.Events, item => item.Kind == "EnemyDrawStock");
+    }
+
+    private static (BattleActionPresentation Command, NativeBattleActionHeaderPreparation Header) StageHostedInvocation(BattleSession candidate)
+    {
+        const BindingFlags privateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
+        typeof(BattleSession).GetField("preparingExpandedHostedAction", privateInstance)!.SetValue(candidate, true);
+        typeof(BattleSession).GetMethod("CommitExpandedAction", privateInstance)!.Invoke(candidate, [candidate.ActiveAction!]);
+        object invocation = Assert.Single(((System.Collections.IEnumerable)typeof(BattleSession).GetField("expandedHostedInvocations", privateInstance)!.GetValue(candidate)!).Cast<object>());
+        BattleActionPresentation command = Assert.IsType<BattleActionPresentation>(invocation.GetType().GetProperty("Command")!.GetValue(invocation));
+        NativeBattleActionHeaderPreparation header = Assert.IsType<NativeBattleActionHeaderPreparation>(invocation.GetType().GetProperty("Header")!.GetValue(invocation));
+        return (command, header);
+    }
+
+    [Theory]
     [InlineData(BattleAbility.Attack, 0, "enemy")]
     [InlineData(BattleAbility.NativeCommand, Card, "enemy")]
     [InlineData(BattleAbility.NativeCommand, MiniMog, "caster")]
@@ -112,7 +198,7 @@ public sealed class ExpandedActionPreparationTests
 
     private static string Snapshot(BattleSession battle) => JsonSerializer.Serialize(battle.Capture());
 
-    private static BattleSession Create(bool card = false, bool miniMog = false, bool potionItem = false)
+    private static BattleSession Create(bool card = false, bool miniMog = false, bool potionItem = false, bool gunblade = false)
     {
         NativeCharacterVitals vitals = MagicSystemFixture.Stock(MagicSystemFixture.Create(), 1, 1, 3);
         BattleNativeAction fire = new(2, 1, 1, 1)
@@ -128,6 +214,7 @@ public sealed class ExpandedActionPreparationTests
         messages[9] = "Converted";
         messages[11] = " 0123456789";
         messages[16] = "card";
+        messages[19] = "Drew magic";
         messages[54] = "MiniMog restored GF HP";
         messages[71] = "";
         NativePocketStationState pocket = new(NativeInputConfiguration.OriginalInitHash, ImmutableArray.Create(new byte[64]).SetItem(0, 0x0D).SetItem(1, 20));
@@ -137,6 +224,13 @@ public sealed class ExpandedActionPreparationTests
         {
             caster = WithProjectedItemUser(caster, vitals);
         }
+        if (gunblade)
+        {
+            caster = caster with { ModelId = 0, WeaponId = 0, NativeAttack = fire with { Command = 1, ActionId = 0, AttackType = 1, DamagePresentation = 4 } };
+        }
+        string[] commandNames = Enumerable.Repeat(string.Empty, 39).ToArray();
+        commandNames[6] = "Draw";
+        commandNames[9] = "Cast";
         return new(new BattleDefinition
         {
             UsesExpandedRoster = true,
@@ -145,13 +239,14 @@ public sealed class ExpandedActionPreparationTests
             NativeKnownMagic = new(NativeInputConfiguration.OriginalInitHash, [0, 0]),
             NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
             NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
+            NativeCommandNames = commandNames,
             NativeCards = NativeCardInventory.CreateNewGame(),
             NativeGil = new(10000, 0),
             NativePocketStation = pocket,
             NativeSavedBattleFlags = 0,
             NativeSavedBattleFlagsKnownMask = 1,
             NativeMessageSpeed = 1,
-            NativeGlobalMessages = card || miniMog ? messages : [],
+            NativeGlobalMessages = messages,
             NativeCardNames = Enumerable.Range(0, 110).Select(index => (string?)$"Card {index}").ToArray(),
             GuardianForces = [new(0, 1, 100, miniMog)],
             Items = [new(1, 2)],

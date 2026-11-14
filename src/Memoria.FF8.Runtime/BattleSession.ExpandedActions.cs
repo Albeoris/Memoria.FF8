@@ -97,6 +97,11 @@ public sealed partial class BattleSession
 
     private void AdvanceExpandedAction(BattleActionPresentation command)
     {
+        if (expandedHostedActionToken is long token)
+        {
+            AdvanceExpandedHostedInvocation(command, token);
+            return;
+        }
         if (expandedEffect is { } effect)
         {
             BattleActionPresentation effectCommand = expandedEffectCommand!;
@@ -141,7 +146,7 @@ public sealed partial class BattleSession
             ActiveAction = command with { RemainingFrames = command.RemainingFrames - 1 };
             return;
         }
-        if (expandedPresentationHost is null)
+        if (expandedPresentationHost is null && expandedPresentationProcess is null)
         {
             CommitExpandedAction(command);
         }
@@ -153,6 +158,11 @@ public sealed partial class BattleSession
 
     private void CommitExpandedAction(BattleActionPresentation command)
     {
+        bool hosted = OwnsExpandedHostedInvocation;
+        if (hosted)
+        {
+            RequireOrdinaryExpandedHostedCommand(command);
+        }
         BattleCombatant actor = GetActor(command.ActorId);
         BattleCombatant target = GetActor(command.TargetId);
         if (IsDuelCallback(command.NativeLimitCallback))
@@ -192,6 +202,10 @@ public sealed partial class BattleSession
         }
         if (command.Ability == BattleAbility.Attack && actor.NativeAttack is null)
         {
+            if (hosted)
+            {
+                throw new NotSupportedException("Hosted ordinary Attack requires its installed native attack record.");
+            }
             CommitExpandedEnemyDraw(target.Id, ref pendingEnemyDraw);
             ResolveAction(actor, target, command);
             CompleteActionPresentation(command, "Attack completed.");
@@ -213,6 +227,10 @@ public sealed partial class BattleSession
             }
             BattleAttackCommand draw = PrepareNativeDrawCommand(actor, new(actor.Id, target.Id, BattleAbility.Draw, command.ActionId, command.DrawCast) { DrawCastTargetId = command.DrawCastTargetId });
             command = command with { NativeDraw = draw.NativeDraw, NativeAction = draw.NativeAction };
+            if (hosted && draw.NativeDraw!.Failed)
+            {
+                throw new NotSupportedException("Hosted presentation has no admission for a failed Draw invocation.");
+            }
             if (draw.NativeDraw!.Failed || drawSpell is null)
             {
                 BattleNativeAction stock = NativeStockDrawAction(draw.NativeDraw);
@@ -237,7 +255,8 @@ public sealed partial class BattleSession
         {
             action = action with { Name = child.Name ?? action.Name, Level = independent.Level, NativeAction = child };
         }
-        BattleNativeAction native = action.NativeAction!;
+        BattleNativeAction originalNative = action.NativeAction!;
+        BattleNativeAction native = originalNative;
         if (command.GuardianFormAction is null && IsGunbladeAttack(actor, command.Ability))
         {
             // 485160 recomputes the ordinary trigger contact with the installed weapon and type 10.
@@ -245,6 +264,10 @@ public sealed partial class BattleSession
             command = command with { GunbladeTriggerTiming = ReadGunbladeTiming(actor, command) };
         }
         bool miniMog = IsExpandedMiniMogAction(native);
+        if (hosted && miniMog)
+        {
+            throw new NotSupportedException("Hosted presentation has no admission for MiniMog.");
+        }
         if (miniMog && PrepareNativeMiniMog() is int miniMogFailure)
         {
             QueueNativeSpecialText(actor, target, NativeBattleGlobalText(miniMogFailure), BattleTextIdentity.Global(miniMogFailure));
@@ -258,6 +281,10 @@ public sealed partial class BattleSession
             BattleNativeSpecialContext special = PrepareNativeSpecialTarget(recipients.Single(), native.AttackType);
             if (special.Failed)
             {
+                if (hosted)
+                {
+                    throw new NotSupportedException("Hosted presentation has no admission for a failed special invocation.");
+                }
                 int message = native.AttackType == 17 ? 50 : 112;
                 QueueNativeSpecialText(actor, target, NativeBattleGlobalText(message), BattleTextIdentity.Global(message));
                 CompleteNativeActionStatuses(actor);
@@ -298,7 +325,7 @@ public sealed partial class BattleSession
         }
 
         int firstHitRecipientCount = hitPlan[0].Length;
-        bool presentsNativeEffect = expandedPresentationHost is not null && (command.GuardianFormInvocation?.Mode == GuardianFormInvocationMode.FinisherWithoutEntry ||
+        bool presentsNativeEffect = hosted || expandedPresentationHost is not null && (command.GuardianFormInvocation?.Mode == GuardianFormInvocationMode.FinisherWithoutEntry ||
             stockDraw is not null && command.NativeDraw is { Failed: false } ||
             spellPresentation && ExpandedBattleActionRules.HasNativeSpellPresentation(native, firstHitRecipientCount) ||
             command.Ability == BattleAbility.LimitBreak && CanPresentExpandedLimit(native, firstHitRecipientCount) ||
@@ -313,10 +340,12 @@ public sealed partial class BattleSession
             nativeActionScratch = nativeActionScratch with { GuardianFormulaE1E = true, GuardianBoostPercent = 100 };
         }
         BattleActionPresentation resolved = command with { NativeAction = miniMog ? native with { ActionId = (ushort)native.KernelIndex } : native };
+        NativeBattleActionHeaderPreparation? hostedHeader = hosted ? BuildExpandedActionHeaderPreparation(command, originalNative) : null;
         ImmutableArray<ExpandedBattleContact> contacts;
         ImmutableArray<ExpandedBattleContact> reflectedContacts = [];
         BattleActionPresentation? reflectedCommand = null;
         bool presentsReflection = false;
+        NativeBattleActionHeaderPreparation? reflectedHeader = null;
         (BattleActionPresentation Command, ImmutableArray<ExpandedBattleContact> Contacts)? phoenixRevival = null;
         bool phoenixPinion = command is { Ability: BattleAbility.Item, ActionId: 31, IndependentGuardian.Action: not null };
         resolvingNativeAction = resolved;
@@ -349,7 +378,7 @@ public sealed partial class BattleSession
             {
                 QueueNativeSpecialText(actor, target, NativeBattleGlobalText(54), BattleTextIdentity.Global(54));
             }
-            (reflectedCommand, reflectedContacts, presentsReflection) = ResolveExpandedReflection(actor, resolved, action, reflector, reflected);
+            (reflectedCommand, reflectedContacts, presentsReflection, reflectedHeader) = ResolveExpandedReflection(actor, resolved, action, reflector, reflected);
             CompleteNativeOrdinaryCommand(actor, resolved);
             bool continueAffinity = CompleteNativeActionInventory(actor, resolved, false);
             if (continueAffinity && HasNativeAffinityAction(actor, resolved, native))
@@ -377,7 +406,15 @@ public sealed partial class BattleSession
             expandedRecoverSourceHp = null;
             resolvingNativeAction = null;
         }
-        if (presentsNativeEffect && !contacts.IsEmpty && !IsExpandedOriginalGraphicPresentation(actor, command, native))
+        BattlePendingEnemyDraw? hostedDraw = null;
+        if (hosted)
+        {
+            if (!contacts.IsEmpty || !reflectedContacts.IsEmpty)
+            {
+                hostedDraw = TakePendingHostedEnemyDraw();
+            }
+        }
+        else if (presentsNativeEffect && !contacts.IsEmpty && !IsExpandedOriginalGraphicPresentation(actor, command, native))
         {
             // A reaction to this action can queue another Draw before its graphics emit contact.
             expandedEffectEnemyDraw = pendingEnemyDraw;
@@ -392,6 +429,16 @@ public sealed partial class BattleSession
             }
         }
         FlushExpandedEnemyReactions();
+        if (hostedHeader is not null)
+        {
+            StageExpandedHostedInvocation(resolved, hostedHeader, contacts, contacts.IsEmpty ? null : hostedDraw);
+            if (reflectedCommand is not null)
+            {
+                StageExpandedHostedInvocation(reflectedCommand, reflectedHeader!, reflectedContacts, contacts.IsEmpty ? hostedDraw : null);
+            }
+            ActiveAction = command with { Phase = BattleActionPhase.Recovery, RemainingFrames = 1, MagicReservationId = null };
+            return;
+        }
         if (command.Ability == BattleAbility.Attack)
         {
             CompleteActionPresentation(command, "Attack completed.");
@@ -451,13 +498,18 @@ public sealed partial class BattleSession
         }
         foreach (NativeBattleContactPacket packet in step.Contacts)
         {
-            bool hasSecondary = HasExpandedSecondaryContact(command, packet);
-            (int ordinal, string recipient) = expandedContactBridge!.ResolveOccurrence(packet);
-            PublishExpandedEffectContact(command, ordinal, recipient, packet.Primary);
-            if (hasSecondary)
-            {
-                PublishExpandedImpact(command, command.ActorId, packet.Secondary, "SecondaryEffectContact", deferredImpact: true);
-            }
+            AcknowledgeExpandedEffectContact(command, packet);
+        }
+    }
+
+    private void AcknowledgeExpandedEffectContact(BattleActionPresentation command, NativeBattleContactPacket packet)
+    {
+        bool hasSecondary = HasExpandedSecondaryContact(command, packet);
+        (int ordinal, string recipient) = expandedContactBridge!.ResolveOccurrence(packet);
+        PublishExpandedEffectContact(command, ordinal, recipient, packet.Primary);
+        if (hasSecondary)
+        {
+            PublishExpandedImpact(command, command.ActorId, packet.Secondary, "SecondaryEffectContact", deferredImpact: true);
         }
     }
 
@@ -587,16 +639,16 @@ public sealed partial class BattleSession
         expandedGuardianFormSkipRequested = false;
     }
 
-    private (BattleActionPresentation? Command, ImmutableArray<ExpandedBattleContact> Contacts, bool PresentsNativeEffect) ResolveExpandedReflection(BattleCombatant actor, BattleActionPresentation source, BattleActionDefinition action, BattleCombatant? reflector, BattleNativeAction? reflected)
+    private (BattleActionPresentation? Command, ImmutableArray<ExpandedBattleContact> Contacts, bool PresentsNativeEffect, NativeBattleActionHeaderPreparation? HostedHeader) ResolveExpandedReflection(BattleCombatant actor, BattleActionPresentation source, BattleActionDefinition action, BattleCombatant? reflector, BattleNativeAction? reflected)
     {
         if (reflector is null || reflected is null)
         {
-            return (null, [], false);
+            return (null, [], false, null);
         }
         BattleCombatant[] opposite = ExpandedRandomTargets(reflector.IsPlayer ? BattleSide.Enemies : BattleSide.Allies);
         if (opposite.Length == 0)
         {
-            return (null, [], false);
+            return (null, [], false, null);
         }
         BattleCombatant redirected = opposite[NextRandomByte() % opposite.Length];
         bool randomReflection = (reflected.TargetFlags.GetValueOrDefault() & 2) != 0;
@@ -606,12 +658,13 @@ public sealed partial class BattleSession
         NativeBattleActionScratch sourceScratch = nativeActionScratch;
         resolvingNativeAction = command;
         nativeActionScratch = nativeActionScratch with { Command = 247, Action = reflected.ActionId };
-        bool presentsNativeEffect = expandedPresentationHost is not null && ExpandedBattleActionRules.HasNativeSpellPresentation(reflected, reflectionPlan[0].Length);
+        NativeBattleActionHeaderPreparation? hostedHeader = OwnsExpandedHostedInvocation ? BuildExpandedActionHeaderPreparation(command, reflected) : null;
+        bool presentsNativeEffect = hostedHeader is not null || expandedPresentationHost is not null && ExpandedBattleActionRules.HasNativeSpellPresentation(reflected, reflectionPlan[0].Length);
         try
         {
             deferringExpandedImpacts = presentsNativeEffect;
             (ImmutableArray<ExpandedBattleContact> contacts, _) = ResolveExpandedHitPlan(actor, command, reflectionAction, reflected, reflectionPlan);
-            return (command, contacts, presentsNativeEffect);
+            return (command, contacts, presentsNativeEffect, hostedHeader);
         }
         finally
         {
