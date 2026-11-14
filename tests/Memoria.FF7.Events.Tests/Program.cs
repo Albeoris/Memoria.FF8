@@ -1,6 +1,12 @@
 using System.Text.Json;
 using Memoria.FF7.Events;
 
+if (args.Contains("--word-talk-radius-only", StringComparer.Ordinal))
+{
+    NativeWordTalkRadiusTests.Run();
+    return 0;
+}
+
 if (args.Contains("--music-change-only", StringComparer.Ordinal))
 {
     NativeMusicChangeTests.Run();
@@ -144,6 +150,7 @@ var tests = new (string Name, Action Run)[]
     ("request preemption cancels pending movement", ExtendedTests.CancelMove),
     ("external triggers and unsigned move speed", ExtendedTests.ExternalTriggersAndSpeed),
     ("canonical party bank and host projection", ExtendedTests.CanonicalParty),
+    ("native word talk radius operands and cold continuation", NativeWordTalkRadiusTests.Run),
     ("native music change operands and cold continuation", NativeMusicChangeTests.Run),
     ("native music activity query operands and cold continuation", NativeMusicPlayingQueryTests.Run),
     ("native music lock and player target operands", ExtendedTests.MusicLockAndControlTarget),

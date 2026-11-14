@@ -170,6 +170,12 @@ if (args.Contains("--character-names-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--stables-radius-only", StringComparer.Ordinal))
+{
+    NativeStablesRadiusTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-music-status-only", StringComparer.Ordinal))
 {
     NativeMusicStatusTests.Run();
@@ -419,6 +425,7 @@ var tests = new (string Name, Action Run)[]
     ("native opening flashback party storage and equipment", FlashbackPartyTests.Run),
     ("native opening request reward suppression", RewardSuppressionTests.Run),
     ("native opening character display names", CharacterDisplayNameTests.Run),
+    ("native stable word-radius initialization and cold continuation", NativeStablesRadiusTests.Run),
     ("native music status, finite timing and local changes", NativeMusicStatusTests.Run),
     ("native model color transition", NativeColorTransitionTests.Run),
     ("native covered-character byte and Grasslands counters", DevilRideAiFlagsTests.Run),

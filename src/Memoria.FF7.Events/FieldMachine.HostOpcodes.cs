@@ -401,6 +401,13 @@ public sealed partial class FieldMachine
                 return Host(id, new FieldLineCommand(FieldLineOperation.Enable, Value: B(id, 1)), 2);
             case 0xD3:
                 return Host(id, new FieldLineCommand(FieldLineOperation.Replace, R16(id, 1, 4), R16(id, 2, 6), R16(id, 3, 8), R16(id, 4, 10), R16(id, 5, 12), R16(id, 6, 14)), 16);
+            case 0xD6:
+                if (!entities[id].ModelBound)
+                {
+                    Advance(id, 4);
+                    return false;
+                }
+                return ActorProperty(id, FieldActorPropertyKind.TalkRadius, unchecked((ushort)(R16(id, 2, 2) * program.FieldScale / 512)), 4);
             case 0xD2:
                 return Host(id, new FieldControlCommand(FieldControlKind.MapJumpDisabled, B(id, 1)), 2);
             case 0xD8:
