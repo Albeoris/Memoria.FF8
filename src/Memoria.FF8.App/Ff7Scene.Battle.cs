@@ -281,7 +281,7 @@ internal sealed partial class Ff7Scene
             bool submitted = false;
             if (CanConfirmGuestMagicSelection(current) && (semanticInput.CardChallenge || sharedInput.UiDetailRequested))
             {
-                submitted = battle.SubmitGuestMagicSequence(owner, current.Argument, battleMagicTargets, useAll);
+                submitted = battle.SubmitMagicSequence(owner, current.Argument, battleMagicTargets, battleMagicTargetGroups);
             }
             else if (pointer >= 0 || validConfirm && semanticInput.Confirm)
             {

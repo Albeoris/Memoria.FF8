@@ -144,7 +144,13 @@ internal static class NativeBattleTests
         {
             Actors = waiting.Actors.Select(actor => actor with { Actor = actor.Actor with { Statuses = actor.Actor.Statuses | 0x400 } }).ToArray()
         };
-        CheckBlocked(Create(stopped), Ff7BattleTurnAdvanceBoundary.Stalled);
+        Ff7BattleSession stopCountdown = Create(stopped);
+        Check(stopCountdown.AdvanceTurn() is { Boundary: Ff7BattleTurnAdvanceBoundary.PlayerReady, AdvancedSteps: > 0 } && stopCountdown.ReadyPlayer == 0 && stopCountdown.Tick == waiting.Tick, "Missing Stop timers must recover the native finite countdown and return the decision without ticking presentation.");
+        Ff7BattleSnapshot frozen = stopped with
+        {
+            Actors = stopped.Actors.Select(actor => actor with { Timers = actor.Timers with { Stop = 0 } }).ToArray()
+        };
+        CheckBlocked(Create(frozen), Ff7BattleTurnAdvanceBoundary.Stalled);
 
         Ff7BattleSession exhausted = Create(sleeping);
         string before = Json(exhausted);

@@ -304,7 +304,7 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
                     Assert.Equal(receipt.Receipt.Target.Statuses, actual.Statuses);
                     if (receipt.Receipt.AddedOriginBattleStatuses != 0)
                     {
-                        Assert.Equal(receipt.Receipt.AddedOriginBattleStatuses, host.GetGuestOriginBattleStatuses(sameTarget.Key) & receipt.Receipt.AddedOriginBattleStatuses);
+                        Assert.Equal(receipt.Receipt.AddedOriginBattleStatuses, host.GetOriginBattleStatuses(sameTarget.Key) & receipt.Receipt.AddedOriginBattleStatuses);
                     }
                 }
                 settled += host.PresentedGuestContacts.Length;

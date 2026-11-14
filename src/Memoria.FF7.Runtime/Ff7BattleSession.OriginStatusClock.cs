@@ -75,6 +75,16 @@ public sealed partial class Ff7BattleSession
         return mask;
     }
 
+    private bool AdvanceOriginStatusClock(out bool pendingTimers)
+    {
+        int phase = state.OriginStatusClockRemainder + 31;
+        bool due = phase >= 120;
+        state = state with { OriginStatusClockRemainder = (byte)(phase % 120) };
+        pendingTimers = state.GuestOriginStatuses?.Any(row => IsAlive(Actor(row.HostSlot)) && row.Timers is { } timers && ((row.BattleStatuses & Ff7GuestBattleStatuses.OriginAura) != 0 && timers[8] != InactiveOriginStatusTimer || (row.BattleStatuses & Ff7GuestBattleStatuses.OriginFloat) != 0 && timers[13] != InactiveOriginStatusTimer)) == true;
+        // The source dispatcher rechecks its action-pause owner after action dispatch.
+        return due && state.Action is null && !HasPrimaryPresentationCallbacks;
+    }
+
     private bool AdvanceOriginStatusTimers(int slot)
     {
         Ff7BattleGuestOriginStatus? row = state.GuestOriginStatuses?.SingleOrDefault(value => value.HostSlot == slot);

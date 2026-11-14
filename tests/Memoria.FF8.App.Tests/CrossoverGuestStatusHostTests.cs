@@ -44,7 +44,7 @@ public sealed class CrossoverGuestStatusHostTests
         uint sourceBefore = fixture.Hp(0);
         uint targetBefore = fixture.Hp(1);
         int stockBefore = fixture.Stock(spell);
-        Assert.Null(fixture.Host.GuestAbilityTargetUnsupportedReason(0, Ff7BattleCommand.Magic, spell, 4));
+        Assert.NotNull(fixture.Host.GuestAbilityTargetUnsupportedReason(0, Ff7BattleCommand.Magic, spell, 4));
         fixture.Cast(0, "Drain", 2);
         Assert.True(fixture.Hp(0) > sourceBefore);
         Assert.True(fixture.Hp(1) < targetBefore);

@@ -105,6 +105,7 @@ public sealed record Ff7BattleSnapshot(long RequestId, int FormationId, byte Lay
     public Ff7BattleGuestSlotState[]? GuestSlots { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public Ff7BattleGuestOriginStatus[]? GuestOriginStatuses { get; init; }
+    public byte OriginStatusClockRemainder { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public uint? GuestProjectedBattleMask { get; init; }
 
@@ -445,7 +446,8 @@ public sealed partial class Ff7BattleSession
         Ff7BattleGlobalStatusClock globalClock = state.GlobalStatusClock ?? default;
         bool globalTick = Ff7NativeBattleStatusClock.AdvanceGlobalClock(ref globalClock, NativeBattleSpeed);
         state = state with { GlobalStatusClock = globalClock };
-        bool changed = false;
+        bool originStatusTick = AdvanceOriginStatusClock(out bool pendingOriginTimers);
+        bool changed = pendingOriginTimers;
         for (int index = 0; index < state.Actors.Length; index++)
         {
             Ff7BattleActorState actor = state.Actors[index];
@@ -454,7 +456,10 @@ public sealed partial class Ff7BattleSession
             {
                 continue;
             }
-            changed |= AdvanceOriginStatusTimers(slot);
+            if (originStatusTick)
+            {
+                changed |= AdvanceOriginStatusTimers(slot);
+            }
             Ff7BattleStatusTick status = Ff7NativeBattleStatusClock.Advance(actor.Timers, actor.Actor.Statuses, NativeBattleSpeed, NativeImprisonedType, actor.Actor.MaxHitPoints, globalTick, GetOriginSavedStatuses(slot));
             changed |= status.Timers != actor.Timers || status.Statuses != actor.Actor.Statuses || status.HitPointDelta != 0 || status.Timers.Stop > 0;
             uint hp = (uint)Math.Clamp((long)actor.Actor.HitPoints + status.HitPointDelta, 0, actor.Actor.MaxHitPoints);
@@ -684,6 +689,10 @@ public sealed partial class Ff7BattleSession
     private void ValidateSnapshot(Ff7BattleSnapshot snapshot, long requestId, List<Ff7BattleActorState> expected)
     {
         snapshot.GlobalStatusClock?.Validate();
+        if (snapshot.OriginStatusClockRemainder >= 120)
+        {
+            throw new InvalidDataException("The saved source status clock phase exceeds its callback period.");
+        }
         if (snapshot.Actors?.Any(actor => actor?.OriginSavedStatuses is ushort saved && (saved & ~Ff7OriginSavedStatusRules.Supported) != 0) == true)
         {
             throw new InvalidDataException("FFVII battle snapshot contains an unsupported origin saved-status owner.");

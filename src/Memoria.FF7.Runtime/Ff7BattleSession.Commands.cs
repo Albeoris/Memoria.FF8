@@ -227,9 +227,13 @@ public sealed partial class Ff7BattleSession
 
     public bool Submit(int slot, Ff7BattleCommand command, ushort argument, ushort targets, bool group = false)
     {
-        if (command == Ff7BattleCommand.Magic && !submittingMagicSequence && GuestMagicCastCounts(slot, argument)[0] is int casts && casts > 1)
+        if (command == Ff7BattleCommand.Magic && !submittingMagicSequence)
         {
-            return SubmitMagicSequence(slot, argument, Enumerable.Repeat(targets, casts).ToArray(), Enumerable.Repeat(group, casts).ToArray());
+            int casts = GuestMagicCastCounts(slot, argument)[0];
+            if (casts > 1)
+            {
+                return SubmitMagicSequence(slot, argument, Enumerable.Repeat(targets, casts).ToArray(), Enumerable.Repeat(group, casts).ToArray());
+            }
         }
         if ((IsGuestVitalsSlot(slot) || GetGuestAttack(slot) is not null) && command == Ff7BattleCommand.Attack && argument == 0 && !group && System.Numerics.BitOperations.IsPow2((uint)targets))
         {

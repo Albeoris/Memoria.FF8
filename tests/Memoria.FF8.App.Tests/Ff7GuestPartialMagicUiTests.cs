@@ -95,6 +95,7 @@ public sealed class Ff7GuestPartialMagicUiTests
         Set(scene, "selectedBattleCommand", option);
         Set(scene, "battleMagicCastCount", limit);
         Set(scene, "battleMagicTargets", targets);
+        Set(scene, "battleMagicTargetGroups", Enumerable.Repeat(false, targets.Count).ToList());
         Set(scene, "highlightedBattleTarget", (1, battle.Actors.Single(actor => actor.Actor.Slot == 1).Identity));
         Set(scene, "sharedInput", new KeyboardInput());
         Set(scene, "envelope", new CombinedSessionSave());

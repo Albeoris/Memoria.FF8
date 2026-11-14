@@ -1,4 +1,6 @@
+using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
@@ -75,7 +77,7 @@ internal static class OriginBattleStatusTests
         Ff7BattleSnapshot independent = live.Capture();
         independent.GuestOriginStatuses![0].Timers![8] = 999;
         Check(live.Capture().GuestOriginStatuses![0].Timers![8] == 4, "Captured source timer arrays must not mutate the live encounter.");
-        for (int tick = 0; tick < 3; tick++)
+        for (int tick = 0; tick < 12; tick++)
         {
             Ff7BattleSession restored = Create(RoundTrip(live.Capture()));
             restored.BindOriginStatusDurations(Enumerable.Repeat((short)4, 14).ToArray());
@@ -84,6 +86,50 @@ internal static class OriginBattleStatusTests
             Check(JsonSerializer.Serialize(live.Capture()) == JsonSerializer.Serialize(restored.Capture()), "A saved source timer must continue identically through native host callbacks.");
         }
         Check(slots.All(slot => live.GetOriginBattleStatuses(slot) == Ff7GuestBattleStatuses.OriginMulticast), "Aura and Float expire through their source clock while the untimed multicast statuses remain owned.");
+        Ff7BattleSession cadence = Create(RoundTrip(seeded));
+        cadence.BindOriginStatusDurations(Enumerable.Repeat((short)1000, 14).ToArray());
+        MethodInfo advance = typeof(Ff7BattleSession).GetMethod("AdvanceGauges", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        bool Step(Ff7BattleSession session) => (bool)advance.Invoke(session, [null])!;
+        for (int sample = 0; sample < 120; sample++)
+        {
+            Ff7BattleSession cold = Create(RoundTrip(cadence.Capture()));
+            cold.BindOriginStatusDurations(Enumerable.Repeat((short)1000, 14).ToArray());
+            Check(Step(cadence), "An admitted virtual time step with pending source timers must not stall between source callbacks.");
+            Step(cold);
+            Check(JsonSerializer.Serialize(cadence.Capture()) == JsonSerializer.Serialize(cold.Capture()), "JSON continuation must preserve the exact fractional source callback phase.");
+        }
+        Check(cadence.Capture().OriginStatusClockRemainder == 0 && cadence.Capture().Tick == seeded.Tick && cadence.Capture().GuestOriginStatuses!.All(row => row.Timers![8] == 938 && row.Timers[13] == 938), "One hundred twenty host virtual samples must execute exactly thirty-one normal source callbacks without depending on presentation Tick.");
+        JsonObject old = JsonNode.Parse(JsonSerializer.Serialize(cadence.Capture()))!.AsObject();
+        old.Remove(nameof(Ff7BattleSnapshot.OriginStatusClockRemainder));
+        Ff7BattleSnapshot oldSnapshot = old.Deserialize<Ff7BattleSnapshot>()!;
+        Ff7BattleSession compatible = Create(oldSnapshot);
+        Check(compatible.Capture().OriginStatusClockRemainder == 0 && JsonSerializer.Serialize(compatible.Capture().GuestOriginStatuses) == JsonSerializer.Serialize(cadence.Capture().GuestOriginStatuses) && JsonSerializer.Serialize(compatible.Capture().Random) == JsonSerializer.Serialize(cadence.Capture().Random), "An absent new fractional phase defaults to zero while retaining every timer, status and RNG owner.");
+        foreach (uint held in new[] { Ff7NativeBattleActionResolver.Sleep, 0x400u })
+        {
+            Ff7BattleSnapshot paused = seeded with { Actors = seeded.Actors.Select(actor => actor.Actor.Slot == 0 ? actor with { Actor = actor.Actor with { Statuses = held }, Timers = Ff7NativeBattleStatusClock.Apply(default, 0, held) } : actor).ToArray() };
+            Ff7BattleSession stopped = Create(RoundTrip(paused));
+            stopped.BindOriginStatusDurations(Enumerable.Repeat((short)1000, 14).ToArray());
+            for (int sample = 0; sample < 120; sample++)
+            {
+                Step(stopped);
+            }
+            Check(stopped.Capture().GuestOriginStatuses!.Single(row => row.HostSlot == 0).Timers![8] == 1000 && stopped.Capture().GuestOriginStatuses!.Single(row => row.HostSlot == 0).Timers![13] == 1000, "Sleep and Stop must hold positive source Aura and Float timers across every scheduled callback.");
+        }
+        Ff7BattleQueuedCommand pending = new(5, 0, (byte)Ff7BattleCommand.Attack, 0, checked((ushort)(1 << slots[1])));
+        Ff7BattleSession actionHeld = Create(RoundTrip(seeded with { Action = new(pending, seeded.Tick, 0) }));
+        actionHeld.BindOriginStatusDurations(Enumerable.Repeat((short)1000, 14).ToArray());
+        for (int sample = 0; sample < 5; sample++)
+        {
+            Step(actionHeld);
+        }
+        Check(actionHeld.Capture().OriginStatusClockRemainder == 35 && actionHeld.Capture().GuestOriginStatuses!.All(row => row.Timers![8] == 1000 && row.Timers[13] == 1000), "An active action must hold source timers while the shared callback phase continues.");
+        Ff7BattleSession released = Create(RoundTrip(actionHeld.Capture() with { Action = null }));
+        released.BindOriginStatusDurations(Enumerable.Repeat((short)1000, 14).ToArray());
+        Step(released);
+        Step(released);
+        Check(released.Capture().GuestOriginStatuses!.All(row => row.Timers![8] == 1000), "Releasing an action pause must not replay skipped source timer callbacks.");
+        Step(released);
+        Check(released.Capture().GuestOriginStatuses!.All(row => row.Timers![8] == 998 && row.Timers[13] == 998), "The next scheduled source callback must resume with exactly one decrement.");
         Ff7BattleSnapshot invalid = live.Capture() with { GuestOriginStatuses = [new(3, all)] };
         try
         {
