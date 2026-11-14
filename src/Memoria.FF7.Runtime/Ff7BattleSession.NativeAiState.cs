@@ -63,6 +63,11 @@ public sealed partial class Ff7BattleSession
         }
         Ff7BattleAiMasks masks = state.AiMasks!.Value;
         ushort allocated = Ff7BattleAiCallbacks.ProjectMasks(state.Actors.Select(actor => actor.Actor).ToArray(), NativeImprisonedType).Allocated;
+        state = state with { WithdrawnMask = state.WithdrawnMask ?? 0 };
+        if ((state.WithdrawnMask.GetValueOrDefault() & ~0x3FF) != 0)
+        {
+            throw new InvalidDataException("Native withdrawal mask exceeds the physical actor table.");
+        }
         if (masks.Allocated != allocated || ((masks.Targetable | masks.ScriptActive | masks.KnockedOut | masks.ExcludedOpponents | masks.TurnEligible) & ~allocated) != 0)
         {
             throw new InvalidDataException("Native battle AI masks reference an unallocated actor.");

@@ -855,6 +855,10 @@ public sealed partial class Ff7BattleSession
     private void PublishHit(Ff7BattleQueuedCommand command, Ff7BattleActorState target, Ff7BattleDamageAction action, Ff7BattleActionReceipt result, bool runCounters = true)
     {
         int targetSlot = target.Actor.Slot;
+        if (result.WithdrawTarget && targetSlot >= 4)
+        {
+            state = state with { WithdrawnMask = (ushort)(state.WithdrawnMask.GetValueOrDefault() | 1 << targetSlot) };
+        }
         Ff7BattleAiActor native = target.Actor with { CoveredCharacter = byte.MaxValue };
         byte gauge = target.LimitGauge;
         if (targetSlot < 3 && (result.Target.Statuses & 1) != 0)
@@ -890,9 +894,9 @@ public sealed partial class Ff7BattleSession
         ushort bit = (ushort)(1 << targetSlot);
         ushort hitMask = command.ActorSlot == targetSlot ? (ushort)0 : bit;
         ushort processed = state.CounterProcessedMask ?? 0;
-        Ff7BattleAiCounterPlan plan = Ff7BattleAiCallbacks.SelectCounter(target, command.ActorSlot, hitMask, typed ? hitMask : (ushort)0, knockedOut ? bit : (ushort)0, 0, processed, physical ? (ushort)0 : (ushort)4);
+        Ff7BattleAiCounterPlan plan = Ff7BattleAiCallbacks.SelectCounter(target, command.ActorSlot, hitMask, typed ? hitMask : (ushort)0, knockedOut ? bit : (ushort)0, state.WithdrawnMask.GetValueOrDefault(), processed, physical ? (ushort)0 : (ushort)4);
         state = state with { CounterProcessedMask = plan.ProcessedMask };
-        Ff7BattleAiActor updated = !typed ? plan.Target : physical ? plan.Target with { LastPhysicalAttackerMask = (ushort)(1 << command.ActorSlot) } : plan.Target with { LastMagicAttackerMask = (ushort)(1 << command.ActorSlot) };
+        Ff7BattleAiActor updated = !typed || (state.WithdrawnMask.GetValueOrDefault() & bit) != 0 ? plan.Target : physical ? plan.Target with { LastPhysicalAttackerMask = (ushort)(1 << command.ActorSlot) } : plan.Target with { LastMagicAttackerMask = (ushort)(1 << command.ActorSlot) };
         Replace(Actor(targetSlot) with { Actor = updated });
         foreach (byte callback in plan.Callbacks)
         {
@@ -943,16 +947,21 @@ public sealed partial class Ff7BattleSession
     internal Ff7Progress PublishVitals(Ff7Progress progress)
     {
         Ff7CharacterState[] updated = (Ff7CharacterState[])progress.Characters.Clone();
-        foreach (Ff7BattleActorState actor in state.Actors.Where(actor => actor.Actor.Slot < 3 && !IsGuestVitalsSlot(actor.Actor.Slot)))
+        foreach (Ff7BattleActorState actor in state.Actors.Where(actor => actor.Actor.Slot < 3))
         {
             Ff7BattleAiActor native = actor.Actor;
             int index = Array.FindIndex(updated, character => character.Id == Ff7NativeCharacterIdentity.RecordId(actor.Identity));
             Ff7CharacterState original = updated[index];
             byte[] record = (byte[])original.NativeRecord.Clone();
+            record[31] = (byte)((record[31] & ~Ff7GuestBattleStatuses.SupportedNativeOnly) | (native.Statuses & Ff7GuestBattleStatuses.SupportedNativeOnly));
+            if (IsGuestVitalsSlot(actor.Actor.Slot))
+            {
+                updated[index] = original with { NativeRecord = record };
+                continue;
+            }
             record[15] = actor.LimitGauge;
             BinaryPrimitives.WriteUInt16LittleEndian(record.AsSpan(44), checked((ushort)native.HitPoints));
             BinaryPrimitives.WriteUInt16LittleEndian(record.AsSpan(48), native.MagicPoints);
-            record[31] = (byte)((record[31] & 0xCFu) | (native.Statuses & 0x30));
             record[32] = (byte)((record[32] & ~1) | ((native.Conditions & 0x40) != 0 ? 0 : 1));
             updated[index] = original with { NativeRecord = record, HitPoints = (int)native.HitPoints, MagicPoints = native.MagicPoints };
         }
@@ -967,7 +976,9 @@ public sealed partial class Ff7BattleSession
         }
         int[] guestStoryCharacters = state.GetGuestSlotStates().Select(guest => guest.Binding.StoryCharacter).ToArray();
         Ff7BattleRng candidate = new(kernel[2].Data.Span, random.Capture());
-        return Ff7DebugVictory.Project(PublishVitals(progress), Formation, kernel, fieldGeneration, RequestId, candidate, IsDefeated, guestStoryCharacters: guestStoryCharacters, suppressRewards: (state.RequestFlags & 0x80) != 0);
+        bool completed = progress.CompletedBattles.Any(receipt => receipt.FieldGeneration == fieldGeneration && receipt.RequestId == RequestId);
+        Ff7Progress resultProgress = completed ? progress : PublishVitals(progress);
+        return Ff7DebugVictory.Project(resultProgress, Formation, kernel, fieldGeneration, RequestId, candidate, IsDefeated, guestStoryCharacters: guestStoryCharacters, suppressRewards: (state.RequestFlags & 0x80) != 0);
     }
 
     public Ff7BattleReward PreviewVictory()
@@ -989,6 +1000,7 @@ public sealed partial class Ff7BattleSession
     private bool IsDefeated(SceneEnemyInstance instance)
     {
         SceneBattleEnemy enemy = Data.Enemies.Single(candidate => ReferenceEquals(candidate.Placement, instance));
-        return !IsAlive(Actor(enemy.FormationSlot + 4));
+        int slot = enemy.FormationSlot + 4;
+        return !IsAlive(Actor(slot)) && (state.WithdrawnMask.GetValueOrDefault() & 1 << slot) == 0;
     }
 }

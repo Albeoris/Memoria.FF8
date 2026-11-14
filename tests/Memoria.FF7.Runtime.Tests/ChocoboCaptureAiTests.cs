@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
@@ -20,7 +21,19 @@ internal static class ChocoboCaptureAiTests
         IReadOnlyList<KernelSection> kernel = KernelArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.Kernel).Path));
         IReadOnlyList<SceneFormation> formations = SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path));
         Ff7PcExecutableData executable = Ff7PcExecutableData.Load(installation);
-        foreach (int id in Enumerable.Range(56, 4))
+        using Ff7WorldResources world = Ff7WorldResources.Load(installation);
+        byte[] table = world.ReadRequired("enc_w.bin");
+        HashSet<int> tracks = [];
+        for (int index = 0; index < 4; index++)
+        {
+            ushort entry = BinaryPrimitives.ReadUInt16LittleEndian(table.AsSpan(0xA0 + 128 + 0x16 + index * 2));
+            if (entry >> 10 != 0)
+            {
+                tracks.Add(entry & 1023);
+            }
+        }
+        Check(tracks.Count == 4, "The original tracks table must provide four weighted capture formations.");
+        foreach (int id in tracks.Order())
         {
             SceneFormation formation = formations.Single(value => value.FormationId == id);
             Ff7BattleSession initial = new(formation, progress, kernel, executable.NativeMateriaStatModifiers, 1);
@@ -52,8 +65,8 @@ internal static class ChocoboCaptureAiTests
             Equal(warm, cold, $"Formation {id} original turn");
             warm = Restore(start);
             cold = Restore(start);
-            Ff7BattleActorState? bird = start.Actors.SingleOrDefault(actor => actor.Identity == 339);
-            int[] enemies = start.Actors.Where(actor => actor.Actor.Slot >= 4 && actor.Identity != 339).Select(actor => actor.Actor.Slot).ToArray();
+            Ff7BattleActorState bird = start.Actors.Single(actor => actor.Identity is 339 or 340);
+            int[] enemies = start.Actors.Where(actor => actor.Actor.Slot >= 4 && actor.Identity is not (339 or 340)).Select(actor => actor.Actor.Slot).ToArray();
             for (int index = 0; index < enemies.Length; index++)
             {
                 int slot = enemies[index];
@@ -82,15 +95,12 @@ internal static class ChocoboCaptureAiTests
                 Check((after.AiMasks!.Value.KnockedOut & 1 << slot) != 0, "Normal phase refresh must publish the newly dead actor after its callback.");
                 bool caught = after.AiSaveBank1![0x54] == 1;
                 bool finalEnemy = index == enemies.Length - 1;
-                Check(caught == (bird is not null && finalEnemy), $"Formation {id} captured before the last hostile death or fabricated a bird: index={index}, caught={caught}.");
-                if (bird is not null)
+                Check(caught == finalEnemy, $"Formation {id} captured before the last hostile death or failed to capture: index={index}, caught={caught}.");
+                Ff7BattleActorState currentBird = after.Actors.Single(actor => actor.Actor.Slot == bird.Actor.Slot);
+                Check(((currentBird.Actor.Conditions & 8) == 0) == finalEnemy, $"Formation {id} changed bird targetability at the wrong death boundary.");
+                if (!finalEnemy)
                 {
-                    Ff7BattleActorState currentBird = after.Actors.Single(actor => actor.Identity == 339);
-                    Check(((currentBird.Actor.Conditions & 8) == 0) == finalEnemy, $"Formation {id} changed bird targetability at the wrong death boundary.");
-                    if (!finalEnemy)
-                    {
-                        Check(warm.Message != "Caught a Chocobo.", "First hostile death must leave the catch message unpublished.");
-                    }
+                    Check(warm.Message != "Caught a Chocobo.", "First hostile death must leave the catch message unpublished.");
                 }
                 cold = Restore(after);
                 for (int tick = 0; tick < 8; tick++)
@@ -101,7 +111,7 @@ internal static class ChocoboCaptureAiTests
                 Equal(warm, cold, $"Formation {id} after-death cold continuation");
             }
         }
-        Console.WriteLine("Native cached ally selectors/count/comparison and original formations56..59 initialization/turn/first-last-death/JSON continuations passed.");
+        Console.WriteLine($"Native cached ally selectors/count/comparison and original tracks formations {string.Join(",", tracks.Order())} initialization/turn/first-last-death/JSON continuations passed.");
     }
 
     private static void TestCachedSelectors()

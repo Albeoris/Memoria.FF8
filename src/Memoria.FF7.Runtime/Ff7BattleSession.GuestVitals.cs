@@ -149,7 +149,7 @@ public sealed partial class Ff7BattleSession
             throw new InvalidDataException("Guest slots disagree about the source encounter or reuse an origin character.");
         }
         Ff7BattleActorState actor = Actor(binding.HostSlot);
-        uint statuses = Ff7GuestBattleStatuses.ToHostStatuses(binding.OriginStatuses, binding.OriginBattleStatuses) | (binding.InitialHp == 0 ? 1u : 0u);
+        uint statuses = Ff7GuestBattleStatuses.ToHostStatuses(binding.OriginStatuses, binding.OriginBattleStatuses) | (actor.Actor.Statuses & Ff7GuestBattleStatuses.SupportedNativeOnly) | (binding.InitialHp == 0 ? 1u : 0u);
         Ff7BattleAiActor projected = actor.Actor with { HitPoints = binding.InitialHp, MaxHitPoints = binding.MaximumHp, MagicPoints = 0, MaxMagicPoints = 0, Statuses = statuses, Defense = binding.Defense, MagicDefense = binding.MagicDefense };
         Ff7BattleParameterOperation? parameter = (binding.OriginBattleStatuses & Ff7GuestBattleStatuses.OriginDefenseReduction) != 0 ? new(Ff7GuestBattleStatuses.OriginDefenseReduction, 32, 100, 100) : null;
         Replace(actor with { Actor = projected, LimitGauge = 0, AllUses = null, Timers = Ff7NativeBattleStatusClock.Apply(default, 0, statuses), ParameterStatus = parameter, ParameterStatusInitialized = true, OriginSavedStatuses = (ushort)(binding.OriginStatuses & Ff7OriginSavedStatusRules.Supported) });
@@ -270,7 +270,7 @@ public sealed partial class Ff7BattleSession
         Ff7BattleActorState actor = snapshot.Actors.SingleOrDefault(candidate => candidate.Actor.Slot == binding.HostSlot && candidate.Identity == binding.StoryCharacter)
             ?? throw new InvalidDataException("Saved guest vitals do not identify the occupied story slot.");
         Ff7BattleAiActor native = actor.Actor;
-        if (native.HitPoints > projection.MaximumHp || native.MaxHitPoints != projection.MaximumHp || native.Defense != projection.Defense || native.MagicDefense != projection.MagicDefense || native.MagicPoints != 0 || native.MaxMagicPoints != 0 || (native.Statuses & ~(Ff7GuestBattleStatuses.SupportedHost | Ff7NativeBattleStatuses.SupportedRecordStatuses)) != 0 || (native.HitPoints == 0) != ((native.Statuses & 1) != 0) || actor.LimitGauge != 0 || actor.AllUses is not null)
+        if (native.HitPoints > projection.MaximumHp || native.MaxHitPoints != projection.MaximumHp || native.Defense != projection.Defense || native.MagicDefense != projection.MagicDefense || native.MagicPoints != 0 || native.MaxMagicPoints != 0 || (native.Statuses & ~(Ff7GuestBattleStatuses.SupportedHost | Ff7GuestBattleStatuses.SupportedNativeOnly | Ff7NativeBattleStatuses.SupportedRecordStatuses)) != 0 || (native.HitPoints == 0) != ((native.Statuses & 1) != 0) || actor.LimitGauge != 0 || actor.AllUses is not null)
         {
             throw new InvalidDataException("Saved guest vitals contain an unsupported host projection.");
         }

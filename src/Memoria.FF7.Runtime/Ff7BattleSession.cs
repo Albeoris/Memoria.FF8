@@ -88,6 +88,8 @@ public sealed record Ff7BattleSnapshot(long RequestId, int FormationId, byte Lay
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public Ff7BattleAiMasks? AiMasks { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public ushort? WithdrawnMask { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public byte[]? PartyAiAliases { get; init; }
     public byte[]? AiSaveBank1 { get; init; }
     public byte[]? AiSaveBankDirty { get; init; }

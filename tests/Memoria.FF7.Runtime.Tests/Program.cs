@@ -170,6 +170,24 @@ if (args.Contains("--character-names-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--native-guest-fury-only", StringComparer.Ordinal))
+{
+    NativeGuestFuryTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-fury-only", StringComparer.Ordinal))
+{
+    NativeFuryTests.Run();
+    return 0;
+}
+
+if (args.Contains("--enemy-withdrawal-only", StringComparer.Ordinal))
+{
+    NativeEnemyWithdrawalTests.Run();
+    return 0;
+}
+
 if (args.Contains("--chocobo-capture-ai-only", StringComparer.Ordinal))
 {
     ChocoboCaptureAiTests.Run();
@@ -431,6 +449,9 @@ var tests = new (string Name, Action Run)[]
     ("native opening flashback party storage and equipment", FlashbackPartyTests.Run),
     ("native opening request reward suppression", RewardSuppressionTests.Run),
     ("native opening character display names", CharacterDisplayNameTests.Run),
+    ("native guest fury ownership and cold continuation", NativeGuestFuryTests.Run),
+    ("native fury producer, opposition and cold continuation", NativeFuryTests.Run),
+    ("native enemy withdrawal effect and cold continuation", NativeEnemyWithdrawalTests.Run),
     ("native chocobo capture AI mask timing and cold continuation", ChocoboCaptureAiTests.Run),
     ("native stable word-radius initialization and cold continuation", NativeStablesRadiusTests.Run),
     ("native music status, finite timing and local changes", NativeMusicStatusTests.Run),

@@ -5,6 +5,7 @@ namespace Memoria.FF7.Runtime;
 public static class Ff7NativeBattleStatuses
 {
     public const uint Sadness = 0x10;
+    public const uint Fury = 0x20;
     public const uint Confusion = 0x40;
     public const uint Silence = 0x80;
     public const uint SlowNumb = 0x2000;

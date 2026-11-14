@@ -21,6 +21,8 @@ public readonly record struct Ff7BattleActionReceipt(Ff7BattleActionVitals Sourc
     public int SourceHitPointDamage { get; init; }
     public Ff7BattleParameterOperation? AddedParameterStatus { get; init; }
     public uint RemovedParameterStatus { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool WithdrawTarget { get; init; }
 }
 
 /// <summary>Resolves the native target transaction. The action owner publishes the receipt and spends costs once.</summary>
@@ -34,7 +36,7 @@ public static class Ff7NativeBattleActionResolver
     private const uint Stop = 0x400;
 
     private const uint PhysicalWakeStatuses = Sleep | 0x40 | 0x00400000;
-    private const uint SupportedRecordStatuses = Death | Sleep | Poison | Ff7NativeBattleStatuses.Sadness | Slow | Stop | Darkness | Ff7NativeBattleStatuses.SupportedRecordStatuses;
+    private const uint SupportedRecordStatuses = Death | Sleep | Poison | Ff7NativeBattleStatuses.Sadness | Ff7NativeBattleStatuses.Fury | Slow | Stop | Darkness | Ff7NativeBattleStatuses.SupportedRecordStatuses;
     private const uint Petrify = 0x4000;
     private const uint Peerless = 0x01000000;
     private const uint DeathForce = 0x10000000;
@@ -239,8 +241,12 @@ public static class Ff7NativeBattleActionResolver
         source = source with { OriginSavedStatuses = (ushort)(source.OriginSavedStatuses | sourceStats.OriginSavedStatuses) };
         target = target with { OriginSavedStatuses = (ushort)(target.OriginSavedStatuses | targetStats.OriginSavedStatuses) };
         Ff7BattleActionReceipt receipt = ResolveCoreTransaction(sourceStats, source, targetStats, target, action, record, random, sameActor, guestContact, originStatusResistances, originBattleStatuses);
+        receipt = CompletePhase4(receipt, record);
         return guestContact ? receipt : ApplyConditionImmunity(source, targetStats, target, action, receipt);
     }
+
+    private static Ff7BattleActionReceipt CompletePhase4(Ff7BattleActionReceipt receipt, Ff7BattleAttack? record)
+        => receipt with { WithdrawTarget = !receipt.Damage.Missed && record is { AdditionalEffect: 0x1B } };
 
     private static Ff7BattleActionReceipt ApplyConditionImmunity(Ff7BattleActionVitals source, Ff7BattleDamageActor targetStats, Ff7BattleActionVitals target, Ff7BattleDamageAction action, Ff7BattleActionReceipt receipt)
     {
@@ -250,7 +256,7 @@ public static class Ff7NativeBattleActionResolver
         }
         bool pendingStatuses = (receipt.NativePendingStatuses | receipt.AddedStatuses | receipt.RemovedStatuses | receipt.AddedOriginBattleStatuses | receipt.RemovedOriginBattleStatuses | receipt.AddedOriginSavedStatuses | receipt.RemovedOriginSavedStatuses | receipt.RemovedParameterStatus) != 0 || receipt.AddedParameterStatus is not null;
         bool missed = receipt.Damage.Missed || pendingStatuses || (action.NativeElements & 8) != 0;
-        return new(source, target, new(missed, false, 0), 0, 0);
+        return new(source, target, new(missed, false, 0), 0, 0) { WithdrawTarget = receipt.WithdrawTarget };
     }
 
     private static Ff7BattleActionReceipt ResolveCoreTransaction(Ff7BattleDamageActor sourceStats, Ff7BattleActionVitals source, Ff7BattleDamageActor targetStats, Ff7BattleActionVitals target, Ff7BattleDamageAction action, Ff7BattleAttack? record, Ff7BattleRng random, bool sameActor, bool guestContact, IReadOnlyList<byte>? originStatusResistances, uint originBattleStatuses)
@@ -274,14 +280,14 @@ public static class Ff7NativeBattleActionResolver
         }
         int mode = Ff7NativeBattleStatuses.ReadRecordMode(record);
         uint mask = ReadStatusMask(record);
-        uint supportedStatuses = guestContact ? Ff7GuestBattleStatuses.SupportedHost | Ff7NativeBattleStatuses.SupportedRecordStatuses : SupportedRecordStatuses;
+        uint supportedStatuses = guestContact ? Ff7GuestBattleStatuses.SupportedHost | Ff7GuestBattleStatuses.SupportedNativeOnly | Ff7NativeBattleStatuses.SupportedRecordStatuses : SupportedRecordStatuses;
         if (mode == 1)
         {
             supportedStatuses |= 0x100 | Stop;
         }
         action = ApplyFacingEffect(action, record, targetStats.NativeConditions);
         // The original 0x87 entry has no handler in any native damage-resolution phase.
-        bool unsupportedEffect = record is { AdditionalEffect: not byte.MaxValue } && record is not ({ DamageCalculation: 0x6D, AdditionalEffect: 0x87 } or { AdditionalEffect: 4, AdditionalEffectModifier: <= 1 });
+        bool unsupportedEffect = record is { AdditionalEffect: not byte.MaxValue } && record is not ({ DamageCalculation: 0x6D, AdditionalEffect: 0x87 } or { AdditionalEffect: 4, AdditionalEffectModifier: <= 1 } or { AdditionalEffect: 0x1B });
         if ((mask & ~supportedStatuses) != 0 || unsupportedEffect)
         {
             throw new NotSupportedException($"FFVII attack has unsupported additional effect or status mask 0x{mask:X8}.");
@@ -521,6 +527,24 @@ public static class Ff7NativeBattleActionResolver
         if (guestContact && (add & 0x100 & ~immunity) != 0)
         {
             remove |= Slow;
+        }
+        if ((add & Ff7NativeBattleStatuses.Sadness) != 0)
+        {
+            if ((target.Statuses & Ff7NativeBattleStatuses.Fury) != 0)
+            {
+                add &= ~Ff7NativeBattleStatuses.Sadness;
+                proposedAdd &= ~Ff7NativeBattleStatuses.Sadness;
+            }
+            remove |= Ff7NativeBattleStatuses.Fury;
+        }
+        if ((add & Ff7NativeBattleStatuses.Fury) != 0)
+        {
+            if ((target.Statuses & Ff7NativeBattleStatuses.Sadness) != 0)
+            {
+                add &= ~Ff7NativeBattleStatuses.Fury;
+                proposedAdd &= ~Ff7NativeBattleStatuses.Fury;
+            }
+            remove |= Ff7NativeBattleStatuses.Sadness;
         }
         uint proposedToggle = mode == 2 ? mask : 0;
         uint toggle = proposedToggle & ~(target.AbsoluteAddStatusImmunities & ~target.Statuses);
