@@ -14,7 +14,7 @@ public static class NativeBattleBreath129Body
         }
         (frame, uint temporary) = Allocate(frame, 52);
         uint cursor = frame.State.ReadDword(0x252117C);
-        uint row = NativeBattleModelResourceRow.Address100(inputs.ReadModel(frame, actorAddress));
+        uint row = NativeBattleModelResourceRow.Address100(inputs.ReadModel(frame, actorAddress), inputs.ReadResourceRowCapacity?.Invoke() ?? NativeBattleModelResourceRowAddress.NativeRowCount);
         frame = PublishContext(frame, temporary, Context(frame, temporary, 52).Write(0, BitConverter.GetBytes(cursor)).Write(4, BitConverter.GetBytes(row)), 52);
         NativeBattleBreath129BodyStep source = inputs.PublishBody508C90(frame, row);
         if (source.Source.BodyRowAddress != row)

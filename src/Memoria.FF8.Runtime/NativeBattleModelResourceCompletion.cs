@@ -77,6 +77,8 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
     public byte? EnemyLinkedSlots { get; init; }
     public int? LastModel142Row { get; init; }
     public NativeBattleModelCpuBank Palettes { get; init; } = NativeBattleModelCpuBank.Unknown();
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableDictionary<int, NativeBattleModelCpuBank>? PresentationPalettes { get; init; }
     public NativeBattleModelCpuBank AnimationFrames { get; init; } = NativeBattleModelCpuBank.Unknown();
     public ImmutableDictionary<int, int?> AnimationPointers { get; init; } = ImmutableDictionary<int, int?>.Empty;
     /// <summary>Current auxiliary sections retain their source slices independently of the legacy diagnostic guest image.</summary>
@@ -174,6 +176,22 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
         {
             throw new InvalidDataException("Model CPU resources require three native banks and the resource row extent authorized by their roster.");
         }
+        if (PresentationPalettes is { } palettes)
+        {
+            if (Cpu.PresentationRoster is not { } roster)
+            {
+                throw new InvalidDataException("Hosted saved palette slots require their presentation roster.");
+            }
+            foreach ((int actorRow, NativeBattleModelCpuBank bank) in palettes)
+            {
+                _ = RequirePartyPaletteSlot(roster, actorRow);
+                if (bank is null || bank.Capacity != NativeBattleModelCpuBank.Length || bank.HasResourceStorage)
+                {
+                    throw new InvalidDataException("Hosted saved palettes require the original sparse palette-bank layout.");
+                }
+                _ = bank.Read(0, 0);
+            }
+        }
         RequireAnimationSourceOwners();
         foreach ((int header, NativeBattleModelAnimationCopy source) in AnimationSources)
         {
@@ -221,7 +239,57 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
 
     public NativeBattleModelCpuResources SavePalettes507400(NativeBattleModelTextureLoad load)
     {
-        NativeBattleModelCpuBank palettes = Palettes;
+        return this with { Palettes = CopySavedPalettes(load, Palettes, out _) };
+    }
+
+    public NativeBattleModelCpuResources SavePalettes507400(NativeBattleModelTextureLoad load, int actorRow)
+    {
+        NativeBattleGraphicsRoster roster = Cpu.PresentationRoster ?? throw new InvalidDataException("Hosted saved palette writes require their presentation roster.");
+        if (!RequirePaletteActor(roster, actorRow).IsParty)
+        {
+            return this;
+        }
+        NativeBattleModelCpuBank prior = PresentationPalettes?.GetValueOrDefault(actorRow) ?? Palettes;
+        NativeBattleModelCpuBank updated = CopySavedPalettes(load, prior, out bool copied);
+        return !copied ? this : this with { PresentationPalettes = (PresentationPalettes ?? ImmutableDictionary<int, NativeBattleModelCpuBank>.Empty).SetItem(actorRow, updated) };
+    }
+
+    public byte[] ReadPartyStatusPalette(int actorRow)
+    {
+        if (Cpu.PresentationRoster is { } roster)
+        {
+            int slot = RequirePartyPaletteSlot(roster, actorRow);
+            NativeBattleModelCpuBank bank = PresentationPalettes?.GetValueOrDefault(actorRow) ?? Palettes;
+            return bank.Read(slot * 1024, 1024);
+        }
+        if ((uint)actorRow >= NativeBattleSlots.AllyCount)
+        {
+            throw new InvalidDataException("Native saved palette reads require the physical party row.");
+        }
+        return Palettes.Read(actorRow * 1024, 1024);
+    }
+
+    private static int RequirePartyPaletteSlot(NativeBattleGraphicsRoster roster, int actorRow)
+    {
+        if (!RequirePaletteActor(roster, actorRow).IsParty)
+        {
+            throw new InvalidDataException("Saved party palettes require a bound party actor.");
+        }
+        return actorRow < NativeBattleSlots.AllyCount ? actorRow : 0;
+    }
+
+    private static NativeBattleGraphicsActor RequirePaletteActor(NativeBattleGraphicsRoster roster, int actorRow)
+    {
+        if ((uint)actorRow >= roster.ActorCount || roster.Rows[actorRow] is not { } actor)
+        {
+            throw new InvalidDataException("Saved palette access requires a bound presentation actor.");
+        }
+        return actor;
+    }
+
+    private static NativeBattleModelCpuBank CopySavedPalettes(NativeBattleModelTextureLoad load, NativeBattleModelCpuBank palettes, out bool copied)
+    {
+        copied = false;
         foreach (int offset in load.TimOffsets)
         {
             ReadOnlySpan<byte> source = load.Source.Data.AsSpan();
@@ -235,9 +303,10 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
                     throw new InvalidDataException("Native507400 saved palette copy leaves its actual TIM source.");
                 }
                 palettes = palettes.Write(slot * 512, source.Slice(offset + 20, 512));
+                copied = true;
             }
         }
-        return this with { Palettes = palettes };
+        return palettes;
     }
 }
 public sealed record NativeBattleModelResourceCompletion(NativeBattleModelCpuBanks Cpu, ImmutableArray<NativeBattleModelCpuResourceRow> Rows, int ActiveBodyRow, int? ActiveLinkedRow, NativeBattleModelAnimationCopy? AnimationCopy, int? ScratchCandidate);

@@ -27,7 +27,7 @@ public sealed partial class BattleSession
         NativeBattleModelCpuResourceRow row = cpu.Rows[physicalRow];
         NativeBattleResourcePointer geometry = new(row.Require(16), null, row.Lengths.TryGetValue(16, out int extent) ? extent : null);
         NativeBattleModelGeometrySource source = NativeBattleModelGeometrySource.Open(cpu, staging, geometry, (offset, length) => NativeBattleModelResourceView.Open(cpu, staging, geometry, checked(offset + length)).Read(offset, length));
-        long visualSource = unchecked((long)NativeBattleModelResourceRow.Address100(actor) * 397 ^ source.PresentationIdentity);
+        long visualSource = unchecked((long)NativeModelResourceAddress100(actor) * 397 ^ source.PresentationIdentity);
         var objectRecords = new List<(ImmutableArray<ushort> Counts, int Offset)>();
         ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read(source.Read, pose.BoneCount, (_, counts, offset, _) => objectRecords.Add((counts, offset)));
         ushort mode = Word(payload + 8);

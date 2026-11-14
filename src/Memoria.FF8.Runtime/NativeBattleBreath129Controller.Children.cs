@@ -19,7 +19,7 @@ public static partial class NativeBattleBreath129Controller
             (frame, uint childAddress) = Append(frame, 1, 0x6B6130);
             if (childAddress != 0)
             {
-                uint row = NativeBattleModelResourceRow.Address100(inputs.ReadModel(frame, actor));
+                uint row = NativeBattleModelResourceRow.Address100(inputs.ReadModel(frame, actor), inputs.ReadResourceRowCapacity?.Invoke() ?? NativeBattleModelResourceRowAddress.NativeRowCount);
                 NativeBattleBreath129BodyStep body = inputs.ReadBody(frame, row);
                 frame = body.Frame;
                 NativeCrtRandomState random = frame.Random.Draw(out ushort sample);
@@ -38,7 +38,7 @@ public static partial class NativeBattleBreath129Controller
         }
         if (age >= 12 && (age & 3) == 0)
         {
-            uint row = NativeBattleModelResourceRow.Address100(inputs.ReadModel(frame, actor));
+            uint row = NativeBattleModelResourceRow.Address100(inputs.ReadModel(frame, actor), inputs.ReadResourceRowCapacity?.Invoke() ?? NativeBattleModelResourceRowAddress.NativeRowCount);
             frame = SpawnFibres(frame, row, 0x12292F8u + (uint)(((age - 12) >> 2) * 8), address + 0x128, 12, 5, 0x800);
         }
         task = Read(frame, address).WriteWord(12, unchecked((ushort)(age + 1)));

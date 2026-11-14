@@ -103,7 +103,7 @@ public sealed partial class BattleSession
             actor = NativeBattleBodyBoneMatrices.Compose5095B0(actor, basis);
             graphics = graphics with { Models = graphics.Models.SetItem(actorIndex, actor) };
             meshes = CinematicActorMeshes(actor, resource, NativeBattleBodyBoneMatrices.Require(actor, source), node, !glow);
-            visualSource = actor.ActiveStagedResourceRow100 is not null || actor.ActiveResourceRow100 is not null ? NativeBattleModelResourceRow.Address100(actor) : NativeBattlePilotVisualLifetimes.EpochFor(resource);
+            visualSource = actor.ActiveStagedResourceRow100 is not null || actor.ActiveResourceRow100 is not null ? NativeModelResourceAddress100(actor) : NativeBattlePilotVisualLifetimes.EpochFor(resource);
             if (!glow)
             {
                 Shadow();

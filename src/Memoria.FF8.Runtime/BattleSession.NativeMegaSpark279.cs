@@ -20,6 +20,7 @@ public sealed partial class BattleSession
         NativeBattleMegaSpark279Inputs inputs = new(nativeActionPackets, colors, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], (_, pointer) => PoseSource(pointer).BoneCount, ReadCurrentBoneMatrix, ReadBone502170, Anchor571400, _ => nativeActionPackets, Execute)
         {
             CapturePresentation = true,
+            ReadResourceRowCapacity = NativeModelResourceRowCapacity,
             ReadRowPointW = _ => ReadNativeMegaSpark279RowPointW(graphics.EntryLifecycle)
         };
         frame = initialize ? NativeBattleMegaSpark279Controller.Initialize(frame, resources, inputs) : NativeBattleMegaSpark279Controller.Advance(frame, resources, inputs);
@@ -39,7 +40,7 @@ public sealed partial class BattleSession
 
         NativeBattlePackedMatrix32 ReadCurrentBoneMatrix(NativeBattleMegaSpark279Frame current, uint row100, int bone)
         {
-            NativeBattleGraphicsModel[] owners = graphics.Models.Where(model => (model.ActiveResourceRow100 is not null || model.ActiveStagedResourceRow100 is not null) && NativeBattleModelResourceRow.Address100(model) == row100).ToArray();
+            NativeBattleGraphicsModel[] owners = graphics.Models.Where(model => (model.ActiveResourceRow100 is not null || model.ActiveStagedResourceRow100 is not null) && NativeModelResourceAddress100(model) == row100).ToArray();
             if (owners.Length != 1)
             {
                 throw new NotSupportedException("Mega Spark requires the actual unique current CPU bone-row owner.");

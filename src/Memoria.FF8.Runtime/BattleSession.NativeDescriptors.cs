@@ -267,7 +267,7 @@ public sealed partial class BattleSession
                     }
                     break;
                 case NativeBattleDescriptorTaskKind.Callback502F30:
-                    if (NativeBattleDescriptorCallbacks.IsBlocked502F30(graphics.Models, packet.Index, address => ReadNativeDescriptorByte(graphics, address)))
+                    if (NativeBattleDescriptorCallbacks.IsBlocked502F30(graphics.Models, packet.Index, address => ReadNativeDescriptorByte(graphics, address), graphics.PresentationRoster))
                     {
                         return new(descriptors, false);
                     }

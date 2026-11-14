@@ -107,7 +107,7 @@ public static partial class NativeBattleMegaSpark279Controller
             if ((age & 3) == 0)
             {
                 int row = (age >> 2) & 7;
-                uint row100 = NativeBattleModelResourceRow.Address100(inputs.ReadModel(frame, caster));
+                uint row100 = NativeBattleModelResourceRow.Address100(inputs.ReadModel(frame, caster), inputs.ReadResourceRowCapacity?.Invoke() ?? NativeBattleModelResourceRowAddress.NativeRowCount);
                 for (int index = 0; index < 3; index++)
                 {
                     (frame, _) = BirthAttachment6804B0(frame, row100, AttachmentTablesAddress + (uint)(index * 192 + row * 24), SourcePointsAddress + (uint)(index * 8), 0, 12, 7, resources, inputs);
@@ -129,7 +129,7 @@ public static partial class NativeBattleMegaSpark279Controller
             }
             if ((programmePhase & 7) == 0)
             {
-                uint row100 = NativeBattleModelResourceRow.Address100(inputs.ReadModel(frame, caster));
+                uint row100 = NativeBattleModelResourceRow.Address100(inputs.ReadModel(frame, caster), inputs.ReadResourceRowCapacity?.Invoke() ?? NativeBattleModelResourceRowAddress.NativeRowCount);
                 for (int index = 0; index < 3; index++)
                 {
                     (frame, _) = BirthAttachment6804B0(frame, row100, SourcePointsAddress + (uint)(index * 8), ExtraPointAddress, 1, 14, 7, resources, inputs);
@@ -223,7 +223,7 @@ public static partial class NativeBattleMegaSpark279Controller
     {
         var bytes = resources.ReadStatic(sourceAddress, 8);
         int bone = BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan().Slice(6));
-        uint row100 = NativeBattleModelResourceRow.Address100(inputs.ReadModel(frame, frame.State.ReadDword(CasterGlobal)));
+        uint row100 = NativeBattleModelResourceRow.Address100(inputs.ReadModel(frame, frame.State.ReadDword(CasterGlobal)), inputs.ReadResourceRowCapacity?.Invoke() ?? NativeBattleModelResourceRowAddress.NativeRowCount);
         frame = LoadMatrix(frame, inputs.ReadCurrentBoneMatrix(frame, row100, bone));
         NativeBattleGeometryRegisterStep registers = new(frame.Memory.GeometryRegisters!, frame.Memory.ScriptedColorRegisters ?? NativeBattleScriptedColorRegisters.Unknown());
         registers = NativeBattleGeometry.LoadVector(registers, 0, new(BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan()), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan().Slice(2)), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan().Slice(4))), unchecked((short)bone));

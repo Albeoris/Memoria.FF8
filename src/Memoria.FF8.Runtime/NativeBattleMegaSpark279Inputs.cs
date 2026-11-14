@@ -13,6 +13,7 @@ public sealed record NativeBattleMegaSpark279Inputs(NativeBattleActionPacketsSta
 {
     public bool CapturePresentation { get; init; }
     public Func<NativeBattleMegaSpark279Frame, short>? ReadRowPointW { get; init; }
+    public Func<int>? ReadResourceRowCapacity { get; init; }
 }
 
 public abstract record NativeBattleMegaSpark279Operation;

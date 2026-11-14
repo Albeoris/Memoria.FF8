@@ -56,6 +56,29 @@ public sealed class NativeBattleDescriptorCallbackTests
         Assert.Throws<NotSupportedException>(() => NativeBattleDescriptorCallbacks.IsBlocked502F30(models, index, memory.ReadByte));
     }
 
+    [Theory]
+    [InlineData(7)]
+    [InlineData(24)]
+    public void Hosted_bound_rows_use_live_models_and_unbound_indices_use_original_signed_addresses(short index)
+    {
+        NativeBattleGraphicsActor?[] rows = new NativeBattleGraphicsActor?[25];
+        rows[index] = new("actor", true);
+        NativeBattleGraphicsRoster roster = new(rows.ToImmutableArray());
+        ImmutableArray<NativeBattleGraphicsModel> models = Enumerable.Range(0, 25).Select(row => new NativeBattleGraphicsModel(row, 0)).ToImmutableArray();
+        models = models.SetItem(index, models[index] with { Flags0 = 2, Flags8 = 0, Kind5 = 1 });
+        Assert.True(NativeBattleDescriptorCallbacks.IsBlocked502F30(models, index, _ => throw new InvalidOperationException(), roster));
+
+        short hole = index == 7 ? (short)8 : (short)7;
+        List<uint> reads = [];
+        Assert.False(NativeBattleDescriptorCallbacks.IsBlocked502F30(models, hole, address =>
+        {
+            reads.Add(address);
+            return 0;
+        }, roster));
+        Assert.Equal(checked((uint)(0x1D972C0 + 156 * hole)), Assert.Single(reads));
+        Assert.Throws<InvalidDataException>(() => NativeBattleDescriptorCallbacks.IsBlocked502F30(Models(), index, _ => throw new InvalidOperationException(), roster));
+    }
+
     [Fact]
     public void ExternalUnknownBytesAreNotTreatedAsIdle()
     {

@@ -56,6 +56,21 @@ public sealed partial class BattleSession
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Acid target requires its current CPU resource owner.");
         int scratchLength = checked((cpu.ScratchMaximum ?? throw new NotSupportedException("Acid target requires its loaded vertex capacity.")) * 8);
         uint scratchAddress = checked(0x196B018u - (uint)scratchLength);
+        NativeBattleGraphicsModel model = graphics.Models[actor];
+        NativeBattleResourcePointer? bodyGeometry = null;
+        NativeBattleResourcePointer? linkedGeometry = null;
+        NativeBattleModelTextureOwner? bodyMaterial = null;
+        NativeBattleModelTextureOwner? linkedMaterial = null;
+        if (graphics.PresentationRoster is not null && memory.Textures?.PresentationTextures is not null)
+        {
+            bodyGeometry = NativeDeformedGeometryPointer(model, memory, effect, staging, false);
+            bodyMaterial = SelectNativeModelMaterial(graphics, model, bodyGeometry, memory.Textures);
+            if (model.LinkedTransform is not null)
+            {
+                linkedGeometry = NativeDeformedGeometryPointer(model, memory, effect, staging, true);
+                linkedMaterial = SelectNativeModelMaterial(graphics, model, linkedGeometry, memory.Textures);
+            }
+        }
         NativeDeformedBodyBridge current = AllocateNativeDeformedBody(memory, effect, random, staging, graphics, actor, 132);
         current = current with { Temporary = current.Temporary.Write(0x80, BitConverter.GetBytes(fraction)).Write(0x2C, BitConverter.GetBytes(cacheAddress)) };
         current = current with { Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, current.TemporaryAddress, current.Temporary, 132) };
@@ -85,12 +100,13 @@ public sealed partial class BattleSession
 
         NativeDeformedBodyBridge DrawSource(NativeDeformedBodyBridge value, bool linked, ImmutableArray<NativeBattleActionMatrix> matrices)
         {
-            NativeBattleResourcePointer pointer = NativeDeformedGeometryPointer(value, linked);
+            NativeBattleResourcePointer pointer = (linked ? linkedGeometry : bodyGeometry) ?? NativeDeformedGeometryPointer(value, linked);
+            NativeBattleModelTextureOwner? material = linked ? linkedMaterial : bodyMaterial;
             NativeBattleModelGeometrySource geometry = NativeBattleModelGeometrySource.Open(cpu, value.Staging, pointer, (offset, count) => ReadNativeDeformedGeometry(value, pointer, offset, count));
             NativeBattleDeformedBodyStep drawn = NativeBattleDeformedBodyDrawing.DrawBody(value.Memory, value.Temporary, NativeDeformedBodyView(value.Staging, scratchAddress, scratchLength), geometry, matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray(), packedCamera, projection, value.Memory.ScriptedGraphics ?? throw new NotSupportedException("Acid target requires its current depth controls."), scratchAddress, scratchLength, cacheAddress, cacheLength, pilotIdentity: pilotIdentity is { } identity ? identity with { ResourceGeneration = (geometry.PresentationIdentity << 1) | (linked ? 1L : 0L) } : null);
             value = value with { Memory = drawn.Memory, Temporary = drawn.Temporary132, Staging = NativeBattleTemporaryMemory.PublishView(value.Staging, scratchAddress, drawn.VertexScratch, scratchLength) };
             value = value with { Staging = NativeBattleTemporaryMemory.PublishResourceView(value.Staging, value.TemporaryAddress, value.Temporary, 132) };
-            return AppendNativeDeformedBody(value, drawn.Batch);
+            return AppendNativeDeformedBody(value, BindNativeModelMaterial(drawn.Batch, material));
         }
     }
 
@@ -139,16 +155,21 @@ public sealed partial class BattleSession
 
     private NativeBattleResourcePointer NativeDeformedGeometryPointer(NativeDeformedBodyBridge current, bool linked)
     {
-        int? row = linked ? current.Model.LinkedTextureResourceIndex : current.Model.ActiveResourceRow100;
-        uint? stagedRow = linked ? current.Model.LinkedStagedResourceRow : current.Model.ActiveStagedResourceRow100;
+        return NativeDeformedGeometryPointer(current.Model, current.Memory, current.Effect, current.Staging, linked);
+    }
+
+    private NativeBattleResourcePointer NativeDeformedGeometryPointer(NativeBattleGraphicsModel model, NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleFileStaging staging, bool linked)
+    {
+        int? row = linked ? model.LinkedTextureResourceIndex : model.ActiveResourceRow100;
+        uint? stagedRow = linked ? model.LinkedStagedResourceRow : model.ActiveStagedResourceRow100;
         if (stagedRow is uint staged)
         {
             uint address = checked(staged + 4);
-            if (NativeBattleEffectTaskMemory.TryReadPointer(current.Effect.Pools, address, out NativeBattleResourcePointer? pointer))
+            if (NativeBattleEffectTaskMemory.TryReadPointer(effect.Pools, address, out NativeBattleResourcePointer? pointer))
             {
                 return pointer ?? throw new NotSupportedException("Acid target geometry pointer is NULL.");
             }
-            NativeBattleResourcePointer? selected = IsNativeEffectArenaAddress(address) ? current.Memory.Arena!.ReadResourcePointer(NativeBattleWaterExecutionFields.ArenaOffset(address, 4)) : current.Staging.ReadResourcePointer(address);
+            NativeBattleResourcePointer? selected = IsNativeEffectArenaAddress(address) ? memory.Arena!.ReadResourcePointer(NativeBattleWaterExecutionFields.ArenaOffset(address, 4)) : staging.ReadResourcePointer(address);
             return selected ?? throw new NotSupportedException("Acid target geometry pointer is unobserved.");
         }
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Acid target requires its current CPU resource owner.");

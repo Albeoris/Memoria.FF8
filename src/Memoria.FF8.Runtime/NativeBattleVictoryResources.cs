@@ -55,7 +55,10 @@ public static class NativeBattleVictoryResources
                 return readPointer(checked(address + (uint)field * 4));
             }
             int[] offsets = [12, 16, 20, 44];
-            NativeBattleModelCpuResourceRow original = cpu.Rows[owner.CpuRow!.Value];
+            if (owner.CpuRow is not int alias || cpu.Rows.IsDefault || (uint)alias >= (uint)cpu.Rows.Length || cpu.Rows[alias] is not { } original)
+            {
+                throw new InvalidDataException("Native resource rebinding requires a CPU alias within the owned resource rows.");
+            }
             if (!original.Fields.TryGetValue(offsets[field], out NativeBattleModelCpuReference? reference))
             {
                 return null;

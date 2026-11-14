@@ -15,6 +15,13 @@ public sealed partial class BattleSession
         int capacity = checked((cpu.ScratchMaximum ?? throw new NotSupportedException("Primary body history requires its current projected workspace capacity.")) * 8);
         uint scratch = checked(0x196B018u - (uint)capacity);
         NativeBattleFileStaging staging = currentStaging ?? throw new NotSupportedException("Primary body history requires its current temporary owner.");
+        NativeBattleResourcePointer? hostedGeometry = null;
+        NativeBattleModelTextureOwner? material = null;
+        if (graphics.PresentationRoster is not null && memory.Textures?.PresentationTextures is not null)
+        {
+            hostedGeometry = GeometryPointer();
+            material = SelectNativeModelMaterial(graphics, model, hostedGeometry, memory.Textures);
+        }
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(staging, 76);
         NativeBattleActionMatrix world = model.GeometryWorldMatrix ?? throw new NotSupportedException("Primary body history requires its current world matrix.");
         NativeBattlePackedMatrix32 composed = NativeBattlePackedMatrix32.FromMatrix(NativeBattleGfMatrices.Compose56C2F0(camera.CapturePackedView1D97778().ReadMatrix(), world), null);
@@ -41,13 +48,14 @@ public sealed partial class BattleSession
         process = gate.Process;
         if (gate.Draw)
         {
-            NativeBattleResourcePointer pointer = GeometryPointer();
+            NativeBattleResourcePointer pointer = hostedGeometry ?? GeometryPointer();
             NativeBattleModelGeometrySource geometrySource = NativeBattleModelGeometrySource.Open(cpu, staging, pointer, Read);
             ImmutableArray<NativeBattleRawMesh> geometry = NativeBattleRawGeometryReader.Read(geometrySource.Read, source.BoneCount);
             NativeBattlePilotVisualIdentity? pilotIdentity = callerPilotIdentity is { } identity ? identity with { ResourceGeneration = unchecked(identity.ResourceGeneration * 397 ^ geometrySource.PresentationIdentity) } : null;
             process = process.PublishModelColor(color);
             (byte[] retained, _) = staging.ReadSnapshot(scratch, capacity);
             NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(geometry, NativeBattleBodyBoneMatrices.Require(model, source), projection, color, mask, retained.ToImmutableArray(), definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Primary body history requires its color arithmetic."), 4, new(0, 0, 320, 216), 17, pilotIdentity: pilotIdentity, pilotContinuous: callerPilotIdentity?.Effect != 174);
+            drawn = drawn with { Packets = BindNativeModelMaterial(drawn.Packets, material) };
             if (callerPilotIdentity?.Effect == 174)
             {
                 drawn = drawn with { Packets = drawn.Packets with { Attempts = drawn.Packets.Attempts.Select(attempt => attempt.Primitive is { } polygon ? attempt with { Primitive = NativeBattleEffect174Presentation.PreserveNativeDepths(polygon) } : attempt).ToImmutableArray() } };

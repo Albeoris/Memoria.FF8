@@ -35,11 +35,12 @@ public sealed partial class BattleSession
         uint ReadModelAddress()
         {
             int row = graphics.Models[caster].ActiveResourceRow100 ?? throw new NotSupportedException("Native X-ATM092 requires its actual physical body resource row.");
-            if ((uint)row >= 11)
+            int capacity = NativeModelResourceRowCapacity();
+            if ((uint)row >= (uint)capacity)
             {
-                throw new InvalidDataException("Native X-ATM092 body resource row leaves its original eleven slots.");
+                throw new InvalidDataException("Native X-ATM092 body resource row leaves its owned resource aliases.");
             }
-            return checked(0x1D99774u + (uint)row * 0x34);
+            return NativeBattleModelResourceRowAddress.Encode(row, capacity);
         }
 
         NativeBattleVector ReadBone(int bone, short fraction)

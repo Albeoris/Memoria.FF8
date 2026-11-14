@@ -342,7 +342,7 @@ public sealed partial class BattleSession
                     BinaryPrimitives.WriteUInt32LittleEndian(output.AsSpan(index * 8 + 4), projected[index].DepthAndClip);
                 }
                 NativeFileStaging = NativeFileStaging!.Write(address, output);
-                NativeBattleGfGeometryBatch batch = NativeBattleEffect107Geometry.Emit6BCB50(mesh.Polygons, projected, actor.Color40!.Value, resource.GeometryRelocated507550 ? null : binding, pilotIdentity: pilotIdentity is { } bodyIdentity ? bodyIdentity with { ResourceGeneration = ((long)NativeBattleModelResourceRow.Address100(actor) << 32) | ((linkedSource ? 1L : 0L) << 31) | (uint)meshIndex } : null);
+                NativeBattleGfGeometryBatch batch = NativeBattleEffect107Geometry.Emit6BCB50(mesh.Polygons, projected, actor.Color40!.Value, resource.GeometryRelocated507550 ? null : binding, pilotIdentity: pilotIdentity is { } bodyIdentity ? bodyIdentity with { ResourceGeneration = ((long)NativeModelResourceAddress100(actor) << 32) | ((linkedSource ? 1L : 0L) << 31) | (uint)meshIndex } : null);
                 NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(NativeEffectMemory!.PrimitiveProcess!, graphics.PrimitiveFrame!.Pending, batch);
                 NativeEffectMemory = NativeEffectMemory with { PrimitiveProcess = written.Process };
                 graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = written.Ordering } };

@@ -27,9 +27,9 @@ public sealed partial class BattleSession
 
     private byte ReadNativeDescriptorByte(NativeBattleGraphicsState graphics, uint address)
     {
-        if (NativeBattleGraphicsModelAddress.TryResolveField(address, out _, out _, graphics.Models.Length))
+        if (NativeBattleGraphicsModelAddress.TryResolveField(address, out int actor, out int modelOffset, graphics.Models.Length) && (graphics.PresentationRoster is not { } roster || roster.Rows[actor] is not null))
         {
-            (int actor, int offset) = NativeBattleGraphicsModelAddress.ResolveField(address, 1, graphics.Models.Length);
+            int offset = modelOffset;
             NativeBattleGraphicsModel model = graphics.Models[actor];
             if (offset == 4)
             {
@@ -101,12 +101,12 @@ public sealed partial class BattleSession
         {
             return nativeActionPackets.ReadContactBytes(contact)[contactOffset];
         }
-        if (address >= 0x1D99774 && address < 0x1D99774 + 11 * 52)
+        int resourceRowCount = NativeModelCpuResources?.Rows.Length ?? NativeBattleModelResourceRowAddress.NativeRowCount;
+        if (NativeBattleModelResourceRowAddress.TryResolveField(address, 1, out int alias, out int resourceOffset, resourceRowCount))
         {
-            uint relative = address - 0x1D99774;
             NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Native descriptor memory requires its canonical CPU resource rows.");
-            NativeBattleModelCpuResourceRow row = cpu.Rows[checked((int)(relative / 52))];
-            int offset = checked((int)(relative % 52));
+            NativeBattleModelCpuResourceRow row = cpu.Rows[alias];
+            int offset = resourceOffset;
             int field = offset & ~3;
             if (field == 4 && row.PrivateLength4 is int privateLength)
             {
@@ -124,10 +124,18 @@ public sealed partial class BattleSession
             {
                 throw new NotSupportedException("Native descriptor memory reaches an unknown retained CPU resource-row byte.");
             }
+            if (pointer is not null && NativeBattlePresentationCpuBanks.IsExtension(pointer.Bank))
+            {
+                throw new NotSupportedException("Hosted CPU resource sections have no numeric guest address.");
+            }
             // Resource-owned bytes have separate storage, but retain their native placement.
             // Observe that placement here; do not use it to select the resource's backing owner.
             uint value = pointer is null ? 0 : pointer.TryPhysicalAddress() ?? (pointer.Bank < 3 ? checked(pointer.EffectiveLayout.BaseAddress + (uint)pointer.EffectiveLayout.BankLength * pointer.Bank + (uint)pointer.Offset) : pointer.NativePlacementAddress);
             return ByteOf(value, offset - field);
+        }
+        if (address >= NativeBattleModelResourceRowAddress.HostedBase && NativeBattleModelResourceRowAddress.TryResolveField(address, 1, out _, out _, NativeBattleModelResourceRowAddress.MaximumRowCount))
+        {
+            throw new NotSupportedException("Hosted resource row address leaves the owned CPU alias array.");
         }
         if (address >= 0x1D99A78 && address < 0x1D99A80 && graphics.OriginalEffect?.Parameters is { } parameters)
         {

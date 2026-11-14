@@ -138,7 +138,7 @@ public sealed partial class BattleSession
         void RefreshDescriptors()
         {
             NativeBattleGraphicsModel actor = graphics.Models[actorIndex];
-            NativeBattleEffectArena captured = CaptureNativeEffect301Model(actor).Write(0x64, BitConverter.GetBytes(NativeBattleModelResourceRow.Address100(actor)));
+            NativeBattleEffectArena captured = CaptureNativeEffect301Model(actor).Write(0x64, BitConverter.GetBytes(NativeModelResourceAddress100(actor)));
             (byte[] bytes, bool[] known) = captured.ReadSnapshot(0x60, 12);
             int target = ArenaOffset(clone + 0x10, 12);
             NativeBattleEffectArena arena = frame.Arena.Write(target, bytes);

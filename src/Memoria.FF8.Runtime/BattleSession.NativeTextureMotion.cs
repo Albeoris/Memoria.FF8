@@ -52,6 +52,10 @@ public sealed partial class BattleSession
     {
         ImmutableArray<byte> source = ReadNativeTextureMotion(model);
         NativeBattleTextureMotionStep step = NativeBattleTextureMotion.Advance50C950(source, model.TextureAllocationMask, selector, (model.Flags0 & 2) != 0);
+        if (!step.Copies.IsEmpty && NativeEffectMemory?.Textures is { PresentationTextures: not null } textures)
+        {
+            _ = SelectNativeModelTextureBank(model.Index, textures);
+        }
         NativeBattleModelTextureCache cache = NativeModelTextureCache!;
         int index = model.TextureResourceIndex!.Value;
         if (!step.Source.Equals(source))
@@ -110,6 +114,8 @@ public sealed partial class BattleSession
         }
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native50C780 requires its retained process texture owner.");
         NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native50C780 requires its explicit505EB0 queue and VRAM owner.");
-        NativeEffectMemory = memory with { Textures = textures.EnqueueCopy505EB0(copy.SourceX, copy.SourceY, copy.Width, copy.Height, copy.DestinationX, copy.DestinationY) };
+        var material = SelectNativeModelTextureBank(model.Index, textures);
+        NativeBattleEffectTextureState updated = (material?.Bank.Textures ?? textures).EnqueueCopy505EB0(copy.SourceX, copy.SourceY, copy.Width, copy.Height, copy.DestinationX, copy.DestinationY);
+        NativeEffectMemory = memory with { Textures = PublishNativeModelTextures(textures, material, updated) };
     }
 }

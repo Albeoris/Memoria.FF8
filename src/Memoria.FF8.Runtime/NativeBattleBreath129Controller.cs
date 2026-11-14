@@ -141,7 +141,7 @@ public static partial class NativeBattleBreath129Controller
             (frame, fibre) = Scan(frame, 3, resources, inputs);
             foreach (uint actor in CurrentBodyActors(frame))
             {
-                uint row = NativeBattleModelResourceRow.Address100(inputs.ReadModel(frame, actor));
+                uint row = NativeBattleModelResourceRow.Address100(inputs.ReadModel(frame, actor), inputs.ReadResourceRowCapacity?.Invoke() ?? NativeBattleModelResourceRowAddress.NativeRowCount);
                 frame = inputs.PublishBody508C90(frame, row).Frame;
             }
             (frame, target) = Scan(frame, 2, resources, inputs);

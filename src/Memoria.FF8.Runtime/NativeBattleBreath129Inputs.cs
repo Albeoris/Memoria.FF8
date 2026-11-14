@@ -37,6 +37,7 @@ public sealed record NativeBattleBreath129Inputs(NativeBattleActionPacketsState 
     public bool CapturePresentation { get; init; }
     [System.Text.Json.Serialization.JsonIgnore]
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+    public Func<int>? ReadResourceRowCapacity { get; init; }
 }
 
 public abstract record NativeBattleBreath129Operation;

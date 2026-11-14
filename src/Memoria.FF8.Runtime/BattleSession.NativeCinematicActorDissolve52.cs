@@ -79,7 +79,7 @@ public sealed partial class BattleSession
         }
         if (visualIdentity.Effect == 265)
         {
-            visualIdentity = NativeBattleCinematic31Presentation.DissolveSource(visualIdentity, frame.Arena, clone, NativeBattleModelResourceRow.Address100(actor), source.PresentationIdentity);
+            visualIdentity = NativeBattleCinematic31Presentation.DissolveSource(visualIdentity, frame.Arena, clone, NativeModelResourceAddress100(actor), source.PresentationIdentity);
         }
         uint state = Slot32(0xC0);
         uint counters = Slot32(0xC4);

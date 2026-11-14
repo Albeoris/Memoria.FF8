@@ -41,12 +41,12 @@ public sealed partial class BattleSession
     {
         NativeBattleGraphicsModel model = graphics.Models[NativeEffect287Actor(graphics, address)];
         _ = ReadNativeEffect287SkeletonSnapshot(graphics, frame, model.Index, 0, 0);
-        return CaptureNativeEffect210Model(model).Write(0x64, BitConverter.GetBytes(NativeBattleModelResourceRow.Address100(model)));
+        return CaptureNativeEffect210Model(model).Write(0x64, BitConverter.GetBytes(NativeModelResourceAddress100(model)));
     }
 
     private NativeBattlePackedMatrix32 ReadNativeEffect287BoneMatrix(NativeBattleGraphicsState graphics, NativeBattleEffect287Frame frame, uint directory, int bone)
     {
-        NativeBattleGraphicsModel[] owners = graphics.Models.Where(model => (model.ActiveResourceRow100 is not null || model.ActiveStagedResourceRow100 is not null) && NativeBattleModelResourceRow.Address100(model) == directory).ToArray();
+        NativeBattleGraphicsModel[] owners = graphics.Models.Where(model => (model.ActiveResourceRow100 is not null || model.ActiveStagedResourceRow100 is not null) && NativeModelResourceAddress100(model) == directory).ToArray();
         if (owners.Length != 1)
         {
             throw new NotSupportedException("Effect287 bone access requires its unique current physical directory owner.");
@@ -69,7 +69,7 @@ public sealed partial class BattleSession
         uint model = frame.State.ReadDword(NativeBattleEffect287Profile.CasterGlobal);
         NativeBattleGraphicsModel owner = graphics.Models[NativeEffect287Actor(graphics, model)];
         int bone = BinaryPrimitives.ReadInt16LittleEndian(point8.Read(6, 2));
-        frame = LoadMatrix(frame, ReadNativeEffect287BoneMatrix(graphics, frame, NativeBattleModelResourceRow.Address100(owner), bone));
+        frame = LoadMatrix(frame, ReadNativeEffect287BoneMatrix(graphics, frame, NativeModelResourceAddress100(owner), bone));
         NativeBattleGeometryRegisterStep step = NativeBattleGeometry.LoadVector(Registers(frame), 0, new(BinaryPrimitives.ReadInt16LittleEndian(point8.Read(0, 2)), BinaryPrimitives.ReadInt16LittleEndian(point8.Read(2, 2)), BinaryPrimitives.ReadInt16LittleEndian(point8.Read(4, 2))), unchecked((short)bone));
         step = NativeBattleGeometry.Transform(step);
         for (int axis = 0; axis < 3; axis++)
@@ -106,7 +106,7 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Effect287 local point parent leaves its current skeleton.");
         }
         short length = parent < 0 ? (short)0 : BinaryPrimitives.ReadInt16LittleEndian(source.Skeleton.AsSpan().Slice(18 + parent * 48, 2));
-        NativeBattlePackedMatrix32 matrix = ReadNativeEffect287BoneMatrix(graphics, frame, NativeBattleModelResourceRow.Address100(model), bone);
+        NativeBattlePackedMatrix32 matrix = ReadNativeEffect287BoneMatrix(graphics, frame, NativeModelResourceAddress100(model), bone);
         (frame, uint temporary) = Allocate(frame, 60);
         NativeBattleEffectArena context = Context(frame, temporary, 60).Write(0x34, BitConverter.GetBytes(0u)).Write(0x38, BitConverter.GetBytes(length));
         frame = LoadMatrix(frame, matrix);

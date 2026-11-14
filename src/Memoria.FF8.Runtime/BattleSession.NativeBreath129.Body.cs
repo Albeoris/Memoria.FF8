@@ -44,21 +44,9 @@ public sealed partial class BattleSession
             return NativeBattleEffectArena.Clear().Write(0, bytes);
         }
 
-        static uint? RowAddress(NativeBattleGraphicsModel candidate)
+        uint? RowAddress(NativeBattleGraphicsModel candidate)
         {
-            if (candidate.ActiveStagedResourceRow100 is uint staged)
-            {
-                return staged;
-            }
-            if (candidate.ActiveResourceRow100 is not int row)
-            {
-                return null;
-            }
-            if ((uint)row >= 11)
-            {
-                throw new InvalidDataException("Breath CPU resource row leaves its actual eleven physical slots.");
-            }
-            return checked(0x1D99774u + (uint)row * 0x34);
+            return candidate.ActiveStagedResourceRow100 is null && candidate.ActiveResourceRow100 is null ? null : NativeModelResourceAddress100(candidate);
         }
     }
 }

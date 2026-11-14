@@ -16,7 +16,7 @@ public static partial class NativeBattleBreath129Controller
         uint caster = frame.State.ReadDword(CasterGlobal);
         if (age < 20 && (age & 1) == 0)
         {
-            uint row = NativeBattleModelResourceRow.Address100(inputs.ReadModel(frame, caster));
+            uint row = NativeBattleModelResourceRow.Address100(inputs.ReadModel(frame, caster), inputs.ReadResourceRowCapacity?.Invoke() ?? NativeBattleModelResourceRowAddress.NativeRowCount);
             frame = SpawnFibres(frame, row, 0x1229318u + (uint)(((age >> 1) & 3) * 8), 0x1229338, 12, 7, 0x100);
         }
         NativeBattleBreath129PointStep mouth = inputs.ReadBone502170(frame, caster, 9, 0x2000);
