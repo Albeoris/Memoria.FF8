@@ -237,7 +237,7 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         return (model.Sequence, model.SequenceFrame, model.SequenceState?.Offset46, model.SequenceState?.PoseFrame114);
     }
 
-    private static string LogicalState(BattleSession logical)
+    internal static string LogicalState(BattleSession logical)
     {
         BattleSnapshot data = logical.Capture();
         return JsonSerializer.Serialize(new
@@ -248,7 +248,7 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         });
     }
 
-    private static (BattleDefinition Logical, BattleDefinition Selected) CreateDefinitions(GameAssets game, BattleAssets assets, int allyCount, int enemyCount, int authoredCount, bool expanded)
+    internal static (BattleDefinition Logical, BattleDefinition Selected) CreateDefinitions(GameAssets game, BattleAssets assets, int allyCount, int enemyCount, int authoredCount, bool expanded)
     {
         BattleEncounter encounter = assets.LoadEncounter(7);
         BattleStage stage = assets.LoadStage(encounter.StageId);

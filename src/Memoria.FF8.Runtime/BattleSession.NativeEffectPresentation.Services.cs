@@ -16,7 +16,7 @@ public sealed partial class BattleSession
 
     private NativeBattleStageState ReadNativeStageVisibilityOwner()
     {
-        if (presentationForeignActors is not null && presentationArena is null)
+        if (presentationForeignActors is not null && presentationArena is null && !hostedBattlePresentation)
         {
             throw new NotSupportedException("The host has no arena visibility owner for this native stage operation.");
         }

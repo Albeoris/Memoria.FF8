@@ -65,8 +65,15 @@ public sealed partial class BattleSession
         {
             graphics = FeedHostedEntryDescriptors(graphics);
         }
-        NativeBattleDescriptorState final = graphics.Descriptors.Advance(Dispatch, Poll, (state, slot) => ObserveNativeDescriptorStack(graphics, state, slot), diagnosticInvocationPolicy is null ? null : ObserveDiagnosticInvocationPacketRemoved);
+        Action<NativeBattleDescriptorState, int, NativeBattleDescriptorPacket>? observeRemoval = diagnosticInvocationPolicy is null ? null : ObserveDiagnosticInvocationPacketRemoved;
+        NativeBattleDescriptorState final = graphics.Descriptors.Advance(Dispatch, Poll, (state, slot) => ObserveNativeDescriptorStack(graphics, state, slot), hostedBattlePresentation ? ObserveHostedPacketRemoved : observeRemoval);
         return graphics with { Descriptors = final };
+
+        void ObserveHostedPacketRemoved(NativeBattleDescriptorState state, int slot, NativeBattleDescriptorPacket packet)
+        {
+            observeRemoval?.Invoke(state, slot, packet);
+            ObserveHostedActionPacketRemoved(slot, packet);
+        }
 
         NativeBattleDescriptorDispatch Dispatch(NativeBattleDescriptorState descriptors, int slot)
         {

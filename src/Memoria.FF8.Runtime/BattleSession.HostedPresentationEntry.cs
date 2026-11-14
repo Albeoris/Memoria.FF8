@@ -43,6 +43,7 @@ public sealed partial class BattleSession
         }
 
         hostedBattlePresentation = true;
+        presentationCameraMode = NativeBattleEffectCameraMode.NativeCinematic;
         hostedEntryDescriptors = new();
         hostedModelPackets = new();
         combatants = [];

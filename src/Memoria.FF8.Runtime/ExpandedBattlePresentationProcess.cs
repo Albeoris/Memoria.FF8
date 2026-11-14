@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Owns the native presentation process for one expanded battle.</summary>
@@ -23,12 +25,26 @@ public sealed class ExpandedBattlePresentationProcess
     internal ulong GlobalRandomCalls => presentation.NativeGlobalRandomChange!.Calls;
     internal NativeBattleModelCpuResources ModelCpuResources => presentation.NativeModelCpuResources!;
     internal NativeBattleModelTextureCache ModelTextureCache => presentation.NativeModelTextureCache!;
+    internal long? ActiveActionToken => presentation.HostedActiveActionToken;
+    internal long? LastStepActionToken { get; private set; }
+
+    internal long BeginAction(NativeBattleActionHeaderPreparation header, ImmutableArray<NativeBattleContactPacket> contacts)
+    {
+        return presentation.BeginHostedAction(header, contacts);
+    }
+
+    internal bool IsActionComplete(long token)
+    {
+        return presentation.IsHostedActionComplete(token);
+    }
 
     internal NativeBattleModelLifecycleServices Advance(BattleSession logicalOwner, NativeExamTimerState? timerObservation = null)
     {
         ArgumentNullException.ThrowIfNull(logicalOwner);
+        long? actionToken = ActiveActionToken;
         NativeBattleModelLifecycleServices services = presentation.AdvanceHostedBattlePresentationFrame(logicalOwner, timerObservation ?? logicalOwner.NativeExamTimer);
         LastStep = presentation.ReadAndClearHostedPresentationFrameOutputs();
+        LastStepActionToken = actionToken;
         return services;
     }
 }
