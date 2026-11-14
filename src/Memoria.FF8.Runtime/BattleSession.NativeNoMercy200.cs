@@ -131,7 +131,7 @@ public sealed partial class BattleSession
                     return current with { Memory = NativeEffectMemory!, Staging = NativeFileStaging! };
                 case NativeBattleNoMercy200TargetSequence sequence:
                     NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[current.Parameters.HeaderIndex7C];
-                    int count = header.ReadByte(16);
+                    int count = header.ReadContactCount();
                     if (count > 0)
                     {
                         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native No Mercy requires its selected contact pointer.");

@@ -159,7 +159,7 @@ public sealed partial class BattleSession
                 case NativeBattleSonic139ContactForActor contact:
                     Publish(current);
                     NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[(current.Effect.Parameters ?? throw new NotSupportedException("Sonic Wave requires its captured parameters.")).HeaderIndex7C];
-                    int count = header.ReadByte(16);
+                    int count = header.ReadContactCount();
                     int first = header.FirstContactIndex ?? throw new NotSupportedException("Sonic Wave requires its actual contacts.");
                     var pending = graphics.PendingContacts;
                     for (int index = 0; index < count; index++)

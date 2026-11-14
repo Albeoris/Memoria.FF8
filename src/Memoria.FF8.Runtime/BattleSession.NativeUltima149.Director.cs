@@ -11,7 +11,7 @@ public sealed partial class BattleSession
         {
             NativeBattleActionHeaderSlot header = Header(action);
             int first = header.FirstContactIndex ?? throw new InvalidDataException("Native Ultima requires its original target contact cursor.");
-            int count = header.ReadByte(16);
+            int count = header.ReadContactCount();
             if (count == 0)
             {
                 throw new InvalidDataException("Native Ultima cannot average an empty native target list.");

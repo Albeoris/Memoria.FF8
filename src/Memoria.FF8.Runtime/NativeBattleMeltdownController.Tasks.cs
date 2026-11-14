@@ -57,7 +57,7 @@ public static partial class NativeBattleMeltdownController
             {
                 NativeBattleActionHeaderSlot header = inputs.Packets.Headers[parameters.HeaderIndex7C + action];
                 int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Meltdown requires its original result target list.");
-                for (int index = 0; index < header.ReadByte(16); index++)
+                for (int index = 0; index < header.ReadContactCount(); index++)
                 {
                     Emit(new NativeBattleMeltdownContact(first + index));
                 }

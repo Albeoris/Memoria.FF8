@@ -75,7 +75,7 @@ public static partial class NativeBattleEffect287Controller
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
             NativeBattleActionHeaderSlot header = CurrentHeader(frame, packets);
             int first = header.FirstContactIndex ?? throw new NotSupportedException("Effect287 requires its current contact pointer.");
-            frame = inputs.Execute(frame, new NativeBattleEffect287Contacts506BA0(first, header.ReadByte(16)));
+            frame = inputs.Execute(frame, new NativeBattleEffect287Contacts506BA0(first, header.ReadContactCount()));
         }
         short next = unchecked((short)(age + 1));
         frame = Write(frame, address, Read(frame, address).WriteWord(12, unchecked((ushort)next)));

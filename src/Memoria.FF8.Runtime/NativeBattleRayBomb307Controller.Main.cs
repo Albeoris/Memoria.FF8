@@ -152,7 +152,7 @@ public static partial class NativeBattleRayBomb307Controller
         {
             NativeBattleActionHeaderSlot header = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C];
             int first = header.FirstContactIndex ?? throw new NotSupportedException("Ray-Bomb requires its actual contact pointer.");
-            for (int index = 0; index < header.ReadByte(16); index++)
+            for (int index = 0; index < header.ReadContactCount(); index++)
             {
                 (frame, uint child) = Append(frame, 1, 0x5A25E0);
                 frame = DrawRandom(frame, out ushort direction);

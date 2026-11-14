@@ -33,7 +33,7 @@ public static partial class NativeBattleRenzokuken160Controller
         NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
         int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native5FF080 requires the physical first-contact pointer.");
         byte target = packets.ReadContact(contact).Primary.ActorIndex;
-        bool initial = NativeBattleActionGraphics.Word(header, 4) == 0xFFFE;
+        bool initial = header.Action == 0xFFFE;
         NativeBattleRenzokuken160State state = retained.Enter(parameters.Actor78, parameters.HeaderIndex7C, target, initial) with { RetainedResources = resources };
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(0x23D4230, 0x23D4220, 16, 1);
         (main, int mainSlot) = main.Append(0x600930);

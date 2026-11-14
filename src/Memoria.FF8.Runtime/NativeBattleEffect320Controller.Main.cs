@@ -72,7 +72,7 @@ public static partial class NativeBattleEffect320Controller
             NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect320 requires its current contact parameters.");
             NativeBattleActionHeaderSlot header = inputs.ReadPackets(frame).Headers[parameters.HeaderIndex7C];
             int first = header.FirstContactIndex ?? throw new NotSupportedException("Effect320 requires its current contact pointer.");
-            frame = inputs.Execute(frame, new NativeBattleEffect320AllContacts506BA0(first, header.ReadByte(16)));
+            frame = inputs.Execute(frame, new NativeBattleEffect320AllContacts506BA0(first, header.ReadContactCount()));
         }
         short next = unchecked((short)(phase + 1));
         frame = Write(frame, address, Read(frame, address).WriteWord(12, unchecked((ushort)next)));

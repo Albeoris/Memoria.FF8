@@ -61,8 +61,8 @@ public static class NativeBattleRinoa86Controller
         NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native77F250 requires its original first contact pointer.");
         byte target = packets.ReadContact(first).Primary.ActorIndex;
-        byte targets = header.ReadByte(16);
-        byte groups = header.ReadByte(17);
+        byte targets = header.ReadContactCount();
+        byte groups = header.ReadRepeatModeMinusOne();
         byte maximum = unchecked((byte)(targets - 1));
         if (maximum < groups)
         {
@@ -220,7 +220,7 @@ public static class NativeBattleRinoa86Controller
                     int header = checked(frame.Effect.Parameters!.HeaderIndex7C + unchecked((sbyte)task.ReadByte(42)));
                     NativeBattleActionHeaderSlot group = controller.Packets.Headers[header];
                     int first = group.FirstContactIndex ?? throw new NotSupportedException("Native7842F0 requires its selected group's actual contact pointer.");
-                    for (int contact = 0; contact < group.ReadByte(16); contact++)
+                    for (int contact = 0; contact < group.ReadContactCount(); contact++)
                     {
                         frame = inputs.ApplyContact(frame, checked(first + contact));
                     }

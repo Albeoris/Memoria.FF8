@@ -56,7 +56,7 @@ public static class NativeBattleHeroController
                     root = root.WriteByte(15, 1);
                 }
                 int ordinal = profile.Effect == 309 ? 0 : root.ReadByte(14);
-                if (profile.Effect == 309 || ordinal < header.ReadByte(16))
+                if (profile.Effect == 309 || ordinal < header.ReadContactCount())
                 {
                     int first = header.FirstContactIndex ?? throw new NotSupportedException("The Hero root requires its actual first physical contact pointer.");
                     byte actor = checked((byte)inputs.Packets.ReadContact(checked(first + ordinal)).Primary.ActorIndex);
@@ -246,7 +246,7 @@ public static class NativeBattleHeroController
             {
                 uint pointer = current.Effect.Pools[1].Slots[slot].ReadDword(16);
                 int actor = NativeBattleGraphicsModelAddress.Decode(pointer);
-                for (int index = 0; index < header.ReadByte(16); index++)
+                for (int index = 0; index < header.ReadContactCount(); index++)
                 {
                     if (inputs.Packets.ReadContact(first + index).Primary.ActorIndex == actor)
                     {

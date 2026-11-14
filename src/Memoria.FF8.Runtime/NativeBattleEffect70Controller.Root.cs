@@ -105,7 +105,7 @@ public static partial class NativeBattleEffect70Controller
             throw new InvalidDataException("Effect70 selected an absent physical action header.");
         }
         NativeBattleActionHeaderSlot header = packets.Headers[headerIndex];
-        int count = header.ReadByte(16);
+        int count = header.ReadContactCount();
         frame = Write(frame, main, Read(frame, main).WriteWord(14, (ushort)count));
         short[] minimum = [32767, 32767, 32767];
         short[] maximum = [-32767, -32767, -32767];

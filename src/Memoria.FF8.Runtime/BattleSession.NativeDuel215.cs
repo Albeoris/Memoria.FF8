@@ -26,7 +26,7 @@ public sealed partial class BattleSession
         frame = frame with { Effect = frame.Effect with { PresentationPackets = [] } };
         NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[parameters.HeaderIndex7C];
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Duel215 requires its actual action contact pointer.");
-        int count = header.ReadByte(16);
+        int count = header.ReadContactCount();
         ImmutableArray<byte> targets = Enumerable.Range(0, count).Select(index => nativeActionPackets.ReadContact(checked(first + index)).Primary.ActorIndex).ToImmutableArray();
         NativeBattleDuel215PreparationServices preparation = new(index => graphics.Models[index], WriteModel, Anchor, targets, Bind, Select);
         NativeBattleDuel215TargetServices recipients = new(index => graphics.Models[index], WriteModel, targets, Bounds, Body);

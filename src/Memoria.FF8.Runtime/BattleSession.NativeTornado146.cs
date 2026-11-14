@@ -208,7 +208,7 @@ public sealed partial class BattleSession
             }
             NativeBattleEffectParameters parameters = effect.Parameters!;
             NativeBattleActionHeaderSlot first = owner.nativeActionPackets.Headers[parameters.HeaderIndex7C];
-            if (action == first.ReadByte(17) && age == 78)
+            if (action == first.ReadRepeatModeMinusOne() && age == 78)
             {
                 int wait = Allocate(0, 0x618480);
                 Put(0, wait, pools[0].Slots[wait].WriteWord(12, 0));
@@ -218,10 +218,10 @@ public sealed partial class BattleSession
                 NativeBattleActionHeaderSlot selected = owner.nativeActionPackets.Headers[checked(parameters.HeaderIndex7C + action)];
                 int start = selected.FirstContactIndex ?? throw new NotSupportedException("Native Tornado contact group has no original contact pointer.");
                 ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                graphics = owner.ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(0, selected.ReadByte(16)).Select(index => owner.nativeActionPackets.ReadContact(start + index)).ToImmutableArray() });
+                graphics = owner.ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(0, selected.ReadContactCount()).Select(index => owner.nativeActionPackets.ReadContact(start + index)).ToImmutableArray() });
                 graphics = graphics with { PendingContacts = pending };
             }
-            if (age == 83 && action + 1 <= first.ReadByte(17))
+            if (age == 83 && action + 1 <= first.ReadRepeatModeMinusOne())
             {
                 int next = Allocate(1, 0x614E10);
                 Put(1, next, pools[1].Slots[next].WriteWord(12, 0).WriteWord(14, unchecked((ushort)(action + 1))));
@@ -238,7 +238,7 @@ public sealed partial class BattleSession
         private NativeBattleModuleAnchor TargetAnchor(int action)
         {
             NativeBattleActionHeaderSlot header = owner.nativeActionPackets.Headers[checked(effect.Parameters!.HeaderIndex7C + action)];
-            int count = header.ReadByte(16);
+            int count = header.ReadContactCount();
             int start = header.FirstContactIndex ?? throw new NotSupportedException("Native Tornado requires its selected contact group.");
             if (count == 0)
             {

@@ -96,7 +96,8 @@ public sealed class NativeBattleActionGraphicsTests
         NativeBattleRetainedActionPackets retained = observed
             ? NativeBattleRetainedActionPackets.FromColdLoaderStorage(new byte[32 * 20], new byte[49 * 24])
             : NativeBattleRetainedActionPackets.Fresh();
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(new([Source]), retained);
+        BattleModelRoster roster = new([Source]);
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(roster, retained, new(roster, [(NativeBattleModelSlot.Decode(0), Source)]));
         Assert.Throws<NotSupportedException>(() => NativeBattleActionGraphics.ReadCameraFlag50A6E0(packets));
         BattleActionHeaderReference header;
         (packets, header) = packets.Prepare(new(Source, 1, 13, 2, 0, 0, null));
@@ -238,7 +239,13 @@ public sealed class NativeBattleActionGraphicsTests
 
     private static NativeBattleActionPacketsState Fresh(BattleModelRoster? roster = null)
     {
-        return NativeBattleActionPacketsState.Create(roster ?? new([Source, Cover1, Cover2, Target, Second]), NativeBattleRetainedActionPackets.Fresh());
+        if (roster is not null)
+        {
+            return NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedActionPackets.Fresh(), new(roster, [(NativeBattleModelSlot.Decode(0), Source)]));
+        }
+        roster = new([Source, Cover1, Cover2, Target, Second]);
+        NativeBattleModelAliases aliases = new(roster, [(NativeBattleModelSlot.Decode(0), Source), (NativeBattleModelSlot.Decode(1), Cover1), (NativeBattleModelSlot.Decode(2), Cover2), (NativeBattleModelSlot.Decode(3), Target), (NativeBattleModelSlot.Decode(4), Second)]);
+        return NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedActionPackets.Fresh(), aliases);
     }
 
     private static NativeBattleContactPacket Contact(BattleModelOwner target, byte flags = 0, byte hitFlags = 0, BattleModelOwner? cover = null)

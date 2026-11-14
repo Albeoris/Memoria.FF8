@@ -19,10 +19,12 @@ public sealed class NativeBattleActionPacketsState
 {
     private readonly ImmutableArray<NativeBattleActionHeaderSlot?> headers;
     private readonly ImmutableArray<NativeBattleContactPacket?> contacts;
+    private readonly NativeBattleModelAliases aliases;
 
-    private NativeBattleActionPacketsState(BattleModelRoster roster, NativeBattleRetainedActionPackets retainedStorage, ImmutableArray<NativeBattleActionHeaderSlot?> headers, ImmutableArray<NativeBattleContactPacket?> contacts, int actionCount = 0, int contactCount = 0, BattleActionHeaderReference? activeHeader = null, BattleContactCursor? activeContact = null)
+    private NativeBattleActionPacketsState(BattleModelRoster roster, NativeBattleModelAliases aliases, NativeBattleRetainedActionPackets retainedStorage, ImmutableArray<NativeBattleActionHeaderSlot?> headers, ImmutableArray<NativeBattleContactPacket?> contacts, int actionCount = 0, int contactCount = 0, BattleActionHeaderReference? activeHeader = null, BattleContactCursor? activeContact = null)
     {
         Roster = roster;
+        this.aliases = aliases;
         RetainedStorage = retainedStorage;
         this.headers = headers;
         this.contacts = contacts;
@@ -39,19 +41,19 @@ public sealed class NativeBattleActionPacketsState
     public BattleActionHeaderReference? ActiveHeader { get; }
     public BattleContactCursor? ActiveContact { get; }
 
-    public static NativeBattleActionPacketsState Create(BattleModelRoster roster, NativeBattleRetainedActionPackets retained)
+    public static NativeBattleActionPacketsState Create(BattleModelRoster roster, NativeBattleRetainedActionPackets retained, NativeBattleModelAliases aliases)
     {
-        ArgumentNullException.ThrowIfNull(roster);
+        ValidateAliases(roster, aliases);
         ArgumentNullException.ThrowIfNull(retained);
         retained.Validate();
-        return new(roster, retained, ImmutableArray.CreateRange(new NativeBattleActionHeaderSlot?[NativeBattleRetainedActionPackets.HeaderCapacity]), ImmutableArray.CreateRange(new NativeBattleContactPacket?[NativeBattleRetainedActionPackets.ContactCapacity]));
+        return new(roster, aliases, retained.ResetCounts(), ImmutableArray.CreateRange(new NativeBattleActionHeaderSlot?[NativeBattleRetainedActionPackets.HeaderCapacity]), ImmutableArray.CreateRange(new NativeBattleContactPacket?[NativeBattleRetainedActionPackets.ContactCapacity]));
     }
 
-    /// <summary>Replaces live membership after callers retire outstanding work for removed owners.</summary>
-    public NativeBattleActionPacketsState WithRoster(BattleModelRoster roster)
+    /// <summary>Replaces membership and aliases for new writes after callers retire outstanding work for removed owners.</summary>
+    public NativeBattleActionPacketsState WithRoster(BattleModelRoster roster, NativeBattleModelAliases aliases)
     {
-        ArgumentNullException.ThrowIfNull(roster);
-        return ReferenceEquals(Roster, roster) ? this : new(roster, RetainedStorage, headers, contacts, ActionCount, ContactCount, ActiveHeader, ActiveContact);
+        ValidateAliases(roster, aliases);
+        return ReferenceEquals(Roster, roster) && ReferenceEquals(this.aliases, aliases) ? this : new(roster, aliases, RetainedStorage, headers, contacts, ActionCount, ContactCount, ActiveHeader, ActiveContact);
     }
 
     public (NativeBattleActionPacketsState State, BattleActionHeaderReference Header) Prepare(NativeBattleActionHeaderPreparation preparation)
@@ -65,7 +67,9 @@ public sealed class NativeBattleActionPacketsState
         int? count = previous is null ? retained?.ReadKnownByte(16) : previous.ContactCount;
         byte? repeat = previous is null ? retained?.ReadKnownByte(17) : previous.RepeatModeMinusOne;
         NativeBattleActionHeaderSlot slot = new(preparation.Source, preparation.Command, preparation.Sequence, preparation.CameraChoice, preparation.Action, preparation.Effect, new(ContactCount), preparation.Data, count, repeat);
-        return (new(Roster, RetainedStorage, grown.SetItem(index, slot), contacts, ActionCount, ContactCount, ActiveHeader, ActiveContact), new(index));
+        BattleActionHeaderReference reference = new(index);
+        NativeBattleRetainedActionPackets raw = NativeBattleActionPacketBoundary.PrepareHeader(RetainedStorage, reference, slot, aliases);
+        return (new(Roster, aliases, raw, grown.SetItem(index, slot), contacts, ActionCount, ContactCount, ActiveHeader, ActiveContact), reference);
     }
 
     public (NativeBattleActionPacketsState State, BattleContactOccurrence Occurrence) AppendContact(NativeBattleContactPacket packet)
@@ -77,10 +81,17 @@ public sealed class NativeBattleActionPacketsState
     {
         ArgumentNullException.ThrowIfNull(packets);
         var builder = contacts.ToBuilder();
+        ImmutableArray<NativeBattleRawContactPacket?>.Builder? rawContacts = null;
+        int? lastEncodableCount = null;
         int count = ContactCount;
         foreach (NativeBattleContactPacket packet in packets)
         {
             ValidateContact(packet);
+            if (count < NativeBattleRetainedActionPackets.ContactCapacity)
+            {
+                rawContacts ??= RetainedStorage.Contacts.ToBuilder();
+                rawContacts[count] = NativeBattleActionPacketBoundary.WriteContact(packet, rawContacts[count], aliases);
+            }
             if (count == builder.Count)
             {
                 builder.Add(packet with { Occurrence = null });
@@ -90,8 +101,17 @@ public sealed class NativeBattleActionPacketsState
                 builder[count] = packet with { Occurrence = null };
             }
             count = checked(count + 1);
+            if (count <= byte.MaxValue)
+            {
+                lastEncodableCount = count;
+            }
         }
-        return count == ContactCount ? this : new(Roster, RetainedStorage, headers, builder.ToImmutable(), ActionCount, count, ActiveHeader, ActiveContact);
+        if (count == ContactCount)
+        {
+            return this;
+        }
+        NativeBattleRetainedActionPackets raw = NativeBattleActionPacketBoundary.CompleteContactWrites(RetainedStorage, rawContacts?.ToImmutable() ?? RetainedStorage.Contacts, count, lastEncodableCount);
+        return new(Roster, aliases, raw, headers, builder.ToImmutable(), ActionCount, count, ActiveHeader, ActiveContact);
     }
 
     public (NativeBattleActionPacketsState State, BattleActionHeaderReference Header) Publish(int targetCount)
@@ -99,13 +119,17 @@ public sealed class NativeBattleActionPacketsState
         ArgumentOutOfRangeException.ThrowIfNegative(targetCount);
         BattleActionHeaderReference reference = new(ActionCount);
         NativeBattleActionHeaderSlot header = ReadHeader(reference) with { ContactCount = targetCount };
-        return (new(Roster, RetainedStorage, headers.SetItem(reference.Ordinal, header), contacts, checked(ActionCount + 1), ContactCount, ActiveHeader, ActiveContact), reference);
+        int count = checked(ActionCount + 1);
+        NativeBattleRetainedActionPackets raw = NativeBattleActionPacketBoundary.PublishHeader(RetainedStorage, reference, targetCount, count);
+        return (new(Roster, aliases, raw, headers.SetItem(reference.Ordinal, header), contacts, count, ContactCount, ActiveHeader, ActiveContact), reference);
     }
 
     public NativeBattleActionPacketsState WritePlayerRepeatMode(BattleActionHeaderReference reference, byte repeatMode)
     {
-        NativeBattleActionHeaderSlot header = ReadHeader(reference) with { RepeatModeMinusOne = unchecked((byte)(repeatMode - 1)) };
-        return new(Roster, RetainedStorage, headers.SetItem(reference.Ordinal, header), contacts, ActionCount, ContactCount, ActiveHeader, ActiveContact);
+        byte repeatModeMinusOne = unchecked((byte)(repeatMode - 1));
+        NativeBattleActionHeaderSlot header = ReadHeader(reference) with { RepeatModeMinusOne = repeatModeMinusOne };
+        NativeBattleRetainedActionPackets raw = NativeBattleActionPacketBoundary.WriteRepeatMode(RetainedStorage, reference, repeatModeMinusOne);
+        return new(Roster, aliases, raw, headers.SetItem(reference.Ordinal, header), contacts, ActionCount, ContactCount, ActiveHeader, ActiveContact);
     }
 
     public NativeBattleActionHeaderSlot ReadHeader(BattleActionHeaderReference reference)
@@ -165,7 +189,8 @@ public sealed class NativeBattleActionPacketsState
     {
         NativeBattleActionHeaderSlot header = ReadHeader(reference);
         _ = header.ReadContactCount();
-        return new(Roster, RetainedStorage, headers, contacts, ActionCount, ContactCount, reference, header.FirstContact);
+        NativeBattleRetainedActionPackets raw = NativeBattleActionPacketBoundary.ActivateHeader(RetainedStorage, reference, header.FirstContact);
+        return new(Roster, aliases, raw, headers, contacts, ActionCount, ContactCount, reference, header.FirstContact);
     }
 
     public NativeBattleActionPacketsState AdvanceContact()
@@ -175,7 +200,9 @@ public sealed class NativeBattleActionPacketsState
         {
             throw new NotSupportedException("Native50A690 cannot advance past the live arena's one-past cursor.");
         }
-        return new(Roster, RetainedStorage, headers, contacts, ActionCount, ContactCount, ActiveHeader, cursor.Advance(1));
+        BattleContactCursor next = cursor.Advance(1);
+        NativeBattleRetainedActionPackets raw = NativeBattleActionPacketBoundary.AdvanceContact(RetainedStorage, next);
+        return new(Roster, aliases, raw, headers, contacts, ActionCount, ContactCount, ActiveHeader, next);
     }
 
     public NativeBattleContactPacket ReadActiveContact()
@@ -186,22 +213,13 @@ public sealed class NativeBattleActionPacketsState
 
     public NativeBattleActionPacketsState ResetCounts()
     {
-        return new(Roster, RetainedStorage, headers, contacts, 0, 0, ActiveHeader, ActiveContact);
+        return new(Roster, aliases, RetainedStorage.ResetCounts(), headers, contacts, 0, 0, ActiveHeader, ActiveContact);
     }
 
-    public NativeBattleRetainedActionPackets ExportRetained(NativeBattleModelBoundary bindings, BattleActorModels models)
+    public NativeBattleRetainedActionPackets ExportRetained()
     {
-        return NativeBattleActionPacketBoundary.Export(this, bindings, models);
-    }
-
-    internal NativeBattleRetainedActionPackets ExportUnmodifiedRetained()
-    {
-        if (ActionCount != 0 || ContactCount != 0 || ActiveHeader is not null || ActiveContact is not null ||
-            headers.Any(header => header is not null) || contacts.Any(contact => contact is not null))
-        {
-            throw new NotSupportedException("Projecting written live action packets requires original model bindings.");
-        }
-        return RetainedStorage.ResetCounts();
+        RetainedStorage.Validate();
+        return RetainedStorage;
     }
 
     internal NativeBattleActionPacketsState DetachDiagnosticCopy() => this;
@@ -222,9 +240,17 @@ public sealed class NativeBattleActionPacketsState
         }
     }
 
-    internal NativeBattleActionHeaderSlot? FindRetainedHeader(BattleActionHeaderReference reference) => reference.Ordinal < headers.Length ? headers[reference.Ordinal] : null;
+    internal NativeBattleContactPacket? FindStoredContact(BattleContactOccurrence occurrence) => occurrence.Ordinal < contacts.Length ? contacts[occurrence.Ordinal] : null;
 
-    internal NativeBattleContactPacket? FindRetainedContact(BattleContactOccurrence occurrence) => occurrence.Ordinal < contacts.Length ? contacts[occurrence.Ordinal] : null;
+    private static void ValidateAliases(BattleModelRoster roster, NativeBattleModelAliases aliases)
+    {
+        ArgumentNullException.ThrowIfNull(roster);
+        ArgumentNullException.ThrowIfNull(aliases);
+        if (!ReferenceEquals(aliases.Roster, roster) && (aliases.Roster.Count != roster.Count || !roster.Owners.All(aliases.Roster.Contains)))
+        {
+            throw new ArgumentException("Original model aliases must describe the action packet roster.", nameof(aliases));
+        }
+    }
 
     private void RequireOwner(BattleModelOwner owner)
     {

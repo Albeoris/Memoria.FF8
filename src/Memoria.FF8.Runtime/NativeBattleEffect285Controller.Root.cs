@@ -65,7 +65,7 @@ public static partial class NativeBattleEffect285Controller
     {
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         NativeBattleActionHeaderSlot header = CurrentHeader(frame, packets);
-        int count = header.ReadByte(16);
+        int count = header.ReadContactCount();
         if (count == 0)
         {
             throw new NotSupportedException("Effect285 requires a nonempty native contact group for its signed centroid division.");

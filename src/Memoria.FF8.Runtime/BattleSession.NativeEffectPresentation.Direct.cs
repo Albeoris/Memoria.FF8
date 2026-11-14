@@ -23,16 +23,16 @@ public sealed partial class BattleSession
         NativeBattleEffectParameters parameters = graphics.OriginalEffect?.Parameters ?? throw new InvalidDataException("The current presentation service lost its parameter owner.");
         NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[parameters.HeaderIndex7C];
         uint callback = NativeBattleActionGraphics.SelectService(header).Callback;
-        ushort action = NativeBattleActionGraphics.Word(header, 4);
+        ushort action = header.Action;
         if (callback == 0x50A9A0 && action == 65534)
         {
             return NativeOriginalEffectDescriptorReleased(graphics);
         }
-        if (callback == 0x50A9A0 && header.ReadByte(1) is 11 or 14)
+        if (callback == 0x50A9A0 && header.Command is 11 or 14)
         {
             return parameters.Parameter81 == 1;
         }
-        if (callback == 0x50BDC0 && action is not (0xFFFC or 0xFFFA) || callback == 0x50BEE0 && header.ReadByte(1) == 0xED)
+        if (callback == 0x50BDC0 && action is not (0xFFFC or 0xFFFA) || callback == 0x50BEE0 && header.Command == 0xED)
         {
             return parameters.Parameter81 == 1 && NativeCameraTaskMask == 0;
         }
@@ -85,7 +85,7 @@ public sealed partial class BattleSession
         {
             graphics = PublishNativeOriginalEffectTitle(graphics, context);
         }
-        memory = (NativeEffectMemory ?? throw new InvalidDataException("The direct presentation phase lost its initialized process owner.")).SetDirectParameters(callback, header.ReadByte(1), NativeBattleActionGraphics.Word(header, 4), header.ReadByte(6));
+        memory = (NativeEffectMemory ?? throw new InvalidDataException("The direct presentation phase lost its initialized process owner.")).SetDirectParameters(callback, header.Command, header.Action, header.ReadByte(6));
         NativeEffectMemory = memory;
         graphics = graphics with { OriginalEffect = selected with { Parameters = parameters with { Parameter80 = memory.Parameter80, Parameter81 = 0, Parameter82 = memory.Parameter82, Parameter83 = 0 } } };
         uint? returnedDescriptor = selected.ReturnedDescriptor;

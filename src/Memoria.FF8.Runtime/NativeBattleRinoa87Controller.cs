@@ -32,8 +32,8 @@ public static class NativeBattleRinoa87Controller
         NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native773870 requires its original first contact pointer.");
         byte target = packets.ReadContact(first).Primary.ActorIndex;
-        byte targets = header.ReadByte(16);
-        byte groups = header.ReadByte(17);
+        byte targets = header.ReadContactCount();
+        byte groups = header.ReadRepeatModeMinusOne();
         byte maximum = unchecked((byte)(targets - 1));
         if (maximum < groups)
         {

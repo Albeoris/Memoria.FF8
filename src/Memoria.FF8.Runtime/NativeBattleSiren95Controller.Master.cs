@@ -178,7 +178,7 @@ public static partial class NativeBattleSiren95Controller
                                 throw new NotSupportedException("Native Siren contact header leaves its current addressed owner.");
                             }
                             NativeBattleActionHeaderSlot header = inputs.Packets.Headers[headerIndex];
-                            if (contactOrdinal >= header.ReadByte(16))
+                            if (contactOrdinal >= header.ReadContactCount())
                             {
                                 break;
                             }

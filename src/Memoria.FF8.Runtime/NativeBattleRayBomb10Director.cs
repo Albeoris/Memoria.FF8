@@ -145,7 +145,7 @@ public static partial class NativeBattleRayBomb10Controller
             {
                 NativeBattleActionHeaderSlot header = inputs.Packets.Headers[0];
                 int first = header.FirstContactIndex ?? throw new NotSupportedException("Native627F10 requires its first header contact pointer.");
-                int count = header.ReadByte(16);
+                int count = header.ReadContactCount();
                 for (int actor = 0; actor < 3; actor++)
                 {
                     if ((inputs.ReadModel(actor).Flags0 & 2) == 0)

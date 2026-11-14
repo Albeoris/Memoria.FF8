@@ -58,7 +58,7 @@ public static partial class NativeBattleNoMercy200Controller
             else
             {
                 NativeBattleActionHeaderSlot header = inputs.Packets.Headers[checked(parameters.HeaderIndex7C + Word(task, 14))];
-                int count = header.ReadByte(16);
+                int count = header.ReadContactCount();
                 if (count > 0)
                 {
                     int first = header.FirstContactIndex ?? throw new NotSupportedException("Native No Mercy requires its actual grouped contact pointer.");
@@ -115,7 +115,7 @@ public static partial class NativeBattleNoMercy200Controller
     {
         NativeBattleEffectParameters parameters = frame.Memory.NoMercy200?.Parameters ?? throw new NotSupportedException("Native No Mercy target requires its actual parameter block.");
         NativeBattleActionHeaderSlot header = packets.Headers[checked(parameters.HeaderIndex7C + relative)];
-        bool single = header.ReadByte(16) <= 1;
+        bool single = header.ReadContactCount() <= 1;
         (pool, int slot) = pool.Append(single ? 0x639FD0u : 0x639800u);
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(12, 0).WriteWord(14, unchecked((ushort)relative)).WriteWord(34, 0);
         if (single)

@@ -15,7 +15,7 @@ public static partial class NativeBattleRenzokukenSpecialController
         NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
         int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native special Renzokuken entry requires its physical first-contact pointer.");
         byte target = packets.ReadContact(contact).Primary.ActorIndex;
-        bool initial = NativeBattleActionGraphics.Word(header, 4) == 0xFFFE;
+        bool initial = header.Action == 0xFFFE;
         ImmutableDictionary<ushort, NativeBattleRenzokukenSpecialState> states = memory.RenzokukenSpecials ?? ImmutableDictionary<ushort, NativeBattleRenzokukenSpecialState>.Empty;
         NativeBattleRenzokukenSpecialState retained = states.GetValueOrDefault(profile.Effect) ?? new(NativeBattleRenzokuken160State.FromColdProcess(), resources);
         NativeBattleRenzokukenSpecialState state = retained with { Core = retained.Core.Enter(parameters.Actor78, parameters.HeaderIndex7C, target, initial), Resources = resources };

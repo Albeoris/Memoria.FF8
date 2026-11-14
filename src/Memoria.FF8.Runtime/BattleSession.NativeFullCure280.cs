@@ -47,7 +47,7 @@ public sealed partial class BattleSession
             sparks = NativeBattleEffectTaskPool.Initialize(0x2507FE8, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)buffer), 20, 16);
             (directors, int slot) = directors.Append(0x67E980);
             NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C];
-            int count = header.ReadByte(16);
+            int count = header.ReadContactCount();
             if (count > 3)
             {
                 throw new NotSupportedException("Native Full-cure target count exceeds its physical three-pointer director.");
@@ -120,7 +120,7 @@ public sealed partial class BattleSession
                     NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C];
                     int first = header.FirstContactIndex ?? throw new InvalidDataException("Native Full-cure lost its contact owner.");
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    for (int index = 0; index < header.ReadByte(16); index++)
+                    for (int index = 0; index < header.ReadContactCount(); index++)
                     {
                         NativeBattleContactPacket contact = nativeActionPackets.ReadContact(first + index);
                         if (contact.Primary.ActorIndex == actor)

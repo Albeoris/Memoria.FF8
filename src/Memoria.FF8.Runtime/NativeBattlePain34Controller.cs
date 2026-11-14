@@ -36,7 +36,7 @@ public static class NativeBattlePain34Controller
         NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(12, 0x1D99A78);
         NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, 0x1D99A78, unchecked((sbyte)root.ReadByte(42)), unchecked((sbyte)root.ReadByte(43)));
         NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
-        root = root.WriteByte(44, actors.Actor).WriteByte(45, actors.Target).WriteByte(41, 0).WriteWord(90, header.ReadByte(16)).WriteWord(88, header.ReadByte(17));
+        root = root.WriteByte(44, actors.Actor).WriteByte(45, actors.Target).WriteByte(41, 0).WriteWord(90, header.ReadContactCount()).WriteWord(88, header.ReadRepeatModeMinusOne());
         byte last = unchecked((byte)(root.ReadWord(90) - 1));
         root = root.WriteByte(47, last < unchecked((short)root.ReadWord(88)) ? root.ReadByte(88) : last);
         return frame with { Memory = memory, Effect = frame.Effect with { Pools = hierarchy.Write(appended.Address, root).Pools, ReturnedDescriptor = Descriptor } };

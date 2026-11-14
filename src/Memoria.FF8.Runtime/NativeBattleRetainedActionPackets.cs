@@ -88,11 +88,11 @@ public sealed record NativeBattleRetainedActionPackets([property: JsonRequired] 
 
     public void Validate()
     {
-        if (ActionCount > HeaderCapacity || ContactCount is < 0 or > ContactCapacity || (UnknownCountMask & ~3) != 0 ||
+        if (ContactCount is < 0 or > byte.MaxValue || (UnknownCountMask & ~3) != 0 ||
             Headers.IsDefault || Headers.Length != HeaderCapacity || Contacts.IsDefault || Contacts.Length != ContactCapacity ||
             ActiveHeaderIndex is < 0 or >= HeaderCapacity || ActiveContactIndex is < 0 or > ContactCapacity)
         {
-            throw new InvalidDataException("Retained action packets require the original 32-header and 49-contact arenas and valid counts and cursors.");
+            throw new InvalidDataException("Retained action packets require the original storage windows, byte counts and valid cursors.");
         }
         for (int index = 0; index < Headers.Length; index++)
         {

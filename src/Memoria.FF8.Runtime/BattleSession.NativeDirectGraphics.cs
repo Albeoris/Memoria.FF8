@@ -6,7 +6,7 @@ public sealed partial class BattleSession
     {
         NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[context.HeaderIndex];
         bool control = context.Callback == 0x50BDC0;
-        ushort action = NativeBattleActionGraphics.Word(header, 4);
+        ushort action = header.Action;
         if (phase == 0)
         {
             NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native direct effect service requires its actual retained process memory.");
@@ -17,7 +17,7 @@ public sealed partial class BattleSession
                 context = graphics.ActionGraphics ?? context;
             }
             graphics = PrepareNativeOriginalEffectParameters(graphics, context);
-            memory = memory.SetDirectParameters(context.Callback, header.ReadByte(1), action, header.ReadByte(6));
+            memory = memory.SetDirectParameters(context.Callback, header.Command, action, header.ReadByte(6));
             NativeEffectMemory = memory;
             NativeBattleOriginalEffectState current = graphics.OriginalEffect!;
             uint? descriptor = current.ReturnedDescriptor;
@@ -30,7 +30,7 @@ public sealed partial class BattleSession
         {
             return (graphics, phase, false);
         }
-        bool waitForEffect = control ? action is 0xFFFC or 0xFFFA : header.ReadByte(1) != 0xED;
+        bool waitForEffect = control ? action is 0xFFFC or 0xFFFA : header.Command != 0xED;
         if (waitForEffect)
         {
             if (NativeOriginalEffectBusy(graphics))

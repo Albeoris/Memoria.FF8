@@ -25,7 +25,7 @@ public sealed partial class BattleSession
         }
         NativeBattleEffectParameters parameters = graphics.OriginalEffect?.Parameters ?? throw new InvalidDataException("Guardian presentation finalization lost its module parameters.");
         NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[parameters.HeaderIndex7C];
-        if (header.ReadByte(1) is not (0x26 or 0xF4 or 0xFE))
+        if (header.Command is not (0x26 or 0xF4 or 0xFE))
         {
             throw new InvalidOperationException("Guardian presentation finalization requires the source header's guardian outer service.");
         }

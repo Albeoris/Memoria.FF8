@@ -59,8 +59,8 @@ public static class NativeBattleCuragaController
             NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
             int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Native87DB10 requires its header's actual contact pointer.");
             byte target = packets.ReadContact(firstContact).Primary.ActorIndex;
-            byte targets = header.ReadByte(16);
-            byte groups = header.ReadByte(17);
+            byte targets = header.ReadContactCount();
+            byte groups = header.ReadRepeatModeMinusOne();
             byte maximum = unchecked((byte)(targets - 1));
             if (maximum < groups)
             {
@@ -300,8 +300,8 @@ public static class NativeBattleCuragaController
         task = task.WriteDword(0x0C, 0x1D99A78);
         NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, task.ReadDword(0x0C), unchecked((sbyte)task.ReadByte(0x2A)), unchecked((sbyte)task.ReadByte(0x2B)));
         NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
-        byte targets = header.ReadByte(16);
-        byte groups = header.ReadByte(17);
+        byte targets = header.ReadContactCount();
+        byte groups = header.ReadRepeatModeMinusOne();
         byte maximum = unchecked((byte)(targets - 1));
         if (maximum < groups)
         {

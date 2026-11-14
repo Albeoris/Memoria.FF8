@@ -165,7 +165,7 @@ public static class NativeBattleWindBlast29Controller
                     {
                         int headerIndex = checked(parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
                         NativeBattleActionHeaderSlot header = inputs.Packets.Headers[headerIndex];
-                        int count = header.ReadByte(16);
+                        int count = header.ReadContactCount();
                         if (count != 0)
                         {
                             int first = header.FirstContactIndex ?? throw new NotSupportedException("Wind Blast requires its header's actual contact pointer.");

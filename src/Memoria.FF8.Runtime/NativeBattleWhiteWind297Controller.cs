@@ -130,7 +130,7 @@ public static class NativeBattleWhiteWind297Controller
             if (age == 7)
             {
                 NativeBattleActionHeaderSlot header = Header(frame, inputs);
-                int count = header.ReadByte(16);
+                int count = header.ReadContactCount();
                 if (count == 0)
                 {
                     throw new InvalidDataException("Blue Magic White Wind sweep requires its original nonempty captured target list.");
@@ -156,7 +156,7 @@ public static class NativeBattleWhiteWind297Controller
         }
         int target = age - 19;
         NativeBattleActionHeaderSlot captured = Header(frame, inputs);
-        if ((uint)target < 12 && (target & 3) == 0 && target / 4 < captured.ReadByte(16) && frame.Effect.Pools[2].Slots.Any(task => (task.Flags & 1) == 0))
+        if ((uint)target < 12 && (target & 3) == 0 && target / 4 < captured.ReadContactCount() && frame.Effect.Pools[2].Slots.Any(task => (task.Flags & 1) == 0))
         {
             NativeBattleEffectTaskPool targets = frame.Effect.Pools[2];
             (targets, int child) = targets.Append(TargetCallback);
@@ -181,7 +181,7 @@ public static class NativeBattleWhiteWind297Controller
             return (frame, 0);
         }
         NativeBattleActionHeaderSlot header = Header(frame, inputs);
-        for (int index = 0; index < header.ReadByte(16); index++)
+        for (int index = 0; index < header.ReadContactCount(); index++)
         {
             int selected = checked(FirstContact(header) + index);
             if (inputs.Packets.ReadContact(selected).Primary.ActorIndex == actor)

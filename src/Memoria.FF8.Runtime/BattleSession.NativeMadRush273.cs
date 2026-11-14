@@ -50,7 +50,7 @@ public sealed partial class BattleSession
                 particles = NativeBattleEffectTaskPool.Initialize(0x2508510, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)buffer + 0x930), 0x18, 0x40);
             }
             int first = header.FirstContactIndex ?? throw new InvalidDataException("Mad Rush requires its original contact directory.");
-            for (int contact = 0; contact < header.ReadByte(16); contact++)
+            for (int contact = 0; contact < header.ReadContactCount(); contact++)
             {
                 NativeBattleEffectTaskPool pool = targets ?? throw new InvalidDataException("Mad Rush lost its target pool.");
                 if (pool.Slots.All(task => (task.Flags & 1) != 0))

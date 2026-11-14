@@ -38,7 +38,7 @@ public static partial class NativeBattlePoisonGas171Controller
         if (age == 27)
         {
             NativeBattleActionHeaderSlot header = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C];
-            int count = header.ReadByte(16);
+            int count = header.ReadContactCount();
             if (count != 0)
             {
                 int first = header.FirstContactIndex ?? throw new NotSupportedException("Poison Gas requires its captured physical contact pointer.");

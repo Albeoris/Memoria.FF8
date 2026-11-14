@@ -140,7 +140,7 @@ public static partial class NativeBattleShockwavePulsar260Controller
         }
         NativeBattleActionHeaderSlot header = inputs.Packets.Headers[parameters.HeaderIndex7C];
         inputs.SceneContext.Validate();
-        int count = inputs.SceneContext.TargetBoundsMode == NativeBattleTargetBoundsMode.FirstContact ? 1 : header.ReadByte(16);
+        int count = inputs.SceneContext.TargetBoundsMode == NativeBattleTargetBoundsMode.FirstContact ? 1 : header.ReadContactCount();
         frame = Write(frame, mainAddress, Read(frame, mainAddress).WriteWord(0xE, (ushort)count));
         List<int> actors = [];
         short[] minimum = [32767, 32767, 32767];

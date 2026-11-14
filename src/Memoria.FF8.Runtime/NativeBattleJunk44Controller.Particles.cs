@@ -78,7 +78,7 @@ public static partial class NativeBattleJunk44Controller
         {
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
             NativeBattleActionHeaderSlot header = Header(frame, packets);
-            if (ordinal >= header.ReadByte(16))
+            if (ordinal >= header.ReadContactCount())
             {
                 return frame;
             }

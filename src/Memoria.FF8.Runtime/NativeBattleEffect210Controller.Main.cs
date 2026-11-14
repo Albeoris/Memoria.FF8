@@ -136,7 +136,7 @@ public static partial class NativeBattleEffect210Controller
             {
                 NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect210 requires its current contact header.");
                 NativeBattleActionHeaderSlot header = inputs.ReadPackets(frame).Headers[parameters.HeaderIndex7C];
-                int count = header.ReadByte(16);
+                int count = header.ReadContactCount();
                 frame = inputs.Execute(frame, new NativeBattleEffect210AllContacts506BA0(header.FirstContactIndex ?? (count == 0 ? 0 : throw new NotSupportedException("Effect210 requires its current contact pointer.")), count));
             }
         }

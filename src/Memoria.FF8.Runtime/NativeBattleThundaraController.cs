@@ -37,7 +37,7 @@ public static class NativeBattleThundaraController
             throw new InvalidDataException("Native Thundara requires its original6DC2D0 entry and actual50AFC0 action parameters.");
         }
         NativeBattleActionHeaderSlot header = packets.Headers[effect.Parameters.HeaderIndex7C];
-        if (effect.Parameters.HeaderIndex7C + header.ReadByte(17) >= NativeBattleActionPacketsState.HeaderCapacity)
+        if (effect.Parameters.HeaderIndex7C + header.ReadRepeatModeMinusOne() >= NativeBattleActionPacketsState.HeaderCapacity)
         {
             throw new NotSupportedException("Native Thundara's explicit header list exceeds its physical action-header arena.");
         }

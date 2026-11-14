@@ -102,7 +102,7 @@ public static partial class NativeBattleWendigoController
                     {
                         NativeBattleActionHeaderSlot header = inputs.Packets.Headers[current.Effect.Parameters!.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A))];
                         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Wendigo requires its actual action contact pointer.");
-                        for (int index = 0; index < header.ReadByte(16); index++)
+                        for (int index = 0; index < header.ReadContactCount(); index++)
                         {
                             Emit(new NativeBattleWendigoContact(first + index));
                         }

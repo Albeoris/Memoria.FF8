@@ -305,7 +305,7 @@ public static class NativeBattleShot192
             {
                 NativeBattleActionHeaderSlot header = inputs.Packets.Headers[frame.Effect.Parameters!.HeaderIndex7C];
                 int first = header.FirstContactIndex ?? throw new InvalidDataException("Native Scatter Shot requires its original contact array.");
-                int count = header.ReadByte(16);
+                int count = header.ReadContactCount();
                 for (int contact = 0; contact < count; contact++)
                 {
                     int target = inputs.Packets.ReadContact(first + contact).Primary.ActorIndex;

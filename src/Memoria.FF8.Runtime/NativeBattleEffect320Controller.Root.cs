@@ -27,7 +27,7 @@ public static partial class NativeBattleEffect320Controller
             NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect320 requires its current action parameters.");
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
             NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
-            int count = header.ReadByte(16);
+            int count = header.ReadContactCount();
             if (count == 0)
             {
                 throw new NotSupportedException("Effect320 native target centroid has an unsupported zero divisor.");

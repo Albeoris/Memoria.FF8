@@ -69,7 +69,7 @@ public sealed partial class BattleSession
                     {
                         NativeBattleActionHeaderSlot header = Header(task);
                         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Quake contact requires its actual target packet list.");
-                        for (int index = 0; index < header.ReadByte(16); index++)
+                        for (int index = 0; index < header.ReadContactCount(); index++)
                         {
                             var pending = graphics.PendingContacts;
                             graphics = session.ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [session.nativeActionPackets.ReadContact(first + index)] });

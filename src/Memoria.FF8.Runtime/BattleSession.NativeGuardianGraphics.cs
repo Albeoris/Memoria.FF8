@@ -29,7 +29,7 @@ public sealed partial class BattleSession
             graphics = PrepareNativeHeaderGeometry(graphics with { Flags = graphics.Flags | 0x10 }, context);
             NativeBattleGraphicsModel actor = graphics.Models[caster];
             actor = NativeBattleGuardianInvocation.EnterSource(actor);
-            graphics = SelectNativeHeaderSequence(graphics with { Models = graphics.Models.SetItem(caster, actor) }, caster, header.ReadByte(2));
+            graphics = SelectNativeHeaderSequence(graphics with { Models = graphics.Models.SetItem(caster, actor) }, caster, header.Sequence);
             byte selector = (byte)(NextNativeGlobalRandom() % 3 | 0x10);
             StartNativeGuardianCamera(graphics, caster, selector);
             byte hidden = 0;
@@ -42,7 +42,7 @@ public sealed partial class BattleSession
                     hidden |= (byte)(1 << index);
                 }
             }
-            graphics = BeginNativeOriginalEffect(graphics, NativeBattleActionGraphics.Word(header, 6));
+            graphics = BeginNativeOriginalEffect(graphics, header.Effect);
             context = context with { Guardian = new(hidden, selector, 0) };
             return (graphics with { ActionGraphics = context, OriginalEffect = graphics.OriginalEffect! with { Parameters = CreateNativeOriginalEffectParameters(context) } }, 2, false);
         }
@@ -75,9 +75,9 @@ public sealed partial class BattleSession
             }
             AdmitDiagnosticVisualEntry(header);
             graphics = InvokeNativeOriginalEffect(graphics);
-            if (header.ReadByte(1) == 0xFE)
+            if (header.Command == 0xFE)
             {
-                graphics = RegisterNativeGuardianBoost(graphics, NativeBattleActionGraphics.Word(header, 4));
+                graphics = RegisterNativeGuardianBoost(graphics, header.Action);
             }
             phase = 4;
         }

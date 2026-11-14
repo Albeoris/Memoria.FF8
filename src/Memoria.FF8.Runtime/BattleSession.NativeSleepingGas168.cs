@@ -130,7 +130,7 @@ public sealed partial class BattleSession
             }
             if (counter == 23)
             {
-                for (int index = 0; index < header.ReadByte(16); index++)
+                for (int index = 0; index < header.ReadContactCount(); index++)
                 {
                     int actor = nativeActionPackets.ReadContact(firstContact + index).Primary.ActorIndex;
                     (children, int slot) = children.Append(0x5E2430);
@@ -147,7 +147,7 @@ public sealed partial class BattleSession
             if (counter == 60)
             {
                 ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(0, header.ReadByte(16)).Select(index => nativeActionPackets.ReadContact(firstContact + index)).ToImmutableArray() });
+                graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(0, header.ReadContactCount()).Select(index => nativeActionPackets.ReadContact(firstContact + index)).ToImmutableArray() });
                 graphics = graphics with { PendingContacts = pending };
             }
             if (counter is >= 4 and <= 12)

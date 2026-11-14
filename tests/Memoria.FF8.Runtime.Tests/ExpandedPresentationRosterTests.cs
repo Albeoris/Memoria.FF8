@@ -8,33 +8,44 @@ public sealed class ExpandedPresentationRosterTests
     private static readonly MethodInfo AdvanceAction = typeof(BattleSession).GetMethod("AdvanceExpandedAction", BindingFlags.Instance | BindingFlags.NonPublic)!;
 
     [Theory]
-    [InlineData(3, 4, 7)]
-    [InlineData(4, 5, 16)]
-    [InlineData(11, 14, 25)]
-    public void Presentation_rows_preserve_sides_and_native_positions_across_restore(int allies, int enemies, int extent)
+    [InlineData(3, 4, false)]
+    [InlineData(4, 5, true)]
+    [InlineData(11, 14, true)]
+    public void Presentation_owners_preserve_original_slot_order_then_extended_side_order(int allies, int enemies, bool expanded)
     {
-        BattleSession battle = Create(allies, enemies);
+        BattleSession battle = Create(allies, enemies, expanded: expanded);
         string before = Snapshot(battle);
-        BattleModelRoster roster = battle.ReadExpandedPresentationRoster();
-        Assert.Equal(extent, roster.ActorCount);
-        for (int position = 0; position < allies; position++)
+        BattleModelRoster roster = battle.ReadBattlePresentationRoster();
+        BattlePartyActorModel[] party = Enumerable.Range(0, allies).Select(position => new BattlePartyActorModel(new($"ally-{position}"))).ToArray();
+        BattleEnemyActorModel[] opponents = Enumerable.Range(0, enemies).Select(position => new BattleEnemyActorModel(new($"enemy-{position}"))).ToArray();
+        BattleModelOwner[] expected = [.. party.Take(3), .. opponents.Take(4), .. party.Skip(3), .. opponents.Skip(4)];
+        Assert.Equal(expected, roster.Owners);
+        Assert.Equal(allies + enemies, roster.Count);
+        Assert.Equal(party.Cast<BattlePartyModelOwner>(), roster.Party);
+        Assert.Equal(opponents.Cast<BattleEnemyModelOwner>(), roster.Enemies);
+        foreach (BattleCombatant actor in battle.Combatants)
         {
-            int row = position < 3 ? position : position + 4;
-            AssertBinding(battle, roster, $"ally-{position}", row, true);
+            BattleModelOwner actual = battle.ReadPresentationModelOwner(actor.Id);
+            if (actor.IsPlayer)
+            {
+                Assert.Equal(actor.Id, Assert.IsType<BattlePartyActorModel>(actual).Actor.ActorId);
+            }
+            else
+            {
+                Assert.Equal(actor.Id, Assert.IsType<BattleEnemyActorModel>(actual).Actor.ActorId);
+            }
+            if (actor.Slot is { } slot && NativeBattleSlots.TryEncode(slot) is null)
+            {
+                Assert.Null(actor.NativeActorIndex);
+            }
         }
-        for (int position = 0; position < enemies; position++)
-        {
-            int row = position < 4 ? position + 3 : position + 11;
-            AssertBinding(battle, roster, $"enemy-{position}", row, false);
-        }
-        Assert.Equal(allies + enemies, roster.Rows.Count(actor => actor is not null));
         Assert.Equal(before, Snapshot(battle));
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(before)!);
-        Assert.Equal(roster.Rows.ToArray(), restored.ReadExpandedPresentationRoster().Rows.ToArray());
+        Assert.Equal(expected, restored.ReadBattlePresentationRoster().Owners);
     }
 
     [Fact]
-    public void An_allocated_inactive_hidden_model_retains_its_row_until_replacement()
+    public void An_allocated_inactive_hidden_actor_retains_its_owner_until_replacement()
     {
         BattleSession battle = Create(4, 5);
         BattleCombatant retained = battle.Combatants.Single(actor => actor.Id == "enemy-1");
@@ -42,28 +53,72 @@ public sealed class ExpandedPresentationRosterTests
         retained.IsActive = false;
         retained.Hidden = true;
         replacement.BindRosterSlot(null);
-        BattleModelRoster retainedRoster = battle.ReadExpandedPresentationRoster();
-        AssertBinding(battle, retainedRoster, retained.Id, 4, false);
-        Assert.Null(retainedRoster.Rows[5]);
-        Assert.Throws<InvalidDataException>(() => battle.ReadExpandedPresentationRow(replacement.Id));
+        BattleEnemyActorModel retainedOwner = new(new(retained.Id));
+        BattleEnemyActorModel replacementOwner = new(new(replacement.Id));
+        BattleModelRoster retainedRoster = battle.ReadBattlePresentationRoster();
+        Assert.Equal(retainedOwner, battle.ReadPresentationModelOwner(retained.Id));
+        Assert.True(retainedRoster.Contains(retainedOwner));
+        Assert.False(retainedRoster.Contains(replacementOwner));
+        Assert.Equal(8, retainedRoster.Count);
+        Assert.Throws<InvalidDataException>(() => battle.ReadPresentationModelOwner(replacement.Id));
 
         retained.BindRosterSlot(null);
         replacement.BindRosterSlot(BattleRosterSlot.Enemy(1));
-        BattleModelRoster replaced = battle.ReadExpandedPresentationRoster();
-        AssertBinding(battle, replaced, replacement.Id, 4, false);
-        Assert.DoesNotContain(replaced.Rows, actor => actor?.ActorId == retained.Id);
-        Assert.Null(replaced.Rows[5]);
+        BattleModelRoster replaced = battle.ReadBattlePresentationRoster();
+        Assert.Equal(replacementOwner, battle.ReadPresentationModelOwner(replacement.Id));
+        Assert.Equal(retainedRoster.Owners.Select(owner => owner == retainedOwner ? replacementOwner : owner), replaced.Owners);
+        Assert.True(retainedRoster.Contains(retainedOwner));
+        Assert.False(replaced.Contains(retainedOwner));
+        Assert.Throws<InvalidDataException>(() => battle.ReadPresentationModelOwner(retained.Id));
     }
 
     [Fact]
-    public void Presentation_rejects_duplicate_and_out_of_range_slot_bindings()
+    public void Original_graphics_alias_does_not_require_or_publish_an_ai_alias()
+    {
+        BattleSession battle = Create(4, 5);
+        BattleCombatant original = battle.Combatants.Single(actor => actor.Id == "enemy-0");
+        BattleCombatant extra = battle.Combatants.Single(actor => actor.Id == "enemy-4");
+        original.BindRosterSlot(BattleRosterSlot.Enemy(0), bindNative: false);
+        var (roster, aliases) = battle.ReadBattlePresentationPacketBindings();
+        BattleModelOwner owner = battle.ReadPresentationModelOwner(original.Id);
+
+        Assert.Equal(battle.ReadBattlePresentationRoster().Owners, roster.Owners);
+        Assert.True(aliases.TryEncodeExact(owner, out byte originalOperand));
+        Assert.Equal((byte)3, originalOperand);
+        Assert.Equal(owner, aliases.DecodeLiteral(originalOperand));
+        Assert.Null(original.NativeActorIndex);
+        Assert.False(aliases.TryEncodeExact(battle.ReadPresentationModelOwner(extra.Id), out _));
+    }
+
+    [Fact]
+    public void Presentation_rejects_duplicate_slots()
     {
         BattleSession battle = Create(4, 5);
         BattleCombatant last = battle.Combatants.Single(actor => actor.Id == "enemy-4");
         last.BindRosterSlot(BattleRosterSlot.Enemy(3));
-        Assert.Throws<InvalidDataException>(() => battle.ReadExpandedPresentationRoster());
-        last.BindRosterSlot(BattleRosterSlot.Enemy(14));
-        Assert.Throws<InvalidDataException>(() => battle.ReadExpandedPresentationRoster());
+        Assert.Throws<InvalidDataException>(() => battle.ReadBattlePresentationRoster());
+    }
+
+    [Theory]
+    [InlineData("enemy-0", 4)]
+    [InlineData("enemy-4", 6)]
+    public void Presentation_rejects_mismatched_aliases(string actorId, int alias)
+    {
+        BattleSession battle = Create(4, 5);
+        BattleCombatant actor = battle.Combatants.Single(actor => actor.Id == actorId);
+        typeof(BattleCombatant).GetProperty(nameof(BattleCombatant.NativeActorIndex))!.SetValue(actor, (int?)alias);
+        Assert.Throws<InvalidDataException>(() => battle.ReadBattlePresentationRoster());
+        Assert.Throws<InvalidDataException>(() => battle.ReadPresentationModelOwner(actorId));
+    }
+
+    [Fact]
+    public void Presentation_rejects_slots_on_the_wrong_side()
+    {
+        BattleSession battle = Create(4, 5);
+        BattleCombatant actor = battle.Combatants.Single(actor => actor.Id == "enemy-4");
+        typeof(BattleCombatant).GetProperty(nameof(BattleCombatant.Slot))!.SetValue(actor, (BattleRosterSlot?)BattleRosterSlot.Ally(4));
+        Assert.Throws<InvalidDataException>(() => battle.ReadBattlePresentationRoster());
+        Assert.Throws<InvalidDataException>(() => battle.ReadPresentationModelOwner(actor.Id));
     }
 
     [Fact]
@@ -86,7 +141,7 @@ public sealed class ExpandedPresentationRosterTests
             calls++;
             Assert.NotSame(live, candidate);
             Assert.Equal(liveCaster.Id, caster.Id);
-            Assert.Equal(14, candidate.ReadExpandedPresentationRow(caster.Id));
+            Assert.Equal(new BattlePartyActorModel(new(caster.Id)), candidate.ReadPresentationModelOwner(caster.Id));
             Assert.Equal(1, action.MagicId);
             Assert.Equal(42, contacts.Length);
             Assert.Equal(Enumerable.Range(0, 3).SelectMany(_ => recipients), contacts.Select(contact => contact.RecipientId));
@@ -95,8 +150,8 @@ public sealed class ExpandedPresentationRosterTests
                 for (int target = 0; target < 14; target++)
                 {
                     NativeBattleContactPacket packet = contacts[hit * 14 + target].Packet;
-                    Assert.Equal(target < 4 ? target + 3 : target + 11, packet.Primary.ActorIndex);
-                    Assert.Equal(14, packet.Secondary.ActorIndex);
+                    Assert.Equal(new BattleEnemyActorModel(new(recipients[target])), packet.Primary.Recipient);
+                    Assert.Equal(new BattlePartyActorModel(new(caster.Id)), Assert.IsType<NativeBattleContactHalf>(packet.Secondary).Recipient);
                 }
             }
             Assert.Equal(1, Assert.Single(caster.MagicStocks).Count);
@@ -119,7 +174,7 @@ public sealed class ExpandedPresentationRosterTests
         Assert.Null(live.ExpandedEffect);
     }
 
-    private static BattleSession Create(int allies, int enemies, BattleNativeAction? native = null)
+    private static BattleSession Create(int allies, int enemies, BattleNativeAction? native = null, bool expanded = true)
     {
         BattleCombatantDefinition[] party = Enumerable.Range(0, allies).Select(position => new BattleCombatantDefinition
         {
@@ -135,17 +190,11 @@ public sealed class ExpandedPresentationRosterTests
         }).ToArray();
         return new(new()
         {
-            UsesExpandedRoster = true,
+            UsesExpandedRoster = expanded,
             Combatants = [.. party, .. opponents],
             NativeActions = native is null ? [] : [native],
             ActionDefinitions = native is null ? [] : [new(BattleAbility.Magic, 1, "Synthetic Drain", BattleActionEffect.Native, native.Power, false, true) { NativeAction = native }]
         }, BattleAtbMode.TurnBased);
-    }
-
-    private static void AssertBinding(BattleSession battle, BattleModelRoster roster, string id, int row, bool party)
-    {
-        Assert.Equal(new BattleModelOwner(id, party), roster.Rows[row]);
-        Assert.Equal(row, battle.ReadExpandedPresentationRow(id));
     }
 
     private static string Snapshot(BattleSession battle)

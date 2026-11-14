@@ -181,7 +181,7 @@ public static partial class NativeBattleTheEnd85Controller
                                 throw new NotSupportedException("Native The End contact header leaves its current addressed owner.");
                             }
                             NativeBattleActionHeaderSlot header = inputs.Packets.Headers[headerIndex];
-                            if (contactOrdinal >= header.ReadByte(16))
+                            if (contactOrdinal >= header.ReadContactCount())
                             {
                                 break;
                             }

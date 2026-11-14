@@ -107,7 +107,7 @@ public static partial class NativeBattleElectricDischarge126Controller
         if (age >= 52)
         {
             NativeBattleActionHeaderSlot header = Header(frame, inputs);
-            frame = inputs.Execute(frame, new NativeBattleElectricDischarge126ContactAll(header.FirstContactIndex ?? throw new NotSupportedException("Electric Discharge requires its actual captured contact pointer."), header.ReadByte(16)));
+            frame = inputs.Execute(frame, new NativeBattleElectricDischarge126ContactAll(header.FirstContactIndex ?? throw new NotSupportedException("Electric Discharge requires its actual captured contact pointer."), header.ReadContactCount()));
             return (frame, 2);
         }
         return (Write(frame, address, Read(frame, address).WriteWord(12, unchecked((ushort)(age + 1)))), 0);

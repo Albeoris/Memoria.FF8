@@ -84,7 +84,7 @@ public static partial class NativeBattleEffect65Controller
     {
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         NativeBattleActionHeaderSlot header = Header(frame, packets);
-        int count = header.ReadByte(16);
+        int count = header.ReadContactCount();
         frame = Write(frame, main, Read(frame, main).WriteWord(14, (ushort)count));
         int[] minimum = [32767, 32767, 32767];
         int[] maximum = [-32767, -32767, -32767];

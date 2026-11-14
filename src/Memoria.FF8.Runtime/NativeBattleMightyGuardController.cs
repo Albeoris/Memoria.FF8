@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
@@ -16,8 +16,8 @@ public static class NativeBattleMightyGuardController
         NativeBattleModulePoolTask task = hierarchy.Read(root.Address);
         NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, 0x1D99A78, unchecked((sbyte)task.ReadByte(0x2A)), unchecked((sbyte)task.ReadByte(0x2B)));
         NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
-        byte targets = header.ReadByte(16);
-        byte groups = header.ReadByte(17);
+        byte targets = header.ReadContactCount();
+        byte groups = header.ReadRepeatModeMinusOne();
         byte maximum = unchecked((byte)(targets - 1));
         if (maximum < groups)
         {

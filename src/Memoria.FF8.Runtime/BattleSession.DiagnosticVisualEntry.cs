@@ -29,12 +29,12 @@ public sealed partial class BattleSession
             return;
         }
         diagnosticVisualEntryAdmission = null;
-        DiagnosticVisualEntryBoundary = new(header.ReadByte(0), header.ReadByte(1), NativeBattleActionGraphics.Word(header, 4), NativeBattleActionGraphics.Word(header, 6), NativeHostCallbacks ?? Frame);
+        DiagnosticVisualEntryBoundary = new(header.ReadByte(0), header.Command, header.Action, header.Effect, NativeHostCallbacks ?? Frame);
         admission(DiagnosticVisualEntryBoundary);
     }
 
     private bool MatchesDiagnosticVisualEntry(NativeBattleActionHeaderSlot header)
     {
-        return diagnosticVisualEntry is { } entry && header.ReadByte(0) == entry.Actor && header.ReadByte(1) == entry.Command && NativeBattleActionGraphics.Word(header, 4) == entry.Action && NativeBattleActionGraphics.Word(header, 6) == entry.Effect;
+        return diagnosticVisualEntry is { } entry && header.ReadByte(0) == entry.Actor && header.Command == entry.Command && header.Action == entry.Action && header.Effect == entry.Effect;
     }
 }

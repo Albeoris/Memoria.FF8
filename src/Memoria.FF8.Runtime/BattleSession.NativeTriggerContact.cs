@@ -13,7 +13,7 @@ public sealed partial class BattleSession
         }
         BattleCombatant actor = FindNativeActor(actorIndex);
         BattleCombatant recipient = FindNativeActor(nativeActionPackets.ReadContact(0).Primary.ActorIndex);
-        (BattleNativeAction native, short timing) = PrepareNativeTriggerHit(actor, recipient, first.ReadByte(1), receipt);
+        (BattleNativeAction native, short timing) = PrepareNativeTriggerHit(actor, recipient, first.Command, receipt);
         BattleActionPresentation original = nativeTimedAction?.Command ?? ActiveAction ?? throw new NotSupportedException("Native485160 requires its currently admitted action provenance.");
         byte? queued = original.NativeQueuedCommand;
         if (original.NativeRenzokuken is not null)
@@ -89,12 +89,12 @@ public sealed partial class BattleSession
     private void RecomputeNativeGuardianContacts(byte boostPercent)
     {
         NativeBattleActionHeaderSlot first = nativeActionPackets.Headers[0];
-        byte command = first.ReadByte(1);
+        byte command = first.Command;
         if (command != 254)
         {
             throw new InvalidDataException("Native4850A0 requires its original254 header0.");
         }
-        ushort id = NativeBattleActionGraphics.Word(first, 4);
+        ushort id = first.Action;
         if (id is < 64 or >= 80)
         {
             throw new InvalidDataException("Native4850A0 requires the physical GF action WORD64..79.");
@@ -103,8 +103,8 @@ public sealed partial class BattleSession
         BattleNativeAction native = FindInstalledNativeAction(command, id);
         ValidateNativeActionContract(native);
         BattleActionDefinition action = FindAction(BattleAbility.GuardianForce, id - 64);
-        byte sequence = first.ReadByte(2);
-        NativeBattleContactPacket[] retained = Enumerable.Range(0, first.ReadByte(16)).Select(nativeActionPackets.ReadContact).ToArray();
+        byte sequence = first.Sequence;
+        NativeBattleContactPacket[] retained = Enumerable.Range(0, first.ReadContactCount()).Select(nativeActionPackets.ReadContact).ToArray();
         BattleActionPresentation? previous = resolvingNativeAction;
         BattleActionPresentation? submitted = nativeTimedAction?.Command ?? ActiveAction;
         BattleDiagnosticNativeContact? previousDiagnosticContact = diagnosticNativeContact;

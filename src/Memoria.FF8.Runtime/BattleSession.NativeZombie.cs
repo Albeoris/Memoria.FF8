@@ -118,7 +118,7 @@ public sealed partial class BattleSession
                     NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[parameters.HeaderIndex7C + task.ReadWord(14)];
                     int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Zombie result requires its original target list.");
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    for (int index = 0; index < header.ReadByte(16); index++)
+                    for (int index = 0; index < header.ReadContactCount(); index++)
                     {
                         graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(first + index)] });
                     }

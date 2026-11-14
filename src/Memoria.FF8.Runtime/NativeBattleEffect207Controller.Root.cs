@@ -30,7 +30,7 @@ public static partial class NativeBattleEffect207Controller
                 NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect207 requires its current header.");
                 NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
                 NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
-                int count = header.ReadByte(16);
+                int count = header.ReadContactCount();
                 frame = Write(frame, main, Read(frame, main).WriteWord(14, (ushort)count).WriteWord(40, 0).WriteWord(42, 0).WriteWord(44, 0));
                 NativeBattleEffectArena retained = NativeBattleEffectArena.Clear().MarkUnknown(0, 8);
                 for (int index = 0; index < count; index++)

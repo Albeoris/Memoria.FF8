@@ -26,7 +26,7 @@ public static class NativeBattleQuake38Controller
         hierarchy = root.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Quake requires its first actual action contact.");
-        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(12, 0x1D99A78).WriteByte(45, packets.ReadContact(first).Primary.ActorIndex).WriteWord(90, header.ReadByte(16)).WriteWord(88, header.ReadByte(17));
+        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(12, 0x1D99A78).WriteByte(45, packets.ReadContact(first).Primary.ActorIndex).WriteWord(90, header.ReadContactCount()).WriteWord(88, header.ReadRepeatModeMinusOne());
         hierarchy = hierarchy.Write(root.Address, task);
         state.BeginCheckpoint();
         try

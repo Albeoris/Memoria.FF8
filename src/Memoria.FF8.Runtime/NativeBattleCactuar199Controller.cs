@@ -415,7 +415,7 @@ public static class NativeBattleCactuar199Controller
                 Append(0x5A9C10);
                 NativeBattleActionHeaderSlot header = Header();
                 int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Native Cactuar lost its first header's contact pointer.");
-                for (int contact = 0; contact < header.ReadByte(16); contact++)
+                for (int contact = 0; contact < header.ReadContactCount(); contact++)
                 {
                     int hit = Append(0x5AA2A0);
                     Store(hit, children.Slots[hit].WriteWord(0xE, (ushort)(Rand() % 8)).WriteWord(0x18, (ushort)contact).WriteWord(0x1A, inputs.Packets.ReadContact(firstContact + contact).Primary.ActorIndex));
@@ -431,7 +431,7 @@ public static class NativeBattleCactuar199Controller
             int total = 0;
             NativeBattleActionHeaderSlot header = Header();
             int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Cactuar target cache requires first-header contacts.");
-            for (int contact = 0; contact < header.ReadByte(16); contact++)
+            for (int contact = 0; contact < header.ReadContactCount(); contact++)
             {
                 int actor = inputs.Packets.ReadContact(first + contact).Primary.ActorIndex;
                 int bones = inputs.ReadBoneCount?.Invoke(actor) ?? inputs.ReadPoseSource(actor).BoneCount;

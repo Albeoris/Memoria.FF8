@@ -138,7 +138,7 @@ public static class NativeBattleAuraController
                 {
                     NativeBattleActionHeaderSlot header = inputs.Packets.Headers[parameters.HeaderIndex7C + task.ReadWord(14)];
                     int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Aura result requires its actual action target list.");
-                    for (int index = 0; index < header.ReadByte(16); index++)
+                    for (int index = 0; index < header.ReadContactCount(); index++)
                     {
                         current = inputs.Execute(current, new NativeBattleAuraContact(first + index));
                     }

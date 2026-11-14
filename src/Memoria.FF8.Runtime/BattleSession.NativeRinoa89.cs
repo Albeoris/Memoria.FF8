@@ -27,7 +27,7 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Wishing Star requires authenticated color arithmetic.");
         NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[parameters.HeaderIndex7C];
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Wishing Star requires its actual contact pointer.");
-        int count = header.ReadByte(16) >> 3;
+        int count = header.ReadContactCount() >> 3;
         ImmutableArray<byte> targets = Enumerable.Range(0, count).Select(index => nativeActionPackets.ReadContact(checked(first + index)).Primary.ActorIndex).ToImmutableArray();
         NativeBattleRinoa89PreparationServices preparation = new(index => graphics.Models[index], WriteModel, index => ReadNativeModelAnchor(graphics, index), targets, NativeBattleContactAddress.EncodeCursor(first, nativeActionPackets.StorageCapacity), body, Bind, Select, NativeBattleRinoa89Controller.InitializeShards6FA3E0) { PartyActors = ReadPresentationSideActors(true) };
         NativeBattleRinoa89BodyInputs inputs = new(resources, index => graphics.Models[index], WriteModel, Execute, ReadBone19, Contacts, Poll, Reload);

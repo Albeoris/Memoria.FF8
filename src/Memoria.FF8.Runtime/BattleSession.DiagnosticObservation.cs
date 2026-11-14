@@ -184,7 +184,7 @@ public sealed partial class BattleSession
         {
             NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[entered.HeaderIndex7C];
             actionId = header.ReadByte(4) | header.ReadByte(5) << 8;
-            nativeCommand = header.ReadByte(1);
+            nativeCommand = header.Command;
             if (actorId is not null && byId.TryGetValue(actorId, out BattleCombatant? selectedActor))
             {
                 ability = ResolveDiagnosticHeaderAbility(selectedActor.IsPlayer, ability, selectedActor.NativeLimit?.Command, nativeCommand.Value);

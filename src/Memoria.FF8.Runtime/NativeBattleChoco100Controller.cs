@@ -38,7 +38,7 @@ public static class NativeBattleChoco100Controller
         hierarchy = appended.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.Headers[effect.Parameters.HeaderIndex7C];
         int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native Choco100 initial contact pointer is unknown.");
-        NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(0xC, ActionParameters).WriteByte(0x2C, header.ReadByte(0)).WriteByte(0x2D, packets.ReadContact(contact).Primary.ActorIndex).WriteWord(0x5A, header.ReadByte(16)).WriteWord(0x58, header.ReadByte(17));
+        NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(0xC, ActionParameters).WriteByte(0x2C, header.ReadByte(0)).WriteByte(0x2D, packets.ReadContact(contact).Primary.ActorIndex).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
         byte last = unchecked((byte)(root.ReadWord(0x5A) - 1));
         if (last < root.ReadWord(0x58))
         {
@@ -286,7 +286,7 @@ public static class NativeBattleChoco100Controller
                             throw new NotSupportedException("Native Choco100 contact header leaves its actual arena.");
                         }
                         NativeBattleActionHeaderSlot header = inputs.Packets.Headers[headerIndex];
-                        int count = header.ReadByte(16);
+                        int count = header.ReadContactCount();
                         if (count > 0)
                         {
                             int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Native Choco100 contact pointer is unknown.");
@@ -489,7 +489,7 @@ public static class NativeBattleChoco100Controller
                 throw new NotSupportedException("Native Choco100 selected contact header leaves its actual arena.");
             }
             NativeBattleActionHeaderSlot header = inputs.Packets.Headers[headerIndex];
-            int count = header.ReadByte(16);
+            int count = header.ReadContactCount();
             if (count == 0)
             {
                 return [];

@@ -5,11 +5,11 @@ public static class EncounterNativeTerminalWitness
 {
     public static bool Matches(string encounter, string originalActorId, string actorId, NativeBattleActionHeaderSlot? header, byte physicalActor, byte bodySequence, bool nativeKo, bool nativeSuspended)
     {
-        if (encounter != EncounterBindingResolver.Disc1Edea || actorId != originalActorId || !nativeKo || !nativeSuspended || header is null || header.ReadByte(0) != physicalActor || header.ReadByte(1) != 8 || header.ReadByte(2) != bodySequence)
+        if (encounter != EncounterBindingResolver.Disc1Edea || actorId != originalActorId || !nativeKo || !nativeSuspended || header is null || header.ReadByte(0) != physicalActor || header.Command != 8 || header.Sequence != bodySequence)
         {
             return false;
         }
-        ushort actionId = NativeBattleActionGraphics.Word(header, 4);
+        ushort actionId = header.Action;
         return (actionId, bodySequence) is (207, 15) or (264, 17);
     }
 }

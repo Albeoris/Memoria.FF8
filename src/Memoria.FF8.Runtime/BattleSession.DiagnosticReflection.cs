@@ -145,7 +145,7 @@ public sealed partial class BattleSession
             return null;
         }
         NativeBattleActionHeaderSlot original = nativeActionPackets.Headers[header];
-        return new(header, generation, actor.Id, checked((byte)actor.EncodeNativeSlot()), reflector.Id, checked((byte)reflector.EncodeNativeSlot()), reflector.NativeStatus1, recipient.Id, checked((byte)recipient.EncodeNativeSlot()), original.ReadByte(1), (ushort)(original.ReadByte(4) | original.ReadByte(5) << 8), source, reflected, targetMask);
+        return new(header, generation, actor.Id, checked((byte)actor.EncodeNativeSlot()), reflector.Id, checked((byte)reflector.EncodeNativeSlot()), reflector.NativeStatus1, recipient.Id, checked((byte)recipient.EncodeNativeSlot()), original.Command, (ushort)(original.ReadByte(4) | original.ReadByte(5) << 8), source, reflected, targetMask);
     }
 
     private void ObserveDiagnosticReflectionTargetResolution(ushort input, int selected, int modifiers, int available, int result)
@@ -169,7 +169,7 @@ public sealed partial class BattleSession
         }
         NativeBattleActionHeaderSlot slot = nativeActionPackets.Headers[header];
         int firstContact = slot.FirstContactIndex!.Value;
-        int count = slot.ReadByte(16);
+        int count = slot.ReadContactCount();
         ImmutableArray<byte>.Builder recipients = ImmutableArray.CreateBuilder<byte>(count);
         for (int index = 0; index < count; index++)
         {

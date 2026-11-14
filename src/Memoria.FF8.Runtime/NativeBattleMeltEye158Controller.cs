@@ -102,7 +102,7 @@ public static partial class NativeBattleMeltEye158Controller
         if (age == 40)
         {
             NativeBattleActionHeaderSlot header = Header(frame, inputs);
-            frame = inputs.Execute(frame, new NativeBattleMeltEye158BulkContact(header.FirstContactIndex ?? throw new NotSupportedException("Melt-Eye requires its captured contacts."), header.ReadByte(16)));
+            frame = inputs.Execute(frame, new NativeBattleMeltEye158BulkContact(header.FirstContactIndex ?? throw new NotSupportedException("Melt-Eye requires its captured contacts."), header.ReadContactCount()));
         }
         if (age == 1)
         {

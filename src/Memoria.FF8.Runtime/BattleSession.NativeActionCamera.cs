@@ -14,7 +14,7 @@ public sealed partial class BattleSession
     private (NativeBattleGraphicsState Graphics, bool Selected) ChooseNativeActionCamera(NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context)
     {
         NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[context.HeaderIndex];
-        byte command = header.ReadByte(1);
+        byte command = header.Command;
         if (command is 5 or 11 or 14 or 15 or 16 or 17 or 18 or 19 or 20 or 21 or 22 or 0xEF or 0xF4 or 0xFE)
         {
             return (graphics, true);
@@ -23,7 +23,7 @@ public sealed partial class BattleSession
         {
             return (graphics, false);
         }
-        if (command == 6 && NativeBattleActionGraphics.Word(header, 6) == 15)
+        if (command == 6 && header.Effect == 15)
         {
             graphics = graphics with { Flags = graphics.Flags | 0x20000000 };
         }
@@ -92,7 +92,7 @@ public sealed partial class BattleSession
         }
         camera = camera with { Mask = (ushort)(camera.Mask | 0x8000) };
         NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[context.HeaderIndex];
-        byte command = header.ReadByte(1);
+        byte command = header.Command;
         NativeBattleGraphicsModel actor = graphics.Models[context.ActorIndex];
         NativeBattleGraphicsResource resource = NativeActionResource(graphics, context.ActorIndex);
         bool present = resource.HasActionCamera ?? throw new NotSupportedException("Native506190 requires its observed model camera pointer.");
@@ -109,7 +109,7 @@ public sealed partial class BattleSession
                 if ((actor.ModelId4 ?? throw new InvalidDataException("Native506190 actor lacks its loaded model ID.")) >= 16)
                 {
                     byte standing = actor.SequenceState?.Default2 ?? throw new InvalidDataException("Native506190 actor lacks its sequence header BYTE2.");
-                    selector = standing != 1 || header.ReadByte(2) != 11 ? (byte)1 : (byte)0;
+                    selector = standing != 1 || header.Sequence != 11 ? (byte)1 : (byte)0;
                     camera = camera.SetActionSelector(8);
                 }
                 else
@@ -125,11 +125,11 @@ public sealed partial class BattleSession
                     graphics = graphics with { Models = graphics.Models.SetItem(context.ActorIndex, actor) };
                     camera = camera.SetActionSelector(selector);
                 }
-                camera = command == 6 && NativeBattleActionGraphics.Word(header, 6) == 15 ? camera with { Mask = (ushort)(camera.Mask & 0x7FFF) } : camera.Start(bank, selector);
+                camera = command == 6 && header.Effect == 15 ? camera with { Mask = (ushort)(camera.Mask & 0x7FFF) } : camera.Start(bank, selector);
                 break;
             case 5 or 11 or 14 or 15 or 17 or 18 or 19 or 20 or 21 or 22 or 31 or 0xEF:
                 selector = (byte)(NextNativeGlobalRandom() & 1);
-                camera = camera.SetActionSelector(selector).Start(bank, (byte)(selector + 6)).SetSecondarySelector(NativeBattleActionGraphics.Word(header, 4) == 65534 ? (ushort)1 : (ushort)0) with { ForceCamera = true };
+                camera = camera.SetActionSelector(selector).Start(bank, (byte)(selector + 6)).SetSecondarySelector(header.Action == 65534 ? (ushort)1 : (ushort)0) with { ForceCamera = true };
                 break;
             case 8:
                 byte choice = header.ReadByte(3);

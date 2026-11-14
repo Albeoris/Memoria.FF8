@@ -43,7 +43,7 @@ public sealed partial class BattleSession
                 pools = [pools[0], NativeBattleEffectTaskPool.Initialize(0x2507C68, 0x20DFAB8, 1056, 6), NativeBattleEffectTaskPool.Initialize(0x2507C58, 0x20DFAB8 + 6336, 36, 48), NativeBattleEffectTaskPool.Initialize(0x2507C48, 0x20DFAB8 + 8064, 20, 48)];
             }
             int ordinal = root.ReadByte(16);
-            if (ordinal < header.ReadByte(16))
+            if (ordinal < header.ReadContactCount())
             {
                 if (Allocate(1, 0x679510, out int slot))
                 {
@@ -179,7 +179,7 @@ public sealed partial class BattleSession
                 model = model with { Transform = transform with { Position28 = transform.Position28 with { Y = WindWord(task, 14) } }, Flags0 = (ushort)(model.Flags0 & 0xEFFF) };
                 graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
                 ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                for (int index = 0; index < header.ReadByte(16); index++)
+                for (int index = 0; index < header.ReadContactCount(); index++)
                 {
                     NativeBattleContactPacket contact = nativeActionPackets.ReadContact(first + index);
                     if (contact.Primary.ActorIndex == actor)

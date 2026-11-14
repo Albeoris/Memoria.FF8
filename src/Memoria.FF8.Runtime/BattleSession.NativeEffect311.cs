@@ -44,7 +44,7 @@ public sealed partial class BattleSession
             workspace = workspace.Initialize7016B0(resources.Hierarchy, 756);
             task = StoreEffect311Workspace(task, workspace);
             NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C];
-            int count = header.ReadByte(16);
+            int count = header.ReadContactCount();
             int first = header.FirstContactIndex ?? throw new NotSupportedException("Native665380 requires its actual first contact.");
             if (count == 0 || count > 14)
             {
@@ -140,7 +140,7 @@ public sealed partial class BattleSession
                     NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C];
                     int first = header.FirstContactIndex ?? throw new InvalidDataException("Native506BA0 requires its actual all-target contact pointer.");
                     var pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(0, header.ReadByte(16)).Select(index => nativeActionPackets.ReadContact(first + index)).ToImmutableArray() });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(0, header.ReadContactCount()).Select(index => nativeActionPackets.ReadContact(first + index)).ToImmutableArray() });
                     graphics = graphics with { PendingContacts = pending };
                 }
             }

@@ -43,7 +43,7 @@ public sealed partial class BattleSession
         {
             acknowledgeTrigger.Validate(roster);
             if (!ReferenceEquals(graphics.PendingTrigger, acknowledgeTrigger) || acknowledgeTrigger.ActorIndex != caster ||
-                acknowledgeTrigger is not { ContactIndex: 1, TotalContacts: 1 } || header.ReadByte(1) is not (1 or 12 or 28) || original.Length != 1)
+                acknowledgeTrigger is not { ContactIndex: 1, TotalContacts: 1 } || header.Command is not (1 or 12 or 28) || original.Length != 1)
             {
                 throw new InvalidDataException("Contact replacement does not acknowledge this invocation's pending ordinary Gunblade receipt.");
             }

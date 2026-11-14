@@ -172,7 +172,7 @@ public static partial class NativeBattleSandStorm176Controller
             }
             if (age == 57)
             {
-                for (int index = 0; index < Header.ReadByte(16); index++)
+                for (int index = 0; index < Header.ReadContactCount(); index++)
                 {
                     int actor = inputs.Packets.ReadContact(FirstContact + index).Primary.ActorIndex;
                     int lift = Spawn(0x5D14B0);

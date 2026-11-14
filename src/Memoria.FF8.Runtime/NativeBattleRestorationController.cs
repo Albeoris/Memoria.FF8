@@ -18,8 +18,8 @@ public static class NativeBattleRestorationController
         NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
         int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Native88CF70/883110 requires its header's actual contact pointer.");
         byte target = packets.ReadContact(firstContact).Primary.ActorIndex;
-        byte targets = header.ReadByte(16);
-        byte groups = header.ReadByte(17);
+        byte targets = header.ReadContactCount();
+        byte groups = header.ReadRepeatModeMinusOne();
         byte maximum = unchecked((byte)(targets - 1));
         if (maximum < groups)
         {

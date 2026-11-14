@@ -111,6 +111,7 @@ public sealed class NativeBattleRetainedActionPacketsTests
         Assert.Throws<InvalidDataException>(() => (fresh with { ActiveContactIndex = 50 }).Validate());
         Assert.Throws<InvalidDataException>(() => (fresh with { ActiveHeaderIndex = 32 }).Validate());
         Assert.Throws<InvalidDataException>(() => (fresh with { ContactCount = 1 }).Validate());
+        Assert.Throws<InvalidDataException>(() => (fresh with { ContactCount = 256, UnknownCountMask = 2 }).Validate());
         Assert.Throws<InvalidDataException>(() => (fresh with { UnknownCountMask = 4 }).Validate());
         (fresh with { ActionCount = 1, ContactCount = 1, UnknownCountMask = 2 }).Validate();
         Reject(prepared with { Payload = prepared.Payload.RemoveAt(0) });

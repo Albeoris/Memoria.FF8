@@ -183,7 +183,7 @@ public static partial class NativeBattleMegaSpark279Controller
         {
             NativeBattleActionHeaderSlot header = Header(frame, inputs.ReadPackets(frame));
             int first = header.FirstContactIndex ?? throw new NotSupportedException("Mega Spark requires its actual current contact base.");
-            frame = inputs.Execute(frame, new NativeBattleMegaSpark279Contact506BA0(first, header.ReadByte(16)));
+            frame = inputs.Execute(frame, new NativeBattleMegaSpark279Contact506BA0(first, header.ReadContactCount()));
         }
         int remaining = unchecked(85 - age);
         if ((uint)remaining < 16)

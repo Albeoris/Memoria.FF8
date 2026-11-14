@@ -34,7 +34,7 @@ public sealed partial class BattleSession
         frame = frame with { Effect = frame.Effect with { PresentationPackets = [] } };
         NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[parameters.HeaderIndex7C];
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Burning Rave requires its actual action contact pointer.");
-        int count = header.ReadByte(16);
+        int count = header.ReadContactCount();
         ImmutableArray<byte> targets = Enumerable.Range(0, count).Select(index => nativeActionPackets.ReadContact(checked(first + index)).Primary.ActorIndex).ToImmutableArray();
         NativeBattleDuel212PreparationServices preparation = null!;
         NativeBattleDuel212TargetServices actors = null!;

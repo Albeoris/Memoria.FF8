@@ -146,7 +146,7 @@ public static class NativeBattleReflectController
                         int header = checked(parameters.HeaderIndex7C + task.ReadWord(14));
                         NativeBattleActionHeaderSlot packet = inputs.Packets.Headers[header];
                         int first = packet.FirstContactIndex ?? throw new NotSupportedException("Native Reflect contact requires its actual action target list.");
-                        for (int index = 0; index < packet.ReadByte(16); index++)
+                        for (int index = 0; index < packet.ReadContactCount(); index++)
                         {
                             contacts.Add(first + index);
                             if (inputs.ApplyContact is { } apply)

@@ -75,7 +75,7 @@ public static partial class NativeBattleDisolvingAcid132Controller
             }
             byte contact = Read(frame, address).ReadBytes(14, 1)[0];
             NativeBattleActionHeaderSlot header = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C];
-            if (contact <= header.ReadByte(17))
+            if (contact <= header.ReadRepeatModeMinusOne())
             {
                 int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Disolving Acid requires its captured contact pointer.");
                 uint target = ModelAddress(inputs.Packets.ReadContact(firstContact + contact).Primary.ActorIndex);

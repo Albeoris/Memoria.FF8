@@ -25,16 +25,16 @@ public sealed partial class BattleSession
         {
             graphics = graphics with { Flags = graphics.Flags | 0x10 };
             graphics = PrepareNativeHeaderGeometry(graphics, context);
-            if (header.ReadByte(1) == 14 || header.ReadByte(1) == 11 && NativeBattleActionGraphics.Word(header, 4) == 65531)
+            if (header.Command == 14 || header.Command == 11 && header.Action == 65531)
             {
                 NativeEffectMemory = (NativeEffectMemory ?? throw new NotSupportedException("Native50A9A0 requires its retained parameterBYTE80 owner.")) with { Parameter80 = 0 };
             }
             NativeBattleEffectParameters parameters = CreateNativeOriginalEffectParameters(context);
             NativeBattleGraphicsModel actor = graphics.Models[context.ActorIndex];
             graphics = graphics with { Models = graphics.Models.SetItem(context.ActorIndex, actor with { Flags8 = (actor.Flags8 ?? throw new InvalidDataException("Native50A9A0 requires its loaded model DWORD8.")) & ~0x800000u }) };
-            graphics = SelectNativeHeaderSequence(graphics, context.ActorIndex, header.ReadByte(2));
+            graphics = SelectNativeHeaderSequence(graphics, context.ActorIndex, header.Sequence);
             graphics = StartNativeHeaderCamera(graphics, context);
-            graphics = BeginNativeOriginalEffect(graphics, NativeBattleActionGraphics.Word(header, 6));
+            graphics = BeginNativeOriginalEffect(graphics, header.Effect);
             return (graphics with { OriginalEffect = graphics.OriginalEffect! with { Parameters = parameters } }, 3, false);
         }
         if (phase == 3)
@@ -75,25 +75,25 @@ public sealed partial class BattleSession
                     NativeCamera = camera with { Mask = (ushort)(camera.Mask | 0x8000) };
                 }
             }
-            if (header.ReadByte(1) is 2 or 6 && (actor.ModelId4 ?? throw new InvalidDataException("Native50A9A0 requires its actor modelBYTE4.")) >= 16)
+            if (header.Command is 2 or 6 && (actor.ModelId4 ?? throw new InvalidDataException("Native50A9A0 requires its actor modelBYTE4.")) >= 16)
             {
                 graphics = graphics with { Flags = graphics.Flags | 0x20 };
             }
             graphics = InvokeNativeOriginalEffect(graphics);
-            if (header.ReadByte(1) == 0xFE)
+            if (header.Command == 0xFE)
             {
-                graphics = RegisterNativeGuardianBoost(graphics, NativeBattleActionGraphics.Word(header, 4));
+                graphics = RegisterNativeGuardianBoost(graphics, header.Action);
             }
             return (graphics with { ActionGraphics = context with { CastingWatchdog8E = 0 } }, 6, false);
         }
         if (phase == 6)
         {
-            if (NativeBattleActionGraphics.Word(header, 4) == 65534)
+            if (header.Action == 65534)
             {
                 return (graphics, NativeOriginalEffectDescriptorReleased(graphics) ? (byte)7 : phase, false);
             }
             NativeBattleEffectParameters parameters = graphics.OriginalEffect?.Parameters ?? throw new InvalidDataException("Native50A9A0 lost its parameter block.");
-            if (header.ReadByte(1) is 11 or 14)
+            if (header.Command is 11 or 14)
             {
                 return (graphics, parameters.Parameter81 == 1 ? (byte)7 : phase, false);
             }

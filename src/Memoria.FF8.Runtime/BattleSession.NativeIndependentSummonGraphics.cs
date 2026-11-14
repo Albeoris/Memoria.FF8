@@ -17,7 +17,7 @@ public sealed partial class BattleSession
         }
         if (phase == 1)
         {
-            ushort action = NativeBattleActionGraphics.Word(header, 4);
+            ushort action = header.Action;
             if (action is < 7 or > 10)
             {
                 graphics = PublishNativeOriginalEffectTitle(graphics, context);
@@ -37,7 +37,7 @@ public sealed partial class BattleSession
             }
             PublishNativeModuleSound(new(0x18, 0, null) { Pan = 0x80 });
             PublishNativeModuleSound(new(0x19, 0, null) { Pan = 0x80 });
-            graphics = BeginNativeOriginalEffect(graphics, NativeBattleActionGraphics.Word(header, 6));
+            graphics = BeginNativeOriginalEffect(graphics, header.Effect);
             context = context with { IndependentSummonPartyMask6C = hidden };
             return (graphics with { ActionGraphics = context, OriginalEffect = graphics.OriginalEffect! with { Parameters = CreateNativeOriginalEffectParameters(context) } }, 2, false);
         }

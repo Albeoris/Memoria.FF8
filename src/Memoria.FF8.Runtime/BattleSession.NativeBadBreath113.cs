@@ -233,7 +233,7 @@ public sealed partial class BattleSession
             }
             if (frame == 27)
             {
-                for (int index = 0; index < header.ReadByte(16); index++)
+                for (int index = 0; index < header.ReadContactCount(); index++)
                 {
                     if (nativeActionPackets.ReadContact(firstContact + index).Primary.ActorIndex == actor)
                     {

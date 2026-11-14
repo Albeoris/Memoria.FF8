@@ -74,7 +74,7 @@ public static partial class NativeBattleEffect213Controller
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Effect213 requires its first contact pointer.");
-        int count = header.ReadByte(16);
+        int count = header.ReadContactCount();
         NativeBattleModulePoolTask task = Read(frame, address).WriteWord(14, (ushort)count);
         for (int index = 0; index < count; index++)
         {

@@ -10,7 +10,7 @@ public sealed class NativeBattleHostedActionGraphicsTests
         var source = new BattlePartyActorModel(new("source"));
         var target = new BattleEnemyActorModel(new("target"));
         BattleModelRoster roster = new([source, target]);
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedActionPackets.Fresh());
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedActionPackets.Fresh(), new(roster, []));
         BattleActionHeaderReference header;
         (packets, header) = packets.Prepare(new(source, 0, 0, -1, 0, 0, null));
         packets = packets.AppendContacts(Enumerable.Repeat(new NativeBattleContactPacket(new(target, 0, 0, 0, 0, 0, 0), null), count));
@@ -33,7 +33,7 @@ public sealed class NativeBattleHostedActionGraphicsTests
         var first = new BattleEnemyActorModel(new("first"));
         var second = new BattleEnemyActorModel(new("second"));
         BattleModelRoster roster = new([source, cover, first, second]);
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedActionPackets.Fresh());
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedActionPackets.Fresh(), new(roster, []));
         BattleActionHeaderReference firstHeader;
         (packets, firstHeader) = packets.Prepare(new(source, 0, 0, -1, 0, 0, null));
         (packets, _) = packets.AppendContact(new(new(first, 22, 0, 8, 0, 0, 0) { CoverSource = cover }, null));

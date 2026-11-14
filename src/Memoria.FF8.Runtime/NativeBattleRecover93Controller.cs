@@ -34,7 +34,7 @@ public static class NativeBattleRecover93Controller
         hierarchy = appended.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.Headers[effect.Parameters.HeaderIndex7C];
         int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native Recover93 requires an original header/contact owner.");
-        NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(0xC, ActionParameters).WriteByte(0x2C, header.ReadByte(0)).WriteByte(0x2D, packets.ReadContact(contact).Primary.ActorIndex).WriteWord(0x5A, header.ReadByte(16)).WriteWord(0x58, header.ReadByte(17));
+        NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(0xC, ActionParameters).WriteByte(0x2C, header.ReadByte(0)).WriteByte(0x2D, packets.ReadContact(contact).Primary.ActorIndex).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
         byte lastTarget = unchecked((byte)(root.ReadWord(0x5A) - 1));
         if (lastTarget < root.ReadWord(0x58))
         {

@@ -161,7 +161,7 @@ public sealed partial class BattleSession
                     return Import(current);
                 case NativeBattleRayBomb307Contact contact:
                     NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[current.Effect.Parameters!.HeaderIndex7C];
-                    if ((uint)contact.RelativeContactIndex >= header.ReadByte(16))
+                    if ((uint)contact.RelativeContactIndex >= header.ReadContactCount())
                     {
                         throw new InvalidDataException("Ray-Bomb selected a contact outside its captured action header.");
                     }

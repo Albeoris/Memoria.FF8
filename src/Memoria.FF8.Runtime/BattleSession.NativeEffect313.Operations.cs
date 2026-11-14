@@ -25,7 +25,7 @@ public sealed partial class BattleSession
                 NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect313 requires its current action header.");
                 NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[parameters.HeaderIndex7C];
                 int first = header.FirstContactIndex ?? throw new NotSupportedException("Effect313 requires its current contact cursor.");
-                if ((uint)contact.HeaderRelativeIndex >= header.ReadByte(16))
+                if ((uint)contact.HeaderRelativeIndex >= header.ReadContactCount())
                 {
                     throw new InvalidDataException("Effect313 contact leaves its current action header.");
                 }

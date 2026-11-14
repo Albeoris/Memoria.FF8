@@ -36,7 +36,7 @@ public static partial class NativeBattleEffect207Controller
             NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect207 requires its current header.");
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
             NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
-            frame = inputs.Execute(frame, new NativeBattleEffect207AllContacts506BA0(header.FirstContactIndex ?? throw new NotSupportedException("Effect207 requires its actual contact pointer."), header.ReadByte(16)));
+            frame = inputs.Execute(frame, new NativeBattleEffect207AllContacts506BA0(header.FirstContactIndex ?? throw new NotSupportedException("Effect207 requires its actual contact pointer."), header.ReadContactCount()));
             frame = inputs.Execute(frame, new NativeBattleEffect207AppendCommonTextureLoad508630(frame.State.ReadDword(ArenaGlobal) + 0x1A2Cu, address + 16));
             frame = Write(frame, address, Read(frame, address).WriteWord(12, 81));
         }

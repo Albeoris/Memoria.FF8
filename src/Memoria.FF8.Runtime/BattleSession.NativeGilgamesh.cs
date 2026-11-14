@@ -69,7 +69,7 @@ public sealed partial class BattleSession
                 case NativeBattleGilgameshZantetsukenContact contact327:
                     NativeBattleActionHeaderSlot captured327 = nativeActionPackets.Headers[(current.Effect.Parameters ?? throw new NotSupportedException("Zantetsuken requires its captured action parameters.")).HeaderIndex7C];
                     int first327 = captured327.FirstContactIndex ?? throw new NotSupportedException("Zantetsuken requires its captured first contact pointer.");
-                    if ((uint)contact327.Ordinal >= captured327.ReadByte(16))
+                    if ((uint)contact327.Ordinal >= captured327.ReadContactCount())
                     {
                         throw new InvalidDataException("Zantetsuken contact leaves its captured action contacts.");
                     }

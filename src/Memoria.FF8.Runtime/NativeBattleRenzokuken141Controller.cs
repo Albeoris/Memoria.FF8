@@ -20,7 +20,7 @@ public static partial class NativeBattleRenzokukenVariantController
         NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
         int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native61DE70 requires its physical first-contact pointer.");
         byte target = packets.ReadContact(contact).Primary.ActorIndex;
-        bool initial = NativeBattleActionGraphics.Word(header, 4) == 0xFFFE;
+        bool initial = header.Action == 0xFFFE;
         ImmutableDictionary<ushort, NativeBattleRenzokukenVariantState> states = memory.RenzokukenVariants ?? ImmutableDictionary<ushort, NativeBattleRenzokukenVariantState>.Empty;
         NativeBattleRenzokukenVariantState retained = states.GetValueOrDefault(profile.Effect) ?? new(NativeBattleRenzokuken160State.FromColdProcess(), default, default, null);
         NativeBattleRenzokukenVariantState state = retained with { Core = retained.Core.Enter(parameters.Actor78, parameters.HeaderIndex7C, target, initial), RetainedResources = resources };

@@ -118,7 +118,7 @@ public static partial class NativeBattleSigh46Controller
                     int index = 0;
                     NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
                     NativeBattleActionHeaderSlot header = Header(frame, task, packets);
-                    if (header.ReadByte(16) != 0)
+                    if (header.ReadContactCount() != 0)
                     {
                         do
                         {
@@ -131,7 +131,7 @@ public static partial class NativeBattleSigh46Controller
                             packets = inputs.ReadPackets(frame);
                             header = Header(frame, Read(frame, address), packets);
                         }
-                        while (index < header.ReadByte(16));
+                        while (index < header.ReadContactCount());
                     }
                     frame = Done(frame, address);
                 }

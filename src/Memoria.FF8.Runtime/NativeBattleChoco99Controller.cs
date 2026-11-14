@@ -38,7 +38,7 @@ public static class NativeBattleChoco99Controller
         hierarchy = appended.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.Headers[effect.Parameters.HeaderIndex7C];
         int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native Choco99 initial contact pointer is unknown.");
-        NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(0xC, ActionParameters).WriteByte(0x2C, header.ReadByte(0)).WriteByte(0x2D, packets.ReadContact(contact).Primary.ActorIndex).WriteWord(0x5A, header.ReadByte(16)).WriteWord(0x58, header.ReadByte(17));
+        NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(0xC, ActionParameters).WriteByte(0x2C, header.ReadByte(0)).WriteByte(0x2D, packets.ReadContact(contact).Primary.ActorIndex).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
         byte last = unchecked((byte)(root.ReadWord(0x5A) - 1));
         if (last < root.ReadWord(0x58))
         {
@@ -290,7 +290,7 @@ public static class NativeBattleChoco99Controller
                         }
                         NativeBattleActionHeaderSlot header = inputs.Packets.Headers[headerIndex];
                         int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Native Choco99 contact pointer is unknown.");
-                        for (int contact = 0; contact < header.ReadByte(16); contact++)
+                        for (int contact = 0; contact < header.ReadContactCount(); contact++)
                         {
                             Emit(new NativeBattleChoco97Contact(checked(firstContact + contact)));
                         }

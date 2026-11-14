@@ -86,7 +86,7 @@ public static class NativeBattleSiren95Actors
                     throw new NotSupportedException("Native Siren contact spawn leaves its current header owner.");
                 }
                 NativeBattleActionHeaderSlot header = services.Packets.Headers[index];
-                if (ordinal >= header.ReadByte(16))
+                if (ordinal >= header.ReadContactCount())
                 {
                     break;
                 }

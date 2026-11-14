@@ -1,46 +1,69 @@
-using System.Collections.Immutable;
-
 namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    public BattleModelRoster ReadExpandedPresentationRoster()
+    public BattleModelRoster ReadBattlePresentationRoster()
     {
-        BattleModelOwner?[] rows = new BattleModelOwner?[NativeBattleGraphicsModelAddress.MaximumRowCount];
-        int length = NativeBattleGraphicsModelAddress.NativeRowCount;
+        return new(ReadPresentationModelBindings().Select(binding => binding.Owner));
+    }
+
+    internal (BattleModelRoster Roster, NativeBattleModelAliases Aliases) ReadBattlePresentationPacketBindings()
+    {
+        var bindings = ReadPresentationModelBindings().ToArray();
+        BattleModelRoster roster = new(bindings.Select(binding => binding.Owner));
+        List<(NativeBattleModelSlot Slot, BattleModelOwner Owner)> aliases = [];
+        foreach (var binding in bindings)
+        {
+            if (binding.NativeSlot is int nativeSlot)
+            {
+                aliases.Add((NativeBattleModelSlot.Decode(checked((byte)nativeSlot)), binding.Owner));
+            }
+        }
+        return (roster, new(roster, aliases));
+    }
+
+    private IEnumerable<(BattleRosterSlot Slot, int? NativeSlot, BattleModelOwner Owner)> ReadPresentationModelBindings()
+    {
+        HashSet<BattleRosterSlot> occupied = [];
+        List<(BattleRosterSlot Slot, int? NativeSlot, BattleModelOwner Owner)> bindings = [];
         foreach (BattleCombatant actor in combatants)
         {
             if (actor.Slot is null)
             {
                 continue;
             }
-            byte row = ExpandedPresentationRow(actor);
-            if (rows[row] is not null)
+            (BattleRosterSlot slot, int? nativeSlot) = ReadPresentationSlot(actor);
+            if (!occupied.Add(slot))
             {
                 throw new InvalidDataException("Multiple battle actors own the same presentation slot.");
             }
-            rows[row] = new(actor.Id, actor.IsPlayer);
-            length = Math.Max(length, row + 1);
+            bindings.Add((slot, nativeSlot, CreatePresentationModelOwner(actor)));
         }
-        return new(rows.AsSpan(0, length).ToArray().ToImmutableArray());
+
+        return bindings.OrderBy(binding => binding.NativeSlot ?? int.MaxValue)
+            .ThenBy(binding => binding.Slot.Side)
+            .ThenBy(binding => binding.Slot.Position);
     }
 
-    public byte ReadExpandedPresentationRow(string actorId)
+    public BattleModelOwner ReadPresentationModelOwner(string actorId)
     {
-        return ExpandedPresentationRow(GetActor(actorId));
+        BattleCombatant actor = GetActor(actorId);
+        ReadPresentationSlot(actor);
+        return CreatePresentationModelOwner(actor);
     }
 
-    private static byte RequireExpandedPresentationRow(BattleModelRoster roster, BattleCombatant actor)
+    private static BattleModelOwner RequirePresentationModelOwner(BattleModelRoster roster, BattleCombatant actor)
     {
-        byte row = ExpandedPresentationRow(actor);
-        if (!StringComparer.Ordinal.Equals(roster[row].ActorId, actor.Id))
+        ReadPresentationSlot(actor);
+        BattleModelOwner owner = CreatePresentationModelOwner(actor);
+        if (!roster.Contains(owner))
         {
-            throw new InvalidDataException("The requested actor does not own its presentation slot.");
+            throw new InvalidDataException("The requested actor does not own its presentation model.");
         }
-        return row;
+        return owner;
     }
 
-    private static byte ExpandedPresentationRow(BattleCombatant actor)
+    private static (BattleRosterSlot Slot, int? NativeSlot) ReadPresentationSlot(BattleCombatant actor)
     {
         BattleRosterSlot slot = actor.Slot ?? throw new InvalidDataException($"Battle actor {actor.Id} has no allocated presentation slot.");
         if (slot.Side != actor.Side)
@@ -52,13 +75,11 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("The native battle alias disagrees with the actor's presentation slot.");
         }
-        return slot.Side switch
-        {
-            BattleSide.Allies when slot.Position < NativeBattleSlots.AllyCount => checked((byte)slot.Position),
-            BattleSide.Enemies when slot.Position < NativeBattleSlots.EnemyCount => checked((byte)(NativeBattleSlots.AllyCount + slot.Position)),
-            BattleSide.Allies when slot.Position < ExpandedBattleFormation.MaximumAllies => checked((byte)(NativeBattleSlots.EnemyCount + slot.Position)),
-            BattleSide.Enemies when slot.Position < ExpandedBattleFormation.MaximumEnemies => checked((byte)(ExpandedBattleFormation.MaximumAllies + slot.Position)),
-            _ => throw new InvalidDataException("The allocated battle slot exceeds the presentation roster.")
-        };
+        return (slot, native);
+    }
+
+    private static BattleModelOwner CreatePresentationModelOwner(BattleCombatant actor)
+    {
+        return actor.IsPlayer ? new BattlePartyActorModel(new(actor.Id)) : new BattleEnemyActorModel(new(actor.Id));
     }
 }

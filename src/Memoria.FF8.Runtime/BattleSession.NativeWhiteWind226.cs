@@ -103,7 +103,7 @@ public sealed partial class BattleSession
                 if (frame == 7)
                 {
                     short z = 0;
-                    int count = header.ReadByte(16);
+                    int count = header.ReadContactCount();
                     for (int index = 0; index < count; index++)
                     {
                         int actor = nativeActionPackets.ReadContact(firstContact + index).Primary.ActorIndex;
@@ -124,7 +124,7 @@ public sealed partial class BattleSession
                 PublishNativeModuleSound(new(resources.Sound, 0, null) { Pan = 128 });
             }
             int targetIndex = frame - 19;
-            if ((uint)targetIndex < 12 && (targetIndex & 3) == 0 && targetIndex / 4 < header.ReadByte(16) && pools[2].Slots.Any(candidate => (candidate.Flags & 1) == 0))
+            if ((uint)targetIndex < 12 && (targetIndex & 3) == 0 && targetIndex / 4 < header.ReadContactCount() && pools[2].Slots.Any(candidate => (candidate.Flags & 1) == 0))
             {
                 (pools[2], int slot) = pools[2].Append(0x694D40);
                 int actor = nativeActionPackets.ReadContact(firstContact + targetIndex / 4).Primary.ActorIndex;
@@ -151,7 +151,7 @@ public sealed partial class BattleSession
             {
                 return 0;
             }
-            for (int index = 0; index < header.ReadByte(16); index++)
+            for (int index = 0; index < header.ReadContactCount(); index++)
             {
                 if (nativeActionPackets.ReadContact(firstContact + index).Primary.ActorIndex == actor)
                 {

@@ -62,7 +62,7 @@ public static partial class NativeBattleWildCannonBlow156Controller
         if (age == 15)
         {
             NativeBattleActionHeaderSlot header = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C];
-            int count = header.ReadByte(16);
+            int count = header.ReadContactCount();
             int first = count == 0 ? 0 : header.FirstContactIndex ?? throw new NotSupportedException("Wild Cannon Blow requires its physical contact rows.");
             for (int contact = 0; contact < count; contact++)
             {

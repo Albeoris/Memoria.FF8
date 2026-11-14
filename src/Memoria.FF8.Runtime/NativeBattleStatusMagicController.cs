@@ -199,7 +199,7 @@ public static class NativeBattleStatusMagicController
             int action = checked(parameters.HeaderIndex7C + task.ReadWord(14));
             NativeBattleActionHeaderSlot header = inputs.Packets.Headers[action];
             int first = header.FirstContactIndex ?? throw new NotSupportedException("Native status result requires its action target list.");
-            for (int index = 0; index < header.ReadByte(16); index++)
+            for (int index = 0; index < header.ReadContactCount(); index++)
             {
                 int contact = checked(first + index);
                 contacts.Add(contact);

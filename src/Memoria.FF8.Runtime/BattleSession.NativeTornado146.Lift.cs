@@ -18,7 +18,7 @@ public sealed partial class BattleSession
                 }
                 NativeBattleActionHeaderSlot header = owner.nativeActionPackets.Headers[checked(effect.Parameters!.HeaderIndex7C + Word(task, 14))];
                 int start = header.FirstContactIndex ?? throw new NotSupportedException("Native Tornado lift requires the actual target contacts.");
-                int count = header.ReadByte(16);
+                int count = header.ReadContactCount();
                 work.WriteDword(0x249A604, (uint)count);
                 for (int index = 0; index < count; index++)
                 {

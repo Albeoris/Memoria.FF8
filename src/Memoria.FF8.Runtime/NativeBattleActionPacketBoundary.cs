@@ -9,7 +9,7 @@ internal static class NativeBattleActionPacketBoundary
     {
         BattleContactCursor cursor = packets.ActiveContact ?? throw new NotSupportedException("Native50A6E0 requires its active contact cursor.");
         BattleContactOccurrence occurrence = new(cursor.Ordinal);
-        if (packets.FindRetainedContact(occurrence) is { } live)
+        if (packets.FindStoredContact(occurrence) is { } live)
         {
             return (short)(live.Primary.HitFlags & 2);
         }
@@ -22,48 +22,17 @@ internal static class NativeBattleActionPacketBoundary
         return (short)(retained.Primary.HitFlags3 & 2);
     }
 
-    internal static NativeBattleRetainedActionPackets Export(NativeBattleActionPacketsState arena, NativeBattleModelBoundary bindings, BattleActorModels models)
+    internal static NativeBattleRetainedActionPackets PrepareHeader(NativeBattleRetainedActionPackets retained, BattleActionHeaderReference reference, NativeBattleActionHeaderSlot header, NativeBattleModelAliases aliases)
     {
-        ArgumentNullException.ThrowIfNull(bindings);
-        ArgumentNullException.ThrowIfNull(models);
-        arena.Validate();
-        NativeBattleRetainedActionPackets retained = arena.RetainedStorage;
-        var headers = retained.Headers.ToBuilder();
-        var contacts = retained.Contacts.ToBuilder();
-        for (int index = 0; index < headers.Count; index++)
+        int index = reference.Ordinal;
+        if (index >= NativeBattleRetainedActionPackets.HeaderCapacity)
         {
-            if (arena.FindRetainedHeader(new(index)) is { } header)
-            {
-                headers[index] = ProjectHeader(header, headers[index], bindings, models);
-            }
+            return retained;
         }
-        for (int index = 0; index < contacts.Count; index++)
-        {
-            if (arena.FindRetainedContact(new(index)) is { } contact)
-            {
-                contacts[index] = ProjectContact(contact, contacts[index], bindings, models);
-            }
-        }
-        bool actionCountFits = arena.ActionCount <= NativeBattleRetainedActionPackets.HeaderCapacity;
-        bool contactCountFits = arena.ContactCount <= NativeBattleRetainedActionPackets.ContactCapacity;
-        NativeBattleRetainedActionPackets result = new(
-            actionCountFits ? checked((byte)arena.ActionCount) : retained.ActionCount,
-            contactCountFits ? arena.ContactCount : retained.ContactCount,
-            headers.MoveToImmutable(), contacts.MoveToImmutable(),
-            arena.ActiveHeader is { } active && active.Ordinal < NativeBattleRetainedActionPackets.HeaderCapacity ? active.Ordinal : null)
-        {
-            ActiveContactIndex = arena.ActiveContact is { } cursor && cursor.Ordinal <= NativeBattleRetainedActionPackets.ContactCapacity ? cursor.Ordinal : null,
-            UnknownCountMask = (byte)((actionCountFits ? 0 : 1) | (contactCountFits ? 0 : 2))
-        };
-        result.Validate();
-        return result;
-    }
-
-    private static NativeBattleRetainedActionHeaderSlot ProjectHeader(NativeBattleActionHeaderSlot header, NativeBattleRetainedActionHeaderSlot retained, NativeBattleModelBoundary bindings, BattleActorModels models)
-    {
-        byte[] bytes = retained.Payload.ToArray();
-        uint unknown = retained.UnknownByteMask & ~0xFEu;
-        if (bindings.TryEncodeExactActor(header.Source, models, out byte source))
+        NativeBattleRetainedActionHeaderSlot previous = retained.Headers[index];
+        byte[] bytes = previous.Payload.ToArray();
+        uint unknown = previous.UnknownByteMask & ~0xFEu;
+        if (aliases.TryEncodeExact(header.Source, out byte source))
         {
             bytes[0] = source;
             unknown &= ~1u;
@@ -78,11 +47,10 @@ internal static class NativeBattleActionPacketBoundary
         BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(4), header.Action);
         BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(6), header.Effect);
 
-        int? first = null;
-        if (header.FirstContact.Ordinal <= NativeBattleRetainedActionPackets.ContactCapacity)
+        int? first = EncodeContactCursor(header.FirstContact);
+        if (first is int firstIndex)
         {
-            first = header.FirstContact.Ordinal;
-            uint pointer = NativeBattleRetainedActionPackets.ContactBase + (uint)(first.Value * NativeBattleRetainedActionPackets.ContactSize);
+            uint pointer = NativeBattleRetainedActionPackets.ContactBase + (uint)(firstIndex * NativeBattleRetainedActionPackets.ContactSize);
             BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(8), pointer);
             unknown &= ~0xF00u;
         }
@@ -101,35 +69,73 @@ internal static class NativeBattleActionPacketBoundary
             unknown |= 0xF000u;
         }
 
-        WriteOptional(16, header.ContactCount is >= 0 and <= byte.MaxValue ? (byte)header.ContactCount.Value : null);
-        WriteOptional(17, header.RepeatModeMinusOne);
-        return new(ImmutableArray.CreateRange(bytes), unknown, first, header.Data);
-
-        void WriteOptional(int offset, byte? value)
-        {
-            uint bit = 1u << offset;
-            if (value is byte known)
-            {
-                bytes[offset] = known;
-                unknown &= ~bit;
-            }
-            else
-            {
-                unknown |= bit;
-            }
-        }
+        NativeBattleRetainedActionHeaderSlot written = new(ImmutableArray.CreateRange(bytes), unknown, first, header.Data);
+        return retained with { Headers = retained.Headers.SetItem(index, written) };
     }
 
-    private static NativeBattleRawContactPacket ProjectContact(NativeBattleContactPacket contact, NativeBattleRawContactPacket? retained, NativeBattleModelBoundary bindings, BattleActorModels models)
+    internal static NativeBattleRetainedActionPackets PublishHeader(NativeBattleRetainedActionPackets retained, BattleActionHeaderReference reference, int targetCount, int actionCount)
+    {
+        retained = WriteHeaderScalar(retained, reference, 16, targetCount <= byte.MaxValue ? (byte)targetCount : null);
+        return actionCount <= byte.MaxValue
+            ? retained with { ActionCount = (byte)actionCount, UnknownCountMask = (byte)(retained.UnknownCountMask & ~1) }
+            : retained with { UnknownCountMask = (byte)(retained.UnknownCountMask | 1) };
+    }
+
+    internal static NativeBattleRetainedActionPackets WriteRepeatMode(NativeBattleRetainedActionPackets retained, BattleActionHeaderReference reference, byte repeatModeMinusOne)
+    {
+        return WriteHeaderScalar(retained, reference, 17, repeatModeMinusOne);
+    }
+
+    private static NativeBattleRetainedActionPackets WriteHeaderScalar(NativeBattleRetainedActionPackets retained, BattleActionHeaderReference reference, int offset, byte? value)
+    {
+        if (reference.Ordinal >= NativeBattleRetainedActionPackets.HeaderCapacity)
+        {
+            return retained;
+        }
+        NativeBattleRetainedActionHeaderSlot slot = retained.Headers[reference.Ordinal];
+        uint bit = 1u << offset;
+        NativeBattleRetainedActionHeaderSlot written = value is byte known
+            ? slot with { Payload = slot.Payload.SetItem(offset, known), UnknownByteMask = slot.UnknownByteMask & ~bit }
+            : slot with { UnknownByteMask = slot.UnknownByteMask | bit };
+        return retained with { Headers = retained.Headers.SetItem(reference.Ordinal, written) };
+    }
+
+    internal static NativeBattleRetainedActionPackets ActivateHeader(NativeBattleRetainedActionPackets retained, BattleActionHeaderReference reference, BattleContactCursor cursor)
+    {
+        return retained with
+        {
+            ActiveHeaderIndex = reference.Ordinal < NativeBattleRetainedActionPackets.HeaderCapacity ? reference.Ordinal : null,
+            ActiveContactIndex = EncodeContactCursor(cursor)
+        };
+    }
+
+    internal static NativeBattleRetainedActionPackets AdvanceContact(NativeBattleRetainedActionPackets retained, BattleContactCursor cursor)
+    {
+        return retained with { ActiveContactIndex = EncodeContactCursor(cursor) };
+    }
+
+    private static int? EncodeContactCursor(BattleContactCursor cursor)
+    {
+        return cursor.Ordinal <= NativeBattleRetainedActionPackets.ContactCapacity ? cursor.Ordinal : null;
+    }
+
+    internal static NativeBattleRetainedActionPackets CompleteContactWrites(NativeBattleRetainedActionPackets retained, ImmutableArray<NativeBattleRawContactPacket?> contacts, int contactCount, int? lastEncodableCount)
+    {
+        return contactCount <= byte.MaxValue
+            ? retained with { Contacts = contacts, ContactCount = contactCount, UnknownCountMask = (byte)(retained.UnknownCountMask & ~2) }
+            : retained with { Contacts = contacts, ContactCount = lastEncodableCount ?? retained.ContactCount, UnknownCountMask = (byte)(retained.UnknownCountMask | 2) };
+    }
+
+    internal static NativeBattleRawContactPacket WriteContact(NativeBattleContactPacket contact, NativeBattleRawContactPacket? retained, NativeBattleModelAliases aliases)
     {
         byte[]? unknown = null;
-        NativeBattleRawContactHalf primary = ProjectHalf(contact.Primary, retained?.Primary, 0);
-        NativeBattleRawContactHalf secondary = contact.Secondary is { } present ? ProjectHalf(present, retained?.Secondary, 12) : new(byte.MaxValue, 0, 0, 0, 0, 0, 0);
+        NativeBattleRawContactHalf primary = WriteHalf(contact.Primary, retained?.Primary, 0);
+        NativeBattleRawContactHalf secondary = contact.Secondary is { } present ? WriteHalf(present, retained?.Secondary, 12) : new(byte.MaxValue, 0, 0, 0, 0, 0, 0);
         return new(primary, secondary) { UnknownBits = unknown is null ? default : ImmutableArray.CreateRange(unknown) };
 
-        NativeBattleRawContactHalf ProjectHalf(NativeBattleContactHalf half, NativeBattleRawContactHalf? previous, int offset)
+        NativeBattleRawContactHalf WriteHalf(NativeBattleContactHalf half, NativeBattleRawContactHalf? previous, int offset)
         {
-            if (!bindings.TryEncodeExactActor(half.Recipient, models, out byte recipient))
+            if (!aliases.TryEncodeExact(half.Recipient, out byte recipient))
             {
                 recipient = previous?.ActorIndex ?? 0;
                 (unknown ??= new byte[NativeBattleRetainedActionPackets.ContactSize])[offset] = byte.MaxValue;
@@ -137,7 +143,7 @@ internal static class NativeBattleActionPacketBoundary
             byte flags = half.HitFlags;
             if (half.CoverSource is { } cover)
             {
-                if (bindings.TryEncodeExactActor(cover, models, out byte coverSlot) && coverSlot < 4)
+                if (aliases.TryEncodeExact(cover, out byte coverSlot) && coverSlot < 4)
                 {
                     flags |= (byte)(coverSlot << 6);
                 }

@@ -56,7 +56,7 @@ public static partial class NativeBattleEffect318Controller
         frame = ClearDwords701200(frame, main + 12, 0x4BE);
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         NativeBattleActionHeaderSlot header = CurrentHeader(frame, packets);
-        if (header.ReadByte(16) == 0)
+        if (header.ReadContactCount() == 0)
         {
             throw new NotSupportedException("Effect318 requires its actual nonempty first-contact source.");
         }

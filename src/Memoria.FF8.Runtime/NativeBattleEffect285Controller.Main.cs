@@ -54,7 +54,7 @@ public static partial class NativeBattleEffect285Controller
         if (age == 110)
         {
             NativeBattleActionHeaderSlot header = CurrentHeader(frame, inputs.ReadPackets(frame));
-            frame = inputs.Execute(frame, new NativeBattleEffect285AllContacts506BA0(header.FirstContactIndex ?? throw new NotSupportedException("Effect285 requires its current contact pointer."), header.ReadByte(16)));
+            frame = inputs.Execute(frame, new NativeBattleEffect285AllContacts506BA0(header.FirstContactIndex ?? throw new NotSupportedException("Effect285 requires its current contact pointer."), header.ReadContactCount()));
         }
         return frame;
     }

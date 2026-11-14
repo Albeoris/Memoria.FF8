@@ -53,7 +53,7 @@ public sealed partial class BattleSession
                 pools = [pools[0], NativeBattleEffectTaskPool.Initialize(0x2508258, address + 0x8C0, 0x664, 1), NativeBattleEffectTaskPool.Initialize(0x2508248, address + 0x780, 0x14, 16), NativeBattleEffectTaskPool.Initialize(0x2508238, address + 0x540, 0x24, 16), NativeBattleEffectTaskPool.Initialize(0x2508228, address, 0xA8, 8)];
             }
             int action = root.ReadByte(14);
-            if (action <= header.ReadByte(17))
+            if (action <= header.ReadRepeatModeMinusOne())
             {
                 NativeBattleActionHeaderSlot selected = nativeActionPackets.Headers[effect.Parameters.HeaderIndex7C + action];
                 int contact = selected.FirstContactIndex ?? throw new InvalidDataException("Native Funguar Laser requires the selected action's first contact.");

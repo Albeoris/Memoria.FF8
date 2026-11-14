@@ -24,7 +24,7 @@ public sealed partial class BattleSession
             throw new InvalidOperationException("Gunblade input requires its active hosted widget.");
         }
         NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[invocation.HeaderIndex];
-        if (header.ReadByte(0) != actor || header.ReadByte(1) is not (1 or 12 or 28))
+        if (header.ReadByte(0) != actor || header.Command is not (1 or 12 or 28))
         {
             throw new InvalidDataException("Gunblade input does not belong to the active hosted header.");
         }

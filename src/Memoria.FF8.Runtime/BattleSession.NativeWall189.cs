@@ -160,7 +160,7 @@ public sealed partial class BattleSession
             if (age == 65)
             {
                 ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                for (int index = 0; index < header.ReadByte(16); index++)
+                for (int index = 0; index < header.ReadContactCount(); index++)
                 {
                     graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(first + index)] });
                 }

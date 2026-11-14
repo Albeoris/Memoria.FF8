@@ -21,7 +21,7 @@ public sealed partial class BattleSession
         hierarchy = appended.Hierarchy;
         NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C];
         int first = header.FirstContactIndex ?? throw new InvalidDataException("Native Dark Mist requires its actual contact pointer.");
-        NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(12, 0x1D99A78).WriteByte(0x2D, nativeActionPackets.ReadContact(first).Primary.ActorIndex).WriteWord(0x5A, header.ReadByte(16)).WriteWord(0x58, header.ReadByte(17));
+        NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(12, 0x1D99A78).WriteByte(0x2D, nativeActionPackets.ReadContact(first).Primary.ActorIndex).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
         hierarchy = hierarchy.Write(appended.Address, root);
         return graphics with { OriginalEffect = effect with { Pools = hierarchy.Pools, ReturnedDescriptor = 0x2747720, DrawArenaOffset = null } };
     }

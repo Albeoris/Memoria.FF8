@@ -68,7 +68,7 @@ public sealed partial class BattleSession
             }
             if (Allocate(1, 0x6EA920, out int slot))
             {
-                int count = header.ReadByte(16);
+                int count = header.ReadContactCount();
                 if (count is < 1 or > 3)
                 {
                     throw new InvalidDataException("Native Storm Breath requires one to three original target records.");

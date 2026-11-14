@@ -183,7 +183,7 @@ public static partial class NativeBattleResonance49Controller
         frame = SpawnProgramme821C00(frame, address, 0x824140, 0x17B656C, 0x2C8, 1, 4, inputs.Packets);
         NativeBattleModulePoolTask parent = Read(frame, address);
         NativeBattleActionHeaderSlot header = Header(frame, parent, inputs.Packets);
-        int count = header.ReadByte(16);
+        int count = header.ReadContactCount();
         for (int index = 0; index < count; index++)
         {
             (frame, uint child) = Append(frame, 0x26466D0, 0x824970, 128, address, inputs.Packets);

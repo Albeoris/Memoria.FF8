@@ -66,7 +66,7 @@ public sealed partial class BattleSession
             BattleModelTargets cover = BattleModelTargets.FromNative(context.CoverMask);
             NativeBattleActionGeometry.ValidatePresentationRows(roster, context.ActorIndex, targets, cover);
             int source = context.ActorIndex;
-            byte command = header.ReadByte(1);
+            byte command = header.Command;
             if (command == 0xF0)
             {
                 int? selected = null;
@@ -97,7 +97,7 @@ public sealed partial class BattleSession
             return PrepareNativeActionGeometry(graphics, source, selection, effective);
         }
         int actorIndex = context.ActorIndex;
-        if (header.ReadByte(1) == 0xF0)
+        if (header.Command == 0xF0)
         {
             int? selected = null;
             for (int index = 0; index < 3; index++)
@@ -119,7 +119,7 @@ public sealed partial class BattleSession
         }
         BattleCombatant actor = GraphicsActor(graphics, actorIndex);
         string target = context.FirstTarget is byte first ? GraphicsActor(graphics, first).Id : actor.Id;
-        BattleAttackCommand geometry = new(actor.Id, target) { NativeTargetMask = context.CoverMask != 0 ? context.CoverMask : context.TargetMask, NativeQueuedCommand = header.ReadByte(1) };
+        BattleAttackCommand geometry = new(actor.Id, target) { NativeTargetMask = context.CoverMask != 0 ? context.CoverMask : context.TargetMask, NativeQueuedCommand = header.Command };
         return PrepareNativeActionGeometry(graphics, actor, geometry);
     }
 

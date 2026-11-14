@@ -64,7 +64,7 @@ public static class NativeBattleQuezacotl
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(0x2521748, 0x2521758, 20, 1);
         (main, _) = main.Append(0x6C3760);
         NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
-        int count = header.ReadByte(16);
+        int count = header.ReadContactCount();
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native6C3640 requires the actual physical target contact pointer.");
         if (count == 0)
         {

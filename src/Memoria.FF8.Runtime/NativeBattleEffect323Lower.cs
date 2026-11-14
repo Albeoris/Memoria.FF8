@@ -34,7 +34,7 @@ public static class NativeBattleEffect323Lower
             NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("The contact walk requires its current action header.");
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
             NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
-            if (relative >= header.ReadByte(16))
+            if (relative >= header.ReadContactCount())
             {
                 return frame;
             }

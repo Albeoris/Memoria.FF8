@@ -292,7 +292,7 @@ public static class NativeBattleShot194
                 state = state with { Anchors = state.Anchors.SetItem(serial, inputs.ReadMuzzle(state.Actor)) };
                 NativeBattleActionHeaderSlot header = inputs.Packets.Headers[frame.Effect.Parameters!.HeaderIndex7C];
                 int first = header.FirstContactIndex ?? throw new InvalidDataException("Native Flame Shot requires its physical contact pointer.");
-                int count = header.ReadByte(16);
+                int count = header.ReadContactCount();
                 short x = 0;
                 short y = 0;
                 short z = 0;

@@ -37,7 +37,7 @@ public static partial class NativeBattleClash26Controller
         hierarchy = root.Hierarchy;
         NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, 0x1D99A78, 0, 0);
         NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
-        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78).WriteByte(0x2D, actors.Target).WriteWord(0x5A, header.ReadByte(16)).WriteWord(0x58, header.ReadByte(17));
+        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78).WriteByte(0x2D, actors.Target).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
         hierarchy = hierarchy.Write(root.Address, task);
         int offset = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x26D90D8)?.ArenaOffset ?? throw new NotSupportedException("Native8885D0 requires its executed26D90D8 resource pointer.");
         int packetOffset = memory.Cursor;

@@ -173,7 +173,7 @@ public static partial class NativeBattleEffect313Controller
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
             NativeBattleActionHeaderSlot header = CurrentHeader(frame, packets);
             int contact = -1;
-            int contactCount = header.ReadByte(16);
+            int contactCount = header.ReadContactCount();
             int first = contactCount == 0 ? 0 : header.FirstContactIndex ?? throw new NotSupportedException("Effect313 requires its current contact pointer.");
             for (int index = 0; index < contactCount; index++)
             {
