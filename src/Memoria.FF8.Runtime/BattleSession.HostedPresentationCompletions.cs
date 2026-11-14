@@ -4,16 +4,6 @@ public sealed partial class BattleSession
 {
     internal sealed record HostedCompletionInvocation(NativeBattlePresentationCompletionRequested Request, int Slot, byte Serial, bool Reached = false, bool Retired = false);
 
-    internal sealed class PreparedHostedCompletion(BattleSession owner, NativeBattleGraphicsState graphics, long epoch, long nextEpoch, NativeBattleGraphicsState admitted, HostedCompletionInvocation invocation)
-    {
-        internal BattleSession Owner { get; } = owner;
-        internal NativeBattleGraphicsState Graphics { get; } = graphics;
-        internal long Epoch { get; } = epoch;
-        internal long NextEpoch { get; } = nextEpoch;
-        internal NativeBattleGraphicsState Admitted { get; } = admitted;
-        internal HostedCompletionInvocation Invocation { get; } = invocation;
-    }
-
     internal sealed class PreparedHostedCompletionAck(BattleSession owner, NativeBattleGraphicsState graphics, long epoch, long nextEpoch, HostedCompletionInvocation invocation, NativeBattleActionPacketsState originalPackets, NativeBattleActionPacketsState acknowledgedPackets)
     {
         internal BattleSession Owner { get; } = owner;
@@ -53,53 +43,28 @@ public sealed partial class BattleSession
         }
     }
 
-    internal PreparedHostedCompletion PrepareHostedCompletion(uint callback, int row, string actorId)
+    internal PreparedHostedDispatch PrepareHostedCompletion(uint callback, int row, string actorId)
     {
-        if (!IsHostedCompletionCallback(callback))
-        {
-            throw new ArgumentOutOfRangeException(nameof(callback), "The hosted callback is not a native combat completion.");
-        }
-        if (!hostedBattlePresentation || NativeGraphics is not { EntryReady: true, PresentationRoster: { } roster } graphics ||
-            hostedFrameServices is not null || hostedPresentationInvocation is not null || hostedCompletionInvocation is not null)
-        {
-            throw new InvalidOperationException("Hosted completion admission requires an idle presentation process after entry.");
-        }
-        RequireHostedActionModelBank(graphics, roster);
-        if (!roster.ContainsRow(row) || !StringComparer.Ordinal.Equals(roster[row].ActorId, actorId))
-        {
-            throw new InvalidDataException("Hosted completion requires its canonical bound actor.");
-        }
-
-        (NativeBattleDescriptorState descriptors, int slot) = graphics.Descriptors.Enqueue(10, 128, callback);
-        long token = checked(lastHostedCompletionIssued + 1);
-        HostedCompletionInvocation invocation = new(new(token, callback, row, actorId), slot, descriptors.Packets[slot].Serial);
-        return new(this, graphics, hostedPreparationEpoch, checked(hostedPreparationEpoch + 1), graphics with { Descriptors = descriptors }, invocation);
+        return PrepareHostedDispatch([], completion: new(callback, row, actorId));
     }
 
-    internal void ValidatePreparedHostedCompletion(PreparedHostedCompletion prepared)
+    internal void ValidatePreparedHostedCompletion(PreparedHostedDispatch prepared)
     {
-        ArgumentNullException.ThrowIfNull(prepared);
-        if (!ReferenceEquals(prepared.Owner, this) || !ReferenceEquals(prepared.Graphics, NativeGraphics) || prepared.Epoch != hostedPreparationEpoch ||
-            hostedFrameServices is not null || hostedPresentationInvocation is not null || hostedCompletionInvocation is not null)
-        {
-            throw new InvalidOperationException("The prepared completion no longer belongs to this idle hosted process.");
-        }
+        ValidatePreparedHostedDispatch(prepared);
     }
 
-    internal long PublishHostedCompletion(PreparedHostedCompletion prepared)
+    internal long PublishHostedCompletion(PreparedHostedDispatch prepared)
     {
-        ValidatePreparedHostedCompletion(prepared);
-        NativeGraphics = prepared.Admitted;
-        hostedCompletionInvocation = prepared.Invocation;
-        lastHostedCompletionIssued = prepared.Invocation.Request.Token;
-        hostedPreparationEpoch = prepared.NextEpoch;
-        return lastHostedCompletionIssued;
+        ValidatePreparedHostedDispatch(prepared);
+        HostedCompletionInvocation completion = prepared.Completion ?? throw new InvalidDataException("Prepared dispatch has no completion.");
+        CommitHostedDispatch(prepared);
+        return completion.Request.Token;
     }
 
     private void ReachHostedCompletion(NativeBattleGraphicsState graphics, int slot, NativeBattleDescriptorPacket packet)
     {
         NativeBattleModelLifecycleServices services = hostedFrameServices ?? throw new InvalidOperationException("Hosted completion requires its current ordered receipt service.");
-        if (hostedCompletionInvocation is not { Reached: false } pending || !MatchesHostedCompletion(pending, slot, packet) ||
+        if (hostedPresentationInvocation is not null || hostedCompletionInvocation is not { Reached: false } pending || !MatchesHostedCompletion(pending, slot, packet) ||
             graphics.PresentationRoster is not { } roster || !roster.ContainsRow(pending.Request.Row) ||
             !StringComparer.Ordinal.Equals(roster[pending.Request.Row].ActorId, pending.Request.ActorId))
         {
@@ -118,6 +83,17 @@ public sealed partial class BattleSession
             NativeGraphics = graphics with { Descriptors = state };
             hostedCompletionInvocation = pending with { Retired = true };
         }
+    }
+
+    internal bool IsHostedCompletionQueued(long token)
+    {
+        if (hostedCompletionInvocation is not { Reached: false, Retired: false } pending || pending.Request.Token != token ||
+            NativeGraphics is not { PresentationRoster: { } roster } graphics || !roster.ContainsRow(pending.Request.Row) ||
+            !StringComparer.Ordinal.Equals(roster[pending.Request.Row].ActorId, pending.Request.ActorId))
+        {
+            return false;
+        }
+        return graphics.Descriptors.Queue.Contains(pending.Slot) && MatchesHostedCompletion(pending, pending.Slot, graphics.Descriptors.Packets[pending.Slot]);
     }
 
     private static bool MatchesHostedCompletion(HostedCompletionInvocation pending, int slot, NativeBattleDescriptorPacket packet)
@@ -160,10 +136,7 @@ public sealed partial class BattleSession
 
     internal void PublishHostedCompletionAck(PreparedHostedCompletionAck prepared)
     {
-        ValidatePreparedHostedCompletionAck(prepared);
-        nativeActionPackets = prepared.AcknowledgedPackets;
-        hostedCompletionInvocation = null;
-        lastHostedCompletionAcknowledged = prepared.Invocation.Request.Token;
-        hostedPreparationEpoch = prepared.NextEpoch;
+        PreparedHostedDispatch acknowledgment = PrepareHostedDispatch([], acknowledgment: prepared);
+        CommitHostedDispatch(acknowledgment);
     }
 }

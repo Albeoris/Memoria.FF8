@@ -21,7 +21,7 @@ public sealed class NativeBattleHostedActionPreparationTests
         NativeBattleModelTextureCache cache = session.NativeModelTextureCache!;
         NativeGlobalRandomChange? random = session.NativeGlobalRandomChange;
 
-        BattleSession.PreparedHostedAction prepared = session.PrepareHostedAction(Header, [Contact, Contact]);
+        BattleSession.PreparedHostedDispatch prepared = session.PrepareHostedAction(Header, [Contact, Contact]);
         session.ValidatePreparedHostedAction(prepared);
 
         Assert.Same(graphics, session.NativeGraphics);
@@ -49,8 +49,8 @@ public sealed class NativeBattleHostedActionPreparationTests
     {
         BattleSession session = Fixture();
         BattleSession other = Fixture();
-        BattleSession.PreparedHostedAction first = session.PrepareHostedAction(Header, [Contact]);
-        BattleSession.PreparedHostedAction second = session.PrepareHostedAction(Header, [Contact, Contact]);
+        BattleSession.PreparedHostedDispatch first = session.PrepareHostedAction(Header, [Contact]);
+        BattleSession.PreparedHostedDispatch second = session.PrepareHostedAction(Header, [Contact, Contact]);
         NativeBattleGraphicsState otherGraphics = other.NativeGraphics!;
         NativeBattleActionPacketsState otherPackets = other.NativeActionPackets;
 
@@ -75,7 +75,7 @@ public sealed class NativeBattleHostedActionPreparationTests
     {
         BattleSession session = Fixture();
         BattleSession logical = new(Definition(), BattleAtbMode.TurnBased);
-        BattleSession.PreparedHostedAction prepared = session.PrepareHostedAction(Header, [Contact]);
+        BattleSession.PreparedHostedDispatch prepared = session.PrepareHostedAction(Header, [Contact]);
         NativeBattleGraphicsState graphics = session.NativeGraphics!;
         NativeBattleActionPacketsState packets = session.NativeActionPackets;
         // Missing I/O fails after valid canonical facts and the start of frame mutation, before graphics changes.
@@ -96,7 +96,7 @@ public sealed class NativeBattleHostedActionPreparationTests
     {
         BattleSession session = Fixture();
         BattleSession conflicting = new(Definition("other"), BattleAtbMode.TurnBased);
-        BattleSession.PreparedHostedAction first = session.PrepareHostedAction(Header, [Contact]);
+        BattleSession.PreparedHostedDispatch first = session.PrepareHostedAction(Header, [Contact]);
         NativeBattleGraphicsState graphics = session.NativeGraphics!;
         NativeBattleActionPacketsState packets = session.NativeActionPackets;
         NativeGlobalRandomChange? random = session.NativeGlobalRandomChange;
@@ -115,14 +115,14 @@ public sealed class NativeBattleHostedActionPreparationTests
     {
         BattleSession session = Fixture();
         BattleSession logical = new(Definition(), BattleAtbMode.TurnBased);
-        BattleSession.PreparedHostedAction stale = session.PrepareHostedAction(Header, [Contact]);
+        BattleSession.PreparedHostedDispatch stale = session.PrepareHostedAction(Header, [Contact]);
         bool ran = false;
 
         NotSupportedException missingIo = Assert.Throws<NotSupportedException>(() => session.AdvanceHostedBattlePresentationFrame(logical, null, () =>
         {
             ran = true;
             Assert.Throws<InvalidOperationException>(() => session.ValidatePreparedHostedAction(stale));
-            BattleSession.PreparedHostedAction prepared = session.PrepareHostedAction(Header, [Contact]);
+            BattleSession.PreparedHostedDispatch prepared = session.PrepareHostedAction(Header, [Contact]);
             NativeBattleGraphicsRoster roster = session.NativeGraphics!.PresentationRoster!;
             Field("hostedFrameServices").SetValue(session, logical.CaptureExpandedModelLifecycleServices(roster));
             try

@@ -101,9 +101,8 @@ public sealed partial class BattleSession
 
     private void AdvanceExpandedAction(BattleActionPresentation command)
     {
-        if (expandedHostedActionToken is long token)
+        if (expandedHostedEvent is not null)
         {
-            AdvanceExpandedHostedInvocation(command, token);
             return;
         }
         if (expandedEffect is { } effect)
@@ -417,7 +416,7 @@ public sealed partial class BattleSession
             {
                 phoenixRevival = ResolveExpandedPhoenixRevival(actor, resolved);
             }
-            if (!independentSupport)
+            if (!hosted && !independentSupport)
             {
                 CompleteNativeActionStatuses(actor);
             }
@@ -451,7 +450,7 @@ public sealed partial class BattleSession
                 CommitExpandedEnemyDraw(first.RecipientId, ref pendingEnemyDraw);
             }
         }
-        if (!hostedGunblade)
+        if (!hosted)
         {
             FlushExpandedEnemyReactions();
         }

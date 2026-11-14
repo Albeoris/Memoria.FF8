@@ -250,7 +250,7 @@ public sealed partial class BattleSession
             {
                 SpendExpandedMagicGroupStock(actor, command.ActionId, reservationId, 1);
             }
-            if (completed > 0)
+            if (!hosted && completed > 0)
             {
                 resolvingNativeAction = command;
                 CompleteNativeActionStatuses(actor);
@@ -263,9 +263,16 @@ public sealed partial class BattleSession
             resolvingNativeAction = null;
             nativeActionCommitDepth--;
         }
-        FlushExpandedEnemyReactions();
+        if (!hosted)
+        {
+            FlushExpandedEnemyReactions();
+        }
         if (completed == 0)
         {
+            if (hosted)
+            {
+                nativeReactionOrder = null;
+            }
             CompleteActionPresentation(command, "Expanded action cancelled.");
             return;
         }

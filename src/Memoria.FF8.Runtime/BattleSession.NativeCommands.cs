@@ -105,7 +105,7 @@ public sealed partial class BattleSession
         }
         if (UsesExpandedRoster)
         {
-            return choices.Where(SupportsExpandedOrdinaryCommand).Select(action => ExpandedOrdinaryCommandDefinition(actor, action)).ToArray();
+            return choices.Where(CanInvokeExpandedOrdinaryCommand).Select(action => ExpandedOrdinaryCommandDefinition(actor, action)).ToArray();
         }
         return choices.Select(action =>
         {
@@ -129,8 +129,18 @@ public sealed partial class BattleSession
         };
     }
 
+    private bool CanInvokeExpandedOrdinaryCommand(BattleNativeAction action)
+    {
+        return SupportsExpandedOrdinaryCommand(action) && (action.Command != 28 || OwnsExpandedHostedInvocation);
+    }
+
     private bool SupportsExpandedOrdinaryCommand(BattleNativeAction action)
     {
+        if (action is { Command: 28, DispatchCommand: 28, ActionId: 0, KernelSection: 4, CharacterId: not null, MagicId: 0, HitCount: 1, AttackFlags: 0, TargetFlags: byte weaponTargets })
+        {
+            // The hosted event tail applies the fixed HP cost for this weapon invocation.
+            return (weaponTargets & 0x31) == 0x10 && action.AttackType is 1 or 7 or 9 or 18 or 34 or 36 && ExpandedBattleActionRules.SupportsContacts(action);
+        }
         if (IsExpandedMiniMogAction(action))
         {
             return definition.NativePocketStation is not null && nativeGil is not null && (definition.NativeSavedBattleFlagsKnownMask & 1) != 0;
@@ -251,7 +261,7 @@ public sealed partial class BattleSession
                 OnNativePlayerCommandSubmitted(actor, command);
                 return;
             }
-            if (!limit && !SupportsExpandedOrdinaryCommand(native))
+            if (!limit && !CanInvokeExpandedOrdinaryCommand(native))
             {
                 throw new NotSupportedException("The equipped command requires a battle process outside the expanded host.");
             }

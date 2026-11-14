@@ -7,12 +7,16 @@ public sealed partial class BattleSession
     private sealed record ExpandedHostedInvocation(BattleActionPresentation Command, NativeBattleActionHeaderPreparation Header, ImmutableArray<ExpandedBattleContact> Contacts, BattlePendingEnemyDraw? EnemyDraw)
     {
         internal bool PendingGunblade { get; init; }
-        internal bool CommittedGunblade { get; init; }
+        internal int? HeaderIndex { get; init; }
+        internal int FirstContactIndex { get; init; }
     }
+
+    private sealed record ExpandedHostedEvent(BattleActionPresentation Command, BattleActionPresentation ActivePresentation, uint Callback, long? CompletionToken);
 
     private bool preparingExpandedHostedAction;
     private ImmutableArray<ExpandedHostedInvocation> expandedHostedInvocations = [];
     private long? expandedHostedActionToken;
+    private ExpandedHostedEvent? expandedHostedEvent;
     private bool OwnsExpandedHostedInvocation => expandedPresentationProcess is not null || preparingExpandedHostedAction;
 
     private static void RequireOrdinaryExpandedHostedCommand(BattleActionPresentation command)
@@ -77,14 +81,28 @@ public sealed partial class BattleSession
         }
     }
 
-    private static PreparedHostedAction PrepareExpandedHostedInvocation(ExpandedBattlePresentationProcess process, ExpandedHostedInvocation invocation)
+    private PreparedHostedDispatch PrepareExpandedHostedEventSegment(ExpandedBattlePresentationProcess process, NativeBattleGraphicsRoster roster, BattleActionPresentation command, uint callback, PreparedHostedCompletionAck? acknowledgment = null)
     {
-        return process.PrepareAction(invocation.Header, invocation.Contacts.Select(contact => contact.Packet).ToImmutableArray());
+        ImmutableArray<HostedDispatchHeader> headers = expandedHostedInvocations.Select(invocation => new HostedDispatchHeader(invocation.Header, invocation.Contacts.Select(contact => contact.Packet).ToImmutableArray())).ToImmutableArray();
+        HostedDispatchCompletion? completion = headers.Length == 1 ? ReadExpandedHostedCompletion(roster, command, callback) : null;
+        PreparedHostedDispatch prepared = process.PrepareDispatch(headers, dispatchAppended: true, completion: completion, acknowledgment: acknowledgment);
+        expandedHostedInvocations = expandedHostedInvocations.Select((invocation, index) =>
+        {
+            int headerIndex = prepared.AppendedIndices[index];
+            int firstContactIndex = prepared.Packets.Headers[headerIndex].FirstContactIndex ?? throw new InvalidDataException("The appended hosted header has no retained contact pointer.");
+            return invocation with { HeaderIndex = headerIndex, FirstContactIndex = firstContactIndex };
+        }).ToImmutableArray();
+        return prepared;
+    }
+
+    private HostedDispatchCompletion ReadExpandedHostedCompletion(NativeBattleGraphicsRoster roster, BattleActionPresentation command, uint callback)
+    {
+        return new(callback, RequireExpandedPresentationRow(roster, GetActor(command.ActorId)), command.ActorId);
     }
 
     private static NativeBattleEffectContactBridge<string>? PrepareExpandedHostedContactBridge(ExpandedHostedInvocation invocation, NativeBattleGraphicsRoster roster)
     {
-        return invocation.Contacts.IsEmpty ? null : new(invocation.Contacts.Select(contact => (contact.RecipientId, contact.Packet)), roster);
+        return invocation.Contacts.IsEmpty ? null : new(invocation.Contacts.Select(contact => (contact.RecipientId, contact.Packet)), roster, invocation.FirstContactIndex);
     }
 
     private void BindExpandedHostedContactTracking(ExpandedHostedInvocation invocation, NativeBattleGraphicsRoster roster, NativeBattleEffectContactBridge<string>? bridge)
@@ -98,10 +116,14 @@ public sealed partial class BattleSession
         expandedPresentedOccurrences.Clear();
     }
 
-    private void AdvanceExpandedHostedInvocation(BattleActionPresentation action, long token)
+    private void AdvanceExpandedHostedInvocation(long? token)
     {
+        if (expandedHostedEvent is not { } hostedEvent || token is null || token != expandedHostedActionToken)
+        {
+            return;
+        }
         ExpandedBattlePresentationProcess process = expandedPresentationProcess ?? throw new InvalidOperationException("A hosted action lost its attached process.");
-        if (!process.IsActionComplete(token))
+        if (!process.IsActionComplete(token.Value))
         {
             return;
         }
@@ -112,15 +134,10 @@ public sealed partial class BattleSession
         ValidateExpandedEffectContactCompletion();
         if (expandedHostedInvocations.Length == 1)
         {
-            if (expandedHostedInvocations[0].CommittedGunblade)
+            if (hostedEvent.CompletionToken is not long completionToken || !process.IsCompletionQueued(completionToken))
             {
-                FlushExpandedEnemyReactions();
+                throw new InvalidDataException("The final hosted action retired without its owned native completion.");
             }
-            expandedHostedActionToken = null;
-            expandedHostedInvocations = [];
-            ReleaseExpandedEffect();
-            CompleteExpandedHostedEventGauge(action);
-            CompleteActionPresentation(action, "Expanded action completed.");
             return;
         }
 
@@ -128,12 +145,17 @@ public sealed partial class BattleSession
         ValidateExpandedHostedInvocations(roster);
         ImmutableArray<ExpandedHostedInvocation> remaining = expandedHostedInvocations.RemoveAt(0);
         ExpandedHostedInvocation invocation = remaining[0];
-        PreparedHostedAction next = PrepareExpandedHostedInvocation(process, invocation);
+        HostedDispatchCompletion? completion = remaining.Length == 1 ? ReadExpandedHostedCompletion(roster, hostedEvent.Command, hostedEvent.Callback) : null;
+        int index = invocation.HeaderIndex ?? throw new InvalidDataException("Hosted invocation lost its prepared header index.");
+        PreparedHostedDispatch next = process.PrepareDispatch([], headerIndex: index, completion: completion);
         NativeBattleEffectContactBridge<string>? bridge = PrepareExpandedHostedContactBridge(invocation, roster);
-        process.ValidatePreparedAction(next);
+        ExpandedHostedEvent nextEvent = hostedEvent with { CompletionToken = next.Completion?.Request.Token };
+        process.ValidatePreparedDispatch(next);
         expandedHostedInvocations = remaining;
         BindExpandedHostedContactTracking(invocation, roster, bridge);
-        expandedHostedActionToken = process.PublishAction(next);
+        expandedHostedEvent = nextEvent;
+        expandedHostedActionToken = next.Action!.Invocation.Token;
+        process.CommitDispatch(next);
     }
 
     private void ApplyExpandedHostedFrameReceipts(NativeBattleModelLifecycleServices services, long? actionToken)
@@ -181,10 +203,14 @@ public sealed partial class BattleSession
                 case NativeBattleModelTriggerRegistered trigger:
                     AcknowledgeExpandedGunbladeRegistration(trigger, actionToken);
                     break;
+                case NativeBattlePresentationCompletionRequested completion:
+                    CompleteExpandedHostedEvent(completion, actionToken);
+                    break;
                 default:
                     // TODO(TD-009): Finish the remaining hosted lifecycle acknowledgements before App attachment.
                     throw new NotSupportedException($"Hosted parent acknowledgement does not handle {receipt.GetType().Name}.");
             }
         }
+        AdvanceExpandedHostedInvocation(actionToken);
     }
 }

@@ -20,11 +20,11 @@ public sealed class NativeBattleHostedCompletionTests
     public void Actual_descriptor_execution_requests_one_ordered_acknowledgement(uint callback, bool reset)
     {
         var (logical, child, process) = Fixture();
-        BattleSession.PreparedHostedAction staleAction = child.PrepareHostedAction(Header, [Contact]);
+        BattleSession.PreparedHostedDispatch staleAction = child.PrepareHostedAction(Header, [Contact]);
         NativeBattleActionPacketsState packets = PopulatedPackets(child.NativeGraphics!.PresentationRoster!);
         Field(child, "nativeActionPackets").SetValue(child, packets);
         NativeBattleGraphicsState before = child.NativeGraphics;
-        BattleSession.PreparedHostedCompletion prepared = process.PrepareCompletion(callback, Row, ActorId);
+        BattleSession.PreparedHostedDispatch prepared = process.PrepareCompletion(callback, Row, ActorId);
         Assert.Same(before, child.NativeGraphics);
         Assert.Same(packets, child.NativeActionPackets);
 
@@ -177,7 +177,7 @@ public sealed class NativeBattleHostedCompletionTests
     {
         var (logical, child, process) = Fixture();
         NativeBattleGraphicsState graphics = child.NativeGraphics!;
-        BattleSession.PreparedHostedCompletion prepared = process.PrepareCompletion(0x47DDA0, Row, ActorId);
+        BattleSession.PreparedHostedDispatch prepared = process.PrepareCompletion(0x47DDA0, Row, ActorId);
         Assert.Throws<ArgumentOutOfRangeException>(() => process.PrepareCompletion(0x47DD70, Row, ActorId));
         Assert.Throws<InvalidDataException>(() => process.PrepareCompletion(0x47DDA0, 6, ActorId));
         Assert.Throws<InvalidDataException>(() => process.PrepareCompletion(0x47DDA0, Row, "foreign"));
@@ -195,6 +195,91 @@ public sealed class NativeBattleHostedCompletionTests
         Assert.Same(unowned, child.NativeGraphics);
         Assert.Empty(services.ReadOrderedReceipts());
         Assert.Null(process.PendingCompletion);
+    }
+
+    [Fact]
+    public void Retired_completion_and_appended_dispatch_share_one_atomic_packet_transition()
+    {
+        var (logical, child, process) = Fixture();
+        NativeBattleGraphicsState graphics = child.NativeGraphics!;
+        NativeBattleGraphicsRoster roster = graphics.PresentationRoster!;
+        int boundary = NativeBattleActionPacketsState.ContactCapacity;
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromPresentationStorage(roster).Prepare(Header).State;
+        packets = packets.AppendContacts(Enumerable.Repeat(Contact, boundary)).Publish(boundary).State;
+        packets = packets.Prepare(Header with { Command = 0, Sequence = 10, Action = 9 }).State.Publish(0).State;
+        NativeBattleActionHeaderSlot retainedEmpty = packets.Headers[1];
+        Field(child, "nativeActionPackets").SetValue(child, packets);
+        long token = process.PublishCompletion(process.PrepareCompletion(0x47DE70, Row, ActorId));
+        RunDescriptors(child, logical.CaptureExpandedModelLifecycleServices(roster));
+        NativeBattlePresentationCompletionRequested pending = Assert.IsType<NativeBattlePresentationCompletionRequested>(process.PendingCompletion);
+        NativeBattleGraphicsState retired = child.NativeGraphics!;
+        BattleSession.PreparedHostedCompletionAck ack = process.PrepareCompletionAck(token, false);
+        BattleSession.HostedDispatchCompletion completion = new(0x47E120, Row, ActorId);
+        BattleSession.HostedDispatchHeader addition = new(Header, [Contact]);
+        NativeBattleContactPacket unbound = Contact with { Primary = Contact.Primary with { ActorIndex = 6 } };
+
+        Assert.Throws<InvalidDataException>(() => process.PrepareDispatch([addition, new(Header, [unbound])], dispatchAppended: true, completion: completion, acknowledgment: ack));
+        Assert.Throws<InvalidDataException>(() => child.PrepareHostedDispatch([addition], dispatchAppended: true, completion: completion, acknowledgment: ack, freshActionPackets: true));
+        Assert.Throws<InvalidOperationException>(() => process.PrepareDispatch([.. Enumerable.Repeat(addition, NativeBattleActionPacketsState.HeaderCapacity)], dispatchAppended: true, completion: completion, acknowledgment: ack));
+        Assert.Same(packets, child.NativeActionPackets);
+        Assert.Same(retired, child.NativeGraphics);
+        Assert.Same(pending, process.PendingCompletion);
+
+        BattleSession.PreparedHostedDispatch prepared = process.PrepareDispatch([addition], dispatchAppended: true, completion: completion, acknowledgment: ack);
+        Assert.Same(packets, child.NativeActionPackets);
+        Assert.Same(pending, process.PendingCompletion);
+        Assert.Equal(2, Assert.Single(prepared.AppendedIndices));
+        Assert.Equal(boundary + 1, prepared.Packets.StorageCapacity);
+        Assert.Equal(boundary + 1, prepared.Packets.ContactCount);
+        Assert.Same(packets.Headers[0], prepared.Packets.Headers[0]);
+        NativeBattleActionHeaderSlot movedEmpty = prepared.Packets.Headers[1];
+        Assert.Equal(boundary, movedEmpty.FirstContactIndex);
+        Assert.Equal(retainedEmpty.UnknownByteMask, movedEmpty.UnknownByteMask);
+        Assert.Equal(retainedEmpty.Payload.Take(8), movedEmpty.Payload.Take(8));
+        Assert.Equal(retainedEmpty.Payload.Skip(12), movedEmpty.Payload.Skip(12));
+        Assert.Equal(NativeBattleContactAddress.EncodeCursor(boundary, boundary + 1), System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(movedEmpty.Payload.AsSpan()[8..]));
+        Assert.Equal((byte)0, prepared.Packets.Headers[2].ReadByte(17));
+        prepared.Packets.Validate();
+
+        NativeBattleEffectContactBridge<string> bridge = new([("enemy", Contact)], roster, boundary);
+        NativeBattleContactPacket appended = Assert.Single(prepared.Packets.ReadHeaderContacts506BA0(2));
+        Assert.Equal(boundary, appended.PhysicalContactIndex);
+        Assert.Equal((0, "enemy"), bridge.ResolveOccurrence(appended));
+        Assert.Throws<NotSupportedException>(() => bridge.ResolveOccurrence(prepared.Packets.ReadContact(boundary - 1)));
+        Assert.Throws<NotSupportedException>(() => bridge.ResolveOccurrence(appended with { PhysicalContactIndex = boundary + 1 }));
+        Assert.Throws<InvalidDataException>(() => new NativeBattleEffectContactBridge<string>([("enemy", Contact), ("enemy", Contact)], roster, NativeBattleContactAddress.MaximumRowCount - 1));
+
+        process.ValidatePreparedDispatch(prepared);
+        process.CommitDispatch(prepared);
+        Assert.True(process.IsCompletionAcknowledged(token));
+        Assert.Null(process.PendingCompletion);
+        Assert.Same(prepared.Packets, child.NativeActionPackets);
+        Assert.Collection(child.NativeGraphics!.Descriptors.Queue,
+            slot => Assert.Equal((ushort)104, child.NativeGraphics.Descriptors.Packets[slot].Command),
+            slot => Assert.Equal((ushort)10, child.NativeGraphics.Descriptors.Packets[slot].Command));
+        Assert.Throws<InvalidOperationException>(() => process.ValidatePreparedDispatch(prepared));
+        Assert.Equal(2, prepared.Action!.Invocation.HeaderIndex);
+    }
+
+    [Theory]
+    [InlineData(0, true)]
+    [InlineData(0x40, false)]
+    [InlineData(0x100, false)]
+    public void Native_self_contact_controls_wait_for_the_bound_extended_target(ushort resourceFlags, bool busy)
+    {
+        var (_, child, _) = Fixture();
+        NativeBattleGraphicsState graphics = child.NativeGraphics!;
+        NativeBattleGraphicsModel actor = graphics.Models[Row] with { Flags0 = 0, Flags8 = 0, Kind5 = 0, ResourceFlags44 = resourceFlags };
+        graphics = graphics with { Models = graphics.Models.SetItem(Row, actor) };
+        NativeBattleGraphicsRoster roster = graphics.PresentationRoster!;
+        NativeBattleActionHeaderPreparation self = Header with { Command = 0, Sequence = 0, Action = 2 };
+        NativeBattleContactPacket contact = Contact with { Primary = Contact.Primary with { ActorIndex = Row } };
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromPresentationStorage(roster).Prepare(self).State;
+        packets = packets.AppendContacts([contact]).Publish(1).State.WritePlayerRepeatMode(0, 1);
+        NativeBattleActionGraphicsState context = NativeBattleActionGraphics.Normalize(packets, 0);
+        Assert.Equal(0u, context.TargetMask);
+        Assert.True(context.TargetActors.IsSingle(Row));
+        Assert.Equal(busy, typeof(BattleSession).GetMethod("NativeHeaderTargetsBusy", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [graphics, context]));
     }
 
     private static NativeBattleActionPacketsState PopulatedPackets(NativeBattleGraphicsRoster roster)

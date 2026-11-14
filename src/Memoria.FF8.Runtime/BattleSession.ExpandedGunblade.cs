@@ -83,7 +83,7 @@ public sealed partial class BattleSession
         NativeBattleContactPacket packet = candidate.ResolveExpandedGunbladeContact(invocation, previous, receipt);
         ExpandedHostedInvocation resolved = invocation with
         {
-            Contacts = [new(previous.RecipientId, packet)], EnemyDraw = candidate.TakePendingHostedEnemyDraw(), PendingGunblade = false, CommittedGunblade = true
+            Contacts = [new(previous.RecipientId, packet)], EnemyDraw = candidate.TakePendingHostedEnemyDraw(), PendingGunblade = false
         };
         NativeBattleEffectContactBridge<string>? bridge = PrepareExpandedHostedContactBridge(resolved, roster);
         var invocations = expandedHostedInvocations.SetItem(0, resolved);

@@ -7,20 +7,27 @@ public sealed class NativeBattleEffectContactBridge<TRecipient> where TRecipient
 {
     private readonly ImmutableArray<(TRecipient Recipient, NativeBattleContactPacket Packet)> targets;
     private readonly NativeBattleGraphicsRoster? roster;
+    private readonly int firstContactIndex;
 
-    public NativeBattleEffectContactBridge(IEnumerable<(TRecipient Recipient, NativeBattleContactHalf Contact)> targets, NativeBattleGraphicsRoster? roster = null)
-        : this((targets ?? throw new ArgumentNullException(nameof(targets))).Select(target => (target.Recipient, new NativeBattleContactPacket(target.Contact, new(255, 0, 0, 0, 0, 0, 0)))), roster)
+    public NativeBattleEffectContactBridge(IEnumerable<(TRecipient Recipient, NativeBattleContactHalf Contact)> targets, NativeBattleGraphicsRoster? roster = null, int firstContactIndex = 0)
+        : this((targets ?? throw new ArgumentNullException(nameof(targets))).Select(target => (target.Recipient, new NativeBattleContactPacket(target.Contact, new(255, 0, 0, 0, 0, 0, 0)))), roster, firstContactIndex)
     {
     }
 
-    public NativeBattleEffectContactBridge(IEnumerable<(TRecipient Recipient, NativeBattleContactPacket Packet)> targets, NativeBattleGraphicsRoster? roster = null)
+    public NativeBattleEffectContactBridge(IEnumerable<(TRecipient Recipient, NativeBattleContactPacket Packet)> targets, NativeBattleGraphicsRoster? roster = null, int firstContactIndex = 0)
     {
         ArgumentNullException.ThrowIfNull(targets);
         roster?.Validate();
         this.roster = roster;
         int capacity = roster is null ? NativeBattleActionPacketsState.ContactCapacity : NativeBattleContactAddress.MaximumRowCount;
-        this.targets = targets.Take(capacity + 1).ToImmutableArray();
-        if (this.targets.IsEmpty || this.targets.Length > capacity)
+        if ((uint)firstContactIndex >= (uint)capacity)
+        {
+            throw new ArgumentOutOfRangeException(nameof(firstContactIndex));
+        }
+        this.firstContactIndex = firstContactIndex;
+        int remainingCapacity = capacity - firstContactIndex;
+        this.targets = targets.Take(remainingCapacity + 1).ToImmutableArray();
+        if (this.targets.IsEmpty || this.targets.Length > remainingCapacity)
         {
             throw new InvalidDataException("An effect action requires a nonempty contact stream within its packet capacity.");
         }
@@ -67,6 +74,10 @@ public sealed class NativeBattleEffectContactBridge<TRecipient> where TRecipient
 
     private (NativeBattleActionPacketsState Packets, NativeBattleGraphicsActorSet Targets) Prepare(NativeBattleActionPacketsState packets, byte command, byte sequence, ushort action, ushort effect, byte source)
     {
+        if (firstContactIndex != 0)
+        {
+            throw new InvalidOperationException("Preparing a new effect bank requires a contact bridge starting at zero.");
+        }
         if (targets.Any(target => target.Packet.Secondary.ActorIndex != 255 && target.Packet.Secondary.ActorIndex != source))
         {
             throw new InvalidDataException("The effect action's secondary contact requires its bound source row.");
@@ -89,11 +100,13 @@ public sealed class NativeBattleEffectContactBridge<TRecipient> where TRecipient
         ValidatePacket(packet);
         if (packet.PhysicalContactIndex is int physicalIndex)
         {
-            if ((uint)physicalIndex >= (uint)targets.Length || targets[physicalIndex].Packet != packet)
+            if (physicalIndex < firstContactIndex || physicalIndex >= firstContactIndex + targets.Length ||
+                targets[physicalIndex - firstContactIndex].Packet != packet)
             {
                 throw new NotSupportedException("The native effect published a contact that does not match its prepared occurrence.");
             }
-            return (physicalIndex, targets[physicalIndex].Recipient);
+            int index = physicalIndex - firstContactIndex;
+            return (index, targets[index].Recipient);
         }
 
         int match = -1;

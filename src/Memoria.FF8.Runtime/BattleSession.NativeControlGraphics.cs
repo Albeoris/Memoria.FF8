@@ -4,6 +4,13 @@ public sealed partial class BattleSession
 {
     private static bool NativeHeaderTargetsBusy(NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context)
     {
+        if (graphics.PresentationRoster is { } roster)
+        {
+            NativeBattleGraphicsActorSet cover = NativeBattleGraphicsActorSet.FromNative(context.CoverMask);
+            NativeBattleActionGeometry.ValidatePresentationRows(roster, context.ActorIndex, context.TargetActors, cover);
+            NativeBattleGraphicsActorSet selected = new(context.TargetActors.Bits | cover.Bits);
+            return selected.EnumerateRows().Any(row => NativeBattleActionGraphics.IsModelBusy(graphics.Models[row], 0x140));
+        }
         ushort mask = (ushort)(context.TargetMask | context.CoverMask);
         return graphics.Models.Any(model => (mask & 1 << model.Index) != 0 && NativeBattleActionGraphics.IsModelBusy(model, 0x140));
     }

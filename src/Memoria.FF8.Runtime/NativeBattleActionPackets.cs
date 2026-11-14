@@ -92,6 +92,36 @@ public sealed record NativeBattleActionPacketsState([property: JsonRequired] byt
         return new(0, 0, Enumerable.Repeat(empty, HeaderCapacity).ToImmutableArray(), Enumerable.Repeat<NativeBattleContactPacket?>(null, capacity).ToImmutableArray(), null) { PresentationRoster = roster };
     }
 
+    internal NativeBattleActionPacketsState GrowPresentationContacts(int capacity)
+    {
+        Validate();
+        ArgumentOutOfRangeException.ThrowIfNegative(capacity);
+        if (PresentationRoster is null || capacity > NativeBattleContactAddress.MaximumRowCount)
+        {
+            throw new InvalidOperationException("Hosted contacts exceed their owned packet capacity.");
+        }
+        if (capacity <= StorageCapacity)
+        {
+            return this;
+        }
+        ImmutableArray<NativeBattleActionHeaderSlot> headers = Headers;
+        if (StorageCapacity == ContactCapacity)
+        {
+            // The physical one-past cursor becomes a hosted row when this arena grows.
+            for (int index = 0; index < headers.Length; index++)
+            {
+                NativeBattleActionHeaderSlot header = headers[index];
+                if (header.FirstContactIndex == ContactCapacity)
+                {
+                    byte[] payload = header.Payload.ToArray();
+                    BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(8), NativeBattleContactAddress.EncodeCursor(ContactCapacity, capacity));
+                    headers = headers.SetItem(index, header with { Payload = ImmutableArray.CreateRange(payload) });
+                }
+            }
+        }
+        return this with { Headers = headers, Contacts = Contacts.AddRange(Enumerable.Repeat<NativeBattleContactPacket?>(null, capacity - StorageCapacity)) };
+    }
+
     internal NativeBattleActionPacketsState DetachDiagnosticCopy()
     {
         Validate();

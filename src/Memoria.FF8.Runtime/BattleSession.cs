@@ -343,7 +343,7 @@ public sealed partial class BattleSession
             throw new ArgumentOutOfRangeException(nameof(maxFrames));
         }
         HashSet<string> waiting = combatants.Where(actor => IsNativeBattleCapable(actor) && !actor.Suspended && (!actor.IsBusy || guardianForceCasts.ContainsKey(actor.Id) && (actor.NativeCombatantFlags & 0x400) == 0) && !actor.IsReady).Select(actor => actor.Id).ToHashSet(StringComparer.Ordinal);
-        if (expandedEffect is not null || expandedHostedActionToken is not null || !CanExplicitlyAdvanceTurn || waiting.Count == 0)
+        if (expandedEffect is not null || expandedHostedEvent is not null || !CanExplicitlyAdvanceTurn || waiting.Count == 0)
         {
             return 0;
         }
@@ -1051,7 +1051,7 @@ public sealed partial class BattleSession
     {
         ReconcileExpandedShot();
         ReconcileExpandedDuel();
-        if (expandedEffect is null && expandedHostedActionToken is null && ActiveAction is { NativeHeaderIndex: null } active && (!CanRetainBattleActionActor(byId[active.ActorId], active.NativePlayerReaction, active.NativeAiCallbackStage, active.AiRecipients) || active.Phase == BattleActionPhase.Windup && active.ExpandedMagicTargets is null && !CanRetainTargets(active.ActorId, active.TargetId, active.Ability, active.ActionId, active.NativeAction, active.NativeTargetMask, active.NativeGraphic, active.AiRecipients, active.NativeLimitCallback)))
+        if (expandedEffect is null && expandedHostedEvent is null && ActiveAction is { NativeHeaderIndex: null } active && (!CanRetainBattleActionActor(byId[active.ActorId], active.NativePlayerReaction, active.NativeAiCallbackStage, active.AiRecipients) || active.Phase == BattleActionPhase.Windup && active.ExpandedMagicTargets is null && !CanRetainTargets(active.ActorId, active.TargetId, active.Ability, active.ActionId, active.NativeAction, active.NativeTargetMask, active.NativeGraphic, active.AiRecipients, active.NativeLimitCallback)))
         {
             if (!UsesExpandedRoster)
             {
@@ -1130,7 +1130,7 @@ public sealed partial class BattleSession
             return Outcome == pending && NativeGraphics!.NativeOutcome!.FadeDurationB0C == 0 ? pending : BattleOutcome.Active;
         }
         if (!NativeEntryReady || NativeScriptAllocationPending || nativeTimedAction is not null || ActiveAction?.NativeHeaderIndex is not null || IsNativeSupportInvocation(ActiveAction?.NativePlayerReaction) || IsNativeReturnDamageAction(ActiveAction?.NativeAction) || QueuedActions.Any(command => command.NativeHeaderIndex is not null || IsNativeReturnDamageAction(command.NativeAction) || IsNativeSupportInvocation(command.NativePlayerReaction) || IsNativeSupportCallback(command.NativeCallback)) ||
-            UsesExpandedRoster && (expandedEffect is not null || expandedHostedActionToken is not null || HasExpandedAiDescriptors || enemies.Any(actor => actor.ExpandedAiRemovalPending || HasExpandedEnemyDeathAction(actor)) || nativeShotProcesses.Count != 0 || nativeDuelProcesses.Count != 0 || IsShotCallback(ActiveAction?.NativeLimitCallback) || actions.Any(command => IsShotCallback(command.NativeLimitCallback))))
+            UsesExpandedRoster && (expandedEffect is not null || expandedHostedEvent is not null || HasExpandedAiDescriptors || enemies.Any(actor => actor.ExpandedAiRemovalPending || HasExpandedEnemyDeathAction(actor)) || nativeShotProcesses.Count != 0 || nativeDuelProcesses.Count != 0 || IsShotCallback(ActiveAction?.NativeLimitCallback) || actions.Any(command => IsShotCallback(command.NativeLimitCallback))))
         {
             return BattleOutcome.Active;
         }
