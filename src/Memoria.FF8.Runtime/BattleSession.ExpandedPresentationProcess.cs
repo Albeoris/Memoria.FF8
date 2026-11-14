@@ -38,11 +38,10 @@ public sealed partial class BattleSession
         try
         {
             AdvanceNativeHostTime();
-            process.Advance(this, NativeExamTimer, DispatchExpandedCore);
+            process.Advance(this, NativeExamTimer, DispatchExpandedCore, ApplyExpandedHostedFrameReceipts);
             NativeExamTimerState? presentedTimer = process.Timer;
             RequireSameHostedTimerClock(presentedTimer, NativeExamTimer);
             NativeExamTimer = presentedTimer;
-            ApplyExpandedHostedFrameReceipts(process.LastFrameServices!, process.LastStepActionToken);
             if (process.LastPostUiVitalsAdmitted)
             {
                 AdvanceExpandedPresentedVitals4B0500();

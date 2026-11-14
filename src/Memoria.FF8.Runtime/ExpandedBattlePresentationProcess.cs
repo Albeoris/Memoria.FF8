@@ -8,6 +8,7 @@ public sealed class ExpandedBattlePresentationProcess
     private readonly BattleSession logicalOwner;
     private readonly BattleSession presentation;
     private bool advancing;
+    private bool canonicalHandoff;
 
     public ExpandedBattlePresentationProcess(BattleSession logicalOwner, BattleDefinition presentationResources)
     {
@@ -63,21 +64,25 @@ public sealed class ExpandedBattlePresentationProcess
 
     internal long BeginAction(NativeBattleActionHeaderPreparation header, ImmutableArray<NativeBattleContactPacket> contacts)
     {
+        RequireAdmissionWindow();
         return presentation.BeginHostedAction(header, contacts);
     }
 
     internal BattleSession.PreparedHostedAction PrepareAction(NativeBattleActionHeaderPreparation header, ImmutableArray<NativeBattleContactPacket> contacts)
     {
+        RequireAdmissionWindow();
         return presentation.PrepareHostedAction(header, contacts);
     }
 
     internal void ValidatePreparedAction(BattleSession.PreparedHostedAction prepared)
     {
+        RequireAdmissionWindow();
         presentation.ValidatePreparedHostedAction(prepared);
     }
 
     internal long PublishAction(BattleSession.PreparedHostedAction prepared)
     {
+        RequireAdmissionWindow();
         return presentation.PublishHostedAction(prepared);
     }
 
@@ -88,19 +93,19 @@ public sealed class ExpandedBattlePresentationProcess
 
     internal BattleSession.PreparedHostedCompletion PrepareCompletion(uint callback, int row, string actorId)
     {
-        RequireIdle();
+        RequireAdmissionWindow();
         return presentation.PrepareHostedCompletion(callback, row, actorId);
     }
 
     internal long PublishCompletion(BattleSession.PreparedHostedCompletion prepared)
     {
-        RequireIdle();
+        RequireAdmissionWindow();
         return presentation.PublishHostedCompletion(prepared);
     }
 
     internal void ValidatePreparedCompletion(BattleSession.PreparedHostedCompletion prepared)
     {
-        RequireIdle();
+        RequireAdmissionWindow();
         presentation.ValidatePreparedHostedCompletion(prepared);
     }
 
@@ -111,19 +116,19 @@ public sealed class ExpandedBattlePresentationProcess
 
     internal BattleSession.PreparedHostedCompletionAck PrepareCompletionAck(long token, bool resetCounts)
     {
-        RequireIdle();
+        RequireAdmissionWindow();
         return presentation.PrepareHostedCompletionAck(token, resetCounts);
     }
 
     internal void ValidatePreparedCompletionAck(BattleSession.PreparedHostedCompletionAck prepared)
     {
-        RequireIdle();
+        RequireAdmissionWindow();
         presentation.ValidatePreparedHostedCompletionAck(prepared);
     }
 
     internal void PublishCompletionAck(BattleSession.PreparedHostedCompletionAck prepared)
     {
-        RequireIdle();
+        RequireAdmissionWindow();
         presentation.PublishHostedCompletionAck(prepared);
     }
 
@@ -135,16 +140,19 @@ public sealed class ExpandedBattlePresentationProcess
 
     internal BattleSession.PreparedHostedContactReplacement PrepareGunbladeContact(long token, NativeBattleContactPacket packet, NativeBattleTriggerReceipt receipt)
     {
+        RequireAdmissionWindow();
         return presentation.PrepareHostedContactReplacement(token, [packet], receipt);
     }
 
     internal void ValidateGunbladeContact(BattleSession.PreparedHostedContactReplacement prepared)
     {
+        RequireAdmissionWindow();
         presentation.ValidatePreparedHostedContactReplacement(prepared);
     }
 
     internal void CommitGunbladeContact(BattleSession.PreparedHostedContactReplacement prepared)
     {
+        RequireAdmissionWindow();
         presentation.CommitHostedContactReplacement(prepared);
     }
 
@@ -154,7 +162,7 @@ public sealed class ExpandedBattlePresentationProcess
         presentation.SetNativeActionMenu(open);
     }
 
-    internal NativeBattleModelLifecycleServices Advance(BattleSession logicalOwner, NativeExamTimerState? timerObservation = null, Action? beforeCore = null)
+    internal NativeBattleModelLifecycleServices Advance(BattleSession logicalOwner, NativeExamTimerState? timerObservation = null, Action? beforeCore = null, Action<NativeBattleModelLifecycleServices, long?>? afterGraphics = null)
     {
         ArgumentNullException.ThrowIfNull(logicalOwner);
         RequireLogicalOwner(logicalOwner);
@@ -171,7 +179,7 @@ public sealed class ExpandedBattlePresentationProcess
             {
                 long? actionToken = ActiveActionToken;
                 bool attached = ReferenceEquals(logicalOwner.ExpandedPresentationProcess, this);
-                NativeBattleModelLifecycleServices services = presentation.AdvanceHostedBattlePresentationFrame(logicalOwner, timerObservation ?? logicalOwner.NativeExamTimer, beforeCore is null ? null : DispatchBeforeCore, attached ? DispatchClockPoll : null, attached ? logicalOwner.ActivateExpandedHostedClock : null);
+                NativeBattleModelLifecycleServices services = presentation.AdvanceHostedBattlePresentationFrame(logicalOwner, timerObservation ?? logicalOwner.NativeExamTimer, beforeCore is null ? null : DispatchBeforeCore, attached ? DispatchClockPoll : null, attached ? logicalOwner.ActivateExpandedHostedClock : null, afterGraphics is null ? null : DispatchAfterGraphics);
                 presentation.RefreshHostedPreparedPresentation(logicalOwner, services);
                 LastStep = presentation.ReadAndClearHostedPresentationFrameOutputs();
                 LastStepActionToken = actionToken;
@@ -180,19 +188,39 @@ public sealed class ExpandedBattlePresentationProcess
 
                 void DispatchBeforeCore()
                 {
+                    DispatchCanonical(beforeCore!);
+                    actionToken = ActiveActionToken;
+                }
+
+                void DispatchAfterGraphics(NativeBattleModelLifecycleServices currentServices)
+                {
+                    try
+                    {
+                        DispatchCanonical(() => afterGraphics!(currentServices, actionToken));
+                    }
+                    catch
+                    {
+                        presentation.ClearHostedPresentationFrameOutputs();
+                        throw;
+                    }
+                }
+
+                void DispatchCanonical(Action callback)
+                {
                     if (attached)
                     {
                         BattleSession.RequireSameHostedTimerClock(presentation.NativeExamTimer, logicalOwner.NativeExamTimer);
                         logicalOwner.CopyHostedPresentationTimerFrom(presentation);
                     }
                     presentation.ExportHostedPresentationRandom(logicalOwner);
+                    canonicalHandoff = true;
                     try
                     {
-                        beforeCore();
-                        actionToken = ActiveActionToken;
+                        callback();
                     }
                     finally
                     {
+                        canonicalHandoff = false;
                         if (attached)
                         {
                             presentation.CopyHostedPresentationTimerFrom(logicalOwner);
@@ -227,6 +255,14 @@ public sealed class ExpandedBattlePresentationProcess
         finally
         {
             advancing = false;
+        }
+    }
+
+    private void RequireAdmissionWindow()
+    {
+        if (advancing && !canonicalHandoff)
+        {
+            throw new InvalidOperationException("Hosted admission requires an idle process or a canonical frame handoff.");
         }
     }
 

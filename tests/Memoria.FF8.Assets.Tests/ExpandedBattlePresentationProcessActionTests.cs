@@ -35,32 +35,81 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         BattleSession.PreparedHostedCompletion prepared = process.PrepareCompletion(0x47DDA0, row, actorId);
         process.ValidatePreparedCompletion(prepared);
         long token = process.PublishCompletion(prepared);
-        for (int frame = 0; frame < ActionBudget && process.PendingCompletion is null; frame++)
-        {
-            process.Advance(logical);
-            Assert.Null(process.ActiveActionToken);
-            Assert.Null(process.LastStepActionToken);
-            Assert.Empty(process.LastStep.Contacts);
-        }
-        Assert.Equal(before, ExpandedBattlePresentationProcessEntryTests.LogicalState(logical));
-        NativeBattlePresentationCompletionRequested receipt = Assert.Single(process.LastFrameServices!.ReadOrderedReceipts().OfType<NativeBattlePresentationCompletionRequested>());
-        Assert.Equal(new NativeBattlePresentationCompletionRequested(token, 0x47DDA0, row, actorId), receipt);
-        Assert.Same(receipt, process.PendingCompletion);
-        Assert.False(process.IsCompletionAcknowledged(token));
-        Assert.Throws<InvalidOperationException>(() => process.Advance(logical));
-        process.PublishCompletionAck(process.PrepareCompletionAck(token, true));
-        Assert.True(process.IsCompletionAcknowledged(token));
-        Assert.Null(process.PendingCompletion);
-
         BattleCombatant actor = Assert.Single(logical.Combatants, candidate => candidate.Id == actorId);
         NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals();
         int record = Array.FindIndex(vitals.Records, value => value.CharacterId == actor.ModelId);
         BattleNativeAction attack = assets.ReadPlayerNativeAttackData(vitals, record);
         NativeBattleActionHeaderPreparation header = Prepare(row, attack, selected.NativeCommandSequences);
         NativeBattleContactPacket packet = Contact(target, attack, 137);
-        long action = process.BeginAction(header, [packet]);
-        ActionObservation result = AdvanceAction(process, logical, action, ReadDescriptor(process), header, 0x50BB00, target);
-        Assert.Equal(packet, Assert.Single(result.Contacts));
+        long? nextAction = null;
+        Descriptor? nextDescriptor = null;
+        uint? prePostUi = null;
+        for (int frame = 0; frame < ActionBudget && nextAction is null; frame++)
+        {
+            process.Advance(logical, afterGraphics: (services, graphicsToken) =>
+            {
+                NativeBattlePresentationCompletionRequested? request = services.ReadOrderedReceipts().OfType<NativeBattlePresentationCompletionRequested>().SingleOrDefault();
+                if (request is null)
+                {
+                    return;
+                }
+                Assert.Null(graphicsToken);
+                Assert.Equal(new NativeBattlePresentationCompletionRequested(token, 0x47DDA0, row, actorId), request);
+                Assert.Same(request, process.PendingCompletion);
+                Assert.False(process.IsCompletionAcknowledged(token));
+                prePostUi = process.Graphics.UiServices!.Counter;
+                Assert.Throws<InvalidOperationException>(() => process.Advance(logical));
+                Assert.Throws<InvalidOperationException>(() => process.AccumulateElapsed(TimeSpan.FromSeconds(1)));
+                Assert.Throws<InvalidOperationException>(() => process.SetActionMenu(true));
+                process.PublishCompletionAck(process.PrepareCompletionAck(token, true));
+                nextAction = process.PublishAction(process.PrepareAction(header, [packet]));
+                nextDescriptor = ReadDescriptor(process);
+            });
+            Assert.Null(process.LastStepActionToken);
+            Assert.Empty(process.LastStep.Contacts);
+        }
+        Assert.Equal(before, ExpandedBattlePresentationProcessEntryTests.LogicalState(logical));
+        Assert.Single(process.LastFrameServices!.ReadOrderedReceipts().OfType<NativeBattlePresentationCompletionRequested>());
+        Assert.Equal(Assert.IsType<uint>(prePostUi) + 1, process.Graphics.UiServices!.Counter);
+        Assert.True(process.IsCompletionAcknowledged(token));
+        Assert.Null(process.PendingCompletion);
+        long action = Assert.IsType<long>(nextAction);
+        Assert.Equal(action, process.ActiveActionToken);
+
+        // Reject the handoff of a reached native AA contact and observe the following frame.
+        // Its graphics have already committed. Only the failed frame's output must not replay.
+        InvalidOperationException injected = new("Canonical handoff failed after observing the contact.");
+        bool sawContact = false;
+        for (int frame = 0; frame < ActionBudget && !sawContact; frame++)
+        {
+            NativeBattleEffectPresentationStep previous = process.LastStep;
+            try
+            {
+                process.Advance(logical, afterGraphics: (services, graphicsToken) =>
+                {
+                    NativeBattlePresentationContactReceived? contact = services.ReadOrderedReceipts().OfType<NativeBattlePresentationContactReceived>().SingleOrDefault();
+                    if (contact is not null)
+                    {
+                        Assert.Equal(action, graphicsToken);
+                        Assert.Equal(packet, contact.Packet);
+                        throw injected;
+                    }
+                });
+            }
+            catch (InvalidOperationException failure) when (ReferenceEquals(failure, injected))
+            {
+                Assert.Same(previous, process.LastStep);
+                Assert.Empty(process.Graphics.PendingContacts);
+                sawContact = true;
+            }
+        }
+        Assert.True(sawContact);
+        Assert.NotNull(nextDescriptor);
+        for (int frame = 0; frame < ActionBudget && !process.IsActionComplete(action); frame++)
+        {
+            process.Advance(logical);
+            Assert.Empty(process.LastStep.Contacts);
+        }
         Assert.True(process.IsActionComplete(action));
         Assert.Equal(models, Models(process));
         Assert.Same(cpu, process.ModelCpuResources);

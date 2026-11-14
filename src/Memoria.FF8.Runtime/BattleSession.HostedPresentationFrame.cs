@@ -28,14 +28,19 @@ public sealed partial class BattleSession
             Sequences = presentationSequences.ToImmutableArray(),
             Activations = presentationActivations.ToImmutableArray()
         };
+        ClearHostedPresentationFrameOutputs();
+        return step;
+    }
+
+    internal void ClearHostedPresentationFrameOutputs()
+    {
         presentationContacts.Clear();
         presentationSounds.Clear();
         presentationSequences.Clear();
         presentationActivations.Clear();
-        return step;
     }
 
-    internal NativeBattleModelLifecycleServices AdvanceHostedBattlePresentationFrame(BattleSession logicalOwner, NativeExamTimerState? timerObservation, Action? beforeCore = null, Action<NativeBattleUiServices, bool>? clockPoll = null, Action? clockReady = null)
+    internal NativeBattleModelLifecycleServices AdvanceHostedBattlePresentationFrame(BattleSession logicalOwner, NativeExamTimerState? timerObservation, Action? beforeCore = null, Action<NativeBattleUiServices, bool>? clockPoll = null, Action? clockReady = null, Action<NativeBattleModelLifecycleServices>? afterGraphics = null)
     {
         RequireHostedCompletionAcknowledged();
         if (hostedFrameServices is not null || nativePreRootStack is not null)
@@ -87,6 +92,18 @@ public sealed partial class BattleSession
 
                 PumpNativeFileIo482590();
                 AdvanceNativeGraphicsFrameCore(services);
+                if (afterGraphics is not null)
+                {
+                    hostedFrameServices = null;
+                    try
+                    {
+                        afterGraphics(services);
+                    }
+                    finally
+                    {
+                        hostedFrameServices = services;
+                    }
+                }
                 if (NativeGraphics is { UiServices: { } ui } published && (published.Flags & 4) != 0)
                 {
                     uint duration = definition.NativeGraphics!.Rules.UiPublicationDuration ?? throw new NotSupportedException("Native500900 publication requires its original B8A3E4 duration DWORD.");

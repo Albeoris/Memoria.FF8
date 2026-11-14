@@ -95,6 +95,53 @@ public sealed class NativeBattleHostedPresentationRandomTests
     }
 
     [Fact]
+    public void Failed_after_graphics_handoff_preserves_rng_and_timer_and_releases_the_frame_guards()
+    {
+        BattleSession owner = CreateLogical();
+        BattleSession child = CreateChild(owner, [1, 2]);
+        NativeBattleGraphicsState graphics = child.NativeGraphics!;
+        SetProperty(child, nameof(BattleSession.NativeGraphics), graphics with { UiServices = NativeBattleUiServices.Initialize() });
+        NativeExamTimerState timer = NativeExamTimerState.FromColdProcess().SetRemaining(100).Display(4, 5);
+        SetProperty(owner, nameof(BattleSession.NativeExamTimer), timer);
+        ExpandedBattlePresentationProcess process = CreateFacade(owner, child);
+        SetField(owner, "expandedPresentationProcess", process);
+        InvalidOperationException injected = new("Post-graphics canonical callback failed.");
+        int called = 0;
+
+        Assert.Same(injected, Assert.Throws<InvalidOperationException>(() => process.Advance(owner, afterGraphics: (services, token) =>
+        {
+            called++;
+            Assert.Null(token);
+            Assert.Null(ReadField(child, "hostedFrameServices"));
+            Assert.NotNull(ReadField(child, "nativePreRootStack"));
+            Assert.Equal(1, process.Graphics.Callback);
+            Assert.Equal(3u, process.Graphics.UiServices!.Counter);
+            Assert.Throws<InvalidOperationException>(() => child.AdvanceHostedBattlePresentationFrame(owner, timer));
+            Assert.Throws<InvalidOperationException>(() => process.Advance(owner));
+            Assert.Throws<InvalidOperationException>(() => process.AccumulateElapsed(TimeSpan.FromSeconds(1)));
+            Assert.Throws<InvalidOperationException>(() => process.SetActionMenu(true));
+            DrawGlobal(owner);
+            DrawCrt(owner);
+            typeof(BattleSession).GetMethod("AdvanceNativeHostTime", PrivateInstance)!.Invoke(owner, []);
+            throw injected;
+        })));
+
+        Assert.Equal(1, called);
+        Assert.Null(process.LastFrameServices);
+        Assert.Null(ReadField(child, "hostedFrameServices"));
+        Assert.Null(ReadField(child, "nativePreRootStack"));
+        Assert.False((bool)ReadField(process, "canonicalHandoff")!);
+        AssertStreams(owner, process, GlobalStart.Advance(1), 1, CrtStart.Draw(out _));
+        Assert.True(owner.NativeExamTimer!.HasSameClock(timer.AdvanceCallbacks(NativeTimerCallbackKind.Battle, 1)));
+        Assert.Same(owner.NativeExamTimer, process.Timer);
+
+        process.Advance(owner);
+        Assert.Equal(2, process.Graphics.Callback);
+        Assert.Equal(7u, process.Graphics.UiServices!.Counter);
+        Assert.Equal(1, called);
+    }
+
+    [Fact]
     public void Failed_before_core_preserves_main_draws_and_its_original_exception()
     {
         BattleSession owner = CreateLogical();
