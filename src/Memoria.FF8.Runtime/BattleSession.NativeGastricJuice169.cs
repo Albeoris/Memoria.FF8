@@ -51,8 +51,8 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix view = projection.View!;
         NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors!;
         NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
-        int firstContact = header.FirstContactIndex ?? throw new InvalidDataException("Native Gastric Juice requires its actual first target contact.");
-        int target = nativeActionPackets.ReadContact(firstContact).Primary.ActorIndex;
+        BattleContactCursor firstContact = header.FirstContact;
+        int target = nativeActionPackets.ReadContact(firstContact).Primary.Recipient;
         NativeBattleEffectTaskStep advanced = children.Advance((pool, slot) =>
         {
             children = pool;

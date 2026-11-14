@@ -34,7 +34,7 @@ public sealed record NativeBattleEffect79DrawBody7BD020(uint ContextAddress) : N
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
 }
 
-public sealed record NativeBattleEffect79ModelPatch(int Actor, NativeBattleVector? Position = null, NativeBattleVector? WorldTranslation = null, uint? ScalePointer = null, uint? Color40 = null, byte? ColorMode43 = null, byte? Alpha7 = null, byte? Sequence = null) : NativeBattleEffect79Operation;
+public sealed record NativeBattleEffect79ModelPatch(BattleModelOwner Actor, NativeBattleVector? Position = null, NativeBattleVector? WorldTranslation = null, uint? ScalePointer = null, uint? Color40 = null, byte? ColorMode43 = null, byte? Alpha7 = null, byte? Sequence = null) : NativeBattleEffect79Operation;
 public sealed record NativeBattleEffect79Sound501330(uint SourceAddress, int Flags, int Pan) : NativeBattleEffect79Operation;
 
 public sealed record NativeBattleEffect79ObserveBodyStack(uint TaskAddress, bool DrewBody) : NativeBattleEffect79Operation;

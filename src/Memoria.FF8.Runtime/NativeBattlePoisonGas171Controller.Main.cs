@@ -44,7 +44,7 @@ public static partial class NativeBattlePoisonGas171Controller
                 int first = header.FirstContactIndex ?? throw new NotSupportedException("Poison Gas requires its captured physical contact pointer.");
                 for (int ordinal = 0; ordinal < count; ordinal++)
                 {
-                    int actor = inputs.Packets.ReadContact(checked(first + ordinal)).Primary.ActorIndex;
+                    int actor = inputs.Packets.ReadContact(checked(first + ordinal)).Primary.Recipient;
                     (frame, uint child) = RequireAppend(frame, 0x5DC700);
                     frame = Write(frame, child, Read(frame, child).WriteWord(12, 0).WriteWord(14, unchecked((ushort)(4u << (ordinal & 31)))));
                     NativeBattlePoisonGas171PointStep bone = inputs.ReadBone502170(frame, actor, 0xF1, 0);

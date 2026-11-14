@@ -10,14 +10,14 @@ public static partial class NativeBattleEffect187Controller
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Effect187 actor overlay requires its actual contacts.");
-        for (int index = 0; index < header.ReadByte(0x10); index++)
+        for (int index = 0; index < header.ReadContactCount(); index++)
         {
             NativeBattleContactPacket contact = packets.ReadContact(first + index);
             if ((contact.Primary.HitFlags3 & 4) != 0)
             {
                 continue;
             }
-            int actor = contact.Primary.ActorIndex;
+            int actor = contact.Primary.Recipient;
             NativeBattleGraphicsModel model = inputs.ReadModel(frame, actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Effect187 actor overlay requires its current model transform.");
             (frame, uint address) = AppendRequired(frame, 0x648AF0);

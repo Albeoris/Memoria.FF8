@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public abstract record NativeBattleAngelWing84BodyOperation;
-public sealed record NativeBattleAngelWing84BindCaster(byte Actor) : NativeBattleAngelWing84BodyOperation;
+public sealed record NativeBattleAngelWing84BindCaster(BattleModelOwner Actor) : NativeBattleAngelWing84BodyOperation;
 public sealed record NativeBattleAngelWing84InitializeBodyShader(uint Address) : NativeBattleAngelWing84BodyOperation;
 public sealed record NativeBattleAngelWing84BodySound(uint Sound) : NativeBattleAngelWing84BodyOperation;
 public sealed record NativeBattleAngelWing84DrawBody(uint Address) : NativeBattleAngelWing84BodyOperation;

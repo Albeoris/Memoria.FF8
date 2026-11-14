@@ -5,7 +5,7 @@ public abstract record NativeBattleBadBreath300Operation
     [System.Text.Json.Serialization.JsonIgnore]
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
 }
-public sealed record NativeBattleBadBreath300BindCaster(byte Actor, uint SaveAddress, uint ResourceAddress) : NativeBattleBadBreath300Operation;
+public sealed record NativeBattleBadBreath300BindCaster(BattleModelOwner Actor, uint SaveAddress, uint ResourceAddress) : NativeBattleBadBreath300Operation;
 public sealed record NativeBattleBadBreath300RingSequence(byte Actor, byte Sequence) : NativeBattleBadBreath300Operation;
 public sealed record NativeBattleBadBreath300Sound(uint Value, int Pan) : NativeBattleBadBreath300Operation;
 public sealed record NativeBattleBadBreath300Contact(int Index) : NativeBattleBadBreath300Operation;

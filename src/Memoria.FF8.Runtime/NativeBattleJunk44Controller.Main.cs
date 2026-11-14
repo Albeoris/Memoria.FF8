@@ -20,7 +20,7 @@ public static partial class NativeBattleJunk44Controller
                 throw new InvalidDataException("Junk's freshly reset main bank must admit its sole task.");
             }
             frame = ClearDwords701200(frame, main + 12, 16);
-            int count = Header(frame, inputs.ReadPackets(frame)).ReadByte(16);
+            int count = Header(frame, inputs.ReadPackets(frame)).ReadContactCount();
             if (count == 0 || count > 3)
             {
                 throw new NotSupportedException("Junk's recipient mean requires one to three physical records in its main task.");
@@ -30,7 +30,7 @@ public static partial class NativeBattleJunk44Controller
                 NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
                 NativeBattleActionHeaderSlot header = Header(frame, packets);
                 int first = header.FirstContactIndex ?? throw new NotSupportedException("Junk requires its current physical contact pointer.");
-                uint modelAddress = ModelAddress(packets.ReadContact(checked(first + index)).Primary.ActorIndex);
+                uint modelAddress = ModelAddress(packets.ReadContact(checked(first + index)).Primary.Recipient);
                 NativeBattleModelTransform transform = inputs.ReadModel(frame, modelAddress).Transform ?? throw new NotSupportedException("Junk requires its current recipient packed position.");
                 frame = Write(frame, main, Read(frame, main).WriteDword(0x14 + index * 16, modelAddress));
                 frame = WriteBytes(frame, main + 0x18u + (uint)(index * 16), PointView(transform.Position28, transform.Vertical34), 8);
@@ -111,7 +111,7 @@ public static partial class NativeBattleJunk44Controller
             int phase = (age - 3) % 7;
             if (phase == 0)
             {
-                for (int index = 0; index < Header(frame, inputs.ReadPackets(frame)).ReadByte(16); index++)
+                for (int index = 0; index < Header(frame, inputs.ReadPackets(frame)).ReadContactCount(); index++)
                 {
                     RequireRecipientRecord(index);
                     frame = DrawRandom(frame, out ushort value);
@@ -119,7 +119,7 @@ public static partial class NativeBattleJunk44Controller
                 }
             }
             int sine = NativeBattleCameraMath.Sine(phase * 2048 / 7 + 0x124);
-            for (int index = 0; index < Header(frame, inputs.ReadPackets(frame)).ReadByte(16); index++)
+            for (int index = 0; index < Header(frame, inputs.ReadPackets(frame)).ReadContactCount(); index++)
             {
                 RequireRecipientRecord(index);
                 NativeBattleModulePoolTask task = Read(frame, address);
@@ -160,7 +160,7 @@ public static partial class NativeBattleJunk44Controller
         }
         if (age == 62)
         {
-            for (int index = 0; index < Header(frame, inputs.ReadPackets(frame)).ReadByte(16); index++)
+            for (int index = 0; index < Header(frame, inputs.ReadPackets(frame)).ReadContactCount(); index++)
             {
                 RequireRecipientRecord(index);
                 uint modelAddress = Read(frame, address).ReadDword(0x14 + index * 16);
@@ -186,7 +186,7 @@ public static partial class NativeBattleJunk44Controller
         {
             return (frame, 0);
         }
-        for (int index = 0; index < Header(frame, inputs.ReadPackets(frame)).ReadByte(16); index++)
+        for (int index = 0; index < Header(frame, inputs.ReadPackets(frame)).ReadContactCount(); index++)
         {
             RequireRecipientRecord(index);
             NativeBattleModulePoolTask task = Read(frame, address);
@@ -210,10 +210,6 @@ public static partial class NativeBattleJunk44Controller
             throw new NotSupportedException("Junk requires its actual current parameter pointer.");
         }
         BattleActionHeaderReference index = Parameters(frame).Header;
-        if ((uint)index >= packets.Headers.Length)
-        {
-            throw new NotSupportedException("Junk parameter header pointer leaves its physical action arena.");
-        }
         return packets.ReadHeader(index);
     }
 }

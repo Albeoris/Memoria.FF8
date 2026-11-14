@@ -31,8 +31,8 @@ public static partial class NativeBattleRenzokuken160Controller
         }
         NativeBattleRenzokuken160State retained = memory.Renzokuken160 ?? throw new NotSupportedException("Native160 requires its explicitly retained local storage; migrate the standalone snapshot.");
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native5FF080 requires the physical first-contact pointer.");
-        byte target = packets.ReadContact(contact).Primary.ActorIndex;
+        BattleContactCursor contact = header.FirstContact;
+        byte target = packets.ReadContact(contact).Primary.Recipient;
         bool initial = header.Action == 0xFFFE;
         NativeBattleRenzokuken160State state = retained.Enter(parameters.Source, parameters.Header, target, initial) with { RetainedResources = resources };
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(0x23D4230, 0x23D4220, 16, 1);

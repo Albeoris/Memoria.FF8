@@ -15,7 +15,7 @@ public static partial class NativeBattleChainGun190Controller
             return frame;
         }
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Chain Gun requires its actual physical contact pointer.");
-        int Actor(int ordinal) => inputs.Packets.ReadContact(checked(first + ordinal)).Primary.ActorIndex;
+        int Actor(int ordinal) => inputs.Packets.ReadContact(checked(first + ordinal)).Primary.Recipient;
         if (count == 1)
         {
             return FillShots(frame, 0, 12, Actor(0), inputs);

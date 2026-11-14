@@ -188,7 +188,7 @@ public static partial class NativeBattleResonance49Controller
         {
             (frame, uint child) = Append(frame, 0x26466D0, 0x824970, 128, address, inputs.Packets);
             NativeBattleContactPacket contact = inputs.Packets.ReadContact(checked((header.FirstContactIndex ?? throw new NotSupportedException("Resonance requires its physical contact pointer.")) + index));
-            frame = Write(frame, child, Read(frame, child).WriteByte(0x2B, unchecked((byte)index)).WriteByte(0x2D, contact.Primary.ActorIndex));
+            frame = Write(frame, child, Read(frame, child).WriteByte(0x2B, unchecked((byte)index)).WriteByte(0x2D, contact.Primary.Recipient));
         }
         return frame;
     }
@@ -348,10 +348,6 @@ public static partial class NativeBattleResonance49Controller
             throw new NotSupportedException("Resonance requires its actual captured parameter pointer.");
         }
         BattleActionHeaderReference index = Parameters(frame).Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-        if ((uint)index >= packets.Headers.Length)
-        {
-            throw new NotSupportedException("Resonance signed header offset leaves its physical action arena.");
-        }
         return packets.ReadHeader(index);
     }
 }

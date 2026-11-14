@@ -35,7 +35,7 @@ public sealed partial class BattleSession
             return current with { Memory = latest, State = latest.Breath157 ?? throw new InvalidDataException("Breath external service lost its executable storage."), Staging = NativeFileStaging ?? throw new InvalidDataException("Breath external service lost its temporary memory."), Random = nativeCrtRandom ?? throw new InvalidDataException("Breath external service lost its CRT stream.") };
         }
 
-        NativeBattleBreath157PointStep Bone(NativeBattleBreath157Frame current, int actor, int selector, int distance)
+        NativeBattleBreath157PointStep Bone(NativeBattleBreath157Frame current, BattleModelOwner actor, int selector, int distance)
         {
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Breath requires its current actor skeleton.");
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), source, checked((byte)selector), checked((short)distance));
@@ -45,7 +45,7 @@ public sealed partial class BattleSession
             return new(current with { Memory = observed, Staging = NativeFileStaging }, Point(point));
         }
 
-        NativeBattleBreath157PointStep Anchor(NativeBattleBreath157Frame current, int actor)
+        NativeBattleBreath157PointStep Anchor(NativeBattleBreath157Frame current, BattleModelOwner actor)
         {
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) != 0)

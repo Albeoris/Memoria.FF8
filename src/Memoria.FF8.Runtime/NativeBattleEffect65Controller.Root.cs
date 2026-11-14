@@ -92,7 +92,7 @@ public static partial class NativeBattleEffect65Controller
         {
             int first = header.FirstContactIndex ?? throw new NotSupportedException("Effect65 requires its actual header contact pointer.");
             NativeBattleContactPacket contact = packets.Contacts[first + index] ?? throw new NotSupportedException("Effect65 requires its current contact row.");
-            uint model = ModelAddress(contact.Primary.ActorIndex);
+            uint model = ModelAddress(contact.Primary.Recipient);
             uint row = checked(main + 0x24 + (uint)(index * 12));
             frame = WriteBytes(frame, row, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(model)), 4);
             frame = WriteBytes(frame, row + 4, inputs.ReadPosition8(frame, model), 8);

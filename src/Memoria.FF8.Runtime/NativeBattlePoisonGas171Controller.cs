@@ -15,8 +15,8 @@ public static partial class NativeBattlePoisonGas171Controller
         (children, int main) = children.Append(0x5DB340);
         children = children.WriteSlot(main, children.Slots[main].WriteWord(12, 0));
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Poison Gas requires its actual first contact pointer.");
-        frame = Dword(Dword(Dword(frame, 0x23AD700, inputs.Packets.ReadContact(first).Primary.ActorIndex), 0x23AF80C, Parameters(frame).Source), 0x23AF808, 0x1D99A78);
+        BattleContactCursor first = header.FirstContact;
+        frame = Dword(Dword(Dword(frame, 0x23AD700, inputs.Packets.ReadContact(first).Primary.Recipient), 0x23AF80C, Parameters(frame).Source), 0x23AF808, 0x1D99A78);
         foreach (uint bank in new uint[] { 0x23AE088, 0x23AD728 })
         {
             for (int index = 0; index < 100; index++)

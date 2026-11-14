@@ -110,7 +110,7 @@ public static partial class NativeBattleOilShot136Controller
     private static int FirstContact(NativeBattleOilShot136Frame frame, NativeBattleOilShot136Inputs inputs)
     {
         BattleActionHeaderReference index = Parameters(frame).Header;
-        if ((uint)index >= inputs.Packets.Headers.Length || inputs.Packets.ReadHeader(index).ReadByte(16) == 0)
+        if (inputs.Packets.ReadHeader(index).ReadContactCount() == 0)
         {
             throw new NotSupportedException("Oil Shot requires its actual captured contact header.");
         }

@@ -53,11 +53,11 @@ public static partial class NativeBattleElectrocute275Controller
         frame = frame with { State = frame.State.WriteDword(CursorGlobal, checked(Working(frame) + (uint)(first ? FirstPacketOffset : SecondPacketOffset))).WriteDword(FadeGlobal, 0) };
         frame = Put(frame, 0, slot, root.WriteDword(16, first ? 0u : 1u));
         BattleActionHeaderReference header = Parameters(frame).Header;
-        int count = inputs.Packets.ReadHeader(header).ReadByte(16);
+        int count = inputs.Packets.ReadHeader(header).ReadContactCount();
         int firstContact = FirstContact(frame, inputs);
         for (int index = 0; index < count; index++)
         {
-            frame = inputs.Execute(frame, new NativeBattleElectrocute275ActorFlags(inputs.Packets.ReadContact(firstContact + index).Primary.ActorIndex, 0x800, 0));
+            frame = inputs.Execute(frame, new NativeBattleElectrocute275ActorFlags(inputs.Packets.ReadContact(firstContact + index).Primary.Recipient, 0x800, 0));
         }
         byte caster = checked((byte)Actor(frame.State.ReadDword(CasterGlobal)));
         if (root.ReadWord(12) == 1 && root.ReadByte(15) == 0)
@@ -84,7 +84,7 @@ public static partial class NativeBattleElectrocute275Controller
             frame = Write(frame, address, Read(frame, address).WriteBytes(12, new byte[40]).WriteWord(14, unchecked((ushort)count)));
             for (int index = 0; index < count; index++)
             {
-                int actor = inputs.Packets.ReadContact(firstContact + index).Primary.ActorIndex;
+                int actor = inputs.Packets.ReadContact(firstContact + index).Primary.Recipient;
                 uint color = inputs.ReadModel(actor).Color40 ?? throw new NotSupportedException("Electrocute requires its target actor's actual retained color.");
                 frame = frame with { State = frame.State.WriteDword(SavedColorsGlobal + (uint)actor * 4, color) };
             }

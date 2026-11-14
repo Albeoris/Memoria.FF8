@@ -61,10 +61,10 @@ public static class NativeBattleBlindController
                 pools = [pools[0], NativeBattleEffectTaskPool.Initialize(0x2521520, 0x20DFAB8, 0x83C, 3)];
             }
             int action = root.ReadByte(14);
-            if (action <= inputs.Packets.ReadHeader(parameters.Header).ReadByte(17) && pools[1].Slots.Any(task => (task.Flags & 1) == 0))
+            if (action <= inputs.Packets.ReadHeader(parameters.Header).ReadRepeatModeMinusOne() && pools[1].Slots.Any(task => (task.Flags & 1) == 0))
             {
-                int contact = inputs.Packets.ReadHeader(parameters.Header.Advance(action)).FirstContactIndex ?? throw new NotSupportedException("Native Blind requires its actual first action target.");
-                byte model = inputs.Packets.ReadContact(contact).Primary.ActorIndex;
+                BattleContactCursor contact = inputs.Packets.ReadHeader(parameters.Header.Advance(action)).FirstContact;
+                byte model = inputs.Packets.ReadContact(contact).Primary.Recipient;
                 (pools[1], int slot) = pools[1].Append(0x6BE080);
                 NativeBattleModulePoolTask target = pools[1].Slots[slot].ClearPayload(0x830);
                 target = target.WriteWord(14, checked((ushort)action)).WriteDword(24, NativeBattleGraphicsModelAddress.Encode(model));

@@ -68,7 +68,7 @@ public static class NativeBattleThundaraController
             }
             int? hostedActor = null;
             uint? hostedAddress = null;
-            if (inputs.Packets.PresentationRoster is { } roster && Word(task, 12) == 0 && ReadByte(task, 14) <= Header(0).ReadByte(17))
+            if (inputs.Packets.PresentationRoster is { } roster && Word(task, 12) == 0 && ReadByte(task, 14) <= Header(0).ReadRepeatModeMinusOne())
             {
                 hostedActor = ReadActor(ReadByte(task, 14));
                 hostedAddress = ActorAddress(hostedActor.Value, roster);
@@ -77,7 +77,7 @@ public static class NativeBattleThundaraController
             frame = frame with { Effect = frame.Effect with { DrawArenaOffset = alternate ? 0x8000 : 0 } };
             task = WriteDword(task, 16, alternate ? 1u : 0u);
             int sequence = ReadByte(task, 14);
-            if (Word(task, 12) == 0 && sequence <= Header(0).ReadByte(17))
+            if (Word(task, 12) == 0 && sequence <= Header(0).ReadRepeatModeMinusOne())
             {
                 int actor = hostedActor ?? ReadActor(sequence);
                 uint actorAddress = hostedAddress ?? ActorAddress(actor, null);
@@ -117,8 +117,8 @@ public static class NativeBattleThundaraController
 
         int ReadActor(int sequence)
         {
-            int contact = Header(sequence).FirstContactIndex ?? throw new NotSupportedException("Native Thundara requires its actual header contact pointer.");
-            return inputs.Packets.ReadContact(contact).Primary.ActorIndex;
+            BattleContactCursor contact = Header(sequence).FirstContact;
+            return inputs.Packets.ReadContact(contact).Primary.Recipient;
         }
 
         NativeBattleEffectTaskCallback Primary(NativeBattleEffectTaskPool pool, int slot)

@@ -35,7 +35,7 @@ public sealed partial class BattleSession
             return current with { Memory = latest, State = latest.Additional181 ?? throw new InvalidDataException("Additional effect181 external service lost its executable storage."), Staging = NativeFileStaging ?? throw new InvalidDataException("Additional effect181 external service lost its temporary memory."), Random = nativeCrtRandom ?? throw new InvalidDataException("Additional effect181 external service lost its CRT stream.") };
         }
 
-        NativeBattleAdditional181PointStep Bone(NativeBattleAdditional181Frame current, int actor, int selector, int distance)
+        NativeBattleAdditional181PointStep Bone(NativeBattleAdditional181Frame current, BattleModelOwner actor, int selector, int distance)
         {
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Additional effect181 requires its current actor skeleton.");
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), source, checked((byte)selector), checked((short)distance));
@@ -45,7 +45,7 @@ public sealed partial class BattleSession
             return new(current with { Memory = observed, Staging = NativeFileStaging }, Point(point));
         }
 
-        NativeBattleAdditional181PointStep Anchor(NativeBattleAdditional181Frame current, int actor)
+        NativeBattleAdditional181PointStep Anchor(NativeBattleAdditional181Frame current, BattleModelOwner actor)
         {
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Additional effect181 anchor requires its actual model transform.");

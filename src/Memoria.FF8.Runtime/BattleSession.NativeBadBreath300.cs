@@ -54,7 +54,7 @@ public sealed partial class BattleSession
             return current with { Memory = written.Memory, State = current.State.WriteDword(NativeBattleBadBreath300Profile.CursorGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)written.Cursor)) };
         }
 
-        NativeBattleBadBreath300AnchorStep Anchor(NativeBattleBadBreath300Frame current, int actor)
+        NativeBattleBadBreath300AnchorStep Anchor(NativeBattleBadBreath300Frame current, BattleModelOwner actor)
         {
             Publish(current);
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
@@ -72,14 +72,14 @@ public sealed partial class BattleSession
 
         NativeBattleBadBreath300PointStep Mouth(NativeBattleBadBreath300Frame current)
         {
-            byte actor = current.Effect.Parameters!.Source;
+            BattleModelOwner actor = current.Effect.Parameters!.Source;
             NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Bad Breath mouth requires its current actor skeleton.");
             NativeBattleBadBreath300MouthStep prepared = NativeBattleBadBreath300Mouth.Prepare(current.Memory, graphics.ActorModels.Get(actor), pose, resources.MouthAnchor);
             graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, prepared.Model) };
             return new(current with { Memory = prepared.Memory }, prepared.Position);
         }
 
-        NativeBattleBadBreath300PointStep Bone(NativeBattleBadBreath300Frame current, int actor, byte selector, short distance)
+        NativeBattleBadBreath300PointStep Bone(NativeBattleBadBreath300Frame current, BattleModelOwner actor, byte selector, short distance)
         {
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Bad Breath bone query requires its addressed temporary memory.");
             var observed = ObserveNativeGraphicsBoneAnchor(current.Memory, graphics, actor, selector, distance);

@@ -62,7 +62,7 @@ public sealed partial class BattleSession
         nativeActionPackets.Validate();
         NativeBattleActionHeaderSlot source = nativeActionPackets.Headers[header];
         ushort Word(int offset) => (ushort)(source.ReadByte(offset) | source.ReadByte(offset + 1) << 8);
-        if (dispatch.ActorId is null || !byId.TryGetValue(dispatch.ActorId, out BattleCombatant? actor) || actor.EncodeNativeSlot() != source.ReadByte(0) || dispatch.NativeActorIndex != source.ReadByte(0) || dispatch.NativeCommand != source.Command || dispatch.ActionId != Word(4) || dispatch.RequestedEffect != Word(6) || dispatch.ExecutedEffect != Word(6) || NativeBattleActionGraphics.Normalize(nativeActionPackets, header).TargetMask != dispatch.NativeTargetMask)
+        if (dispatch.ActorId is null || !byId.TryGetValue(dispatch.ActorId, out BattleCombatant? actor) || actor.EncodeNativeSlot() != source.Source || dispatch.NativeActorIndex != source.Source || dispatch.NativeCommand != source.Command || dispatch.ActionId != Word(4) || dispatch.RequestedEffect != Word(6) || dispatch.ExecutedEffect != Word(6) || NativeBattleActionGraphics.Normalize(nativeActionPackets, header).TargetMask != dispatch.NativeTargetMask)
         {
             throw new InvalidDataException("Diagnostic action packet payload differs from its current dispatch source fields.");
         }
@@ -80,7 +80,7 @@ public sealed partial class BattleSession
         nativeActionPackets.Validate();
         NativeBattleActionHeaderSlot source = nativeActionPackets.Headers[header];
         ushort Word(int offset) => (ushort)(source.ReadByte(offset) | source.ReadByte(offset + 1) << 8);
-        if (source.ReadByte(0) != actor.EncodeNativeSlot() || dispatch.NativeActorIndex != actor.EncodeNativeSlot() || source.Command != 241 || Word(4) != 65532 || Word(6) != 0 || NativeBattleActionGraphics.Normalize(nativeActionPackets, header).TargetMask != dispatch.NativeTargetMask)
+        if (source.Source != actor.EncodeNativeSlot() || dispatch.NativeActorIndex != actor.EncodeNativeSlot() || source.Command != 241 || Word(4) != 65532 || Word(6) != 0 || NativeBattleActionGraphics.Normalize(nativeActionPackets, header).TargetMask != dispatch.NativeTargetMask)
         {
             throw new InvalidDataException("Duel timeout control changed its actual actor, zero-magic header or native target normalization.");
         }

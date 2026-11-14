@@ -158,7 +158,7 @@ public sealed partial class BattleSession
                     Publish(current);
                     var pending = graphics.PendingContacts;
                     BattleActionHeaderReference header = current.Effect.Parameters?.Header ?? throw new NotSupportedException("Effect289 requires its current action header.");
-                    int contact = nativeActionPackets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect289 requires its current first contact.");
+                    BattleContactCursor contact = nativeActionPackets.ReadHeader(header).FirstContact;
                     graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact)] });
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);

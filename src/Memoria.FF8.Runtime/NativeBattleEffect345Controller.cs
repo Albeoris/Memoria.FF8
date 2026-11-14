@@ -45,7 +45,7 @@ public static partial class NativeBattleEffect345Controller
         {
             maximum = groups;
         }
-        frame = Write(frame, address, task.WriteByte(0x2C, actors.Actor).WriteByte(0x2D, actors.Target).WriteByte(0x29, 0).WriteWord(0x5A, count).WriteWord(0x58, groups).WriteByte(0x2F, maximum));
+        frame = Write(frame, address, actors.WriteTo(task).WriteByte(0x29, 0).WriteWord(0x5A, count).WriteWord(0x58, groups).WriteByte(0x2F, maximum));
         if ((Parameters(frame).Flags79 & 1) == 0)
         {
             frame = inputs.Execute(frame, new NativeBattleEffect345RegisterCamera5099A0(NativeBattleEffect345Resources.CameraAddress));

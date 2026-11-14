@@ -36,7 +36,7 @@ public sealed partial class BattleSession
 
         NativeBattlePoseSource PoseSource(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Draw Stock requires its actual posed model source.");
 
-        NativeBattleModuleAnchor ReadBone241(byte actor)
+        NativeBattleModuleAnchor ReadBone241(BattleModelOwner actor)
         {
             NativeBattleVector point = NativeBattlePoseMatrices.ReadBone(graphics.ActorModels.Get(actor), PoseSource(actor), 241, 0);
             return new(point.X, point.Y, point.Z, 0);

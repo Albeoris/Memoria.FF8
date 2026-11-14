@@ -49,11 +49,11 @@ public static class NativeBattleDispel109Controller
             }
             BattleActionHeaderReference headerIndex = frame.Effect.Parameters?.Header ?? throw new InvalidDataException("Native Dispel requires its current action header.");
             byte group = root.ReadByte(14);
-            if (group <= inputs.Packets.ReadHeader(headerIndex).ReadByte(17))
+            if (group <= inputs.Packets.ReadHeader(headerIndex).ReadRepeatModeMinusOne())
             {
                 NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(headerIndex.Advance(group));
-                int contact = header.FirstContactIndex ?? throw new InvalidDataException("Native Dispel requires the actual group contact pointer.");
-                byte actor = inputs.Packets.ReadContact(contact).Primary.ActorIndex;
+                BattleContactCursor contact = header.FirstContact;
+                byte actor = inputs.Packets.ReadContact(contact).Primary.Recipient;
                 uint actorPointer = NativeBattleGraphicsModelAddress.Encode(actor);
                 NativeBattleEffectTaskPool targets = frame.Effect.Pools[1];
                 if (targets.Slots.Any(task => (task.Flags & 1) != 0 && task.ReadDword(20) == actorPointer && unchecked((short)task.ReadWord(12)) <= 67))

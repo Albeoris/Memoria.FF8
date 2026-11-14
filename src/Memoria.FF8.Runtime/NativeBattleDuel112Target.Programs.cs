@@ -28,7 +28,7 @@ public static partial class NativeBattleDuel112Target
                 frame = NativeBattleDuel112Workspaces.Initialize7016B0(frame, slot, 372);
                 frame = NativeBattleDuel112Workspaces.Initialize7016B0(frame, slot, 644);
             }
-            NativeBattleVector midpoint = NativeBattleDuel112Geometry.Midpoint6CD8B0(NativeBattleGraphicsModelAddress.Encode(actor), (_, bone, fraction) => inputs.ReadBone502170(actor, bone, fraction));
+            NativeBattleVector midpoint = NativeBattleDuel112Geometry.Midpoint6CD8B0(actor, inputs.ReadBone502170);
             Draw(372, new(0x12DB664, MorphAddress(frame), midpoint, first < 22 ? (short)0 : (short)-1024, null));
             if (first > 4)
             {
@@ -81,7 +81,7 @@ public static partial class NativeBattleDuel112Target
                 if (second == 4)
                 {
                     task = frame.Effect.Pools[1].Slots[slot];
-                    int target = ModelIndex(task.ReadDword(176));
+                    BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(176, 4).Owner;
                     NativeBattleGraphicsModel model = inputs.Actor.ReadModel(target);
                     inputs.Actor.WriteModel(target, model with { Flags0 = (ushort)(model.Flags0 | 8) });
                 }
@@ -152,13 +152,4 @@ public static partial class NativeBattleDuel112Target
     }
 
     private static uint MorphAddress(NativeBattleDuel112Frame frame) => unchecked(BinaryPrimitives.ReadUInt32LittleEndian(frame.Staging.Read(0x25218E8, 4)) + 0x1808);
-
-    private static int ModelIndex(uint address)
-    {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int row))
-        {
-            throw new InvalidDataException("Native Duel requires its actual graphics model pointer.");
-        }
-        return row;
-    }
 }

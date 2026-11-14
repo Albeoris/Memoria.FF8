@@ -60,8 +60,8 @@ public static partial class NativeBattleEffect318Controller
         {
             throw new NotSupportedException("Effect318 requires its actual nonempty first-contact source.");
         }
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Effect318 requires its native first contact pointer.");
-        uint target = ModelAddress(packets.ReadContact(first).Primary.ActorIndex);
+        BattleContactCursor first = header.FirstContact;
+        uint target = ModelAddress(packets.ReadContact(first).Primary.Recipient);
         frame = Write(frame, main, Read(frame, main).WriteDword(0x58, target));
         NativeBattleEffect318PointStep anchor = inputs.Anchor571400(frame, target, TaskView(Read(frame, main), 0x64, 8));
         frame = Write(anchor.Frame, main, CopyTask(Read(anchor.Frame, main), 0x64, anchor.Output8, 8).WriteDword(RecordCursorOffset, checked(main + RecordOffset)));

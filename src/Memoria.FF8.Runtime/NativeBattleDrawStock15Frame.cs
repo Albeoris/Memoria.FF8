@@ -35,7 +35,7 @@ public sealed record NativeBattleDrawStock15Sound(NativeBattleModuleSound Sound)
 public sealed record NativeBattleDrawStock15Contact(int Index) : NativeBattleDrawStock15Operation;
 public sealed record NativeBattleDrawStock15GenericTask(uint Address) : NativeBattleDrawStock15Operation;
 public sealed record NativeBattleDrawStock15Particle(NativeBattleDrawStock15ParticleOperation Operation) : NativeBattleDrawStock15Operation;
-public sealed record NativeBattleDrawStock15Inputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadBone241, Func<NativeBattleDrawStock15Frame, NativeBattleDrawStock15Operation, NativeBattleDrawStock15Frame> Execute)
+public sealed record NativeBattleDrawStock15Inputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadBone241, Func<NativeBattleDrawStock15Frame, NativeBattleDrawStock15Operation, NativeBattleDrawStock15Frame> Execute)
 {
     public ushort? CameraPadding18 { get; init; }
     public NativeBattlePackedMatrix32? PackedCamera { get; init; }

@@ -10,7 +10,7 @@ public static partial class NativeBattleGastricJuice128Controller
     private static int FirstContact(NativeBattleGastricJuice128Frame frame, NativeBattleGastricJuice128Inputs inputs)
     {
         BattleActionHeaderReference index = Parameters(frame).Header;
-        if ((uint)index >= inputs.Packets.Headers.Length || inputs.Packets.ReadHeader(index).ReadByte(16) == 0)
+        if (inputs.Packets.ReadHeader(index).ReadContactCount() == 0)
         {
             throw new InvalidDataException("Gastric Juice requires its first captured target contact.");
         }

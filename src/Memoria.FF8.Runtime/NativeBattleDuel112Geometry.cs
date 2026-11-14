@@ -34,7 +34,7 @@ public static class NativeBattleDuel112Geometry
         return arena;
     }
 
-    public static NativeBattleVector Midpoint6CD8B0(uint actor, Func<uint, byte, short, NativeBattleVector> readBone)
+    public static NativeBattleVector Midpoint6CD8B0(BattleModelOwner actor, Func<BattleModelOwner, byte, short, NativeBattleVector> readBone)
     {
         NativeBattleVector first = readBone(actor, 21, 0);
         NativeBattleVector second = readBone(actor, 22, 0);

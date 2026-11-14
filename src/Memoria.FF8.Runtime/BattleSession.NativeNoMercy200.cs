@@ -137,7 +137,7 @@ public sealed partial class BattleSession
                         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native No Mercy requires its selected contact pointer.");
                         for (int index = 0; index < count; index++)
                         {
-                            graphics = SelectNativeHeaderSequence(graphics, nativeActionPackets.ReadContact(first + index).Primary.ActorIndex, sequence.Sequence);
+                            graphics = SelectNativeHeaderSequence(graphics, nativeActionPackets.ReadContact(first + index).Primary.Recipient, sequence.Sequence);
                         }
                     }
                     return current with { Memory = NativeEffectMemory!, Staging = NativeFileStaging! };

@@ -78,7 +78,7 @@ public static partial class NativeBattleEffect213Controller
         NativeBattleModulePoolTask task = Read(frame, address).WriteWord(14, (ushort)count);
         for (int index = 0; index < count; index++)
         {
-            task = task.WriteByte(0x1C + index, (byte)index).WriteDword(16 + index * 4, ModelAddress(packets.ReadContact(first + index).Primary.ActorIndex));
+            task = task.WriteByte(0x1C + index, (byte)index).WriteDword(16 + index * 4, ModelAddress(packets.ReadContact(first + index).Primary.Recipient));
         }
         for (int outer = 0; outer < count - 1; outer++)
         {

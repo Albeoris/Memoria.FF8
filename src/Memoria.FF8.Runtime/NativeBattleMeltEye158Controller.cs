@@ -9,8 +9,8 @@ public static partial class NativeBattleMeltEye158Controller
         Require(frame);
         resources.Validate();
         NativeBattleActionHeaderSlot header = Header(frame, inputs);
-        int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Melt-Eye requires its captured first contact.");
-        int target = inputs.Packets.ReadContact(firstContact).Primary.ActorIndex;
+        BattleContactCursor firstContact = header.FirstContact;
+        int target = inputs.Packets.ReadContact(firstContact).Primary.Recipient;
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, RootStride, RootCount);
         (root, int rootSlot) = root.Append(RootCallback);
         root = root.WriteSlot(rootSlot, root.Slots[rootSlot].WriteWord(12, 0));

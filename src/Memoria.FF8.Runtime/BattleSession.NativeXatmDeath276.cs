@@ -11,7 +11,7 @@ public sealed partial class BattleSession
         effect = effect with { PresentationPackets = [] };
         NativeBattleXatmDeath276Resources resources = effect.Binding.XatmDeath276Resources ?? throw new NotSupportedException("Native X-ATM092 requires its authenticated executable resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native X-ATM092 requires its retained effect memory.");
-        int caster = effect.Parameters?.Source ?? throw new NotSupportedException("Native X-ATM092 requires its actual caster parameter.");
+        BattleModelOwner caster = effect.Parameters?.Source ?? throw new NotSupportedException("Native X-ATM092 requires its actual caster parameter.");
         if (initialize)
         {
             NativeBattleXatmDeath276Frame initialized = NativeBattleXatmDeath276Controller.Initialize684F10(memory, effect, resources);
@@ -43,7 +43,7 @@ public sealed partial class BattleSession
             return NativeBattleModelResourceRowAddress.Encode(row, capacity);
         }
 
-        NativeBattleVector ReadBone(int bone, short fraction)
+        NativeBattleVector ReadBone(BattleModelOwner bone, short fraction)
         {
             NativeBattlePoseSource pose = Pose();
             short parent = BinaryPrimitives.ReadInt16LittleEndian(pose.Skeleton.AsSpan().Slice(16 + bone * 48));

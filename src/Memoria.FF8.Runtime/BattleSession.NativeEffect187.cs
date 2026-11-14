@@ -58,7 +58,7 @@ public sealed partial class BattleSession
             return retained.Write(0, BitConverter.GetBytes(center.X)).Write(2, BitConverter.GetBytes(center.Y)).Write(4, BitConverter.GetBytes(center.Z));
         }
 
-        NativeBattleEffect187PointStep Point(NativeBattleEffect187Frame current, int actor, int selector, int fraction, NativeBattleEffectArena retained)
+        NativeBattleEffect187PointStep Point(NativeBattleEffect187Frame current, BattleModelOwner actor, int selector, int fraction, NativeBattleEffectArena retained)
         {
             NativeFileStaging = current.Staging;
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);

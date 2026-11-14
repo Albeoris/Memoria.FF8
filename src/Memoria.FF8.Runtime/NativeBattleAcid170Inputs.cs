@@ -15,7 +15,7 @@ public abstract record NativeBattleAcid170Operation
 }
 public sealed record NativeBattleAcid170Contact506690(int ContactIndex) : NativeBattleAcid170Operation;
 public sealed record NativeBattleAcid170Sound501330(uint Packed, uint Flags, int Pan) : NativeBattleAcid170Operation;
-public sealed record NativeBattleAcid170ActorFlags(int Actor, ushort ClearMask, ushort SetMask) : NativeBattleAcid170Operation;
+public sealed record NativeBattleAcid170ActorFlags(BattleModelOwner Actor, ushort ClearMask, ushort SetMask) : NativeBattleAcid170Operation;
 public sealed record NativeBattleAcid170DrawBody172(int Actor, uint TemporaryAddress) : NativeBattleAcid170Operation;
 public sealed record NativeBattleAcid170DrawMesh92(uint TemporaryAddress, uint SourceAddress, int TableBaseBucket = 17, int DepthShift = 2) : NativeBattleAcid170Operation;
 public sealed record NativeBattleAcid170DrawStatic88(uint TemporaryAddress, uint SourceAddress, int TableBaseBucket = 17, int DepthShift = 2) : NativeBattleAcid170Operation;

@@ -6,9 +6,9 @@ public sealed record NativeBattleTheEnd85LeafStep(NativeBattleTheEnd85Frame Fram
 {
     public bool HierarchyReleased { get; init; }
 }
-public sealed record NativeBattleTheEnd85Inputs(NativeBattleActionPacketsState Packets, NativeBattlePackedMatrix32 CameraMatrix, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleTheEnd85Frame, uint, NativeBattleTheEnd85Frame> InitializeTarget, Func<NativeBattleTheEnd85Frame, uint, NativeBattleTheEnd85LeafStep> AdvanceLeaf, Func<NativeBattleTheEnd85Frame, int, NativeBattleTheEnd85Frame> ApplyContact, Func<NativeBattleTheEnd85Frame, NativeBattleChoco97Operation, NativeBattleTheEnd85Frame> Execute, uint DirectorAddress)
+public sealed record NativeBattleTheEnd85Inputs(NativeBattleActionPacketsState Packets, NativeBattlePackedMatrix32 CameraMatrix, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleTheEnd85Frame, uint, NativeBattleTheEnd85Frame> InitializeTarget, Func<NativeBattleTheEnd85Frame, uint, NativeBattleTheEnd85LeafStep> AdvanceLeaf, Func<NativeBattleTheEnd85Frame, int, NativeBattleTheEnd85Frame> ApplyContact, Func<NativeBattleTheEnd85Frame, NativeBattleChoco97Operation, NativeBattleTheEnd85Frame> Execute, uint DirectorAddress)
 {
-    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeign { get; init; }
+    public Func<BattleModelOwner, NativeBattleEffectActorGeometry?>? ReadForeign { get; init; }
 }
 
 public static partial class NativeBattleTheEnd85Controller
@@ -65,7 +65,7 @@ public static partial class NativeBattleTheEnd85Controller
         NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(0x0C, ActionParameters);
         NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, ActionParameters, unchecked((sbyte)root.ReadByte(0x2A)), unchecked((sbyte)root.ReadByte(0x2B)));
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        root = root.WriteByte(0x2C, actors.Actor).WriteByte(0x2D, actors.Target).WriteByte(0x29, 0).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
+        root = actors.WriteTo(root).WriteByte(0x29, 0).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
         byte last = unchecked((byte)(root.ReadWord(0x5A) - 1));
         if (last < root.ReadWord(0x58))
         {

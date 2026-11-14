@@ -16,11 +16,11 @@ public static partial class NativeBattleEffect183Controller
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(0x22F33F0, 0x22F3400, 36, 100);
         (children, int director) = children.Append(0x5C9AE0);
         children = children.WriteSlot(director, children.Slots[director].WriteWord(12, 0));
-        int first = inputs.Packets.ReadHeader(Parameters(frame).Header).FirstContactIndex ?? throw new NotSupportedException("Effect183 requires its first captured contact.");
+        BattleContactCursor first = inputs.Packets.ReadHeader(Parameters(frame).Header).FirstContact;
         int tim = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x22F4218)?.ArenaOffset ?? throw new NotSupportedException("Effect183 requires its executed texture initializer.");
         NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Effect183 requires its actual texture queue.");
         (textures, _) = textures.EnqueueArenaTim505E30(frame.Memory.Arena ?? throw new NotSupportedException("Effect183 requires its loaded texture bytes."), tim);
-        NativeBattleEffect183State state = frame.State.WriteDword(0x22F33C8, inputs.Packets.ReadContact(first).Primary.ActorIndex).WriteDword(0x22F4210, 0x1D99A78).WriteDword(0x22F4214, Parameters(frame).Source).WriteDword(0x22F4218, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)tim));
+        NativeBattleEffect183State state = frame.State.WriteDword(0x22F33C8, inputs.Packets.ReadContact(first).Primary.Recipient).WriteDword(0x22F4210, 0x1D99A78).WriteDword(0x22F4214, Parameters(frame).Source).WriteDword(0x22F4218, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)tim));
         return frame with { State = state with { RootBankStorage = null, ChildBankStorage = null }, Memory = frame.Memory with { Textures = textures }, Effect = frame.Effect with { Pools = [roots, children], ReturnedDescriptor = 0x22F33E0, DrawArenaOffset = null } };
     }
 

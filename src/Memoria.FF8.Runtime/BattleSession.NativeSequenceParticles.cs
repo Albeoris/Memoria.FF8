@@ -51,7 +51,7 @@ public sealed partial class BattleSession
         var pending = graphics.PendingContacts;
         graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [previous] });
         NativeBattleActionGraphicsState context = graphics.ActionGraphics ?? throw new NotSupportedException("Native50A690 requires its retained action globals.");
-        return graphics with { PendingContacts = pending, ActionGraphics = context with { FirstTarget = nativeActionPackets.ReadActiveContact().Primary.ActorIndex } };
+        return graphics with { PendingContacts = pending, ActionGraphics = context with { FirstTarget = nativeActionPackets.ReadActiveContact().Primary.Recipient } };
     }
 
     private NativeBattleGraphicsState ApplyNativeSequenceCover5065B0(NativeBattleGraphicsState graphics, NativeBattleContactHalf half)
@@ -60,7 +60,7 @@ public sealed partial class BattleSession
         {
             return graphics;
         }
-        int target = half.ActorIndex;
+        int target = half.Recipient;
         int sourceIndex = half.HitFlags3 >> 6;
         NativeBattleGraphicsModel source = graphics.ActorModels.Get(sourceIndex);
         NativeBattleGraphicsModel recipient = graphics.ActorModels.Get(target);

@@ -51,7 +51,7 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Suicide requires its interpolation constants.");
         NativeCrtRandomState random = nativeCrtRandom ?? throw new NotSupportedException("Native Suicide requires its shared CRT stream.");
         bool paused = (graphics.Flags & 0x201) != 0;
-        int actor = effect.Parameters!.Source;
+        BattleModelOwner actor = effect.Parameters!.Source;
         NativeBattleEffectTaskStep advanced = children.Advance((pool, slot) =>
         {
             children = pool;
@@ -128,7 +128,7 @@ public sealed partial class BattleSession
             if (age == 38)
             {
                 NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters.Header);
-                int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Suicide requires its original first contact.");
+                BattleContactCursor first = header.FirstContact;
                 ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                 graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(first)] });
                 graphics = graphics with { PendingContacts = pending };

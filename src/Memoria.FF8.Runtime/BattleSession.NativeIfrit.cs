@@ -30,7 +30,7 @@ public sealed partial class BattleSession
         {
             throw new NotSupportedException("Native cinematic entry requires its first actual contact actor.");
         }
-        NativeBattleWaterInitializationInputs inputs = new(Resource(0, profile.File0Publication), Resource(1, profile.File1Publication), NativeBattleWater222Controller.CreateTemporaryFrame(WaterTemporaryAddress), WaterParametersAddress, WaterHeadersAddress + checked((uint)(20 * parameters.Header)), profile.InitializationAddress, parameters.Source, parameters.Header, contacts[0], contacts, header?.ReadContactCount() ?? 1, header?.ReadByte(0x11) ?? 1, graphics.Models);
+        NativeBattleWaterInitializationInputs inputs = new(Resource(0, profile.File0Publication), Resource(1, profile.File1Publication), NativeBattleWater222Controller.CreateTemporaryFrame(WaterTemporaryAddress), WaterParametersAddress, WaterHeadersAddress + checked((uint)(20 * parameters.Header)), profile.InitializationAddress, parameters.Source, parameters.Header, contacts[0], contacts, header?.ReadContactCount() ?? 1, header?.ReadRepeatModeMinusOne() ?? 1, graphics.Models);
         NativeBattleCinematicEntryStep initialized = entryCaster is null ? NativeBattleCinematicEntry.Initialize(profile, RequireWaterMemory(), effect, directories, inputs) : NativeBattleCinematicEntry.InitializeIfritPresentation(RequireWaterMemory(), effect, directories, inputs);
         NativeEffectMemory = initialized.Memory;
         if (effect.Binding.Effect == 18)

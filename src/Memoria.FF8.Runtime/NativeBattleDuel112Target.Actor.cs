@@ -11,7 +11,7 @@ public static partial class NativeBattleDuel112Target
         return Math.Max(-9999, (phase < 4 ? phase : 152 - phase) << 8);
     }
 
-    public static void Backstep6CBF90(int actor, NativeBattleDuel112ActorServices services)
+    public static void Backstep6CBF90(BattleModelOwner actor, NativeBattleDuel112ActorServices services)
     {
         NativeBattleGraphicsModel model = services.ReadModel(actor);
         NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Duel backstep requires its actual actor transform.");
@@ -20,7 +20,7 @@ public static partial class NativeBattleDuel112Target
         services.WriteModel(actor, model with { Transform = transform });
     }
 
-    public static NativeBattleDuel112Frame Trajectory6CBF90(NativeBattleDuel112Frame frame, int slot, NativeBattleDuel112ActorServices services, Func<int, NativeBattleModuleAnchor> readAnchor571400)
+    public static NativeBattleDuel112Frame Trajectory6CBF90(NativeBattleDuel112Frame frame, int slot, NativeBattleDuel112ActorServices services, Func<BattleModelOwner, NativeBattleModuleAnchor> readAnchor571400)
     {
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
         NativeBattleModulePoolTask task = pool.Slots[slot];
@@ -35,13 +35,9 @@ public static partial class NativeBattleDuel112Target
         short yaw = model.Rotation14 ?? throw new NotSupportedException("Native Duel trajectory requires its actual actor yaw.");
         if (phase == 0)
         {
-            uint target = task.ReadDword(176);
-            if (!NativeBattleGraphicsModelAddress.TryDecode(target, out int index))
-            {
-                throw new InvalidDataException("Native Duel trajectory requires its actual target model pointer.");
-            }
-            NativeBattleModelTransform targetTransform = services.ReadModel(index).Transform ?? throw new NotSupportedException("Native Duel trajectory requires its actual target scale.");
-            NativeBattleModuleAnchor anchor = readAnchor571400(index);
+            BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(176, 4).Owner;
+            NativeBattleModelTransform targetTransform = services.ReadModel(target).Transform ?? throw new NotSupportedException("Native Duel trajectory requires its actual target scale.");
+            NativeBattleModuleAnchor anchor = readAnchor571400(target);
             task = task.WriteWord(68, unchecked((ushort)(anchor.X + unchecked((targetTransform.Scale38 + 5000) * NativeBattleCameraMath.Sine(yaw)) / 12288)));
             task = task.WriteWord(70, unchecked((ushort)(anchor.Y - ((targetTransform.Scale38 + 10000) >> 5))));
             task = task.WriteWord(72, unchecked((ushort)(anchor.Z + unchecked((targetTransform.Scale38 + 5000) * NativeBattleCameraMath.Cosine(yaw)) / 12288)));

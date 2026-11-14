@@ -21,7 +21,7 @@ public sealed record NativeBattleEffect167SetProjectionH(ushort Value) : NativeB
 public sealed record NativeBattleEffect167Flash5712C0(int Rise, int Hold, int Fall, byte Color) : NativeBattleEffect167Operation;
 public sealed record NativeBattleEffect167Sound501330(uint SourceAddress, uint Flags, byte Pan) : NativeBattleEffect167Operation;
 public sealed record NativeBattleEffect167StageGroupFlags(int Group, byte AndMask, byte OrMask) : NativeBattleEffect167Operation;
-public sealed record NativeBattleEffect167WriteModelBytes(int Actor, int Offset, NativeBattleEffectArena Data, int Length) : NativeBattleEffect167Operation;
-public sealed record NativeBattleEffect167ResourceFlags44(int Actor, ushort AndMask, ushort OrMask) : NativeBattleEffect167Operation;
+public sealed record NativeBattleEffect167WriteModelBytes(BattleModelOwner Actor, int Offset, NativeBattleEffectArena Data, int Length) : NativeBattleEffect167Operation;
+public sealed record NativeBattleEffect167ResourceFlags44(BattleModelOwner Actor, ushort AndMask, ushort OrMask) : NativeBattleEffect167Operation;
 public sealed record NativeBattleEffect167AllContacts506BA0(int FirstContactIndex, int Count) : NativeBattleEffect167Operation;
 public sealed record NativeBattleEffect167DrawBatch(NativeBattleGfGeometryBatch Batch, uint CursorGlobal, ushort Flags = 0) : NativeBattleEffect167Operation;

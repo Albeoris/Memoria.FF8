@@ -33,8 +33,8 @@ public static class NativeBattleRecover93Controller
         NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(0, profile.Code(0x74E520), 0x64);
         hierarchy = appended.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.ReadHeader(effect.Parameters.Header);
-        int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native Recover93 requires an original header/contact owner.");
-        NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(0xC, ActionParameters).WriteByte(0x2C, header.ReadByte(0)).WriteByte(0x2D, packets.ReadContact(contact).Primary.ActorIndex).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
+        BattleContactCursor contact = header.FirstContact;
+        NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(0xC, ActionParameters).WriteByte(0x2C, header.Source).WriteByte(0x2D, packets.ReadContact(contact).Primary.Recipient).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
         byte lastTarget = unchecked((byte)(root.ReadWord(0x5A) - 1));
         if (lastTarget < root.ReadWord(0x58))
         {
@@ -85,7 +85,6 @@ public static class NativeBattleRecover93Controller
         {
             throw new InvalidDataException("Native Recover93 lost its explicitly initialized shared state.");
         }
-        NativeBattleGraphicsModel[] Models() => Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray();
         NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
         NativeBattleEffectHierarchyStep rootStep = state.Advance(0, (current, address) =>
         {
@@ -95,7 +94,7 @@ public static class NativeBattleRecover93Controller
             int baseOffset = TextureOffset(frame.Effect);
             bool odd = (task.ReadWord(0x5C) & 1) != 0;
             frame = frame with { Effect = frame.Effect with { DrawArenaOffset = baseOffset + (odd ? 0 : 0x8000) }, Memory = profile.Write(frame.Memory, Shared() with { ViewCopy = MatrixBytes(inputs.View), PrivateAuxiliaryOffset = baseOffset + (odd ? 0x8000 : 0x10000) }) };
-            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, Models(), inputs.ReadPoseSource);
+            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, inputs.ReadModel, inputs.ReadPoseSource);
             Store(address, task);
             switch (Stage(task))
             {
@@ -206,7 +205,7 @@ public static class NativeBattleRecover93Controller
         void Target(uint address)
         {
             NativeBattleModulePoolTask task = state.Read(address);
-            task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, Models(), inputs.ReadPoseSource);
+            task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, inputs.ReadModel, inputs.ReadPoseSource);
             int actor = task.ReadByte(0x2D);
             NativeBattleGraphicsModel model = inputs.ReadModel(actor);
             NativeBattlePoseSource source = inputs.ReadPoseSource(actor);
@@ -229,10 +228,6 @@ public static class NativeBattleRecover93Controller
                     if (DogWord(0x48) == 1)
                     {
                         BattleActionHeaderReference headerIndex = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                        if ((uint)headerIndex >= inputs.Packets.Headers.Length)
-                        {
-                            throw new NotSupportedException("Native Recover93 contact header leaves its physical arena.");
-                        }
                         int contact = checked((inputs.Packets.ReadHeader(headerIndex).FirstContactIndex ?? throw new NotSupportedException("Native Recover93 lost its physical contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
                         Emit(new NativeBattleRecover93Contact(contact));
                         Store(address, Next(task));

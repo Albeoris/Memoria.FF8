@@ -9,7 +9,7 @@ public static partial class NativeBattleElectrocute275Controller
     private static int FirstContact(NativeBattleElectrocute275Frame frame, NativeBattleElectrocute275Inputs inputs)
     {
         BattleActionHeaderReference index = Parameters(frame).Header;
-        if ((uint)index >= inputs.Packets.Headers.Length || inputs.Packets.ReadHeader(index).ReadByte(16) == 0)
+        if (inputs.Packets.ReadHeader(index).ReadContactCount() == 0)
         {
             throw new InvalidDataException("Electrocute requires its first captured target contact.");
         }

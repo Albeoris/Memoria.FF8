@@ -73,7 +73,7 @@ public sealed partial class BattleSession
 
         NativeBattleAcid317PointStep Mouth(NativeBattleAcid317Frame current)
         {
-            byte actor = current.Effect.Parameters!.Source;
+            BattleModelOwner actor = current.Effect.Parameters!.Source;
             NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Acid mouth requires its current actor skeleton.");
             NativeBattleBadBreath300MouthStep prepared = NativeBattleBadBreath300Mouth.Prepare(current.Memory, graphics.ActorModels.Get(actor), pose, resources.MouthAnchor8);
             graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, prepared.Model) };

@@ -30,11 +30,11 @@ public static class NativeBattleProtectController
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, 0x86BB00, 100);
         hierarchy = root.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Protect requires its actual first contact.");
+        BattleContactCursor first = header.FirstContact;
         byte targets = header.ReadContactCount();
         byte groups = header.ReadRepeatModeMinusOne();
         byte maximum = Math.Max(unchecked((byte)(targets - 1)), groups);
-        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(12, 0x1D99A78).WriteByte(0x2C, header.ReadByte(0)).WriteByte(0x2D, packets.ReadContact(first).Primary.ActorIndex).WriteWord(0x5A, targets).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
+        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(12, 0x1D99A78).WriteByte(0x2C, header.Source).WriteByte(0x2D, packets.ReadContact(first).Primary.Recipient).WriteWord(0x5A, targets).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
         hierarchy = hierarchy.Write(root.Address, task);
         if ((parameters.Flags79 & 1) == 0)
         {
@@ -62,7 +62,7 @@ public static class NativeBattleProtectController
             int source = owner.Source ?? throw new NotSupportedException("Native Protect lost its executed initializer pointer.");
             bool odd = (task.ReadWord(0x5C) & 1) != 0;
             current = current with { Memory = current.Memory with { Protect32 = owner with { Cursor = source + (odd ? 0 : 0xB800), SecondaryCursor = source + (odd ? 0xB800 : 0x17000) } } };
-            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, Models(), inputs.ReadPoseSource);
+            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, inputs.ReadModel, inputs.ReadPoseSource);
             state = state.Write(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {
@@ -141,7 +141,7 @@ public static class NativeBattleProtectController
             switch (task.Callback)
             {
                 case 0x86BDC0:
-                    task = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, Models(), inputs.ReadPoseSource, inputs.ReadForeignTarget);
+                    task = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, inputs.ReadModel, inputs.ReadPoseSource, inputs.ReadForeignTarget);
                     state = state.Write(address, task);
                     if (phase == 0)
                     {
@@ -337,7 +337,6 @@ public static class NativeBattleProtectController
             current = current with { Random = random };
             return value;
         }
-        NativeBattleGraphicsModel[] Models() => Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray();
         NativeBattleVector Bone(NativeBattleModulePoolTask task, byte selector) => inputs.ReadBone?.Invoke(task.ReadByte(0x2D), selector, 0) ?? NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(task.ReadByte(0x2D)), inputs.ReadPoseSource(task.ReadByte(0x2D)), selector, 0);
         short Facing(NativeBattleModulePoolTask task) => inputs.ReadModel(task.ReadByte(0x2D)).Rotation14 ?? throw new NotSupportedException("Native Protect requires target facingWORD0E.");
         void PublishFar(uint? color)

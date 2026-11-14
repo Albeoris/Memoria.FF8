@@ -18,7 +18,7 @@ public static partial class NativeBattleDegenerator306Controller
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 36, 100);
         (children, int main) = children.Append(MainCallback);
         children = children.WriteSlot(main, children.Slots[main].WriteWord(12, 0));
-        NativeBattleDegenerator306State state = frame.State.ClearSlotHeads().WriteDword(WorkingGlobal, ArenaAddress).WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(TargetGlobal, inputs.Packets.ReadContact(first).Primary.ActorIndex).WriteDword(CasterGlobal, Parameters(frame).Source).WriteDword(ParametersGlobal, 0x1D99A78);
+        NativeBattleDegenerator306State state = frame.State.ClearSlotHeads().WriteDword(WorkingGlobal, ArenaAddress).WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(TargetGlobal, inputs.Packets.ReadContact(first).Primary.Recipient).WriteDword(CasterGlobal, Parameters(frame).Source).WriteDword(ParametersGlobal, 0x1D99A78);
         return frame with { State = state, Effect = frame.Effect with { Pools = [root, children], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null }, Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) } };
     }
 

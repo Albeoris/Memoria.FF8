@@ -20,7 +20,7 @@ public sealed class NativeBattleActionPacketsTests
         cold = cold with { Headers = cold.Headers.SetItem(0, raw) };
         NativeBattleActionPacketsState arena = NewArena(cold);
         Assert.Throws<InvalidDataException>(() => arena.ReadHeader(First));
-        Assert.Throws<NotSupportedException>(() => arena.ReadContact(new(0)));
+        Assert.Throws<NotSupportedException>(() => arena.ReadContact(new BattleContactOccurrence(0)));
 
         (arena, var header) = arena.Prepare(Preparation() with { Data = new(0x47E970, 6) });
         Assert.Equal(0, arena.ActionCount);
@@ -170,7 +170,7 @@ public sealed class NativeBattleActionPacketsTests
 
         NativeBattleActionPacketsState next = rebound.AppendContact(new(new(replacement, 4, 0, 0, 0, 37, 0), null)).State;
         Assert.Equal((byte)3, next.ExportRetained().Contacts[1]!.Primary.ActorIndex);
-        Assert.Equal(replacement, next.ReadContact(new(1)).Primary.Recipient);
+        Assert.Equal(replacement, next.ReadContact(new BattleContactOccurrence(1)).Primary.Recipient);
     }
 
     [Fact]

@@ -80,8 +80,8 @@ public sealed partial class BattleSession
                 {
                     for (int b = a + 1; b < count; b++)
                     {
-                        int ia = nativeActionPackets.ReadContact(firstContact + ordered[a]).Primary.ActorIndex;
-                        int ib = nativeActionPackets.ReadContact(firstContact + ordered[b]).Primary.ActorIndex;
+                        int ia = nativeActionPackets.ReadContact(firstContact + ordered[a]).Primary.Recipient;
+                        int ib = nativeActionPackets.ReadContact(firstContact + ordered[b]).Primary.Recipient;
                         short za = graphics.ActorModels.Get(ia).Transform!.Position28.X;
                         short zb = graphics.ActorModels.Get(ib).Transform!.Position28.X;
                         if (za < zb)
@@ -92,7 +92,7 @@ public sealed partial class BattleSession
                 }
                 for (int index = 0; index < count; index++)
                 {
-                    int actor = nativeActionPackets.ReadContact(firstContact + ordered[index]).Primary.ActorIndex;
+                    int actor = nativeActionPackets.ReadContact(firstContact + ordered[index]).Primary.Recipient;
                     target = target.WriteDword(16 + index * 4, NativeBattleGraphicsModelAddress.Encode(actor)).WriteByte(0x1C + index, (byte)ordered[index]);
                 }
                 target = target.WriteWord(0x22, count > 1 ? (ushort)1 : (ushort)0).WriteWord(0x26, (ushort)((count << 12) / 40)).WriteWord(0x2C, unchecked((ushort)CountVertices(Model(target.ReadDword(16)))));
@@ -129,7 +129,7 @@ public sealed partial class BattleSession
         int Target(ref NativeBattleModulePoolTask task)
         {
             int frame = Word(task, 12);
-            int caster = effect.Parameters!.Source;
+            BattleModelOwner caster = effect.Parameters!.Source;
             NativeBattleVector mouth = ReadNativeGraphicsBone(graphics, caster, 0x1D, 0x400);
             task = Store(task, 0x34, mouth);
             if (frame == 8)

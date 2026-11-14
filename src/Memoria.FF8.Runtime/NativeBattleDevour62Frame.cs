@@ -7,7 +7,7 @@ public sealed record NativeBattleDevour62Sound(NativeBattleModuleSound Sound) : 
 public sealed record NativeBattleDevour62UploadTim(uint GlobalAddress) : NativeBattleDevour62Operation;
 public sealed record NativeBattleDevour62MusicGain(int Gain) : NativeBattleDevour62Operation;
 public sealed record NativeBattleDevour62StageFade(short Value, bool ClearRgb) : NativeBattleDevour62Operation;
-public sealed record NativeBattleDevour62WriteActorFlags(int Actor, ushort Flags) : NativeBattleDevour62Operation;
+public sealed record NativeBattleDevour62WriteActorFlags(BattleModelOwner Actor, ushort Flags) : NativeBattleDevour62Operation;
 public sealed record NativeBattleDevour62FadeActors(short Value) : NativeBattleDevour62Operation;
 public sealed record NativeBattleDevour62DrawQuads(uint Address) : NativeBattleDevour62Operation;
 public sealed record NativeBattleDevour62Inputs(NativeBattleActionPacketsState Packets, NativeBattlePackedMatrix32 Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleDevour62Frame, NativeBattleDevour62Operation, NativeBattleDevour62Frame> Execute);

@@ -51,7 +51,7 @@ public sealed partial class BattleSession
             {
                 NativeBattleModulePoolTask director = Clear(5, slot);
                 BattleActionHeaderReference headerIndex = effect.Parameters!.Header;
-                int count = nativeActionPackets.ReadHeader(headerIndex).ReadByte(16);
+                int count = nativeActionPackets.ReadHeader(headerIndex).ReadContactCount();
                 int contact = nativeActionPackets.ReadHeader(headerIndex).FirstContactIndex ?? throw new InvalidDataException("Native control110 requires its original target array.");
                 if (count is < 1 or > 3)
                 {
@@ -60,7 +60,7 @@ public sealed partial class BattleSession
                 director = director.WriteWord(14, (ushort)count).WriteWord(30, 1).WriteWord(34, unchecked((ushort)((count << 12) / 60)));
                 for (int index = 0; index < count; index++)
                 {
-                    int actor = nativeActionPackets.ReadContact(contact + index).Primary.ActorIndex;
+                    int actor = nativeActionPackets.ReadContact(contact + index).Primary.Recipient;
                     director = director.WriteDword(16 + index * 4, NativeBattleGraphicsModelAddress.Encode(actor));
                 }
                 Put(5, slot, director);

@@ -31,7 +31,7 @@ public static partial class NativeBattleSigh46Controller
         int firstContact = packets.ReadHeader(headerIndex).FirstContactIndex ?? throw new NotSupportedException("Sigh requires the selected group's actual contact pointer.");
         for (int index = 0; index < count; index++)
         {
-            WriteContextDword(4 + 4 * index, packets.ReadContact(checked(firstContact + index)).Primary.ActorIndex);
+            WriteContextDword(4 + 4 * index, packets.ReadContact(checked(firstContact + index)).Primary.Recipient);
         }
         WriteWord(0x1A, task.ReadWord(0x29E));
         short mode = unchecked((short)ReadWord(0x24));

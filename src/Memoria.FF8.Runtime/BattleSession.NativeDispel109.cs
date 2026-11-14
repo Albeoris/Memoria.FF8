@@ -66,7 +66,7 @@ public sealed partial class BattleSession
                     break;
                 case NativeBattleDispel109OperationKind.Contact:
                     BattleActionHeaderReference headerIndex = current.Effect.Parameters!.Header.Advance(operation.Value);
-                    int contact = nativeActionPackets.ReadHeader(headerIndex).FirstContactIndex ?? throw new InvalidDataException("Native Dispel requires its actual group contact pointer.");
+                    BattleContactCursor contact = nativeActionPackets.ReadHeader(headerIndex).FirstContact;
                     NativeEffectMemory = current.Memory;
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                     graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact)] });

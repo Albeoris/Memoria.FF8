@@ -23,8 +23,8 @@ public static partial class NativeBattleMiniPulseCannon286Controller
             }
             frame = ClearDwords701200(frame, main + 12, 434);
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-            int first = Header(frame, packets).FirstContactIndex ?? throw new NotSupportedException("Mini Pulse Cannon requires its first physical contact.");
-            uint target = ModelAddress(packets.ReadContact(first).Primary.ActorIndex);
+            BattleContactCursor first = Header(frame, packets).FirstContact;
+            uint target = ModelAddress(packets.ReadContact(first).Primary.Recipient);
             frame = Write(frame, main, Read(frame, main).WriteDword(16, target));
             int[] offsets = [28, 584, 928, 1604];
             int[] lengths = [556, 344, 676, 144];
@@ -182,10 +182,6 @@ public static partial class NativeBattleMiniPulseCannon286Controller
             throw new NotSupportedException("Mini Pulse Cannon requires its actual current parameter pointer.");
         }
         BattleActionHeaderReference index = Parameters(frame).Header;
-        if ((uint)index >= packets.Headers.Length)
-        {
-            throw new NotSupportedException("Mini Pulse Cannon parameter header leaves its physical action arena.");
-        }
         return packets.ReadHeader(index);
     }
 }

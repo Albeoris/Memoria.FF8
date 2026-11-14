@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleScanTargetFrame(NativeBattleScanFrame Scan, ImmutableArray<NativeBattleGraphicsModel> Models, ImmutableArray<NativeBattleScanByteOwner> PhysicalModels);
 public sealed record NativeBattleScanTargetStep(NativeBattleScanTargetFrame Frame, int Result);
-public sealed record NativeBattleScanTargetInputs(NativeBattleActionPacketsState Packets, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<uint, byte> ReadExternalByte, Func<NativeBattleScanTargetFrame, uint, uint, byte, NativeBattleScanTargetFrame> Sound501330, Func<NativeBattleScanTargetFrame, int, NativeBattleScanTargetFrame> ApplyContact506690)
+public sealed record NativeBattleScanTargetInputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<uint, byte> ReadExternalByte, Func<NativeBattleScanTargetFrame, uint, uint, byte, NativeBattleScanTargetFrame> Sound501330, Func<NativeBattleScanTargetFrame, int, NativeBattleScanTargetFrame> ApplyContact506690)
 {
     public Func<int, byte>? ReadResourceSequence { get; init; }
 }

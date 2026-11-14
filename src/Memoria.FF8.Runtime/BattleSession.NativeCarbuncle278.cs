@@ -226,7 +226,7 @@ public sealed partial class BattleSession
                 BattleActionHeaderReference header = current.Effect.Parameters?.Header ?? throw new NotSupportedException("Native Carbuncle contact requires its current header pointer.");
                 foreach (NativeBattleContactPacket packet in nativeActionPackets.ReadHeaderContacts506BA0(header))
                 {
-                    if (packet.Primary.ActorIndex == actor)
+                    if (packet.Primary.Recipient == actor)
                     {
                         var pending = graphics.PendingContacts;
                         graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [packet] });

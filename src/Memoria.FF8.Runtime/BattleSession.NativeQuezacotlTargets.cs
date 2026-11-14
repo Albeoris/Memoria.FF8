@@ -9,7 +9,7 @@ public sealed partial class BattleSession
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native6C5300/6C5350 requires its actual target contact pointer.");
         for (int index = 0; index < header.ReadContactCount(); index++)
         {
-            int target = nativeActionPackets.ReadContact(first + index).Primary.ActorIndex;
+            int target = nativeActionPackets.ReadContact(first + index).Primary.Recipient;
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(target);
             graphics = graphics with { ActorModels = graphics.ActorModels.Set(target, model with { Flags0 = hidden ? (ushort)(model.Flags0 | 4) : (ushort)(model.Flags0 & ~4) }) };
         }

@@ -11,7 +11,7 @@ public sealed record NativeBattleThundaga105DebrisDraw : NativeBattleThundaga105
 public sealed record NativeBattleThundaga105FragmentDraw(NativeBattleModulePoolTask Task, NativeBattleStaticMeshResource Mesh) : NativeBattleThundaga105Operation;
 public sealed record NativeBattleThundaga105Sprite(NativeBattleModulePoolTask Task) : NativeBattleThundaga105Operation;
 public sealed record NativeBattleThundaga105Capture(ImmutableArray<byte> Anchor, NativeBattleThundaga105Bounds Bounds) : NativeBattleThundaga105Operation;
-public sealed record NativeBattleThundaga105ActorColor(int Actor, uint Color40) : NativeBattleThundaga105Operation;
+public sealed record NativeBattleThundaga105ActorColor(BattleModelOwner Actor, uint Color40) : NativeBattleThundaga105Operation;
 public sealed record NativeBattleThundaga105StageFlash(int Amount) : NativeBattleThundaga105Operation;
 public sealed record NativeBattleThundaga105CommonFlash(int First, int Second, int Third, int Fourth) : NativeBattleThundaga105Operation;
 public sealed record NativeBattleThundaga105Sound(NativeBattleModuleAnchor Position) : NativeBattleThundaga105Operation;
@@ -83,7 +83,7 @@ public static class NativeBattleThundaga105Controller
                 throw new NotSupportedException("Native Thundaga root bank contains an unsupported callback.");
             }
             int? hostedActor = null;
-            if (inputs.Packets.PresentationRoster is { } roster && task.ReadWord(0xC) == 1 && task.ReadByte(0xE) <= Header(0).ReadByte(17) && (task.ReadByte(0x14) == 0 || HasFree(primary!)))
+            if (inputs.Packets.PresentationRoster is { } roster && task.ReadWord(0xC) == 1 && task.ReadByte(0xE) <= Header(0).ReadRepeatModeMinusOne() && (task.ReadByte(0x14) == 0 || HasFree(primary!)))
             {
                 hostedActor = Actor(task.ReadByte(0xE));
                 if (!roster.ContainsRow(hostedActor.Value))
@@ -106,7 +106,7 @@ public static class NativeBattleThundaga105Controller
                     task = task.WriteByte(0x14, 1);
                 }
                 int sequence = task.ReadByte(0xE);
-                if (sequence <= Header(0).ReadByte(17) && HasFree(primary!))
+                if (sequence <= Header(0).ReadRepeatModeMinusOne() && HasFree(primary!))
                 {
                     int actor = hostedActor ?? Actor(sequence);
                     (primary, int slot) = primary!.Append(0x6D43B0);
@@ -141,7 +141,7 @@ public static class NativeBattleThundaga105Controller
                 thirdCount = third.Survivors;
             }
             Emit(new NativeBattleThundaga105StageFlash(stage));
-            if (task.ReadByte(0x14) == 1 && debrisCount + firstCount + secondCount + thirdCount == 0 && task.ReadByte(0xE) > Header(0).ReadByte(17))
+            if (task.ReadByte(0x14) == 1 && debrisCount + firstCount + secondCount + thirdCount == 0 && task.ReadByte(0xE) > Header(0).ReadRepeatModeMinusOne())
             {
                 if ((parameters.Flags79 & 2) != 0)
                 {
@@ -323,7 +323,7 @@ public static class NativeBattleThundaga105Controller
         }
 
         NativeBattleActionHeaderSlot Header(int sequence) => inputs.Packets.ReadHeader(parameters.Header.Advance(sequence));
-        int Actor(int sequence) => inputs.Packets.ReadContact(Header(sequence).FirstContactIndex ?? throw new NotSupportedException("Native Thundaga requires its physical contact.")).Primary.ActorIndex;
+        int Actor(int sequence) => inputs.Packets.ReadContact(Header(sequence).FirstContact).Primary.Recipient;
         NativeBattleThundaga105State State() => frame.Memory.Thundaga105 ?? throw new NotSupportedException("Native Thundaga lost its retained source state.");
         NativeBattleThundaga105Frame Publish() => frame with { Effect = frame.Effect with { Pools = primary is null ? [main] : [main, primary, secondary!, tertiary!] } };
         void Emit(NativeBattleThundaga105Operation operation)

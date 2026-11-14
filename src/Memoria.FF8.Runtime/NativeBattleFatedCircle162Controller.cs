@@ -145,7 +145,7 @@ public static partial class NativeBattleFatedCircle162Controller
                 int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Native5F91D0 requires its physical contact array.");
                 for (int index = 0; index < header.ReadContactCount(); index++)
                 {
-                    byte recipient = inputs.Packets.ReadContact(firstContact + index).Primary.ActorIndex;
+                    byte recipient = inputs.Packets.ReadContact(firstContact + index).Primary.Recipient;
                     int impact = Append(0x5FCB00, inputs.ReadAnchor571400(recipient));
                     Set(impact, 28, (2200 * inputs.ReadScale26(recipient)) >> 12);
                 }

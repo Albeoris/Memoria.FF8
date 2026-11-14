@@ -38,7 +38,7 @@ public sealed partial class BattleSession
             nativeCrtRandom = current.Random;
         }
 
-        NativeBattleEerieSoundWave130PointStep Bone(NativeBattleEerieSoundWave130Frame current, int actor, byte selector, short distance)
+        NativeBattleEerieSoundWave130PointStep Bone(NativeBattleEerieSoundWave130Frame current, BattleModelOwner actor, byte selector, short distance)
         {
             NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Eerie Sound Wave requires its current actor skeleton.");
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), pose, selector, distance);
@@ -48,7 +48,7 @@ public sealed partial class BattleSession
             return new(current with { Memory = observed, Staging = NativeFileStaging }, point);
         }
 
-        NativeBattleEerieSoundWave130AnchorStep Anchor(NativeBattleEerieSoundWave130Frame current, int actor)
+        NativeBattleEerieSoundWave130AnchorStep Anchor(NativeBattleEerieSoundWave130Frame current, BattleModelOwner actor)
         {
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) != 0)

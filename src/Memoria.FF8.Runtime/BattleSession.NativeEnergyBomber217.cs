@@ -45,7 +45,7 @@ public sealed partial class BattleSession
             return current with { Memory = observed, Staging = NativeFileStaging };
         }
 
-        NativeBattleEnergyBomber217PointStep Bone(NativeBattleEnergyBomber217Frame current, int actor, byte selector, short distance)
+        NativeBattleEnergyBomber217PointStep Bone(NativeBattleEnergyBomber217Frame current, BattleModelOwner actor, byte selector, short distance)
         {
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(actor), selector, distance);
             current = ObserveBone(current, producer);
@@ -53,7 +53,7 @@ public sealed partial class BattleSession
             return new(current, point);
         }
 
-        NativeBattleEnergyBomber217AnchorStep Anchor(NativeBattleEnergyBomber217Frame current, int actor)
+        NativeBattleEnergyBomber217AnchorStep Anchor(NativeBattleEnergyBomber217Frame current, BattleModelOwner actor)
         {
             if ((graphics.ActorModels.Get(actor).Flags0 & 2) != 0)
             {

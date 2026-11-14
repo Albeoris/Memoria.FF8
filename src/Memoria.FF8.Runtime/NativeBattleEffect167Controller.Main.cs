@@ -41,13 +41,13 @@ public static partial class NativeBattleEffect167Controller
         {
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
             NativeBattleActionHeaderSlot header = packets.ReadHeader(frame.Effect.Parameters!.Header);
-            int count = header.ReadByte(0x10);
+            int count = header.ReadContactCount();
             if (count != 0)
             {
                 int first = header.FirstContactIndex ?? throw new NotSupportedException("Effect167 requires its actual contact pointer.");
                 for (int index = 0; index < count; index++)
                 {
-                    int actor = packets.ReadContact(first + index).Primary.ActorIndex;
+                    int actor = packets.ReadContact(first + index).Primary.Recipient;
                     (frame, uint child) = Append(frame, ChildDescriptor, 0x5E3C20);
                     if (child == 0)
                     {
@@ -103,7 +103,7 @@ public static partial class NativeBattleEffect167Controller
         if (age == 143)
         {
             NativeBattleActionHeaderSlot header = inputs.ReadPackets(frame).ReadHeader(frame.Effect.Parameters!.Header);
-            int count = header.ReadByte(0x10);
+            int count = header.ReadContactCount();
             int first = header.FirstContactIndex ?? throw new NotSupportedException("Effect167 requires its actual all-contact pointer.");
             frame = inputs.Execute(frame, new NativeBattleEffect167AllContacts506BA0(first, count));
         }

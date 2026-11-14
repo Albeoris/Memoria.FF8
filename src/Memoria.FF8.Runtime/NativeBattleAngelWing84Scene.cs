@@ -3,7 +3,7 @@ namespace Memoria.FF8.Runtime;
 public abstract record NativeBattleAngelWing84Operation;
 public sealed record NativeBattleAngelWing84StaticTexture(uint Address) : NativeBattleAngelWing84Operation;
 public sealed record NativeBattleAngelWing84CameraControl : NativeBattleAngelWing84Operation;
-public sealed record NativeBattleAngelWing84ModelFlags(byte Actor, ushort Flags) : NativeBattleAngelWing84Operation;
+public sealed record NativeBattleAngelWing84ModelFlags(BattleModelOwner Actor, ushort Flags) : NativeBattleAngelWing84Operation;
 public sealed record NativeBattleAngelWing84PhaseBirth(ushort Phase, uint Parent) : NativeBattleAngelWing84Operation;
 public sealed record NativeBattleAngelWing84SceneInputs(NativeBattleAngelWing84Inputs Controller, Func<NativeBattleAngelWing84Frame, NativeBattleAngelWing84Operation, NativeBattleAngelWing84Frame> Execute);
 

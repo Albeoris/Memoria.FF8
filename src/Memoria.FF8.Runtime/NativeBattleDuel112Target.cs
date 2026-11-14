@@ -1,6 +1,6 @@
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleDuel112ActorServices(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, Func<int, byte> ReadTargetActor, Func<NativeBattleDuel112Frame, int, uint, NativeBattleDuel112Frame> BindActor5022C0, Func<NativeBattleDuel112Frame, int, byte, NativeBattleDuel112Frame> SelectSequence505C00);
+public sealed record NativeBattleDuel112ActorServices(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, Func<int, BattleModelOwner> ReadTargetActor, Func<NativeBattleDuel112Frame, BattleModelOwner, uint, NativeBattleDuel112Frame> BindActor5022C0, Func<NativeBattleDuel112Frame, BattleModelOwner, byte, NativeBattleDuel112Frame> SelectSequence505C00, NativeBattleModelAliases Aliases);
 
 public static partial class NativeBattleDuel112Target
 {
@@ -16,12 +16,9 @@ public static partial class NativeBattleDuel112Target
         }
         NativeBattleGraphicsModel model = services.ReadModel(actor);
         services.WriteModel(actor, model with { Flags0 = (ushort)(model.Flags0 | 0x1000) });
-        byte target = services.ReadTargetActor(sequence);
-        if (target >= 7)
-        {
-            throw new InvalidDataException("Native Duel target leaves the seven physical graphics rows.");
-        }
-        task = task.WriteWord(14, (ushort)sequence).WriteDword(176, NativeBattleGraphicsModelAddress.Encode(target));
+        BattleModelOwner target = services.ReadTargetActor(sequence);
+        task.WriteWord(14, (ushort)sequence);
+        task.WriteExecutionReference(176, 4, new BattleExecutionReference.Model(target), services.Aliases.EncodeAddress(target));
         Store();
         uint row = checked(pool.BankAddress + (uint)(slot * pool.Stride) + 16);
         frame = services.BindActor5022C0(frame, actor, row);

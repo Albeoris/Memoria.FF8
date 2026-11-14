@@ -24,7 +24,7 @@ public static class NativeBattleDiablos325Entry
         if (roster is not null)
         {
             ImmutableArray<NativeBattleContactPacket> contacts = packets.ReadHeaderContacts506BA0(parameters.Header);
-            if (!roster.ContainsRow(parameters.Source) || contacts.IsEmpty || contacts.Any(contact => !roster.ContainsRow(contact.Primary.ActorIndex)))
+            if (!roster.ContainsRow(parameters.Source) || contacts.IsEmpty || contacts.Any(contact => !roster.ContainsRow(contact.Primary.Recipient)))
             {
                 throw new InvalidDataException("Hosted Diablos entry requires a bound caster and at least one bound recipient model row.");
             }
@@ -37,7 +37,7 @@ public static class NativeBattleDiablos325Entry
         (pool, int slot) = pool.Append(MainCallback);
         pool = pool.WriteSlot(slot, pool.Slots[slot].WriteDword(0xC, 0));
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        int count = header.ReadByte(0x10);
+        int count = header.ReadContactCount();
         int sumZ = 0;
         int sumX = 0;
         if (count != 0)
@@ -45,7 +45,7 @@ public static class NativeBattleDiablos325Entry
             int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Diablos entry requires its current target-contact pointer.");
             for (int index = 0; index < count; index++)
             {
-                int target = packets.ReadContact(checked(first + index)).Primary.ActorIndex;
+                int target = packets.ReadContact(checked(first + index)).Primary.Recipient;
                 if ((uint)target >= models.Length)
                 {
                     throw new NotSupportedException("Native Diablos target pointer leaves the seven physical actor rows.");

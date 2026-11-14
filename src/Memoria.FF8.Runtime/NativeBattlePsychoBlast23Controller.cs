@@ -52,7 +52,7 @@ public static class NativeBattlePsychoBlast23Controller
             NativeBattleCuragaState nodes = current.State.Nodes!;
             bool odd = (task.ReadWord(0x5C) & 1) != 0;
             current = current with { Memory = current.Memory with { SharedEffectView2793E58 = inputs.Camera }, State = current.State with { Nodes = nodes with { PrimaryDrawCursor = checked(nodes.SourceArenaOffset + (odd ? 0 : NativeBattlePsychoBlast23Profile.DrawStep)), SecondaryDrawCursor = checked(nodes.SourceArenaOffset + (odd ? NativeBattlePsychoBlast23Profile.DrawStep : 2 * NativeBattlePsychoBlast23Profile.DrawStep)) } } };
-            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, Models(), inputs.ReadPoseSource);
+            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, inputs.ReadModel, inputs.ReadPoseSource);
             hierarchy = hierarchy.Write(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {
@@ -153,7 +153,7 @@ public static class NativeBattlePsychoBlast23Controller
         NativeBattlePsychoBlast23LeafStep Target(uint address)
         {
             NativeBattleEffectHierarchy hierarchy = new(current.Effect.Pools);
-            NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(hierarchy.Read(address), Models(), inputs.ReadPoseSource);
+            NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(hierarchy.Read(address), inputs.ReadModel, inputs.ReadPoseSource);
             NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadByte(0x2D));
             NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Psycho Blast target requires its pose.");
             NativeBattlePoseSource pose = inputs.ReadPoseSource(task.ReadByte(0x2D));
@@ -253,7 +253,6 @@ public static class NativeBattlePsychoBlast23Controller
             }
             return NativeBattlePsychoBlast23Act.Finish(current, address);
         }
-        ImmutableArray<NativeBattleGraphicsModel> Models() => Enumerable.Range(0, 7).Select(inputs.ReadModel).ToImmutableArray();
         NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
     }
 

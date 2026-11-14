@@ -15,8 +15,8 @@ public static partial class NativeBattleBlaster186Controller
         (children, int director) = children.Append(0x5BF7B0);
         children = children.WriteSlot(director, children.Slots[director].WriteWord(12, 0));
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Blaster requires its actual first contact.");
-        frame = Dword(Dword(Dword(frame, 0x22B7600, inputs.Packets.ReadContact(first).Primary.ActorIndex), 0x22BC0FC, Parameters(frame).Source), 0x22BC0F8, 0x1D99A78);
+        BattleContactCursor first = header.FirstContact;
+        frame = Dword(Dword(Dword(frame, 0x22B7600, inputs.Packets.ReadContact(first).Primary.Recipient), 0x22BC0FC, Parameters(frame).Source), 0x22BC0F8, 0x1D99A78);
         foreach ((uint bank, int count) in new (uint, int)[] { (0x22B7638, 100) })
         {
             for (int index = 0; index < count; index++)

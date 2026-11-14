@@ -51,7 +51,7 @@ public sealed partial class BattleSession
             return geometry;
         }
 
-        NativeBattleGraphicsModel ReadModel(int index)
+        NativeBattleGraphicsModel ReadModel(BattleModelOwner index)
         {
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
             return ReadForeignGeometry(index) is { } geometry ? model with { GeometryBounds52 = geometry.LocalBounds } : model;

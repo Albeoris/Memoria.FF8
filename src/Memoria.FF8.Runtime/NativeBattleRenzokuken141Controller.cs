@@ -18,8 +18,8 @@ public static partial class NativeBattleRenzokukenVariantController
             throw new InvalidDataException("Native Renzokuken variant requires its original binding, action parameters and embedded actor resource.");
         }
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native61DE70 requires its physical first-contact pointer.");
-        byte target = packets.ReadContact(contact).Primary.ActorIndex;
+        BattleContactCursor contact = header.FirstContact;
+        byte target = packets.ReadContact(contact).Primary.Recipient;
         bool initial = header.Action == 0xFFFE;
         ImmutableDictionary<ushort, NativeBattleRenzokukenVariantState> states = memory.RenzokukenVariants ?? ImmutableDictionary<ushort, NativeBattleRenzokukenVariantState>.Empty;
         NativeBattleRenzokukenVariantState retained = states.GetValueOrDefault(profile.Effect) ?? new(NativeBattleRenzokuken160State.FromColdProcess(), default, default, null);

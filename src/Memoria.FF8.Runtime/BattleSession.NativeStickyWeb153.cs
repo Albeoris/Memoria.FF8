@@ -48,7 +48,7 @@ public sealed partial class BattleSession
         short zsf4 = registers.Zsf4 ?? throw new NotSupportedException("Native Sticky Web requires ZSF4.");
         short dqa = registers.Dqa;
         int dqb = registers.Dqb;
-        int caster = effect.Parameters!.Source;
+        BattleModelOwner caster = effect.Parameters!.Source;
         int target = effect.Parameters.TargetActors.EnumerateRows().First();
         NativeBattleEffectTaskStep advanced = children.Advance((pool, slot) =>
         {
@@ -121,7 +121,7 @@ public sealed partial class BattleSession
             }
             if (frame == 55)
             {
-                int first = nativeActionPackets.ReadHeader(effect.Parameters.Header).FirstContactIndex ?? throw new InvalidDataException("Native Sticky Web requires its actual first contact.");
+                BattleContactCursor first = nativeActionPackets.ReadHeader(effect.Parameters.Header).FirstContact;
                 ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                 graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(first)] });
                 graphics = graphics with { PendingContacts = pending };

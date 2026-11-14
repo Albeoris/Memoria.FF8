@@ -80,7 +80,7 @@ public static partial class NativeBattleOilShot136Controller
             {
                 throw new NotSupportedException("Oil Shot exhausted its single main task.");
             }
-            uint target = ModelAddress(inputs.Packets.ReadContact(FirstContact(frame, inputs)).Primary.ActorIndex);
+            uint target = ModelAddress(inputs.Packets.ReadContact(FirstContact(frame, inputs)).Primary.Recipient);
             NativeBattleModulePoolTask task = Read(frame, child).WriteBytes(12, new byte[1120]).WriteDword(16, target);
             NativeBattleOilShot136AnchorStep anchor = inputs.ReadAnchor571400(frame, target);
             frame = anchor.Frame;

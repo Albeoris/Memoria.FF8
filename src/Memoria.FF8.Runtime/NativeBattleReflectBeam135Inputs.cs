@@ -14,8 +14,8 @@ public abstract record NativeBattleReflectBeam135Operation;
 public sealed record NativeBattleReflectBeam135Sound(uint Value, uint Flags, byte Pan) : NativeBattleReflectBeam135Operation;
 public sealed record NativeBattleReflectBeam135Contact(int Index) : NativeBattleReflectBeam135Operation;
 public sealed record NativeBattleReflectBeam135Stage(short Depth, uint ColorFlags) : NativeBattleReflectBeam135Operation;
-public sealed record NativeBattleReflectBeam135ComposeCaster(byte Actor) : NativeBattleReflectBeam135Operation;
-public sealed record NativeBattleReflectBeam135RestoreCaster(byte Actor) : NativeBattleReflectBeam135Operation;
+public sealed record NativeBattleReflectBeam135ComposeCaster(BattleModelOwner Actor) : NativeBattleReflectBeam135Operation;
+public sealed record NativeBattleReflectBeam135RestoreCaster(BattleModelOwner Actor) : NativeBattleReflectBeam135Operation;
 public sealed record NativeBattleReflectBeam135DrawStatic88(uint TemporaryAddress, uint SourceAddress) : NativeBattleReflectBeam135Operation
 {
     [System.Text.Json.Serialization.JsonIgnore]

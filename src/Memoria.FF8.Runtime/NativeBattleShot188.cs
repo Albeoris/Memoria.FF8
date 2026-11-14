@@ -9,7 +9,7 @@ public abstract record NativeBattleShot188Operation
     [System.Text.Json.Serialization.JsonIgnore]
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
 }
-public sealed record NativeBattleShot188Bind(byte Actor) : NativeBattleShot188Operation;
+public sealed record NativeBattleShot188Bind(BattleModelOwner Actor) : NativeBattleShot188Operation;
 public sealed record NativeBattleShot188Sequence(byte Actor, ushort Sequence) : NativeBattleShot188Operation;
 public sealed record NativeBattleShot188Stage(int Intensity) : NativeBattleShot188Operation;
 public sealed record NativeBattleShot188Contact : NativeBattleShot188Operation;
@@ -56,8 +56,8 @@ public static class NativeBattleShot188
                 {
                     (pools[1], int shot) = pools[1].Append(0x5BE4D0);
                     NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-                    int first = header.FirstContactIndex ?? throw new InvalidDataException("Native Shot requires its physical header contact pointer.");
-                    Put(1, shot, pools[1].Slots[shot].WriteWord(12, 0).WriteWord(14, unchecked((ushort)(state.ShotSerial % 100))).WriteWord(24, (ushort)(state.SequenceCursor + 3)).WriteWord(26, packets.ReadContact(first).Primary.ActorIndex));
+                    BattleContactCursor first = header.FirstContact;
+                    Put(1, shot, pools[1].Slots[shot].WriteWord(12, 0).WriteWord(14, unchecked((ushort)(state.ShotSerial % 100))).WriteWord(24, (ushort)(state.SequenceCursor + 3)).WriteWord(26, packets.ReadContact(first).Primary.Recipient));
                     state = state with { ShotSerial = unchecked(state.ShotSerial + 1), SequenceCursor = state.SequenceCursor < 2 ? state.SequenceCursor + 1 : 0 };
                 }
             }

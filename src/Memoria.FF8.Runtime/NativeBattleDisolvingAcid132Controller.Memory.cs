@@ -106,7 +106,7 @@ public static partial class NativeBattleDisolvingAcid132Controller
     private static int FirstContact(NativeBattleDisolvingAcid132Frame frame, NativeBattleDisolvingAcid132Inputs inputs)
     {
         BattleActionHeaderReference index = Parameters(frame).Header;
-        if ((uint)index >= inputs.Packets.Headers.Length || inputs.Packets.ReadHeader(index).ReadByte(16) == 0)
+        if (inputs.Packets.ReadHeader(index).ReadContactCount() == 0)
         {
             throw new NotSupportedException("Disolving Acid requires its actual captured contact header.");
         }

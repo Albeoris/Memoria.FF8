@@ -49,8 +49,8 @@ public static partial class NativeBattleEnemyMicroMissiles284Controller
     private static NativeBattleEnemyMicroMissiles284Frame SpawnMissiles284(NativeBattleEnemyMicroMissiles284Frame frame, NativeBattleEnemyMicroMissiles284Resources resources, NativeBattleEnemyMicroMissiles284Inputs inputs)
     {
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-        int first = Header(frame, packets).FirstContactIndex ?? throw new NotSupportedException("Enemy Micro Missiles requires its actual first physical recipient.");
-        uint target = ModelAddress(packets.ReadContact(first).Primary.ActorIndex);
+        BattleContactCursor first = Header(frame, packets).FirstContact;
+        uint target = ModelAddress(packets.ReadContact(first).Primary.Recipient);
         NativeBattleGraphicsModel caster = inputs.ReadModel(frame, frame.State.ReadDword(CasterGlobal));
         short yaw = caster.Rotation14 ?? throw new NotSupportedException("Enemy Micro Missiles requires its current caster yaw.");
         NativeBattleModelTransform transform = caster.Transform ?? throw new NotSupportedException("Enemy Micro Missiles requires its current caster fields.");
@@ -135,10 +135,6 @@ public static partial class NativeBattleEnemyMicroMissiles284Controller
             throw new NotSupportedException("Enemy Micro Missiles requires its actual current parameter pointer.");
         }
         BattleActionHeaderReference index = Parameters(frame).Header;
-        if ((uint)index >= packets.Headers.Length)
-        {
-            throw new NotSupportedException("Enemy Micro Missiles parameter header leaves its physical action arena.");
-        }
         return packets.ReadHeader(index);
     }
 }

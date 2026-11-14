@@ -36,7 +36,7 @@ public sealed record NativeBattlePsychoBlast23Contact(int Index) : NativeBattleP
 public sealed record NativeBattlePsychoBlast23Sound(NativeBattleModuleSound Sound) : NativeBattlePsychoBlast23Operation;
 public sealed record NativeBattlePsychoBlast23LookBasis(NativeBattleVector Direction, NativeBattleVector Up) : NativeBattlePsychoBlast23Operation;
 public sealed record NativeBattlePsychoBlast23Rotate(NativeBattleActionMatrix Matrix, char Axis, short Angle, short? Padding18) : NativeBattlePsychoBlast23Operation;
-public sealed record NativeBattlePsychoBlast23TargetAnchor(int Actor, byte Selector, short Distance) : NativeBattlePsychoBlast23Operation;
+public sealed record NativeBattlePsychoBlast23TargetAnchor(BattleModelOwner Actor, byte Selector, short Distance) : NativeBattlePsychoBlast23Operation;
 public sealed record NativeBattlePsychoBlast23ActDraw(uint Address) : NativeBattlePsychoBlast23Operation;
 public sealed record NativeBattlePsychoBlast23DebrisDraw(uint Address) : NativeBattlePsychoBlast23Operation;
 public sealed record NativeBattlePsychoBlast23TextureLoad(uint RootTaskAddress, int SourceArenaOffset) : NativeBattlePsychoBlast23Operation;

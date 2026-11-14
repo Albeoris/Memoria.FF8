@@ -235,7 +235,7 @@ public sealed partial class BattleSession
             {
                 for (int index = 0; index < header.ReadContactCount(); index++)
                 {
-                    if (nativeActionPackets.ReadContact(firstContact + index).Primary.ActorIndex == actor)
+                    if (nativeActionPackets.ReadContact(firstContact + index).Primary.Recipient == actor)
                     {
                         graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(firstContact + index)] });
                     }

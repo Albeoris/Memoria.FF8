@@ -30,12 +30,12 @@ public sealed partial class BattleSession
     private BattleCombatant? PublishExpandedPartyPresentedContact(BattleModelRoster roster, NativeBattleContactHalf half)
     {
         ImmutableDictionary<string, NativeBattlePartyPresentedVital> state = expandedPartyPresentation ?? throw new InvalidOperationException("Expanded contact presentation requires the current party cache.");
-        if (!roster.ContainsRow(half.ActorIndex))
+        if (!roster.ContainsRow(half.Recipient))
         {
             throw new InvalidDataException("Expanded contact presentation requires a bound actor row.");
         }
-        BattleModelOwner binding = roster[half.ActorIndex];
-        if (!byId.TryGetValue(binding.ActorId, out BattleCombatant? actor) || actor.IsPlayer != binding.IsParty || RequireExpandedPresentationRow(roster, actor) != half.ActorIndex)
+        BattleModelOwner binding = roster[half.Recipient];
+        if (!byId.TryGetValue(binding.ActorId, out BattleCombatant? actor) || actor.IsPlayer != binding.IsParty || RequireExpandedPresentationRow(roster, actor) != half.Recipient)
         {
             throw new InvalidDataException("Expanded contact presentation row does not belong to the current actor.");
         }

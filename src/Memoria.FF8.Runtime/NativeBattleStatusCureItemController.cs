@@ -77,8 +77,8 @@ public static class NativeBattleStatusCureItemController
                 children = children.WriteSlot(0, retainedChild);
                 (children, int childSlot) = children.Append(profile.ChildCallback);
                 NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header);
-                int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native status-cure item requires its actual first contact pointer.");
-                int target = inputs.Packets.ReadContact(contact).Primary.ActorIndex;
+                BattleContactCursor contact = header.FirstContact;
+                int target = inputs.Packets.ReadContact(contact).Primary.Recipient;
                 NativeBattleVector anchor = inputs.ReadTargetAnchor(target);
                 NativeBattleModulePoolTask child = StoreAnchor(children.Slots[childSlot], anchor);
                 if (profile.Effect != 293)

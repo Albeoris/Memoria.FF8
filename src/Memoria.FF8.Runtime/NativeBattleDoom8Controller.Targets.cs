@@ -20,10 +20,6 @@ public static partial class NativeBattleDoom8Controller
                 {
                     NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Doom target requires its captured action parameters.");
                     BattleActionHeaderReference headerIndex = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                    if ((uint)headerIndex >= inputs.Packets.Headers.Length)
-                    {
-                        throw new InvalidDataException("Doom selected contact header exceeds its physical arena.");
-                    }
                     int first = inputs.Packets.ReadHeader(headerIndex).FirstContactIndex ?? throw new NotSupportedException("Doom requires its actual contact pointer.");
                     int contact = checked(first + unchecked((sbyte)task.ReadByte(0x2B)));
                     if ((uint)contact >= NativeBattleActionPacketsState.ContactCapacity)

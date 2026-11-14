@@ -18,9 +18,9 @@ public abstract record NativeBattleAdditional182Operation
 }
 public sealed record NativeBattleAdditional182Sound5013A0(uint Packed, uint Flags, NativeBattleEffectArena Point8) : NativeBattleAdditional182Operation;
 public sealed record NativeBattleAdditional182ContactsAll(int HeaderIndex) : NativeBattleAdditional182Operation;
-public sealed record NativeBattleAdditional182ActorFlags(int Actor, ushort ClearMask, ushort SetMask) : NativeBattleAdditional182Operation;
-public sealed record NativeBattleAdditional182ActorAlpha(int Actor, byte Alpha) : NativeBattleAdditional182Operation;
-public sealed record NativeBattleAdditional182ActorRecolor(int Actor, int Cue) : NativeBattleAdditional182Operation;
+public sealed record NativeBattleAdditional182ActorFlags(BattleModelOwner Actor, ushort ClearMask, ushort SetMask) : NativeBattleAdditional182Operation;
+public sealed record NativeBattleAdditional182ActorAlpha(BattleModelOwner Actor, byte Alpha) : NativeBattleAdditional182Operation;
+public sealed record NativeBattleAdditional182ActorRecolor(BattleModelOwner Actor, int Cue) : NativeBattleAdditional182Operation;
 public sealed record NativeBattleAdditional182Stage5713E0(int Value, uint Flags) : NativeBattleAdditional182Operation;
 public sealed record NativeBattleAdditional182DrawStatic88(uint TemporaryAddress, uint SourceAddress, int TableBaseBucket = 17, int DepthShift = 2) : NativeBattleAdditional182Operation;
 public sealed record NativeBattleAdditional182DrawSprite180(uint TemporaryAddress, uint SourceAddress, int TableBaseBucket = 17, int DepthShift = 2) : NativeBattleAdditional182Operation;

@@ -40,7 +40,7 @@ public static partial class NativeBattleFireEffect
                     return new(pool, 0);
                 }
                 int sequence = delay;
-                if (Word(task, 34) == 12 && sequence + 1 <= inputs.Packets.ReadHeader(parameters.Header).ReadByte(17))
+                if (Word(task, 34) == 12 && sequence + 1 <= inputs.Packets.ReadHeader(parameters.Header).ReadRepeatModeMinusOne())
                 {
                     NativeBattleActionHeaderSlot following = Header(sequence + 1);
                     bool multiple = following.ReadContactCount() > 1;
@@ -48,7 +48,7 @@ public static partial class NativeBattleFireEffect
                     NativeBattleModulePoolTask next = pool.Slots[nextSlot].WriteWord(12, 0).WriteWord(14, unchecked((ushort)(sequence + 1))).WriteWord(34, 0);
                     if (!multiple)
                     {
-                        next = next.WriteWord(32, inputs.Packets.ReadContact(FirstContact(following)).Primary.ActorIndex);
+                        next = next.WriteWord(32, inputs.Packets.ReadContact(FirstContact(following)).Primary.Recipient);
                     }
                     pool = Put(pool, nextSlot, next);
                 }
@@ -74,7 +74,7 @@ public static partial class NativeBattleFireEffect
                     int first = single ? 0 : FirstContact(header);
                     for (int index = 0; index < count; index++)
                     {
-                        int target = single ? model : inputs.Packets.ReadContact(first + index).Primary.ActorIndex;
+                        int target = single ? model : inputs.Packets.ReadContact(first + index).Primary.Recipient;
                         NativeBattleModelTransform transform = inputs.ReadTransform(target);
                         NativeBattleModuleAnchor anchor = inputs.ReadModelAnchor(target);
                         int radius = Math.Min(1000, transform.Scale38 * 2800 >> 12);
@@ -219,10 +219,6 @@ public static partial class NativeBattleFireEffect
         NativeBattleActionHeaderSlot Header(int sequence)
         {
             BattleActionHeaderReference index = parameters.Header.Advance(sequence);
-            if ((uint)index >= NativeBattleActionPacketsState.HeaderCapacity)
-            {
-                throw new InvalidDataException("Native Fire continuation leaves its physical action header bank.");
-            }
             return inputs.Packets.ReadHeader(index);
         }
 

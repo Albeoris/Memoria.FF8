@@ -63,7 +63,7 @@ public sealed partial class BattleSession
             NativeBattleModulePoolTask task = pool.Slots[slot].ClearPayload(profile.TaskBytes - 12);
             int first = header.FirstContactIndex ?? throw new InvalidDataException("Native level effect requires its captured contact directory.");
             int contactIndex = root.ReadByte(14);
-            int actor = nativeActionPackets.ReadContact(first + contactIndex).Primary.ActorIndex;
+            int actor = nativeActionPackets.ReadContact(first + contactIndex).Primary.Recipient;
             task = task.WriteWord(14, checked((ushort)contactIndex)).WriteDword(16, NativeBattleGraphicsModelAddress.Encode(actor));
             NativeBattleLevelBoundsStep bounds = MeasureLevelBounds(actor);
             NativeBattleGraphicsResource targetResource = NativeGraphicsPoseResource(graphics, actor);
@@ -110,7 +110,7 @@ public sealed partial class BattleSession
                 int result = 0;
                 if (advance.Remaining == 0)
                 {
-                    int first = header.FirstContactIndex ?? throw new InvalidDataException("Native level effect lost its captured first contact.");
+                    BattleContactCursor first = header.FirstContact;
                     graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(first)] });
                     result = 2;
                 }

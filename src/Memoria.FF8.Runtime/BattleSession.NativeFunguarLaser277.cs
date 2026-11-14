@@ -40,7 +40,7 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors!;
         NativeCrtRandomState random = nativeCrtRandom ?? throw new NotSupportedException("Native Funguar Laser requires its shared CRT stream.");
         NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
-        int first = header.FirstContactIndex ?? throw new InvalidDataException("Native Funguar Laser requires its physical contact pointer.");
+        BattleContactCursor first = header.FirstContact;
         int buffer = process.BufferOffset;
         effect = effect with { DrawArenaOffset = checked(buffer + (root.ReadDword(16) != 0 ? 0x10AC : 0x110AC)) };
         root = root.WriteDword(16, root.ReadDword(16) != 0 ? 0u : 1u);
@@ -56,8 +56,8 @@ public sealed partial class BattleSession
             if (action <= header.ReadRepeatModeMinusOne())
             {
                 NativeBattleActionHeaderSlot selected = nativeActionPackets.ReadHeader(effect.Parameters.Header.Advance(action));
-                int contact = selected.FirstContactIndex ?? throw new InvalidDataException("Native Funguar Laser requires the selected action's first contact.");
-                int target = nativeActionPackets.ReadContact(contact).Primary.ActorIndex;
+                BattleContactCursor contact = selected.FirstContact;
+                int target = nativeActionPackets.ReadContact(contact).Primary.Recipient;
                 uint pointer = NativeBattleGraphicsModelAddress.Encode(target);
                 NativeBattleModulePoolTask live = pools[1].Slots[0];
                 if ((live.Flags & 1) != 0 && live.ReadDword(16) == pointer)
@@ -238,7 +238,7 @@ public sealed partial class BattleSession
 
         NativeBattleVector VertexPoint()
         {
-            int caster = effect.Parameters.Source;
+            BattleModelOwner caster = effect.Parameters.Source;
             NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, caster);
             NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native Funguar Laser requires its actual body skeleton.");
             NativeBattleRawMesh mesh = (resource.Geometry ?? throw new NotSupportedException("Native Funguar Laser requires its actual model geometry."))[0];

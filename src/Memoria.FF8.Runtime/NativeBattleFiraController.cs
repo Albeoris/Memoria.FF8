@@ -103,7 +103,7 @@ public static class NativeBattleFiraController
                     return new(pool, 0);
                 }
                 int sequence = Word(task, 14);
-                int last = Header(0).ReadByte(17);
+                int last = Header(0).ReadRepeatModeMinusOne();
                 if (phase == 0)
                 {
                     task = WorkingPosition(task, 16, inputs.ReadPosition(Word(task, 32)));
@@ -291,8 +291,8 @@ public static class NativeBattleFiraController
 
     private static NativeBattleModulePoolTask InitializeController(NativeBattleModulePoolTask task, int sequence, NativeBattleActionHeaderSlot header, NativeBattleActionPacketsState packets)
     {
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Fira requires its actual physical first-contact pointer.");
-        return task.WriteWord(12, 0).WriteWord(14, unchecked((ushort)sequence)).WriteWord(32, packets.ReadContact(first).Primary.ActorIndex).WriteWord(34, header.ReadByte(0));
+        BattleContactCursor first = header.FirstContact;
+        return task.WriteWord(12, 0).WriteWord(14, unchecked((ushort)sequence)).WriteWord(32, packets.ReadContact(first).Primary.Recipient).WriteWord(34, header.Source);
     }
 
     private static short Word(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));

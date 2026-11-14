@@ -37,12 +37,12 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Contact replacement must retain the invocation's original contact extent.");
         }
-        byte caster = header.ReadByte(0);
+        byte caster = header.Source;
         NativeBattleGraphicsState? replacementGraphics = null;
         if (acknowledgeTrigger is not null)
         {
             acknowledgeTrigger.Validate(roster);
-            if (!ReferenceEquals(graphics.PendingTrigger, acknowledgeTrigger) || acknowledgeTrigger.ActorIndex != caster ||
+            if (!ReferenceEquals(graphics.PendingTrigger, acknowledgeTrigger) || acknowledgeTrigger.Actor != caster ||
                 acknowledgeTrigger is not { ContactIndex: 1, TotalContacts: 1 } || header.Command is not (1 or 12 or 28) || original.Length != 1)
             {
                 throw new InvalidDataException("Contact replacement does not acknowledge this invocation's pending ordinary Gunblade receipt.");
@@ -53,8 +53,8 @@ public sealed partial class BattleSession
         for (int index = 0; index < replacements.Length; index++)
         {
             NativeBattleContactPacket packet = replacements[index];
-            if (packet?.Primary is not { } primary || primary.ActorIndex != original[index].Primary.ActorIndex ||
-                packet.Secondary is not { } secondary || secondary.ActorIndex != byte.MaxValue && secondary.ActorIndex != caster)
+            if (packet?.Primary is not { } primary || primary.Recipient != original[index].Primary.Recipient ||
+                packet.Secondary is not { } secondary || secondary.Recipient != byte.MaxValue && secondary.Recipient != caster)
             {
                 throw new InvalidDataException("Contact replacement must retain each primary recipient and bind any secondary to the header caster.");
             }

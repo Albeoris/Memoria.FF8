@@ -11,16 +11,16 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState PublishNativeReadyStatus(NativeBattleGraphicsState graphics, NativeBattleContactHalf half)
     {
-        if (half.ActorIndex >= 3)
+        if (half.Recipient >= 3)
         {
             return graphics;
         }
-        BattleCombatant actor = GraphicsActor(graphics, half.ActorIndex);
+        BattleCombatant actor = GraphicsActor(graphics, half.Recipient);
         ushort saved = half.SavedStatuses4;
         uint battle = half.BattleStatuses8;
         if ((battle & 0x80000000) != 0)
         {
-            ushort gfHp = RequireNativePartyPresentedRow(half.ActorIndex).GuardianForceHitPoints ?? throw new NotSupportedException("Native493840 requires the summoned GF's actual cached HP WORD.");
+            ushort gfHp = RequireNativePartyPresentedRow(half.Recipient).GuardianForceHitPoints ?? throw new NotSupportedException("Native493840 requires the summoned GF's actual cached HP WORD.");
             if (gfHp == 0 || (saved & 0x35) != 0 || (battle & 0x14000) != 0)
             {
                 actor.NativeStatus1 &= 0x7FFFFFFF;
@@ -35,7 +35,7 @@ public sealed partial class BattleSession
                 actor.NativeCombatantFlags &= ~0x400u;
             }
         }
-        NativeBattleReadyInvalidation decision = NativeBattleReadyInvalidations.Evaluate(half.ActorIndex, saved, battle, nativeCommandBanks.CountActor(half.ActorIndex), nativeActionScratch.EventActorB0F ?? throw new NotSupportedException("Native493840 requires its original event actor B0F."), nativePartyStatusMirrors.Saved[half.ActorIndex], nativePartyStatusMirrors.Battle[half.ActorIndex]);
+        NativeBattleReadyInvalidation decision = NativeBattleReadyInvalidations.Evaluate(half.Recipient, saved, battle, nativeCommandBanks.CountActor(half.Recipient), nativeActionScratch.EventActorB0F ?? throw new NotSupportedException("Native493840 requires its original event actor B0F."), nativePartyStatusMirrors.Saved[half.Recipient], nativePartyStatusMirrors.Battle[half.Recipient]);
         if (decision.ClearReadyBusyFlags)
         {
             actor.NativeCombatantFlags &= ~0xCu;
@@ -45,12 +45,12 @@ public sealed partial class BattleSession
             NativeBattleUiServices ui = graphics.UiServices ?? throw new NotSupportedException("Native485030 requires its initialized UI command bank.");
             for (int remove = 0; remove < decision.RemoveUiCommands; remove++)
             {
-                ui = ui with { Commands = ui.Commands.Enqueue(half.ActorIndex, 18) };
+                ui = ui with { Commands = ui.Commands.Enqueue(half.Recipient, 18) };
             }
             graphics = graphics with { UiServices = ui };
         }
         NativeBattleStatusMirror previous = actor.NativePresentationStatus;
-        nativePartyStatusMirrors = nativePartyStatusMirrors.Observe(half.ActorIndex, previous.Saved ?? throw new NotSupportedException("Native493840 requires its retained B92 WORD before47E2D0."), previous.Battle ?? throw new NotSupportedException("Native493840 requires its retained B1C DWORD before47E2D0."));
+        nativePartyStatusMirrors = nativePartyStatusMirrors.Observe(half.Recipient, previous.Saved ?? throw new NotSupportedException("Native493840 requires its retained B92 WORD before47E2D0."), previous.Battle ?? throw new NotSupportedException("Native493840 requires its retained B1C DWORD before47E2D0."));
         if (decision.RemoveQueuedCommands)
         {
             RemoveNativeQueuedActorCommands(actor);

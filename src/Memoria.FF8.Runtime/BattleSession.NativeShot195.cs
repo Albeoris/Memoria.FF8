@@ -113,7 +113,7 @@ public sealed partial class BattleSession
                     else
                     {
                         NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(current.Effect.Parameters!.Header);
-                        NativeBattleContactPacket first = nativeActionPackets.ReadContact(header.FirstContactIndex ?? throw new InvalidDataException("Native Canister Shot requires its physical first contact pointer."));
+                        NativeBattleContactPacket first = nativeActionPackets.ReadContact(header.FirstContact);
                         NativeBattleGraphicsState applied = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [first] });
                         graphics = applied with { PendingContacts = graphics.PendingContacts };
                     }

@@ -22,7 +22,7 @@ public sealed partial class BattleSession
         NativeBattleEffectTaskPool main = frame.Effect.Pools.Single(pool => pool.Slots.Any(task => (task.Flags & 1) != 0 && task.Callback == 0x6ED900));
         int index = Enumerable.Range(0, main.Slots.Length).Single(index => (main.Slots[index].Flags & 1) != 0 && main.Slots[index].Callback == 0x6ED900);
         int start = NativeBattleWaterExecutionFields.ArenaOffset(unchecked(main.BankAddress + (uint)(index * main.Stride)), main.Stride);
-        int count = nativeActionPackets.ReadHeader(frame.Effect.Parameters!.Header).ReadByte(0x10);
+        int count = nativeActionPackets.ReadHeader(frame.Effect.Parameters!.Header).ReadContactCount();
         for (int target = 0; target < count; target++)
         {
             if (!NativeBattleGraphicsModelAddress.TryDecode(BinaryPrimitives.ReadUInt32LittleEndian(frame.Memory.Arena!.Read(start + 0x14 + target * 32, 4)), out int actorIndex, graphics.Models.Length))
@@ -57,7 +57,7 @@ public sealed partial class BattleSession
     {
         NativeBattleEffectArena arena = frame.Memory.Arena!;
         int start = NativeBattleWaterExecutionFields.ArenaOffset(address, 0x1030);
-        int count = nativeActionPackets.ReadHeader(frame.Effect.Parameters!.Header).ReadByte(0x10);
+        int count = nativeActionPackets.ReadHeader(frame.Effect.Parameters!.Header).ReadContactCount();
         for (int index = 0; index < count; index++)
         {
             int row = start + 0x14 + index * 32;

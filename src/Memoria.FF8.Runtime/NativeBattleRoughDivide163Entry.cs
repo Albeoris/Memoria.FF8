@@ -21,7 +21,7 @@ public static partial class NativeBattleRoughDivide163Controller
             }
         }
         NativeBattleActionHeaderSlot header = packets.Headers[parameters.Header];
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Native5F5B80 requires its physical first-contact pointer.");
+        BattleContactCursor first = header.FirstContact;
         BattleModelOwner recipient = packets.ReadContact(first).Primary.Recipient;
         NativeBattleEffectResourcePointer initializer = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x23CE278) ?? throw new NotSupportedException("Native5F5B80 requires its actual initializer publication.");
         staging = WriteDword(staging, 0x23CE278, checked(0x20DFAB8u + (uint)initializer.ArenaOffset));

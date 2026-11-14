@@ -616,8 +616,8 @@ public sealed partial class BattleSession
         }
         foreach (ExpandedBattleContact contact in contacts)
         {
-            if (!StringComparer.Ordinal.Equals(roster[contact.Contact.ActorIndex].ActorId, contact.RecipientId) ||
-                contact.Packet.Secondary.ActorIndex != byte.MaxValue && contact.Packet.Secondary.ActorIndex != source)
+            if (!StringComparer.Ordinal.Equals(roster[contact.Contact.Recipient].ActorId, contact.RecipientId) ||
+                contact.Packet.Secondary.Recipient != byte.MaxValue && contact.Packet.Secondary.Recipient != source)
             {
                 throw new InvalidDataException("The expanded contact differs from its bound recipient or source presentation row.");
             }
@@ -632,11 +632,11 @@ public sealed partial class BattleSession
 
     private bool HasExpandedSecondaryContact(BattleActionPresentation command, NativeBattleContactPacket packet)
     {
-        if (packet.Secondary.ActorIndex == byte.MaxValue)
+        if (packet.Secondary.Recipient == byte.MaxValue)
         {
             return false;
         }
-        if (packet.Secondary.ActorIndex != ExpandedPresentationRow(GetActor(command.ActorId)))
+        if (packet.Secondary.Recipient != ExpandedPresentationRow(GetActor(command.ActorId)))
         {
             throw new InvalidDataException("The expanded contact secondary row must name its actual caster.");
         }

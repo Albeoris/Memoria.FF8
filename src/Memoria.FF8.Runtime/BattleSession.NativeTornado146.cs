@@ -55,8 +55,8 @@ public sealed partial class BattleSession
             pools = [roots, tasks];
             using NativeBattleTornado146Work work = new(state);
             NativeBattleEffectParameters parameters = effect.Parameters ?? throw new NotSupportedException("Native Tornado requires its current cast parameters.");
-            int first = owner.nativeActionPackets.ReadHeader(parameters.Header).FirstContactIndex ?? throw new NotSupportedException("Native Tornado requires the actual first contact pointer.");
-            work.WriteDword(0x2491E3C, owner.nativeActionPackets.ReadContact(first).Primary.ActorIndex);
+            BattleContactCursor first = owner.nativeActionPackets.ReadHeader(parameters.Header).FirstContact;
+            work.WriteDword(0x2491E3C, owner.nativeActionPackets.ReadContact(first).Primary.Recipient);
             work.WriteDword(0x2494AA0, parameters.Source);
             state = work.Freeze();
             effect = effect with { ReturnedDescriptor = 0x24936E8, DrawArenaOffset = null };
@@ -250,7 +250,7 @@ public sealed partial class BattleSession
             short w = 0;
             for (int index = 0; index < count; index++)
             {
-                int actor = owner.nativeActionPackets.ReadContact(start + index).Primary.ActorIndex;
+                int actor = owner.nativeActionPackets.ReadContact(start + index).Primary.Recipient;
                 NativeBattleModuleAnchor anchor = owner.ReadNativeModelAnchor(graphics, actor);
                 x = unchecked((short)(x + anchor.X));
                 y = unchecked((short)(y + anchor.Y));

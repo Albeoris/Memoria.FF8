@@ -225,13 +225,13 @@ public sealed partial class BattleSession
 
     private void PublishNativePresentedContact(NativeBattleContactHalf half)
     {
-        if (half.ActorIndex >= 3)
+        if (half.Recipient >= 3)
         {
             return;
         }
         NativeBattlePartyPresentation state = nativePartyPresentation ?? throw new InvalidDataException("Native493D80 lacks the current party presentation cache.");
-        NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(half.ActorIndex);
-        BattleCombatant actor = combatants.Single(actor => actor.EncodeNativeSlot() == half.ActorIndex);
+        NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(half.Recipient);
+        BattleCombatant actor = combatants.Single(actor => actor.EncodeNativeSlot() == half.Recipient);
         if (actor.GuardianFormVitals is not null && (half.HitFlags3 & 0x20) != 0)
         {
             row = row with { GuardianForceHitPoints = checked((ushort)actor.CurrentHp), GuardianForceMaximumHitPoints = checked((ushort)actor.MaximumHp), DisplayedGuardianForceHitPointsQ12 = actor.CurrentHp << 12 };
@@ -240,7 +240,7 @@ public sealed partial class BattleSession
         {
             row = row.Apply(half);
         }
-        nativePartyPresentation = state with { Rows = state.Rows.SetItem(half.ActorIndex, row) };
+        nativePartyPresentation = state with { Rows = state.Rows.SetItem(half.Recipient, row) };
     }
 
     private NativeBattlePartyPresentedVital RequireNativePartyPresentedRow(int index)

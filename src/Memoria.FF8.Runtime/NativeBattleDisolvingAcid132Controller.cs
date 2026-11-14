@@ -78,7 +78,7 @@ public static partial class NativeBattleDisolvingAcid132Controller
             if (contact <= header.ReadRepeatModeMinusOne())
             {
                 int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Disolving Acid requires its captured contact pointer.");
-                uint target = ModelAddress(inputs.Packets.ReadContact(firstContact + contact).Primary.ActorIndex);
+                uint target = ModelAddress(inputs.Packets.ReadContact(firstContact + contact).Primary.Recipient);
                 if (frame.Effect.Pools[1].Slots.Any(task => (task.Flags & 1) != 0 && task.ReadDword(16) == target))
                 {
                     frame = Write(frame, address, Read(frame, address).WriteWord(12, 0));

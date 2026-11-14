@@ -59,7 +59,7 @@ public static class NativeBattleRaldo19Controller
             NativeBattlePackedMatrix32 copiedCamera = inputs.PackedCamera ?? NativeBattlePackedMatrix32.FromMatrix(inputs.Camera, inputs.CameraPadding18);
             nodes = nodes with { CopiedCamera = copiedCamera.ReadMatrix(), PrimaryDrawCursor = checked(nodes.SourceArenaOffset + (odd ? 0 : NativeBattleRaldo19Profile.DrawStep)), SecondaryDrawCursor = checked(nodes.SourceArenaOffset + (odd ? NativeBattleRaldo19Profile.DrawStep : 2 * NativeBattleRaldo19Profile.DrawStep)) };
             current = current with { Memory = current.Memory with { SharedEffectView2793E58 = copiedCamera }, State = current.State with { Nodes = nodes } };
-            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, Models(), inputs.ReadPoseSource);
+            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, inputs.ReadModel, inputs.ReadPoseSource);
             state = state.Write(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {
@@ -167,7 +167,7 @@ public static class NativeBattleRaldo19Controller
         NativeBattleEffectHierarchyCallback Target(NativeBattleEffectHierarchy state, uint address)
         {
             NativeBattleModulePoolTask task = state.Read(address);
-            task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, Models(), inputs.ReadPoseSource);
+            task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, inputs.ReadModel, inputs.ReadPoseSource);
             NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadByte(0x2D));
             NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Raldo target requires its current pose.");
             NativeBattlePoseSource source = inputs.ReadPoseSource(task.ReadByte(0x2D));
@@ -312,11 +312,6 @@ public static class NativeBattleRaldo19Controller
             current = current with { Effect = current.Effect with { Pools = state.Pools } };
             current = inputs.Execute(current, operation);
             return new(current.Effect.Pools);
-        }
-
-        NativeBattleGraphicsModel[] Models()
-        {
-            return Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray();
         }
 
         NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target)

@@ -72,7 +72,7 @@ public static partial class NativeBattleTripleController
         {
             NativeBattleEffectParameters parameters = Frame.Effect.Parameters ?? throw new InvalidDataException("Native89F8D0 requires50AFC0 parameters.");
             BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-            int contact = inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Native89F8D0 requires its original first-contact pointer.");
+            BattleContactCursor contact = inputs.Packets.ReadHeader(header).FirstContact;
             if ((inputs.Packets.ReadContact(contact).Primary.HitFlags3 & 4) != 0)
             {
                 return;

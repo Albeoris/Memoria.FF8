@@ -2,9 +2,9 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleRinoa86BindActor(byte Actor, uint Resource, uint SavedModel) : NativeBattleRinoa86Operation;
+public sealed record NativeBattleRinoa86BindActor(BattleModelOwner Actor, uint Resource, uint SavedModel) : NativeBattleRinoa86Operation;
 public sealed record NativeBattleRinoa86ActorSequence(byte Actor, short Sequence) : NativeBattleRinoa86Operation;
-public sealed record NativeBattleRinoa86ActorFlags(byte Actor, ushort Flags) : NativeBattleRinoa86Operation;
+public sealed record NativeBattleRinoa86ActorFlags(BattleModelOwner Actor, ushort Flags) : NativeBattleRinoa86Operation;
 public sealed record NativeBattleRinoa86Sound(uint Descriptor, short Argument, short Volume) : NativeBattleRinoa86Operation;
 public sealed record NativeBattleRinoa86Emit(uint Body, int Mode) : NativeBattleRinoa86Operation;
 public sealed record NativeBattleRinoa86PublishWorld(ImmutableArray<byte> Matrix) : NativeBattleRinoa86Operation;

@@ -477,7 +477,7 @@ public sealed partial class BattleSession
         {
             return;
         }
-        if (contact.CommittingSecondary && contact.Secondary is { } secondary && (UsesExpandedRoster ? contact.Actor == actor : secondary.ActorIndex == actor.EncodeNativeSlot()))
+        if (contact.CommittingSecondary && contact.Secondary is { } secondary && (UsesExpandedRoster ? contact.Actor == actor : secondary.Recipient == actor.EncodeNativeSlot()))
         {
             contact.Secondary = secondary with { HitFlags3 = (byte)(secondary.HitFlags3 | 0x20) };
         }

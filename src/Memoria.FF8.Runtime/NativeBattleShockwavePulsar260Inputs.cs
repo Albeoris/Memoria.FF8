@@ -5,10 +5,10 @@ public abstract record NativeBattleShockwavePulsar260Operation
     [System.Text.Json.Serialization.JsonIgnore]
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
 }
-public sealed record NativeBattleShockwavePulsar260BindCaster(byte Actor, uint SaveAddress, uint ResourceAddress) : NativeBattleShockwavePulsar260Operation;
+public sealed record NativeBattleShockwavePulsar260BindCaster(BattleModelOwner Actor, uint SaveAddress, uint ResourceAddress) : NativeBattleShockwavePulsar260Operation;
 public sealed record NativeBattleShockwavePulsar260RingSequence(byte Actor, byte Sequence) : NativeBattleShockwavePulsar260Operation;
-public sealed record NativeBattleShockwavePulsar260ActorFlags(byte Actor, ushort ClearMask, ushort SetMask) : NativeBattleShockwavePulsar260Operation;
-public sealed record NativeBattleShockwavePulsar260ActorWrite(byte Actor, int Offset, NativeBattleEffectArena Bytes, int Length) : NativeBattleShockwavePulsar260Operation;
+public sealed record NativeBattleShockwavePulsar260ActorFlags(BattleModelOwner Actor, ushort ClearMask, ushort SetMask) : NativeBattleShockwavePulsar260Operation;
+public sealed record NativeBattleShockwavePulsar260ActorWrite(BattleModelOwner Actor, int Offset, NativeBattleEffectArena Bytes, int Length) : NativeBattleShockwavePulsar260Operation;
 public sealed record NativeBattleShockwavePulsar260StageWrite(ushort GroupMask, short Depth, uint ColorFlags) : NativeBattleShockwavePulsar260Operation;
 public sealed record NativeBattleShockwavePulsar260StageFlags(ushort GroupMask, byte ClearMask, byte SetMask) : NativeBattleShockwavePulsar260Operation;
 public sealed record NativeBattleShockwavePulsar260SoundPlay(uint DescriptorAddress, uint Value, uint Flags, int Volume) : NativeBattleShockwavePulsar260Operation;

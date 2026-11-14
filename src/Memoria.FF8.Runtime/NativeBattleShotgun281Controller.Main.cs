@@ -21,8 +21,8 @@ public static partial class NativeBattleShotgun281Controller
             }
             frame = ClearDwords701200(frame, main + 12, 133);
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-            int first = Header(frame, packets).FirstContactIndex ?? throw new NotSupportedException("Shotgun requires its actual first physical contact.");
-            uint target = ModelAddress(packets.ReadContact(first).Primary.ActorIndex);
+            BattleContactCursor first = Header(frame, packets).FirstContact;
+            uint target = ModelAddress(packets.ReadContact(first).Primary.Recipient);
             frame = Write(frame, main, Read(frame, main).WriteDword(16, target));
             NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, main + 20, 524);
             workspace = workspace.Initialize7016B0(resources.ProgrammeA, 524);
@@ -184,10 +184,6 @@ public static partial class NativeBattleShotgun281Controller
             throw new NotSupportedException("Shotgun requires its actual current parameter pointer.");
         }
         BattleActionHeaderReference index = Parameters(frame).Header;
-        if ((uint)index >= packets.Headers.Length)
-        {
-            throw new NotSupportedException("Shotgun parameter header leaves its physical action arena.");
-        }
         return packets.ReadHeader(index);
     }
 }

@@ -32,7 +32,7 @@ public sealed partial class BattleSession
             return current with { Memory = latest, State = latest.Effect173 ?? throw new InvalidDataException("Effect173 service lost its storage."), Random = nativeCrtRandom ?? throw new InvalidDataException("Effect173 service lost its CRT stream."), Staging = NativeFileStaging ?? throw new InvalidDataException("Effect173 service lost its addressed memory.") };
         }
 
-        NativeBattleEffect173PointStep Point502170(NativeBattleEffect173Frame current, int actor, byte selector, short fraction, NativeBattleEffectArena retained)
+        NativeBattleEffect173PointStep Point502170(NativeBattleEffect173Frame current, BattleModelOwner actor, byte selector, short fraction, NativeBattleEffectArena retained)
         {
             NativeFileStaging = current.Staging;
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);

@@ -76,7 +76,7 @@ public static partial class NativeBattleElectrocute275Controller
                     {
                         throw new InvalidDataException("Electrocute target cycle leaves its captured contacts.");
                     }
-                    actor = inputs.Packets.ReadContact(FirstContact(frame, inputs) + index).Primary.ActorIndex;
+                    actor = inputs.Packets.ReadContact(FirstContact(frame, inputs) + index).Primary.Recipient;
                     frame = Write(frame, address, task.WriteWord(16, unchecked((ushort)(index + 1 >= targetCount ? 0 : index + 1))));
                     if ((inputs.ReadModel(actor).Flags0 & 2) != 0)
                     {

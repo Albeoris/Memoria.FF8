@@ -14,8 +14,8 @@ public static partial class NativeBattleMorph172Controller
         (children, int main) = children.Append(0x5D9D80);
         children = children.WriteSlot(main, children.Slots[main].WriteWord(12, 0));
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Morph requires its actual first physical contact pointer.");
-        frame = Dword(Dword(Dword(frame, 0x239A8E0, inputs.Packets.ReadContact(first).Primary.ActorIndex), 0x239D4F4, Parameters(frame).Source), 0x239D4F0, 0x1D99A78);
+        BattleContactCursor first = header.FirstContact;
+        frame = Dword(Dword(Dword(frame, 0x239A8E0, inputs.Packets.ReadContact(first).Primary.Recipient), 0x239D4F4, Parameters(frame).Source), 0x239D4F0, 0x1D99A78);
         for (int index = 0; index < 100; index++)
         {
             frame = Dword(frame, 0x239A908 + (uint)(index * 24), 0);

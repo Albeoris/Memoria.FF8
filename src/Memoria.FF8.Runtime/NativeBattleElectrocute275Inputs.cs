@@ -1,13 +1,13 @@
 namespace Memoria.FF8.Runtime;
 
 public abstract record NativeBattleElectrocute275Operation;
-public sealed record NativeBattleElectrocute275BindCaster(byte Actor, uint SaveAddress, uint ResourceAddress) : NativeBattleElectrocute275Operation;
+public sealed record NativeBattleElectrocute275BindCaster(BattleModelOwner Actor, uint SaveAddress, uint ResourceAddress) : NativeBattleElectrocute275Operation;
 public sealed record NativeBattleElectrocute275RingSequence(byte Actor, byte Sequence) : NativeBattleElectrocute275Operation;
 public sealed record NativeBattleElectrocute275LoadView : NativeBattleElectrocute275Operation;
 public sealed record NativeBattleElectrocute275ComposeCaster(byte Actor) : NativeBattleElectrocute275Operation;
 public sealed record NativeBattleElectrocute275RestoreCaster(byte Actor) : NativeBattleElectrocute275Operation;
-public sealed record NativeBattleElectrocute275ActorFlags(byte Actor, ushort ClearMask, ushort SetMask) : NativeBattleElectrocute275Operation;
-public sealed record NativeBattleElectrocute275BlendActorColor(byte Actor, uint FirstColor, uint SecondColor, short FirstFactor, short SecondFactor) : NativeBattleElectrocute275Operation;
+public sealed record NativeBattleElectrocute275ActorFlags(BattleModelOwner Actor, ushort ClearMask, ushort SetMask) : NativeBattleElectrocute275Operation;
+public sealed record NativeBattleElectrocute275BlendActorColor(BattleModelOwner Actor, uint FirstColor, uint SecondColor, short FirstFactor, short SecondFactor) : NativeBattleElectrocute275Operation;
 public sealed record NativeBattleElectrocute275Stage(short Depth, uint ColorFlags) : NativeBattleElectrocute275Operation;
 public sealed record NativeBattleElectrocute275SpatialSound(uint Value, int Volume, NativeBattleModuleAnchor Position) : NativeBattleElectrocute275Operation;
 public sealed record NativeBattleElectrocute275Flash(int Argument0, int Argument1, int Argument2, int Argument3) : NativeBattleElectrocute275Operation;

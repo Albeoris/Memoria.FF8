@@ -28,7 +28,7 @@ public static partial class NativeBattleSiren95Controller
             uint work = state.ReadDword(odd ? 0x258A024u : 0x258A020u);
             state = state.WriteDword(0x257F8A4, packet).WriteDword(0x257F9AC, work);
             frame = frame with { Memory = frame.Memory with { Siren95 = state, SharedEffectView2793E58 = inputs.CameraMatrix }, Effect = frame.Effect with { DrawArenaOffset = ArenaOffset(packet, 0) } };
-            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, new ActorView(inputs.ReadModel), inputs.ReadPoseSource);
+            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, inputs.ReadModel, inputs.ReadPoseSource);
             Store(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {
@@ -149,7 +149,7 @@ public static partial class NativeBattleSiren95Controller
             }
             else
             {
-                task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, new ActorView(inputs.ReadModel), inputs.ReadPoseSource);
+                task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, inputs.ReadModel, inputs.ReadPoseSource);
                 NativeBattlePoseSource source = inputs.ReadPoseSource(task.ReadByte(0x2D));
                 NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadByte(0x2D));
                 NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native Siren target bounds require its actual current pose state.");
@@ -173,10 +173,6 @@ public static partial class NativeBattleSiren95Controller
                         {
                             task = hierarchy.Read(address);
                             BattleActionHeaderReference headerIndex = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                            if ((uint)headerIndex >= inputs.Packets.Headers.Length)
-                            {
-                                throw new NotSupportedException("Native Siren contact header leaves its current addressed owner.");
-                            }
                             NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(headerIndex);
                             if (contactOrdinal >= header.ReadContactCount())
                             {
@@ -246,11 +242,4 @@ public static partial class NativeBattleSiren95Controller
 
     private static NativeBattleModulePoolTask Next(NativeBattleModulePoolTask task) => task.WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) + 1)));
 
-    private sealed class ActorView(Func<BattleModelOwner, NativeBattleGraphicsModel> read) : IReadOnlyList<NativeBattleGraphicsModel>
-    {
-        public int Count => 7;
-        public NativeBattleGraphicsModel this[int index] => (uint)index < Count ? read(index) : throw new ArgumentOutOfRangeException(nameof(index));
-        public IEnumerator<NativeBattleGraphicsModel> GetEnumerator() => Enumerable.Range(0, Count).Select(read).GetEnumerator();
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
-    }
 }

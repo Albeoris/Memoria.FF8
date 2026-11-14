@@ -199,7 +199,7 @@ public static partial class NativeBattleGilgameshController
                     }
                     int masamuneFirst = Header.FirstContactIndex ?? throw new NotSupportedException("Masamune requires its captured physical contact pointer.");
                     int masamuneCount = Header.ReadContactCount();
-                    ImmutableArray<byte> masamuneActors = Enumerable.Range(masamuneFirst, masamuneCount).Select(index => inputs.Packets.ReadContact(index).Primary.ActorIndex).ToImmutableArray();
+                    ImmutableArray<byte> masamuneActors = Enumerable.Range(masamuneFirst, masamuneCount).Select(index => inputs.Packets.ReadContact(index).Primary.Recipient).ToImmutableArray();
                     NativeBattleGilgameshMasamuneAttackStep masamune = NativeBattleGilgameshMasamuneAttack.Advance(Frame, address, inputs.GraphicsFlags, masamuneActors, inputs.Execute);
                     Frame = masamune.Frame;
                     if (masamune.Contact)
@@ -221,7 +221,7 @@ public static partial class NativeBattleGilgameshController
                 case 0x5920E0:
                     int first = Header.FirstContactIndex ?? throw new NotSupportedException("Native Excalipoor requires its physical contact pointer.");
                     int count = Header.ReadContactCount();
-                    ImmutableArray<byte> actors = Enumerable.Range(first, count).Select(index => inputs.Packets.ReadContact(index).Primary.ActorIndex).ToImmutableArray();
+                    ImmutableArray<byte> actors = Enumerable.Range(first, count).Select(index => inputs.Packets.ReadContact(index).Primary.Recipient).ToImmutableArray();
                     NativeBattleGilgameshAttackStep attack = NativeBattleGilgameshExcalipoorAttack.Advance(NativeBattleGilgameshAttackProfile.ForEffect(Frame.Effect.Binding.Effect), task, Children, Frame.Random, inputs.GraphicsFlags, actors, inputs.ReadAnchor571400);
                     SetChildren(attack.Children);
                     Write(address, attack.Task);

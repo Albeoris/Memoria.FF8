@@ -44,7 +44,7 @@ public sealed partial class BattleSession
             return current with { Memory = observed, Staging = NativeFileStaging };
         }
 
-        NativeBattleMeltEye158PointStep Bone(NativeBattleMeltEye158Frame current, int actor, byte selector, short distance)
+        NativeBattleMeltEye158PointStep Bone(NativeBattleMeltEye158Frame current, BattleModelOwner actor, byte selector, short distance)
         {
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(actor), selector, distance);
             current = ObserveBone(current, producer);
@@ -58,7 +58,7 @@ public sealed partial class BattleSession
             return new(current, center);
         }
 
-        NativeBattlePackedMatrix32 World(NativeBattleMeltEye158Frame current, int actor)
+        NativeBattlePackedMatrix32 World(NativeBattleMeltEye158Frame current, BattleModelOwner actor)
         {
             return NativeBattlePackedMatrix32.FromMatrix(graphics.ActorModels.Get(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Melt-Eye requires its actual retained caster world matrix."), null);
         }

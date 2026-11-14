@@ -21,7 +21,7 @@ public static partial class NativeBattleBlastingZone164Controller
             }
         }
         NativeBattleActionHeaderSlot header = packets.Headers[parameters.Header];
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Native5F0260 requires its physical first-contact pointer.");
+        BattleContactCursor first = header.FirstContact;
         BattleModelOwner recipient = packets.ReadContact(first).Primary.Recipient;
         NativeBattleEffectResourcePointer initializer = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x23C9D8C) ?? throw new NotSupportedException("Native5F0260 requires its actual initializer publication.");
         staging = WriteDword(staging, 0x23C9D8C, checked(0x20DFAB8u + (uint)initializer.ArenaOffset));

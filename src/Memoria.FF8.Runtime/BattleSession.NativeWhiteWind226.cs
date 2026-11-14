@@ -86,7 +86,7 @@ public sealed partial class BattleSession
         int Scene(ref NativeBattleModulePoolTask task)
         {
             int frame = WindWord(task, 12);
-            int caster = effect.Parameters.Source;
+            BattleModelOwner caster = effect.Parameters.Source;
             if (frame < 22)
             {
                 if (frame == 0)
@@ -106,7 +106,7 @@ public sealed partial class BattleSession
                     int count = header.ReadContactCount();
                     for (int index = 0; index < count; index++)
                     {
-                        int actor = nativeActionPackets.ReadContact(firstContact + index).Primary.ActorIndex;
+                        int actor = nativeActionPackets.ReadContact(firstContact + index).Primary.Recipient;
                         z = unchecked((short)(z + graphics.ActorModels.Get(actor).Transform!.Position28.Z));
                     }
                     if (count == 0)
@@ -127,7 +127,7 @@ public sealed partial class BattleSession
             if ((uint)targetIndex < 12 && (targetIndex & 3) == 0 && targetIndex / 4 < header.ReadContactCount() && pools[2].Slots.Any(candidate => (candidate.Flags & 1) == 0))
             {
                 (pools[2], int slot) = pools[2].Append(0x694D40);
-                int actor = nativeActionPackets.ReadContact(firstContact + targetIndex / 4).Primary.ActorIndex;
+                int actor = nativeActionPackets.ReadContact(firstContact + targetIndex / 4).Primary.Recipient;
                 NativeBattleModulePoolTask target = pools[2].Slots[slot].WriteDword(12, NativeBattleGraphicsModelAddress.Encode(actor));
                 target = WindStore(target, 16, Anchor(actor));
                 NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(target, 12 + (12), 0x278);
@@ -153,7 +153,7 @@ public sealed partial class BattleSession
             }
             for (int index = 0; index < header.ReadContactCount(); index++)
             {
-                if (nativeActionPackets.ReadContact(firstContact + index).Primary.ActorIndex == actor)
+                if (nativeActionPackets.ReadContact(firstContact + index).Primary.Recipient == actor)
                 {
                     graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(firstContact + index)] });
                 }

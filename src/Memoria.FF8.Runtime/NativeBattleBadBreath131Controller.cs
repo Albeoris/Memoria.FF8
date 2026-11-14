@@ -70,7 +70,7 @@ public static partial class NativeBattleBadBreath131Controller
             }
             NativeBattleModulePoolTask task = Read(frame, childAddress).WriteBytes(12, new byte[40]);
             int firstContact = FirstContact(frame, inputs);
-            int count = inputs.Packets.ReadHeader(Parameters(frame).Header).ReadByte(16);
+            int count = inputs.Packets.ReadHeader(Parameters(frame).Header).ReadContactCount();
             if (count is < 1 or > 3)
             {
                 throw new NotSupportedException("Bad Breath requires one to three actual captured targets.");
@@ -79,7 +79,7 @@ public static partial class NativeBattleBadBreath131Controller
             short meanZ = 0;
             for (int index = 0; index < count; index++)
             {
-                int actor = inputs.Packets.ReadContact(firstContact + index).Primary.ActorIndex;
+                int actor = inputs.Packets.ReadContact(firstContact + index).Primary.Recipient;
                 task = task.WriteDword(16 + index * 4, ModelAddress(actor)).WriteByte(0x1C + index, (byte)index);
                 meanZ = unchecked((short)(meanZ + Transform(inputs.ReadModel(actor)).Position28.Z));
             }
@@ -135,7 +135,7 @@ public static partial class NativeBattleBadBreath131Controller
     private static int FirstContact(NativeBattleBadBreath131Frame frame, NativeBattleBadBreath131Inputs inputs)
     {
         BattleActionHeaderReference index = Parameters(frame).Header;
-        if ((uint)index >= inputs.Packets.Headers.Length || inputs.Packets.ReadHeader(index).ReadByte(16) == 0)
+        if (inputs.Packets.ReadHeader(index).ReadContactCount() == 0)
         {
             throw new NotSupportedException("Bad Breath requires its actual captured contact header.");
         }

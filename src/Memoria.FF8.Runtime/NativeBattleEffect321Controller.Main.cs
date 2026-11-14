@@ -67,11 +67,11 @@ public static partial class NativeBattleEffect321Controller
         }
         (frame, uint flash) = AppendRequired(frame, 0x598570);
         frame = Write(frame, flash, Read(frame, flash).WriteWord(12, 0));
-        for (int index = 0; index < CurrentHeader(frame, inputs.ReadPackets(frame)).ReadByte(16); index++)
+        for (int index = 0; index < CurrentHeader(frame, inputs.ReadPackets(frame)).ReadContactCount(); index++)
         {
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
             int first = CurrentHeader(frame, packets).FirstContactIndex ?? throw new NotSupportedException("Effect321 requires its current contact pointer.");
-            int actor = packets.ReadContact(first + index).Primary.ActorIndex;
+            int actor = packets.ReadContact(first + index).Primary.Recipient;
             (frame, uint target) = AppendRequired(frame, 0x5985C0);
             frame = Write(frame, target, Read(frame, target).WriteWord(12, 0).WriteWord(14, (ushort)actor));
             NativeBattleEffect321PointStep anchor = inputs.Anchor571400(frame, ModelAddress(actor), TaskView(Read(frame, target), 16, 8));

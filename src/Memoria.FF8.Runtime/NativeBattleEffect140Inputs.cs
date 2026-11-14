@@ -32,8 +32,8 @@ public sealed record NativeBattleEffect140StopVibration4A2940(int Handle) : Nati
 public sealed record NativeBattleEffect140Stage5713E0(int Intensity, int Color) : NativeBattleEffect140Operation;
 public sealed record NativeBattleEffect140ContactAll506BA0 : NativeBattleEffect140Operation;
 public sealed record NativeBattleEffect140CommonTextureLoad508630(uint SourceAddress, uint CompletionAddress) : NativeBattleEffect140Operation;
-public sealed record NativeBattleEffect140ModelColor40(int Actor, uint Color) : NativeBattleEffect140Operation;
-public sealed record NativeBattleEffect140ModelFlags(int Actor, ushort AndMask, ushort OrMask) : NativeBattleEffect140Operation;
+public sealed record NativeBattleEffect140ModelColor40(BattleModelOwner Actor, uint Color) : NativeBattleEffect140Operation;
+public sealed record NativeBattleEffect140ModelFlags(BattleModelOwner Actor, ushort AndMask, ushort OrMask) : NativeBattleEffect140Operation;
 public sealed record NativeBattleEffect140PublishCamera(NativeBattleCameraPose Pose, short? EyePadding, short? TargetPadding) : NativeBattleEffect140Operation;
 public sealed record NativeBattleEffect140DrawOwnedModel(uint ModelAddress, uint ScratchAddress, int FarInput, bool Custom) : NativeBattleEffect140Operation;
 public sealed record NativeBattleEffect140DrawBatch(NativeBattleGfGeometryBatch Batch, uint CursorGlobal, ushort Flags = 0) : NativeBattleEffect140Operation;

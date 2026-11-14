@@ -32,7 +32,7 @@ public static partial class NativeBattleEffect54Lower
         int first = packets.ReadHeader(headerIndex).FirstContactIndex ?? throw new NotSupportedException("Effect54 requires its actual contact pointer.");
         for (int index = 0; index < count; index++)
         {
-            Store32(ref frame, context + 4 + (uint)(index * 4), packets.ReadContact(first + index).Primary.ActorIndex);
+            Store32(ref frame, context + 4 + (uint)(index * 4), packets.ReadContact(first + index).Primary.Recipient);
         }
         Store16(ref frame, context + 0x1A, task.ReadWord(0x29E));
         if (Read16(frame, context + 0x24) != 0)

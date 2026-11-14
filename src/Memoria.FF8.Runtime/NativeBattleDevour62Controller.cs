@@ -51,7 +51,7 @@ public static class NativeBattleDevour62Controller
             bool odd = (task.ReadWord(0x5C) & 1) != 0;
             NativeBattleDevour62State state = current.State;
             current = current with { Memory = current.Memory with { SharedEffectView2793E58 = inputs.Camera }, State = state with { PrimaryDrawCursor = (odd ? state.AlternatePrimaryDrawBase : state.PrimaryDrawBase) ?? throw new NotSupportedException("Devour requires its actual primary bank."), SecondaryDrawCursor = (odd ? state.AlternateSecondaryDrawBase : state.SecondaryDrawBase) ?? throw new NotSupportedException("Devour requires its actual secondary bank.") } };
-            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, Models(), inputs.ReadPoseSource);
+            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, inputs.ReadModel, inputs.ReadPoseSource);
             hierarchy = hierarchy.Write(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {
@@ -122,7 +122,7 @@ public static class NativeBattleDevour62Controller
             NativeBattleModulePoolTask task = hierarchy.Read(address);
             if (task.Callback == NativeBattleDevour62Profile.TargetCallback)
             {
-                task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, Models(), inputs.ReadPoseSource);
+                task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, inputs.ReadModel, inputs.ReadPoseSource);
                 NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadByte(0x2D));
                 NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Devour target requires its pose.");
                 NativeBattlePoseSource pose = inputs.ReadPoseSource(task.ReadByte(0x2D));
@@ -378,23 +378,14 @@ public static class NativeBattleDevour62Controller
         NativeBattleActionHeaderSlot Header(NativeBattleModulePoolTask task)
         {
             BattleActionHeaderReference index = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-            if ((uint)index >= inputs.Packets.Headers.Length)
-            {
-                throw new InvalidDataException("Devour header selector exceeds its physical arena.");
-            }
             return inputs.Packets.ReadHeader(index);
         }
         short FirstOutcome(NativeBattleModulePoolTask task)
         {
             BattleActionHeaderReference header = parameters.Header;
-            if ((uint)header >= inputs.Packets.Headers.Length)
-            {
-                throw new InvalidDataException("Devour first captured header exceeds its physical arena.");
-            }
-            int first = inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Devour requires its first physical contact.");
+            BattleContactCursor first = inputs.Packets.ReadHeader(header).FirstContact;
             return unchecked((short)inputs.Packets.ReadContact(first).Primary.Amount6);
         }
-        ImmutableArray<NativeBattleGraphicsModel> Models() => Enumerable.Range(0, 7).Select(inputs.ReadModel).ToImmutableArray();
         NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
     }
 

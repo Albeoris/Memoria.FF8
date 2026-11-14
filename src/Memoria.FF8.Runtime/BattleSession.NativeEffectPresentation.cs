@@ -198,7 +198,7 @@ public sealed partial class BattleSession
         for (int index = 0; index < replacements.Length; index++)
         {
             int slot = first + index;
-            if (nativeActionPackets.ReadContact(slot).Primary.ActorIndex != replacements[index].Primary.ActorIndex)
+            if (nativeActionPackets.ReadContact(slot).Primary.Recipient != replacements[index].Primary.Recipient)
             {
                 throw new InvalidDataException("Hosted recomputation changed the invocation's physical recipient.");
             }
@@ -358,8 +358,8 @@ public sealed partial class BattleSession
             presentationSelectedModuleComplete = complete;
             if (complete)
             {
-                NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[context.HeaderIndex];
-                nativeActionPackets = nativeActionPackets with { Headers = nativeActionPackets.Headers.SetItem(context.HeaderIndex, header with { Payload = header.Payload.SetItem(1, 255), UnknownByteMask = header.UnknownByteMask & ~2u }) };
+                NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[context.Header];
+                nativeActionPackets = nativeActionPackets with { Headers = nativeActionPackets.Headers.SetItem(context.Header, header with { Payload = header.Payload.SetItem(1, 255), UnknownByteMask = header.UnknownByteMask & ~2u }) };
             }
         }
         if (EffectPresentationInvoked && (presentationSelectedModulePhase is null || presentationSelectedModulePhase >= 3 && !presentationSelectedModuleComplete))

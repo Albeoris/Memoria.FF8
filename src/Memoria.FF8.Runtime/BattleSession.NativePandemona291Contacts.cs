@@ -9,7 +9,7 @@ public sealed partial class BattleSession
     {
         NativeBattleEffectArena arena = frame.Memory.Arena!;
         int start = NativeBattleWaterExecutionFields.ArenaOffset(address, 0x1030);
-        int count = nativeActionPackets.ReadHeader(frame.Effect.Parameters!.Header).ReadByte(0x10);
+        int count = nativeActionPackets.ReadHeader(frame.Effect.Parameters!.Header).ReadContactCount();
         bool paused = (frame.Memory.Pandemona291!.Pause2556258 ?? throw new NotSupportedException("Native Pandemona contacts require their actual pause DWORD.")) != 0;
         if (age == 440)
         {

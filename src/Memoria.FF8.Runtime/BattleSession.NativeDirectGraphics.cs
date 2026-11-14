@@ -4,7 +4,7 @@ public sealed partial class BattleSession
 {
     private (NativeBattleGraphicsState Graphics, byte Phase, bool Complete) PollNativeDirectGraphics(NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context, byte phase)
     {
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[context.HeaderIndex];
+        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[context.Header];
         bool control = context.Callback == 0x50BDC0;
         ushort action = header.Action;
         if (phase == 0)

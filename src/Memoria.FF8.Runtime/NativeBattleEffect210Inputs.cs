@@ -23,7 +23,7 @@ public abstract record NativeBattleEffect210Operation
 }
 public sealed record NativeBattleEffect210UploadTim505E30(uint SourceAddress) : NativeBattleEffect210Operation;
 public sealed record NativeBattleEffect210RegisterCamera5099A0(uint SourceAddress) : NativeBattleEffect210Operation;
-public sealed record NativeBattleEffect210WriteModelBytes(int Actor, int Offset, NativeBattleEffectArena Data, int Length) : NativeBattleEffect210Operation;
+public sealed record NativeBattleEffect210WriteModelBytes(BattleModelOwner Actor, int Offset, NativeBattleEffectArena Data, int Length) : NativeBattleEffect210Operation;
 public sealed record NativeBattleEffect210StageFlags(byte AndMask, byte OrMask) : NativeBattleEffect210Operation;
 public sealed record NativeBattleEffect210Stage5713E0(int Amount, uint Color) : NativeBattleEffect210Operation;
 public sealed record NativeBattleEffect210Sound501330(uint SourceAddress, uint Flags, byte Pan) : NativeBattleEffect210Operation;

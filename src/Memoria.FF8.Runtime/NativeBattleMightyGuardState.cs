@@ -84,8 +84,8 @@ public abstract record NativeBattleMightyGuardOperation;
 public sealed record NativeBattleMightyGuardContact(int Index) : NativeBattleMightyGuardOperation;
 public sealed record NativeBattleMightyGuardSound(NativeBattleModuleSound Sound) : NativeBattleMightyGuardOperation;
 public sealed record NativeBattleMightyGuardStage(short Depth, bool ClearRgb) : NativeBattleMightyGuardOperation;
-public sealed record NativeBattleMightyGuardBindCaster(int Actor, uint SavedBank, uint Resource, byte Sequence) : NativeBattleMightyGuardOperation;
-public sealed record NativeBattleMightyGuardInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleMightyGuardFrame, NativeBattleMightyGuardOperation, NativeBattleMightyGuardFrame> Execute, Func<NativeBattleMightyGuardFrame, uint, NativeBattleMightyGuardFrame> AdvanceNodes)
+public sealed record NativeBattleMightyGuardBindCaster(BattleModelOwner Actor, uint SavedBank, uint Resource, byte Sequence) : NativeBattleMightyGuardOperation;
+public sealed record NativeBattleMightyGuardInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleMightyGuardFrame, NativeBattleMightyGuardOperation, NativeBattleMightyGuardFrame> Execute, Func<NativeBattleMightyGuardFrame, uint, NativeBattleMightyGuardFrame> AdvanceNodes)
 {
     public NativeBattlePackedMatrix32? PackedCamera { get; init; }
     public ushort? CopiedCameraPadding { get; init; }

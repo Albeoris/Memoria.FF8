@@ -40,7 +40,7 @@ public static partial class NativeBattleRinoa89Controller
         }
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native6FA780 requires its actual selected caster.");
         NativeBattleEffectOwnedModelResource body = inputs.Resources.Body ?? throw new NotSupportedException("Native6FA780 requires its original embedded model.");
-        int actor = parameters.Source;
+        BattleModelOwner actor = parameters.Source;
         short age = Signed(12);
         NativeBattleVector center = new(Signed(216), Signed(218), Signed(220));
         switch (task.ReadWord(12))

@@ -151,7 +151,7 @@ public sealed partial class BattleSession
                     var worldDraw = NativeBattleElectrocute275Ribbons.DrawProjected(current, world.HeadAddress, world.Count, world.TextureVOffset, resources, NativeBattleRibbonProjection.CaptureWorldDirectionWord(current.Memory, Camera().Projection ?? throw new NotSupportedException("World ribbon requires its current projection.")), world.PilotIdentity, worldPoints);
                     return Deliver(worldDraw.Frame, worldDraw.Batch);
                 case NativeBattleElectrocute275DrawBoneTrail boneTrail:
-                    byte caster = current.Effect.Parameters!.Source;
+                    BattleModelOwner caster = current.Effect.Parameters!.Source;
                     if (graphics.ActorModels.Get(caster).ActiveStagedResourceRow100 != boneTrail.BindingAddress)
                     {
                         throw new InvalidDataException("Electrocute bone trail leaves its current addressed caster binding.");
@@ -176,7 +176,7 @@ public sealed partial class BattleSession
         NativeBattleElectrocute275TaskStep AdvanceAct(NativeBattleElectrocute275Frame current, uint taskAddress)
         {
             NativeBattleModulePoolTask task = NativeBattleElectrocute275Controller.Read(current, taskAddress);
-            byte caster = current.Effect.Parameters!.Source;
+            BattleModelOwner caster = current.Effect.Parameters!.Source;
             NativeBattleElectrocute275AnchorStep anchored = Anchor(current, caster);
             current = anchored.Frame;
             NativeBattleModuleAnchor anchor = anchored.Anchor;

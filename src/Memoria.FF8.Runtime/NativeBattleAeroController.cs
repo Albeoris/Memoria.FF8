@@ -38,7 +38,7 @@ public static class NativeBattleAeroController
             throw new InvalidDataException("Native Aero requires its original6C0C80 entry, action parameters and resources.");
         }
         BattleActionHeaderReference first = effect.Parameters.Header;
-        int last = packets.ReadHeader(first).ReadByte(17);
+        int last = packets.ReadHeader(first).ReadRepeatModeMinusOne();
         if (last >= 3 || first + last >= NativeBattleActionPacketsState.HeaderCapacity)
         {
             throw new NotSupportedException("Native Aero owns exactly three primary task slots.");
@@ -74,10 +74,10 @@ public static class NativeBattleAeroController
                     task = WriteByte(task, 15, 1);
                 }
                 int sequence = task.ReadByte(14);
-                if (sequence <= Header(0).ReadByte(17))
+                if (sequence <= Header(0).ReadRepeatModeMinusOne())
                 {
-                    int contact = Header(sequence).FirstContactIndex ?? throw new NotSupportedException("Native Aero requires its actual header contact owner.");
-                    int actor = inputs.Packets.ReadContact(contact).Primary.ActorIndex;
+                    BattleContactCursor contact = Header(sequence).FirstContact;
+                    int actor = inputs.Packets.ReadContact(contact).Primary.Recipient;
                     (primary, int child) = primary!.Append(0x6C0EC0);
                     NativeBattleModulePoolTask next = Clear(primary.Slots[child], 0x680).WriteWord(14, (ushort)sequence);
                     next = WriteDword(next, 16, ActorAddress(actor));

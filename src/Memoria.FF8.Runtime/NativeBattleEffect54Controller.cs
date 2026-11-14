@@ -46,7 +46,7 @@ public static partial class NativeBattleEffect54Controller
         {
             maximum = groups;
         }
-        task = task.WriteByte(0x2C, actors.Actor).WriteByte(0x2D, actors.Target).WriteByte(0x29, 0).WriteWord(0x5A, count).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
+        task = actors.WriteTo(task).WriteByte(0x29, 0).WriteWord(0x5A, count).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
         frame = Write(frame, address, task);
         if ((Parameters(frame).Flags79 & 1) == 0)
         {

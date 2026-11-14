@@ -45,7 +45,7 @@ public sealed partial class BattleSession
             return current with { Memory = observed, Staging = NativeFileStaging };
         }
 
-        NativeBattleStare45PointStep Bone(NativeBattleStare45Frame current, int actor, int selector, int distance)
+        NativeBattleStare45PointStep Bone(NativeBattleStare45Frame current, BattleModelOwner actor, int selector, int distance)
         {
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) == 0)

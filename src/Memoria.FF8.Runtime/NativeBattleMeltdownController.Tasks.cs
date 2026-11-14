@@ -62,11 +62,11 @@ public static partial class NativeBattleMeltdownController
                     Emit(new NativeBattleMeltdownContact(first + index));
                 }
             }
-            if (age == 85 && action + 1 <= inputs.Packets.ReadHeader(parameters.Header).ReadByte(17))
+            if (age == 85 && action + 1 <= inputs.Packets.ReadHeader(parameters.Header).ReadRepeatModeMinusOne())
             {
                 NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header.Advance(checked(action + 1)));
-                int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Meltdown requires its next action's first target.");
-                Add(0x612190, (node, slot) => Set(slot, node.WriteWord(12, 0).WriteWord(14, unchecked((ushort)(action + 1))).WriteWord(32, inputs.Packets.ReadContact(first).Primary.ActorIndex).WriteWord(34, header.ReadByte(0))));
+                BattleContactCursor first = header.FirstContact;
+                Add(0x612190, (node, slot) => Set(slot, node.WriteWord(12, 0).WriteWord(14, unchecked((ushort)(action + 1))).WriteWord(32, inputs.Packets.ReadContact(first).Primary.Recipient).WriteWord(34, header.Source)));
             }
             if (age == 1)
             {

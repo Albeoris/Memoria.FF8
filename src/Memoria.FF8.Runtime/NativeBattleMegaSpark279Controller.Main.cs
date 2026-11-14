@@ -29,13 +29,13 @@ public static partial class NativeBattleMegaSpark279Controller
             }
             frame = ResetLinkedRows67F310(frame);
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-            int count = Header(frame, packets).ReadByte(16);
+            int count = Header(frame, packets).ReadContactCount();
             frame = Write(frame, main, Read(frame, main).WriteWord(14, (ushort)count));
             for (int index = 0; index < count; index++)
             {
                 packets = inputs.ReadPackets(frame);
                 int first = Header(frame, packets).FirstContactIndex ?? throw new NotSupportedException("Mega Spark requires its actual physical contacts.");
-                uint target = ModelAddress(packets.ReadContact(first + index).Primary.ActorIndex);
+                uint target = ModelAddress(packets.ReadContact(first + index).Primary.Recipient);
                 NativeBattleModulePoolTask task = Read(frame, main).WriteDword(20 + index * 4, target);
                 short z = ModelTransform279(inputs.ReadModel(frame, target)).Position28.Z;
                 frame = Write(frame, main, task.WriteWord(16, unchecked((ushort)(Signed(task, 16) + z))));
@@ -241,10 +241,6 @@ public static partial class NativeBattleMegaSpark279Controller
             throw new NotSupportedException("Mega Spark requires its actual current parameter pointer.");
         }
         BattleActionHeaderReference index = Parameters(frame).Header;
-        if ((uint)index >= packets.Headers.Length)
-        {
-            throw new NotSupportedException("Mega Spark parameter header leaves its actual arena.");
-        }
         return packets.ReadHeader(index);
     }
 }

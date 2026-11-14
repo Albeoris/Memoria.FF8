@@ -20,8 +20,8 @@ public static class NativeBattleDoomtrain191Controller
         state.Validate();
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native Doomtrain requires its established571B50 arena.");
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header);
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Doomtrain requires the actual first contact pointer.");
-        int actor = inputs.Packets.ReadContact(first).Primary.ActorIndex;
+        BattleContactCursor first = header.FirstContact;
+        int actor = inputs.Packets.ReadContact(first).Primary.Recipient;
         int[] offsets = [0x2E000, 0x2F000, 0x30000, 0x31000, 0x32000, 0x33000];
         int[] counts = [170, 170, 150, 120, 130, 590];
         for (int pool = 0; pool < offsets.Length; pool++)
@@ -229,12 +229,12 @@ public static class NativeBattleDoomtrain191Controller
         {
             NativeBattleEffectParameters parameters = frame.Effect.Parameters!;
             NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header);
-            int count = header.ReadByte(0x10);
+            int count = header.ReadContactCount();
             int first = count == 0 ? 0 : header.FirstContactIndex ?? throw new NotSupportedException("Native Doomtrain target capture requires its current contact pointer.");
             List<int> targets = [];
             for (int contact = 0; contact < count; contact++)
             {
-                int source = inputs.Packets.ReadContact(first + contact).Primary.ActorIndex;
+                int source = inputs.Packets.ReadContact(first + contact).Primary.Recipient;
                 if (targets.Contains(source))
                 {
                     continue;

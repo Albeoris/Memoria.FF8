@@ -43,7 +43,7 @@ public sealed partial class BattleSession
             return current with { Memory = observed, Staging = NativeFileStaging };
         }
 
-        NativeBattleReflectBeam135AnchorStep Anchor(NativeBattleReflectBeam135Frame current, int actor)
+        NativeBattleReflectBeam135AnchorStep Anchor(NativeBattleReflectBeam135Frame current, BattleModelOwner actor)
         {
             Publish(current);
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
@@ -60,7 +60,7 @@ public sealed partial class BattleSession
             return new(current, anchor with { W = (model.Transform ?? throw new NotSupportedException("Reflect Beam requires the actual actor heading.")).Angle36 });
         }
 
-        NativeBattleReflectBeam135PointStep Bone(NativeBattleReflectBeam135Frame current, int actor, short selector, int distance)
+        NativeBattleReflectBeam135PointStep Bone(NativeBattleReflectBeam135Frame current, BattleModelOwner actor, short selector, int distance)
         {
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(actor), checked((byte)selector), checked((short)distance));
             current = ObserveBone(current, producer);

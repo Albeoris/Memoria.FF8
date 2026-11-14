@@ -22,8 +22,8 @@ public abstract record NativeBattleEffect174Operation
 }
 public sealed record NativeBattleEffect174UploadTim505E30(uint SourceAddress) : NativeBattleEffect174Operation;
 public sealed record NativeBattleEffect174RegisterCamera5099A0(uint SourceAddress) : NativeBattleEffect174Operation;
-public sealed record NativeBattleEffect174SetResourceFlags44(int Actor, ushort Value) : NativeBattleEffect174Operation;
-public sealed record NativeBattleEffect174WriteModelBytes(int Actor, int Offset, NativeBattleEffectArena Data, int Length) : NativeBattleEffect174Operation;
+public sealed record NativeBattleEffect174SetResourceFlags44(BattleModelOwner Actor, ushort Value) : NativeBattleEffect174Operation;
+public sealed record NativeBattleEffect174WriteModelBytes(BattleModelOwner Actor, int Offset, NativeBattleEffectArena Data, int Length) : NativeBattleEffect174Operation;
 public sealed record NativeBattleEffect174StageGroupFlags(int Group, byte AndMask, byte OrMask) : NativeBattleEffect174Operation;
 public sealed record NativeBattleEffect174Stage5713E0(int Amount, uint Color) : NativeBattleEffect174Operation;
 public sealed record NativeBattleEffect174Sound501330(uint SourceAddress, uint Flags, byte Pan) : NativeBattleEffect174Operation;

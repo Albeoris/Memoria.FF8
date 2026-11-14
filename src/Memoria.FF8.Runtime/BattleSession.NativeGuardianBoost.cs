@@ -95,7 +95,7 @@ public sealed partial class BattleSession
     private (ushort ActionId, BattleActionDefinition Action) NativeGuardianBoostBinding(BattleActionPresentation action)
     {
         NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[0];
-        if (action.NativeQueuedCommand != 254 || action.NativeHeaderIndex != 0 || header.Command != 254 || header.ReadByte(0) != GetActor(action.ActorId).EncodeNativeSlot())
+        if (action.NativeQueuedCommand != 254 || action.NativeHeaderIndex != 0 || header.Command != 254 || header.Source != GetActor(action.ActorId).EncodeNativeSlot())
         {
             throw new InvalidDataException("Native GF Boost requires its admitted actor and original254 header0.");
         }
@@ -151,9 +151,9 @@ public sealed partial class BattleSession
             if (NativeGraphics is { } graphics)
             {
                 NativeBattleActionGraphicsState context = graphics.ActionGraphics ?? throw new InvalidDataException("Saved raw Boost widget lacks its original action graphics owner.");
-                NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[context.HeaderIndex];
+                NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[context.Header];
                 admittedId = header.Action;
-                if (context.Callback is not (0x50B2A0 or 0x50A9A0) || context.ActorIndex != header.ReadByte(0) || header.Command != 254 || admittedId is < 64 or >= 80)
+                if (context.Callback is not (0x50B2A0 or 0x50A9A0) || context.Actor != header.Source || header.Command != 254 || admittedId is < 64 or >= 80)
                 {
                     throw new InvalidDataException("Saved raw Boost widget differs from its physical GF header and action graphics service.");
                 }

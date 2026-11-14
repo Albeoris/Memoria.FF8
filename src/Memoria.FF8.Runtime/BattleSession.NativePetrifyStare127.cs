@@ -47,7 +47,7 @@ public sealed partial class BattleSession
             return new(current with { Memory = observed, Staging = NativeFileStaging }, point);
         }
 
-        NativeBattlePetrifyStare127AnchorStep Anchor(NativeBattlePetrifyStare127Frame current, int actor)
+        NativeBattlePetrifyStare127AnchorStep Anchor(NativeBattlePetrifyStare127Frame current, BattleModelOwner actor)
         {
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) != 0)

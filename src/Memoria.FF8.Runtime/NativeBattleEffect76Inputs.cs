@@ -17,8 +17,8 @@ public sealed record NativeBattleEffect76Inputs(NativeBattleSummonColors Colors,
 public abstract record NativeBattleEffect76Operation;
 public sealed record NativeBattleEffect76UploadTim505E30(uint SourceAddress) : NativeBattleEffect76Operation;
 public sealed record NativeBattleEffect76SetMode4A8480(int Mode) : NativeBattleEffect76Operation;
-public sealed record NativeBattleEffect76ModelFlags(int Actor, ushort AndMask, ushort OrMask, bool WordWidth) : NativeBattleEffect76Operation;
-public sealed record NativeBattleEffect76ModelPointY(int Actor, short Value, bool Add) : NativeBattleEffect76Operation;
+public sealed record NativeBattleEffect76ModelFlags(BattleModelOwner Actor, ushort AndMask, ushort OrMask, bool WordWidth) : NativeBattleEffect76Operation;
+public sealed record NativeBattleEffect76ModelPointY(BattleModelOwner Actor, short Value, bool Add) : NativeBattleEffect76Operation;
 public sealed record NativeBattleEffect76Stage5713E0(int Intensity, int Color) : NativeBattleEffect76Operation;
 public sealed record NativeBattleEffect76MusicLoad501A20(uint SourceAddress, uint CompletionAddress) : NativeBattleEffect76Operation;
 public sealed record NativeBattleEffect76MusicVolume501B10(uint Duration, byte Gain) : NativeBattleEffect76Operation;

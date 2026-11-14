@@ -60,11 +60,11 @@ public static class NativeBattleDiablos325Construction
         workspace.CopyTo(task, 0x264, retainUnknown: true);
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Diablos timeline requires its current action header.");
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header);
-        int count = header.ReadByte(0x10);
+        int count = header.ReadContactCount();
         for (int index = 0; index < count; index++)
         {
             int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Diablos timeline requires its current contact pointer.");
-            byte actor = inputs.Packets.ReadContact(first + index).Primary.ActorIndex;
+            byte actor = inputs.Packets.ReadContact(first + index).Primary.Recipient;
             int offset = checked(0x94 + index * 12 - 12);
             task.WriteDword(12 + offset, NativeBattleGraphicsModelAddress.Encode(actor));
             task.WriteWord(12 + offset + 8, 0);

@@ -41,7 +41,7 @@ public sealed partial class BattleSession
         bool frozen = (graphics.Flags & 0x201) != 0;
         NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
         int first = header.FirstContactIndex ?? throw new InvalidDataException("Native Wall requires its current target contact list.");
-        int firstActor = nativeActionPackets.ReadContact(first).Primary.ActorIndex;
+        int firstActor = nativeActionPackets.ReadContact(first).Primary.Recipient;
         NativeBattleEffectTaskStep stepped = roots.Advance((pool, slot) =>
         {
             roots = pool;

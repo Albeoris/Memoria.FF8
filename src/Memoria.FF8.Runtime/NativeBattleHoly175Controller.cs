@@ -36,7 +36,7 @@ public static class NativeBattleHoly175Controller
             throw new InvalidDataException("Native Holy requires its actual entry, action parameters and arena owner.");
         }
         NativeBattleHoly175State state = (frame.Memory.Holy175 ?? throw new NotSupportedException("Native Holy requires its retained process owners.")).Materialize(resources);
-        int actor = inputs.Packets.ReadContact(inputs.Packets.ReadHeader(parameters.Header).FirstContactIndex ?? throw new NotSupportedException("Native Holy requires its actual first header contact.")).Primary.ActorIndex;
+        int actor = inputs.Packets.ReadContact(inputs.Packets.ReadHeader(parameters.Header).FirstContact).Primary.Recipient;
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(MainDescriptor, MainBank, 0x10, 2);
         (main, int root) = main.Append(0x5D44C0);
         main = Put(main, root, main.Slots[root].WriteWord(0xC, 0));
@@ -424,10 +424,10 @@ public static class NativeBattleHoly175Controller
             if (phase == 111)
             {
                 int next = sequence + 1;
-                if (next <= Header(0).ReadByte(17))
+                if (next <= Header(0).ReadRepeatModeMinusOne())
                 {
                     int born = Append(0x5D1BD0);
-                    int nextActor = inputs.Packets.ReadContact(Header(next).FirstContactIndex ?? throw new NotSupportedException("Native Holy requires its next header contact.")).Primary.ActorIndex;
+                    int nextActor = inputs.Packets.ReadContact(Header(next).FirstContact).Primary.Recipient;
                     children = Put(children, born, children.Slots[born].WriteWord(0xE, U(next)).WriteWord(0x20, (ushort)nextActor));
                 }
             }
@@ -440,7 +440,7 @@ public static class NativeBattleHoly175Controller
             {
                 return 0;
             }
-            if (sequence == Header(0).ReadByte(17))
+            if (sequence == Header(0).ReadRepeatModeMinusOne())
             {
                 Emit(new NativeBattleHoly175StageFlash(0));
             }

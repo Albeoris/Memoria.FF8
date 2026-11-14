@@ -110,7 +110,7 @@ public static partial class NativeBattleSaliva138Controller
     private static int FirstContact(NativeBattleSaliva138Frame frame, NativeBattleSaliva138Inputs inputs)
     {
         BattleActionHeaderReference index = Parameters(frame).Header;
-        if ((uint)index >= inputs.Packets.Headers.Length || inputs.Packets.ReadHeader(index).ReadByte(16) == 0)
+        if (inputs.Packets.ReadHeader(index).ReadContactCount() == 0)
         {
             throw new NotSupportedException("Saliva requires its actual captured contact header.");
         }

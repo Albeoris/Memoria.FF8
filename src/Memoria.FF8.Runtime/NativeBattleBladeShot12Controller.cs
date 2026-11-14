@@ -14,8 +14,8 @@ public static partial class NativeBattleBladeShot12Controller
         frame = Dword(Dword(frame, 0x25460FC, 0x1D99A78), 0x2545EF0, caster);
         frame = inputs.Execute(frame, new NativeBattleBladeShot12ActorMeshMask124(caster, 0x80, 0));
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Blade Shot requires its captured first physical contact pointer.");
-        uint target = ModelAddress(inputs.Packets.ReadContact(first).Primary.ActorIndex);
+        BattleContactCursor first = header.FirstContact;
+        uint target = ModelAddress(inputs.Packets.ReadContact(first).Primary.Recipient);
         frame = Dword(frame, 0x25460F8, target);
         NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Blade Shot requires its actual texture arena.");
         int tim = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x2545EF4)?.ArenaOffset ?? throw new NotSupportedException("Blade Shot requires its executed texture initializer.");

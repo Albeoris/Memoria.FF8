@@ -42,8 +42,8 @@ public static class NativeBattleChoco97Controller
         NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(0, choco98 ? 0x7219D0u : 0x729BD0u, 0x64);
         hierarchy = appended.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.ReadHeader(effect.Parameters.Header);
-        int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native Choco requires its actual initial contact pointer.");
-        NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(0xC, ActionParameters).WriteByte(0x2C, header.ReadByte(0)).WriteByte(0x2D, packets.ReadContact(contact).Primary.ActorIndex).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
+        BattleContactCursor contact = header.FirstContact;
+        NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(0xC, ActionParameters).WriteByte(0x2C, header.Source).WriteByte(0x2D, packets.ReadContact(contact).Primary.Recipient).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
         byte lastTarget = unchecked((byte)(root.ReadWord(0x5A) - 1));
         if (lastTarget < root.ReadWord(0x58))
         {
@@ -97,7 +97,6 @@ public static class NativeBattleChoco97Controller
         hierarchy.Validate();
         ValidateState(frame.Memory, choco98);
         uint mainDescriptor = choco98 ? NativeBattleChoco98Controller.MainDescriptor : MainDescriptor;
-        NativeBattleGraphicsModel[] Models() => Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray();
         NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
         NativeBattleEffectHierarchyStep roots = hierarchy.Advance(0, (current, address) =>
         {
@@ -111,7 +110,7 @@ public static class NativeBattleChoco97Controller
             bool odd = (task.ReadWord(0x5C) & 1) != 0;
             SetShared(Shared() with { ViewCopy = MatrixBytes(inputs.View), PrivateBufferAliasOffset = textureOffset + (odd ? 0x1000 : 0x2000) });
             frame = frame with { Effect = frame.Effect with { DrawArenaOffset = textureOffset + (odd ? 0 : 0x1000) } };
-            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, Models(), inputs.ReadPoseSource);
+            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, inputs.ReadModel, inputs.ReadPoseSource);
             Store(address, task);
             switch (Stage(task))
             {
@@ -275,7 +274,7 @@ public static class NativeBattleChoco97Controller
 
         void Target(uint address)
         {
-            NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(hierarchy.Read(address), Models(), inputs.ReadPoseSource);
+            NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(hierarchy.Read(address), inputs.ReadModel, inputs.ReadPoseSource);
             int actor = task.ReadByte(0x2D);
             NativeBattleGraphicsModel model = inputs.ReadModel(actor);
             NativeBattlePoseSource source = inputs.ReadPoseSource(actor);
@@ -308,10 +307,6 @@ public static class NativeBattleChoco97Controller
                     if (Context().Word(0x48) == 1)
                     {
                         BattleActionHeaderReference headerIndex = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                        if ((uint)headerIndex >= inputs.Packets.Headers.Length)
-                        {
-                            throw new NotSupportedException("Native Choco contact header leaves its actual arena.");
-                        }
                         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(headerIndex);
                         int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Native Choco contact pointer is missing.");
                         for (int contact = 0; contact < header.ReadContactCount(); contact++)

@@ -35,7 +35,7 @@ public sealed partial class BattleSession
             return current with { Memory = latest, State = latest.CannonBlow151 ?? throw new InvalidDataException("Cannon Blow external service lost its executable storage."), Staging = NativeFileStaging ?? throw new InvalidDataException("Cannon Blow external service lost its temporary memory."), Random = nativeCrtRandom ?? throw new InvalidDataException("Cannon Blow external service lost its CRT stream.") };
         }
 
-        NativeBattleCannonBlow151PointStep Bone(NativeBattleCannonBlow151Frame current, int actor, int selector, int distance)
+        NativeBattleCannonBlow151PointStep Bone(NativeBattleCannonBlow151Frame current, BattleModelOwner actor, int selector, int distance)
         {
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Cannon Blow requires its current actor skeleton.");
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), source, checked((byte)selector), checked((short)distance));

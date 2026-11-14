@@ -57,11 +57,11 @@ public sealed partial class BattleSession
                 NativeEffectMemory = NativeEffectMemory! with { Arena = NativeEffectMemory.Arena!.Write(buffer + 0x5CF0, words) };
             }
             int action = root.ReadByte(14);
-            if (action <= nativeActionPackets.ReadHeader(effect.Parameters!.Header).ReadByte(17))
+            if (action <= nativeActionPackets.ReadHeader(effect.Parameters!.Header).ReadRepeatModeMinusOne())
             {
                 NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters.Header.Advance(action));
-                int contact = header.FirstContactIndex ?? throw new InvalidDataException("Native Break requires its original selected contact.");
-                int actor = nativeActionPackets.ReadContact(contact).Primary.ActorIndex;
+                BattleContactCursor contact = header.FirstContact;
+                int actor = nativeActionPackets.ReadContact(contact).Primary.Recipient;
                 uint entity = NativeBattleGraphicsModelAddress.Encode(actor);
                 if (pools[1].Slots.Any(task => (task.Flags & 1) != 0 && task.ReadDword(24) == entity))
                 {
@@ -180,7 +180,7 @@ public sealed partial class BattleSession
             }
             if (age == 78)
             {
-                int contact = nativeActionPackets.ReadHeader(effect.Parameters!.Header.Advance(WindWord(task, 14))).FirstContactIndex ?? throw new InvalidDataException("Native Break requires its completing contact.");
+                BattleContactCursor contact = nativeActionPackets.ReadHeader(effect.Parameters!.Header.Advance(WindWord(task, 14))).FirstContact;
                 graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact)] });
             }
             if (age >= 84)

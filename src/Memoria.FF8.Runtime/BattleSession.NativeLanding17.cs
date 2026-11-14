@@ -15,7 +15,7 @@ public sealed partial class BattleSession
         textures = textures.Register5099A0(resources.Camera);
         NativeCamera = NativeCamera!.RegisterControlResource(textures.Animation);
         NativeEffectMemory = memory with { Textures = textures };
-        int caster = effect.Parameters!.Source;
+        BattleModelOwner caster = effect.Parameters!.Source;
         NativeBattleGraphicsModel actor = graphics.ActorModels.Get(caster);
         actor = actor with { Flags0 = (ushort)(actor.Flags0 | 0x1000), Transform = actor.Transform! with { Position28 = actor.Transform!.Position28 with { Y = -5440 } } };
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x2556FE8, 0x2556FB0, 20, 1);
@@ -37,7 +37,7 @@ public sealed partial class BattleSession
         NativeBattleEffectTaskPool? particles = started ? effect.Pools[2] : null;
         int cursor = checked(state.BufferOffset + (root.ReadDword(16) != 0 ? 0x1BA4 : 0x11BA4));
         root = root.WriteDword(16, root.ReadDword(16) != 0 ? 0u : 1u);
-        int caster = effect.Parameters!.Source;
+        BattleModelOwner caster = effect.Parameters!.Source;
         UpdateActor(graphics.ActorModels.Get(caster) with { Flags0 = (ushort)(graphics.ActorModels.Get(caster).Flags0 | 0x1000) });
         NativeCrtRandomState random = nativeCrtRandom ?? throw new NotSupportedException("Native landing requires its shared CRT stream.");
         NativeBattleCameraProjection projection = NativeCamera!.Projection!;

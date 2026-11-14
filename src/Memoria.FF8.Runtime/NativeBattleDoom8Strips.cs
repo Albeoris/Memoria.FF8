@@ -22,7 +22,7 @@ public sealed record NativeBattleDoom8StripTables(ImmutableArray<short> Widths, 
     }
 }
 
-public sealed record NativeBattleDoom8StripAnchor(byte Actor, uint Destination) : NativeBattleDoom8Operation;
+public sealed record NativeBattleDoom8StripAnchor(BattleModelOwner Actor, uint Destination) : NativeBattleDoom8Operation;
 public sealed record NativeBattleDoom8StripLookBasis(NativeBattleVector Direction, NativeBattleVector Up) : NativeBattleDoom8Operation;
 
 public static partial class NativeBattleDoom8Strips

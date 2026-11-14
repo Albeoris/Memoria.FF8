@@ -28,7 +28,7 @@ public static class NativeBattleActorDirectorController
         {
             maximum = groups;
         }
-        task = task.WriteDword(0x0C, 0x1D99A78).WriteByte(0x29, 0).WriteByte(0x2C, actors.Actor).WriteByte(0x2D, actors.Target).WriteWord(0x5A, targets).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
+        task = actors.WriteTo(task.WriteDword(0x0C, 0x1D99A78).WriteByte(0x29, 0)).WriteWord(0x5A, targets).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
         hierarchy = append.Hierarchy.Write(append.Address, task);
         int source = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == profile.InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("The actor director requires its executed initializer pointer.");
         if (source < 0 || source > NativeBattleEffectArena.Length - 0x10000)
@@ -81,7 +81,7 @@ public static class NativeBattleActorDirectorController
             bool odd = (task.ReadWord(0x5C) & 1) != 0;
             NativeBattlePackedMatrix32 copiedCamera = inputs.PackedCamera ?? NativeBattlePackedMatrix32.FromMatrix(inputs.Camera, inputs.CopiedCameraPadding);
             current = (current with { Memory = current.Memory with { SharedEffectView2793E58 = copiedCamera } }).WithState(current.State with { PrimaryDrawCursor = checked(source + (odd ? 0 : 0x8000)), SecondaryDrawCursor = checked(source + (odd ? 0x8000 : 0x10000)), Generic = current.State.Generic with { CopiedCamera = copiedCamera.ReadMatrix() } });
-            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, Models(), inputs.ReadPoseSource);
+            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, inputs.ReadModel, inputs.ReadPoseSource);
             state = state.Write(address, task);
             switch (Phase(task))
             {
@@ -162,7 +162,7 @@ public static class NativeBattleActorDirectorController
             switch (profile.CanonicalCallback(task.Callback))
             {
                 case 0x8AB4C0:
-                    task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, Models(), inputs.ReadPoseSource);
+                    task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, inputs.ReadModel, inputs.ReadPoseSource);
                     int actor = task.ReadByte(0x2D);
                     NativeBattlePoseSource source = inputs.ReadPoseSource(actor);
                     NativeBattleSequenceState pose = inputs.ReadModel(actor).SequenceState ?? throw new NotSupportedException("The actor director target requires its actual pose.");
@@ -337,7 +337,6 @@ public static class NativeBattleActorDirectorController
             return true;
         }
 
-        NativeBattleGraphicsModel[] Models() => Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray();
         NativeBattleEffectHierarchyAppend Add(NativeBattleEffectHierarchy state, int pool, uint callback, int size, uint parent)
         {
             NativeBattleEffectHierarchyAppend result = state.Append8DC540(pool, profile.Callback(callback), size, parent, (pointer, group, target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target));

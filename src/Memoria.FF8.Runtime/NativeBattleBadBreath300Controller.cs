@@ -64,7 +64,7 @@ public static partial class NativeBattleBadBreath300Controller
             (frame, uint address) = Append(frame, 1, MainCallback);
             NativeBattleModulePoolTask task = Read(frame, address).WriteBytes(12, new byte[48]);
             int firstContact = FirstContact(frame, inputs);
-            int count = inputs.Packets.ReadHeader(Parameters(frame).Header).ReadByte(16);
+            int count = inputs.Packets.ReadHeader(Parameters(frame).Header).ReadContactCount();
             if (count is < 1 or > 4)
             {
                 throw new InvalidDataException("Bad Breath requires one to four captured target contacts.");
@@ -75,7 +75,7 @@ public static partial class NativeBattleBadBreath300Controller
             short maximum = 0x700;
             for (int index = 0; index < count; index++)
             {
-                int actor = inputs.Packets.ReadContact(firstContact + index).Primary.ActorIndex;
+                int actor = inputs.Packets.ReadContact(firstContact + index).Primary.Recipient;
                 task = task.WriteDword(0x10 + index * 4, ModelAddress(actor)).WriteByte(0x20 + index, (byte)index);
                 NativeBattleBadBreath300AnchorStep read = inputs.ReadAnchor571400(frame, actor);
                 frame = read.Frame;

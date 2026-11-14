@@ -144,7 +144,7 @@ public sealed partial class BattleSession
                     var worldDraw = NativeBattleElectricDischarge126Ribbons.DrawProjected(current, world.HeadAddress, world.Count, world.TextureVOffset, resources, NativeBattleRibbonProjection.CaptureWorldDirectionWord(current.Memory, Camera().Projection ?? throw new NotSupportedException("World ribbon requires its current projection.")), world.PilotIdentity, worldPoints);
                     return Deliver(worldDraw.Frame, worldDraw.Batch);
                 case NativeBattleElectricDischarge126DrawBoneTrail boneTrail:
-                    byte caster = current.Effect.Parameters!.Source;
+                    BattleModelOwner caster = current.Effect.Parameters!.Source;
                     if (CurrentBinding(caster) != boneTrail.Binding)
                     {
                         throw new InvalidDataException("Electric Discharge bone trail leaves its current addressed caster binding.");

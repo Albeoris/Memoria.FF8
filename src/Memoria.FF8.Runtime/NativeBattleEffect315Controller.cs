@@ -19,8 +19,8 @@ public static partial class NativeBattleEffect315Controller
         int tim = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Effect315 requires its executed texture initializer.");
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         BattleActionHeaderReference header = Parameters(frame).Header;
-        int first = packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect315 requires its actual first current contact pointer.");
-        uint target = packets.ReadContact(first).Primary.ActorIndex;
+        BattleContactCursor first = packets.ReadHeader(header).FirstContact;
+        uint target = packets.ReadContact(first).Primary.Recipient;
         NativeBattleEffectTaskPool root = RetainPayload(NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, RootStride, RootCount), frame.State.RootBankStorage);
         NativeBattleEffectTaskPool children = RetainPayload(NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, ChildStride, ChildCount), frame.State.ChildBankStorage);
         (root, int rootSlot) = root.Append(0x59B000);

@@ -73,10 +73,10 @@ public static class NativeBattleEffect3
             {
                 task.WriteByte(15, 1);
                 byte sequence = task.ReadByte(14);
-                if (sequence <= inputs.Packets.ReadHeader(parameters.Header).ReadByte(17))
+                if (sequence <= inputs.Packets.ReadHeader(parameters.Header).ReadRepeatModeMinusOne())
                 {
                     int first = FirstContact(Header(sequence));
-                    int model = inputs.Packets.ReadContact(first).Primary.ActorIndex;
+                    int model = inputs.Packets.ReadContact(first).Primary.Recipient;
                     uint modelAddress = NativeBattleGraphicsModelAddress.Encode(model);
                     bool busy = children.Slots.Any(child => (child.Flags & 1) != 0 && BinaryPrimitives.ReadUInt32LittleEndian(child.ReadRawPayloadSpan().Slice(4)) == modelAddress && Word(child, 12) <= 15);
                     if (busy)
@@ -179,10 +179,6 @@ public static class NativeBattleEffect3
         NativeBattleActionHeaderSlot Header(int sequence)
         {
             BattleActionHeaderReference index = parameters.Header.Advance(sequence);
-            if ((uint)index >= NativeBattleActionPacketsState.HeaderCapacity)
-            {
-                throw new InvalidDataException("Native effect3 continuation leaves its physical action header bank.");
-            }
             return inputs.Packets.ReadHeader(index);
         }
     }

@@ -62,9 +62,9 @@ public static class NativeBattlePetrifyStare127Controller
             }
             int ordinal = frame.Effect.Pools[0].Slots[slot].ReadByte(14);
             NativeBattleEffectTaskPool targetPool = frame.Effect.Pools[1];
-            if (ordinal <= inputs.Packets.ReadHeader(Parameters(frame).Header).ReadByte(17) && targetPool.Slots.Any(task => (task.Flags & 1) == 0))
+            if (ordinal <= inputs.Packets.ReadHeader(Parameters(frame).Header).ReadRepeatModeMinusOne() && targetPool.Slots.Any(task => (task.Flags & 1) == 0))
             {
-                int actor = inputs.Packets.ReadContact(FirstContact(frame, inputs) + ordinal).Primary.ActorIndex;
+                int actor = inputs.Packets.ReadContact(FirstContact(frame, inputs) + ordinal).Primary.Recipient;
                 (targetPool, int targetSlot) = targetPool.Append(TargetCallback);
                 NativeBattleModulePoolTask target = targetPool.Slots[targetSlot].WriteBytes(12, new byte[TargetStride - 12]).WriteWord(14, checked((ushort)ordinal)).WriteDword(0x20, ModelAddress(actor));
                 NativeBattleGfAnimationWorkspace firstAct = NativeBattleGfAnimationWorkspace.Borrow(target, 0x24, 0x1C8).Initialize7016B0(resources.FirstAct, 0x1C8);

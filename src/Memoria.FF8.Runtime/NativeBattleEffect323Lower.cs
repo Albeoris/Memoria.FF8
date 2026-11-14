@@ -41,7 +41,7 @@ public static class NativeBattleEffect323Lower
             int first = header.FirstContactIndex ?? throw new NotSupportedException("The contact walk requires its current first row.");
             int index = checked(first + relative);
             NativeBattleContactPacket contact = packets.Contacts[index] ?? throw new NotSupportedException("The contact walk requires its current row.");
-            if (contact.Primary.ActorIndex == actor)
+            if (contact.Primary.Recipient == actor)
             {
                 frame = inputs.Execute(frame, new NativeBattleEffect323Contact506690(index));
             }

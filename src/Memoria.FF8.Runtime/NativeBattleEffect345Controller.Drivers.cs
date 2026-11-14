@@ -12,10 +12,6 @@ public static partial class NativeBattleEffect345Controller
         }
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         BattleActionHeaderReference header = Parameters(frame).Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-        if ((uint)header >= packets.Headers.Length)
-        {
-            throw new InvalidDataException("Effect345 signed header selector leaves its physical packet storage.");
-        }
         int contact = checked((packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect345 requires its physical contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
         _ = packets.ReadContact(contact);
         return contact;

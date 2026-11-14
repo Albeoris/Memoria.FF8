@@ -107,9 +107,9 @@ public static class NativeBattleDrinkMagic37OrbController
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Drink Magic orb distance requires its actual selected contact pointer.");
         NativeBattleVector caster = inputs.ReadPosition1C(task.ReadByte(0x2C));
         int maximum = 0;
-        for (int index = 0; index < header.ReadByte(0x10); index++)
+        for (int index = 0; index < header.ReadContactCount(); index++)
         {
-            NativeBattleVector target = inputs.ReadPosition1C(inputs.Packets.ReadContact(first + index).Primary.ActorIndex);
+            NativeBattleVector target = inputs.ReadPosition1C(inputs.Packets.ReadContact(first + index).Primary.Recipient);
             int x = unchecked((short)target.X) - unchecked((short)caster.X);
             int z = unchecked((short)target.Z) - unchecked((short)caster.Z);
             maximum = Math.Max(maximum, NativeBattleRayBomb10Geometry.Sqrt56BEC0(unchecked(x * x + z * z)));

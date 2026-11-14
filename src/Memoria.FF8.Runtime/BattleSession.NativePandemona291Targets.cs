@@ -193,7 +193,7 @@ public sealed partial class BattleSession
         }
         return (frame, graphics);
 
-        int Count() => nativeActionPackets.ReadHeader(frame.Effect.Parameters!.Header).ReadByte(0x10);
+        int Count() => nativeActionPackets.ReadHeader(frame.Effect.Parameters!.Header).ReadContactCount();
         short Word(int offset) => BinaryPrimitives.ReadInt16LittleEndian(arena.Read(offset, 2));
         void Store(int offset, int value) => arena = arena.Write(offset, BitConverter.GetBytes(unchecked((ushort)value)));
         int Actor(int row)

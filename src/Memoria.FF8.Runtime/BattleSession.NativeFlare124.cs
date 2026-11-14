@@ -47,10 +47,10 @@ public sealed partial class BattleSession
                 pools = [pools[0], NativeBattleEffectTaskPool.Initialize(0x2521428, Address(0), 0xB44, 3), NativeBattleEffectTaskPool.Initialize(0x2521418, Address(0x21CC), 44, 64)];
             }
             int action = root.ReadByte(14);
-            if (action <= nativeActionPackets.ReadHeader(effect.Parameters!.Header).ReadByte(17))
+            if (action <= nativeActionPackets.ReadHeader(effect.Parameters!.Header).ReadRepeatModeMinusOne())
             {
-                int first = nativeActionPackets.ReadHeader(effect.Parameters.Header.Advance(action)).FirstContactIndex ?? throw new InvalidDataException("Native Flare requires its action contact pointer.");
-                int actor = nativeActionPackets.ReadContact(first).Primary.ActorIndex;
+                BattleContactCursor first = nativeActionPackets.ReadHeader(effect.Parameters.Header.Advance(action)).FirstContact;
+                int actor = nativeActionPackets.ReadContact(first).Primary.Recipient;
                 uint entity = NativeBattleGraphicsModelAddress.Encode(actor);
                 uint color = graphics.ActorModels.Get(actor).Color40 ?? throw new NotSupportedException("Native Flare requires its target color.");
                 bool busy = false;

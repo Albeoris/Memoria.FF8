@@ -5,7 +5,7 @@ public abstract record NativeBattleUltraWaves184Operation
     [System.Text.Json.Serialization.JsonIgnore]
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
 }
-public sealed record NativeBattleUltraWaves184BindCaster(byte Actor, uint SaveAddress, uint ResourceAddress) : NativeBattleUltraWaves184Operation;
+public sealed record NativeBattleUltraWaves184BindCaster(BattleModelOwner Actor, uint SaveAddress, uint ResourceAddress) : NativeBattleUltraWaves184Operation;
 public sealed record NativeBattleUltraWaves184RingSequence(byte Actor, byte Sequence) : NativeBattleUltraWaves184Operation;
 public sealed record NativeBattleUltraWaves184Sound(uint Value, int Argument1, int Argument2) : NativeBattleUltraWaves184Operation;
 public sealed record NativeBattleUltraWaves184ContactAll : NativeBattleUltraWaves184Operation;

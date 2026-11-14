@@ -35,9 +35,9 @@ public static partial class NativeBattleEffect68Controller
         (frame, uint root) = AppendHierarchy(frame, 0, 0x7DC280, 0x64, 0, inputs);
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         NativeBattleActionHeaderSlot header = packets.ReadHeader(Parameters(frame).Header);
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Effect68 requires its actual first contact pointer.");
-        byte target = checked((byte)packets.ReadContact(first).Primary.ActorIndex);
-        frame = Write(frame, root, Read(frame, root).WriteDword(12, 0x1D99A78).WriteByte(0x2D, target).WriteWord(0x5A, header.ReadByte(0x10)).WriteWord(0x58, header.ReadByte(0x11)));
+        BattleContactCursor first = header.FirstContact;
+        byte target = checked((byte)packets.ReadContact(first).Primary.Recipient);
+        frame = Write(frame, root, Read(frame, root).WriteDword(12, 0x1D99A78).WriteByte(0x2D, target).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne()));
         if ((Parameters(frame).Flags79 & 1) == 0)
         {
             frame = inputs.Execute(frame, new NativeBattleEffect68UploadTim505E30(source));

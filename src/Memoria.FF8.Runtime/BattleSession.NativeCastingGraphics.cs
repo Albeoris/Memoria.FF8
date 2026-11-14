@@ -5,7 +5,7 @@ public sealed partial class BattleSession
     /// <summary>50A9A0's eight physical descriptor phases, including its resourceWORD44 casting handshake.</summary>
     private (NativeBattleGraphicsState Graphics, byte Phase, bool Complete) PollNativeCastingGraphics(NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context, byte phase)
     {
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[context.HeaderIndex];
+        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[context.Header];
         if (phase == 0)
         {
             (graphics, bool selected) = ChooseNativeActionCamera(graphics, context);
@@ -30,9 +30,9 @@ public sealed partial class BattleSession
                 NativeEffectMemory = (NativeEffectMemory ?? throw new NotSupportedException("Native50A9A0 requires its retained parameterBYTE80 owner.")) with { Parameter80 = 0 };
             }
             NativeBattleEffectParameters parameters = CreateNativeOriginalEffectParameters(context);
-            NativeBattleGraphicsModel actor = graphics.ActorModels.Get(context.ActorIndex);
-            graphics = graphics with { ActorModels = graphics.ActorModels.Set(context.ActorIndex, actor with { Flags8 = (actor.Flags8 ?? throw new InvalidDataException("Native50A9A0 requires its loaded model DWORD8.")) & ~0x800000u }) };
-            graphics = SelectNativeHeaderSequence(graphics, context.ActorIndex, header.Sequence);
+            NativeBattleGraphicsModel actor = graphics.ActorModels.Get(context.Actor);
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(context.Actor, actor with { Flags8 = (actor.Flags8 ?? throw new InvalidDataException("Native50A9A0 requires its loaded model DWORD8.")) & ~0x800000u }) };
+            graphics = SelectNativeHeaderSequence(graphics, context.Actor, header.Sequence);
             graphics = StartNativeHeaderCamera(graphics, context);
             graphics = BeginNativeOriginalEffect(graphics, header.Effect);
             return (graphics with { OriginalEffect = graphics.OriginalEffect! with { Parameters = parameters } }, 3, false);
@@ -43,12 +43,12 @@ public sealed partial class BattleSession
             {
                 return (graphics, phase, false);
             }
-            graphics = SetNativeCastingResourceFlags(graphics, context.ActorIndex, 0x10);
+            graphics = SetNativeCastingResourceFlags(graphics, context.Actor, 0x10);
             return (graphics, 4, false);
         }
         if (phase == 4)
         {
-            if (NativeCastingModulesBusy(graphics) || (NativeCastingResourceFlags(graphics, context.ActorIndex) & 0x20) == 0)
+            if (NativeCastingModulesBusy(graphics) || (NativeCastingResourceFlags(graphics, context.Actor) & 0x20) == 0)
             {
                 return (graphics, phase, false);
             }
@@ -64,8 +64,8 @@ public sealed partial class BattleSession
         if (phase == 5)
         {
             AdmitDiagnosticVisualEntry(header);
-            NativeBattleGraphicsModel actor = graphics.ActorModels.Get(context.ActorIndex);
-            graphics = graphics with { ActorModels = graphics.ActorModels.Set(context.ActorIndex, actor with { ResourceFlags44 = (ushort)(NativeCastingResourceFlags(graphics, context.ActorIndex) & ~0x20) }) };
+            NativeBattleGraphicsModel actor = graphics.ActorModels.Get(context.Actor);
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(context.Actor, actor with { ResourceFlags44 = (ushort)(NativeCastingResourceFlags(graphics, context.Actor) & ~0x20) }) };
             if ((graphics.Flags & 0x20000000) != 0)
             {
                 graphics = graphics with { Flags = graphics.Flags & ~0x20000000u };
@@ -119,7 +119,7 @@ public sealed partial class BattleSession
         }
         if (phase == 7)
         {
-            graphics = SetNativeCastingResourceFlags(graphics with { Flags = graphics.Flags & ~0x20u }, context.ActorIndex, 0x200);
+            graphics = SetNativeCastingResourceFlags(graphics with { Flags = graphics.Flags & ~0x20u }, context.Actor, 0x200);
             NativeEffectMemory = (NativeEffectMemory ?? throw new InvalidDataException("Native50A9A0 lost its effect memory owner.")) with { Active = 0 };
             return (graphics, phase, true);
         }

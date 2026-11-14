@@ -20,8 +20,8 @@ public sealed partial class BattleSession
         NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(0, 0x8BE2D0, 100);
         hierarchy = appended.Hierarchy;
         NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
-        int first = header.FirstContactIndex ?? throw new InvalidDataException("Native Dark Mist requires its actual contact pointer.");
-        NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(12, 0x1D99A78).WriteByte(0x2D, nativeActionPackets.ReadContact(first).Primary.ActorIndex).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
+        BattleContactCursor first = header.FirstContact;
+        NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(12, 0x1D99A78).WriteByte(0x2D, nativeActionPackets.ReadContact(first).Primary.Recipient).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
         hierarchy = hierarchy.Write(appended.Address, root);
         return graphics with { OriginalEffect = effect with { Pools = hierarchy.Pools, ReturnedDescriptor = 0x2747720, DrawArenaOffset = null } };
     }
@@ -136,7 +136,7 @@ public sealed partial class BattleSession
                     if (Word(task, 0x24) >= 70)
                     {
                         BattleActionHeaderReference group = effect.Parameters!.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                        int contact = nativeActionPackets.ReadHeader(group).FirstContactIndex ?? throw new NotSupportedException("Native Dark Mist requires its selected action contact.");
+                        BattleContactCursor contact = nativeActionPackets.ReadHeader(group).FirstContact;
                         graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact)] });
                         task = Done(task);
                     }

@@ -46,8 +46,8 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors!;
         bool paused = (graphics.Flags & 0x201) != 0;
         NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
-        int first = header.FirstContactIndex ?? throw new InvalidDataException("Native Ultrasonic Waves requires its first physical contact.");
-        int target = nativeActionPackets.ReadContact(first).Primary.ActorIndex;
+        BattleContactCursor first = header.FirstContact;
+        int target = nativeActionPackets.ReadContact(first).Primary.Recipient;
         NativeBattleEffectTaskStep rootStep = roots.Advance((pool, slot) =>
         {
             roots = pool;

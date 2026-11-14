@@ -35,12 +35,12 @@ public static partial class NativeBattleEffect140Controller
             NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect140 requires its current recipient header.");
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
             NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-            int count = header.ReadByte(0x10);
+            int count = header.ReadContactCount();
             int first = header.FirstContactIndex ?? throw new NotSupportedException("Effect140 requires its current recipient pointer.");
             frame = Write(frame, main, Read(frame, main).WriteWord(0xE, (ushort)count));
             for (int index = 0; index < count; index++)
             {
-                int actor = packets.ReadContact(first + index).Primary.ActorIndex;
+                int actor = packets.ReadContact(first + index).Primary.Recipient;
                 frame = WriteBytes(frame, main + 0x14u + (uint)(4 * index), NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(ModelAddress(actor))), 4);
                 uint color = inputs.ReadModel(frame, actor).Color40 ?? throw new NotSupportedException("Effect140 requires the current recipient color.");
                 frame = WriteBytes(frame, main + 0x3Cu + (uint)(4 * index), NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(color)), 4);

@@ -180,7 +180,7 @@ public sealed partial class BattleSession
                     AcknowledgeExpandedEffectContact(command, contact.Packet);
                     BattleModelRoster roster = expandedModelRoster!;
                     PublishExpandedReadyContact(roster, contact.Packet.Primary, command.ActorId);
-                    if (contact.Packet.Secondary.ActorIndex != byte.MaxValue)
+                    if (contact.Packet.Secondary.Recipient != byte.MaxValue)
                     {
                         PublishExpandedReadyContact(roster, contact.Packet.Secondary, command.ActorId);
                     }

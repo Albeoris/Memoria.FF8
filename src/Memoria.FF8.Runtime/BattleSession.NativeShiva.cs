@@ -128,7 +128,7 @@ public sealed partial class BattleSession
                     NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(current.Effect.Parameters!.Header);
                     int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Shiva requires its actual contact pointer.");
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(first, header.ReadByte(0x10)).Select(nativeActionPackets.ReadContact).ToImmutableArray() });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(first, header.ReadContactCount()).Select(nativeActionPackets.ReadContact).ToImmutableArray() });
                     graphics = graphics with { PendingContacts = pending };
                     return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Native Shiva contact lost its current process memory.") };
                 default:

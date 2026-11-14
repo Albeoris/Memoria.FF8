@@ -53,11 +53,11 @@ public sealed partial class BattleSession
                 pools = [pools[0], NativeBattleEffectTaskPool.Initialize(0x2521B98, Effect107Arena, 664, 3), NativeBattleEffectTaskPool.Initialize(0x2521B78, Effect107Arena + 0x7C8, 28, 64), NativeBattleEffectTaskPool.Initialize(0x2521B88, Effect107Arena + 0xEC8, 32, 64), NativeBattleEffectTaskPool.Initialize(0x2521B68, Effect107Arena + 0x16C8, 28, 64)];
             }
             int sequence = root.ReadByte(14);
-            if (sequence <= nativeActionPackets.ReadHeader(effect.Parameters!.Header).ReadByte(17))
+            if (sequence <= nativeActionPackets.ReadHeader(effect.Parameters!.Header).ReadRepeatModeMinusOne())
             {
                 NativeBattleActionHeaderSlot header = Effect107Header(sequence);
-                int contact = header.FirstContactIndex ?? throw new InvalidDataException("Native6D13B0 requires its physical contact pointer.");
-                int model = nativeActionPackets.ReadContact(contact).Primary.ActorIndex;
+                BattleContactCursor contact = header.FirstContact;
+                int model = nativeActionPackets.ReadContact(contact).Primary.Recipient;
                 uint modelAddress = NativeBattleGraphicsModelAddress.Encode(model);
                 if (pools[1].Slots.Any(task => (task.Flags & 1) != 0 && task.ReadDword(20) == modelAddress))
                 {
@@ -121,10 +121,6 @@ public sealed partial class BattleSession
         NativeBattleActionHeaderSlot Effect107Header(int sequence)
         {
             BattleActionHeaderReference index = effect.Parameters!.Header.Advance(sequence);
-            if ((uint)index >= NativeBattleActionPacketsState.HeaderCapacity)
-            {
-                throw new InvalidDataException("Native6D13B0 sequence leaves its physical header bank.");
-            }
             return nativeActionPackets.ReadHeader(index);
         }
 
@@ -203,7 +199,7 @@ public sealed partial class BattleSession
             }
             if (frame == 86)
             {
-                int contact = Effect107Header(task.ReadWord(14)).FirstContactIndex ?? throw new InvalidDataException("Native6D1640 lost its physical contact.");
+                BattleContactCursor contact = Effect107Header(task.ReadWord(14)).FirstContact;
                 ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                 graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact)] });
                 graphics = graphics with { PendingContacts = pending };

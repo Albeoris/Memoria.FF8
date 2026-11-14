@@ -66,7 +66,7 @@ public static partial class NativeBattleWildCannonBlow156Controller
             int first = count == 0 ? 0 : header.FirstContactIndex ?? throw new NotSupportedException("Wild Cannon Blow requires its physical contact rows.");
             for (int contact = 0; contact < count; contact++)
             {
-                int actor = inputs.Packets.ReadContact(first + contact).Primary.ActorIndex;
+                int actor = inputs.Packets.ReadContact(first + contact).Primary.Recipient;
                 (frame, uint child) = RequireAppend(frame, 0x606A60);
                 frame = Write(frame, child, Read(frame, child).WriteWord(12, 0).WriteWord(24, (ushort)(256 << index)));
                 NativeBattleWildCannonBlow156PointStep bone = inputs.ReadBone502170(frame, actor, 0xF1, 0);

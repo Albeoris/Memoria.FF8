@@ -40,7 +40,7 @@ public sealed partial class BattleSession
             return new(transform.Position28.X, transform.Position28.Y, transform.Position28.Z, transform.Vertical34);
         }
 
-        NativeBattleModuleAnchor Bone(byte actor, byte selector, short fraction)
+        NativeBattleModuleAnchor Bone(BattleModelOwner actor, byte selector, short fraction)
         {
             NativeBattleVector bone = ReadNativeGraphicsBone(graphics, actor, selector, fraction);
             return new(bone.X, bone.Y, bone.Z, 0);

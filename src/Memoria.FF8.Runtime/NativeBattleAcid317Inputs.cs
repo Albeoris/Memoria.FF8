@@ -5,14 +5,14 @@ public abstract record NativeBattleAcid317Operation
     [System.Text.Json.Serialization.JsonIgnore]
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
 }
-public sealed record NativeBattleAcid317BindCaster(byte Actor, uint SaveAddress, uint ResourceAddress) : NativeBattleAcid317Operation;
+public sealed record NativeBattleAcid317BindCaster(BattleModelOwner Actor, uint SaveAddress, uint ResourceAddress) : NativeBattleAcid317Operation;
 public sealed record NativeBattleAcid317RingSequence(byte Actor, byte Sequence) : NativeBattleAcid317Operation;
 public sealed record NativeBattleAcid317SnapshotBody(byte Actor, uint CacheAddress) : NativeBattleAcid317Operation;
 public sealed record NativeBattleAcid317AdvanceAct(uint TaskAddress) : NativeBattleAcid317Operation;
 public sealed record NativeBattleAcid317DrawBody132(byte Actor, short Fraction) : NativeBattleAcid317Operation;
 public sealed record NativeBattleAcid317ProjectPoints(uint HeadAddress, short Count) : NativeBattleAcid317Operation;
 public sealed record NativeBattleAcid317DrawTrail(uint HeadAddress, short Count) : NativeBattleAcid317Operation;
-public sealed record NativeBattleAcid317ActorFlags(byte Actor, ushort ClearMask, ushort SetMask) : NativeBattleAcid317Operation;
+public sealed record NativeBattleAcid317ActorFlags(BattleModelOwner Actor, ushort ClearMask, ushort SetMask) : NativeBattleAcid317Operation;
 public sealed record NativeBattleAcid317Sound(uint Value, int Pan) : NativeBattleAcid317Operation;
 public sealed record NativeBattleAcid317Contact(int Index) : NativeBattleAcid317Operation;
 public sealed record NativeBattleAcid317DrawSprite180(uint TemporaryAddress, uint SourceAddress, ushort Phase, byte DepthShift = 2) : NativeBattleAcid317Operation;

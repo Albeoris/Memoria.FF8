@@ -21,12 +21,8 @@ public static partial class NativeBattleEffect283Controller
             frame = ClearDwords701200(frame, main + 0xC, 0x18F);
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
             BattleActionHeaderReference header = Parameters(frame).Header;
-            if ((uint)header >= packets.Headers.Length)
-            {
-                throw new InvalidDataException("Effect283 requires its actual current action header.");
-            }
-            int first = packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect283 requires its current first contact pointer.");
-            uint target = ModelAddress(packets.ReadContact(first).Primary.ActorIndex);
+            BattleContactCursor first = packets.ReadHeader(header).FirstContact;
+            uint target = ModelAddress(packets.ReadContact(first).Primary.Recipient);
             frame = Write(frame, main, Read(frame, main).WriteDword(0x28, target));
             frame = inputs.Execute(frame, new NativeBattleEffect283ModelFlags(target, 0, 4));
             foreach ((NativeBattleGfAnimationSource source, int offset, int length) in new[] { (resources.MainProgramme, MainProgrammeWorkspaceOffset, MainProgrammeWorkspaceLength), (resources.SecondaryProgramme, SecondaryProgrammeWorkspaceOffset, SecondaryProgrammeWorkspaceLength) })

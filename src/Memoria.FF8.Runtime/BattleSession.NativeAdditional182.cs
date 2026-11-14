@@ -36,7 +36,7 @@ public sealed partial class BattleSession
             return current with { Memory = latest, State = latest.Additional182 ?? throw new InvalidDataException("Additional effect182 external service lost its executable storage."), Staging = NativeFileStaging ?? throw new InvalidDataException("Additional effect182 external service lost its temporary memory."), Random = nativeCrtRandom ?? throw new InvalidDataException("Additional effect182 external service lost its CRT stream.") };
         }
 
-        NativeBattleAdditional182PointStep Anchor(NativeBattleAdditional182Frame current, int actor)
+        NativeBattleAdditional182PointStep Anchor(NativeBattleAdditional182Frame current, BattleModelOwner actor)
         {
             return new(current, Point(ReadNativeDefaultPosition571400(graphics, actor)));
         }

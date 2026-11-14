@@ -174,7 +174,7 @@ public static partial class NativeBattleSandStorm176Controller
             {
                 for (int index = 0; index < Header.ReadContactCount(); index++)
                 {
-                    int actor = inputs.Packets.ReadContact(FirstContact + index).Primary.ActorIndex;
+                    int actor = inputs.Packets.ReadContact(FirstContact + index).Primary.Recipient;
                     int lift = Spawn(0x5D14B0);
                     int spin = (Roll() % 2 + 1) << 12;
                     int speed = -45 - Roll() % 65;

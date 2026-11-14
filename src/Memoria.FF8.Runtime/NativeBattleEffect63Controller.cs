@@ -20,8 +20,8 @@ public static partial class NativeBattleEffect63Controller
         frame = inputs.Execute(frame, new NativeBattleEffect63UploadTim505E30(texture));
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect63 requires its actual action parameters.");
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-        int first = packets.ReadHeader(parameters.Header).FirstContactIndex ?? throw new NotSupportedException("Effect63 requires its actual first contact.");
-        frame = frame with { State = frame.State.WriteDword(WorkGlobal, CommonAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(parameters.Source)).WriteDword(TargetGlobal, ModelAddress(packets.ReadContact(first).Primary.ActorIndex)) };
+        BattleContactCursor first = packets.ReadHeader(parameters.Header).FirstContact;
+        frame = frame with { State = frame.State.WriteDword(WorkGlobal, CommonAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(parameters.Source)).WriteDword(TargetGlobal, ModelAddress(packets.ReadContact(first).Primary.Recipient)) };
         NativeBattleEffectTaskPool root = CreatePool(frame, FixedPools[0], false);
         (root, _) = root.Append(RootCallback);
         frame = frame with { State = frame.State.DetachBank(0), Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor } };

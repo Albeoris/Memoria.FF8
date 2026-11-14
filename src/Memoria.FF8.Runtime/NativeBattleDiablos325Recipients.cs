@@ -20,7 +20,7 @@ public static class NativeBattleDiablos325Recipients
         int height = Height654E7E(counter - 368);
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Diablos recipient sink requires its retained action header.");
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        int count = header.ReadByte(0x10);
+        int count = header.ReadContactCount();
         BattleModelRoster? roster = packets.PresentationRoster;
         ValidateHostedRecords(task, count, roster);
         for (int index = 0; index < count; index++)

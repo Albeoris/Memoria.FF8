@@ -5,19 +5,19 @@ public abstract record NativeBattleDegenerator306Operation
     [System.Text.Json.Serialization.JsonIgnore]
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
 }
-public sealed record NativeBattleDegenerator306BindCaster(byte Actor, uint SaveAddress, uint ResourceAddress) : NativeBattleDegenerator306Operation;
+public sealed record NativeBattleDegenerator306BindCaster(BattleModelOwner Actor, uint SaveAddress, uint ResourceAddress) : NativeBattleDegenerator306Operation;
 public sealed record NativeBattleDegenerator306RingSequence(byte Actor, byte Sequence) : NativeBattleDegenerator306Operation;
 public sealed record NativeBattleDegenerator306Sound(uint Value, int Pan) : NativeBattleDegenerator306Operation;
 public sealed record NativeBattleDegenerator306Contact(int Index) : NativeBattleDegenerator306Operation;
 public sealed record NativeBattleDegenerator306Stage(short Depth, uint ColorFlags) : NativeBattleDegenerator306Operation;
 public sealed record NativeBattleDegenerator306StageFlags(byte ClearMask, byte SetMask) : NativeBattleDegenerator306Operation;
-public sealed record NativeBattleDegenerator306ActorFlags(byte Actor, ushort ClearMask, ushort SetMask) : NativeBattleDegenerator306Operation;
-public sealed record NativeBattleDegenerator306ActorRotation8(byte Actor, NativeBattleEffectArena Packed8) : NativeBattleDegenerator306Operation;
-public sealed record NativeBattleDegenerator306ActorPosition(byte Actor, NativeBattleVector Position) : NativeBattleDegenerator306Operation;
-public sealed record NativeBattleDegenerator306ActorPackedPosition8(byte Actor, NativeBattleEffectArena Packed8) : NativeBattleDegenerator306Operation;
-public sealed record NativeBattleDegenerator306ActorAlpha(byte Actor, byte Value) : NativeBattleDegenerator306Operation;
-public sealed record NativeBattleDegenerator306ActorRecolor(byte Actor, int Cue) : NativeBattleDegenerator306Operation;
-public sealed record NativeBattleDegenerator306RestoreShadow(byte Actor) : NativeBattleDegenerator306Operation;
+public sealed record NativeBattleDegenerator306ActorFlags(BattleModelOwner Actor, ushort ClearMask, ushort SetMask) : NativeBattleDegenerator306Operation;
+public sealed record NativeBattleDegenerator306ActorRotation8(BattleModelOwner Actor, NativeBattleEffectArena Packed8) : NativeBattleDegenerator306Operation;
+public sealed record NativeBattleDegenerator306ActorPosition(BattleModelOwner Actor, NativeBattleVector Position) : NativeBattleDegenerator306Operation;
+public sealed record NativeBattleDegenerator306ActorPackedPosition8(BattleModelOwner Actor, NativeBattleEffectArena Packed8) : NativeBattleDegenerator306Operation;
+public sealed record NativeBattleDegenerator306ActorAlpha(BattleModelOwner Actor, byte Value) : NativeBattleDegenerator306Operation;
+public sealed record NativeBattleDegenerator306ActorRecolor(BattleModelOwner Actor, int Cue) : NativeBattleDegenerator306Operation;
+public sealed record NativeBattleDegenerator306RestoreShadow(BattleModelOwner Actor) : NativeBattleDegenerator306Operation;
 public sealed record NativeBattleDegenerator306CommonTexture(uint SourceAddress, uint CompletionAddress) : NativeBattleDegenerator306Operation;
 public sealed record NativeBattleDegenerator306DrawStatic88(uint TemporaryAddress, uint SourceAddress, int TableBaseBucket, int DepthShift) : NativeBattleDegenerator306Operation;
 public sealed record NativeBattleDegenerator306DrawCustom108(uint TemporaryAddress) : NativeBattleDegenerator306Operation;

@@ -296,7 +296,7 @@ public sealed partial class BattleSession
                 return current;
             }
 
-            NativeBattleSiren95Frame WriteModel(NativeBattleSiren95Frame current, int actor, NativeBattleGraphicsModel model)
+            NativeBattleSiren95Frame WriteModel(NativeBattleSiren95Frame current, BattleModelOwner actor, NativeBattleGraphicsModel model)
             {
                 graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
                 return current;

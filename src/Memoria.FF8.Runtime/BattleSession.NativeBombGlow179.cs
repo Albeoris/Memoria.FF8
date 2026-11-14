@@ -41,7 +41,7 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection projection = NativeCamera!.Projection!;
         NativeCrtRandomState random = nativeCrtRandom ?? throw new NotSupportedException("Native Bomb glow requires its CRT random stream.");
         bool paused = (graphics.Flags & 0x201) != 0;
-        int actor = effect.Parameters!.Source;
+        BattleModelOwner actor = effect.Parameters!.Source;
         NativeBattleEffectTaskStep advanced = children.Advance((pool, slot) =>
         {
             children = pool;
@@ -84,7 +84,7 @@ public sealed partial class BattleSession
             }
             if (frame == 35)
             {
-                int first = nativeActionPackets.ReadHeader(effect.Parameters.Header).FirstContactIndex ?? throw new InvalidDataException("Native Bomb glow requires its actual first contact.");
+                BattleContactCursor first = nativeActionPackets.ReadHeader(effect.Parameters.Header).FirstContact;
                 ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                 graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(first)] });
                 graphics = graphics with { PendingContacts = pending };

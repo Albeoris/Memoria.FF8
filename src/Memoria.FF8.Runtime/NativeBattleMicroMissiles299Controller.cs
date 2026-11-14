@@ -111,7 +111,7 @@ public static partial class NativeBattleMicroMissiles299Controller
     private static NativeBattleMicroMissiles299Frame SpawnMissile(NativeBattleMicroMissiles299Frame frame, int index, NativeBattleMicroMissiles299Resources resources, NativeBattleMicroMissiles299Inputs inputs)
     {
         int caster = Actor(frame.State.ReadDword(CasterGlobal));
-        int target = inputs.Packets.ReadContact(FirstContact(frame, inputs)).Primary.ActorIndex;
+        int target = inputs.Packets.ReadContact(FirstContact(frame, inputs)).Primary.Recipient;
         NativeBattleMicroMissiles299AnchorStep anchor = inputs.ReadAnchor571400(frame, caster);
         frame = anchor.Frame;
         NativeBattleGraphicsModel casterModel = inputs.ReadModel(caster);
@@ -175,7 +175,7 @@ public static partial class NativeBattleMicroMissiles299Controller
     private static int FirstContact(NativeBattleMicroMissiles299Frame frame, NativeBattleMicroMissiles299Inputs inputs)
     {
         BattleActionHeaderReference index = Parameters(frame).Header;
-        if ((uint)index >= inputs.Packets.Headers.Length || inputs.Packets.ReadHeader(index).ReadByte(16) == 0)
+        if (inputs.Packets.ReadHeader(index).ReadContactCount() == 0)
         {
             throw new InvalidDataException("Micro Missiles requires its first captured target contact.");
         }

@@ -19,7 +19,7 @@ public static class NativeBattleDuel274Target
         }
         NativeBattleModulePoolTask task = frame.Effect.Pools[1].Slots[slot];
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Duel target requires its actual parameter owner.");
-        int actor = parameters.Source;
+        BattleModelOwner actor = parameters.Source;
         int target = NativeBattleDuel274Controller.Index(task.ReadDword(20));
         if (frame.Staging.Read(0x25084D8, 1)[0] != 0)
         {

@@ -12,7 +12,7 @@ public sealed record NativeBattleEffect20ParticleDraw(uint Address) : NativeBatt
 public sealed record NativeBattleEffect20BodyDraw(uint Address) : NativeBattleEffect20Operation;
 public sealed record NativeBattleEffect20VibrationEnqueue(uint Address) : NativeBattleEffect20Operation;
 public sealed record NativeBattleEffect20VibrationStop(short Handle) : NativeBattleEffect20Operation;
-public sealed record NativeBattleEffect20ClearActorFlags124Bit2(int Actor) : NativeBattleEffect20Operation;
+public sealed record NativeBattleEffect20ClearActorFlags124Bit2(BattleModelOwner Actor) : NativeBattleEffect20Operation;
 public sealed record NativeBattleEffect20RingSequence(uint Address, int Count) : NativeBattleEffect20Operation;
 public sealed record NativeBattleEffect20Activate(int Actor) : NativeBattleEffect20Operation;
 public sealed record NativeBattleEffect20OverlayTask(uint Address) : NativeBattleEffect20Operation;

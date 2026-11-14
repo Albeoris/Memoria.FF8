@@ -17,8 +17,8 @@ public static partial class NativeBattleEffect218Controller
             throw new InvalidDataException("Effect218 entry requires its inactive physical task banks.");
         }
         NativeBattleEffectParameters parameters = Parameters(frame);
-        int first = inputs.Packets.ReadHeader(parameters.Header).FirstContactIndex ?? throw new NotSupportedException("Effect218 entry requires its actual first contact.");
-        int target = inputs.Packets.ReadContact(first).Primary.ActorIndex;
+        BattleContactCursor first = inputs.Packets.ReadHeader(parameters.Header).FirstContact;
+        int target = inputs.Packets.ReadContact(first).Primary.Recipient;
         _ = ModelAddress(target);
         _ = ModelAddress(parameters.Source);
         NativeBattleEffect218State state = frame.State.InitializeSource(resources).WriteDword(ArenaGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, parameters.Source).WriteDword(TargetGlobal, checked((uint)target)).WriteDword(0xE257E0, ArenaAddress + ParticleAOffset).WriteDword(0xE257E4, ArenaAddress + ParticleBOffset).WriteDword(0xE257E8, ArenaAddress + ProjectionOffset);

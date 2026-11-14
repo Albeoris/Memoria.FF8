@@ -18,7 +18,7 @@ public static partial class NativeBattleFireEffect
             return NativeChildCapacity;
         }
         BattleActionHeaderReference first = effect.Parameters?.Header ?? throw new InvalidDataException("Hosted Fire requires its selected action header.");
-        int last = first + packets.ReadHeader(first).ReadByte(17);
+        int last = first + packets.ReadHeader(first).ReadRepeatModeMinusOne();
         if (last >= NativeBattleActionPacketsState.HeaderCapacity)
         {
             throw new InvalidDataException("Hosted Fire action groups leave the retained header bank.");
@@ -73,8 +73,8 @@ public static partial class NativeBattleFireEffect
         NativeBattleModulePoolTask child = children.Slots[childSlot].WriteWord(12, 0).WriteWord(14, 0).WriteWord(34, 0);
         if (!multiple)
         {
-            int first = header.FirstContactIndex ?? throw new InvalidDataException("Native Fire requires its actual physical contact pointer even for a zero-count header.");
-            child = child.WriteWord(32, packets.ReadContact(first).Primary.ActorIndex);
+            BattleContactCursor first = header.FirstContact;
+            child = child.WriteWord(32, packets.ReadContact(first).Primary.Recipient);
         }
         children = children.WriteSlot(childSlot, child);
         return effect with { Pools = [main, children], ReturnedDescriptor = main.DescriptorAddress, FireModelCompletion = Enumerable.Repeat(1, effect.PresentationRoster?.ActorCount ?? NativeBattleGraphicsModelAddress.NativeRowCount).ToImmutableArray() };

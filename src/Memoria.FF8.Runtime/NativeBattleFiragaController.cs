@@ -24,7 +24,7 @@ public static class NativeBattleFiragaController
             throw new InvalidDataException("Native Firaga requires its original61BFE0 entry and actual50AFC0 action parameters.");
         }
         NativeBattleActionHeaderSlot first = packets.ReadHeader(effect.Parameters.Header);
-        if (first.ReadByte(17) >= 3)
+        if (first.ReadRepeatModeMinusOne() >= 3)
         {
             throw new NotSupportedException("Native Firaga's explicit position/alive cache owns at most three physical headers.");
         }
@@ -72,7 +72,7 @@ public static class NativeBattleFiragaController
                     return new(pool, 0);
                 }
                 int sequence = Word(task, 14);
-                int last = Header(0).ReadByte(17);
+                int last = Header(0).ReadRepeatModeMinusOne();
                 if (last >= 3 || (uint)sequence >= 3)
                 {
                     throw new NotSupportedException("Native Firaga's current header sequence exceeds its three owned position cells.");
@@ -235,8 +235,8 @@ public static class NativeBattleFiragaController
 
     private static NativeBattleModulePoolTask InitializeController(NativeBattleModulePoolTask task, int sequence, NativeBattleActionHeaderSlot header, NativeBattleActionPacketsState packets)
     {
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Firaga requires its physical first-contact pointer.");
-        return task.WriteWord(12, 0).WriteWord(14, unchecked((ushort)sequence)).WriteWord(32, packets.ReadContact(first).Primary.ActorIndex);
+        BattleContactCursor first = header.FirstContact;
+        return task.WriteWord(12, 0).WriteWord(14, unchecked((ushort)sequence)).WriteWord(32, packets.ReadContact(first).Primary.Recipient);
     }
 
     private static short Word(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));

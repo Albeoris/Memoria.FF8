@@ -50,26 +50,26 @@ public sealed partial class BattleSession
         }
         NativeBattleActionHeaderSlot header = nativeActionPackets.Headers.Take(nativeActionPackets.ActionCount).FirstOrDefault(slot => slot.ReadByte(1) == 250) ?? throw new InvalidDataException("Native finisher callback lacks its original250 header.");
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native finisher callback requires its physical retained contact pointer.");
-        BattleCombatant actor = FindNativeActor(header.ReadByte(0));
+        BattleCombatant actor = FindNativeActor(header.Source);
         BattleNativeAction native = FindInstalledNativeAction(249, index) with { ActionId = nativeActionScratch.Action ?? throw new NotSupportedException("Native finisher requires its retained AF4 action WORD.") };
         int count = index == 3 ? native.HitCount : nativeActionScratch.LastPublishedTargetCountE05 ?? throw new NotSupportedException("Native48F3F0 requires its retained E05 target count.");
         NativeBattleContactPacket[] recipients = Enumerable.Range(first, count).Select(nativeActionPackets.ReadContact).ToArray();
         if (index == 3)
         {
-            FindNativeActor(recipients[0].Primary.ActorIndex).NativeRemainingHits = native.HitCount;
+            FindNativeActor(recipients[0].Primary.Recipient).NativeRemainingHits = native.HitCount;
         }
         NativeBattleTimedAction timed = nativeTimedAction ?? throw new NotSupportedException("Native finisher callback requires its admitted event provenance.");
         BattleActionPresentation command = timed.Command with { NativeQueuedCommand = 250, NativeAction = native, ActionId = index };
         BattleActionDefinition action = new(command.Ability, command.ActionId, native.Name ?? "Renzokuken finisher", BattleActionEffect.Native, native.Power, false) { NativeAction = native };
         BattleActionPresentation? previous = resolvingNativeAction;
-        nativeActionScratch = nativeActionScratch with { ActorIndex = header.ReadByte(0), Command = 249, DeferredEffectsE00 = false };
+        nativeActionScratch = nativeActionScratch with { ActorIndex = header.Source, Command = 249, DeferredEffectsE00 = false };
         nativeActionCommitDepth++;
         resolvingNativeAction = command;
         try
         {
             foreach (NativeBattleContactPacket recipient in recipients)
             {
-                NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, FindNativeActor(recipient.Primary.ActorIndex), command, action, native, 255);
+                NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, FindNativeActor(recipient.Primary.Recipient), command, action, native, 255);
                 (nativeActionPackets, _) = nativeActionPackets.AppendContact(packet);
             }
         }

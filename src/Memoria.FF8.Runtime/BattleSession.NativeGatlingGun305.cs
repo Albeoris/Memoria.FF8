@@ -53,7 +53,7 @@ public sealed partial class BattleSession
             return current with { State = written.State };
         }
 
-        NativeBattleGatlingGun305AnchorStep Anchor(NativeBattleGatlingGun305Frame current, int actor)
+        NativeBattleGatlingGun305AnchorStep Anchor(NativeBattleGatlingGun305Frame current, BattleModelOwner actor)
         {
             Publish(current);
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
@@ -69,7 +69,7 @@ public sealed partial class BattleSession
             return new(current, anchor with { W = (model.Transform ?? throw new NotSupportedException("Gatling Gun requires the actual actor heading.")).Angle36 });
         }
 
-        NativeBattleGatlingGun305PointStep Bone(NativeBattleGatlingGun305Frame current, int actor, short selector, short distance)
+        NativeBattleGatlingGun305PointStep Bone(NativeBattleGatlingGun305Frame current, BattleModelOwner actor, short selector, short distance)
         {
             Publish(current);
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Gatling Gun bone query requires its addressed temporary memory.");

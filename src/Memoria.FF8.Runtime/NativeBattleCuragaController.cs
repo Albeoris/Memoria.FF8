@@ -58,7 +58,7 @@ public static class NativeBattleCuragaController
         {
             NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
             int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Native87DB10 requires its header's actual contact pointer.");
-            byte target = packets.ReadContact(firstContact).Primary.ActorIndex;
+            byte target = packets.ReadContact(firstContact).Primary.Recipient;
             byte targets = header.ReadContactCount();
             byte groups = header.ReadRepeatModeMinusOne();
             byte maximum = unchecked((byte)(targets - 1));
@@ -66,7 +66,7 @@ public static class NativeBattleCuragaController
             {
                 maximum = groups;
             }
-            task = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78).WriteByte(0x29, 0).WriteByte(0x2C, header.ReadByte(0)).WriteByte(0x2D, target).WriteWord(0x5A, targets).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
+            task = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78).WriteByte(0x29, 0).WriteByte(0x2C, header.Source).WriteByte(0x2D, target).WriteWord(0x5A, targets).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
         }
         hierarchy = hierarchy.Write(root.Address, task);
         int source = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == profile.InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Native87DB10 requires the actual26D75BC initializer pointer, including texture-skip entries.");
@@ -307,7 +307,7 @@ public static class NativeBattleCuragaController
         {
             maximum = groups;
         }
-        return task.WriteByte(0x2C, actors.Actor).WriteByte(0x29, 0).WriteByte(0x2D, actors.Target).WriteWord(0x5A, targets).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
+        return actors.WriteTargetTo(actors.WriteSourceTo(task).WriteByte(0x29, 0)).WriteWord(0x5A, targets).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
     }
 
     private static void RequireResources(NativeBattleCuragaFamilyProfile profile, NativeBattleCuragaResources resources)

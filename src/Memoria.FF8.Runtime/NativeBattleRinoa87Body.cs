@@ -3,7 +3,7 @@ using System.Buffers.Binary;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleRinoa87BindActor(byte Actor, uint Resource, uint SavedModel) : NativeBattleRinoa87Operation;
+public sealed record NativeBattleRinoa87BindActor(BattleModelOwner Actor, uint Resource, uint SavedModel) : NativeBattleRinoa87Operation;
 public sealed record NativeBattleRinoa87ActorSequence(byte Actor, short Sequence) : NativeBattleRinoa87Operation;
 public sealed record NativeBattleRinoa87Sound(uint Descriptor, short Argument, short Volume) : NativeBattleRinoa87Operation;
 public sealed record NativeBattleRinoa87Emit(uint Body, int Mode) : NativeBattleRinoa87Operation;

@@ -25,7 +25,7 @@ public sealed partial class BattleSession
             }
             NativeBattleTriggerWidget widget = process.TriggerWidget!;
             bool succeeded = IsNativeTriggerWindowOpen(widget);
-            process.PressGunblade(expandedHostedActionToken!.Value, widget.ActorIndex, widget);
+            process.PressGunblade(expandedHostedActionToken!.Value, widget.Actor, widget);
             return succeeded;
         }
         if (NativeGraphics is { } graphics)

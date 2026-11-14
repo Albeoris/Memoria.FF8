@@ -138,7 +138,7 @@ public static class NativeBattleWhiteWind297Controller
                 short z = 0;
                 for (int index = 0; index < count; index++)
                 {
-                    int actor = inputs.Packets.ReadContact(FirstContact(header) + index).Primary.ActorIndex;
+                    int actor = inputs.Packets.ReadContact(FirstContact(header) + index).Primary.Recipient;
                     z = unchecked((short)(z + (inputs.ReadModel(actor).Transform ?? throw new NotSupportedException("White Wind requires current target position.")).Position28.Z));
                 }
                 NativeBattleModulePoolTask task = Task(frame, pool, slot).WriteWord(0x1A0, 0).WriteWord(0x1A2, unchecked((ushort)Height(inputs, caster))).WriteWord(0x1A4, unchecked((ushort)(z / count)));
@@ -161,7 +161,7 @@ public static class NativeBattleWhiteWind297Controller
             NativeBattleEffectTaskPool targets = frame.Effect.Pools[2];
             (targets, int child) = targets.Append(TargetCallback);
             frame = WithPool(frame, 2, targets);
-            int actor = inputs.Packets.ReadContact(FirstContact(captured) + target / 4).Primary.ActorIndex;
+            int actor = inputs.Packets.ReadContact(FirstContact(captured) + target / 4).Primary.Recipient;
             frame = Put(frame, 2, child, Task(frame, 2, child).WriteDword(12, ModelAddress(actor)));
             frame = Anchor(frame, 2, child, 16, actor, inputs);
             frame = InitializeAct(frame, 2, child, 0x18, 0x278, resources.Target);
@@ -184,7 +184,7 @@ public static class NativeBattleWhiteWind297Controller
         for (int index = 0; index < header.ReadContactCount(); index++)
         {
             int selected = checked(FirstContact(header) + index);
-            if (inputs.Packets.ReadContact(selected).Primary.ActorIndex == actor)
+            if (inputs.Packets.ReadContact(selected).Primary.Recipient == actor)
             {
                 frame = inputs.Execute(frame, new NativeBattleWhiteWind297Contact(selected));
             }
@@ -261,10 +261,6 @@ public static class NativeBattleWhiteWind297Controller
     private static NativeBattleActionHeaderSlot Header(NativeBattleWhiteWind297Frame frame, NativeBattleWhiteWind297Inputs inputs)
     {
         BattleActionHeaderReference index = Parameters(frame).Header;
-        if ((uint)index >= inputs.Packets.Headers.Length)
-        {
-            throw new InvalidDataException("Blue Magic White Wind captured header leaves its actual arena.");
-        }
         return inputs.Packets.ReadHeader(index);
     }
     private static int FirstContact(NativeBattleActionHeaderSlot header) => header.FirstContactIndex ?? throw new NotSupportedException("Blue Magic White Wind requires its original captured contact pointer.");

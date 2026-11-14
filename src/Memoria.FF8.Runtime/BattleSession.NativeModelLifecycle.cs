@@ -143,7 +143,7 @@ public sealed partial class BattleSession
                     },
                     WriteModelExternal = (current, variable, value) =>
                     {
-                        int target = (graphics.ActionContext ?? throw new NotSupportedException("Native sequence target write requires its50D300 target identity.")).TargetIndex ?? throw new NotSupportedException("Native sequence target write requires its physical target identity.");
+                        int target = (graphics.ActionContext ?? throw new NotSupportedException("Native sequence target write requires its50D300 target identity.")).Target ?? throw new NotSupportedException("Native sequence target write requires its physical target identity.");
                         models = models.SetItem(index, current);
                         models = models.SetItem(target, NativeBattleActionGraphics.WriteSequenceTarget5048E0(models[target], variable, value));
                         graphics = graphics with { ActorModels = models };
@@ -194,7 +194,7 @@ public sealed partial class BattleSession
                     ScheduleModelMotion = (current, opcode, first, second, fraction, duration) =>
                     {
                         graphics = graphics with { ActorModels = models.SetItem(index, current) };
-                        int target = opcode == 0x9E ? first : (graphics.ActionContext?.TargetIndex ?? throw new NotSupportedException("Native AD/AE requires its retained50D300 target identity."));
+                        int target = opcode == 0x9E ? first : (graphics.ActionContext?.Target ?? throw new NotSupportedException("Native AD/AE requires its retained50D300 target identity."));
                         (NativeBattleAuxiliaryState auxiliary, bool allocated) = graphics.Auxiliary.AppendModelMotion(opcode, index, target, first, second, fraction, duration, graphics.PresentationRoster);
                         graphics = graphics with { Auxiliary = auxiliary };
                         if (allocated && opcode != 0x9E)

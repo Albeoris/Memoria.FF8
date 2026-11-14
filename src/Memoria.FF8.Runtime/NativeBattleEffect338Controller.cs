@@ -16,8 +16,8 @@ public static partial class NativeBattleEffect338Controller
         }
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         BattleActionHeaderReference header = Parameters(frame).Header;
-        int first = packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect338 requires its actual first action contact.");
-        uint target = ModelAddress(packets.ReadContact(first).Primary.ActorIndex);
+        BattleContactCursor first = packets.ReadHeader(header).FirstContact;
+        uint target = ModelAddress(packets.ReadContact(first).Primary.Recipient);
         frame = frame with { Random = frame.Random.Draw(out ushort seed), State = frame.State.InitializeSource(resources) };
         NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Effect338 requires its current texture process.");
         foreach (NativeBattleEffectHeapAllocation texture in resources.Textures)

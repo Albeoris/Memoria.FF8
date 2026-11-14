@@ -35,14 +35,14 @@ public sealed partial class BattleSession
             return current with { Memory = latest, State = latest.Acid170 ?? throw new InvalidDataException("Acid170 external service lost its executable storage."), Staging = NativeFileStaging ?? throw new InvalidDataException("Acid170 external service lost its temporary memory."), Random = nativeCrtRandom ?? throw new InvalidDataException("Acid170 external service lost its CRT stream.") };
         }
 
-        NativeBattleAcid170PointStep Bone(NativeBattleAcid170Frame current, int actor, int selector, int distance)
+        NativeBattleAcid170PointStep Bone(NativeBattleAcid170Frame current, BattleModelOwner actor, int selector, int distance)
         {
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Acid170 bone query requires its addressed temporary memory.");
             var observed = ObserveNativeGraphicsBoneAnchor(current.Memory, graphics, actor, checked((byte)selector), checked((short)distance));
             return new(current with { Memory = observed.Memory, Staging = NativeFileStaging }, Point(observed.Point));
         }
 
-        NativeBattleAcid170PointStep Anchor(NativeBattleAcid170Frame current, int actor)
+        NativeBattleAcid170PointStep Anchor(NativeBattleAcid170Frame current, BattleModelOwner actor)
         {
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Acid170 anchor requires its actual model transform.");

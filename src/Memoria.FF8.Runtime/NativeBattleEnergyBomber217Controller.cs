@@ -13,7 +13,7 @@ public static partial class NativeBattleEnergyBomber217Controller
         int tim = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Energy Bomber requires its executed texture initializer.");
         NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Energy Bomber requires its texture queue.");
         (textures, _) = textures.EnqueueArenaTim505E30(arena, tim);
-        int target = inputs.Packets.ReadContact(FirstContact(frame, inputs)).Primary.ActorIndex;
+        int target = inputs.Packets.ReadContact(FirstContact(frame, inputs)).Primary.Recipient;
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, int slot) = root.Append(RootCallback);
         root = root.WriteSlot(slot, root.Slots[slot].WriteBytes(12, new byte[8]));

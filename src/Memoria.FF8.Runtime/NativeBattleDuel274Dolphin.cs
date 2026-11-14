@@ -20,7 +20,7 @@ public static class NativeBattleDuel274Dolphin
         }
         frame = frame with { Staging = frame.Staging.Write(0x2508454, BitConverter.GetBytes(billboard.X)).Write(0x2508458, BitConverter.GetBytes(billboard.Y)).Write(0x250845C, BitConverter.GetBytes(billboard.Z)) };
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Dolphin Blow requires its actor parameter owner.");
-        int actor = parameters.Source;
+        BattleModelOwner actor = parameters.Source;
         int target = NativeBattleDuel274Controller.Index(task.ReadDword(20));
         if (task.ReadWord(12) == 0)
         {

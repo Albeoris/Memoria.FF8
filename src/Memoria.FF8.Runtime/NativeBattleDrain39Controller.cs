@@ -28,8 +28,8 @@ public static class NativeBattleDrain39Controller
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, profile.RootCallback, 100);
         hierarchy = root.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Native8513D0 requires its header's actual contact pointer.");
-        byte target = packets.ReadContact(firstContact).Primary.ActorIndex;
+        BattleContactCursor firstContact = header.FirstContact;
+        byte target = packets.ReadContact(firstContact).Primary.Recipient;
         byte targets = header.ReadContactCount();
         byte groups = header.ReadRepeatModeMinusOne();
         byte maximum = unchecked((byte)(targets - 1));
@@ -37,7 +37,7 @@ public static class NativeBattleDrain39Controller
         {
             maximum = groups;
         }
-        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78).WriteByte(0x29, 0).WriteByte(0x2C, header.ReadByte(0)).WriteByte(0x2D, target).WriteWord(0x5A, targets).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
+        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78).WriteByte(0x29, 0).WriteByte(0x2C, header.Source).WriteByte(0x2D, target).WriteWord(0x5A, targets).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
         hierarchy = hierarchy.Write(root.Address, task);
         int source = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == profile.InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Native8513D0 requires the actual269DA1C initializer pointer, including texture-skip entries.");
         if (source > NativeBattleEffectArena.Length - 0xC000)

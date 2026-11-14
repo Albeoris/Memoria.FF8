@@ -55,7 +55,7 @@ public static partial class NativeBattleDuel112Target
             {
                 task = task.WriteWord(140 + word * 2, unchecked((ushort)rotation[word]));
             }
-            int target = ModelIndex(task.ReadDword(176));
+            BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(176, 4).Owner;
             NativeBattleModuleAnchor anchor = inputs.ReadAnchor571400(target);
             task = task.WriteWord(92, unchecked((ushort)anchor.X)).WriteWord(94, unchecked((ushort)anchor.Y)).WriteWord(96, unchecked((ushort)anchor.Z)).WriteWord(98, unchecked((ushort)anchor.W));
             short scale = drawing.Actor.ReadModel(target).Transform?.Scale38 ?? throw new NotSupportedException("Native Duel final hierarchy requires its actual target scale.");

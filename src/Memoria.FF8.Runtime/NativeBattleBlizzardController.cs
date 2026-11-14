@@ -25,8 +25,8 @@ public static class NativeBattleBlizzardController
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(0x24BD788, 0x24BD798, 36, 150);
         (children, int childSlot) = children.Append(0x61AC70);
         NativeBattleActionHeaderSlot header = packets.ReadHeader(effect.Parameters!.Header);
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Native61ABA0 requires its physical first-contact pointer.");
-        children = Put(children, childSlot, children.Slots[childSlot].WriteWord(12, 0).WriteWord(14, 0).WriteWord(32, packets.ReadContact(first).Primary.ActorIndex));
+        BattleContactCursor first = header.FirstContact;
+        children = Put(children, childSlot, children.Slots[childSlot].WriteWord(12, 0).WriteWord(14, 0).WriteWord(32, packets.ReadContact(first).Primary.Recipient));
         return effect with { Pools = [main, children], ReturnedDescriptor = main.DescriptorAddress };
     }
 
@@ -121,11 +121,11 @@ public static class NativeBattleBlizzardController
                     int first = header.FirstContactIndex ?? throw new NotSupportedException("Native61AC70 contact requires its physical header contact pointer.");
                     frame = inputs.Execute(frame, new NativeBattleBlizzardContact(first));
                 }
-                if (phase == 28 && sequence + 1 <= Header(0).ReadByte(17))
+                if (phase == 28 && sequence + 1 <= Header(0).ReadRepeatModeMinusOne())
                 {
                     (pool, int child) = pool.Append(0x61AC70);
-                    int first = Header(sequence + 1).FirstContactIndex ?? throw new NotSupportedException("Native repeated Blizzard requires its next physical contact pointer.");
-                    pool = Put(pool, child, pool.Slots[child].WriteWord(12, 0).WriteWord(14, unchecked((ushort)(sequence + 1))).WriteWord(32, inputs.Packets.ReadContact(first).Primary.ActorIndex));
+                    BattleContactCursor first = Header(sequence + 1).FirstContact;
+                    pool = Put(pool, child, pool.Slots[child].WriteWord(12, 0).WriteWord(14, unchecked((ushort)(sequence + 1))).WriteWord(32, inputs.Packets.ReadContact(first).Primary.Recipient));
                 }
                 if (phase == 1)
                 {

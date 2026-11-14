@@ -9,7 +9,7 @@ public static partial class NativeBattleBadBreath300Controller
     private static int FirstContact(NativeBattleBadBreath300Frame frame, NativeBattleBadBreath300Inputs inputs)
     {
         BattleActionHeaderReference index = Parameters(frame).Header;
-        if ((uint)index >= inputs.Packets.Headers.Length || inputs.Packets.ReadHeader(index).ReadByte(16) == 0)
+        if (inputs.Packets.ReadHeader(index).ReadContactCount() == 0)
         {
             throw new InvalidDataException("Bad Breath requires its first captured target contact.");
         }

@@ -13,7 +13,7 @@ public sealed partial class BattleSession
 
     private (NativeBattleGraphicsState Graphics, bool Selected) ChooseNativeActionCamera(NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context)
     {
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[context.HeaderIndex];
+        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[context.Header];
         byte command = header.Command;
         if (command is 5 or 11 or 14 or 15 or 16 or 17 or 18 or 19 or 20 or 21 or 22 or 0xEF or 0xF4 or 0xFE)
         {
@@ -27,7 +27,7 @@ public sealed partial class BattleSession
         {
             graphics = graphics with { Flags = graphics.Flags | 0x20000000 };
         }
-        sbyte choice = unchecked((sbyte)header.ReadByte(3));
+        sbyte choice = header.CameraChoice;
         if (command == 8 && choice == -1)
         {
             return (graphics, false);
@@ -37,7 +37,7 @@ public sealed partial class BattleSession
         {
             return (graphics, false);
         }
-        bool hasCamera = NativeActionResource(graphics, context.ActorIndex).HasActionCamera ?? throw new NotSupportedException("Native505F00 requires its original model camera pointer.");
+        bool hasCamera = NativeActionResource(graphics, context.Actor).HasActionCamera ?? throw new NotSupportedException("Native505F00 requires its original model camera pointer.");
         if (!hasCamera)
         {
             return (graphics, false);
@@ -62,13 +62,13 @@ public sealed partial class BattleSession
         {
             return (graphics, true);
         }
-        NativeBattleGraphicsModel actor = graphics.ActorModels.Get(context.ActorIndex);
+        NativeBattleGraphicsModel actor = graphics.ActorModels.Get(context.Actor);
         int value = (actor.CameraAccumulator131 ?? throw new NotSupportedException("Native5060E0 requires model BYTE131.")) + rules.Increment[frequency];
         if (rules.RandomRange[frequency] != 0)
         {
             value += NextNativeGlobalRandom() % rules.RandomRange[frequency];
         }
-        return (graphics with { ActorModels = graphics.ActorModels.Set(context.ActorIndex, actor with { CameraAccumulator131 = unchecked((byte)value) }) }, value >= 256);
+        return (graphics with { ActorModels = graphics.ActorModels.Set(context.Actor, actor with { CameraAccumulator131 = unchecked((byte)value) }) }, value >= 256);
     }
 
     private int NativeCameraMenuSelection(NativeBattleGraphicsState graphics)
@@ -91,10 +91,10 @@ public sealed partial class BattleSession
             return graphics;
         }
         camera = camera with { Mask = (ushort)(camera.Mask | 0x8000) };
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[context.HeaderIndex];
+        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[context.Header];
         byte command = header.Command;
-        NativeBattleGraphicsModel actor = graphics.ActorModels.Get(context.ActorIndex);
-        NativeBattleGraphicsResource resource = NativeActionResource(graphics, context.ActorIndex);
+        NativeBattleGraphicsModel actor = graphics.ActorModels.Get(context.Actor);
+        NativeBattleGraphicsResource resource = NativeActionResource(graphics, context.Actor);
         bool present = resource.HasActionCamera ?? throw new NotSupportedException("Native506190 requires its observed model camera pointer.");
         NativeBattleCameraBank? bank = present ? resource.ActionCameraBank ?? throw new InvalidDataException("Native model camera pointer lacks its immutable bank.") : null;
         byte selector;
@@ -115,14 +115,14 @@ public sealed partial class BattleSession
                 else
                 {
                     selector = checked((byte)(((NextNativeGlobalRandom() & 3) + (actor.CameraSequence130 ?? throw new NotSupportedException("Native506190 requires its model BYTE130 camera index.")) + 2) % 6));
-                    int targetIndex = graphics.ActionContext?.TargetIndex ?? throw new NotSupportedException("Native506190 requires its50D300 target.");
+                    int targetIndex = graphics.ActionContext?.Target ?? throw new NotSupportedException("Native506190 requires its50D300 target.");
                     NativeBattleGraphicsModel target = graphics.ActorModels.Get(targetIndex);
                     if (NativeBattleCameraGraphics.ReadVariable(graphics, 26) > 1 || (target.ModelId4 ?? throw new InvalidDataException("Native506190 target lacks its model ID.")) < 16 && ((target.Flags8 ?? throw new InvalidDataException("Native506190 target lacks its status DWORD8.")) & 0x41021) != 0)
                     {
                         selector &= 0xFE;
                     }
                     actor = actor with { CameraSequence130 = selector };
-                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(context.ActorIndex, actor) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(context.Actor, actor) };
                     camera = camera.SetActionSelector(selector);
                 }
                 camera = command == 6 && header.Effect == 15 ? camera with { Mask = (ushort)(camera.Mask & 0x7FFF) } : camera.Start(bank, selector);
@@ -132,7 +132,7 @@ public sealed partial class BattleSession
                 camera = camera.SetActionSelector(selector).Start(bank, (byte)(selector + 6)).SetSecondarySelector(header.Action == 65534 ? (ushort)1 : (ushort)0) with { ForceCamera = true };
                 break;
             case 8:
-                byte choice = header.ReadByte(3);
+                sbyte choice = header.CameraChoice;
                 if ((choice & 128) != 0)
                 {
                     camera = camera with { ForceCamera = true };
@@ -151,7 +151,7 @@ public sealed partial class BattleSession
                 break;
             case 0xF4 or 0xFE:
                 selector = checked((byte)(((NextNativeGlobalRandom() & 3) + (actor.CameraSequence130 ?? throw new NotSupportedException("Native GF camera requires its model BYTE130.")) + 2) % 6));
-                graphics = graphics with { ActorModels = graphics.ActorModels.Set(context.ActorIndex, actor with { CameraSequence130 = selector }) };
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(context.Actor, actor with { CameraSequence130 = selector }) };
                 camera = camera.SetActionSelector(selector).Start(bank, selector) with { ForceCamera = true };
                 break;
         }

@@ -6,7 +6,7 @@ public sealed record EncounterAllocationRetirement(int PhysicalIndex, bool Remov
     {
         bool IsContactOwner(NativeBattleContactPacket packet)
         {
-            return packet.Primary.ActorIndex == PhysicalIndex || packet.Secondary.ActorIndex == PhysicalIndex;
+            return packet.Primary.Recipient == PhysicalIndex || packet.Secondary.Recipient == PhysicalIndex;
         }
         bool IsEffectOwner(NativeBattleOriginalEffectState? effect)
         {
@@ -19,7 +19,7 @@ public sealed record EncounterAllocationRetirement(int PhysicalIndex, bool Remov
                 return true;
             }
         }
-        return activeAction?.ActorId == allocationId || activeAction?.TargetId == allocationId || activeAction is not null && (activeAction.NativeTargetMask & (1 << PhysicalIndex)) != 0 || graphics.ActionActorId == allocationId || graphics.ActionActorId is not null && graphics.ActionContext is { } context && (context.ActorIndex == PhysicalIndex || (context.PhysicalTargetMask.GetValueOrDefault() & (1 << PhysicalIndex)) != 0) || graphics.PendingContacts.Any(IsContactOwner) || IsEffectOwner(graphics.OriginalEffect) || IsEffectOwner(detachedEffect);
+        return activeAction?.ActorId == allocationId || activeAction?.TargetId == allocationId || activeAction is not null && (activeAction.NativeTargetMask & (1 << PhysicalIndex)) != 0 || graphics.ActionActorId == allocationId || graphics.ActionActorId is not null && graphics.ActionContext is { } context && (context.Source == PhysicalIndex || (context.PhysicalTargetMask.GetValueOrDefault() & (1 << PhysicalIndex)) != 0) || graphics.PendingContacts.Any(IsContactOwner) || IsEffectOwner(graphics.OriginalEffect) || IsEffectOwner(detachedEffect);
     }
 }
 

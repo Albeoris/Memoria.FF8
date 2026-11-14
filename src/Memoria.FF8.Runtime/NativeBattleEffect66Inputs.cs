@@ -12,7 +12,7 @@ public sealed record NativeBattleEffect66Inputs(NativeBattleSummonColors Colors,
 public abstract record NativeBattleEffect66Operation;
 public sealed record NativeBattleEffect66BeginCamera63E960(uint SourceAddress, uint MatrixAddress, int Actor, uint DescriptorAddress, int RandomDivisor) : NativeBattleEffect66Operation;
 public sealed record NativeBattleEffect66ForceCamera50A730 : NativeBattleEffect66Operation;
-public sealed record NativeBattleEffect66ModelMask7C(int Actor, uint Mask) : NativeBattleEffect66Operation;
+public sealed record NativeBattleEffect66ModelMask7C(BattleModelOwner Actor, uint Mask) : NativeBattleEffect66Operation;
 public sealed record NativeBattleEffect66Vibration4A29A0(uint SourceAddress, int Mode, int Magnitude, uint OutputAddress) : NativeBattleEffect66Operation;
 public sealed record NativeBattleEffect66SetMode4A8480(int Mode) : NativeBattleEffect66Operation;
 public sealed record NativeBattleEffect66Flags(uint AndMask, uint OrMask) : NativeBattleEffect66Operation;
@@ -45,5 +45,5 @@ public sealed record NativeBattleEffect66DrawStageBody44(uint TemporaryAddress) 
 {
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
 }
-public sealed record NativeBattleEffect66ModelFlags(int Actor, ushort AndMask, ushort OrMask) : NativeBattleEffect66Operation;
+public sealed record NativeBattleEffect66ModelFlags(BattleModelOwner Actor, ushort AndMask, ushort OrMask) : NativeBattleEffect66Operation;
 public sealed record NativeBattleEffect66StageGroupFlags(byte AndMask, byte OrMask) : NativeBattleEffect66Operation;

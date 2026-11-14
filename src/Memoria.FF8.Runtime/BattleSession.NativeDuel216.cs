@@ -10,8 +10,8 @@ public sealed partial class BattleSession
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new InvalidDataException("Native Different Beat requires its entered module.");
         NativeBattleEffectParameters parameters = effect.Parameters ?? throw new InvalidDataException("Native Different Beat requires its entered parameters.");
         NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[parameters.Header];
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Different Beat requires its actual first contact pointer.");
-        byte recipient = nativeActionPackets.ReadContact(first).Primary.ActorIndex;
+        BattleContactCursor first = header.FirstContact;
+        byte recipient = nativeActionPackets.ReadContact(first).Primary.Recipient;
         uint minimum = NativeBattleScanModelSelection.Minimum501FF0(NativeBattleScanPhysicalModels.Capture(graphics.Models), NativeBattleDuel274Controller.Address(recipient));
         NativeBattleDuel216Frame frame = NativeBattleDuel216Controller.Enter695A10(NativeEffectMemory ?? throw new NotSupportedException("Native Different Beat requires retained effect memory."), effect, NativeFileStaging ?? throw new NotSupportedException("Native Different Beat requires retained shared memory."), resources, nativeCrtRandom ?? throw new NotSupportedException("Native Different Beat requires its retained CRT random owner."), NativeBattleDuel274Controller.Index(minimum));
         NativeEffectMemory = frame.Memory;

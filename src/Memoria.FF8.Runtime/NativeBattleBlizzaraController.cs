@@ -30,7 +30,7 @@ public static class NativeBattleBlizzaraController
             throw new InvalidDataException("Native Blizzara requires its original6DA300 entry and actual action parameters.");
         }
         BattleActionHeaderReference first = effect.Parameters.Header;
-        int last = packets.ReadHeader(first).ReadByte(17);
+        int last = packets.ReadHeader(first).ReadRepeatModeMinusOne();
         if (last >= 3 || first + last >= NativeBattleActionPacketsState.HeaderCapacity)
         {
             throw new NotSupportedException("Native Blizzara owns exactly three header-indexed mesh pairs.");
@@ -57,7 +57,7 @@ public static class NativeBattleBlizzaraController
             NativeBattleModulePoolTask task = pool.Slots[slot];
             RequireCallback(task, 0x6DA3A0);
             uint? hostedAddress = null;
-            if (inputs.Packets.PresentationRoster is { } roster && Word(task, 12) == 1 && task.ReadByte(14) <= Header(0).ReadByte(17))
+            if (inputs.Packets.PresentationRoster is { } roster && Word(task, 12) == 1 && task.ReadByte(14) <= Header(0).ReadRepeatModeMinusOne())
             {
                 hostedAddress = ActorAddress(ReadActor(task.ReadByte(14)), roster);
             }
@@ -74,7 +74,7 @@ public static class NativeBattleBlizzaraController
                 frame = frame with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [primary, secondary, tertiary, smoke, trail]) };
                 task = WriteByte(task, 15, 1);
             }
-            if (Word(task, 12) == 1 && task.ReadByte(14) <= Header(0).ReadByte(17))
+            if (Word(task, 12) == 1 && task.ReadByte(14) <= Header(0).ReadRepeatModeMinusOne())
             {
                 int sequence = task.ReadByte(14);
                 uint actorAddress = hostedAddress ?? ActorAddress(ReadActor(sequence), null);
@@ -125,8 +125,8 @@ public static class NativeBattleBlizzaraController
 
         int ReadActor(int sequence)
         {
-            int contact = Header(sequence).FirstContactIndex ?? throw new NotSupportedException("Native Blizzara requires an actual header contact owner.");
-            return inputs.Packets.ReadContact(contact).Primary.ActorIndex;
+            BattleContactCursor contact = Header(sequence).FirstContact;
+            return inputs.Packets.ReadContact(contact).Primary.Recipient;
         }
 
         NativeBattleEffectTaskCallback Primary(NativeBattleEffectTaskPool pool, int slot)

@@ -24,7 +24,7 @@ public sealed record NativeBattleLifeProfile(uint Entry, uint CodeDelta, uint Gl
 }
 public sealed record NativeBattleLifeState([property: JsonRequired] int? DrawCursor);
 public sealed record NativeBattleLifeFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleLifeState State);
-public sealed record NativeBattleLifeInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, NativeCrtRandomState Random, Func<NativeBattleLifeFrame, NativeBattleModulePacketBatch, NativeBattleLifeFrame> Execute)
+public sealed record NativeBattleLifeInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, NativeCrtRandomState Random, Func<NativeBattleLifeFrame, NativeBattleModulePacketBatch, NativeBattleLifeFrame> Execute)
 {
     public Func<NativeBattleLifeFrame, int, NativeBattleLifeFrame>? ApplyContact { get; init; }
     public short CameraRoll { get; init; }
@@ -51,8 +51,8 @@ public static partial class NativeBattleLifeController
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, profile.Code(0x864AB0), 100);
         hierarchy = root.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Native8649C0 requires its physical first-contact pointer.");
-        byte target = packets.ReadContact(first).Primary.ActorIndex;
+        BattleContactCursor first = header.FirstContact;
+        byte target = packets.ReadContact(first).Primary.Recipient;
         NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78).WriteByte(0x29, 0).WriteByte(0x2D, target).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
         hierarchy = hierarchy.Write(root.Address, task);
         if (!profile.RegistersAnimation || (parameters.Flags79 & 1) == 0)
@@ -96,7 +96,7 @@ public static partial class NativeBattleLifeController
             }
             //571B50 returns20DFAB8, not the TIM allocation. Even callbacks use the second8KB buffer.
             current = current with { State = current.State with { DrawCursor = (task.ReadByte(0x5C) & 1) != 0 ? 0 : 0x2000 } };
-            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, Models(inputs), inputs.ReadPoseSource);
+            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, inputs.ReadModel, inputs.ReadPoseSource);
             switch (Phase(task))
             {
                 case 0:
@@ -169,7 +169,7 @@ public static partial class NativeBattleLifeController
             }
             else
             {
-                task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, Models(inputs), inputs.ReadPoseSource);
+                task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, inputs.ReadModel, inputs.ReadPoseSource);
                 NativeBattleGraphicsModel model = inputs.ReadModel(target);
                 NativeBattlePoseSource source = inputs.ReadPoseSource(target);
                 NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native8DC870 requires the current target pose.");
@@ -231,7 +231,6 @@ public static partial class NativeBattleLifeController
         }
     }
 
-    private static NativeBattleGraphicsModel[] Models(NativeBattleLifeInputs inputs) => Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray();
     private static short Word(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
     private static int Phase(NativeBattleModulePoolTask task) => unchecked((sbyte)task.ReadByte(0x29));
     private static NativeBattleModulePoolTask Add(NativeBattleModulePoolTask task, int offset, int value) => task.WriteWord(offset, unchecked((ushort)(task.ReadWord(offset) + value)));

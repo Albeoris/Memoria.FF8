@@ -28,7 +28,7 @@ public static partial class NativeBattleTonberry90Controller
             uint work = state.ReadDword(odd ? 0x25A2B74u : 0x25A2B70u);
             state = state.WriteDword(0x259EEA8, packet).WriteDword(0x259EFB4, work);
             frame = frame with { Memory = frame.Memory with { Tonberry90 = state, SharedEffectView2793E58 = inputs.CameraMatrix }, Effect = frame.Effect with { DrawArenaOffset = ArenaOffset(packet, 0) } };
-            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, new ActorView(inputs.ReadModel), inputs.ReadPoseSource, readForeign: inputs.ReadForeign);
+            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, inputs.ReadModel, inputs.ReadPoseSource, readForeign: inputs.ReadForeign);
             Store(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {
@@ -138,7 +138,7 @@ public static partial class NativeBattleTonberry90Controller
             }
             else
             {
-                task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, new ActorView(inputs.ReadModel), inputs.ReadPoseSource);
+                task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, inputs.ReadModel, inputs.ReadPoseSource);
                 NativeBattlePoseSource source = inputs.ReadPoseSource(target);
                 NativeBattleGraphicsModel model = inputs.ReadModel(target);
                 task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, model, source);
@@ -157,10 +157,6 @@ public static partial class NativeBattleTonberry90Controller
                     if (State().ReadWord(unchecked(Director() + 0x48)) == 1)
                     {
                         BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                        if ((uint)header >= inputs.Packets.Headers.Length)
-                        {
-                            throw new NotSupportedException("Native Tonberry contact header leaves its current addressed owner.");
-                        }
                         int contact = checked((inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Native Tonberry target contact pointer is unknown.")) + unchecked((sbyte)task.ReadByte(0x2B)));
                         _ = inputs.Packets.ReadContact(contact);
                         Sync();
@@ -223,11 +219,4 @@ public static partial class NativeBattleTonberry90Controller
 
     private static NativeBattleModulePoolTask Next(NativeBattleModulePoolTask task) => task.WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) + 1)));
 
-    private sealed class ActorView(Func<BattleModelOwner, NativeBattleGraphicsModel> read) : IReadOnlyList<NativeBattleGraphicsModel>
-    {
-        public int Count => 7;
-        public NativeBattleGraphicsModel this[int index] => (uint)index < Count ? read(index) : throw new ArgumentOutOfRangeException(nameof(index));
-        public IEnumerator<NativeBattleGraphicsModel> GetEnumerator() => Enumerable.Range(0, Count).Select(read).GetEnumerator();
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
-    }
 }

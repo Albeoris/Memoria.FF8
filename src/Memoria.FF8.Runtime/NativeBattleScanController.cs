@@ -30,7 +30,7 @@ public static class NativeBattleScanController
         hierarchy = root.Hierarchy;
         NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, 0x1D99A78, 0, 0);
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78).WriteByte(0x2D, actors.Target).WriteWord(0x5A, header.ReadByte(0x10)).WriteWord(0x58, header.ReadByte(0x11));
+        NativeBattleModulePoolTask task = actors.WriteTargetTo(hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78)).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
         hierarchy = hierarchy.Write(root.Address, task);
         if ((parameters.Flags79 & 1) == 0)
         {

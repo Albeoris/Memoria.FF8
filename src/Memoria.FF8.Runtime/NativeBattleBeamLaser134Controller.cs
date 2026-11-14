@@ -13,7 +13,7 @@ public static partial class NativeBattleBeamLaser134Controller
         int tim = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Beam Laser requires its executed texture initializer.");
         NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Beam Laser requires its texture queue.");
         (textures, _) = textures.EnqueueArenaTim505E30(arena, tim);
-        int caster = Parameters(frame).Source;
+        BattleModelOwner caster = Parameters(frame).Source;
         ushort saved = inputs.ReadModel(caster).Flags0;
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, int slot) = root.Append(RootCallback);
@@ -102,17 +102,13 @@ public static partial class NativeBattleBeamLaser134Controller
     {
         NativeBattleModulePoolTask root = Read(frame, RootBank);
         int ordinal = root.ReadByte(14);
-        if (ordinal > Header(frame, inputs).ReadByte(17))
+        if (ordinal > Header(frame, inputs).ReadRepeatModeMinusOne())
         {
             return frame;
         }
         BattleActionHeaderReference headerIndex = Parameters(frame).Header.Advance(ordinal);
-        if ((uint)headerIndex >= inputs.Packets.Headers.Length)
-        {
-            throw new NotSupportedException("Beam Laser selected an absent captured action header.");
-        }
-        int contact = inputs.Packets.ReadHeader(headerIndex).FirstContactIndex ?? throw new NotSupportedException("Beam Laser requires its selected physical contact pointer.");
-        int actor = inputs.Packets.ReadContact(contact).Primary.ActorIndex;
+        BattleContactCursor contact = inputs.Packets.ReadHeader(headerIndex).FirstContact;
+        int actor = inputs.Packets.ReadContact(contact).Primary.Recipient;
         uint pointer = ModelAddress(actor);
         NativeBattleModulePoolTask existing = frame.Effect.Pools[1].Slots[0];
         if ((existing.Flags & 1) != 0 && existing.ReadDword(16) == pointer)

@@ -51,14 +51,14 @@ public sealed partial class BattleSession
                 targets = NativeBattleEffectTaskPool.Initialize(0x25215B8, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)buffer), 0x504, 3);
             }
             int action = root.ReadByte(14);
-            if (action <= nativeActionPackets.ReadHeader(effect.Parameters!.Header).ReadByte(17))
+            if (action <= nativeActionPackets.ReadHeader(effect.Parameters!.Header).ReadRepeatModeMinusOne())
             {
                 NativeBattleEffectTaskPool pool = targets ?? throw new InvalidDataException("Native Stop lost its target pool.");
                 (pool, int slot) = pool.Append(0x6BF1B0);
                 NativeBattleModulePoolTask task = pool.Slots[slot].ClearPayload(0x4F8);
                 NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters.Header.Advance(action));
-                int contact = header.FirstContactIndex ?? throw new InvalidDataException("Native Stop requires the original selected contact.");
-                int target = nativeActionPackets.ReadContact(contact).Primary.ActorIndex;
+                BattleContactCursor contact = header.FirstContact;
+                int target = nativeActionPackets.ReadContact(contact).Primary.Recipient;
                 task = WindStore(task.WriteWord(14, (ushort)action).WriteDword(16, NativeBattleGraphicsModelAddress.Encode(target)), 20, ReadNativeDefaultPosition571400(graphics, target));
                 NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x1C - 12), 0x4E8);
                 task = PublishWorkspace(task, 0x1C, workspace.Initialize7016B0(resources.Clock, 0x4E8));
@@ -134,7 +134,7 @@ public sealed partial class BattleSession
             }
             if (counter == 53)
             {
-                int contact = nativeActionPackets.ReadHeader(effect.Parameters!.Header.Advance(WindWord(task, 14))).FirstContactIndex ?? throw new InvalidDataException("Native Stop requires its contact at clock break.");
+                BattleContactCursor contact = nativeActionPackets.ReadHeader(effect.Parameters!.Header.Advance(WindWord(task, 14))).FirstContact;
                 graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact)] });
             }
             if (counter >= 70)

@@ -36,7 +36,7 @@ public sealed partial class BattleSession
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };
 
-        NativeBattleModuleAnchor ReadAnchor571400(byte actor)
+        NativeBattleModuleAnchor ReadAnchor571400(BattleModelOwner actor)
         {
             NativeBattleModuleAnchor anchor = ReadNativeModelAnchor(graphics, actor);
             NativeBattleModelTransform transform = graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Native571400 requires its actual actor transform WORD.");

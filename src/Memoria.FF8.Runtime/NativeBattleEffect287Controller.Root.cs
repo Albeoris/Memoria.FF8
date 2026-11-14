@@ -68,7 +68,7 @@ public static partial class NativeBattleEffect287Controller
 
     public static NativeBattleEffect287Frame CaptureTargets(NativeBattleEffect287Frame frame, uint main, NativeBattleEffect287Inputs inputs)
     {
-        int count = CurrentHeader(frame, inputs.ReadPackets(frame)).ReadByte(16);
+        int count = CurrentHeader(frame, inputs.ReadPackets(frame)).ReadContactCount();
         if (count > 3)
         {
             throw new NotSupportedException("Effect287 recipients leave its three physical target slots.");
@@ -78,7 +78,7 @@ public static partial class NativeBattleEffect287Controller
         {
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
             int first = CurrentHeader(frame, packets).FirstContactIndex ?? throw new NotSupportedException("Effect287 requires its actual contact pointer.");
-            frame = Write(frame, main, Read(frame, main).WriteDword(0x20 + index * 4, ModelAddress(packets.ReadContact(first + index).Primary.ActorIndex)));
+            frame = Write(frame, main, Read(frame, main).WriteDword(0x20 + index * 4, ModelAddress(packets.ReadContact(first + index).Primary.Recipient)));
         }
         return frame;
     }

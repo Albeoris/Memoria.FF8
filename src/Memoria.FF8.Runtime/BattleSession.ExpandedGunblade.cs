@@ -9,7 +9,7 @@ public sealed partial class BattleSession
         return Outcome == BattleOutcome.Active && GunbladeMode == BattleGunbladeMode.Manual &&
             expandedHostedActionToken is long token && process.ActiveActionToken == token &&
             expandedHostedInvocations is [{ PendingGunblade: true } invocation] &&
-            process.TriggerWidget is { SourceMagicId: null } widget && widget.ActorIndex == invocation.Header.Actor &&
+            process.TriggerWidget is { SourceMagicId: null } widget && widget.Actor == invocation.Header.Actor &&
             CanPressNativeTriggerWidget(widget, process.TriggerOptions);
     }
 
@@ -18,13 +18,13 @@ public sealed partial class BattleSession
         if (!hostedBattlePresentation || hostedFrameServices is not null || hostedPresentationInvocation is not { } invocation ||
             invocation.Token != token || NativeGraphics is not { PresentationRoster: { } roster } graphics ||
             !roster.ContainsRow(actor) || !roster[actor].IsParty || graphics.PendingTrigger is not null ||
-            !ReferenceEquals(graphics.TriggerWidget, widget) || widget.ActorIndex != actor || widget.SourceMagicId is not null ||
+            !ReferenceEquals(graphics.TriggerWidget, widget) || widget.Actor != actor || widget.SourceMagicId is not null ||
             !CanPressNativeTriggerWidget(widget, definition.LimitProgress?.Options978))
         {
             throw new InvalidOperationException("Gunblade input requires its active hosted widget.");
         }
         NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[invocation.HeaderIndex];
-        if (header.ReadByte(0) != actor || header.Command is not (1 or 12 or 28))
+        if (header.Source != actor || header.Command is not (1 or 12 or 28))
         {
             throw new InvalidDataException("Gunblade input does not belong to the active hosted header.");
         }
@@ -39,9 +39,9 @@ public sealed partial class BattleSession
             expandedHostedInvocations is not [{ PendingGunblade: true } invocation] ||
             receipt.Row != invocation.Header.Actor || !roster.ContainsRow(receipt.Row) || !roster[receipt.Row].IsParty ||
             receipt.ActorId != roster[receipt.Row].ActorId || receipt.ActorId != invocation.Command.ActorId ||
-            receipt.Widget is not { SourceMagicId: null } widget || widget.ActorIndex != receipt.Row ||
+            receipt.Widget is not { SourceMagicId: null } widget || widget.Actor != receipt.Row ||
             widget.Block.Timeline.InputThresholds.Length != 1 || process.TriggerWidget is not { } current ||
-            current.ActorIndex != widget.ActorIndex || !ReferenceEquals(current.Block, widget.Block) ||
+            current.Actor != widget.Actor || !ReferenceEquals(current.Block, widget.Block) ||
             current.SourceSequence != widget.SourceSequence || current.SourceAbOffset != widget.SourceAbOffset || current.SourceMagicId != widget.SourceMagicId)
         {
             // TODO(TD-009): Hosted limit widgets require their own logical registration owner.
@@ -60,7 +60,7 @@ public sealed partial class BattleSession
         receipt.Validate(roster);
         if (expandedHostedActionToken is not long token || process.ActiveActionToken != token ||
             expandedHostedInvocations is not [{ PendingGunblade: true, Contacts: [var previous] } invocation] ||
-            receipt is not { ContactIndex: 1, TotalContacts: 1 } || receipt.ActorIndex != invocation.Header.Actor ||
+            receipt is not { ContactIndex: 1, TotalContacts: 1 } || receipt.Actor != invocation.Header.Actor ||
             invocation.Header.Command is not (1 or 12 or 28) || expandedExpectedContacts != 1 || expandedPresentedOccurrences.Count != 0 ||
             !ReferenceEquals(expandedModelRoster, roster) || !ReferenceEquals(expandedEffectCommand, invocation.Command) ||
             nativeReactionOrder is null)
@@ -69,8 +69,8 @@ public sealed partial class BattleSession
         }
         BattleCombatant actor = GetActor(invocation.Command.ActorId);
         BattleCombatant recipient = GetActor(previous.RecipientId);
-        if (RequireExpandedPresentationRow(roster, actor) != receipt.ActorIndex ||
-            RequireExpandedPresentationRow(roster, recipient) != previous.Packet.Primary.ActorIndex || recipient.NativeRemainingHits != 0)
+        if (RequireExpandedPresentationRow(roster, actor) != receipt.Actor ||
+            RequireExpandedPresentationRow(roster, recipient) != previous.Packet.Primary.Recipient || recipient.NativeRemainingHits != 0)
         {
             throw new InvalidDataException("Hosted Gunblade placeholder lost its original caster or recipient.");
         }
@@ -113,7 +113,7 @@ public sealed partial class BattleSession
         nativeActionCommitDepth++;
         try
         {
-            return ResolveInstalledNativeHitWithContact(actor, recipient, contact, action, native, 255, presentationRow: previous.Packet.Primary.ActorIndex);
+            return ResolveInstalledNativeHitWithContact(actor, recipient, contact, action, native, 255, presentationRow: previous.Packet.Primary.Recipient);
         }
         finally
         {

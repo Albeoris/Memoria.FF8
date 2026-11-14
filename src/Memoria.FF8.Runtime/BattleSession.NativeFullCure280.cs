@@ -56,7 +56,7 @@ public sealed partial class BattleSession
             int contact = header.FirstContactIndex ?? throw new InvalidDataException("Native Full-cure requires its current target contacts.");
             for (int index = 0; index < count; index++)
             {
-                director = director.WriteDword(16 + index * 4, NativeBattleGraphicsModelAddress.Encode(nativeActionPackets.ReadContact(contact + index).Primary.ActorIndex));
+                director = director.WriteDword(16 + index * 4, NativeBattleGraphicsModelAddress.Encode(nativeActionPackets.ReadContact(contact + index).Primary.Recipient));
             }
             directors = directors.WriteSlot(slot, director);
         }
@@ -123,7 +123,7 @@ public sealed partial class BattleSession
                     for (int index = 0; index < header.ReadContactCount(); index++)
                     {
                         NativeBattleContactPacket contact = nativeActionPackets.ReadContact(first + index);
-                        if (contact.Primary.ActorIndex == actor)
+                        if (contact.Primary.Recipient == actor)
                         {
                             graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [contact] });
                         }

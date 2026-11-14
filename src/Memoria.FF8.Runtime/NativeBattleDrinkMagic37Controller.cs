@@ -59,7 +59,7 @@ public static class NativeBattleDrinkMagic37Controller
             NativeBattlePackedMatrix32 copiedCamera = inputs.PackedCamera ?? NativeBattlePackedMatrix32.FromMatrix(inputs.Camera, inputs.CameraPadding18);
             nodes = nodes with { CopiedCamera = copiedCamera.ReadMatrix(), PrimaryDrawCursor = checked(nodes.SourceArenaOffset + (odd ? 0 : NativeBattleDrinkMagic37Profile.DrawStep)), SecondaryDrawCursor = checked(nodes.SourceArenaOffset + (odd ? NativeBattleDrinkMagic37Profile.DrawStep : 2 * NativeBattleDrinkMagic37Profile.DrawStep)) };
             current = current with { Memory = current.Memory with { SharedEffectView2793E58 = copiedCamera }, State = current.State with { Nodes = nodes } };
-            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, Models(), inputs.ReadPoseSource);
+            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, inputs.ReadModel, inputs.ReadPoseSource);
             state = state.Write(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {
@@ -163,7 +163,7 @@ public static class NativeBattleDrinkMagic37Controller
         NativeBattleEffectHierarchyCallback Target(NativeBattleEffectHierarchy state, uint address)
         {
             NativeBattleModulePoolTask task = state.Read(address);
-            task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, Models(), inputs.ReadPoseSource);
+            task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, inputs.ReadModel, inputs.ReadPoseSource);
             NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadByte(0x2D));
             NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Drink Magic target requires its current pose.");
             NativeBattlePoseSource source = inputs.ReadPoseSource(task.ReadByte(0x2D));
@@ -224,11 +224,6 @@ public static class NativeBattleDrinkMagic37Controller
             return new(current.Effect.Pools);
         }
 
-        NativeBattleGraphicsModel[] Models()
-        {
-            return Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray();
-        }
-
         NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target)
         {
             return NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
@@ -240,14 +235,14 @@ public static class NativeBattleDrinkMagic37Controller
         task = task.WriteDword(0x0C, 0x1D99A78);
         NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, task.ReadDword(0x0C), unchecked((sbyte)task.ReadByte(0x2A)), unchecked((sbyte)task.ReadByte(0x2B)));
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        byte targets = header.ReadByte(0x10);
-        byte groups = header.ReadByte(0x11);
+        byte targets = header.ReadContactCount();
+        byte groups = header.ReadRepeatModeMinusOne();
         byte maximum = unchecked((byte)(targets - 1));
         if (maximum < groups)
         {
             maximum = groups;
         }
-        return task.WriteByte(0x2C, actors.Actor).WriteByte(0x29, 0).WriteByte(0x2D, actors.Target).WriteWord(0x5A, targets).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
+        return actors.WriteTargetTo(actors.WriteSourceTo(task).WriteByte(0x29, 0)).WriteWord(0x5A, targets).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
     }
 
     private static NativeBattleEffectHierarchy Next(NativeBattleEffectHierarchy hierarchy, uint address)

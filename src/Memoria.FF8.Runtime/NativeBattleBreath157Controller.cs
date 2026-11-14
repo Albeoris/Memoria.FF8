@@ -15,8 +15,8 @@ public static partial class NativeBattleBreath157Controller
         (children, int director) = children.Append(0x603F50);
         children = children.WriteSlot(director, children.Slots[director].WriteWord(12, 0).WriteWord(14, 0));
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Breath requires its actual first contact.");
-        frame = Dword(Dword(Dword(frame, 0x23EB5F0, inputs.Packets.ReadContact(first).Primary.ActorIndex), 0x23ECDF0, Parameters(frame).Source), 0x23ECDEC, 0x1D99A78);
+        BattleContactCursor first = header.FirstContact;
+        frame = Dword(Dword(Dword(frame, 0x23EB5F0, inputs.Packets.ReadContact(first).Primary.Recipient), 0x23ECDF0, Parameters(frame).Source), 0x23ECDEC, 0x1D99A78);
         for (int index = 0; index < 100; index++)
         {
             frame = Dword(frame, 0x23EB628u + (uint)(index * 24), 0);

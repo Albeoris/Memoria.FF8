@@ -113,7 +113,7 @@ public sealed partial class BattleSession
             }
             if (frame == 1)
             {
-                int actor = effect.Parameters!.Source;
+                BattleModelOwner actor = effect.Parameters!.Source;
                 NativeBattleActionMatrix world = graphics.ActorModels.Get(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Native Ultra Waves requires its caster world matrix.");
                 for (int emitter = 0; emitter < 4; emitter++)
                 {

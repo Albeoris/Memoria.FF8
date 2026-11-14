@@ -58,8 +58,8 @@ public static partial class NativeBattleOilBlast137Controller
         if (Word(root, 12) == 1)
         {
             NativeBattleActionHeaderSlot header = Header(frame, inputs);
-            int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Oil Blast requires its first captured contact.");
-            uint target = ModelAddress(inputs.Packets.ReadContact(firstContact).Primary.ActorIndex);
+            BattleContactCursor firstContact = header.FirstContact;
+            uint target = ModelAddress(inputs.Packets.ReadContact(firstContact).Primary.Recipient);
             NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(MainDescriptor, checked(working + MainOffset), MainStride, 1);
             NativeBattleEffectTaskPool secondary = NativeBattleEffectTaskPool.Initialize(SecondaryDescriptor, checked(working + SecondaryOffset), SecondaryStride, SecondaryCount);
             NativeBattleEffectTaskPool particles = NativeBattleEffectTaskPool.Initialize(ParticleDescriptor, working, ParticleStride, ParticleCount);

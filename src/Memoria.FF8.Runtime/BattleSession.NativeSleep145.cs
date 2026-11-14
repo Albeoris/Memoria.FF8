@@ -30,8 +30,8 @@ public sealed partial class BattleSession
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(0x24AAAC0, 0x24AAAD0, 36, 100);
         (children, int slot) = children.Append(0x6186A0);
         NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
-        int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native Sleep requires its first action contact.");
-        children = children.WriteSlot(slot, children.Slots[slot].WriteWord(12, 0).WriteWord(14, 0).WriteWord(32, nativeActionPackets.ReadContact(contact).Primary.ActorIndex));
+        BattleContactCursor contact = header.FirstContact;
+        children = children.WriteSlot(slot, children.Slots[slot].WriteWord(12, 0).WriteWord(14, 0).WriteWord(32, nativeActionPackets.ReadContact(contact).Primary.Recipient));
         return graphics with { OriginalEffect = effect with { Pools = [root, children], ReturnedDescriptor = 0x24AA828, DrawArenaOffset = null } };
     }
 
@@ -156,15 +156,15 @@ public sealed partial class BattleSession
             NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header.Advance(action));
             if (counter == 30)
             {
-                int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native Sleep requires its selected action contact.");
+                BattleContactCursor contact = header.FirstContact;
                 graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact)] });
             }
-            if (counter == 45 && action + 1 <= nativeActionPackets.ReadHeader(effect.Parameters.Header).ReadByte(17))
+            if (counter == 45 && action + 1 <= nativeActionPackets.ReadHeader(effect.Parameters.Header).ReadRepeatModeMinusOne())
             {
                 NativeBattleActionHeaderSlot nextHeader = nativeActionPackets.ReadHeader(effect.Parameters.Header.Advance(checked(action + 1)));
-                int contact = nextHeader.FirstContactIndex ?? throw new NotSupportedException("Native Sleep requires its next action contact.");
+                BattleContactCursor contact = nextHeader.FirstContact;
                 NativeBattleModulePoolTask next = New(0x6186A0, out int slot);
-                Put(slot, next.WriteWord(12, 0).WriteWord(14, (ushort)(action + 1)).WriteWord(32, nativeActionPackets.ReadContact(contact).Primary.ActorIndex));
+                Put(slot, next.WriteWord(12, 0).WriteWord(14, (ushort)(action + 1)).WriteWord(32, nativeActionPackets.ReadContact(contact).Primary.Recipient));
             }
             if (counter == 1)
             {
@@ -190,8 +190,8 @@ public sealed partial class BattleSession
             DrawBubble(point, SleepWord(task, 24), 864, flatFade, true, true, 1);
             DrawTrails(mainTrails, trailOffset, counter, 864, true, flatFade);
             NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header.Advance(action));
-            int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native Sleep requires its selected target contact.");
-            int target = nativeActionPackets.ReadContact(contact).Primary.ActorIndex;
+            BattleContactCursor contact = header.FirstContact;
+            int target = nativeActionPackets.ReadContact(contact).Primary.Recipient;
             if (counter < 26)
             {
                 graphics = graphics with { ActorModels = graphics.ActorModels.Set(target, graphics.ActorModels.Get(target) with { Flags0 = (ushort)(graphics.ActorModels.Get(target).Flags0 | 4) }) };

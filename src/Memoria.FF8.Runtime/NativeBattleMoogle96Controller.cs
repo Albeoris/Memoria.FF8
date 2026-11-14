@@ -38,8 +38,8 @@ public static class NativeBattleMoogle96Controller
         NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(0, 0x731F70, 0x64);
         hierarchy = appended.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.ReadHeader(effect.Parameters.Header);
-        int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native Moogle96 requires an original header/contact owner.");
-        NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(0xC, ActionParameters).WriteByte(0x2C, header.ReadByte(0)).WriteByte(0x2D, packets.ReadContact(contact).Primary.ActorIndex).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
+        BattleContactCursor contact = header.FirstContact;
+        NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(0xC, ActionParameters).WriteByte(0x2C, header.Source).WriteByte(0x2D, packets.ReadContact(contact).Primary.Recipient).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
         byte lastTarget = unchecked((byte)(root.ReadWord(0x5A) - 1));
         if (lastTarget < root.ReadWord(0x58))
         {
@@ -87,7 +87,6 @@ public static class NativeBattleMoogle96Controller
         {
             throw new InvalidDataException("Native Moogle96 lost its explicitly initialized shared state.");
         }
-        NativeBattleGraphicsModel[] Models() => Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray();
         NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
         NativeBattleEffectHierarchyStep rootStep = state.Advance(0, (current, address) =>
         {
@@ -97,7 +96,7 @@ public static class NativeBattleMoogle96Controller
             int baseOffset = TextureOffset(frame.Effect);
             bool odd = (task.ReadWord(0x5C) & 1) != 0;
             frame = frame with { Effect = frame.Effect with { DrawArenaOffset = baseOffset + (odd ? 0 : 0x1000) }, Memory = frame.Memory with { Moogle96 = Shared() with { ViewCopy = MatrixBytes(inputs.View), PrivateBufferAliasOffset = baseOffset + (odd ? 0x1000 : 0x2000) } } };
-            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, Models(), inputs.ReadPoseSource);
+            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, inputs.ReadModel, inputs.ReadPoseSource);
             Store(address, task);
             switch (Stage(task))
             {
@@ -229,7 +228,7 @@ public static class NativeBattleMoogle96Controller
         void Target(uint address)
         {
             NativeBattleModulePoolTask task = state.Read(address);
-            task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, Models(), inputs.ReadPoseSource);
+            task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, inputs.ReadModel, inputs.ReadPoseSource);
             int actor = task.ReadByte(0x2D);
             NativeBattleGraphicsModel model = inputs.ReadModel(actor);
             NativeBattlePoseSource source = inputs.ReadPoseSource(actor);
@@ -261,10 +260,6 @@ public static class NativeBattleMoogle96Controller
                     if (DogWord(0x48) == 1)
                     {
                         BattleActionHeaderReference headerIndex = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                        if ((uint)headerIndex >= inputs.Packets.Headers.Length)
-                        {
-                            throw new NotSupportedException("Native Moogle96 contact header leaves its physical arena.");
-                        }
                         NativeBattleActionHeaderSlot selectedHeader = inputs.Packets.ReadHeader(headerIndex);
                         int firstContact = selectedHeader.FirstContactIndex ?? throw new NotSupportedException("Native Moogle lost its physical contact pointer.");
                         for (int contact = 0; contact < selectedHeader.ReadContactCount(); contact++)

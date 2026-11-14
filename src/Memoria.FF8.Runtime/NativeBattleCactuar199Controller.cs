@@ -23,8 +23,8 @@ public static class NativeBattleCactuar199Controller
         NativeBattleCactuar199State retained = memory.Cactuar199 ?? throw new NotSupportedException("Native Cactuar requires its retained raw model/control owner.");
         retained.Validate();
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(effect.Parameters.Header);
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Cactuar requires its first header's physical contacts.");
-        int actor = inputs.Packets.ReadContact(first).Primary.ActorIndex;
+        BattleContactCursor first = header.FirstContact;
+        int actor = inputs.Packets.ReadContact(first).Primary.Recipient;
         NativeBattleGraphicsModel target = inputs.ReadModel(actor);
         NativeBattleActionMatrix targetMatrix = target.GeometryWorldMatrix ?? throw new NotSupportedException("Native Cactuar placement requires its first target's current raw matrix.");
         short yaw = target.Rotation14 ?? throw new NotSupportedException("Native Cactuar orientation requires its first target's current yaw.");
@@ -418,7 +418,7 @@ public static class NativeBattleCactuar199Controller
                 for (int contact = 0; contact < header.ReadContactCount(); contact++)
                 {
                     int hit = Append(0x5AA2A0);
-                    Store(hit, children.Slots[hit].WriteWord(0xE, (ushort)(Rand() % 8)).WriteWord(0x18, (ushort)contact).WriteWord(0x1A, inputs.Packets.ReadContact(firstContact + contact).Primary.ActorIndex));
+                    Store(hit, children.Slots[hit].WriteWord(0xE, (ushort)(Rand() % 8)).WriteWord(0x18, (ushort)contact).WriteWord(0x1A, inputs.Packets.ReadContact(firstContact + contact).Primary.Recipient));
                 }
             }
             task = Add(task, 0xC, 1);
@@ -433,7 +433,7 @@ public static class NativeBattleCactuar199Controller
             int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Cactuar target cache requires first-header contacts.");
             for (int contact = 0; contact < header.ReadContactCount(); contact++)
             {
-                int actor = inputs.Packets.ReadContact(first + contact).Primary.ActorIndex;
+                int actor = inputs.Packets.ReadContact(first + contact).Primary.Recipient;
                 int bones = inputs.ReadBoneCount?.Invoke(actor) ?? inputs.ReadPoseSource(actor).BoneCount;
                 for (int bone = 0; bone < bones; bone++)
                 {

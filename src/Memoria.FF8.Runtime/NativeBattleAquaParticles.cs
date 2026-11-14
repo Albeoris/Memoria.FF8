@@ -19,13 +19,13 @@ public static partial class NativeBattleAquaParticles
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("The Aqua emitter requires its captured action context.");
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A))));
         int first = header.FirstContactIndex ?? throw new NotSupportedException("The Aqua emitter requires its captured contact pointer.");
-        int count = header.ReadByte(0x10);
+        int count = header.ReadContactCount();
         foreach (uint callback in new uint[] { 0x80C1B0, 0x80C5A0 })
         {
             for (int index = 0; index < count; index++)
             {
                 NativeBattleEffectHierarchyAppend child = Add(frame, hierarchy, 3, callback, 340, parent, inputs);
-                byte recipient = inputs.Packets.ReadContact(first + index).Primary.ActorIndex;
+                byte recipient = inputs.Packets.ReadContact(first + index).Primary.Recipient;
                 hierarchy = child.Hierarchy.Write(child.Address, child.Hierarchy.Read(child.Address).WriteByte(0x2D, recipient));
             }
         }

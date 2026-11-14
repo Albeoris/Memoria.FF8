@@ -73,7 +73,7 @@ public static class NativeBattleQuezacotl
         int sum = 0;
         for (int index = 0; index < count; index++)
         {
-            sum = unchecked(sum + readModelZ20(packets.ReadContact(first + index).Primary.ActorIndex));
+            sum = unchecked(sum + readModelZ20(packets.ReadContact(first + index).Primary.Recipient));
         }
         int average = sum / count;
         NativeBattleQuezacotlState state = new(seed, average, unchecked(average + 3690));

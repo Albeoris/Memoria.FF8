@@ -21,10 +21,10 @@ public static partial class NativeBattleSnipeLaser302Controller
             }
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
             byte ordinal = Read(frame, address).ReadByte(14);
-            if (ordinal <= Header(frame, packets).ReadByte(17))
+            if (ordinal <= Header(frame, packets).ReadRepeatModeMinusOne())
             {
-                int first = Header(frame, packets, ordinal).FirstContactIndex ?? throw new NotSupportedException("Snipe Laser requires its selected header's physical contact.");
-                uint target = ModelAddress(packets.ReadContact(first).Primary.ActorIndex);
+                BattleContactCursor first = Header(frame, packets, ordinal).FirstContact;
+                uint target = ModelAddress(packets.ReadContact(first).Primary.Recipient);
                 for (int index = 0; index < 2; index++)
                 {
                     (frame, uint main) = Append(frame, 0x25076B8, 0x66CD40);
@@ -274,10 +274,6 @@ public static partial class NativeBattleSnipeLaser302Controller
             throw new NotSupportedException("Snipe Laser requires its actual current parameter pointer.");
         }
         BattleActionHeaderReference index = Parameters(frame).Header.Advance(ordinal);
-        if ((uint)index >= packets.Headers.Length)
-        {
-            throw new NotSupportedException("Snipe Laser parameter header leaves its physical action arena.");
-        }
         return packets.ReadHeader(index);
     }
 }

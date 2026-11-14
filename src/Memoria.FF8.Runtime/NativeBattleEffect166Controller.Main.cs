@@ -175,7 +175,7 @@ public static partial class NativeBattleEffect166Controller
     {
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         NativeBattleActionHeaderSlot header = packets.ReadHeader(frame.Effect.Parameters!.Header);
-        int count = header.ReadByte(0x10);
+        int count = header.ReadContactCount();
         if (count == 0)
         {
             return -1;
@@ -183,7 +183,7 @@ public static partial class NativeBattleEffect166Controller
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Effect166 requires its current contact rows.");
         for (int index = 0; index < count; index++)
         {
-            if (packets.ReadContact(first + index).Primary.ActorIndex == actor)
+            if (packets.ReadContact(first + index).Primary.Recipient == actor)
             {
                 return index;
             }

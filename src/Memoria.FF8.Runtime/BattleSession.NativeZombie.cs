@@ -56,7 +56,7 @@ public sealed partial class BattleSession
                 pools = [pools[0], NativeBattleEffectTaskPool.Initialize(0x2521840, 0x20DFAB8, 0x710, 3)];
             }
             int action = root.ReadByte(14);
-            if (action <= nativeActionPackets.ReadHeader(parameters.Header).ReadByte(17))
+            if (action <= nativeActionPackets.ReadHeader(parameters.Header).ReadRepeatModeMinusOne())
             {
                 if (pools[1].Slots.Any(task => (task.Flags & 1) != 0 && Word(task, 12) <= 40))
                 {
@@ -64,8 +64,8 @@ public sealed partial class BattleSession
                 }
                 else if (pools[1].Slots.Any(task => (task.Flags & 1) == 0))
                 {
-                    int first = nativeActionPackets.ReadHeader(parameters.Header.Advance(action)).FirstContactIndex ?? throw new NotSupportedException("Native Zombie requires its original first action target.");
-                    byte model = nativeActionPackets.ReadContact(first).Primary.ActorIndex;
+                    BattleContactCursor first = nativeActionPackets.ReadHeader(parameters.Header.Advance(action)).FirstContact;
+                    byte model = nativeActionPackets.ReadContact(first).Primary.Recipient;
                     (pools[1], int slot) = pools[1].Append(0x6C9BC0);
                     NativeBattleModulePoolTask task = pools[1].Slots[slot].ClearPayload(0x704);
                     task = task.WriteWord(14, checked((ushort)action)).WriteDword(16, NativeBattleGraphicsModelAddress.Encode(model));

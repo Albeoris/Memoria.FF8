@@ -29,7 +29,7 @@ public static partial class NativeBattleGravija214Controller
                 NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, main + 0x30, 756);
                 workspace = workspace.Initialize7016B0(resources.Programme, 756);
                 NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, main + 0x30, workspace);
-                int count = Header(frame, inputs.ReadPackets(frame)).ReadByte(16);
+                int count = Header(frame, inputs.ReadPackets(frame)).ReadContactCount();
                 if (count == 0 || count > 5)
                 {
                     throw new NotSupportedException("Gravija's recipient mean requires one to five physical contact records.");
@@ -39,7 +39,7 @@ public static partial class NativeBattleGravija214Controller
                 {
                     NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
                     int first = Header(frame, packets).FirstContactIndex ?? throw new NotSupportedException("Gravija requires its current contact pointer.");
-                    uint model = ModelAddress(packets.ReadContact(checked(first + index)).Primary.ActorIndex);
+                    uint model = ModelAddress(packets.ReadContact(checked(first + index)).Primary.Recipient);
                     frame = Write(frame, main, Read(frame, main).WriteDword(0x14 + index * 4, model));
                     NativeBattleGravija214PointStep anchor = inputs.ReadAnchor571400(frame, model);
                     frame = anchor.Frame;
@@ -197,10 +197,6 @@ public static partial class NativeBattleGravija214Controller
             throw new NotSupportedException("Gravija requires its actual current parameter pointer.");
         }
         BattleActionHeaderReference index = Parameters(frame).Header;
-        if ((uint)index >= packets.Headers.Length)
-        {
-            throw new NotSupportedException("Gravija parameter header leaves its physical action arena.");
-        }
         return packets.ReadHeader(index);
     }
 }

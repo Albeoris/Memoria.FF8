@@ -16,7 +16,7 @@ public sealed record NativeBattleEffect209Inputs(NativeBattleSummonColors Colors
 public abstract record NativeBattleEffect209Operation;
 public sealed record NativeBattleEffect209RegisterCamera5099A0(uint SourceAddress) : NativeBattleEffect209Operation;
 public sealed record NativeBattleEffect209UploadTim505E30(uint SourceAddress) : NativeBattleEffect209Operation;
-public sealed record NativeBattleEffect209ModelFlags(int Actor, ushort AndMask, ushort OrMask, bool WordWidth) : NativeBattleEffect209Operation;
+public sealed record NativeBattleEffect209ModelFlags(BattleModelOwner Actor, ushort AndMask, ushort OrMask, bool WordWidth) : NativeBattleEffect209Operation;
 public sealed record NativeBattleEffect209QueueVariant50E3A0(uint BufferAddress) : NativeBattleEffect209Operation;
 public sealed record NativeBattleEffect209RebuildVariant50E3C0(uint BufferAddress) : NativeBattleEffect209Operation;
 public sealed record NativeBattleEffect209Stage5713E0(int Intensity, uint Color) : NativeBattleEffect209Operation;

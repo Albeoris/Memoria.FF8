@@ -21,13 +21,13 @@ public static partial class NativeBattleBoomerangSword304Controller
             {
                 frame = ClearDwords701200(frame, main + 12, 40);
                 NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-                int count = Header(frame, packets).ReadByte(16);
+                int count = Header(frame, packets).ReadContactCount();
                 frame = Write(frame, main, Read(frame, main).WriteWord(14, checked((ushort)count)));
                 for (int index = 0; index < count; index++)
                 {
                     packets = inputs.ReadPackets(frame);
                     int first = Header(frame, packets).FirstContactIndex ?? throw new NotSupportedException("Boomerang Sword requires its current physical contacts.");
-                    frame = Write(frame, main, Read(frame, main).WriteDword(32 + index * 4, ModelAddress(packets.ReadContact(first + index).Primary.ActorIndex)));
+                    frame = Write(frame, main, Read(frame, main).WriteDword(32 + index * 4, ModelAddress(packets.ReadContact(first + index).Primary.Recipient)));
                 }
                 for (int left = 0; left < count - 1; left++)
                 {
@@ -271,12 +271,12 @@ public static partial class NativeBattleBoomerangSword304Controller
         {
             throw new InvalidDataException("Boomerang Sword contact matcher requires a physical graphics model.");
         }
-        for (int index = 0; index < Header(frame, inputs.ReadPackets(frame)).ReadByte(16); index++)
+        for (int index = 0; index < Header(frame, inputs.ReadPackets(frame)).ReadContactCount(); index++)
         {
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
             int first = Header(frame, packets).FirstContactIndex ?? throw new NotSupportedException("Boomerang Sword requires its current physical contact base.");
             int physical = checked(first + index);
-            if (packets.ReadContact(physical).Primary.ActorIndex == actor)
+            if (packets.ReadContact(physical).Primary.Recipient == actor)
             {
                 frame = inputs.Execute(frame, new NativeBattleBoomerangSword304Contact506690(physical));
             }
@@ -333,10 +333,6 @@ public static partial class NativeBattleBoomerangSword304Controller
             throw new NotSupportedException("Boomerang Sword requires its actual current parameter pointer.");
         }
         BattleActionHeaderReference index = Parameters(frame).Header;
-        if ((uint)index >= packets.Headers.Length)
-        {
-            throw new NotSupportedException("Boomerang Sword parameter header leaves its physical action arena.");
-        }
         return packets.ReadHeader(index);
     }
 }

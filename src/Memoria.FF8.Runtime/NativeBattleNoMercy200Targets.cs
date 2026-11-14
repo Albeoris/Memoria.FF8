@@ -64,7 +64,7 @@ public static partial class NativeBattleNoMercy200Controller
                     int first = header.FirstContactIndex ?? throw new NotSupportedException("Native No Mercy requires its actual grouped contact pointer.");
                     for (int index = 0; index < count; index++)
                     {
-                        Spawn(inputs.Packets.ReadContact(checked(first + index)).Primary.ActorIndex, 3);
+                        Spawn(inputs.Packets.ReadContact(checked(first + index)).Primary.Recipient, 3);
                     }
                 }
             }
@@ -120,8 +120,8 @@ public static partial class NativeBattleNoMercy200Controller
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(12, 0).WriteWord(14, unchecked((ushort)relative)).WriteWord(34, 0);
         if (single)
         {
-            int first = header.FirstContactIndex ?? throw new NotSupportedException("Native No Mercy single target requires its original first contact pointer.");
-            task = task.WriteWord(32, packets.ReadContact(first).Primary.ActorIndex);
+            BattleContactCursor first = header.FirstContact;
+            task = task.WriteWord(32, packets.ReadContact(first).Primary.Recipient);
         }
         return pool.WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, pool.Slots[slot].Next, task.Callback));
     }

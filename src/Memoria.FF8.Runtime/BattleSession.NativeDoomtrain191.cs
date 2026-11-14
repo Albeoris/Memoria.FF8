@@ -168,9 +168,9 @@ public sealed partial class BattleSession
             {
                 NativeBattleEffectParameters parameters = current.Effect.Parameters!;
                 NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(parameters.Header);
-                int count = header.ReadByte(0x10);
+                int count = header.ReadContactCount();
                 int first = count == 0 ? 0 : header.FirstContactIndex ?? throw new NotSupportedException("Native Doomtrain knockback requires its actual current contact pointer.");
-                ImmutableArray<int> actors = Enumerable.Range(first, count).Select(index => (int)nativeActionPackets.ReadContact(index).Primary.ActorIndex).ToImmutableArray();
+                ImmutableArray<int> actors = Enumerable.Range(first, count).Select(index => (int)nativeActionPackets.ReadContact(index).Primary.Recipient).ToImmutableArray();
                 return NativeBattleDoomtrain191Knockback.Spawn646AA0(current, actors, ReadCentroid(parameters.TargetActors), KnockbackServices());
             }
             if (address == 0x6437F0)
@@ -427,7 +427,7 @@ public sealed partial class BattleSession
                     return current with { Memory = current.Memory with { Textures = textures } };
                 case NativeBattleDoomtrain191Contacts:
                     NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(current.Effect.Parameters!.Header);
-                    int count = header.ReadByte(0x10);
+                    int count = header.ReadContactCount();
                     if (count > 0)
                     {
                         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Doomtrain requires its actual contact pointer.");

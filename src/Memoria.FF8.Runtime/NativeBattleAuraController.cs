@@ -49,10 +49,10 @@ public static class NativeBattleAuraController
                 pools = [pools[0], NativeBattleEffectTaskPool.Initialize(0x25219A8, 0x20DFAB8, 0x360, 3), NativeBattleEffectTaskPool.Initialize(0x2521998, 0x20DFAB8 + 0xA20, 0x20, 32)];
             }
             int action = root.ReadByte(14);
-            if (action <= inputs.Packets.ReadHeader(parameters.Header).ReadByte(17))
+            if (action <= inputs.Packets.ReadHeader(parameters.Header).ReadRepeatModeMinusOne())
             {
-                int first = inputs.Packets.ReadHeader(parameters.Header.Advance(action)).FirstContactIndex ?? throw new NotSupportedException("Native Aura requires its action's actual first target.");
-                byte model = inputs.Packets.ReadContact(first).Primary.ActorIndex;
+                BattleContactCursor first = inputs.Packets.ReadHeader(parameters.Header.Advance(action)).FirstContact;
+                byte model = inputs.Packets.ReadContact(first).Primary.Recipient;
                 uint pointer = NativeBattleGraphicsModelAddress.Encode(model);
                 if (pools[1].Slots.Any(task => (task.Flags & 1) != 0 && task.ReadDword(16) == pointer && Word(task, 12) <= 28))
                 {

@@ -26,7 +26,7 @@ public sealed partial class BattleSession
             short z = 0;
             foreach (NativeBattleContactPacket contact in contacts)
             {
-                NativeBattleVector point = owner.ReadNativeDefaultPosition571400(graphics, contact.Primary.ActorIndex);
+                NativeBattleVector point = owner.ReadNativeDefaultPosition571400(graphics, contact.Primary.Recipient);
                 x = unchecked((short)(x + point.X));
                 y = unchecked((short)(y + point.Y));
                 z = unchecked((short)(z + point.Z));
@@ -57,7 +57,7 @@ public sealed partial class BattleSession
             if (age == 0)
             {
                 NativeBattleVector point = Average(action);
-                task = task.WriteWord(16, unchecked((ushort)point.X)).WriteWord(18, 0).WriteWord(20, unchecked((ushort)point.Z)).WriteWord(22, unchecked((ushort)-1700)).WriteWord(32, Contacts(action)[0].Primary.ActorIndex).WriteWord(34, 0);
+                task = task.WriteWord(16, unchecked((ushort)point.X)).WriteWord(18, 0).WriteWord(20, unchecked((ushort)point.Z)).WriteWord(22, unchecked((ushort)-1700)).WriteWord(32, Contacts(action)[0].Primary.Recipient).WriteWord(34, 0);
                 NativeVibrationProcessState process = owner.NativeVibrationProcess ?? throw new NotSupportedException("Native Ultima requires its current vibration process.");
                 NativeVibrationEnqueue queued = process.Enqueue(resources.Vibration, 1, 128);
                 owner.NativeVibrationProcess = queued.State;
@@ -100,7 +100,7 @@ public sealed partial class BattleSession
             {
                 SpawnSideFade(task, true, 8);
             }
-            int last = Header(0).ReadByte(17);
+            int last = Header(0).ReadRepeatModeMinusOne();
             if (action == 0 && age <= 24)
             {
                 Stage(age == 24 ? null : age * 170, age == 24 ? false : null);

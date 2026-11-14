@@ -11,23 +11,23 @@ internal sealed record NativeBattleModelActorFacts(string ActorId, bool IsParty,
 
 internal abstract record NativeBattlePresentationReceipt;
 internal sealed record NativeBattlePresentationContactReceived(NativeBattleContactPacket Packet) : NativeBattlePresentationReceipt;
-internal sealed record NativeBattlePresentationCompletionRequested(long Token, uint Callback, int Row, string ActorId) : NativeBattlePresentationReceipt;
+internal sealed record NativeBattlePresentationCompletionRequested(long Token, uint Callback, BattleModelOwner Owner, string ActorId) : NativeBattlePresentationReceipt;
 internal sealed record NativeBattlePresentationSoundCommitted(NativeBattleModuleSound Sound, string? ActorId, NativeBattleSequenceSound? Sequence) : NativeBattlePresentationReceipt;
 internal sealed record NativeBattlePresentationMusicCommandCommitted(NativeBattleMusicCommandReceipt Command) : NativeBattlePresentationReceipt;
-internal abstract record NativeBattleModelLifecycleReceipt(int Row, string ActorId) : NativeBattlePresentationReceipt;
-internal sealed record NativeBattleModelParticipantReleased(int Row, string ActorId) : NativeBattleModelLifecycleReceipt(Row, ActorId);
-internal sealed record NativeBattleModelParticipantSuspended(int Row, string ActorId, byte Sequence) : NativeBattleModelLifecycleReceipt(Row, ActorId)
+internal abstract record NativeBattleModelLifecycleReceipt(BattleModelOwner Owner, string ActorId) : NativeBattlePresentationReceipt;
+internal sealed record NativeBattleModelParticipantReleased(BattleModelOwner Owner, string ActorId) : NativeBattleModelLifecycleReceipt(Owner, ActorId);
+internal sealed record NativeBattleModelParticipantSuspended(BattleModelOwner Owner, string ActorId, byte Sequence) : NativeBattleModelLifecycleReceipt(Owner, ActorId)
 {
     internal NativeBattleActionHeaderSlot? ActiveHeader { get; init; }
 }
-internal sealed record NativeBattleModelTextPublished(int Row, string ActorId, string Text, int Value, BattleTextIdentity? TextIdentity) : NativeBattleModelLifecycleReceipt(Row, ActorId);
-internal sealed record NativeBattleModelTriggerRegistered(int Row, string ActorId, NativeBattleTriggerWidget Widget) : NativeBattleModelLifecycleReceipt(Row, ActorId);
+internal sealed record NativeBattleModelTextPublished(BattleModelOwner Owner, string ActorId, string Text, int Value, BattleTextIdentity? TextIdentity) : NativeBattleModelLifecycleReceipt(Owner, ActorId);
+internal sealed record NativeBattleModelTriggerRegistered(BattleModelOwner Owner, string ActorId, NativeBattleTriggerWidget Widget) : NativeBattleModelLifecycleReceipt(Owner, ActorId);
 
-internal sealed class NativeBattleModelLifecycleServices(ImmutableArray<NativeBattleModelActorFacts?> facts)
+internal sealed class NativeBattleModelLifecycleServices(ImmutableDictionary<BattleModelOwner, NativeBattleModelActorFacts> facts)
 {
     private readonly ImmutableArray<NativeBattlePresentationReceipt>.Builder receipts = ImmutableArray.CreateBuilder<NativeBattlePresentationReceipt>();
 
-    internal ImmutableArray<NativeBattleModelActorFacts?> Facts { get; } = facts;
+    internal ImmutableDictionary<BattleModelOwner, NativeBattleModelActorFacts> Facts { get; } = facts ?? throw new ArgumentNullException(nameof(facts));
     internal ImmutableDictionary<string, float>? ActorOpacities { get; init; }
 
     internal ImmutableArray<NativeBattleModelLifecycleReceipt> ReadReceipts() => receipts.OfType<NativeBattleModelLifecycleReceipt>().ToImmutableArray();
@@ -43,22 +43,30 @@ internal sealed class NativeBattleModelLifecycleServices(ImmutableArray<NativeBa
 
     internal void Validate(BattleModelRoster roster, NativeBattleGraphicsState graphics)
     {
-        if (graphics.Models.IsDefault || graphics.Models.Length != roster.ActorCount ||
-            graphics.ActorIds.IsDefault || graphics.ActorIds.Length != roster.ActorCount ||
-            Facts.IsDefault || Facts.Length != roster.ActorCount)
+        ArgumentNullException.ThrowIfNull(roster);
+        ArgumentNullException.ThrowIfNull(graphics);
+        if (Facts.Count != roster.Count)
         {
-            throw new InvalidDataException("Hosted model lifecycle requires graphics and actor facts for its complete roster.");
+            throw new InvalidDataException("Hosted model lifecycle requires actor facts for its complete planned roster.");
         }
-        for (int row = 0; row < roster.ActorCount; row++)
+        foreach (BattleModelOwner owner in roster.Owners)
         {
-            BattleModelOwner? actor = roster.Rows[row];
-            NativeBattleModelActorFacts? fact = Facts[row];
-            if (graphics.ActorModels.Get(row) is not { } model || model.Index != row ||
-                !StringComparer.Ordinal.Equals(graphics.ActorIds[row], actor?.ActorId) ||
-                !StringComparer.Ordinal.Equals(fact?.ActorId, actor?.ActorId) ||
-                fact?.IsParty != actor?.IsParty)
+            (string actorId, bool isParty) = owner switch
             {
-                throw new InvalidDataException("Hosted model lifecycle graphics and actor facts must match their bound roster row.");
+                BattlePartyActorModel party => (party.Actor.ActorId, true),
+                BattleEnemyActorModel enemy => (enemy.Actor.ActorId, false),
+                _ => throw new InvalidDataException("A foreign model owner cannot supply hosted logical actor facts.")
+            };
+            if (!Facts.TryGetValue(owner, out NativeBattleModelActorFacts? fact) || fact is null || !StringComparer.Ordinal.Equals(fact.ActorId, actorId) || fact.IsParty != isParty)
+            {
+                throw new InvalidDataException("Hosted model lifecycle actor facts must match the planned model owner.");
+            }
+        }
+        foreach (BattleModelOwner owner in graphics.ActorModels.Owners)
+        {
+            if (!roster.Contains(owner))
+            {
+                throw new InvalidDataException("Hosted model lifecycle graphics contains a model outside the planned roster.");
             }
         }
     }

@@ -6,7 +6,7 @@ public sealed partial class BattleSession
     {
         context = context with { ActorSelector56 = 255 };
         graphics = graphics with { ActionGraphics = context };
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[context.HeaderIndex];
+        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[context.Header];
         if (phase == 0)
         {
             if (graphics.Models.Any(model => (model.Flags0 & 2) != 0 && NativeBattleActionGraphics.IsModelBusy(model, 0x40)) || NativeOriginalSoundBusy())

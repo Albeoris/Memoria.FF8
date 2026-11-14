@@ -44,7 +44,7 @@ public sealed partial class BattleSession
             return current with { Memory = observed, Staging = NativeFileStaging };
         }
 
-        NativeBattleBeamLaser134PointStep Bone(NativeBattleBeamLaser134Frame current, int actor, byte selector, short distance)
+        NativeBattleBeamLaser134PointStep Bone(NativeBattleBeamLaser134Frame current, BattleModelOwner actor, byte selector, short distance)
         {
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(actor), selector, distance);
             current = ObserveBone(current, producer);
@@ -54,7 +54,7 @@ public sealed partial class BattleSession
 
         uint Morph(NativeBattleBeamLaser134Frame current) => checked(current.State.ReadDword(NativeBattleBeamLaser134Profile.WorkingGlobal) + 0xC60);
 
-        NativeBattleBeamLaser134AnchorStep Anchor(NativeBattleBeamLaser134Frame current, int actor)
+        NativeBattleBeamLaser134AnchorStep Anchor(NativeBattleBeamLaser134Frame current, BattleModelOwner actor)
         {
             if ((graphics.ActorModels.Get(actor).Flags0 & 2) != 0)
             {

@@ -5,7 +5,7 @@ public sealed partial class BattleSession
     private bool CanSkipOrdinaryGuardianAnimation => NativeGraphics is { GuardianAnimationSkip: null, OriginalEffect: { ReturnedDescriptor: > 0 } effect, ActionGraphics: { } context }
         && ActiveAction is { NativeQueuedCommand: 254, GuardianFormInvocation: null }
         && NativeBattleGuardianAnimationFinale.IsSupported(effect.Binding.Effect)
-        && nativeActionPackets.Headers[context.HeaderIndex].ReadByte(1) == 254;
+        && nativeActionPackets.Headers[context.Header].ReadByte(1) == 254;
 
     private bool SkippingOrdinaryGuardianAnimation
     {

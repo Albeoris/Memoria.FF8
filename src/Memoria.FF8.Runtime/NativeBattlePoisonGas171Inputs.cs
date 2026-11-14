@@ -20,7 +20,7 @@ public abstract record NativeBattlePoisonGas171Operation
 public sealed record NativeBattlePoisonGas171Stage5713E0(int Value, uint Flags) : NativeBattlePoisonGas171Operation;
 public sealed record NativeBattlePoisonGas171Sound501330(uint Packed, uint Flags, int Pan) : NativeBattlePoisonGas171Operation;
 public sealed record NativeBattlePoisonGas171Contacts506BA0(int HeaderIndex) : NativeBattlePoisonGas171Operation;
-public sealed record NativeBattlePoisonGas171ActorFlags(int Actor, ushort ClearMask, ushort SetMask) : NativeBattlePoisonGas171Operation;
+public sealed record NativeBattlePoisonGas171ActorFlags(BattleModelOwner Actor, ushort ClearMask, ushort SetMask) : NativeBattlePoisonGas171Operation;
 public sealed record NativeBattlePoisonGas171DrawBody176(int Actor, uint TemporaryAddress) : NativeBattlePoisonGas171Operation;
 public sealed record NativeBattlePoisonGas171DrawStatic88(uint TemporaryAddress, uint SourceAddress, int TableBaseBucket = 17, int DepthShift = 4) : NativeBattlePoisonGas171Operation;
 public sealed record NativeBattlePoisonGas171DrawSprite180(uint TemporaryAddress, uint SourceAddress, int TableBaseBucket = 17, int DepthShift = 2) : NativeBattlePoisonGas171Operation;

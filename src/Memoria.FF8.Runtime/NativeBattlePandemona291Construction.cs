@@ -20,7 +20,7 @@ public static class NativeBattlePandemona291Construction
             throw new NotSupportedException("Native Pandemona requires its current action parameters.");
         }
         ImmutableArray<NativeBattleContactPacket> contacts = packets.ReadHeaderContacts506BA0(parameters.Header);
-        if (!roster.ContainsRow(parameters.Source) || contacts.IsEmpty || contacts.Any(contact => !roster.ContainsRow(contact.Primary.ActorIndex)))
+        if (!roster.ContainsRow(parameters.Source) || contacts.IsEmpty || contacts.Any(contact => !roster.ContainsRow(contact.Primary.Recipient)))
         {
             throw new InvalidDataException("Hosted Pandemona requires a bound caster and at least one bound recipient model row.");
         }
@@ -56,11 +56,11 @@ public static class NativeBattlePandemona291Construction
         WriteDword(child + 0x102C, unchecked(buffer + (uint)child + 0x42C));
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Pandemona construction requires its action header.");
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header);
-        int count = header.ReadByte(0x10);
+        int count = header.ReadContactCount();
         int first = count == 0 ? 0 : header.FirstContactIndex ?? throw new NotSupportedException("Native Pandemona construction requires its actual contact array.");
         for (int index = 0; index < count; index++)
         {
-            int actorIndex = inputs.Packets.ReadContact(first + index).Primary.ActorIndex;
+            int actorIndex = inputs.Packets.ReadContact(first + index).Primary.Recipient;
             NativeBattleGraphicsModel actor = inputs.ReadModel(actorIndex);
             NativeBattleModelTransform transform = actor.Transform ?? throw new NotSupportedException("Native Pandemona target requires its current position and scale.");
             int record = child + 0x14 + index * 32;

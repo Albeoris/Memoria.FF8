@@ -132,7 +132,7 @@ public sealed partial class BattleSession
             {
                 for (int index = 0; index < header.ReadContactCount(); index++)
                 {
-                    int actor = nativeActionPackets.ReadContact(firstContact + index).Primary.ActorIndex;
+                    int actor = nativeActionPackets.ReadContact(firstContact + index).Primary.Recipient;
                     (children, int slot) = children.Append(0x5E2430);
                     NativeBattleVector point = ReadNativeGraphicsBone(graphics, actor, 0xF1, 0);
                     point = point with { Y = (graphics.ActorModels.Get(actor).GeometryBounds52 ?? throw new NotSupportedException("Native Sleeping Gas requires its actual modelWORD3C bounds value.")).Maximum.Y };

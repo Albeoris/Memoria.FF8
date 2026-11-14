@@ -38,7 +38,7 @@ public static partial class NativeBattleDuel112Target
             short yaw = drawing.Actor.ReadModel(actor).Rotation14 ?? throw new NotSupportedException("Native Duel final particles require the actual actor yaw.");
             frame = NativeBattleDuel112Births.Late6CBF90(frame, slot, yaw);
             task = frame.Effect.Pools[1].Slots[slot];
-            int target = ModelIndex(task.ReadDword(176));
+            BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(176, 4).Owner;
             NativeBattleGraphicsModel model = drawing.Actor.ReadModel(target);
             short scale = model.Transform?.Scale38 ?? throw new NotSupportedException("Native Duel contact requires its actual target scale.");
             if (elapsed == (scale < 3072 ? 50 : 45))

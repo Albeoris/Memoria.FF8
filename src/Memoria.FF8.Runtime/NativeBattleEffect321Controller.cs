@@ -17,8 +17,8 @@ public static partial class NativeBattleEffect321Controller
         int offset = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Effect321 requires its executed texture initializer.");
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect321 requires its actual parameters.");
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-        int first = CurrentHeader(frame, packets).FirstContactIndex ?? throw new NotSupportedException("Effect321 requires its actual first contact pointer.");
-        frame = frame with { State = frame.State.WriteDword(InitializerGlobal, checked(CommonAddress + (uint)offset)).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, parameters.Source).WriteDword(TargetGlobal, packets.ReadContact(first).Primary.ActorIndex) };
+        BattleContactCursor first = CurrentHeader(frame, packets).FirstContact;
+        frame = frame with { State = frame.State.WriteDword(InitializerGlobal, checked(CommonAddress + (uint)offset)).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, parameters.Source).WriteDword(TargetGlobal, packets.ReadContact(first).Primary.Recipient) };
         NativeBattleEffectTaskPool root = CreatePool(frame, Pools[0]);
         NativeBattleEffectTaskPool child = CreatePool(frame, Pools[1]);
         frame = frame with { State = frame.State.DetachBank(RootBank).DetachBank(ChildBank), Effect = frame.Effect with { Pools = [root, child], ReturnedDescriptor = RootDescriptor } };

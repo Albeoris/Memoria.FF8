@@ -45,7 +45,7 @@ public sealed partial class BattleSession
             return current with { Memory = latest, State = latest.Effect70 ?? throw new InvalidDataException("Effect70 service lost its storage."), Random = nativeCrtRandom ?? throw new InvalidDataException("Effect70 service lost its CRT stream."), Staging = NativeFileStaging ?? throw new InvalidDataException("Effect70 service lost its addressed memory.") };
         }
 
-        NativeBattleEffect70PointStep Anchor(NativeBattleEffect70Frame current, int actor)
+        NativeBattleEffect70PointStep Anchor(NativeBattleEffect70Frame current, BattleModelOwner actor)
         {
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) != 0)

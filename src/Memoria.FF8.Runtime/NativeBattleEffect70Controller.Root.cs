@@ -100,10 +100,6 @@ public static partial class NativeBattleEffect70Controller
     {
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         BattleActionHeaderReference headerIndex = Parameters(frame).Header;
-        if ((uint)headerIndex >= packets.Headers.Length)
-        {
-            throw new InvalidDataException("Effect70 selected an absent physical action header.");
-        }
         NativeBattleActionHeaderSlot header = packets.ReadHeader(headerIndex);
         int count = header.ReadContactCount();
         frame = Write(frame, main, Read(frame, main).WriteWord(14, (ushort)count));
@@ -112,7 +108,7 @@ public static partial class NativeBattleEffect70Controller
         for (int index = 0; index < count; index++)
         {
             int first = header.FirstContactIndex ?? throw new NotSupportedException("Effect70 requires its actual current contact pointer.");
-            int actor = packets.ReadContact(checked(first + index)).Primary.ActorIndex;
+            int actor = packets.ReadContact(checked(first + index)).Primary.Recipient;
             uint record = checked(main + 0x14 + (uint)index * 24);
             frame = PutDword(frame, record, PhysicalModelAddress(actor));
             frame = WriteBytes(frame, record + 4, (inputs.ReadPosition8 ?? throw new NotSupportedException("Effect70 requires actual packed model position bytes."))(frame, actor), 8);

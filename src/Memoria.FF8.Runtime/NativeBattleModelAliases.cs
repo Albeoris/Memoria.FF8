@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
@@ -26,6 +27,48 @@ public sealed class NativeBattleModelAliases
     }
 
     internal BattleModelRoster Roster { get; }
+
+    internal ImmutableArray<byte>? EncodeOperand(BattleModelOwner owner, int width)
+    {
+        if (width is not (1 or 2 or 4))
+        {
+            throw new ArgumentOutOfRangeException(nameof(width), width, "A native model operand occupies one, two or four bytes.");
+        }
+        RequireBound(owner);
+        if (!TryEncodeExact(owner, out byte operand))
+        {
+            return null;
+        }
+        ImmutableArray<byte> bytes = width switch
+        {
+            1 => [operand],
+            2 => [operand, 0],
+            _ => [operand, 0, 0, 0]
+        };
+        return bytes;
+    }
+
+    internal ImmutableArray<byte>? EncodeAddress(BattleModelOwner owner)
+    {
+        RequireBound(owner);
+        if (!TryEncodeExact(owner, out byte operand))
+        {
+            return null;
+        }
+        uint address = NativeBattleGraphicsModelAddress.EncodeOriginalCell(NativeBattleModelSlot.Decode(operand));
+        Span<byte> bytes = stackalloc byte[sizeof(uint)];
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes, address);
+        ImmutableArray<byte> encoded = [.. bytes];
+        return encoded;
+    }
+
+    private void RequireBound(BattleModelOwner owner)
+    {
+        if (owner is null || !Roster.Contains(owner))
+        {
+            throw new InvalidDataException("A native model encoding requires an owner bound to this writer's roster.");
+        }
+    }
 
     internal bool TryEncodeExact(BattleModelOwner owner, out byte operand)
     {

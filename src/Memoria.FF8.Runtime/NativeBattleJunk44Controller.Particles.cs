@@ -83,7 +83,7 @@ public static partial class NativeBattleJunk44Controller
                 return frame;
             }
             int index = checked((header.FirstContactIndex ?? throw new NotSupportedException("Junk requires its actual physical contact base.")) + ordinal);
-            if (packets.ReadContact(index).Primary.ActorIndex == actor)
+            if (packets.ReadContact(index).Primary.Recipient == actor)
             {
                 frame = inputs.Execute(frame, new NativeBattleJunk44Contact506690(index));
             }

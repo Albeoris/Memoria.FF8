@@ -22,7 +22,7 @@ public sealed partial class BattleSession
         }
         if (variable is 53 or 54)
         {
-            int target = (graphics.ActionContext ?? throw new NotSupportedException("Native target bone query requires its50D300 target identity.")).TargetIndex ?? throw new NotSupportedException("Native target bone query requires its physical target identity.");
+            int target = (graphics.ActionContext ?? throw new NotSupportedException("Native target bone query requires its50D300 target identity.")).Target ?? throw new NotSupportedException("Native target bone query requires its physical target identity.");
             NativeBattleVector bone = ReadNativeGraphicsBone(graphics, target, variable == 53 ? (byte)241 : (byte)240, 2048);
             NativeBattleModelTransform transform = graphics.ActorModels.Get(target).Transform ?? throw new NotSupportedException("Native target bone query requires its target position WORD30.");
             return bone.Y - transform.Position28.Y;

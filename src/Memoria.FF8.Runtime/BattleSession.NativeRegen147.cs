@@ -32,8 +32,8 @@ public sealed partial class BattleSession
         NativeBattleEffectTaskPool tasks = RegenPool(state.Storage, 0x2476688, 0x2476698, 0x24, 100);
         (tasks, int first) = tasks.Append(0x614350);
         NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters.Header);
-        int contact = header.FirstContactIndex ?? throw new InvalidDataException("Native Regen requires its first contact.");
-        byte actor = nativeActionPackets.ReadContact(contact).Primary.ActorIndex;
+        BattleContactCursor contact = header.FirstContact;
+        byte actor = nativeActionPackets.ReadContact(contact).Primary.Recipient;
         tasks = tasks.WriteSlot(first, tasks.Slots[first].WriteWord(12, 0).WriteWord(14, 0).WriteWord(32, actor));
         state = state with { Storage = RegenDword(RegenDword(state.Storage, 0, actor), 0xE4C, effect.Parameters.Source) };
         NativeEffectMemory = memory with { Regen147 = state };
@@ -179,11 +179,11 @@ public sealed partial class BattleSession
                 int contact = nativeActionPackets.ReadHeader(effect.Parameters!.Header.Advance(action)).FirstContactIndex!.Value;
                 graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact)] });
                 int next = action + 1;
-                if (next <= nativeActionPackets.ReadHeader(effect.Parameters.Header).ReadByte(17))
+                if (next <= nativeActionPackets.ReadHeader(effect.Parameters.Header).ReadRepeatModeMinusOne())
                 {
                     (int slot, NativeBattleModulePoolTask child) = Add(0x614350);
                     int first = nativeActionPackets.ReadHeader(effect.Parameters.Header.Advance(next)).FirstContactIndex!.Value;
-                    child = W(W(W(child, 12, 0), 14, next), 32, nativeActionPackets.ReadContact(first).Primary.ActorIndex);
+                    child = W(W(W(child, 12, 0), 14, next), 32, nativeActionPackets.ReadContact(first).Primary.Recipient);
                     Set(slot, child);
                 }
             }

@@ -77,7 +77,7 @@ public sealed partial class BattleSession
         InitializeEffectPresentationServices(parameters);
         graphics = NativeGraphics!;
         NativeBattleActionGraphicsState context = graphics.ActionGraphics ?? throw new InvalidDataException("The direct presentation phase lost its normalized source service.");
-        if (context.Callback != callback || context.ActorIndex != parameters.Source || context.TargetMask != parameters.TargetActors)
+        if (context.Callback != callback || context.Actor != parameters.Source || context.TargetMask != parameters.TargetActors)
         {
             throw new InvalidDataException("The direct presentation parameters contradict their physical source header.");
         }

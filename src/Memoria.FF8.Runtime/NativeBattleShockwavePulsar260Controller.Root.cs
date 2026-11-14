@@ -134,10 +134,6 @@ public static partial class NativeBattleShockwavePulsar260Controller
         frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260BindCaster(caster, mainAddress + 0x178, 0x111B3CC));
         frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260RingSequence(caster, 1));
         NativeBattleEffectParameters parameters = RootParameters(frame);
-        if ((uint)parameters.Header >= inputs.Packets.Headers.Length)
-        {
-            throw new InvalidDataException("Shockwave Pulsar requires its selected physical action header.");
-        }
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header);
         inputs.SceneContext.Validate();
         int count = inputs.SceneContext.TargetBoundsMode == NativeBattleTargetBoundsMode.FirstContact ? 1 : header.ReadContactCount();
@@ -148,7 +144,7 @@ public static partial class NativeBattleShockwavePulsar260Controller
         for (int index = 0; index < count; index++)
         {
             int first = header.FirstContactIndex ?? throw new NotSupportedException("Shockwave Pulsar requires its physical target-contact pointer.");
-            int actor = inputs.Packets.ReadContact(checked(first + index)).Primary.ActorIndex;
+            int actor = inputs.Packets.ReadContact(checked(first + index)).Primary.Recipient;
             _ = RootModelAddress(actor);
             actors.Add(actor);
             uint record = checked(mainAddress + 0x10 + (uint)(index * 0x24));

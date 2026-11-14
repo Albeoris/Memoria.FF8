@@ -37,7 +37,7 @@ public sealed partial class BattleSession
             return current with { Memory = latest, State = latest.Effect166 ?? throw new InvalidDataException("Effect166 service lost its storage."), Random = nativeCrtRandom ?? throw new InvalidDataException("Effect166 service lost its CRT stream."), Staging = NativeFileStaging ?? throw new InvalidDataException("Effect166 service lost its addressed memory.") };
         }
 
-        NativeBattlePackedMatrix32 ReadBone(NativeBattleEffect166Frame current, int actor, int selector)
+        NativeBattlePackedMatrix32 ReadBone(NativeBattleEffect166Frame current, BattleModelOwner actor, int selector)
         {
             NativeFileStaging = current.Staging;
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect166 requires its current caster skeleton.");
@@ -49,7 +49,7 @@ public sealed partial class BattleSession
             return NativeBattlePackedMatrix32.FromMatrix(bones[selector], null);
         }
 
-        NativeBattleEffect166PointStep Anchor(NativeBattleEffect166Frame current, int actor, NativeBattleEffectArena retained)
+        NativeBattleEffect166PointStep Anchor(NativeBattleEffect166Frame current, BattleModelOwner actor, NativeBattleEffectArena retained)
         {
             NativeFileStaging = current.Staging;
             if ((graphics.ActorModels.Get(actor).Flags0 & 2) != 0)

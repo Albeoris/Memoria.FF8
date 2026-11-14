@@ -38,7 +38,7 @@ public static class NativeBattleBlizzagaController
             throw new InvalidDataException("Native Blizzaga requires its original6D6310 entry, action parameters and resources.");
         }
         BattleActionHeaderReference first = effect.Parameters.Header;
-        int last = packets.ReadHeader(first).ReadByte(17);
+        int last = packets.ReadHeader(first).ReadRepeatModeMinusOne();
         if (last >= 3 || first + last >= NativeBattleActionPacketsState.HeaderCapacity)
         {
             throw new NotSupportedException("Native Blizzaga owns three header-indexed geometry clones.");
@@ -70,7 +70,7 @@ public static class NativeBattleBlizzagaController
             Require(task, 0x6D6400);
             int? hostedActor = null;
             uint? hostedAddress = null;
-            if (inputs.Packets.PresentationRoster is { } roster && Word(task, 12) == 1 && task.ReadByte(14) <= Header(0).ReadByte(17))
+            if (inputs.Packets.PresentationRoster is { } roster && Word(task, 12) == 1 && task.ReadByte(14) <= Header(0).ReadRepeatModeMinusOne())
             {
                 hostedActor = ReadActor(task.ReadByte(14));
                 hostedAddress = ActorAddress(hostedActor.Value, roster);
@@ -95,7 +95,7 @@ public static class NativeBattleBlizzagaController
             }
             bool completionAllowed = true;
             int sequence = task.ReadByte(14);
-            if (Word(task, 12) == 1 && sequence <= Header(0).ReadByte(17))
+            if (Word(task, 12) == 1 && sequence <= Header(0).ReadRepeatModeMinusOne())
             {
                 int actor = hostedActor ?? ReadActor(sequence);
                 uint row = hostedAddress ?? ActorAddress(actor, null);
@@ -153,8 +153,8 @@ public static class NativeBattleBlizzagaController
 
         int ReadActor(int sequence)
         {
-            int contact = Header(sequence).FirstContactIndex ?? throw new NotSupportedException("Native Blizzaga requires its header contact owner.");
-            return inputs.Packets.ReadContact(contact).Primary.ActorIndex;
+            BattleContactCursor contact = Header(sequence).FirstContact;
+            return inputs.Packets.ReadContact(contact).Primary.Recipient;
         }
 
         static bool HasPrimaryActor(NativeBattleEffectTaskPool pool, uint address) => pool.Slots.Any(current => (current.Flags & 1) != 0 && Dword(current, 24) == address);

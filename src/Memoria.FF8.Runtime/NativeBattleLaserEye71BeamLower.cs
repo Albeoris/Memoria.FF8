@@ -8,7 +8,7 @@ public static class NativeBattleLaserEye71BeamLower
 {
     public static NativeBattleLaserEye71Frame Prepare(NativeBattleLaserEye71Frame frame, uint address, NativeBattleLaserEye71Resources resources, NativeBattleLaserEye71LowerInputs inputs)
     {
-        byte caster = (frame.Effect.Parameters ?? throw new NotSupportedException("Laser Eye beam requires its captured caster.")).Source;
+        BattleModelOwner caster = (frame.Effect.Parameters ?? throw new NotSupportedException("Laser Eye beam requires its captured caster.")).Source;
         NativeBattleModulePoolTask task = Read(frame, address);
         if (task.ReadWord(0x24) == 0)
         {

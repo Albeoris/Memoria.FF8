@@ -34,9 +34,9 @@ public static partial class NativeBattleDeathController
         NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(0, profile.Callback(0x8B6A40), 0x64);
         hierarchy = appended.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Death requires its actual first contact.");
+        BattleContactCursor first = header.FirstContact;
         byte maximum = Math.Max(unchecked((byte)(header.ReadContactCount() - 1)), header.ReadRepeatModeMinusOne());
-        NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(12, 0x1D99A78).WriteByte(0x2C, header.ReadByte(0)).WriteByte(0x2D, packets.ReadContact(first).Primary.ActorIndex).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne()).WriteByte(0x2F, maximum);
+        NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(12, 0x1D99A78).WriteByte(0x2C, header.Source).WriteByte(0x2D, packets.ReadContact(first).Primary.Recipient).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne()).WriteByte(0x2F, maximum);
         hierarchy = hierarchy.Write(appended.Address, root);
         if ((parameters.Flags79 & 1) == 0)
         {

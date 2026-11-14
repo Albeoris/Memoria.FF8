@@ -15,7 +15,7 @@ public abstract record NativeBattleBlaster186Operation
 }
 public sealed record NativeBattleBlaster186Sound(uint Packed, uint Flags, byte Pan) : NativeBattleBlaster186Operation;
 public sealed record NativeBattleBlaster186ContactsAll(int HeaderIndex) : NativeBattleBlaster186Operation;
-public sealed record NativeBattleBlaster186SetActorZWord(int Actor, short Value) : NativeBattleBlaster186Operation;
+public sealed record NativeBattleBlaster186SetActorZWord(BattleModelOwner Actor, short Value) : NativeBattleBlaster186Operation;
 public sealed record NativeBattleBlaster186Stage5713E0(int Value, uint Flags) : NativeBattleBlaster186Operation;
 public sealed record NativeBattleBlaster186DrawCommonRectangle571250(int Red, int Green, int Blue) : NativeBattleBlaster186Operation;
 public sealed record NativeBattleBlaster186DrawStatic88(uint TemporaryAddress, uint SourceAddress, int TableBaseBucket = 17, int DepthShift = 2) : NativeBattleBlaster186Operation;

@@ -41,7 +41,7 @@ public sealed class NativeBattleEffectContactBridge<TRecipient> where TRecipient
                 throw new InvalidDataException("An effect contact requires a recipient and a native packet.");
             }
             ValidatePacket(packet);
-            byte row = packet.Primary.ActorIndex;
+            byte row = packet.Primary.Recipient;
             if (rowsByRecipient.TryGetValue(recipient, out byte previousRow) && previousRow != row ||
                 recipientsByRow.TryGetValue(row, out TRecipient? previousRecipient) && !EqualityComparer<TRecipient>.Default.Equals(previousRecipient, recipient))
             {
@@ -78,7 +78,7 @@ public sealed class NativeBattleEffectContactBridge<TRecipient> where TRecipient
         {
             throw new InvalidOperationException("Preparing a new effect bank requires a contact bridge starting at zero.");
         }
-        if (targets.Any(target => target.Packet.Secondary.ActorIndex != 255 && target.Packet.Secondary.ActorIndex != source))
+        if (targets.Any(target => target.Packet.Secondary.Recipient != 255 && target.Packet.Secondary.Recipient != source))
         {
             throw new InvalidDataException("The effect action's secondary contact requires its bound source row.");
         }
@@ -87,7 +87,7 @@ public sealed class NativeBattleEffectContactBridge<TRecipient> where TRecipient
         BattleModelTargets selected = default;
         foreach (var target in targets)
         {
-            selected = selected.Add(target.Packet.Primary.ActorIndex);
+            selected = selected.Add(target.Packet.Primary.Recipient);
         }
         (packets, _) = packets.Publish(targets.Length);
         return (packets, selected);
@@ -134,10 +134,10 @@ public sealed class NativeBattleEffectContactBridge<TRecipient> where TRecipient
         packet.Validate(roster?.ActorCount ?? NativeBattleGraphicsModelAddress.NativeRowCount);
         if (roster is { } presentationRoster)
         {
-            _ = presentationRoster[packet.Primary.ActorIndex];
-            if (packet.Secondary.ActorIndex != byte.MaxValue)
+            _ = presentationRoster[packet.Primary.Recipient];
+            if (packet.Secondary.Recipient != byte.MaxValue)
             {
-                _ = presentationRoster[packet.Secondary.ActorIndex];
+                _ = presentationRoster[packet.Secondary.Recipient];
             }
         }
     }

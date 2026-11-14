@@ -51,14 +51,14 @@ public sealed partial class BattleSession
                 targets = NativeBattleEffectTaskPool.Initialize(0x25213B0, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)buffer), 0x7D0, 3);
             }
             int action = root.ReadByte(14);
-            if (action <= nativeActionPackets.ReadHeader(effect.Parameters!.Header).ReadByte(17))
+            if (action <= nativeActionPackets.ReadHeader(effect.Parameters!.Header).ReadRepeatModeMinusOne())
             {
                 NativeBattleEffectTaskPool pool = targets ?? throw new InvalidDataException("Native Haste lost its target pool.");
                 (pool, int slot) = pool.Append(0x6BB8D0);
                 NativeBattleModulePoolTask task = pool.Slots[slot].ClearPayload(0x7C4);
                 NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters.Header.Advance(action));
-                int contact = header.FirstContactIndex ?? throw new InvalidDataException("Native Haste requires the original selected contact.");
-                int target = nativeActionPackets.ReadContact(contact).Primary.ActorIndex;
+                BattleContactCursor contact = header.FirstContact;
+                int target = nativeActionPackets.ReadContact(contact).Primary.Recipient;
                 task = WindStore(WindStore(task.WriteWord(14, (ushort)action).WriteDword(16, NativeBattleGraphicsModelAddress.Encode(target)), 20, ReadNativeDefaultPosition571400(graphics, target)), 28, ReadNativeGraphicsBone(graphics, target, 0xF0, 0));
                 task = Init(task, 0x24, 0x254, resources.Clock);
                 task = Init(task, 0x278, 0x558, resources.Lower);
@@ -122,7 +122,7 @@ public sealed partial class BattleSession
             if (remaining == 0)
             {
                 int action = WindWord(task, 14);
-                int contact = nativeActionPackets.ReadHeader(effect.Parameters!.Header.Advance(action)).FirstContactIndex ?? throw new InvalidDataException("Native Haste requires its completing contact.");
+                BattleContactCursor contact = nativeActionPackets.ReadHeader(effect.Parameters!.Header.Advance(action)).FirstContact;
                 graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact)] });
                 return 2;
             }

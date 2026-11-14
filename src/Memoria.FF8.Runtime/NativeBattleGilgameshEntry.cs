@@ -20,8 +20,8 @@ public static class NativeBattleGilgameshEntry
         }
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native Gilgamesh entry requires its current571B50 arena.");
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Native Gilgamesh entry requires its actual first-contact pointer.");
-        byte actor = packets.ReadContact(firstContact).Primary.ActorIndex;
+        BattleContactCursor firstContact = header.FirstContact;
+        byte actor = packets.ReadContact(firstContact).Primary.Recipient;
         if (actor >= models.Length)
         {
             throw new InvalidDataException("Native Gilgamesh first contact leaves its physical graphics bank.");

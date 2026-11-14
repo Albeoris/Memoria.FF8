@@ -62,7 +62,7 @@ public static partial class NativeBattleDoubleController
             {
                 throw new InvalidDataException("Native Double target callback is not8D52A0.");
             }
-            task = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, Models(inputs), inputs.ReadPoseSource, inputs.ReadForeign);
+            task = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, inputs.ReadModel, inputs.ReadPoseSource, inputs.ReadForeign);
             state = state.Write(address, task);
             switch (Phase(task))
             {
@@ -124,7 +124,6 @@ public static partial class NativeBattleDoubleController
         }
     }
 
-    private static NativeBattleGraphicsModel[] Models(NativeBattleDoubleInputs inputs) => Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray();
     internal static short Word(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
     internal static int Phase(NativeBattleModulePoolTask task) => unchecked((sbyte)task.ReadByte(0x29));
     internal static NativeBattleModulePoolTask Add(NativeBattleModulePoolTask task, int offset, int value) => task.WriteWord(offset, unchecked((ushort)(task.ReadWord(offset) + value)));

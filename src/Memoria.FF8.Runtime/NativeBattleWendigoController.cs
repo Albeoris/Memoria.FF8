@@ -47,7 +47,7 @@ public static partial class NativeBattleWendigoController
             maximum = header.ReadRepeatModeMinusOne();
         }
         NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, 0x1D99A78, 0, 0);
-        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(12, 0x1D99A78).WriteByte(0x2C, actors.Actor).WriteByte(0x2D, actors.Target).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne()).WriteByte(0x2F, maximum);
+        NativeBattleModulePoolTask task = actors.WriteTo(hierarchy.Read(root.Address).WriteDword(12, 0x1D99A78)).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne()).WriteByte(0x2F, maximum);
         hierarchy = hierarchy.Write(root.Address, task);
         int source = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == ModuleBase(shoot))?.ArenaOffset ?? throw new NotSupportedException("Native Wendigo requires its executed initializer file pointer.");
         if ((parameters.Flags79 & 1) == 0)

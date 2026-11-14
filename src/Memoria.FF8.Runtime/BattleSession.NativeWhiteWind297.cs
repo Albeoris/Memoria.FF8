@@ -56,7 +56,7 @@ public sealed partial class BattleSession
             return current with { Memory = written.Memory, State = current.State.WriteDword(NativeBattleWhiteWind297Profile.CursorGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)written.Cursor)) };
         }
 
-        NativeBattleWhiteWind297AnchorStep Anchor(NativeBattleWhiteWind297Frame current, int actor)
+        NativeBattleWhiteWind297AnchorStep Anchor(NativeBattleWhiteWind297Frame current, BattleModelOwner actor)
         {
             Publish(current);
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);

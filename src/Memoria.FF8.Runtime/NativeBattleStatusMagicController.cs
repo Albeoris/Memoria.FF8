@@ -52,7 +52,7 @@ public static class NativeBattleStatusMagicController
                 targets = NativeBattleEffectTaskPool.Initialize(resources.TargetDescriptor, 0x20DFAB8, resources.TargetStride, resources.TargetCapacity);
             }
             int action = root.ReadByte(14);
-            int last = inputs.Packets.ReadHeader(parameters.Header).ReadByte(17);
+            int last = inputs.Packets.ReadHeader(parameters.Header).ReadRepeatModeMinusOne();
             if (action <= last)
             {
                 if (targets is null)
@@ -68,8 +68,8 @@ public static class NativeBattleStatusMagicController
                 {
                     (targets, int slot) = targets.Append(resources.TargetCallback);
                     NativeBattleModulePoolTask target = targets.Slots[slot].ClearPayload(resources.TargetStride - 12);
-                    int first = inputs.Packets.ReadHeader(parameters.Header.Advance(action)).FirstContactIndex ?? throw new NotSupportedException("Native status spawn requires its action's first target.");
-                    byte model = inputs.Packets.ReadContact(first).Primary.ActorIndex;
+                    BattleContactCursor first = inputs.Packets.ReadHeader(parameters.Header.Advance(action)).FirstContact;
+                    byte model = inputs.Packets.ReadContact(first).Primary.Recipient;
                     target = target.WriteWord(14, checked((ushort)action)).WriteDword(resources.Effect == 120 ? 32 : 16, NativeBattleGraphicsModelAddress.Encode(model));
                     if (resources.Effect == 120)
                     {
@@ -121,7 +121,7 @@ public static class NativeBattleStatusMagicController
                 }
                 else
                 {
-                    int caster = parameters.Source;
+                    BattleModelOwner caster = parameters.Source;
                     if (counter < 10)
                     {
                         task = WriteVector(task, 16, Bone(caster));

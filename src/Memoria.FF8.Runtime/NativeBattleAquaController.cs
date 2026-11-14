@@ -21,14 +21,14 @@ public static class NativeBattleAquaController
         NativeBattleModulePoolTask task = root.Hierarchy.Read(root.Address);
         NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, 0x1D99A78, unchecked((sbyte)task.ReadByte(0x2A)), unchecked((sbyte)task.ReadByte(0x2B)));
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        byte contacts = header.ReadByte(0x10);
-        byte groups = header.ReadByte(0x11);
+        byte contacts = header.ReadContactCount();
+        byte groups = header.ReadRepeatModeMinusOne();
         byte maximum = unchecked((byte)(contacts - 1));
         if (maximum < groups)
         {
             maximum = groups;
         }
-        task = task.WriteDword(0x0C, 0x1D99A78).WriteByte(0x2C, actors.Actor).WriteByte(0x2D, actors.Target).WriteByte(0x29, 0).WriteWord(0x5A, contacts).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
+        task = actors.WriteTo(task.WriteDword(0x0C, 0x1D99A78)).WriteByte(0x29, 0).WriteWord(0x5A, contacts).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
         hierarchy = root.Hierarchy.Write(root.Address, task);
         int source = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == profile.InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("The Aqua entry requires its executed initializer resource pointer.");
         if (source < 0 || source > NativeBattleEffectArena.Length - 0x18000)
@@ -68,7 +68,7 @@ public static class NativeBattleAquaController
             bool odd = (task.ReadWord(0x5C) & 1) != 0;
             current = current.WithState(retained with { PrimaryDrawCursor = odd ? retained.PrimaryBuffer : retained.AlternateBuffer, SecondaryDrawCursor = odd ? retained.PrimaryLimit : retained.AlternateLimit });
             current = current with { Memory = current.Memory with { SharedEffectView2793E58 = inputs.PackedCamera ?? NativeBattlePackedMatrix32.FromMatrix(inputs.Camera, inputs.CameraPadding18) } };
-            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, Models(), inputs.ReadPoseSource, readForeign: inputs.ReadForeign);
+            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, inputs.ReadModel, inputs.ReadPoseSource, readForeign: inputs.ReadForeign);
             state = state.Write(address, task);
             switch (Phase(task))
             {
@@ -137,7 +137,7 @@ public static class NativeBattleAquaController
             switch (profile.CanonicalCallback(task.Callback))
             {
                 case 0x808B20:
-                    task = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, Models(), inputs.ReadPoseSource, inputs.ReadForeign);
+                    task = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, inputs.ReadModel, inputs.ReadPoseSource, inputs.ReadForeign);
                     state = state.Write(address, task);
                     switch (Phase(task))
                     {
@@ -151,7 +151,7 @@ public static class NativeBattleAquaController
                             {
                                 NativeBattleActionHeaderSlot selected = Header(task);
                                 int first = selected.FirstContactIndex ?? throw new NotSupportedException("The Aqua target requires its captured contact pointer.");
-                                for (int index = 0; index < selected.ReadByte(0x10); index++)
+                                for (int index = 0; index < selected.ReadContactCount(); index++)
                                 {
                                     Emit(ref state, new NativeBattleAquaContact(first + index));
                                 }
@@ -296,8 +296,6 @@ public static class NativeBattleAquaController
         }
 
         NativeBattleActionHeaderSlot Header(NativeBattleModulePoolTask task) => inputs.Packets.ReadHeader(parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A))));
-        NativeBattleGraphicsModel[] Models() => Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray();
-
         NativeBattleEffectHierarchyAppend Add(NativeBattleEffectHierarchy state, int pool, uint callback, int size, uint parent)
         {
             NativeBattleEffectHierarchyAppend child = state.Append8DC540(pool, profile.Callback(callback), size, parent, (pointer, group, target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target));
@@ -331,9 +329,9 @@ public static class NativeBattleAquaController
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A))));
         int first = header.FirstContactIndex ?? throw new NotSupportedException("The Aqua distance requires its captured contact pointer.");
         int distance = 0;
-        for (int index = 0; index < header.ReadByte(0x10); index++)
+        for (int index = 0; index < header.ReadContactCount(); index++)
         {
-            NativeBattleVector target = inputs.ReadModel(inputs.Packets.ReadContact(first + index).Primary.ActorIndex).Transform?.Position28 ?? throw new NotSupportedException("The Aqua distance requires each captured target position.");
+            NativeBattleVector target = inputs.ReadModel(inputs.Packets.ReadContact(first + index).Primary.Recipient).Transform?.Position28 ?? throw new NotSupportedException("The Aqua distance requires each captured target position.");
             int x = target.X - position.X;
             int z = target.Z - position.Z;
             distance = Math.Max(distance, NativeBattleRayBomb10Geometry.Sqrt56BEC0(unchecked(x * x + z * z)));

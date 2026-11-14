@@ -63,7 +63,7 @@ public static class NativeBattleEerieSoundWave130Controller
             NativeBattleModulePoolTask task = Read(frame, address).WriteBytes(12, new byte[0x4C0]);
             NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 0x20, 0x4AC).Initialize7016B0(resources.MainAct, 0x4AC);
             task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, 0x20, workspace);
-            int count = Header(frame, inputs).ReadByte(16);
+            int count = Header(frame, inputs).ReadContactCount();
             if (count > 3)
             {
                 throw new NotSupportedException("Eerie Sound Wave contacts exceed its three physical sorted actor entries.");
@@ -71,7 +71,7 @@ public static class NativeBattleEerieSoundWave130Controller
             task = task.WriteWord(14, (ushort)count);
             for (int index = 0; index < count; index++)
             {
-                int actor = inputs.Packets.ReadContact(FirstContact(frame, inputs) + index).Primary.ActorIndex;
+                int actor = inputs.Packets.ReadContact(FirstContact(frame, inputs) + index).Primary.Recipient;
                 task = task.WriteDword(0x10 + index * 4, ModelAddress(actor)).WriteByte(0x1C + index, (byte)index);
             }
             for (int firstIndex = 0; firstIndex < count - 1; firstIndex++)
@@ -218,11 +218,11 @@ public static class NativeBattleEerieSoundWave130Controller
         if (advanced.Remaining == 8)
         {
             int actor = Actor(Read(frame, address).ReadDword(0x14));
-            int count = Header(frame, inputs).ReadByte(16);
+            int count = Header(frame, inputs).ReadContactCount();
             for (int index = 0; index < count; index++)
             {
                 int contact = FirstContact(frame, inputs) + index;
-                if (inputs.Packets.ReadContact(contact).Primary.ActorIndex == actor)
+                if (inputs.Packets.ReadContact(contact).Primary.Recipient == actor)
                 {
                     frame = inputs.Execute(frame, new NativeBattleEerieSoundWave130Contact(contact));
                 }

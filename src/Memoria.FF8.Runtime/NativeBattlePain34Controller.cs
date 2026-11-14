@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattlePain34LeafStep(NativeBattlePain34Frame Frame, bool Complete);
-public sealed record NativeBattlePain34Inputs(NativeBattleActionPacketsState Packets, NativeBattlePackedMatrix32 Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPose, Func<NativeBattlePain34Frame, uint, NativeBattlePain34LeafStep> AdvancePlayer, Func<NativeBattlePain34Frame, int, NativeBattlePain34Frame> Contact, Action<uint> PlaySound)
+public sealed record NativeBattlePain34Inputs(NativeBattleActionPacketsState Packets, NativeBattlePackedMatrix32 Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPose, Func<NativeBattlePain34Frame, uint, NativeBattlePain34LeafStep> AdvancePlayer, Func<NativeBattlePain34Frame, int, NativeBattlePain34Frame> Contact, Action<uint> PlaySound)
 {
     public Func<int, NativeBattleEffectActorGeometry?>? ReadForeign { get; init; }
 }
@@ -36,7 +36,7 @@ public static class NativeBattlePain34Controller
         NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(12, 0x1D99A78);
         NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, 0x1D99A78, unchecked((sbyte)root.ReadByte(42)), unchecked((sbyte)root.ReadByte(43)));
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        root = root.WriteByte(44, actors.Actor).WriteByte(45, actors.Target).WriteByte(41, 0).WriteWord(90, header.ReadContactCount()).WriteWord(88, header.ReadRepeatModeMinusOne());
+        root = actors.WriteTo(root).WriteByte(41, 0).WriteWord(90, header.ReadContactCount()).WriteWord(88, header.ReadRepeatModeMinusOne());
         byte last = unchecked((byte)(root.ReadWord(90) - 1));
         root = root.WriteByte(47, last < unchecked((short)root.ReadWord(88)) ? root.ReadByte(88) : last);
         return frame with { Memory = memory, Effect = frame.Effect with { Pools = hierarchy.Write(appended.Address, root).Pools, ReturnedDescriptor = Descriptor } };
@@ -59,7 +59,7 @@ public static class NativeBattlePain34Controller
             uint packet = state.Dword(odd ? 0x26C028Cu : 0x26C0288u);
             state = state.WriteDword(0x26BA9E4, packet).WriteDword(0x26BA9FC, state.Dword(odd ? 0x26C0114u : 0x26C0110u));
             frame = frame with { Memory = frame.Memory with { Pain34 = state, SharedEffectView2793E58 = inputs.Camera }, Effect = frame.Effect with { DrawArenaOffset = ArenaOffset(packet) } };
-            root = NativeBattleEffectModelHelpers.UpdateCaster8DC740(root, parameters, new ActorView(inputs.ReadModel), inputs.ReadPose);
+            root = NativeBattleEffectModelHelpers.UpdateCaster8DC740(root, parameters, inputs.ReadModel, inputs.ReadPose);
             Store(address, root);
             switch (unchecked((sbyte)root.ReadByte(41)))
             {
@@ -156,7 +156,7 @@ public static class NativeBattlePain34Controller
             }
             else
             {
-                task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, new ActorView(inputs.ReadModel), inputs.ReadPose);
+                task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, inputs.ReadModel, inputs.ReadPose);
                 NativeBattlePoseSource pose = inputs.ReadPose(actor);
                 NativeBattleSequenceState sequence = inputs.ReadModel(actor).SequenceState ?? throw new NotSupportedException("Native Pain target bounds require its current pose sequence.");
                 task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, pose, NativeBattlePoseMatrices.ReadDecodedPose(sequence, pose));
@@ -251,12 +251,5 @@ public static class NativeBattlePain34Controller
             throw new InvalidDataException("Native Pain packet cursor leaves its physical arena.");
         }
         return checked((int)(address - 0x20DFAB8));
-    }
-    private sealed class ActorView(Func<BattleModelOwner, NativeBattleGraphicsModel> read) : IReadOnlyList<NativeBattleGraphicsModel>
-    {
-        public int Count => 7;
-        public NativeBattleGraphicsModel this[int index] => read(index);
-        public IEnumerator<NativeBattleGraphicsModel> GetEnumerator() => Enumerable.Range(0, Count).Select(read).GetEnumerator();
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
     }
 }

@@ -99,7 +99,7 @@ public sealed partial class BattleSession
                         {
                             continue;
                         }
-                        bool hit = Enumerable.Range(0, header.ReadContactCount()).Any(index => session.nativeActionPackets.ReadContact(first + index).Primary.ActorIndex == actor);
+                        bool hit = Enumerable.Range(0, header.ReadContactCount()).Any(index => session.nativeActionPackets.ReadContact(first + index).Primary.Recipient == actor);
                         NativeBattleQuake38ActorBounceStep bounce = NativeBattleQuake38ActorBounce.Advance8DBCA0(graphics.ActorModels.Get(actor), state.SavedActors[actor], state, resources, RandomState, hit);
                         RandomState = bounce.Random;
                         NativeBattleGraphicsModel model = bounce.Model;

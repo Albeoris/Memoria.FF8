@@ -18,8 +18,8 @@ public static partial class NativeBattleEffect312Controller
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect312 requires its current parameters.");
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        int actor = parameters.Source;
-        int target = packets.ReadContact(header.FirstContactIndex ?? throw new NotSupportedException("Effect312 requires its actual first contact pointer.")).Primary.ActorIndex;
+        BattleModelOwner actor = parameters.Source;
+        int target = packets.ReadContact(header.FirstContact).Primary.Recipient;
         int textureOffset = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Effect312 requires its actual executed initializer pointer.");
         uint source = checked(CommonAddress + (uint)textureOffset);
         frame = frame with { State = frame.State.WriteDword(InitializerGlobal, source).WriteDword(ArenaGlobal, CommonAddress).WriteDword(ParametersGlobal, OriginalParameterAddress).WriteDword(CasterGlobal, (uint)actor).WriteDword(TargetGlobal, (uint)target) };

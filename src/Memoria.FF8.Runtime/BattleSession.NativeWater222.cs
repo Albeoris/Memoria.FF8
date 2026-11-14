@@ -19,7 +19,7 @@ public sealed partial class BattleSession
         NativeBattleWaterInitializationResource second = WaterResource(effect, resources, 1);
         NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(parameters.Header);
         ImmutableArray<byte> contacts = WaterContacts(header);
-        NativeBattleWaterInitializationInputs inputs = new(first, second, NativeBattleWater222Controller.CreateTemporaryFrame(WaterTemporaryAddress), WaterParametersAddress, WaterHeadersAddress + (uint)(20 * parameters.Header), 0x186C84C, parameters.Source, parameters.Header, contacts[0], contacts, header.ReadContactCount(), header.ReadByte(0x11), graphics.Models);
+        NativeBattleWaterInitializationInputs inputs = new(first, second, NativeBattleWater222Controller.CreateTemporaryFrame(WaterTemporaryAddress), WaterParametersAddress, WaterHeadersAddress + (uint)(20 * parameters.Header), 0x186C84C, parameters.Source, parameters.Header, contacts[0], contacts, header.ReadContactCount(), header.ReadRepeatModeMinusOne(), graphics.Models);
         NativeBattleWater222Frame initialized = NativeBattleWater222Controller.InitializeA9B200(new(RequireWaterMemory(), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Water requires its retained CRT state.")), resources, inputs);
         NativeEffectMemory = initialized.Memory;
         nativeCrtRandom = initialized.Random;
@@ -303,7 +303,7 @@ public sealed partial class BattleSession
     private ImmutableArray<byte> WaterContacts(NativeBattleActionHeaderSlot header)
     {
         int start = header.FirstContactIndex ?? throw new NotSupportedException("Native Water header has no actual contact owner.");
-        return Enumerable.Range(0, header.ReadContactCount()).Select(index => nativeActionPackets.ReadContact(start + index).Primary.ActorIndex).ToImmutableArray();
+        return Enumerable.Range(0, header.ReadContactCount()).Select(index => nativeActionPackets.ReadContact(start + index).Primary.Recipient).ToImmutableArray();
     }
     private static int PhysicalActor(uint pointer, int actorCount)
     {

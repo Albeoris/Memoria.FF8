@@ -35,6 +35,7 @@ public sealed class NativeBattleActionPacketsState
     }
 
     public BattleModelRoster Roster { get; }
+    internal NativeBattleModelAliases ModelAliases => aliases;
     internal NativeBattleRetainedActionPackets RetainedStorage { get; }
     public int ActionCount { get; }
     public int ContactCount { get; }
@@ -154,6 +155,12 @@ public sealed class NativeBattleActionPacketsState
         return packet with { Occurrence = occurrence };
     }
 
+    /// <summary>Reads the written live cell at a cursor without selecting an occurrence relative to a header.</summary>
+    public NativeBattleContactPacket ReadContact(BattleContactCursor cursor)
+    {
+        return ReadContact(new BattleContactOccurrence(cursor.Ordinal));
+    }
+
     public BattleContactOccurrence ResolveContact(BattleActionHeaderReference header, int relativeOrdinal)
     {
         NativeBattleActionHeaderSlot slot = ReadHeader(header);
@@ -180,7 +187,7 @@ public sealed class NativeBattleActionPacketsState
         var result = ImmutableArray.CreateBuilder<NativeBattleContactPacket>(count);
         for (int relative = 0; relative < count; relative++)
         {
-            result.Add(ReadContact(new(checked(header.FirstContact.Ordinal + relative))));
+            result.Add(ReadContact(new BattleContactOccurrence(checked(header.FirstContact.Ordinal + relative))));
         }
         return result.MoveToImmutable();
     }
@@ -208,7 +215,7 @@ public sealed class NativeBattleActionPacketsState
     public NativeBattleContactPacket ReadActiveContact()
     {
         BattleContactCursor cursor = ActiveContact ?? throw new NotSupportedException("The action has no active contact cursor.");
-        return ReadContact(new(cursor.Ordinal));
+        return ReadContact(cursor);
     }
 
     public NativeBattleActionPacketsState ResetCounts()

@@ -5,7 +5,7 @@ public abstract record NativeBattleMicroMissiles299Operation
     [System.Text.Json.Serialization.JsonIgnore]
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
 }
-public sealed record NativeBattleMicroMissiles299BindCaster(byte Actor, uint SaveAddress, uint ResourceAddress) : NativeBattleMicroMissiles299Operation;
+public sealed record NativeBattleMicroMissiles299BindCaster(BattleModelOwner Actor, uint SaveAddress, uint ResourceAddress) : NativeBattleMicroMissiles299Operation;
 public sealed record NativeBattleMicroMissiles299RingSequence(byte Actor, byte Sequence) : NativeBattleMicroMissiles299Operation;
 public sealed record NativeBattleMicroMissiles299Sound(uint Value, int Pan) : NativeBattleMicroMissiles299Operation;
 public sealed record NativeBattleMicroMissiles299Contact(int Index) : NativeBattleMicroMissiles299Operation;

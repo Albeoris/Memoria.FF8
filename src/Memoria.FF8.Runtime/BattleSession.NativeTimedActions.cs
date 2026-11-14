@@ -238,7 +238,7 @@ public sealed partial class BattleSession
         }
         BattleCombatant actor = GetActor(timed.Command.ActorId);
         BattleNativeRenzokukenState process = nativeRenzokukenProcesses.GetValueOrDefault(actor.Id) ?? throw new InvalidDataException("Native Renzokuken final descriptor lacks its input process.");
-        if (nativeActionCommitDepth != 1 || timed.Contacts != RenzokukenResource(process.MagicId).Timeline.InputThresholds.Length || NativeGraphics.PendingTrigger is { } pending && pending.ActorIndex == actor.EncodeNativeSlot())
+        if (nativeActionCommitDepth != 1 || timed.Contacts != RenzokukenResource(process.MagicId).Timeline.InputThresholds.Length || NativeGraphics.PendingTrigger is { } pending && pending.Actor == actor.EncodeNativeSlot())
         {
             throw new InvalidDataException("Native Renzokuken final descriptor reached an unfinished contact transaction.");
         }

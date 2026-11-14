@@ -22,7 +22,7 @@ public sealed partial class BattleSession
                 work.WriteDword(0x249A604, (uint)count);
                 for (int index = 0; index < count; index++)
                 {
-                    int actor = owner.nativeActionPackets.ReadContact(start + index).Primary.ActorIndex;
+                    int actor = owner.nativeActionPackets.ReadContact(start + index).Primary.Recipient;
                     work.WriteDword(0x249A608u + (uint)index * 4, (uint)actor);
                     uint row = 0x2494570u + (uint)actor * 52;
                     NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);

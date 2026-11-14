@@ -307,10 +307,6 @@ public static partial class NativeBattleMagmaBreath48Controller
             throw new NotSupportedException("Magma Breath requires its actual captured parameter pointer.");
         }
         BattleActionHeaderReference index = Parameters(frame).Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-        if ((uint)index >= packets.Headers.Length)
-        {
-            throw new NotSupportedException("Magma Breath signed header offset leaves its physical action arena.");
-        }
         return packets.ReadHeader(index);
     }
 }

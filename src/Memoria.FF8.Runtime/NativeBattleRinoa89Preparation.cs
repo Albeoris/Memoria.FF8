@@ -59,7 +59,7 @@ public static partial class NativeBattleRinoa89Controller
         short centerX = unchecked((short)((minX + maxX) / 2));
         short centerY = unchecked((short)((minY + maxY) / 2));
         task = task.WriteWord(216, unchecked((ushort)centerX)).WriteWord(218, unchecked((ushort)centerY)).WriteWord(220, unchecked((ushort)maxZ));
-        int actor = parameters.Source;
+        BattleModelOwner actor = parameters.Source;
         NativeBattleGraphicsModel caster = services.ReadModel(actor);
         NativeBattleModelTransform transform = caster.Transform ?? throw new NotSupportedException("Native6F9D80 requires its actual caster transform.");
         task = task.WriteWord(208, unchecked((ushort)transform.Position28.X)).WriteWord(210, unchecked((ushort)transform.Position28.Y)).WriteWord(212, unchecked((ushort)transform.Position28.Z)).WriteWord(214, unchecked((ushort)transform.Vertical34));

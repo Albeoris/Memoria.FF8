@@ -47,14 +47,14 @@ public static partial class NativeBattleEffect323Controller
 
     public static NativeBattleEffect323Frame CaptureRecipients(NativeBattleEffect323Frame frame, uint main, NativeBattleEffect323Inputs inputs)
     {
-        int count = CurrentHeader(frame, inputs.ReadPackets(frame)).ReadByte(16);
+        int count = CurrentHeader(frame, inputs.ReadPackets(frame)).ReadContactCount();
         RequireRecipientCount(count);
         frame = Write(frame, main, Read(frame, main).WriteWord(14, (ushort)count));
         for (int index = 0; index < count; index++)
         {
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
             int first = CurrentHeader(frame, packets).FirstContactIndex ?? throw new NotSupportedException("Effect323 requires its actual contact pointer.");
-            uint model = ModelAddress(packets.ReadContact(first + index).Primary.ActorIndex);
+            uint model = ModelAddress(packets.ReadContact(first + index).Primary.Recipient);
             frame = Write(frame, main, Read(frame, main).WriteDword(0x20 + index * 4, model));
         }
         for (int left = 0; left < count - 1; left++)

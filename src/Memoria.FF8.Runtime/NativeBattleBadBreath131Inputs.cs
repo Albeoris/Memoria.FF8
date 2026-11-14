@@ -12,8 +12,8 @@ public sealed record NativeBattleBadBreath131Inputs(NativeBattleActionPacketsSta
 
 public abstract record NativeBattleBadBreath131Operation;
 public sealed record NativeBattleBadBreath131Sound(uint Value, uint Flags, byte Pan) : NativeBattleBadBreath131Operation;
-public sealed record NativeBattleBadBreath131ActorFlags(byte Actor, ushort ClearMask, ushort SetMask) : NativeBattleBadBreath131Operation;
-public sealed record NativeBattleBadBreath131ActorColor(byte Actor, uint Color) : NativeBattleBadBreath131Operation;
+public sealed record NativeBattleBadBreath131ActorFlags(BattleModelOwner Actor, ushort ClearMask, ushort SetMask) : NativeBattleBadBreath131Operation;
+public sealed record NativeBattleBadBreath131ActorColor(BattleModelOwner Actor, uint Color) : NativeBattleBadBreath131Operation;
 public sealed record NativeBattleBadBreath131Contact(int Index) : NativeBattleBadBreath131Operation;
 public sealed record NativeBattleBadBreath131FlashEnvelope(int Age) : NativeBattleBadBreath131Operation
 {

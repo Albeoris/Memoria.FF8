@@ -225,7 +225,7 @@ public static class NativeBattleChoco100Director
                     foreach (NativeBattleContactPacket contact in contacts)
                     {
                         contact.Validate();
-                        Emit(new NativeBattleChoco100AppendContactSecondary(contact.Primary.ActorIndex));
+                        Emit(new NativeBattleChoco100AppendContactSecondary(contact.Primary.Recipient));
                     }
                     break;
             }

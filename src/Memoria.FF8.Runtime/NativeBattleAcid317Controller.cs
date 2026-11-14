@@ -68,9 +68,9 @@ public static partial class NativeBattleAcid317Controller
                 }
             }
             int ordinal = Task(frame, 0, slot).ReadByte(14);
-            if (ordinal <= inputs.Packets.ReadHeader(Parameters(frame).Header).ReadByte(17))
+            if (ordinal <= inputs.Packets.ReadHeader(Parameters(frame).Header).ReadRepeatModeMinusOne())
             {
-                int actor = inputs.Packets.ReadContact(FirstContact(frame, inputs) + ordinal).Primary.ActorIndex;
+                int actor = inputs.Packets.ReadContact(FirstContact(frame, inputs) + ordinal).Primary.Recipient;
                 (frame, uint address) = Append(frame, 1, TargetCallback);
                 if (address == 0)
                 {

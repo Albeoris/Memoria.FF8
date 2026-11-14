@@ -173,7 +173,7 @@ public sealed partial class BattleSession
         ImmutableArray<byte>.Builder recipients = ImmutableArray.CreateBuilder<byte>(count);
         for (int index = 0; index < count; index++)
         {
-            recipients.Add(nativeActionPackets.ReadContact(firstContact + index).Primary.ActorIndex);
+            recipients.Add(nativeActionPackets.ReadContact(firstContact + index).Primary.Recipient);
         }
         pending.PublishedTargets = new(0x48E830, header, generation, firstContact, pending.Resolutions?.ToImmutableArray() ?? [], recipients.MoveToImmutable());
     }

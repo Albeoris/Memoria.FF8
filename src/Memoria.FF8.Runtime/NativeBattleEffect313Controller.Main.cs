@@ -177,7 +177,7 @@ public static partial class NativeBattleEffect313Controller
             int first = contactCount == 0 ? 0 : header.FirstContactIndex ?? throw new NotSupportedException("Effect313 requires its current contact pointer.");
             for (int index = 0; index < contactCount; index++)
             {
-                if (packets.ReadContact(first + index).Primary.ActorIndex == actor)
+                if (packets.ReadContact(first + index).Primary.Recipient == actor)
                 {
                     contact = index;
                     break;

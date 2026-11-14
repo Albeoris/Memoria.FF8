@@ -13,8 +13,8 @@ public static partial class NativeBattleChainGun190Controller
         (children, int main) = children.Append(0x5BB380);
         children = children.WriteSlot(main, children.Slots[main].WriteWord(12, 0));
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Chain Gun requires its actual first contact pointer.");
-        frame = Dword(Dword(Dword(frame, 0x2281B18, inputs.Packets.ReadContact(first).Primary.ActorIndex), 0x2283F2C, Parameters(frame).Source), 0x2283F28, 0x1D99A78);
+        BattleContactCursor first = header.FirstContact;
+        frame = Dword(Dword(Dword(frame, 0x2281B18, inputs.Packets.ReadContact(first).Primary.Recipient), 0x2283F2C, Parameters(frame).Source), 0x2283F28, 0x1D99A78);
         foreach (uint bank in new uint[] { 0x22824A0, 0x2281B40 })
         {
             for (int index = 0; index < 100; index++)

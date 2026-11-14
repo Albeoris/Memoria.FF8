@@ -99,7 +99,7 @@ public static partial class NativeBattleBreath129Controller
                 NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, offset, size).Initialize7016B0(resources.Act(source), size);
                 task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, offset, workspace);
             }
-            int count = inputs.Packets.ReadHeader(Parameters(frame).Header).ReadByte(16);
+            int count = inputs.Packets.ReadHeader(Parameters(frame).Header).ReadContactCount();
             if (count is < 1 or > 3)
             {
                 throw new NotSupportedException("Breath targets must fit its three actual pointer fields.");
@@ -108,7 +108,7 @@ public static partial class NativeBattleBreath129Controller
             task = task.WriteWord(14, checked((ushort)count));
             for (int index = 0; index < count; index++)
             {
-                task = task.WriteByte(0x1C + index, checked((byte)index)).WriteDword(16 + index * 4, ModelAddress(inputs.Packets.ReadContact(contact + index).Primary.ActorIndex));
+                task = task.WriteByte(0x1C + index, checked((byte)index)).WriteDword(16 + index * 4, ModelAddress(inputs.Packets.ReadContact(contact + index).Primary.Recipient));
             }
             for (int firstIndex = 0; firstIndex < count - 1; firstIndex++)
             {

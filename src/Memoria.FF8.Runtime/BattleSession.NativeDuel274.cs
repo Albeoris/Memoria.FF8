@@ -85,7 +85,7 @@ public sealed partial class BattleSession
         NativeFileStaging = staging.View;
         try
         {
-            frame = NativeBattleDuel274Controller.Advance689990(frame, actors, sequence => nativeActionPackets.ReadContact(FirstContact(sequence)).Primary.ActorIndex, (current, slot) => NativeBattleDuel274Controller.Advance689AC0(current, slot, actors, (next, targetSlot) => NativeBattleDuel274Target.AdvanceSelected689AC0(next, targetSlot, resources, selected)));
+            frame = NativeBattleDuel274Controller.Advance689990(frame, actors, sequence => nativeActionPackets.ReadContact(FirstContact(sequence)).Primary.Recipient, (current, slot) => NativeBattleDuel274Controller.Advance689AC0(current, slot, actors, (next, targetSlot) => NativeBattleDuel274Target.AdvanceSelected689AC0(next, targetSlot, resources, selected)));
             Publish(frame, final: true);
             frame = frame with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Native final publication lost its process memory.") };
             graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = acceptedOrdering } };
@@ -139,8 +139,8 @@ public sealed partial class BattleSession
             throw;
         }
 
-        void WriteModel(int index, NativeBattleGraphicsModel model) => graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model) };
-        NativeBattleModuleAnchor Anchor(int index) => ReadNativeModelAnchor(graphics, index) with { W = (graphics.ActorModels.Get(index).Transform ?? throw new NotSupportedException("Native Duel anchor requires actual model WORD36.")).Angle36 };
+        void WriteModel(BattleModelOwner index, NativeBattleGraphicsModel model) => graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model) };
+        NativeBattleModuleAnchor Anchor(BattleModelOwner index) => ReadNativeModelAnchor(graphics, index) with { W = (graphics.ActorModels.Get(index).Transform ?? throw new NotSupportedException("Native Duel anchor requires actual model WORD36.")).Angle36 };
         NativeBattleActionMatrix ReadBoneMatrix(int index, int bone)
         {
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Duel bone matrix requires the current skeleton.");
@@ -149,10 +149,6 @@ public sealed partial class BattleSession
         int FirstContact(int sequence)
         {
             BattleActionHeaderReference header = parameters.Header.Advance(sequence);
-            if ((uint)header >= NativeBattleActionPacketsState.HeaderCapacity)
-            {
-                throw new InvalidDataException("Native Duel sequence leaves the physical action-header arena.");
-            }
             return nativeActionPackets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Native Duel requires the selected header's actual contact pointer.");
         }
         void Publish(NativeBattleDuel274Frame current, bool final = false)

@@ -59,7 +59,7 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Saved Duel control requires its original character and produced physical header.");
         }
         NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[index];
-        if (header.ReadByte(0) != actor.EncodeNativeSlot() || header.Command != 241 || header.Action != native.ActionId || header.Effect != native.MagicId || header.Data is not null)
+        if (header.Source != actor.EncodeNativeSlot() || header.Command != 241 || header.Action != native.ActionId || header.Effect != native.MagicId || header.Data is not null)
         {
             throw new InvalidDataException("Saved Duel control contradicts its produced48D200 header.");
         }

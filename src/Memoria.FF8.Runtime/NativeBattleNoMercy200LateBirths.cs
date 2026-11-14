@@ -68,7 +68,7 @@ public static partial class NativeBattleNoMercy200Controller
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native No Mercy requires its actual selected header contact pointer.");
         for (int index = 0; index < count; index++)
         {
-            yield return packets.ReadContact(checked(first + index)).Primary.ActorIndex;
+            yield return packets.ReadContact(checked(first + index)).Primary.Recipient;
         }
     }
 

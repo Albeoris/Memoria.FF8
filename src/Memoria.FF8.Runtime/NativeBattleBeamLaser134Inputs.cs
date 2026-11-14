@@ -10,7 +10,7 @@ public sealed record NativeBattleBeamLaser134ContextStep(NativeBattleBeamLaser13
 public sealed record NativeBattleBeamLaser134RotateStep(NativeBattleBeamLaser134Frame Frame, NativeBattleEffectArena Context40, NativeBattleVector UpdatedLocal);
 public sealed record NativeBattleBeamLaser134ActStep(NativeBattleBeamLaser134Frame Frame, int Remaining);
 public abstract record NativeBattleBeamLaser134Operation;
-public sealed record NativeBattleBeamLaser134ActorFlags(int Actor, ushort Mask, ushort Bits) : NativeBattleBeamLaser134Operation;
+public sealed record NativeBattleBeamLaser134ActorFlags(BattleModelOwner Actor, ushort Mask, ushort Bits) : NativeBattleBeamLaser134Operation;
 public sealed record NativeBattleBeamLaser134Sound(uint Packed) : NativeBattleBeamLaser134Operation;
 public sealed record NativeBattleBeamLaser134Contact(int Index) : NativeBattleBeamLaser134Operation;
 public sealed record NativeBattleBeamLaser134DrawSprite180(uint TaskAddress, uint Temporary180, bool Moving) : NativeBattleBeamLaser134Operation;

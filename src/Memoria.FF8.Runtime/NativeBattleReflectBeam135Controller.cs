@@ -71,7 +71,7 @@ public static partial class NativeBattleReflectBeam135Controller
             }
             NativeBattleModulePoolTask task = Read(frame, childAddress).WriteBytes(12, new byte[724]);
             int firstContact = FirstContact(frame, inputs);
-            int count = inputs.Packets.ReadHeader(Parameters(frame).Header).ReadByte(16);
+            int count = inputs.Packets.ReadHeader(Parameters(frame).Header).ReadContactCount();
             if (count is < 1 or > 3)
             {
                 throw new NotSupportedException("Reflect Beam requires one to three actual captured targets.");
@@ -82,7 +82,7 @@ public static partial class NativeBattleReflectBeam135Controller
             short meanZ = 0;
             for (int index = 0; index < count; index++)
             {
-                int actor = inputs.Packets.ReadContact(firstContact + index).Primary.ActorIndex;
+                int actor = inputs.Packets.ReadContact(firstContact + index).Primary.Recipient;
                 task = task.WriteDword(0x14 + index * 4, ModelAddress(actor)).WriteByte(0x10 + index, (byte)index);
                 NativeBattleReflectBeam135AnchorStep anchor = inputs.ReadAnchor(frame, actor);
                 frame = anchor.Frame;

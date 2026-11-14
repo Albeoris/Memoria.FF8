@@ -3,9 +3,9 @@ using System.Buffers.Binary;
 namespace Memoria.FF8.Runtime;
 
 public abstract record NativeBattleRaldo19BallOperation;
-public sealed record NativeBattleRaldo19BallActorWrite(int Actor, int Offset, NativeBattleEffectArena Source, int SourceOffset, int Length) : NativeBattleRaldo19BallOperation;
-public sealed record NativeBattleRaldo19BallPivot(int Actor) : NativeBattleRaldo19BallOperation;
-public sealed record NativeBattleRaldo19BallTargetAnchor(int Actor) : NativeBattleRaldo19BallOperation;
+public sealed record NativeBattleRaldo19BallActorWrite(BattleModelOwner Actor, int Offset, NativeBattleEffectArena Source, int SourceOffset, int Length) : NativeBattleRaldo19BallOperation;
+public sealed record NativeBattleRaldo19BallPivot(BattleModelOwner Actor) : NativeBattleRaldo19BallOperation;
+public sealed record NativeBattleRaldo19BallTargetAnchor(BattleModelOwner Actor) : NativeBattleRaldo19BallOperation;
 public sealed record NativeBattleRaldo19BallRender(int Actor) : NativeBattleRaldo19BallOperation;
 public sealed record NativeBattleRaldo19BallSound(NativeBattleModuleSound Sound) : NativeBattleRaldo19BallOperation;
 public sealed record NativeBattleRaldo19BallInputs(Func<int, NativeBattleEffectArena> ReadActor, Func<NativeBattleRaldo19Frame, NativeBattleRaldo19BallOperation, NativeBattleRaldo19Frame> Execute, Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors> SelectActors);

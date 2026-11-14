@@ -36,7 +36,7 @@ public sealed partial class BattleSession
             return current with { Memory = latest, State = latest.Blaster186 ?? throw new InvalidDataException("Blaster external service lost its executable storage."), Staging = NativeFileStaging ?? throw new InvalidDataException("Blaster external service lost its temporary memory."), Random = nativeCrtRandom ?? throw new InvalidDataException("Blaster external service lost its CRT stream.") };
         }
 
-        NativeBattleBlaster186PointStep Bone(NativeBattleBlaster186Frame current, int actor, int selector, int distance)
+        NativeBattleBlaster186PointStep Bone(NativeBattleBlaster186Frame current, BattleModelOwner actor, int selector, int distance)
         {
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Blaster requires its current actor skeleton.");
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), source, checked((byte)selector), checked((short)distance));
@@ -46,7 +46,7 @@ public sealed partial class BattleSession
             return new(current with { Memory = observed, Staging = NativeFileStaging }, Point(point));
         }
 
-        NativeBattleBlaster186PointStep Anchor(NativeBattleBlaster186Frame current, int actor)
+        NativeBattleBlaster186PointStep Anchor(NativeBattleBlaster186Frame current, BattleModelOwner actor)
         {
             return new(current, Point(ReadNativeDefaultPosition571400(graphics, actor)));
         }

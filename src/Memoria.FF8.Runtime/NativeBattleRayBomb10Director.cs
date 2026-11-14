@@ -160,7 +160,7 @@ public static partial class NativeBattleRayBomb10Controller
                     int target = -1;
                     for (int contact = 0; contact < count; contact++)
                     {
-                        if (inputs.Packets.ReadContact(first + contact).Primary.ActorIndex == actor)
+                        if (inputs.Packets.ReadContact(first + contact).Primary.Recipient == actor)
                         {
                             target = contact;
                             break;

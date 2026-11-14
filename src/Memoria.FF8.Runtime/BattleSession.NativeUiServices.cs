@@ -247,13 +247,13 @@ public sealed partial class BattleSession
         if (step.Contact is { } contact)
         {
             //485130 overwrites the four timing WORDs;485160 consumes that single receipt in the next admitted core step.
-            pending = new(widget.ActorIndex, contact.Index, contact.Total, contact.TriggerTiming, 32);
+            pending = new(widget.Actor, contact.Index, contact.Total, contact.TriggerTiming, 32);
         }
         if (step.Unregistered && widget.Visible)
         {
             ui = ui.SetFlags(0, 0x1800) with { Menu957 = widget.PreviousMenu957, Menu955 = widget.PreviousMenu955 };
         }
-        NativeGraphics = graphics with { UiServices = ui, TriggerWidget = step.Unregistered ? null : step.Widget, PendingTrigger = pending, PendingTriggerSoundActorIndex = step.PlayTriggerSound ? widget.ActorIndex : graphics.PendingTriggerSoundActorIndex };
+        NativeGraphics = graphics with { UiServices = ui, TriggerWidget = step.Unregistered ? null : step.Widget, PendingTrigger = pending, PendingTriggerSoundActorIndex = step.PlayTriggerSound ? widget.Actor : graphics.PendingTriggerSoundActorIndex };
         if (!hostedBattlePresentation)
         {
             MirrorNativeRenzokukenWidget(step.Widget);
@@ -288,7 +288,7 @@ public sealed partial class BattleSession
     {
         if (graphics.TriggerWidget is { } widget)
         {
-            if (widget.SourceSequence is not byte sequence || widget.SourceAbOffset is not int offset || widget.ClosingPhase == 13 || graphics.ActorIds[widget.ActorIndex] is not string actorId)
+            if (widget.SourceSequence is not byte sequence || widget.SourceAbOffset is not int offset || widget.ClosingPhase == 13 || graphics.ActorIds[widget.Actor] is not string actorId)
             {
                 throw new InvalidDataException("Saved native widget lacks its actual registered AB resource binding.");
             }

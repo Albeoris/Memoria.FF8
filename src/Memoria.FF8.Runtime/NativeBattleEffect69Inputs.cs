@@ -18,8 +18,8 @@ public sealed partial record NativeBattleEffect69Inputs(NativeBattleSummonColors
 
 public abstract record NativeBattleEffect69Operation;
 public sealed record NativeBattleEffect69RegisterCamera(NativeBattleEffectHeapAllocation Camera) : NativeBattleEffect69Operation;
-public sealed record NativeBattleEffect69ModelFlags(int Actor, ushort AndMask, ushort OrMask, bool WordWidth) : NativeBattleEffect69Operation;
-public sealed record NativeBattleEffect69ModelPositionZ(int Actor, short Z, bool WriteWorldTranslation = false) : NativeBattleEffect69Operation;
+public sealed record NativeBattleEffect69ModelFlags(BattleModelOwner Actor, ushort AndMask, ushort OrMask, bool WordWidth) : NativeBattleEffect69Operation;
+public sealed record NativeBattleEffect69ModelPositionZ(BattleModelOwner Actor, short Z, bool WriteWorldTranslation = false) : NativeBattleEffect69Operation;
 public sealed record NativeBattleEffect69StageFlags(int Group, byte AndMask, byte OrMask) : NativeBattleEffect69Operation;
 public sealed record NativeBattleEffect69Sound501330(uint Descriptor, uint Flags, byte Pan) : NativeBattleEffect69Operation;
 public sealed record NativeBattleEffect69StartVibration(NativeVibrationBank Bank, uint TaskAddress, int OutputOffset) : NativeBattleEffect69Operation;

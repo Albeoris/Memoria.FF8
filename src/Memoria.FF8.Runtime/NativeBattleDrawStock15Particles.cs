@@ -9,7 +9,7 @@ public sealed record NativeBattleDrawStock15Rotate(NativeBattleActionMatrix Matr
 }
 public sealed record NativeBattleDrawStock15Transform(NativeBattleActionMatrix Matrix, NativeBattleVector Point) : NativeBattleDrawStock15ParticleOperation;
 public sealed record NativeBattleDrawStock15LookBasis(NativeBattleVector Direction, NativeBattleVector Up) : NativeBattleDrawStock15ParticleOperation;
-public sealed record NativeBattleDrawStock15Anchor(byte Actor, NativeBattleModuleAnchor Value) : NativeBattleDrawStock15ParticleOperation;
+public sealed record NativeBattleDrawStock15Anchor(BattleModelOwner Actor, NativeBattleModuleAnchor Value) : NativeBattleDrawStock15ParticleOperation;
 public sealed record NativeBattleDrawStock15HeadSprite(NativeBattleModulePoolTask Task) : NativeBattleDrawStock15ParticleOperation;
 public sealed record NativeBattleDrawStock15SparkleSprite(NativeBattleModulePoolTask Task) : NativeBattleDrawStock15ParticleOperation;
 public sealed record NativeBattleDrawStock15Ribbon(NativeBattleModulePoolTask Task) : NativeBattleDrawStock15ParticleOperation;

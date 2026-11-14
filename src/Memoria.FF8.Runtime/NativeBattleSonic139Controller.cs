@@ -81,7 +81,7 @@ public static partial class NativeBattleSonic139Controller
             NativeBattleModulePoolTask task = Read(frame, mainAddress).WriteBytes(12, new byte[0x4D0]);
             NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 0x30, 0x4AC).Initialize7016B0(resources.MainAct, 0x4AC);
             task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, 0x30, workspace);
-            int count = inputs.Packets.ReadHeader(Parameters(frame).Header).ReadByte(16);
+            int count = inputs.Packets.ReadHeader(Parameters(frame).Header).ReadContactCount();
             int capacity = inputs.AllowFourthTarget ? HostedTargetCapacity : TargetCapacity;
             if (count < 1 || count > capacity)
             {
@@ -126,7 +126,7 @@ public static partial class NativeBattleSonic139Controller
     {
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
         int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Sonic Wave requires its captured contacts.");
-        return ModelAddress(inputs.Packets.ReadContact(firstContact + index).Primary.ActorIndex);
+        return ModelAddress(inputs.Packets.ReadContact(firstContact + index).Primary.Recipient);
     }
 
     private static (uint Actor, byte ContactIndex) ReadTarget(NativeBattleSonic139Frame frame, NativeBattleSonic139Inputs inputs, NativeBattleModulePoolTask task, int index)

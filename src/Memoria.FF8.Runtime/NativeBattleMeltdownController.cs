@@ -30,8 +30,8 @@ public static partial class NativeBattleMeltdownController
         NativeBattleEffectTaskPool tasks = NativeBattleEffectTaskPool.Initialize(0x24657E8, 0x24657F8, 0x24, 100);
         (tasks, int slot) = tasks.Append(0x612190);
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Meltdown requires its original first target.");
-        NativeBattleModulePoolTask director = tasks.Slots[slot].WriteWord(12, 0).WriteWord(14, 0).WriteWord(32, packets.ReadContact(first).Primary.ActorIndex).WriteWord(34, header.ReadByte(0));
+        BattleContactCursor first = header.FirstContact;
+        NativeBattleModulePoolTask director = tasks.Slots[slot].WriteWord(12, 0).WriteWord(14, 0).WriteWord(32, packets.ReadContact(first).Primary.Recipient).WriteWord(34, header.Source);
         tasks = tasks.WriteSlot(slot, director);
         return new(memory, effect with { Pools = [root, tasks], ReturnedDescriptor = RootDescriptor }, random);
     }

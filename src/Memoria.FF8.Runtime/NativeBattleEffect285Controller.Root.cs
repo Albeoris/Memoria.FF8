@@ -76,7 +76,7 @@ public static partial class NativeBattleEffect285Controller
         for (int index = 0; index < count; index++)
         {
             NativeBattleContactPacket contact = packets.ReadContact(first + index);
-            short z = BinaryPrimitives.ReadInt16LittleEndian(inputs.ReadModelArena9C(frame, ModelAddress(contact.Primary.ActorIndex)).Read(32, 2));
+            short z = BinaryPrimitives.ReadInt16LittleEndian(inputs.ReadModelArena9C(frame, ModelAddress(contact.Primary.Recipient)).Read(32, 2));
             sum = unchecked((short)(sum + z));
             frame = frame with { State = frame.State.WriteWord(CentroidGlobal, unchecked((ushort)sum)) };
         }

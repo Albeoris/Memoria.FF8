@@ -40,11 +40,11 @@ public static class NativeBattleShellController
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, 0x866150, 100);
         hierarchy = root.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Shell requires its actual first contact.");
+        BattleContactCursor first = header.FirstContact;
         byte targets = header.ReadContactCount();
         byte groups = header.ReadRepeatModeMinusOne();
         byte maximum = Math.Max(unchecked((byte)(targets - 1)), groups);
-        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(12, 0x1D99A78).WriteByte(0x2C, header.ReadByte(0)).WriteByte(0x2D, packets.ReadContact(first).Primary.ActorIndex).WriteWord(0x5A, targets).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
+        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(12, 0x1D99A78).WriteByte(0x2C, header.Source).WriteByte(0x2D, packets.ReadContact(first).Primary.Recipient).WriteWord(0x5A, targets).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
         hierarchy = hierarchy.Write(root.Address, task);
         if ((parameters.Flags79 & 1) == 0)
         {
@@ -72,7 +72,7 @@ public static class NativeBattleShellController
             int source = owner.Source ?? throw new NotSupportedException("Native Shell lost its executed initializer pointer.");
             bool odd = (task.ReadWord(0x5C) & 1) != 0;
             current = current with { Memory = current.Memory with { Shell33 = owner with { Cursor = source + (odd ? 0 : 0x6000), SecondaryCursor = source + (odd ? 0x6000 : 0xC000), PassEmitters = 0, PassGeometry = 0 } } };
-            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, Models(), inputs.ReadPoseSource);
+            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, inputs.ReadModel, inputs.ReadPoseSource);
             state = state.Write(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {
@@ -156,7 +156,7 @@ public static class NativeBattleShellController
             switch (task.Callback)
             {
                 case 0x866470:
-                    task = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, Models(), inputs.ReadPoseSource, inputs.ReadForeignTarget);
+                    task = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, inputs.ReadModel, inputs.ReadPoseSource, inputs.ReadForeignTarget);
                     state = state.Write(address, task);
                     if (phase == 0)
                     {
@@ -294,7 +294,6 @@ public static class NativeBattleShellController
             current = inputs.Execute(current with { Effect = current.Effect with { Pools = state.Pools } }, operation);
             state = new(current.Effect.Pools);
         }
-        NativeBattleGraphicsModel[] Models() => Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray();
     }
 
     private static short Word(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));

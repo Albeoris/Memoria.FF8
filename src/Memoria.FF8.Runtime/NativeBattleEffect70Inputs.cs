@@ -26,9 +26,9 @@ public abstract record NativeBattleEffect70Operation
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
 }
 public sealed record NativeBattleEffect70UploadTim(uint Source) : NativeBattleEffect70Operation;
-public sealed record NativeBattleEffect70ModelFlags(int Actor, ushort AndMask, ushort OrMask, bool WordWidth) : NativeBattleEffect70Operation;
-public sealed record NativeBattleEffect70ModelPositionWord(int Actor, int Offset, short Value) : NativeBattleEffect70Operation;
-public sealed record NativeBattleEffect70ModelPositionPacked(int Actor, NativeBattleEffectArena Position8) : NativeBattleEffect70Operation;
+public sealed record NativeBattleEffect70ModelFlags(BattleModelOwner Actor, ushort AndMask, ushort OrMask, bool WordWidth) : NativeBattleEffect70Operation;
+public sealed record NativeBattleEffect70ModelPositionWord(BattleModelOwner Actor, int Offset, short Value) : NativeBattleEffect70Operation;
+public sealed record NativeBattleEffect70ModelPositionPacked(BattleModelOwner Actor, NativeBattleEffectArena Position8) : NativeBattleEffect70Operation;
 public sealed record NativeBattleEffect70CaptureBounds6DFD90(int Actor, uint Destination) : NativeBattleEffect70Operation;
 public sealed record NativeBattleEffect70DrawActor693170(int Actor, NativeBattleEffectArena Rotation8, NativeBattleEffectArena Offset8, short Scale) : NativeBattleEffect70Operation;
 public sealed record NativeBattleEffect70StageIntensity5713E0(int Depth, int Flags) : NativeBattleEffect70Operation;
@@ -46,4 +46,4 @@ public sealed record NativeBattleEffect70IoAdvance534210 : NativeBattleEffect70O
 public sealed record NativeBattleEffect70ConsumeContacts506BA0 : NativeBattleEffect70Operation;
 public sealed record NativeBattleEffect70DeliverPrivate(NativeBattleGfGeometryBatch Batch, uint CursorGlobal, ushort Flags = 0) : NativeBattleEffect70Operation;
 public sealed record NativeBattleEffect70DeliverCommon(NativeBattleGfGeometryBatch Batch) : NativeBattleEffect70Operation;
-public sealed record NativeBattleEffect70QueryBonePoint(int Actor, short Selector, uint Destination) : NativeBattleEffect70Operation;
+public sealed record NativeBattleEffect70QueryBonePoint(BattleModelOwner Actor, short Selector, uint Destination) : NativeBattleEffect70Operation;

@@ -7,7 +7,7 @@ public static class NativeBattleDuel112Controller
 {
     private const uint Arena = 0x20DFAB8;
 
-    public static NativeBattleDuel112Frame Enter6CBC10(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleFileStaging staging, NativeCrtRandomState random, NativeBattleDuel112Resources resources, Func<NativeBattleDuel112Frame, NativeBattleDuel112Frame> enqueueInitialTexture)
+    public static NativeBattleDuel112Frame Enter6CBC10(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleFileStaging staging, NativeCrtRandomState random, NativeBattleDuel112Resources resources, NativeBattleModelAliases aliases, Func<NativeBattleDuel112Frame, NativeBattleDuel112Frame> enqueueInitialTexture)
     {
         if (effect.Binding is not { Effect: 112, Entry: 0x6CBBE0, Initializer: 0x6CBBF0 } || effect.Parameters is not { } parameters)
         {
@@ -23,7 +23,7 @@ public static class NativeBattleDuel112Controller
         memory = memory with { Duel112 = new(true, resources) };
         NativeBattleDuel112Frame frame = enqueueInitialTexture(new(memory, effect, staging, random));
         frame = frame with { Staging = Dword(frame.Staging, 0x25218E8, Arena) };
-        frame = frame with { Staging = Dword(frame.Staging, 0x25218E0, NativeBattleGraphicsModelAddress.Encode(parameters.Source)) };
+        frame = frame with { Staging = frame.Staging.WriteExecutionReference(0x25218E0, 4, new BattleExecutionReference.Model(parameters.Source), aliases.EncodeAddress(parameters.Source)) };
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x2521960, 0x25218F8, 28, 1);
         (root, int slot) = root.Append(0x6CBCF0);
         root = root.WriteSlot(slot, root.Slots[slot].ClearPayload(16));

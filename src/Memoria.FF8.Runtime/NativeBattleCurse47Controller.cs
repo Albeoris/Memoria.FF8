@@ -211,10 +211,6 @@ public static class NativeBattleCurse47Controller
                 {
                     NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Curse target requires its captured action parameters.");
                     BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                    if ((uint)header >= inputs.Packets.Headers.Length)
-                    {
-                        throw new InvalidDataException("Curse contact header leaves its actual arena.");
-                    }
                     int first = inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Curse requires its actual contact pointer.");
                     int contact = checked(first + unchecked((sbyte)task.ReadByte(0x2B)));
                     if ((uint)contact >= NativeBattleActionPacketsState.ContactCapacity)

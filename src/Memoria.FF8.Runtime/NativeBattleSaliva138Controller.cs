@@ -70,7 +70,7 @@ public static partial class NativeBattleSaliva138Controller
             {
                 throw new NotSupportedException("Saliva exhausted its single main task.");
             }
-            uint target = ModelAddress(inputs.Packets.ReadContact(FirstContact(frame, inputs)).Primary.ActorIndex);
+            uint target = ModelAddress(inputs.Packets.ReadContact(FirstContact(frame, inputs)).Primary.Recipient);
             NativeBattleModulePoolTask task = Read(frame, child).WriteBytes(12, new byte[884]).WriteDword(16, target);
             NativeBattleSaliva138PointStep anchor = inputs.ReadBone502170(frame, target, 0xF1, 0);
             frame = anchor.Frame;

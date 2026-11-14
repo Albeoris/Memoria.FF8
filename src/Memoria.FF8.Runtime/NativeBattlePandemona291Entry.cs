@@ -66,14 +66,14 @@ public static class NativeBattlePandemona291Entry
         NativeBattleModulePoolTask root = pool.Slots[slot].WriteDword(0xC, 0).WriteDword(0x10, 0);
         pool = pool.WriteSlot(slot, root);
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        int count = header.ReadByte(0x10);
+        int count = header.ReadContactCount();
         int sum = 0;
         if (count > 0)
         {
             int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Pandemona requires its actual contact array.");
             for (int index = 0; index < count; index++)
             {
-                int actor = packets.ReadContact(checked(first + index)).Primary.ActorIndex;
+                int actor = packets.ReadContact(checked(first + index)).Primary.Recipient;
                 NativeBattleGraphicsModel model = readModel(actor);
                 NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Pandemona requires the selected actor's current position WORD20.");
                 sum = unchecked(sum + transform.Position28.Z);

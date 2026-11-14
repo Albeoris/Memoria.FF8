@@ -14,7 +14,7 @@ public static partial class NativeBattleEffect69Controller
         {
             throw new InvalidDataException("Effect69 entry requires its retained inactive physical banks.");
         }
-        int actor = Parameters(frame).Source;
+        BattleModelOwner actor = Parameters(frame).Source;
         uint model = PhysicalModelAddress(actor);
         frame = frame with { State = frame.State.WriteDword(ArenaGlobal, 0x20DFAB8).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, model) };
         frame = inputs.Execute(frame, new NativeBattleEffect69ModelFlags(actor, 0xFFFF, 0xC, false));

@@ -47,11 +47,11 @@ public sealed record NativeBattleAquaPackets(NativeBattleGfGeometryBatch Batch) 
 public sealed record NativeBattleAquaContact(int Index) : NativeBattleAquaOperation;
 public sealed record NativeBattleAquaSound(NativeBattleModuleSound Sound) : NativeBattleAquaOperation;
 public sealed record NativeBattleAquaStage(short Depth, bool ClearColor) : NativeBattleAquaOperation;
-public sealed record NativeBattleAquaBindCaster(int Actor) : NativeBattleAquaOperation;
+public sealed record NativeBattleAquaBindCaster(BattleModelOwner Actor) : NativeBattleAquaOperation;
 public sealed record NativeBattleAquaSequence(int Actor, byte Sequence) : NativeBattleAquaOperation;
-public sealed record NativeBattleAquaInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<int, short, int, NativeBattleModuleAnchor> ReadAnchor502170, Func<NativeBattleAquaFrame, NativeBattleAquaOperation, NativeBattleAquaFrame> Execute)
+public sealed record NativeBattleAquaInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<int, short, int, NativeBattleModuleAnchor> ReadAnchor502170, Func<NativeBattleAquaFrame, NativeBattleAquaOperation, NativeBattleAquaFrame> Execute)
 {
-    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeign { get; init; }
+    public Func<BattleModelOwner, NativeBattleEffectActorGeometry?>? ReadForeign { get; init; }
     public Func<BattleModelOwner, int>? ReadBoneCount { get; init; }
     public ushort? CameraPadding18 { get; init; }
     public NativeBattlePackedMatrix32? PackedCamera { get; init; }

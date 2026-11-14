@@ -36,7 +36,7 @@ public sealed partial class BattleSession
             return current with { Memory = latest, State = latest.PoisonGas171 ?? throw new InvalidDataException("Poison Gas171 external service lost its executable storage."), Staging = NativeFileStaging ?? throw new InvalidDataException("Poison Gas171 external service lost its temporary memory."), Random = nativeCrtRandom ?? throw new InvalidDataException("Poison Gas171 external service lost its CRT stream.") };
         }
 
-        NativeBattlePoisonGas171PointStep Bone(NativeBattlePoisonGas171Frame current, int actor, int selector, int distance)
+        NativeBattlePoisonGas171PointStep Bone(NativeBattlePoisonGas171Frame current, BattleModelOwner actor, int selector, int distance)
         {
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Poison Gas171 requires its current actor skeleton.");
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), source, checked((byte)selector), checked((short)distance));

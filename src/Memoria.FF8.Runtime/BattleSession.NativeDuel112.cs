@@ -8,7 +8,7 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState EnterNativeDuel112(NativeBattleGraphicsState graphics, NativeBattleDuel112Resources resources)
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new InvalidDataException("Native Duel requires its selected original module.");
-        NativeBattleDuel112Frame frame = NativeBattleDuel112Controller.Enter6CBC10(NativeEffectMemory ?? throw new NotSupportedException("Native Duel requires its retained process owner."), effect, NativeFileStaging ?? NativeBattleFileStaging.Unknown(), nativeCrtRandom ?? throw new NotSupportedException("Native Duel requires its retained CRT random owner."), resources, current =>
+        NativeBattleDuel112Frame frame = NativeBattleDuel112Controller.Enter6CBC10(NativeEffectMemory ?? throw new NotSupportedException("Native Duel requires its retained process owner."), effect, NativeFileStaging ?? NativeBattleFileStaging.Unknown(), nativeCrtRandom ?? throw new NotSupportedException("Native Duel requires its retained CRT random owner."), resources, graphics.NativeBindings.CaptureAliases(graphics.ActorModels), current =>
         {
             NativeBattleEffectResourcePointer texture = current.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x25218E4) ?? throw new NotSupportedException("Native Duel requires its actual initializer texture pointer.");
             NativeBattleEffectTextureState textures = current.Memory.Textures ?? throw new NotSupportedException("Native Duel requires its retained texture queue.");
@@ -31,14 +31,14 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Duel requires its current view matrix.");
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Duel requires its original color arithmetic.");
         NativeBattleDuel112Frame frame = new(memory, graphics.OriginalEffect ?? throw new InvalidDataException("Native Duel requires its selected module."), NativeFileStaging ?? throw new NotSupportedException("Native Duel requires its entered shared byte owner."), nativeCrtRandom ?? throw new NotSupportedException("Native Duel requires its CRT random owner."));
-        NativeBattleDuel112ActorServices actor = new(index => graphics.Models[index], (index, model) => graphics = graphics with { Models = graphics.Models.SetItem(index, model) }, sequence => nativeActionPackets.ReadContact(FirstContact(sequence)).Primary.ActorIndex, Bind, Select);
-        NativeBattleDuel112DrawingInputs drawing = new(actor, (index, bone, fraction) => ReadNativeGraphicsBone(graphics, index, bone, fraction), view, projection, colors, (rise, hold, fall, strength) => graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendFlash((short)rise, (short)hold, (short)fall, (short)strength) }) { CapturePresentation = true };
-        NativeBattleDuel112TargetInputs target = new(new(drawing, index => ReadNativeModelAnchor(graphics, index) with { W = (graphics.Models[index].Transform ?? throw new NotSupportedException("Native571400 requires its actual model WORD36.")).Angle36 }), descriptor => PublishNativeModuleSound(new(descriptor, 0, null) { Pan = 128, RawPan = 128 }), intensity =>
+        NativeBattleDuel112ActorServices actor = new(owner => graphics.ActorModels.Get(owner), (owner, model) => graphics = graphics with { ActorModels = graphics.ActorModels.Set(owner, model) }, sequence => nativeActionPackets.ReadContact(FirstContact(sequence)).Primary.Recipient, Bind, Select, graphics.NativeBindings.CaptureAliases(graphics.ActorModels));
+        NativeBattleDuel112DrawingInputs drawing = new(actor, (owner, bone, fraction) => ReadNativeGraphicsBone(graphics, owner, bone, fraction), view, projection, colors, (rise, hold, fall, strength) => graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendFlash((short)rise, (short)hold, (short)fall, (short)strength) }) { CapturePresentation = true };
+        NativeBattleDuel112TargetInputs target = new(new(drawing, owner => ReadNativeModelAnchor(graphics, owner) with { W = (graphics.ActorModels.Get(owner).Transform ?? throw new NotSupportedException("Native571400 requires its actual model WORD36.")).Angle36 }), descriptor => PublishNativeModuleSound(new(descriptor, 0, null) { Pan = 128, RawPan = 128 }), intensity =>
         {
             NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native Duel stage depth requires its actual retained groups.");
             NativeStage = stage with { Groups = stage.Groups.Select(group => group with { ColorDepth = unchecked((short)intensity), ColorFlags = 0 }).ToImmutableArray() };
         }, Contact);
-        frame = NativeBattleDuel112Controller.Advance6CBCF0(frame, () => nativeActionPackets.Headers[parameters.Header].ReadByte(17), (current, slot, sequence) => NativeBattleDuel112Target.Initialize6CBF90(current, slot, sequence, actor), Child, current =>
+        frame = NativeBattleDuel112Controller.Advance6CBCF0(frame, () => nativeActionPackets.ReadHeader(parameters.Header).ReadRepeatModeMinusOne(), (current, slot, sequence) => NativeBattleDuel112Target.Initialize6CBF90(current, slot, sequence, actor), Child, current =>
         {
             NativeBattleEffectTextureState textures = current.Memory.Textures ?? throw new NotSupportedException("Native Duel animation registration requires its retained animation owner.");
             textures = textures.Register5099A0(new("Duel112", resources.StaticData), checked((int)(0x12DAFA8u - NativeBattleDuel112Resources.Address)));
@@ -48,14 +48,10 @@ public sealed partial class BattleSession
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };
 
-        int FirstContact(int sequence)
+        BattleContactCursor FirstContact(int sequence)
         {
-            int header = checked(parameters.Header + sequence);
-            if ((uint)header >= NativeBattleActionPacketsState.HeaderCapacity)
-            {
-                throw new InvalidDataException("Native Duel sequence leaves the actual physical action-header arena.");
-            }
-            return nativeActionPackets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Native Duel requires the selected header's actual contact pointer.");
+            BattleActionHeaderReference header = parameters.Header.Advance(sequence);
+            return nativeActionPackets.ReadHeader(header).FirstContact;
         }
         void Publish(NativeBattleDuel112Frame current)
         {
@@ -63,12 +59,12 @@ public sealed partial class BattleSession
             NativeFileStaging = current.Staging;
             graphics = graphics with { OriginalEffect = current.Effect };
         }
-        NativeBattleDuel112Frame Bind(NativeBattleDuel112Frame current, int index, uint row)
+        NativeBattleDuel112Frame Bind(NativeBattleDuel112Frame current, BattleModelOwner owner, uint row)
         {
             Publish(current);
-            NativeBattleGraphicsModel model = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[index], NativeGraphicsPoseResource(graphics, index));
+            NativeBattleGraphicsModel model = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(owner), NativeGraphicsPoseResource(graphics, owner));
             var bound = NativeBattleVictoryResources.Bind5022C0(resources.ReadActorDat(), NativeModelCpuResources ?? throw new NotSupportedException("Native Duel requires its actual CPU resource rows."), model, row, NativeBattleDuel112Resources.Address, Read, (address, pointer) => current = current with { Effect = current.Effect with { Pools = NativeBattleEffectTaskMemory.WritePointer(current.Effect.Pools, address, pointer) } });
-            graphics = graphics with { Models = graphics.Models.SetItem(index, bound.Model), OriginalEffect = current.Effect };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(owner, bound.Model), OriginalEffect = current.Effect };
             return current;
 
             NativeBattleResourcePointer? Read(uint address)
@@ -80,10 +76,10 @@ public sealed partial class BattleSession
                 return IsNativeEffectArenaAddress(address) ? (current.Memory.Arena ?? throw new NotSupportedException("Native Duel source pointer requires its actual arena.")).ReadResourcePointer(NativeBattleWaterExecutionFields.ArenaOffset(address, 4)) : current.Staging.ReadResourcePointer(address);
             }
         }
-        NativeBattleDuel112Frame Select(NativeBattleDuel112Frame current, int index, byte sequence)
+        NativeBattleDuel112Frame Select(NativeBattleDuel112Frame current, BattleModelOwner owner, byte sequence)
         {
             Publish(current);
-            graphics = SelectNativeHeaderSequence(graphics, checked((byte)index), sequence);
+            graphics = SelectNativeHeaderSequence(graphics, owner, sequence);
             return current;
         }
         NativeBattleDuel112Frame Contact(NativeBattleDuel112Frame current, int sequence)

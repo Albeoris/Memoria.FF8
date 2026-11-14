@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleDrinkMagic37Anchor(byte Actor, short Distance, NativeBattleVector Value) : NativeBattleDrawStock15ParticleOperation;
+public sealed record NativeBattleDrinkMagic37Anchor(BattleModelOwner Actor, short Distance, NativeBattleVector Value) : NativeBattleDrawStock15ParticleOperation;
 public sealed record NativeBattleDrinkMagic37ParticleInputs(byte ParameterActor, Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors> SelectActors, Func<byte, short, NativeBattleVector> ReadAnchor12, Func<byte, short> ReadYaw, Func<NativeBattleModulePoolTask, NativeBattleModulePoolTask> Position8DC700);
 public sealed record NativeBattleDrinkMagic37ParticleStep(NativeBattleEffectHierarchy Hierarchy, NativeCrtRandomState Random, ImmutableArray<byte> CapturedAnchor8, ImmutableArray<NativeBattleDrawStock15ParticleOperation> Operations, int Result);
 

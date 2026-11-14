@@ -37,7 +37,7 @@ public static partial class NativeBattleEffect320Controller
             for (int index = 0; index < count; index++)
             {
                 int first = header.FirstContactIndex ?? throw new NotSupportedException("Effect320 requires its actual contact pointer.");
-                int actor = packets.ReadContact(first + index).Primary.ActorIndex;
+                int actor = packets.ReadContact(first + index).Primary.Recipient;
                 NativeBattleEffect320PointStep point = inputs.Anchor571400(frame, actor, retained);
                 frame = point.Frame;
                 retained = point.Output8;

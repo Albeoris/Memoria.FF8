@@ -14,7 +14,7 @@ public sealed record NativeBattleClash26Sound(uint Sound) : NativeBattleClash26O
 public sealed record NativeBattleClash26Contact(int Index) : NativeBattleClash26Operation;
 public sealed record NativeBattleClash26Sequence(byte Actor, int Sequence) : NativeBattleClash26Operation;
 public sealed record NativeBattleClash26Model(NativeBattleGraphicsModel Model) : NativeBattleClash26Operation;
-public sealed record NativeBattleClash26Inputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleClash26Frame, NativeBattleClash26Operation, NativeBattleClash26Frame> Execute);
+public sealed record NativeBattleClash26Inputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleClash26Frame, NativeBattleClash26Operation, NativeBattleClash26Frame> Execute);
 
 public static partial class NativeBattleClash26Controller
 {
@@ -37,7 +37,7 @@ public static partial class NativeBattleClash26Controller
         hierarchy = root.Hierarchy;
         NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, 0x1D99A78, 0, 0);
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78).WriteByte(0x2D, actors.Target).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
+        NativeBattleModulePoolTask task = actors.WriteTargetTo(hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78)).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
         hierarchy = hierarchy.Write(root.Address, task);
         int offset = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x26D90D8)?.ArenaOffset ?? throw new NotSupportedException("Native8885D0 requires its executed26D90D8 resource pointer.");
         int packetOffset = memory.Cursor;
@@ -68,7 +68,7 @@ public static partial class NativeBattleClash26Controller
                 throw new NotSupportedException("Native Clash main task requires8886C0.");
             }
             execution.Frame = execution.Frame with { State = execution.Frame.State with { DrawCursor = checked(execution.Frame.State.ArenaOffset + ((task.ReadByte(0x5C) & 1) == 0 ? 0xC000 : 0)) } };
-            task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, execution.Models(), inputs.ReadPoseSource);
+            task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, inputs.ReadModel, inputs.ReadPoseSource);
             execution.Write(address, task);
             int phase = unchecked((sbyte)task.ReadByte(0x29));
             switch (phase)
@@ -132,7 +132,6 @@ public static partial class NativeBattleClash26Controller
         public void SetHierarchy(NativeBattleEffectHierarchy hierarchy) => Frame = Frame with { Effect = Frame.Effect with { Pools = hierarchy.Pools } };
         public NativeBattleModulePoolTask Read(uint address) => Hierarchy.Read(address);
         public void Write(uint address, NativeBattleModulePoolTask task) => SetHierarchy(Hierarchy.Write(address, task));
-        public NativeBattleGraphicsModel[] Models() => Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray();
         private void Execute(NativeBattleClash26Operation operation) => Frame = inputs.Execute(Frame, operation);
         private int Rand()
         {

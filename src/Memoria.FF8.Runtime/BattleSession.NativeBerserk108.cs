@@ -46,10 +46,10 @@ public sealed partial class BattleSession
                 pools = [pools[0], NativeBattleEffectTaskPool.Initialize(0x2521B08, Address(0), 0x8C4, 3), NativeBattleEffectTaskPool.Initialize(0x2521AF8, Address(0x1A4C), 0x420, 12), NativeBattleEffectTaskPool.Initialize(0x2521AE8, Address(0x4BCC), 0x1C, 64)];
             }
             int action = root.ReadByte(14);
-            if (action <= nativeActionPackets.ReadHeader(effect.Parameters!.Header).ReadByte(17))
+            if (action <= nativeActionPackets.ReadHeader(effect.Parameters!.Header).ReadRepeatModeMinusOne())
             {
-                int contact = nativeActionPackets.ReadHeader(effect.Parameters.Header.Advance(action)).FirstContactIndex ?? throw new InvalidDataException("Native Berserk requires its selected first contact.");
-                int actor = nativeActionPackets.ReadContact(contact).Primary.ActorIndex;
+                BattleContactCursor contact = nativeActionPackets.ReadHeader(effect.Parameters.Header.Advance(action)).FirstContact;
+                int actor = nativeActionPackets.ReadContact(contact).Primary.Recipient;
                 uint entity = NativeBattleGraphicsModelAddress.Encode(actor);
                 if (pools[1].Slots.Any(task => (task.Flags & 1) != 0 && task.ReadDword(20) == entity && WindWord(task, 12) <= 43))
                 {
@@ -219,7 +219,7 @@ public sealed partial class BattleSession
             }
             if (counter == 43)
             {
-                int contact = nativeActionPackets.ReadHeader(effect.Parameters!.Header.Advance(WindWord(task, 14))).FirstContactIndex ?? throw new InvalidDataException("Native Berserk lost its selected contact.");
+                BattleContactCursor contact = nativeActionPackets.ReadHeader(effect.Parameters!.Header.Advance(WindWord(task, 14))).FirstContact;
                 graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact)] });
             }
             if (counter >= 53 && rays.Alive == 0)

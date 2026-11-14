@@ -22,7 +22,7 @@ public static partial class NativeBattleEvilEye282Controller
             }
             frame = ClearDwords701200(frame, main + 12, 342);
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-            int count = Header(frame, packets).ReadByte(16);
+            int count = Header(frame, packets).ReadContactCount();
             if (count > 3)
             {
                 throw new NotSupportedException("Evil-Eye recipient pointers exceed the three physical rows before its programme workspace.");
@@ -32,7 +32,7 @@ public static partial class NativeBattleEvilEye282Controller
             {
                 packets = inputs.ReadPackets(frame);
                 int first = Header(frame, packets).FirstContactIndex ?? throw new NotSupportedException("Evil-Eye requires its current physical contact pointer.");
-                uint model = ModelAddress(packets.ReadContact(checked(first + index)).Primary.ActorIndex);
+                uint model = ModelAddress(packets.ReadContact(checked(first + index)).Primary.Recipient);
                 frame = Write(frame, main, Read(frame, main).WriteDword(16 + index * 4, model));
             }
             NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, main + 28, 1352);
@@ -129,10 +129,6 @@ public static partial class NativeBattleEvilEye282Controller
             throw new NotSupportedException("Evil-Eye requires its actual current parameter pointer.");
         }
         BattleActionHeaderReference index = Parameters(frame).Header;
-        if ((uint)index >= packets.Headers.Length)
-        {
-            throw new NotSupportedException("Evil-Eye parameter header leaves its physical action arena.");
-        }
         return packets.ReadHeader(index);
     }
 }

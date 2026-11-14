@@ -9,7 +9,7 @@ public static partial class NativeBattleGatlingGun305Controller
     private static int FirstContact(NativeBattleGatlingGun305Frame frame, NativeBattleGatlingGun305Inputs inputs)
     {
         BattleActionHeaderReference index = Parameters(frame).Header;
-        if ((uint)index >= inputs.Packets.Headers.Length || inputs.Packets.ReadHeader(index).ReadByte(16) == 0)
+        if (inputs.Packets.ReadHeader(index).ReadContactCount() == 0)
         {
             throw new InvalidDataException("Gatling Gun requires its first captured target contact.");
         }

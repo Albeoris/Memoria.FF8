@@ -50,7 +50,7 @@ public static class NativeBattleEffect20Controller
             int source = current.State.SourceArenaOffset ?? throw new NotSupportedException("Effect20 requires its actual source bank.");
             bool odd = (task.ReadWord(0x5C) & 1) != 0;
             current = current with { Memory = current.Memory with { SharedEffectView2793E58 = inputs.Camera }, State = current.State with { PrimaryDrawCursor = checked(source + (odd ? 0 : NativeBattleEffect20Profile.DrawStep)), SecondaryDrawCursor = checked(source + (odd ? NativeBattleEffect20Profile.DrawStep : 2 * NativeBattleEffect20Profile.DrawStep)) } };
-            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, Models(), inputs.ReadPoseSource);
+            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, inputs.ReadModel, inputs.ReadPoseSource);
             hierarchy = hierarchy.Write(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {
@@ -147,7 +147,7 @@ public static class NativeBattleEffect20Controller
         NativeBattleEffect20LeafStep Target(uint address)
         {
             NativeBattleEffectHierarchy hierarchy = new(current.Effect.Pools);
-            NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(hierarchy.Read(address), Models(), inputs.ReadPoseSource);
+            NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(hierarchy.Read(address), inputs.ReadModel, inputs.ReadPoseSource);
             NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadByte(0x2D));
             NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Effect20 target requires its actual pose.");
             NativeBattlePoseSource pose = inputs.ReadPoseSource(task.ReadByte(0x2D));
@@ -318,7 +318,6 @@ public static class NativeBattleEffect20Controller
             return NativeBattleEffect20Particles.Finish(current, address);
         }
 
-        ImmutableArray<NativeBattleGraphicsModel> Models() => Enumerable.Range(0, 7).Select(inputs.ReadModel).ToImmutableArray();
         NativeBattleEffectTaskActors Select(uint parameter, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, parameter, group, target);
     }
 

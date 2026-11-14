@@ -23,7 +23,7 @@ public sealed partial class BattleSession
 
     private NativeBattleEffectParameters CreateNativeOriginalEffectParameters(NativeBattleActionGraphicsState context, byte parameterFlags = 0)
     {
-        return new(context.ActorIndex, (byte)(context.HitFlags | parameterFlags), context.TargetMask, context.HeaderIndex, 0, 0)
+        return new(context.Actor, (byte)(context.HitFlags | parameterFlags), context.TargetMask, context.Header, 0, 0)
         {
             Parameter80 = NativeEffectMemory?.Parameter80,
             Parameter82 = NativeEffectMemory?.Parameter82,
@@ -34,7 +34,7 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState InvokeNativeOriginalEffect(NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context, byte parameterFlags = 0)
     {
         graphics = PrepareNativeOriginalEffectParameters(graphics, context, parameterFlags);
-        graphics = PrepareNativeOriginalEffectActor(graphics, context.ActorIndex);
+        graphics = PrepareNativeOriginalEffectActor(graphics, context.Actor);
         return InvokeNativeOriginalEffect(graphics);
     }
 
@@ -1198,7 +1198,7 @@ public sealed partial class BattleSession
         }
         if (phase == 1)
         {
-            graphics = BeginNativeOriginalEffect(graphics, NativeBattleActionGraphics.Word(nativeActionPackets.Headers[context.HeaderIndex], 6));
+            graphics = BeginNativeOriginalEffect(graphics, NativeBattleActionGraphics.Word(nativeActionPackets.Headers[context.Header], 6));
             return (graphics, 2, false);
         }
         if (phase == 2)
@@ -1210,7 +1210,7 @@ public sealed partial class BattleSession
         {
             graphics = PublishNativeOriginalEffectTitle(graphics, context);
             graphics = PrepareNativeOriginalEffectParameters(graphics, context);
-            graphics = PrepareNativeOriginalEffectActor(graphics, context.ActorIndex);
+            graphics = PrepareNativeOriginalEffectActor(graphics, context.Actor);
             NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native50B190 requires the actual camera selector owner.")).SetActionSelector(65535);
             graphics = InvokeNativeOriginalEffect(graphics);
             return (graphics with { Flags = graphics.Flags | 0x10 }, 4, false);

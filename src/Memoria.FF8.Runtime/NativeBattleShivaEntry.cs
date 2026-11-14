@@ -25,8 +25,8 @@ public static class NativeBattleShivaEntry
         }
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native Shiva entry requires its retained571B50 arena.");
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Native Shiva entry requires its actual first-contact pointer.");
-        byte target = packets.ReadContact(firstContact).Primary.ActorIndex;
+        BattleContactCursor firstContact = header.FirstContact;
+        byte target = packets.ReadContact(firstContact).Primary.Recipient;
         if (target >= models.Length)
         {
             throw new InvalidDataException("Native Shiva first contact leaves its physical graphics bank.");

@@ -16,7 +16,7 @@ public static class NativeBattleEffect344Controller
         }
         NativeBattleEffectParameters parameters = Parameters(frame);
         int contact = FirstContact(frame, inputs);
-        int target = inputs.ReadPackets(frame).ReadContact(contact).Primary.ActorIndex;
+        int target = inputs.ReadPackets(frame).ReadContact(contact).Primary.Recipient;
         NativeBattleEffect344State state = frame.State.WriteDword(TargetGlobal, (uint)target).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, parameters.Source);
         var pools = ImmutableArray.CreateBuilder<NativeBattleEffectTaskPool>(2);
         for (int index = 0; index < Pools.Length; index++)
@@ -165,10 +165,6 @@ public static class NativeBattleEffect344Controller
     {
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         BattleActionHeaderReference index = Parameters(frame).Header;
-        if ((uint)index >= packets.Headers.Length)
-        {
-            throw new InvalidDataException("Effect344 requires its current physical action header.");
-        }
         int first = packets.ReadHeader(index).FirstContactIndex ?? throw new NotSupportedException("Effect344 requires its actual first contact pointer.");
         _ = packets.ReadContact(first);
         return first;

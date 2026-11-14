@@ -44,8 +44,8 @@ public static class NativeBattleCuraController
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, profile.Callback(0x889E40), 100);
         hierarchy = root.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Native889D60 requires its header's original contact pointer.");
-        byte target = packets.ReadContact(firstContact).Primary.ActorIndex;
+        BattleContactCursor firstContact = header.FirstContact;
+        byte target = packets.ReadContact(firstContact).Primary.Recipient;
         NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78).WriteByte(0x2D, target).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
         hierarchy = hierarchy.Write(root.Address, task);
         if ((parameters.Flags79 & 1) == 0)

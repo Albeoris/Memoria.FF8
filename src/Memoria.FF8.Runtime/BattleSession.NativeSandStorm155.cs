@@ -35,7 +35,7 @@ public sealed partial class BattleSession
             return current with { Memory = latest, State = latest.SandStorm155 ?? throw new InvalidDataException("Sand Storm external service lost its executable storage."), Staging = NativeFileStaging ?? throw new InvalidDataException("Sand Storm external service lost its temporary memory."), Random = nativeCrtRandom ?? throw new InvalidDataException("Sand Storm external service lost its CRT stream.") };
         }
 
-        NativeBattleSandStorm155AnchorStep Anchor(NativeBattleSandStorm155Frame current, int actor)
+        NativeBattleSandStorm155AnchorStep Anchor(NativeBattleSandStorm155Frame current, BattleModelOwner actor)
         {
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) != 0)

@@ -10,7 +10,7 @@ public sealed record NativeBattleWhiteWind297Frame(NativeBattleEffectMemory Memo
 }
 public sealed record NativeBattleWhiteWind297AnchorStep(NativeBattleWhiteWind297Frame Frame, NativeBattleModuleAnchor Anchor);
 public abstract record NativeBattleWhiteWind297Operation;
-public sealed record NativeBattleWhiteWind297BindCaster(byte Actor, uint SaveAddress, uint ResourceAddress) : NativeBattleWhiteWind297Operation;
+public sealed record NativeBattleWhiteWind297BindCaster(BattleModelOwner Actor, uint SaveAddress, uint ResourceAddress) : NativeBattleWhiteWind297Operation;
 public sealed record NativeBattleWhiteWind297RingSequence(byte Actor, byte Sequence) : NativeBattleWhiteWind297Operation;
 public sealed record NativeBattleWhiteWind297Sound(uint Value, int Pan) : NativeBattleWhiteWind297Operation;
 public sealed record NativeBattleWhiteWind297Contact(int Index) : NativeBattleWhiteWind297Operation;

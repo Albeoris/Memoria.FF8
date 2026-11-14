@@ -21,7 +21,7 @@ public static partial class NativeBattleLionHeart165Controller
             }
         }
         NativeBattleActionHeaderSlot header = packets.Headers[parameters.Header];
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Native5E9470 requires its physical first-contact pointer.");
+        BattleContactCursor first = header.FirstContact;
         BattleModelOwner recipient = packets.ReadContact(first).Primary.Recipient;
         NativeBattleEffectResourcePointer initializer = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x23C6874) ?? throw new NotSupportedException("Native5E9470 requires its actual initializer publication.");
         staging = WriteDword(staging, 0x23C6874, checked(0x20DFAB8u + (uint)initializer.ArenaOffset));

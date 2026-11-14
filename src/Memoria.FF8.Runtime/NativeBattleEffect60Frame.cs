@@ -35,7 +35,7 @@ public abstract record NativeBattleEffect60Operation;
 public sealed record NativeBattleEffect60Contact(int Index) : NativeBattleEffect60Operation;
 public sealed record NativeBattleEffect60Sound(NativeBattleModuleSound Sound) : NativeBattleEffect60Operation;
 public sealed record NativeBattleEffect60Rotate(NativeBattleActionMatrix Matrix, char Axis, short Angle, short? Padding18) : NativeBattleEffect60Operation;
-public sealed record NativeBattleEffect60TargetAnchor(uint Address, int Actor, byte Selector, short Distance, int Destination) : NativeBattleEffect60Operation;
+public sealed record NativeBattleEffect60TargetAnchor(uint Address, BattleModelOwner Actor, byte Selector, short Distance, int Destination) : NativeBattleEffect60Operation;
 public sealed record NativeBattleEffect60SetYaw(int Actor, short Value) : NativeBattleEffect60Operation;
 public sealed record NativeBattleEffect60SetPackedPosition(int Actor, NativeBattleEffectArena Packed8) : NativeBattleEffect60Operation;
 public sealed record NativeBattleEffect60RestoreRotation(int Actor, NativeBattleEffectArena Packed8) : NativeBattleEffect60Operation;

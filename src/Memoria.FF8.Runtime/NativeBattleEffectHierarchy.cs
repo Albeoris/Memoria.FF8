@@ -5,7 +5,25 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleEffectTaskActors(byte Actor, byte Target);
+public sealed record NativeBattleEffectTaskActors(BattleModelOwner Actor, BattleModelOwner Target, NativeBattleModelAliases Aliases)
+{
+    internal NativeBattleModulePoolTask WriteTo(NativeBattleModulePoolTask task)
+    {
+        return WriteTargetTo(WriteSourceTo(task));
+    }
+
+    internal NativeBattleModulePoolTask WriteSourceTo(NativeBattleModulePoolTask task)
+    {
+        task.WriteExecutionReference(0x2C, 1, new BattleExecutionReference.Model(Actor), Aliases.EncodeOperand(Actor, 1));
+        return task;
+    }
+
+    internal NativeBattleModulePoolTask WriteTargetTo(NativeBattleModulePoolTask task)
+    {
+        task.WriteExecutionReference(0x2D, 1, new BattleExecutionReference.Model(Target), Aliases.EncodeOperand(Target, 1));
+        return task;
+    }
+}
 public sealed record NativeBattleEffectHierarchyAppend(NativeBattleEffectHierarchy Hierarchy, uint Address);
 public sealed record NativeBattleEffectHierarchyCallback(NativeBattleEffectHierarchy Hierarchy, int Result);
 public sealed record NativeBattleEffectHierarchyStep(NativeBattleEffectHierarchy Hierarchy, int Survivors);
@@ -148,7 +166,8 @@ public sealed record NativeBattleEffectHierarchy([property: JsonRequired] Immuta
         else
         {
             child.WriteDword(0x14, firstLevel == 0 ? address : firstLevel).WriteDword(0x10, rootAddress).WriteDword(0x0C, parameterAddress).WriteDword(0x1C, parentField1C).WriteDword(0x20, parentField20).WriteDword(0x18, parentAddress);
-            child.WriteByte(0x2A, headerOffset).WriteByte(0x2B, targetOffset).WriteByte(0x2E, field2E).WriteByte(0x2F, field2F).WriteByte(0x2C, actors!.Actor).WriteByte(0x2D, actors.Target);
+            child.WriteByte(0x2A, headerOffset).WriteByte(0x2B, targetOffset).WriteByte(0x2E, field2E).WriteByte(0x2F, field2F);
+            actors!.WriteTo(child);
             //Reread after Append so a same-pool parent retains508360's new Next link.
             parent = hierarchy.Read(parentAddress);
             parent.WriteByte(0x28, unchecked((byte)(parentChildren + 1)));

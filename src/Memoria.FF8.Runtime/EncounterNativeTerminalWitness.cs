@@ -5,7 +5,7 @@ public static class EncounterNativeTerminalWitness
 {
     public static bool Matches(string encounter, string originalActorId, string actorId, NativeBattleActionHeaderSlot? header, byte physicalActor, byte bodySequence, bool nativeKo, bool nativeSuspended)
     {
-        if (encounter != EncounterBindingResolver.Disc1Edea || actorId != originalActorId || !nativeKo || !nativeSuspended || header is null || header.ReadByte(0) != physicalActor || header.Command != 8 || header.Sequence != bodySequence)
+        if (encounter != EncounterBindingResolver.Disc1Edea || actorId != originalActorId || !nativeKo || !nativeSuspended || header is null || header.Source != physicalActor || header.Command != 8 || header.Sequence != bodySequence)
         {
             return false;
         }
@@ -18,11 +18,11 @@ public sealed partial class BattleSession
 {
     private void ObserveEncounterNativeTerminal(BattleCombatant actor, byte sequence, NativeBattleGraphicsState graphics)
     {
-        if (definition.EncounterMod is not { NativeEvents: not null } || graphics.ActionGraphics is not { } action || action.ActorIndex != actor.EncodeNativeSlot() || nativeActionPackets.ActiveHeaderIndex != action.HeaderIndex)
+        if (definition.EncounterMod is not { NativeEvents: not null } || graphics.ActionGraphics is not { } action || action.Actor != actor.EncodeNativeSlot() || nativeActionPackets.ActiveHeaderIndex != action.Header)
         {
             return;
         }
-        ObserveEncounterNativeTerminal(actor, sequence, nativeActionPackets.Headers[action.HeaderIndex], action.ActorIndex);
+        ObserveEncounterNativeTerminal(actor, sequence, nativeActionPackets.Headers[action.Header], action.Actor);
     }
 
     private void ObserveEncounterNativeTerminal(BattleCombatant actor, byte sequence, NativeBattleActionHeaderSlot? header, byte row)

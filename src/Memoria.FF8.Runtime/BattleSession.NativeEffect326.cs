@@ -61,7 +61,7 @@ public sealed partial class BattleSession
             return retained.Write(0, BitConverter.GetBytes(center.X)).Write(2, BitConverter.GetBytes(center.Y)).Write(4, BitConverter.GetBytes(center.Z));
         }
 
-        NativeBattleEffect326PointStep Point(NativeBattleEffect326Frame current, int actor, int selector, int fraction, NativeBattleEffectArena retained)
+        NativeBattleEffect326PointStep Point(NativeBattleEffect326Frame current, BattleModelOwner actor, int selector, int fraction, NativeBattleEffectArena retained)
         {
             NativeFileStaging = current.Staging;
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
@@ -72,7 +72,7 @@ public sealed partial class BattleSession
             return new(current with { Memory = observed, Staging = NativeFileStaging }, retained.Write(0, BitConverter.GetBytes(point.X)).Write(2, BitConverter.GetBytes(point.Y)).Write(4, BitConverter.GetBytes(point.Z)));
         }
 
-        NativeBattleEffect326PointStep Anchor(NativeBattleEffect326Frame current, int actor, NativeBattleEffectArena retained)
+        NativeBattleEffect326PointStep Anchor(NativeBattleEffect326Frame current, BattleModelOwner actor, NativeBattleEffectArena retained)
         {
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Effect326 requires its current actor transform.");

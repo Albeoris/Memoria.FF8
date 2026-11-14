@@ -23,7 +23,7 @@ public static class NativeBattleMightyGuardController
         {
             maximum = groups;
         }
-        hierarchy = hierarchy.Write(root.Address, task.WriteDword(0x0C, 0x1D99A78).WriteByte(0x29, 0).WriteByte(0x2C, actors.Actor).WriteByte(0x2D, actors.Target).WriteWord(0x5A, targets).WriteWord(0x58, groups).WriteByte(0x2F, maximum));
+        hierarchy = hierarchy.Write(root.Address, actors.WriteTo(task.WriteDword(0x0C, 0x1D99A78).WriteByte(0x29, 0)).WriteWord(0x5A, targets).WriteWord(0x58, groups).WriteByte(0x2F, maximum));
         int source = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == profile.InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Mighty Guard requires its executed texture initializer pointer.");
         if (source < 0 || source > NativeBattleEffectArena.Length - 2 * profile.DrawBankBytes)
         {
@@ -75,7 +75,7 @@ public static class NativeBattleMightyGuardController
             bool odd = (task.ReadWord(0x5C) & 1) != 0;
             NativeBattlePackedMatrix32 camera = inputs.PackedCamera ?? NativeBattlePackedMatrix32.FromMatrix(inputs.Camera, inputs.CopiedCameraPadding);
             current = current with { Memory = current.Memory with { SharedEffectView2793E58 = camera }, State = current.State with { PrimaryDrawCursor = checked(source + (odd ? 0 : profile.DrawBankBytes)), SecondaryDrawCursor = checked(source + (odd ? profile.DrawBankBytes : 2 * profile.DrawBankBytes)) } };
-            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, Models(), inputs.ReadPoseSource);
+            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, inputs.ReadModel, inputs.ReadPoseSource);
             state = state.Write(address, task);
             switch (Phase(task))
             {
@@ -156,7 +156,7 @@ public static class NativeBattleMightyGuardController
             NativeBattleModulePoolTask task = state.Read(address);
             if (task.Callback == profile.TargetCallback)
             {
-                task = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, Models(), inputs.ReadPoseSource, inputs.ReadForeignTarget);
+                task = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, inputs.ReadModel, inputs.ReadPoseSource, inputs.ReadForeignTarget);
                 state = state.Write(address, task);
                 switch (Phase(task))
                 {
@@ -279,7 +279,6 @@ public static class NativeBattleMightyGuardController
             return result;
         }
 
-        NativeBattleGraphicsModel[] Models() => Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray();
         void Publish(NativeBattleEffectHierarchy state) => current = current with { Effect = current.Effect with { Pools = state.Pools } };
         void Emit(ref NativeBattleEffectHierarchy state, NativeBattleMightyGuardOperation operation)
         {

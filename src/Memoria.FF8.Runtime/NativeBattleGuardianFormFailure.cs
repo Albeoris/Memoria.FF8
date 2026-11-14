@@ -48,7 +48,7 @@ public sealed partial class BattleSession
         {
             return graphics;
         }
-        uint headerAddress = checked(0x1D280C4u + 20u * (uint)action.HeaderIndex);
+        uint headerAddress = checked(0x1D280C4u + 20u * (uint)action.Header);
         NativeBattleDescriptorState descriptors = graphics.Descriptors;
         for (int slot = 0; slot < descriptors.Tasks.Length; slot++)
         {

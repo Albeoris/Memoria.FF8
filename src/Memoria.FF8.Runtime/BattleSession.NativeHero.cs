@@ -46,7 +46,7 @@ public sealed partial class BattleSession
             nativeCrtRandom = current.Random;
         }
 
-        NativeBattleModuleAnchor Anchor571400(byte actor)
+        NativeBattleModuleAnchor Anchor571400(BattleModelOwner actor)
         {
             NativeBattleModuleAnchor anchor = ReadNativeModelAnchor(graphics, actor);
             return anchor with { W = (graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("The Hero anchor requires its actual model WORD24.")).Angle36 };

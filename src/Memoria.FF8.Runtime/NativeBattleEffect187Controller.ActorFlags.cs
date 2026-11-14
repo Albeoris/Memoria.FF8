@@ -8,9 +8,9 @@ public static partial class NativeBattleEffect187Controller
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Effect187 actor flag restoration requires its current contacts.");
-        for (int index = 0; index < header.ReadByte(0x10); index++)
+        for (int index = 0; index < header.ReadContactCount(); index++)
         {
-            int actor = packets.ReadContact(first + index).Primary.ActorIndex;
+            int actor = packets.ReadContact(first + index).Primary.Recipient;
             (frame, uint address) = AppendRequired(frame, 0x64DCF0);
             ushort saved = (ushort)(inputs.ReadModel(frame, actor).Flags0 & 8);
             frame = Write(frame, address, Read(frame, address).WriteWord(12, 0).WriteWord(14, delay).WriteWord(0x18, checked((ushort)actor)).WriteWord(0x1A, saved));

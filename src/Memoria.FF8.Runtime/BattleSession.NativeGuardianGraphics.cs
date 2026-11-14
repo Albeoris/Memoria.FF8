@@ -9,8 +9,8 @@ public sealed partial class BattleSession
         {
             return PollGuardianFormFinisherGraphics(graphics, context, phase);
         }
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[context.HeaderIndex];
-        byte caster = context.ActorIndex;
+        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[context.Header];
+        byte caster = context.Actor;
         if (caster >= 3)
         {
             throw new NotSupportedException("Native50B2A0 requires a physical party caster and its CPU model bank.");

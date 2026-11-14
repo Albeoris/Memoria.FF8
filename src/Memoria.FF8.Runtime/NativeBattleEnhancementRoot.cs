@@ -4,9 +4,9 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleEnhancementFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, int? DrawCursor);
 public sealed record NativeBattleEnhancementChildStep(NativeBattleEnhancementFrame Frame, NativeCrtRandomState Random, int Result);
-public sealed record NativeBattleEnhancementRootInputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleEnhancementFrame, uint, NativeCrtRandomState, NativeBattleEnhancementChildStep> AdvanceChild)
+public sealed record NativeBattleEnhancementRootInputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleEnhancementFrame, uint, NativeCrtRandomState, NativeBattleEnhancementChildStep> AdvanceChild)
 {
-    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeign { get; init; }
+    public Func<BattleModelOwner, NativeBattleEffectActorGeometry?>? ReadForeign { get; init; }
 }
 public sealed record NativeBattleEnhancementRootStep(NativeBattleEnhancementFrame Frame, NativeCrtRandomState Random);
 
@@ -34,7 +34,7 @@ public static class NativeBattleEnhancementRoot
                 throw new InvalidDataException("Native enhancement root callback contradicts its explicit profile.");
             }
             current = current with { DrawCursor = (task.ReadByte(0x5C) & 1) != 0 ? 0 : profile.DrawBufferStride };
-            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, Models(inputs), inputs.ReadPoseSource, readForeign: inputs.ReadForeign);
+            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, inputs.ReadModel, inputs.ReadPoseSource, readForeign: inputs.ReadForeign);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {
                 case 0:
@@ -88,6 +88,5 @@ public static class NativeBattleEnhancementRoot
         return new(current, random);
     }
 
-    private static NativeBattleGraphicsModel[] Models(NativeBattleEnhancementRootInputs inputs) => Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray();
     private static NativeBattleModulePoolTask Increment(NativeBattleModulePoolTask task) => task.WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) + 1)));
 }

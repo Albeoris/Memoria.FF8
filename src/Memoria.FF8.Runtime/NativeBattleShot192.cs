@@ -9,7 +9,7 @@ public abstract record NativeBattleShot192Operation
     [System.Text.Json.Serialization.JsonIgnore]
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
 }
-public sealed record NativeBattleShot192Bind(byte Actor) : NativeBattleShot192Operation;
+public sealed record NativeBattleShot192Bind(BattleModelOwner Actor) : NativeBattleShot192Operation;
 public sealed record NativeBattleShot192Sequence(byte Actor, ushort Sequence) : NativeBattleShot192Operation;
 public sealed record NativeBattleShot192Stage(int Intensity) : NativeBattleShot192Operation;
 public sealed record NativeBattleShot192Contact : NativeBattleShot192Operation;
@@ -70,8 +70,8 @@ public static class NativeBattleShot192
                 {
                     (pools[1], int shot) = pools[1].Append(0x5B9880);
                     NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-                    int first = header.FirstContactIndex ?? throw new InvalidDataException("Native Shot requires its physical header contact pointer.");
-                    Put(1, shot, pools[1].Slots[shot].WriteWord(12, 0).WriteWord(14, unchecked((ushort)(state.ShotSerial % 100))).WriteWord(24, (ushort)(state.SequenceCursor + 3)).WriteWord(26, packets.ReadContact(first).Primary.ActorIndex));
+                    BattleContactCursor first = header.FirstContact;
+                    Put(1, shot, pools[1].Slots[shot].WriteWord(12, 0).WriteWord(14, unchecked((ushort)(state.ShotSerial % 100))).WriteWord(24, (ushort)(state.SequenceCursor + 3)).WriteWord(26, packets.ReadContact(first).Primary.Recipient));
                     state = state with { ShotSerial = unchecked(state.ShotSerial + 1), SequenceCursor = state.SequenceCursor < 2 ? state.SequenceCursor + 1 : 0 };
                 }
             }
@@ -308,7 +308,7 @@ public static class NativeBattleShot192
                 int count = header.ReadContactCount();
                 for (int contact = 0; contact < count; contact++)
                 {
-                    int target = inputs.Packets.ReadContact(first + contact).Primary.ActorIndex;
+                    int target = inputs.Packets.ReadContact(first + contact).Primary.Recipient;
                     int bones = inputs.BoneCount(target);
                     int bone = bones == 0 ? 0 : Roll() % bones;
                     int angle = Roll() % 4096;

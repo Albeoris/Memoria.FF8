@@ -21,7 +21,7 @@ public static partial class NativeBattleEffect140Controller
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect140 requires its current parameters.");
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        int count = header.ReadByte(0x10);
+        int count = header.ReadContactCount();
         if (count == 0)
         {
             throw new DivideByZeroException("Effect140's original recipient mean requires a nonzero native contact count.");
@@ -30,7 +30,7 @@ public static partial class NativeBattleEffect140Controller
         int total = 0;
         for (int index = 0; index < count; index++)
         {
-            int actor = packets.ReadContact(first + index).Primary.ActorIndex;
+            int actor = packets.ReadContact(first + index).Primary.Recipient;
             total = unchecked(total + Position(frame, actor, inputs).Z);
         }
         NativeCrtRandomState random = frame.Random.Draw(out ushort randomValue);

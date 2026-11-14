@@ -25,7 +25,7 @@ public static partial class NativeBattleEffect322Controller
             {
                 frame = ClearDwords701200(frame, main + 12, 0x1C);
                 int first = FirstContact(frame, inputs);
-                uint target = ModelAddress(inputs.ReadPackets(frame).ReadContact(first).Primary.ActorIndex);
+                uint target = ModelAddress(inputs.ReadPackets(frame).ReadContact(first).Primary.Recipient);
                 frame = Write(frame, main, Read(frame, main).WriteDword(0x10, target));
                 NativeBattleEffect322PointStep point = inputs.Anchor571400(frame, target, TaskView(Read(frame, main), 0x14, 8));
                 frame = Write(point.Frame, main, CopyTask(Read(point.Frame, main), 0x14, point.Output8, 8));

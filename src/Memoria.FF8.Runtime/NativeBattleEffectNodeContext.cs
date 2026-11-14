@@ -22,7 +22,7 @@ public static class NativeBattleEffectNodeContext
         int firstContact = packets.ReadHeader(headerIndex).FirstContactIndex ?? throw new NotSupportedException("Native87E230 requires the selected group's actual contact pointer.");
         for (int index = 0; index < count; index++)
         {
-            Write(4 + 4 * index, packets.ReadContact(checked(firstContact + (singleSelectedTarget ? unchecked((sbyte)task.ReadByte(0x2B)) : index))).Primary.ActorIndex);
+            Write(4 + 4 * index, packets.ReadContact(checked(firstContact + (singleSelectedTarget ? unchecked((sbyte)task.ReadByte(0x2B)) : index))).Primary.Recipient);
         }
         WriteWord(0x1A, task.ReadWord(0x29E));
         short mode = unchecked((short)ReadWord(0x24));

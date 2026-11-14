@@ -157,7 +157,7 @@ public static partial class NativeBattleRayBomb307Controller
                 (frame, uint child) = Append(frame, 1, 0x5A25E0);
                 frame = DrawRandom(frame, out ushort direction);
                 frame = DrawRandom(frame, out ushort distance);
-                frame = Write(frame, child, Read(frame, child).WriteWord(12, 0).WriteWord(14, inputs.Packets.ReadContact(first + index).Primary.ActorIndex).WriteWord(0x1A, (ushort)index).WriteWord(0x18, (ushort)((direction % 3 + 1) << 12)).WriteWord(0x20, unchecked((ushort)(-3500 - distance % 9000))));
+                frame = Write(frame, child, Read(frame, child).WriteWord(12, 0).WriteWord(14, inputs.Packets.ReadContact(first + index).Primary.Recipient).WriteWord(0x1A, (ushort)index).WriteWord(0x18, (ushort)((direction % 3 + 1) << 12)).WriteWord(0x20, unchecked((ushort)(-3500 - distance % 9000))));
             }
         }
         if (age <= 8 || age >= 127)

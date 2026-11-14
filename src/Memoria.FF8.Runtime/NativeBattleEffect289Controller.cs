@@ -95,8 +95,8 @@ public static partial class NativeBattleEffect289Controller
             frame = ClearDwords701200(frame, main + 0xC, 0x65);
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
             BattleActionHeaderReference header = Parameters(frame).Header;
-            int first = packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect289 requires its current first contact pointer.");
-            uint target = ModelAddress(packets.ReadContact(first).Primary.ActorIndex);
+            BattleContactCursor first = packets.ReadHeader(header).FirstContact;
+            uint target = ModelAddress(packets.ReadContact(first).Primary.Recipient);
             frame = Write(frame, main, Read(frame, main).WriteDword(0x10, target));
             NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, main + MainProgrammeWorkspaceOffset, MainProgrammeWorkspaceLength).Initialize7016B0(resources.MainProgramme, MainProgrammeWorkspaceLength);
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, main + MainProgrammeWorkspaceOffset, workspace);

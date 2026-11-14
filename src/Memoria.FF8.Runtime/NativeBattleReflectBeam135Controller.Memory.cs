@@ -112,7 +112,7 @@ public static partial class NativeBattleReflectBeam135Controller
     private static int FirstContact(NativeBattleReflectBeam135Frame frame, NativeBattleReflectBeam135Inputs inputs)
     {
         BattleActionHeaderReference index = Parameters(frame).Header;
-        if ((uint)index >= inputs.Packets.Headers.Length || inputs.Packets.ReadHeader(index).ReadByte(16) == 0)
+        if (inputs.Packets.ReadHeader(index).ReadContactCount() == 0)
         {
             throw new NotSupportedException("Reflect Beam requires its actual captured contact header.");
         }

@@ -18,7 +18,7 @@ public static partial class NativeBattleLaserEye71Controller
         NativeBattleEffectHierarchy hierarchy = new([NativeBattleEffectTaskPool.Initialize(rootPool.Descriptor, rootPool.Bank, rootPool.Stride, rootPool.Capacity)]);
         NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(0, RootCallback, 100);
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header);
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Laser Eye requires the selected header's contact pointer.");
+        BattleContactCursor first = header.FirstContact;
         byte targets = header.ReadContactCount();
         byte groups = header.ReadRepeatModeMinusOne();
         byte maximum = unchecked((byte)(targets - 1));
@@ -26,7 +26,7 @@ public static partial class NativeBattleLaserEye71Controller
         {
             maximum = groups;
         }
-        NativeBattleModulePoolTask root = appended.Hierarchy.Read(appended.Address).WriteDword(0xC, 0x1D99A78).WriteByte(0x2C, header.ReadByte(0)).WriteByte(0x2D, inputs.Packets.ReadContact(first).Primary.ActorIndex).WriteWord(0x5A, targets).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
+        NativeBattleModulePoolTask root = appended.Hierarchy.Read(appended.Address).WriteDword(0xC, 0x1D99A78).WriteByte(0x2C, header.Source).WriteByte(0x2D, inputs.Packets.ReadContact(first).Primary.Recipient).WriteWord(0x5A, targets).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
         frame = frame with { Effect = frame.Effect with { Pools = appended.Hierarchy.Write(appended.Address, root).Pools, ReturnedDescriptor = Pools[0].Descriptor, DrawArenaOffset = null }, State = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)source)).WriteDword(0x25FCDCC, 0).WriteDword(0x25FAAE4, 0) };
         if ((parameters.Flags79 & 1) == 0)
         {

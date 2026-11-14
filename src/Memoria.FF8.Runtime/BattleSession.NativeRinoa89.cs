@@ -28,7 +28,7 @@ public sealed partial class BattleSession
         NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(parameters.Header);
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Wishing Star requires its actual contact pointer.");
         int count = header.ReadContactCount() >> 3;
-        ImmutableArray<byte> targets = Enumerable.Range(0, count).Select(index => nativeActionPackets.ReadContact(checked(first + index)).Primary.ActorIndex).ToImmutableArray();
+        ImmutableArray<byte> targets = Enumerable.Range(0, count).Select(index => nativeActionPackets.ReadContact(checked(first + index)).Primary.Recipient).ToImmutableArray();
         NativeBattleRinoa89PreparationServices preparation = new(index => graphics.Models[index], WriteModel, index => ReadNativeModelAnchor(graphics, index), targets, NativeBattleContactAddress.EncodeCursor(first, nativeActionPackets.StorageCapacity), body, Bind, Select, NativeBattleRinoa89Controller.InitializeShards6FA3E0) { PartyActors = ReadPresentationSideActors(true) };
         NativeBattleRinoa89BodyInputs inputs = new(resources, index => graphics.ActorModels.Get(index), WriteModel, Execute, ReadBone19, Contacts, Poll, Reload);
 
@@ -40,7 +40,7 @@ public sealed partial class BattleSession
         nativeCrtRandom = frame.Random;
         return graphics;
 
-        void WriteModel(int index, NativeBattleGraphicsModel model) => graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model) };
+        void WriteModel(BattleModelOwner index, NativeBattleGraphicsModel model) => graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model) };
         void Publish(NativeBattleRinoa89Frame current)
         {
             NativeEffectMemory = current.Memory;

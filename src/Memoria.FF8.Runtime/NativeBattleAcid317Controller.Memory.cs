@@ -9,7 +9,7 @@ public static partial class NativeBattleAcid317Controller
     private static int FirstContact(NativeBattleAcid317Frame frame, NativeBattleAcid317Inputs inputs)
     {
         BattleActionHeaderReference index = Parameters(frame).Header;
-        if ((uint)index >= inputs.Packets.Headers.Length || inputs.Packets.ReadHeader(index).ReadByte(16) == 0)
+        if (inputs.Packets.ReadHeader(index).ReadContactCount() == 0)
         {
             throw new InvalidDataException("Acid requires its first captured target contact.");
         }

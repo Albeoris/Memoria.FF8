@@ -299,19 +299,19 @@ public sealed partial class BattleSession
             packet.Validate();
             //506690 invokes493D80 before checking whether the primary model is loaded.
             graphics = PublishNativeReadyContact(graphics, packet.Primary);
-            if (packet.Secondary.ActorIndex != 255)
+            if (packet.Secondary.Recipient != 255)
             {
                 graphics = PublishNativeReadyContact(graphics, packet.Secondary);
             }
-            NativeBattleGraphicsModel primary = graphics.ActorModels.Get(packet.Primary.ActorIndex);
-            BattleCombatant actor = GraphicsActor(graphics, packet.Primary.ActorIndex);
+            NativeBattleGraphicsModel primary = graphics.ActorModels.Get(packet.Primary.Recipient);
+            BattleCombatant actor = GraphicsActor(graphics, packet.Primary.Recipient);
             NativeBattleContactEffectPlan plan = NativeBattleContactEffects.Plan(packet.Primary, primary, definition.NativeGraphics!.Rules, NativeBattleStatusBits(actor));
             graphics = ApplyNativeGraphicsContact(graphics, packet.Primary, plan);
-            if (plan.Loaded && packet.Secondary.ActorIndex != 255)
+            if (plan.Loaded && packet.Secondary.Recipient != 255)
             {
                 NativeBattleContactHalf half = packet.Secondary;
-                BattleCombatant secondaryActor = GraphicsActor(graphics, half.ActorIndex);
-                NativeBattleContactEffectPlan secondary = NativeBattleContactEffects.Plan(half, graphics.ActorModels.Get(half.ActorIndex), definition.NativeGraphics.Rules, NativeBattleStatusBits(secondaryActor), secondary: true);
+                BattleCombatant secondaryActor = GraphicsActor(graphics, half.Recipient);
+                NativeBattleContactEffectPlan secondary = NativeBattleContactEffects.Plan(half, graphics.ActorModels.Get(half.Recipient), definition.NativeGraphics.Rules, NativeBattleStatusBits(secondaryActor), secondary: true);
                 graphics = ApplyNativeGraphicsContact(graphics, half, secondary);
             }
         }
@@ -338,28 +338,28 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Hosted graphics contacts cannot contain an absent packet.");
             }
             packet.Validate(roster.ActorCount);
-            NativeBattleModelActorFacts primary = RequireHostedContactActorFacts(graphics, services, packet.Primary.ActorIndex);
+            NativeBattleModelActorFacts primary = RequireHostedContactActorFacts(graphics, services, packet.Primary.Recipient);
             if (primary.RawBattleStatuses is null)
             {
                 throw new InvalidDataException("Hosted primary contact requires the actor's current battle status.");
             }
-            if (packet.Secondary.ActorIndex != 255)
+            if (packet.Secondary.Recipient != 255)
             {
-                _ = RequireHostedContactActorFacts(graphics, services, packet.Secondary.ActorIndex);
+                _ = RequireHostedContactActorFacts(graphics, services, packet.Secondary.Recipient);
             }
         }
         NativeBattleGraphicsRules rules = definition.NativeGraphics!.Rules;
         foreach (NativeBattleContactPacket packet in graphics.PendingContacts)
         {
             NativeBattleContactHalf primary = packet.Primary;
-            uint rawStatus = services.Facts[primary.ActorIndex]!.RawBattleStatuses!.Value;
-            NativeBattleContactEffectPlan plan = NativeBattleContactEffects.Plan(primary, graphics.ActorModels.Get(primary.ActorIndex), rules, rawStatus);
+            uint rawStatus = services.Facts[primary.Recipient]!.RawBattleStatuses!.Value;
+            NativeBattleContactEffectPlan plan = NativeBattleContactEffects.Plan(primary, graphics.ActorModels.Get(primary.Recipient), rules, rawStatus);
             services.EmitContact(packet);
             graphics = ApplyNativeGraphicsContact(graphics, primary, plan, services);
-            if (plan.Loaded && packet.Secondary.ActorIndex != 255)
+            if (plan.Loaded && packet.Secondary.Recipient != 255)
             {
                 NativeBattleContactHalf half = packet.Secondary;
-                NativeBattleContactEffectPlan secondary = NativeBattleContactEffects.Plan(half, graphics.ActorModels.Get(half.ActorIndex), rules, half.BattleStatuses8, secondary: true);
+                NativeBattleContactEffectPlan secondary = NativeBattleContactEffects.Plan(half, graphics.ActorModels.Get(half.Recipient), rules, half.BattleStatuses8, secondary: true);
                 graphics = ApplyNativeGraphicsContact(graphics, half, secondary, services);
             }
             presentationContacts.Add(packet);
@@ -404,7 +404,7 @@ public sealed partial class BattleSession
         {
             graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendFlash(0, 1, 0, 255) };
         }
-        int index = half.ActorIndex;
+        int index = half.Recipient;
         graphics = ApplyNativeGraphicsStatus509CD0(graphics, index, plan.ImmediateStatusFlags!.Value);
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
         if (plan.EjectionService7)

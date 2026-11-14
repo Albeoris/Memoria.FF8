@@ -89,7 +89,7 @@ public static class NativeBattleHypnotize133Controller
         frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, anchored, fading, sprites] }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [main, anchored, fading, sprites]) };
         (frame, uint address) = Append(frame, 1, MainCallback);
         NativeBattleModulePoolTask task = Read(frame, address).WriteBytes(12, new byte[0xB8]);
-        int count = Header(frame, inputs).ReadByte(16);
+        int count = Header(frame, inputs).ReadContactCount();
         if (count > 3)
         {
             throw new NotSupportedException("Hypnotize contacts exceed its three physical actor pointers.");
@@ -97,7 +97,7 @@ public static class NativeBattleHypnotize133Controller
         task = task.WriteWord(14, checked((ushort)count));
         for (int index = 0; index < count; index++)
         {
-            task = task.WriteDword(16 + index * 4, ModelAddress(inputs.Packets.ReadContact(FirstContact(frame, inputs) + index).Primary.ActorIndex));
+            task = task.WriteDword(16 + index * 4, ModelAddress(inputs.Packets.ReadContact(FirstContact(frame, inputs) + index).Primary.Recipient));
         }
         frame = Write(frame, address, task);
         return InitializeAct(frame, address, 0x1C, 0xA8, resources.MainAct);
@@ -203,7 +203,7 @@ public static class NativeBattleHypnotize133Controller
         }
         if (age == 34)
         {
-            frame = inputs.Execute(frame, new NativeBattleHypnotize133BulkContact(FirstContact(frame, inputs), Header(frame, inputs).ReadByte(16)));
+            frame = inputs.Execute(frame, new NativeBattleHypnotize133BulkContact(FirstContact(frame, inputs), Header(frame, inputs).ReadContactCount()));
         }
         short next = unchecked((short)(age + 1));
         frame = Write(frame, address, Read(frame, address).WriteWord(12, unchecked((ushort)next)));

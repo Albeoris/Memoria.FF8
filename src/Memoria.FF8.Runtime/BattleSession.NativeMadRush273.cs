@@ -59,7 +59,7 @@ public sealed partial class BattleSession
                 }
                 (pool, int slot) = pool.Append(0x68D8B0);
                 NativeBattleModulePoolTask task = pool.Slots[slot].ClearPayload(0x304);
-                int actor = nativeActionPackets.ReadContact(first + contact).Primary.ActorIndex;
+                int actor = nativeActionPackets.ReadContact(first + contact).Primary.Recipient;
                 NativeBattleVector anchor = ReadNativeGraphicsBone(graphics, actor, 0xF1, 0);
                 task = WindStore(task.WriteWord(12, unchecked((ushort)(-contact * 2))).WriteWord(14, (ushort)contact).WriteDword(16, NativeBattleGraphicsModelAddress.Encode(actor)), 20, anchor);
                 task = task.WriteWord(22, unchecked((ushort)(graphics.ActorModels.Get(actor).Transform?.Angle36 ?? throw new NotSupportedException("Mad Rush requires its target height."))));

@@ -49,7 +49,7 @@ public sealed partial class BattleSession
             return current with { State = written.State };
         }
 
-        NativeBattleGatlingGun150PointStep Anchor(NativeBattleGatlingGun150Frame current, int actor)
+        NativeBattleGatlingGun150PointStep Anchor(NativeBattleGatlingGun150Frame current, BattleModelOwner actor)
         {
             Publish(current);
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
@@ -66,7 +66,7 @@ public sealed partial class BattleSession
             return new(current, Point(new(anchor.X, anchor.Y, anchor.Z)).Write(6, BitConverter.GetBytes((model.Transform ?? throw new NotSupportedException("Gatling Gun requires its actual actor heading.")).Angle36)));
         }
 
-        NativeBattleGatlingGun150PointStep Bone(NativeBattleGatlingGun150Frame current, int actor, int selector, int distance)
+        NativeBattleGatlingGun150PointStep Bone(NativeBattleGatlingGun150Frame current, BattleModelOwner actor, int selector, int distance)
         {
             Publish(current);
             NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Gatling Gun requires its selected current actor skeleton.");

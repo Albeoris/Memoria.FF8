@@ -73,7 +73,7 @@ public sealed partial class BattleSession
         {
             16 => unchecked((short)(context.UnadjustedDistance ?? throw new NotSupportedException("Native action distance requires its resolved physical target packet."))),
             17 => unchecked((short)(context.ContactDistance ?? throw new NotSupportedException("Native contact distance requires its retained50D300 global; migrate the needed older snapshot explicitly."))),
-            24 => context.TargetIndex ?? throw new NotSupportedException("Native current target requires its resolved physical graphics identity."),
+            24 => context.Target ?? throw new NotSupportedException("Native current target requires its resolved physical graphics identity."),
             26 => (short)((context.TargetYaw ?? throw new NotSupportedException("Native current target requires its50D300 rotation.")) & 4095),
             _ => throw new NotSupportedException($"Native model variable{variable:X2} requires its original graphics service owner.")
         };

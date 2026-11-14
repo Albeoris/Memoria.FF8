@@ -244,7 +244,7 @@ public sealed partial class BattleSession
                     return WriteBytes(second.Frame, point.DestinationAddress, PointView(center, angle), 8);
                 case NativeBattleEffect218Contact506690:
                     Publish(current);
-                    int contact = nativeActionPackets.ReadHeader(current.Effect.Parameters!.Header).FirstContactIndex ?? throw new NotSupportedException("Effect218 requires its actual first contact.");
+                    BattleContactCursor contact = nativeActionPackets.ReadHeader(current.Effect.Parameters!.Header).FirstContact;
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                     graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact)] });
                     graphics = graphics with { PendingContacts = pending };

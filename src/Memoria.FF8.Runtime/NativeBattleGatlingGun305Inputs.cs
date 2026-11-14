@@ -5,7 +5,7 @@ public abstract record NativeBattleGatlingGun305Operation
     [System.Text.Json.Serialization.JsonIgnore]
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
 }
-public sealed record NativeBattleGatlingGun305BindCaster(byte Actor, uint SaveAddress, uint ResourceAddress) : NativeBattleGatlingGun305Operation;
+public sealed record NativeBattleGatlingGun305BindCaster(BattleModelOwner Actor, uint SaveAddress, uint ResourceAddress) : NativeBattleGatlingGun305Operation;
 public sealed record NativeBattleGatlingGun305RingSequence(byte Actor, byte Sequence) : NativeBattleGatlingGun305Operation;
 public sealed record NativeBattleGatlingGun305Sound(uint Value, int Pan) : NativeBattleGatlingGun305Operation;
 public sealed record NativeBattleGatlingGun305Contact(int Index) : NativeBattleGatlingGun305Operation;

@@ -58,7 +58,7 @@ public sealed partial class BattleSession
             return current with { Memory = written.Memory, State = current.State.WriteDword(NativeBattleMicroMissiles299Profile.CursorGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)written.Cursor)) };
         }
 
-        NativeBattleMicroMissiles299AnchorStep Anchor(NativeBattleMicroMissiles299Frame current, int actor)
+        NativeBattleMicroMissiles299AnchorStep Anchor(NativeBattleMicroMissiles299Frame current, BattleModelOwner actor)
         {
             Publish(current);
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);

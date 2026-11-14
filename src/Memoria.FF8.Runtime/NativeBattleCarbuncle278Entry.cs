@@ -39,7 +39,7 @@ public static class NativeBattleCarbuncle278Entry
         if (roster is not null)
         {
             ImmutableArray<NativeBattleContactPacket> contacts = packets.ReadHeaderContacts506BA0(parameters.Header);
-            if (!roster.ContainsRow(parameters.Source) || contacts.IsEmpty || contacts.Any(contact => !roster.ContainsRow(contact.Primary.ActorIndex)))
+            if (!roster.ContainsRow(parameters.Source) || contacts.IsEmpty || contacts.Any(contact => !roster.ContainsRow(contact.Primary.Recipient)))
             {
                 throw new InvalidDataException("Hosted Carbuncle entry requires a bound caster and at least one bound recipient model row.");
             }
@@ -55,14 +55,14 @@ public static class NativeBattleCarbuncle278Entry
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteDword(0xC, 0).WriteDword(0x10, 0);
         pool = pool.WriteSlot(slot, task);
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        int count = header.ReadByte(0x10);
+        int count = header.ReadContactCount();
         int sum = 0;
         if (count != 0)
         {
             int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Carbuncle entry requires its current target-contact pointer.");
             for (int index = 0; index < count; index++)
             {
-                int target = packets.ReadContact(checked(first + index)).Primary.ActorIndex;
+                int target = packets.ReadContact(checked(first + index)).Primary.Recipient;
                 NativeBattleGraphicsModel model = Model(target);
                 NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Carbuncle centroid requires the selected actor's current signed position WORD20.");
                 sum = unchecked(sum + transform.Position28.Z);

@@ -10,8 +10,8 @@ public static partial class NativeBattleGatlingGun150Controller
         resources.Validate();
         NativeBattleEffectParameters parameters = Parameters(frame);
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header);
-        int contact = header.FirstContactIndex ?? throw new NotSupportedException("Gatling Gun requires its captured first contact pointer.");
-        frame = Dword(Dword(Dword(frame, FirstTargetGlobal, inputs.Packets.ReadContact(contact).Primary.ActorIndex), ParametersGlobal, 0x1D99A78), CasterGlobal, parameters.Source);
+        BattleContactCursor contact = header.FirstContact;
+        frame = Dword(Dword(Dword(frame, FirstTargetGlobal, inputs.Packets.ReadContact(contact).Primary.Recipient), ParametersGlobal, 0x1D99A78), CasterGlobal, parameters.Source);
         NativeBattleEffectTaskPool root = ResetPool(frame, RootDescriptor, RootBank, RootStride, RootCount);
         (root, int rootSlot) = root.Append(RootCallback);
         root = root.WriteSlot(rootSlot, root.Slots[rootSlot].WriteWord(12, 0));

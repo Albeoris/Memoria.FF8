@@ -15,7 +15,7 @@ public sealed record NativeBattleCureState([property: JsonRequired] int SourceAr
 }
 
 public sealed record NativeBattleCureFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleCureState State);
-public sealed record NativeBattleCureControllerInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource)
+public sealed record NativeBattleCureControllerInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource)
 {
     public Action<int>? ApplyContact { get; init; }
     public Func<int, NativeBattleEffectActorGeometry?>? ReadForeignTarget { get; init; }
@@ -53,7 +53,7 @@ public static class NativeBattleCureController
         {
             maximum = groups;
         }
-        task = task.WriteByte(0x2C, actors.Actor).WriteByte(0x2D, actors.Target).WriteByte(0x29, 0).WriteWord(0x5A, targets).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
+        task = actors.WriteTo(task).WriteByte(0x29, 0).WriteWord(0x5A, targets).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
         hierarchy = hierarchy.Write(root.Address, task);
         int arenaOffset = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == profile.InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Native8D6A00 requires the observed277AEC0 initializer pointer.");
         if (arenaOffset > NativeBattleEffectArena.Length - 0x20000)
@@ -100,7 +100,7 @@ public static class NativeBattleCureController
             }
             bool odd = (task.ReadWord(0x5C) & 1) != 0;
             current = current with { State = current.State with { PrimaryDrawCursor = checked(current.State.SourceArenaOffset + (odd ? 0 : 0x10000)), SecondaryDrawCursor = checked(current.State.SourceArenaOffset + (odd ? 0x10000 : 0x20000)), CopiedCamera = inputs.Camera } };
-            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, Models(inputs), inputs.ReadPoseSource);
+            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, inputs.ReadModel, inputs.ReadPoseSource);
             state = state.Write(address, task);
             int phase = unchecked((sbyte)task.ReadByte(0x29));
             switch (phase)
@@ -194,7 +194,7 @@ public static class NativeBattleCureController
             }
             else
             {
-                task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, Models(inputs), inputs.ReadPoseSource);
+                task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, inputs.ReadModel, inputs.ReadPoseSource);
                 NativeBattleGraphicsModel model = inputs.ReadModel(target);
                 NativeBattlePoseSource source = inputs.ReadPoseSource(target);
                 NativeBattleSequenceState pose = model.SequenceState ?? throw new NotSupportedException("Native8DC870 requires its target's posed skeleton owner.");
@@ -244,27 +244,21 @@ public static class NativeBattleCureController
         return hierarchy.Write(address, task.WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) + 1))));
     }
 
-    private static NativeBattleGraphicsModel[] Models(NativeBattleCureControllerInputs inputs) => Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray();
-
     internal static NativeBattleEffectTaskActors SelectActors(NativeBattleEffectParameters parameters, NativeBattleActionPacketsState packets, uint parameterAddress, sbyte group, sbyte target)
     {
         if (parameterAddress != 0x1D99A78)
         {
             throw new NotSupportedException("Native8DC540 requires its observed50AFC0 parameter pointer.");
         }
-        BattleActionHeaderReference header = parameters.Header.Advance(group);
-        int contact = ContactIndex(parameters, packets, group, target);
-        return new(packets.ReadHeader(header).ReadByte(0), packets.ReadContact(contact).Primary.ActorIndex);
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header.Advance(group));
+        BattleContactCursor contact = header.FirstContact.Advance(target);
+        return new(header.Source, packets.ReadContact(contact).Primary.Recipient, packets.ModelAliases);
     }
 
-    private static int ContactIndex(NativeBattleEffectParameters parameters, NativeBattleActionPacketsState packets, sbyte group, sbyte target)
+    private static BattleContactCursor ContactIndex(NativeBattleEffectParameters parameters, NativeBattleActionPacketsState packets, sbyte group, sbyte target)
     {
         BattleActionHeaderReference header = parameters.Header.Advance(group);
-        if ((uint)header >= packets.Headers.Length)
-        {
-            throw new NotSupportedException("Native8DC540 signed header reference leaves the retained physical arena.");
-        }
-        return checked((packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Native8DC540 requires its physical contact pointer.")) + target);
+        return packets.ReadHeader(header).FirstContact.Advance(target);
     }
 
     private static void RequireController(NativeBattleOriginalEffectState effect)

@@ -120,7 +120,7 @@ public static partial class NativeBattleMicroMissiles299Controller
                 frame = Write(frame, impact, child);
                 if (variant == 0)
                 {
-                    frame = inputs.Execute(frame, new NativeBattleMicroMissiles299RingSequence((byte)inputs.Packets.ReadContact(FirstContact(frame, inputs)).Primary.ActorIndex, 5));
+                    frame = inputs.Execute(frame, new NativeBattleMicroMissiles299RingSequence((byte)inputs.Packets.ReadContact(FirstContact(frame, inputs)).Primary.Recipient, 5));
                 }
                 else if (variant == 1)
                 {

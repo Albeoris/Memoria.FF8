@@ -64,6 +64,21 @@ public sealed partial class NativeBattleModelBoundary
         return captured.MoveToImmutable();
     }
 
+    internal NativeBattleModelAliases CaptureAliases(BattleActorModels models)
+    {
+        ArgumentNullException.ThrowIfNull(models);
+        ValidateBindings(models);
+        var mappings = new List<(NativeBattleModelSlot Slot, BattleModelOwner Owner)>();
+        for (byte offset = 0; offset < CellCount; offset++)
+        {
+            if (cells[offset].Owner is { } owner)
+            {
+                mappings.Add((NativeBattleModelSlot.Decode(offset), owner));
+            }
+        }
+        return new(models.Roster, mappings);
+    }
+
     internal BattleModelOwner DecodeLiteral(byte operand, BattleActorModels models)
     {
         ArgumentNullException.ThrowIfNull(models);
