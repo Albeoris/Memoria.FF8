@@ -134,14 +134,14 @@ public readonly struct NativeBattleModelResourceView
         {
             throw new InvalidDataException("CPU section writes require their actual party resource owner.");
         }
-        int available = checked((reference.ResourceOnly ? cpu.GetResourceBank(reference).ResourceCapacity : cpu.GetResourceBank(reference).Capacity) - reference.ResourceStorageOffset);
+        NativeBattleModelCpuBank bank = cpu.GetResourceBank(reference);
+        int available = checked((reference.ResourceOnly ? bank.ResourceCapacity : bank.Capacity) - reference.ResourceStorageOffset);
         int extent = Math.Min(pointer.Length ?? available, available);
         NativeBattleModelResourceView view = Open(cpu, staging, pointer, extent);
         RequireRange(offset, bytes.Length, view.Length);
-        NativeBattleModelCpuBank bank = cpu.GetResourceBank(reference);
         int destination = checked(reference.ResourceStorageOffset + offset);
         bank = reference.ResourceOnly ? bank.Write(destination, bytes) : bank.WriteGuest(destination, bytes);
-        return reference.EnemyResourceId is int id ? cpu with { EnemyResources = cpu.EnemyResources!.SetItem(id, bank) } : cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(reference.Bank, bank) } };
+        return reference.EnemyResourceId is int id ? cpu with { EnemyResources = cpu.EnemyResources!.SetItem(id, bank) } : cpu with { Cpu = cpu.Cpu.WithBank(reference.Bank, bank) };
     }
 
     private static NativeBattleModelResourceView OpenStaging(NativeBattleFileStaging staging, uint address, int length)
@@ -159,6 +159,15 @@ public readonly struct NativeBattleModelResourceView
         if (reference.Bank < 3 && reference.Bank >= cpu.Cpu.Banks.Length)
         {
             throw new InvalidDataException("Native model section selects an absent CPU bank.");
+        }
+        if (reference.IsPresentationResource)
+        {
+            NativeBattleModelCpuBank retained = cpu.GetResourceBank(reference);
+            if (publication is not null && (!publication.HasResourceStorage || !publication.GuestSegments.IsEmpty || publication.Capacity != retained.Capacity))
+            {
+                throw new InvalidDataException("Hosted model section requires a resource-only CPU publication.");
+            }
+            publication ??= retained;
         }
         NativeBattleModelCpuBank bank = publication ?? cpu.GetResourceBank(reference);
         if (reference.ResourceOnly && !bank.HasResourceStorage)

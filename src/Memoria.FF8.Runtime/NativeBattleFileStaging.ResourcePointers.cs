@@ -17,7 +17,7 @@ public sealed record NativeBattleResourcePointer(NativeBattleModelCpuReference? 
             {
                 return address;
             }
-            if (Cpu is not { } cpu)
+            if (Cpu is not { } cpu || NativeBattlePresentationCpuBanks.IsExtension(cpu.Bank))
             {
                 return null;
             }
@@ -50,7 +50,22 @@ public sealed record NativeBattleResourcePointer(NativeBattleModelCpuReference? 
         return Cpu is { IsOwnedResource: true } reference ? this with { CpuPublication = CpuPublication ?? cpu.GetResourceBank(reference) } : this;
     }
 
-    internal bool HasValidOwner() => (!NativeAddressEncoding || Cpu is not null) && (FieldStorage is null || StagingAddress is not null && FieldStorage.IsValid) && (CpuPublication is null || Cpu is { IsOwnedResource: true }) && Length is not < 0 && (Cpu is not null ? 1 : 0) + (StagingAddress is not null ? 1 : 0) + (CpuRow is not null ? 1 : 0) == 1 && CpuRow is not (< 0 or >= 11) && (Cpu is not { } cpu || NativeFieldRuntimeProfile.IsSupportedImage(cpu.EffectiveLayout.ExecutableHash) && cpu.Bank <= 4 && (cpu.Offset >= 0 || cpu.EnemyResourceId is not null) && cpu.ResourceOffset >= 0 && cpu.EnemyResourceId is not < 0 && (cpu.EnemyResourceId is null || cpu.Bank == 3 && (long)NativeBattleModelCpuResources.EnemyAddress + cpu.Offset is >= 0 and <= uint.MaxValue) && (!cpu.ResourceOnly || cpu.Bank < 3) && (cpu.Bank >= 3 || cpu.ResourceOnly || cpu.Offset <= cpu.EffectiveLayout.BankLength));
+    internal bool HasValidOwner() => (!NativeAddressEncoding || Cpu is not null) && (FieldStorage is null || StagingAddress is not null && FieldStorage.IsValid) && (CpuPublication is null || Cpu is { IsOwnedResource: true }) && Length is not < 0 && (Cpu is not null ? 1 : 0) + (StagingAddress is not null ? 1 : 0) + (CpuRow is not null ? 1 : 0) == 1 && CpuRow is not (< 0 or >= 11) && (Cpu is not { } cpu || HasValidCpuOwner(cpu));
+
+    private static bool HasValidCpuOwner(NativeBattleModelCpuReference cpu)
+    {
+        if (!NativeFieldRuntimeProfile.IsSupportedImage(cpu.EffectiveLayout.ExecutableHash) || cpu.ResourceOffset < 0)
+        {
+            return false;
+        }
+        if (NativeBattlePresentationCpuBanks.IsExtension(cpu.Bank))
+        {
+            return cpu.IsPresentationResource;
+        }
+        return cpu.Bank <= 4 && (cpu.Offset >= 0 || cpu.EnemyResourceId is not null) && cpu.EnemyResourceId is not < 0 &&
+            (cpu.EnemyResourceId is null || cpu.Bank == 3 && (long)NativeBattleModelCpuResources.EnemyAddress + cpu.Offset is >= 0 and <= uint.MaxValue) &&
+            (!cpu.ResourceOnly || cpu.Bank < 3) && (cpu.Bank >= 3 || cpu.ResourceOnly || cpu.Offset <= cpu.EffectiveLayout.BankLength);
+    }
 }
 public sealed record NativeBattleResourceRowReference(int? CpuRow, uint? StagingAddress);
 

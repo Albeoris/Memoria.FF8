@@ -60,9 +60,17 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
 
     public NativeBattleModelCpuBank GetResourceBank(NativeBattleModelCpuReference reference)
     {
+        if (NativeBattlePresentationCpuBanks.IsExtension(reference.Bank))
+        {
+            if (!reference.IsPresentationResource || reference.EffectiveLayout != Cpu.EffectiveLayout)
+            {
+                throw new InvalidDataException("Hosted model section requires its authenticated resource-only CPU bank.");
+            }
+            return Cpu.GetBank(reference.Bank);
+        }
         return reference.EnemyResourceId is int id
             ? EnemyResources is { } resources && resources.TryGetValue(id, out NativeBattleModelCpuBank? bank) ? bank : throw new InvalidDataException("Enemy section requires its retained resource owner.")
-            : reference.Bank < 3 ? Cpu.Banks[reference.Bank] : throw new InvalidDataException("Shared guest sections have no immutable resource publication.");
+            : reference.Bank < 3 ? Cpu.GetBank(reference.Bank) : throw new InvalidDataException("Shared guest sections have no immutable resource publication.");
     }
 
     public int? EnemyCursor { get; init; }
@@ -156,10 +164,23 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
         {
             _ = bank.Read(0, 0);
         }
-        if (EnemyCursor is < 0 || EnemyLinkedSlots > 7 || LastModel142Row is < 0 or >= 11 || Rows.Any(row => row.PrivateLength4 < 0 || row.SharedLength8 < 0 || row.Lengths.Any(item => item.Value < 0) || row.Fields.Any(field => field.Value is { } reference && (!new NativeBattleResourcePointer(reference, null).HasValidOwner() || reference.Offset < 0 && reference.EnemyResourceId is null || reference.ResourceOnly && reference.Bank >= 3 || reference.Bank < 3 && (reference.Offset > Cpu.Banks[reference.Bank].ResourceCapacity || reference.EffectiveLayout != Cpu.EffectiveLayout)))))
+        if (EnemyCursor is < 0 || EnemyLinkedSlots > 7 || LastModel142Row is < 0 or >= 11 || Rows.Any(row => row.PrivateLength4 < 0 || row.SharedLength8 < 0 || row.Lengths.Any(item => item.Value < 0) || row.Fields.Any(field => field.Value is { } reference && !HasValidRowReference(reference))))
         {
             throw new InvalidDataException("Native model resource row points outside its known logical bank.");
         }
+    }
+
+    private bool HasValidRowReference(NativeBattleModelCpuReference reference)
+    {
+        if (!new NativeBattleResourcePointer(reference, null).HasValidOwner())
+        {
+            return false;
+        }
+        if (reference.Bank < 3 || reference.IsPresentationResource)
+        {
+            return reference.EffectiveLayout == Cpu.EffectiveLayout && reference.Offset <= Cpu.GetBank(reference.Bank).ResourceCapacity;
+        }
+        return true;
     }
 
     private void RequireAnimationSourceOwners()

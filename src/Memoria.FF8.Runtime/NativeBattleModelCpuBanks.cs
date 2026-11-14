@@ -56,7 +56,10 @@ public sealed partial record NativeBattleModelCpuReference(byte Bank, int Offset
     public int ResourceOffset { get; init; }
 
     [JsonIgnore]
-    public bool IsOwnedResource => Bank < 3 || EnemyResourceId is not null;
+    public bool IsOwnedResource => Bank < 3 || EnemyResourceId is not null || IsPresentationResource;
+
+    [JsonIgnore]
+    internal bool IsPresentationResource => NativeBattlePresentationCpuBanks.IsExtension(Bank) && ResourceOnly && EnemyResourceId is null && Offset >= 0;
 
     [JsonIgnore]
     public int ResourceStorageOffset => EnemyResourceId is not null ? ResourceOffset : Offset;
@@ -79,7 +82,7 @@ public sealed partial record NativeBattleModelCpuReference(byte Bank, int Offset
     {
         NativeBattlePartyCpuLayout layout = EffectiveLayout;
         layout.Validate();
-        if (ResourceOnly || EnemyResourceId is not null)
+        if (ResourceOnly || EnemyResourceId is not null || NativeBattlePresentationCpuBanks.IsExtension(Bank))
         {
             return null;
         }
@@ -223,6 +226,12 @@ public sealed record NativeBattleModelCpuBanks(ImmutableArray<NativeBattleModelC
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattlePartyCpuLayout? Layout { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleGraphicsRoster? PresentationRoster { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableDictionary<int, NativeBattleModelCpuBank>? PresentationBanks { get; init; }
+
     [JsonIgnore]
     public NativeBattlePartyCpuLayout EffectiveLayout => Layout ?? NativeBattlePartyCpuLayout.Classic;
 
@@ -244,6 +253,104 @@ public sealed record NativeBattleModelCpuBanks(ImmutableArray<NativeBattleModelC
         foreach (NativeBattleModelCpuBank bank in Banks)
         {
             _ = bank.Read(0, 0);
+        }
+        if (PresentationRoster is not { } roster)
+        {
+            if (PresentationBanks is not null)
+            {
+                throw new InvalidDataException("Hosted CPU banks require their presentation roster.");
+            }
+            return;
+        }
+        roster.Validate();
+        if (PresentationBanks is not { } banks || banks.Count != roster.PartyRows.Count(row => row >= NativeBattleSlots.AllyCount))
+        {
+            throw new InvalidDataException("Hosted CPU banks must cover every extension party row.");
+        }
+        foreach ((int bankId, NativeBattleModelCpuBank bank) in banks)
+        {
+            ValidatePresentationBank(bankId, bank);
+            _ = bank.Read(0, 0);
+        }
+    }
+
+    public NativeBattleModelCpuBanks WithPresentationRoster(NativeBattleGraphicsRoster roster)
+    {
+        ArgumentNullException.ThrowIfNull(roster);
+        Validate();
+        roster.Validate();
+        if (PresentationRoster is { } existing)
+        {
+            if (!existing.Rows.SequenceEqual(roster.Rows))
+            {
+                throw new InvalidDataException("The CPU banks already belong to a different presentation roster.");
+            }
+            return this;
+        }
+        ImmutableDictionary<int, NativeBattleModelCpuBank>.Builder banks = ImmutableDictionary.CreateBuilder<int, NativeBattleModelCpuBank>();
+        foreach (int actor in roster.PartyRows.Where(row => row >= NativeBattleSlots.AllyCount))
+        {
+            banks.Add(NativeBattlePresentationCpuBanks.FromActorRow(actor), NativeBattleModelCpuBank.Unknown(EffectiveLayout.BankLength).PromoteResourceStorage());
+        }
+        return this with { PresentationRoster = roster, PresentationBanks = banks.ToImmutable() };
+    }
+
+    public int PartyBankIndex(int actorRow)
+    {
+        if (PresentationRoster is { } roster)
+        {
+            if ((uint)actorRow >= (uint)roster.ActorCount || roster.Rows[actorRow]?.IsParty != true)
+            {
+                throw new InvalidDataException("Hosted CPU bank selection requires a bound party actor.");
+            }
+            return NativeBattlePresentationCpuBanks.FromActorRow(actorRow);
+        }
+        if ((uint)actorRow >= NativeBattleSlots.AllyCount)
+        {
+            throw new InvalidDataException("Native CPU bank selection requires an original party row.");
+        }
+        return actorRow;
+    }
+
+    public NativeBattleModelCpuBank GetBank(int bankId)
+    {
+        if ((uint)bankId < NativeBattleSlots.AllyCount && !Banks.IsDefault && bankId < Banks.Length && Banks[bankId] is { } native && native.Capacity == EffectiveLayout.BankLength)
+        {
+            return native;
+        }
+        if (PresentationBanks is not { } banks || !banks.TryGetValue(bankId, out NativeBattleModelCpuBank? bank))
+        {
+            throw new InvalidDataException("The CPU bank has no retained party resource owner.");
+        }
+        ValidatePresentationBank(bankId, bank);
+        return bank!;
+    }
+
+    public NativeBattleModelCpuBanks WithBank(int bankId, NativeBattleModelCpuBank bank)
+    {
+        ArgumentNullException.ThrowIfNull(bank);
+        _ = GetBank(bankId);
+        if (bank.Capacity != EffectiveLayout.BankLength)
+        {
+            throw new InvalidDataException("Party CPU bank capacity differs from its authenticated layout.");
+        }
+        _ = bank.Read(0, 0);
+        if ((uint)bankId < NativeBattleSlots.AllyCount)
+        {
+            return this with { Banks = Banks.SetItem(bankId, bank) };
+        }
+        ValidatePresentationBank(bankId, bank);
+        return this with { PresentationBanks = PresentationBanks!.SetItem(bankId, bank) };
+    }
+
+    private void ValidatePresentationBank(int bankId, NativeBattleModelCpuBank? bank)
+    {
+        int actor = NativeBattlePresentationCpuBanks.ToActorRow(bankId);
+        if (!NativeBattlePresentationCpuBanks.IsExtension(bankId) || PresentationRoster is not { } roster ||
+            actor >= roster.ActorCount || roster.Rows[actor]?.IsParty != true ||
+            bank is null || bank.Capacity != EffectiveLayout.BankLength || !bank.HasResourceStorage || !bank.GuestSegments.IsEmpty)
+        {
+            throw new InvalidDataException("Hosted CPU bank requires a bound extension party actor and resource-only storage.");
         }
     }
 
