@@ -34,7 +34,7 @@ public static class Ff7BattleActorDeath
 
     public static Ff7BattleActorDeathUpdate Advance(Ff7BattleActorDeathState state, Ff7BattleActorModelModifiers current, Ff7BattleActorDeathResources? resources = null)
     {
-        if (state.Target is < 0 or > 9 || state.Kind is not (0 or 1 or 17 or 18) || state.Remaining < -1 || state.Remaining > (state.Kind >= 17 ? 64 : 14))
+        if (state.Target is < 0 or > 9 || state.Kind is not (0 or 1 or 3 or 17 or 18) || state.Remaining < -1 || state.Remaining > (state.Kind >= 17 ? 64 : 14))
         {
             throw new InvalidDataException("FFVII actor death callback lost its physical actor, native kind or countdown.");
         }
@@ -61,6 +61,14 @@ public static class Ff7BattleActorDeath
                 throw new InvalidDataException("FFVII spinning actor death requires its original angle and lift resources.");
             }
             next = next with { ExtraEnabled = true, ExtraAngleX = next.ExtraAngleX + resources.AngleStep, ExtraAngleY = next.ExtraAngleY + resources.AngleStep, ExtraAngleZ = next.ExtraAngleZ + resources.AngleStep, ExtraY = next.ExtraY + resources.LiftSteps[remaining] };
+        }
+        else if (state.Kind == 3)
+        {
+            if (resources is null || !float.IsFinite(resources.AngleStep))
+            {
+                throw new InvalidDataException("FFVII actor death kind 3 requires its original yaw step.");
+            }
+            next = next with { ExtraEnabled = true, ExtraAngleY = next.ExtraAngleY + resources.AngleStep };
         }
         Ff7BattleActorModelSound? sound = first && state.PlaySound ? new(state.Target, state.Kind >= 17 ? (ushort)0x1C0 : (ushort)0x16) : null;
         return new(state with { Remaining = (short)(remaining - 1) }, new(state.Target, next), sound, first && state.Kind >= 17);

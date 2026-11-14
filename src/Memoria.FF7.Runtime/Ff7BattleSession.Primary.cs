@@ -10,7 +10,7 @@ public sealed partial class Ff7BattleSession
 
     private Ff7BattlePrimaryContext PrimaryContext()
     {
-        return new(SecondaryActorPoint, slot => new(0, (short)VisualPlacement(slot).Yaw, 0), CollisionRadius, random.NextCrt, slot => animations!.BoneCount(ActorModel(slot)), JointPoint, (slot, selector) => animations!.JointSelector(ActorModel(slot), selector), PrimaryWeaponPoint, LiveActorModelOutput, slot => (short)VisualPlacement(slot).Position.Z, slot => (short)HomePlacement(slot).Position.Z);
+        return new(SecondaryActorPoint, slot => new(0, (short)VisualPlacement(slot).Yaw, 0), CollisionRadius, random.NextCrt, slot => animations!.BoneCount(ActorModel(slot)), JointPoint, (slot, selector) => animations!.JointSelector(ActorModel(slot), selector), PrimaryWeaponPoint, LiveActorModelOutput, slot => (short)VisualPlacement(slot).Position.Z, slot => (short)HomePlacement(slot).Position.Z) { ActorDeathResources = animations?.ActorResources?.Death };
     }
 
     private System.Numerics.Vector3 PrimaryWeaponPoint(int slot, System.Numerics.Vector3 point)

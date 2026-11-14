@@ -22,6 +22,7 @@ internal static class NativeBattleActorModelTests
         {
             (0, 15, "CD28C6BE4A6263288BE726DB87CF7D0D5107D47776C0AAF07E6E2376C5A2798D"),
             (1, 15, "0FAB43A37FAA6109F49A0910A2186739CCE51A4F26B22EE54C516E0F79F5AC22"),
+            (3, 15, "92C8F9FFAB24811E84BF6E70D013C4C5FA2EEF62FA75783CD4C22E559C55D77D"),
             (17, 66, "2999CCF22D5BB6E87C3C8E6B9523A3507778451BC6B3D0D7B75877910732406C")
         })
         {
@@ -209,7 +210,7 @@ internal static class NativeBattleActorModelTests
         using LgpArchive models = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
         using LgpArchive magic = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.MagicArchive).Path);
         Ff7BattleAnimationResources animations = new(models, Ff7PcExecutableData.LoadBattlePlacement(installation), magic, Ff7PcExecutableData.LoadBattleJumpDeltas(installation), Ff7PcExecutableData.LoadBattleHitmarks(installation), Ff7PcExecutableData.LoadBattleActorModelResources(installation));
-        foreach ((int id, byte kind) in new (int, byte)[] { (300, 0), (309, 1), (324, 17) })
+        foreach ((int id, byte kind) in new (int, byte)[] { (300, 0), (309, 1), (324, 17), (455, 3) })
         {
             SceneFormation formation = formations[id];
             Ff7BattleSession initial = new(formation, progress, kernel, materia, 1, animations: animations);
@@ -235,7 +236,11 @@ internal static class NativeBattleActorModelTests
                 hurtBody |= model.Reaction && model.PendingSince < 0 && battle.RenderActorPose(4).Clip == 1;
                 if (!deathStarted && model.Modifiers!.Red > 0)
                 {
-                    Check(model.Modifiers.Red == (kind == 17 ? 251 : 232) && model.Modifiers.Transparency == (kind == 17 ? 0x820 : 0x880) && model.Modifiers.Deferred && model.Modifiers.ExtraEnabled == (kind == 1), $"Original F6 selected the wrong initial death writes in formation {id}.");
+                    Check(model.Modifiers.Red == (kind == 17 ? 251 : 232) && model.Modifiers.Transparency == (kind == 17 ? 0x820 : 0x880) && model.Modifiers.Deferred && model.Modifiers.ExtraEnabled == (kind is 1 or 3), $"Original F6 selected the wrong initial death writes in formation {id}.");
+                    if (kind == 3)
+                    {
+                        Check(model.Modifiers is { ExtraAngleY: 22.5f, ExtraAngleX: 0f, ExtraAngleZ: 0f, ExtraY: 0f }, "Guard/Police KO must rotate only about its native Y axis.");
+                    }
                     Check(battle.HasActorDeathPresentation(4), $"Formation {id} dropped the death owner while the target was still drawn.");
                     deathStarted = true;
                 }

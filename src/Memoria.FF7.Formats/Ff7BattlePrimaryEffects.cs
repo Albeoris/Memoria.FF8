@@ -153,7 +153,10 @@ public abstract record Ff7BattlePrimaryDraw
 public sealed record Ff7BattlePrimaryScopeMeshDraw(Ff7BattleBraverPoint Source, Ff7BattleSearchScopeBasis Basis, Ff7BattleSearchScopeMesh Mesh) : Ff7BattlePrimaryDraw;
 public sealed record Ff7BattlePrimaryScopeSpriteDraw(Ff7BattleBraverPoint Position, int Stage, int Frame) : Ff7BattlePrimaryDraw;
 
-public sealed record Ff7BattlePrimaryContext(Func<int, int, Vector3, Vector3> ActorPoint, Func<int, BattleRotationWords> ActorRotation, Func<int, int> CollisionRadius, Func<int> NextCrt, Func<int, int>? BoneCount = null, Func<int, int, Vector3>? JointPoint = null, Func<int, int, int>? JointSelector = null, Func<int, Vector3, Vector3>? WeaponPoint = null, Func<int, Ff7BattleActorModelModifiers>? ActorModel = null, Func<int, short>? ActorRootZ = null, Func<int, short>? ActorHomeZ = null);
+public sealed record Ff7BattlePrimaryContext(Func<int, int, Vector3, Vector3> ActorPoint, Func<int, BattleRotationWords> ActorRotation, Func<int, int> CollisionRadius, Func<int> NextCrt, Func<int, int>? BoneCount = null, Func<int, int, Vector3>? JointPoint = null, Func<int, int, int>? JointSelector = null, Func<int, Vector3, Vector3>? WeaponPoint = null, Func<int, Ff7BattleActorModelModifiers>? ActorModel = null, Func<int, short>? ActorRootZ = null, Func<int, short>? ActorHomeZ = null)
+{
+    public Ff7BattleActorDeathResources? ActorDeathResources { get; init; }
+}
 public sealed record Ff7BattlePrimaryHitmark(int Target, int Style);
 public sealed record Ff7BattlePrimaryReactionReceipt(int Target, bool RespectDeathMask);
 

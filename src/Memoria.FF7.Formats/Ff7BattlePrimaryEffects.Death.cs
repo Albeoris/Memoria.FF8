@@ -6,7 +6,7 @@ public static partial class Ff7BattlePrimaryEffects
 {
     public static Ff7BattlePrimaryState ScheduleActorDeath(Ff7BattlePrimaryState state, int target, byte kind, bool playSound = true)
     {
-        if (kind is not (0 or 17 or 18))
+        if (kind is not (0 or 3 or 17 or 18))
         {
             throw new InvalidDataException("FFVII primary actor death requires its original primary-pool kind.");
         }
@@ -15,7 +15,7 @@ public static partial class Ff7BattlePrimaryEffects
 
     private static Ff7BattlePrimaryCallback? ExecuteDeath(Ff7BattlePrimaryDeathController callback, PrimaryPass pass)
     {
-        Ff7BattleActorDeathUpdate update = Ff7BattleActorDeath.Advance(callback.State, pass.ReadActorModel(callback.State.Target));
+        Ff7BattleActorDeathUpdate update = Ff7BattleActorDeath.Advance(callback.State, pass.ReadActorModel(callback.State.Target), pass.Context?.ActorDeathResources);
         pass.WriteActorModel(update.Write);
         if (update.Sound is { } sound)
         {
