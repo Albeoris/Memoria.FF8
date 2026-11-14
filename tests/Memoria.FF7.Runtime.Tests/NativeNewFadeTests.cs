@@ -7,6 +7,7 @@ internal static class NativeNewFadeTests
 {
     public static void Run()
     {
+        AdditiveRamp();
         Ff7FieldHost host = Host(new() { NewFadeOrigin = new(0, 0, 0), FadeState = new(4, 0, 1, 0, 0, 0, true, 0x80ABCDEF) });
         host.Execute(Request(1, new FieldFadeCommand(12, 0, 60, 60, 30, NewFade: true)));
         Equal(0, host.Process.FadeState!.Position);
@@ -105,6 +106,31 @@ internal static class NativeNewFadeTests
         Equal(0xFFF5EBE1u, maximum.Process.FadeState.FieldColorArgb);
         Equal(JsonSerializer.Serialize(maximum.Capture()), JsonSerializer.Serialize(maximumCold.Capture()));
         InstalledPartial();
+    }
+
+    private static void AdditiveRamp()
+    {
+        Ff7FieldHost host = Host(new() { NewFadeOrigin = new(0, 0, 0), FadeState = new(0, 0, 1, 0, 0, 0, false) });
+        host.Execute(Request(1, new FieldFadeCommand(11, 200, 200, 200, 10, NewFade: true)));
+        FieldHostRequest wait = Request(2, new FieldFadeCommand(0, Wait: true));
+        host.AdvanceActors();
+        Equal(0xFF141414u, host.Process.FadeState!.QuadColorArgb);
+        Equal(Ff7FadeQuadBlend.Additive, host.Process.FadeState.QuadBlend);
+        Equal(0x80FFFFFFu, host.Process.FadeState.FieldColorArgb);
+        Equal(false, host.Execute(wait).Completed);
+        Ff7FieldHost cold = Host(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
+        for (int tick = 1; tick < 10; tick++)
+        {
+            host.AdvanceActors();
+            cold.AdvanceActors();
+            Equal(JsonSerializer.Serialize(host.Capture()), JsonSerializer.Serialize(cold.Capture()));
+        }
+        Equal(true, host.Execute(wait).Completed);
+        Equal(0xFFC8C8C8u, host.Process.FadeState!.QuadColorArgb);
+        Equal(new Ff7FadeColorOrigin(200, 200, 200), host.Process.NewFadeOrigin);
+        host.Execute(Request(3, new FieldFadeCommand(11, 10, 10, 10, 70, NewFade: true)));
+        host.AdvanceActors();
+        Equal(0xFFC6C6C6u, host.Process.FadeState!.QuadColorArgb);
     }
 
     private static void InstalledPartial()

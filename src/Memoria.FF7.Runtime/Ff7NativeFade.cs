@@ -23,14 +23,15 @@ public sealed record Ff7FadeProcess(int Type, int Position, int Speed, int Red, 
 {
     public bool HidesField => FieldHidden ?? Type == 4;
 
-    public bool Completed => Type is 0 or 4 || Type is 1 or 5 or 9 && Position == 0 || Type is 2 or 6 or 10 && Position >= 255 || Type == 12 && Position == Speed;
+    public bool Completed => Type is 0 or 4 || Type is 1 or 5 or 9 && Position == 0 || Type is 2 or 6 or 10 && Position >= 255 || Type is 11 or 12 && Position == Speed;
 
     public void Validate()
     {
-        int minimum = Type == 12 ? short.MinValue : 0;
-        int maximumPosition = Type == 12 ? short.MaxValue : 256;
-        int maximumSpeed = Type == 12 ? short.MaxValue : 255;
-        if (Type is not (0 or 1 or 2 or 4 or 5 or 6 or 9 or 10 or 12) || Position < minimum || Position > maximumPosition || Speed < minimum || Speed > maximumSpeed || Type == 12 && Speed == 0 || Red is < 0 or > 255 || Green is < 0 or > 255 || Blue is < 0 or > 255 || !Enum.IsDefined(QuadBlend))
+        bool interpolated = Type is 11 or 12;
+        int minimum = interpolated ? short.MinValue : 0;
+        int maximumPosition = interpolated ? short.MaxValue : 256;
+        int maximumSpeed = interpolated ? short.MaxValue : 255;
+        if (Type is not (0 or 1 or 2 or 4 or 5 or 6 or 9 or 10 or 11 or 12) || Position < minimum || Position > maximumPosition || Speed < minimum || Speed > maximumSpeed || interpolated && Speed == 0 || Red is < 0 or > 255 || Green is < 0 or > 255 || Blue is < 0 or > 255 || !Enum.IsDefined(QuadBlend))
         {
             throw new InvalidDataException("FFVII fade continuation is invalid.");
         }
@@ -41,11 +42,11 @@ public static class Ff7NativeFade
 {
     public static Ff7FadeProcess Start(FieldFadeCommand command, Ff7FadeProcess? previous, int? fieldId = null, Ff7FadeColorOrigin? newFadeOrigin = null)
     {
-        if (command.Type is not (0 or 1 or 2 or 4 or 5 or 6 or 9 or 10 or 12) || command.NewFade && command.Type is not (0 or 4 or 12) || command.Type == 12 && !command.NewFade)
+        if (command.Type is not (0 or 1 or 2 or 4 or 5 or 6 or 9 or 10 or 11 or 12) || command.NewFade && command.Type is not (0 or 4 or 11 or 12) || command.Type is 11 or 12 && !command.NewFade)
         {
             throw new NotSupportedException($"FFVII fade type {command.Type} requires its separate native fade process.");
         }
-        if (command.Type == 12)
+        if (command.Type is 11 or 12)
         {
             if (command.Speed == 0)
             {
@@ -68,7 +69,7 @@ public static class Ff7NativeFade
                 throw new NotSupportedException("FFVII fullscreen fade composition requires its native quad output contract.");
             }
         }
-        Ff7FadeProcess next = new(type, command.Type == 12 ? 0 : command.Type is 1 or 5 or 9 ? command.Adjustment + 1 : command.Type is 2 or 6 or 10 ? command.Adjustment : previous?.Position ?? 0, command.Speed, command.Red, command.Green, command.Blue, fieldColor, previous?.FieldColorArgb ?? 0x80FFFFFF, QuadBlend: command.Type is 5 or 6 or 9 or 10 ? Ff7FadeQuadBlend.Additive : Ff7FadeQuadBlend.Alpha, EntryCurve: previous?.EntryCurve ?? false, FieldHidden: previous?.HidesField ?? false);
+        Ff7FadeProcess next = new(type, command.Type is 11 or 12 ? 0 : command.Type is 1 or 5 or 9 ? command.Adjustment + 1 : command.Type is 2 or 6 or 10 ? command.Adjustment : previous?.Position ?? 0, command.Speed, command.Red, command.Green, command.Blue, fieldColor, previous?.FieldColorArgb ?? 0x80FFFFFF, QuadBlend: command.Type is 5 or 6 or 9 or 10 or 11 ? Ff7FadeQuadBlend.Additive : Ff7FadeQuadBlend.Alpha, EntryCurve: previous?.EntryCurve ?? false, FieldHidden: previous?.HidesField ?? false);
         next.Validate();
         return next;
     }
@@ -81,7 +82,7 @@ public static class Ff7NativeFade
         {
             process = process with { EntryCurve = false };
         }
-        if (process.Type == 12)
+        if (process.Type is 11 or 12)
         {
             Ff7FadeColorOrigin origin = newFadeOrigin ?? throw new InvalidDataException("FFVII new-fade update requires its saved color origin.");
             origin.Validate();
@@ -94,6 +95,11 @@ public static class Ff7NativeFade
             int currentRed = origin.Red + (process.Red - origin.Red) * phase / process.Speed;
             int currentGreen = origin.Green + (process.Green - origin.Green) * phase / process.Speed;
             int currentBlue = origin.Blue + (process.Blue - origin.Blue) * phase / process.Speed;
+            if (process.Type == 11)
+            {
+                uint quad = 0xFF000000u | (uint)currentRed << 16 | (uint)currentGreen << 8 | (uint)currentBlue;
+                return process with { Position = phase, QuadColorArgb = quad };
+            }
             uint fieldColor = 0xFF000000u | (uint)(255 - currentRed) << 16 | (uint)(255 - currentGreen) << 8 | (uint)(255 - currentBlue);
             return process with { Position = phase, FieldColorArgb = fieldColor, QuadColorArgb = null };
         }
@@ -143,8 +149,8 @@ public sealed partial class Ff7FieldHost
     {
         if (Process.NewFadeOrigin is null)
         {
-            Ff7FadeColorOrigin origin = Process.FadeState is { Type: 12, Completed: true } terminal ? new(terminal.Red, terminal.Green, terminal.Blue) : new(0, 0, 0);
-            bool exact = Process.FadeState is { Type: 0 } or { Type: 12, Completed: true } || Process.FadeState is null && (Process.Fade is null || Process.Fade.Type == 0);
+            Ff7FadeColorOrigin origin = Process.FadeState is { Type: 11 or 12, Completed: true } terminal ? new(terminal.Red, terminal.Green, terminal.Blue) : new(0, 0, 0);
+            bool exact = Process.FadeState is { Type: 0 } or { Type: 11 or 12, Completed: true } || Process.FadeState is null && (Process.Fade is null || Process.Fade.Type == 0);
             if (!exact)
             {
                 Console.Error.WriteLine("FFVII compatibility: legacy new-fade origin uses the original RGB0 default; the first color ramp may approximate presentation while recorded progress is preserved.");

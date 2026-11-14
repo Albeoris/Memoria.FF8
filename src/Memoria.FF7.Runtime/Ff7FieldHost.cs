@@ -318,7 +318,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
         if (Process.FadeState is Ff7FadeProcess fadeState)
         {
             Ff7FadeProcess next = Ff7NativeFade.Advance(fadeState, Process.Movie is { Playing: true }, Process.NewFadeOrigin, NativeFieldEntryFadeAlpha);
-            Ff7FadeColorOrigin? origin = fadeState.Type == 0 ? new(0, 0, 0) : next.Type == 12 && next.Completed ? new(next.Red, next.Green, next.Blue) : Process.NewFadeOrigin;
+            Ff7FadeColorOrigin? origin = fadeState.Type == 0 ? new(0, 0, 0) : next.Type is 11 or 12 && next.Completed ? new(next.Red, next.Green, next.Blue) : Process.NewFadeOrigin;
             Process = Process with { FadeState = next, NewFadeOrigin = origin };
         }
         AdvanceBlink();
