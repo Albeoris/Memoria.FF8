@@ -17,11 +17,11 @@ public sealed partial class BattleSession
         NativeStage = stage with { Extended = extended with { Stage37 = state } };
     }
 
-    private void UpdateNativeStage37Target3(NativeBattleGraphicsState graphics)
+    private void UpdateNativeStage37Target3(NativeBattleGraphicsState graphics, NativeBattleModelLifecycleServices? services = null)
     {
         NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native518A80 requires its initialized stage owner.");
         NativeBattleStageExtendedState extended = stage.Extended ?? throw new NotSupportedException("Native518A80 requires its retained process state.");
-        for (int index = 3; index <= 6; index++)
+        foreach (int index in ReadStageContactEnemyRows(graphics, services))
         {
             NativeBattleGraphicsModel model = graphics.Models[index];
             if ((model.Flags0 & 2) == 0)
@@ -33,10 +33,37 @@ public sealed partial class BattleSession
             {
                 continue;
             }
-            BattleCombatant actor = GraphicsActor(graphics, index) ?? throw new NotSupportedException("Native518A80 requires the selected actor's current and maximum HP.");
-            NativeStage = stage with { Extended = extended with { Stage37 = NativeBattleStage37.UpdateHp518A80(extended.Stage37, actor.CurrentHp, actor.MaximumHp) } };
+            (int currentHp, int maximumHp) = ReadStageContactHp(graphics, index, services);
+            NativeStage = stage with { Extended = extended with { Stage37 = NativeBattleStage37.UpdateHp518A80(extended.Stage37, currentHp, maximumHp) } };
             break;
         }
+    }
+
+    private static IEnumerable<int> ReadStageContactEnemyRows(NativeBattleGraphicsState graphics, NativeBattleModelLifecycleServices? services)
+    {
+        if (services is null)
+        {
+            return Enumerable.Range(3, 4);
+        }
+        NativeBattleGraphicsRoster roster = graphics.PresentationRoster ?? throw new InvalidDataException("Hosted stage contact sampling requires its presentation roster.");
+        roster.Validate();
+        services.Validate(roster, graphics);
+        return roster.EnemyRows;
+    }
+
+    private (int CurrentHp, int MaximumHp) ReadStageContactHp(NativeBattleGraphicsState graphics, int row, NativeBattleModelLifecycleServices? services)
+    {
+        if (services is null)
+        {
+            BattleCombatant actor = GraphicsActor(graphics, row);
+            return (actor.CurrentHp, actor.MaximumHp);
+        }
+        NativeBattleModelActorFacts facts = RequireHostedContactActorFacts(graphics, services, row);
+        if (facts.CurrentHp is not int currentHp || facts.MaximumHp is not int maximumHp)
+        {
+            throw new NotSupportedException("Hosted stage contact sampling requires the selected actor's current and maximum HP.");
+        }
+        return (currentHp, maximumHp);
     }
 
     private NativeBattleGraphicsState DispatchNativeStage37(NativeBattleGraphicsState graphics, int command)

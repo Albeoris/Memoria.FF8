@@ -4,6 +4,8 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
+    private NativeBattleModelLifecycleServices? hostedFrameServices;
+
     internal NativeBattleEffectPresentationStep ReadAndClearHostedPresentationFrameOutputs()
     {
         if (!hostedBattlePresentation)
@@ -24,6 +26,10 @@ public sealed partial class BattleSession
 
     private NativeBattleModelLifecycleServices AdvanceHostedBattlePresentation(BattleSession logicalOwner, NativeExamTimerState? timerObservation)
     {
+        if (hostedFrameServices is not null)
+        {
+            throw new InvalidOperationException("A hosted battle frame is already advancing.");
+        }
         if (!hostedBattlePresentation || NativeGraphics is not { PresentationRoster: { } roster } graphics)
         {
             throw new InvalidOperationException("Hosted battle frames require their initialized graphics process and roster.");
@@ -38,6 +44,7 @@ public sealed partial class BattleSession
         BeginNativeFrameStack();
         try
         {
+            hostedFrameServices = services;
             for (int pre = 0; pre < 3; pre++)
             {
                 AdvanceHostedUiPublication();
@@ -67,6 +74,7 @@ public sealed partial class BattleSession
         }
         finally
         {
+            hostedFrameServices = null;
             EndNativeFrameStack();
         }
         return services;

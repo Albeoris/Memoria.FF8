@@ -15,7 +15,12 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Expanded model lifecycle actor has a conflicting roster owner.");
             }
-            facts[row] = new(actor.Id, actor.IsPlayer, actor.ModelId, actor.NativeStatusTimers[12], actor.NativeStatusTimers[10]);
+            facts[row] = new(actor.Id, actor.IsPlayer, actor.ModelId, actor.NativeStatusTimers[12], actor.NativeStatusTimers[10])
+            {
+                RawBattleStatuses = NativeBattleStatusBits(actor),
+                CurrentHp = actor.CurrentHp,
+                MaximumHp = actor.MaximumHp
+            };
         }
         for (int row = 0; row < roster.ActorCount; row++)
         {

@@ -2,7 +2,12 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-internal sealed record NativeBattleModelActorFacts(string ActorId, bool IsParty, int OriginalModelId, short DoomTimer, short PetrifyTimer);
+internal sealed record NativeBattleModelActorFacts(string ActorId, bool IsParty, int OriginalModelId, short DoomTimer, short PetrifyTimer)
+{
+    internal uint? RawBattleStatuses { get; init; }
+    internal int? CurrentHp { get; init; }
+    internal int? MaximumHp { get; init; }
+}
 
 internal abstract record NativeBattleModelLifecycleReceipt(int Row, string ActorId);
 internal sealed record NativeBattleModelParticipantReleased(int Row, string ActorId) : NativeBattleModelLifecycleReceipt(Row, ActorId);

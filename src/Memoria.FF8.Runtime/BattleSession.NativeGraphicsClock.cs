@@ -273,6 +273,11 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState ConsumeNativeGraphicsContacts(NativeBattleGraphicsState graphics)
     {
+        if (hostedBattlePresentation)
+        {
+            NativeBattleModelLifecycleServices services = hostedFrameServices ?? throw new InvalidOperationException("Hosted graphics contacts require the current frame's actor facts.");
+            return ConsumeHostedNativeGraphicsContacts(graphics, services);
+        }
         if (presentationForeignActors is not null)
         {
             presentationContacts.AddRange(graphics.PendingContacts);
@@ -302,17 +307,77 @@ public sealed partial class BattleSession
         return graphics with { PendingContacts = [] };
     }
 
-    private NativeBattleGraphicsState ApplyNativeGraphicsContact(NativeBattleGraphicsState graphics, NativeBattleContactHalf half, NativeBattleContactEffectPlan plan)
+    private NativeBattleGraphicsState ConsumeHostedNativeGraphicsContacts(NativeBattleGraphicsState graphics, NativeBattleModelLifecycleServices services)
+    {
+        NativeBattleGraphicsRoster roster = graphics.PresentationRoster ?? throw new InvalidDataException("Hosted graphics contacts require their presentation roster.");
+        roster.Validate();
+        services.Validate(roster, graphics);
+        if (graphics.PendingContacts.IsDefault)
+        {
+            throw new InvalidDataException("Hosted graphics contacts require their pending packet list.");
+        }
+        if (graphics.PendingContacts.IsEmpty)
+        {
+            return graphics;
+        }
+        foreach (NativeBattleContactPacket packet in graphics.PendingContacts)
+        {
+            if (packet is null)
+            {
+                throw new InvalidDataException("Hosted graphics contacts cannot contain an absent packet.");
+            }
+            packet.Validate(roster.ActorCount);
+            NativeBattleModelActorFacts primary = RequireHostedContactActorFacts(graphics, services, packet.Primary.ActorIndex);
+            if (primary.RawBattleStatuses is null)
+            {
+                throw new InvalidDataException("Hosted primary contact requires the actor's current battle status.");
+            }
+            if (packet.Secondary.ActorIndex != 255)
+            {
+                _ = RequireHostedContactActorFacts(graphics, services, packet.Secondary.ActorIndex);
+            }
+        }
+        NativeBattleGraphicsRules rules = definition.NativeGraphics!.Rules;
+        foreach (NativeBattleContactPacket packet in graphics.PendingContacts)
+        {
+            NativeBattleContactHalf primary = packet.Primary;
+            uint rawStatus = services.Facts[primary.ActorIndex]!.RawBattleStatuses!.Value;
+            NativeBattleContactEffectPlan plan = NativeBattleContactEffects.Plan(primary, graphics.Models[primary.ActorIndex], rules, rawStatus);
+            graphics = ApplyNativeGraphicsContact(graphics, primary, plan, services);
+            if (plan.Loaded && packet.Secondary.ActorIndex != 255)
+            {
+                NativeBattleContactHalf half = packet.Secondary;
+                NativeBattleContactEffectPlan secondary = NativeBattleContactEffects.Plan(half, graphics.Models[half.ActorIndex], rules, half.BattleStatuses8, secondary: true);
+                graphics = ApplyNativeGraphicsContact(graphics, half, secondary, services);
+            }
+            presentationContacts.Add(packet);
+        }
+        return graphics with { PendingContacts = [] };
+    }
+
+    private static NativeBattleModelActorFacts RequireHostedContactActorFacts(NativeBattleGraphicsState graphics, NativeBattleModelLifecycleServices services, int row)
+    {
+        if (graphics.PresentationRoster is not { } roster || !roster.ContainsRow(row) ||
+            (uint)row >= (uint)graphics.Models.Length || graphics.Models[row]?.Index != row ||
+            (uint)row >= (uint)graphics.ActorIds.Length || (uint)row >= (uint)services.Facts.Length ||
+            services.Facts[row] is not { } facts || facts.ActorId != roster[row].ActorId || facts.ActorId != graphics.ActorIds[row] || facts.IsParty != roster[row].IsParty)
+        {
+            throw new InvalidDataException("Hosted graphics contact requires the current facts for its bound actor row.");
+        }
+        return facts;
+    }
+
+    private NativeBattleGraphicsState ApplyNativeGraphicsContact(NativeBattleGraphicsState graphics, NativeBattleContactHalf half, NativeBattleContactEffectPlan plan, NativeBattleModelLifecycleServices? services = null)
     {
         if (plan.StageTargetRefresh)
         {
             if (definition.NativeStageSource?.Callback?.Address == NativeBattleStage37.CallbackAddress)
             {
-                UpdateNativeStage37Target3(graphics);
+                UpdateNativeStage37Target3(graphics, services);
             }
             else if (definition.NativeStageSource?.Callback?.Address == NativeBattleFinalStage142.CallbackAddress)
             {
-                UpdateNativeFinalStage142Target3(graphics);
+                UpdateNativeFinalStage142Target3(graphics, services);
             }
         }
         if (!plan.Loaded)
@@ -360,7 +425,7 @@ public sealed partial class BattleSession
             graphics = ApplyNativeSequenceCover5065B0(graphics with { Models = graphics.Models.SetItem(index, model) }, half);
             model = graphics.Models[index];
         }
-        NativeBattleEffectsState effects = NativeBattleContactEffects.ProduceTasks(graphics.Effects, half, plan);
+        NativeBattleEffectsState effects = NativeBattleContactEffects.ProduceTasks(graphics.Effects, half, plan, services is null ? null : graphics.PresentationRoster);
         return graphics with { Models = graphics.Models.SetItem(index, model), Effects = effects };
     }
 

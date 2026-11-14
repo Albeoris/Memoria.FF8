@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private void UpdateNativeFinalStage142Target3(NativeBattleGraphicsState graphics)
+    private void UpdateNativeFinalStage142Target3(NativeBattleGraphicsState graphics, NativeBattleModelLifecycleServices? services = null)
     {
         if (definition.NativeStageSource?.Callback?.Address != NativeBattleFinalStage142.CallbackAddress)
         {
@@ -13,16 +13,20 @@ public sealed partial class BattleSession
         }
         NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native512500 requires its initialized stage.");
         NativeBattleFinalStage142State state = stage.FinalStage142 ?? throw new NotSupportedException("Native512500 requires its retained process owner.");
-        ImmutableArray<NativeBattleFinalStage142Actor>.Builder actors = ImmutableArray.CreateBuilder<NativeBattleFinalStage142Actor>(4);
-        for (int index = 3; index <= 6; index++)
+        ImmutableArray<NativeBattleFinalStage142Actor>.Builder actors = ImmutableArray.CreateBuilder<NativeBattleFinalStage142Actor>();
+        foreach (int index in ReadStageContactEnemyRows(graphics, services))
         {
             NativeBattleGraphicsModel model = graphics.Models[index];
             byte identity = (model.Flags0 & 2) == 0 ? (byte)0 : model.ModelId4 ?? throw new NotSupportedException("Native512500 requires each enabled actor identity byte.");
             bool selected = (model.Flags0 & 2) != 0 && identity == 0x8C;
-            BattleCombatant? actor = selected ? GraphicsActor(graphics, index) : null;
-            actors.Add(new(index, unchecked((byte)model.Flags0), identity, actor?.CurrentHp ?? 0, actor?.MaximumHp ?? 0));
+            (int currentHp, int maximumHp) = selected ? ReadStageContactHp(graphics, index, services) : (0, 0);
+            actors.Add(new(index, unchecked((byte)model.Flags0), identity, currentHp, maximumHp));
+            if (selected && services is not null)
+            {
+                break;
+            }
         }
-        NativeStage = stage with { FinalStage142 = NativeBattleFinalStage142.UpdateTarget3(state, actors.MoveToImmutable()) };
+        NativeStage = stage with { FinalStage142 = NativeBattleFinalStage142.UpdateTarget3(state, actors.ToImmutable(), services is null ? null : graphics.PresentationRoster) };
     }
 
     private NativeBattleGraphicsState AdvanceNativeFinalStage142(NativeBattleGraphicsState graphics, NativeBattleStageState stage, NativeBattleStageTask task)

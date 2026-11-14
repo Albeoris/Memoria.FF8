@@ -36,12 +36,13 @@ public static class NativeBattleFinalStage142
 
     public static NativeBattleFinalStage142State Initialize0(NativeBattleFinalStage142State state) => state with { TargetRatio = 0x1000 };
 
-    public static NativeBattleFinalStage142State UpdateTarget3(NativeBattleFinalStage142State state, ImmutableArray<NativeBattleFinalStage142Actor> actors)
+    public static NativeBattleFinalStage142State UpdateTarget3(NativeBattleFinalStage142State state, ImmutableArray<NativeBattleFinalStage142Actor> actors, NativeBattleGraphicsRoster? roster = null)
     {
         state.Validate();
-        for (int actor = 3; actor <= 6; actor++)
+        roster?.Validate();
+        foreach (int actor in roster?.EnemyRows ?? Enumerable.Range(3, 4))
         {
-            NativeBattleFinalStage142Actor selected = actors.SingleOrDefault(row => row.ActorIndex == actor) ?? throw new NotSupportedException("Native final stage HP sampling requires each actual actor descriptor3 through6.");
+            NativeBattleFinalStage142Actor selected = actors.SingleOrDefault(row => row.ActorIndex == actor) ?? throw new NotSupportedException(roster is null ? "Native final stage HP sampling requires each actual actor descriptor3 through6." : "Hosted final stage HP sampling requires each reached enemy descriptor.");
             if ((selected.Flags & 2) == 0 || selected.Identity != 0x8C)
             {
                 continue;
