@@ -5,18 +5,19 @@ public sealed record NativeBattleGraphicsModelCompletion(ushort Flags0, byte Kin
 
 public static class NativeBattleGraphicsCompletion
 {
-    public static int PollTask112(byte effectTaskCount, IReadOnlyList<NativeBattleGraphicsModelCompletion>? models, byte cameraTaskMask, ref byte completionByte, NativeBattleGraphicsRoster? roster = null)
+    public static int PollTask112(int effectTaskCount, IReadOnlyList<NativeBattleGraphicsModelCompletion>? models, byte cameraTaskMask, ref byte completionByte, NativeBattleGraphicsRoster? roster = null)
     {
         return PollTask112Core(effectTaskCount, models, static model => model, () => cameraTaskMask, ref completionByte, roster);
     }
 
-    internal static int PollHostedTask112(byte effectTaskCount, IReadOnlyList<NativeBattleGraphicsModel>? models, Func<byte> readCameraTaskMask, ref byte completionByte, NativeBattleGraphicsRoster roster)
+    internal static int PollHostedTask112(int effectTaskCount, IReadOnlyList<NativeBattleGraphicsModel>? models, Func<byte> readCameraTaskMask, ref byte completionByte, NativeBattleGraphicsRoster roster)
     {
         return PollTask112Core(effectTaskCount, models, static model => model.CompletionInputs(), readCameraTaskMask, ref completionByte, roster);
     }
 
-    private static int PollTask112Core<TModel>(byte effectTaskCount, IReadOnlyList<TModel>? models, Func<TModel, NativeBattleGraphicsModelCompletion> readModel, Func<byte> readCameraTaskMask, ref byte completionByte, NativeBattleGraphicsRoster? roster)
+    private static int PollTask112Core<TModel>(int effectTaskCount, IReadOnlyList<TModel>? models, Func<TModel, NativeBattleGraphicsModelCompletion> readModel, Func<byte> readCameraTaskMask, ref byte completionByte, NativeBattleGraphicsRoster? roster)
     {
+        ArgumentOutOfRangeException.ThrowIfNegative(effectTaskCount);
         //5085F0 preserves short-circuit order and returns the508420 unlink bit only after all three owners clear.
         if (effectTaskCount != 0)
         {

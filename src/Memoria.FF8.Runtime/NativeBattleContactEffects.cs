@@ -34,7 +34,7 @@ public static class NativeBattleContactEffects
         return new(true, stageTargetRefresh, defer, immediate, ejection, selectSequence, half.Sequence, half.ContactFlags, half.PresentedAmount) { Secondary = secondary };
     }
 
-    public static NativeBattleEffectsState ProduceTasks(NativeBattleEffectsState effects, NativeBattleContactHalf half, NativeBattleContactEffectPlan plan)
+    public static NativeBattleEffectsState ProduceTasks(NativeBattleEffectsState effects, NativeBattleContactHalf half, NativeBattleContactEffectPlan plan, NativeBattleGraphicsRoster? roster = null)
     {
         if (!plan.Loaded)
         {
@@ -42,8 +42,8 @@ public static class NativeBattleContactEffects
         }
         if (plan.DeferPetrify)
         {
-            effects = effects.AppendStatusReset(half.ActorIndex);
+            effects = effects.AppendStatusReset(half.ActorIndex, roster);
         }
-        return effects.PrependDamageText(half.ActorIndex, plan.ContactFlags, plan.Amount);
+        return effects.PrependDamageText(half.ActorIndex, plan.ContactFlags, plan.Amount, roster);
     }
 }

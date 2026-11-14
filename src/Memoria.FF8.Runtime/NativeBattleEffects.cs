@@ -29,65 +29,87 @@ public sealed record NativeBattleEffectTask([property: JsonRequired] ushort Flag
 
 public sealed record NativeBattleEffectsStep(NativeBattleEffectsState State, ImmutableArray<byte> ResetModelStatuses);
 
-/// <summary>Exact20-slot allocator and published callback count from506BD0/508420/500900.</summary>
-public sealed record NativeBattleEffectsState([property: JsonRequired] ImmutableArray<NativeBattleEffectTask> Slots, [property: JsonRequired] int? Head, [property: JsonRequired] int? Tail, [property: JsonRequired] byte PublishedCount)
+/// <summary>Native contact graphics callback list and its separately published count.</summary>
+public sealed record NativeBattleEffectsState([property: JsonRequired] ImmutableArray<NativeBattleEffectTask> Slots, [property: JsonRequired] int? Head, [property: JsonRequired] int? Tail, [property: JsonRequired] int PublishedCount)
 {
+    private const int NativeSlotCount = 20;
+
     [JsonRequired]
     public ImmutableArray<NativeBattleDamageTextDraw> TextDraws { get; init; } = [];
 
     public static NativeBattleEffectsState Clear()
     {
         //508300 clears all20*32 bytes, both descriptor links and initialBYTE1D96A88.
-        return new(Enumerable.Range(0, 20).Select(_ => new NativeBattleEffectTask(0, 0, null, NativeBattleEffectKind.None)).ToImmutableArray(), null, null, 0);
+        return new(Enumerable.Range(0, NativeSlotCount).Select(_ => new NativeBattleEffectTask(0, 0, null, NativeBattleEffectKind.None)).ToImmutableArray(), null, null, 0);
     }
 
-    public void Validate()
+    private static NativeBattleEffectTask FreeTask { get; } = new(0, 0, null, NativeBattleEffectKind.None);
+
+    public void Validate(NativeBattleGraphicsRoster? roster = null)
     {
+        roster?.Validate();
         if (TextDraws.IsDefault || TextDraws.Any(draw => draw is null || draw.Glyphs.IsDefaultOrEmpty))
         {
             throw new InvalidDataException("Native damage text requires its last executed presentation commands.");
         }
-        if (Slots.IsDefault || Slots.Length != 20 || Head is < 0 or >= 20 || Tail is < 0 or >= 20 || PublishedCount > 20 || Slots.Any(task => task is null || task.Next is < 0 or >= 20 || !Enum.IsDefined(task.Kind) || task.Glyphs.IsDefault || task.Glyphs.Length > 8 || (task.Flags0 & 1) != 0 && (task.Kind == NativeBattleEffectKind.None || task.ModelIndex >= 7 || task.Kind == NativeBattleEffectKind.DamageText5069B0 && task.Frame >= 10)))
+        int count = Slots.IsDefault ? 0 : Slots.Length;
+        if (count < NativeSlotCount || roster is null && count != NativeSlotCount || Head is < 0 || Head >= count || Tail is < 0 || Tail >= count || PublishedCount < 0 || PublishedCount > count || Slots.Any(task => task is null || task.Next is < 0 || task.Next >= count || !Enum.IsDefined(task.Kind) || task.Glyphs.IsDefault || task.Glyphs.Length > 8 || (task.Flags0 & 1) != 0 && (task.Kind == NativeBattleEffectKind.None || !IsValidModel(task.ModelIndex, roster) || task.Kind == NativeBattleEffectKind.DamageText5069B0 && task.Frame >= 10)))
         {
-            throw new InvalidDataException("Native effect tasks require20 physical slots, valid callback payloads and separately published task count.");
+            throw new InvalidDataException(roster is null ? "Native effect tasks require20 physical slots, valid callback payloads and separately published task count." : "Hosted effect tasks require an owned slot array, bound model rows and a valid published task count.");
         }
         HashSet<int> visited = [];
+        int? last = null;
         for (int? next = Head; next is int index; next = Slots[index].Next)
         {
             if (!visited.Add(index) || (Slots[index].Flags0 & 1) == 0)
             {
                 throw new InvalidDataException("Native effect callback links contain a cycle or a free physical slot.");
             }
+            last = index;
+        }
+        if (roster is not null && (Tail is int tail && tail != last || visited.Count != Slots.Count(task => (task.Flags0 & 1) != 0)))
+        {
+            throw new InvalidDataException("Hosted effect callbacks require every active slot to be linked and the retained tail to identify the last slot.");
         }
     }
 
-    public NativeBattleEffectsState AppendStatusReset(byte modelIndex)
+    public NativeBattleEffectsState AppendStatusReset(byte modelIndex, NativeBattleGraphicsRoster? roster = null)
     {
-        Validate();
-        ValidateModel(modelIndex);
-        int slot = FreeSlot();
+        Validate(roster);
+        ValidateModel(modelIndex, roster);
+        (ImmutableArray<NativeBattleEffectTask> slots, int slot) = AllocateSlot(roster);
         if (slot < 0)
         {
             //508360 logs failure, then506690 dereferences payload12; no successful native allocation exists here.
             throw new InvalidOperationException("Native status graphics effect exhausted its20 physical task slots.");
         }
-        ImmutableArray<NativeBattleEffectTask> slots = Slots.SetItem(slot, Slots[slot] with { Flags0 = (ushort)(Slots[slot].Flags0 | 1), State2 = 0, Next = null, Kind = NativeBattleEffectKind.StatusReset506860, ModelIndex = modelIndex });
-        if (Tail is int tail)
+        slots = slots.SetItem(slot, slots[slot] with { Flags0 = (ushort)(slots[slot].Flags0 | 1), State2 = 0, Next = null, Kind = NativeBattleEffectKind.StatusReset506860, ModelIndex = modelIndex });
+        int? currentTail = Tail;
+        if (roster is not null && currentTail is null && Head is int head)
+        {
+            // A list inherited from the native prepend path may have a head without a published tail.
+            while (slots[head].Next is int next)
+            {
+                head = next;
+            }
+            currentTail = head;
+        }
+        if (currentTail is int tail)
         {
             slots = slots.SetItem(tail, slots[tail] with { Next = slot });
         }
-        return this with { Slots = slots, Head = Tail is null ? slot : Head, Tail = slot };
+        return this with { Slots = slots, Head = currentTail is null ? slot : Head, Tail = slot };
     }
 
-    public NativeBattleEffectsState PrependDamageText(byte modelIndex, ushort contactFlags, int amount)
+    public NativeBattleEffectsState PrependDamageText(byte modelIndex, ushort contactFlags, int amount, NativeBattleGraphicsRoster? roster = null)
     {
-        Validate();
-        ValidateModel(modelIndex);
+        Validate(roster);
+        ValidateModel(modelIndex, roster);
         if ((contactFlags & 1) != 0 && (contactFlags & 0x1000) == 0)
         {
             return this;
         }
-        int slot = FreeSlot();
+        (ImmutableArray<NativeBattleEffectTask> slots, int slot) = AllocateSlot(roster);
         if (slot < 0)
         {
             //5068B0 skips text when5083F0 cannot allocate; it does not displace another active physical task.
@@ -110,14 +132,14 @@ public sealed record NativeBattleEffectsState([property: JsonRequired] Immutable
             glyphs = amount.ToString(System.Globalization.CultureInfo.InvariantCulture).Select(digit => (byte)(56 + digit - '0')).Append((byte)0).ToArray();
             halfWidth = checked((short)(4 * (glyphs.Length - 1)));
         }
-        NativeBattleEffectTask task = Slots[slot] with { Flags0 = (ushort)(Slots[slot].Flags0 | 1), State2 = 0, Next = Head, Kind = NativeBattleEffectKind.DamageText5069B0, ModelIndex = modelIndex, Frame = 0, Glyphs = glyphs.ToImmutableArray(), HalfWidth = halfWidth, Color = (contactFlags & 0x100) != 0 ? 0x408040u : 0x808080u, TextAnchor = null };
-        //5083F0 deliberately leaves Tail unchanged, including an empty-list Tail0.
-        return this with { Slots = Slots.SetItem(slot, task), Head = slot };
+        NativeBattleEffectTask task = slots[slot] with { Flags0 = (ushort)(slots[slot].Flags0 | 1), State2 = 0, Next = Head, Kind = NativeBattleEffectKind.DamageText5069B0, ModelIndex = modelIndex, Frame = 0, Glyphs = glyphs.ToImmutableArray(), HalfWidth = halfWidth, Color = (contactFlags & 0x100) != 0 ? 0x408040u : 0x808080u, TextAnchor = null };
+        // The native prepend leaves Tail unchanged. A hosted empty list establishes a tail so a later status append preserves its text.
+        return this with { Slots = slots.SetItem(slot, task), Head = slot, Tail = roster is not null && Head is null ? slot : Tail };
     }
 
     public NativeBattleEffectsStep Advance(IReadOnlyList<NativeBattleGraphicsModel> models, Func<byte, NativeBattleDamageTextAnchor>? projectTextAnchor = null, NativeBattleGraphicsRoster? roster = null)
     {
-        Validate();
+        Validate(roster);
         if (models.Count != (roster?.ActorCount ?? 7))
         {
             throw new InvalidDataException(roster is null ? "Native effect callbacks require the seven physical graphics models." : "Hosted effect callbacks require their actual model bank extent.");
@@ -176,24 +198,33 @@ public sealed record NativeBattleEffectsState([property: JsonRequired] Immutable
                 survivors++;
             }
         }
-        return new(this with { Slots = slots, Head = head, Tail = previous, PublishedCount = checked((byte)survivors), TextDraws = textDraws.ToImmutable() }, resetModels.ToImmutable());
+        return new(this with { Slots = slots, Head = head, Tail = previous, PublishedCount = survivors, TextDraws = textDraws.ToImmutable() }, resetModels.ToImmutable());
     }
 
-    private int FreeSlot()
+    private (ImmutableArray<NativeBattleEffectTask> Slots, int Slot) AllocateSlot(NativeBattleGraphicsRoster? roster)
     {
         for (int index = 0; index < Slots.Length; index++)
         {
             if ((Slots[index].Flags0 & 1) == 0)
             {
-                return index;
+                return (Slots, index);
             }
         }
-        return -1;
+        if (roster is null)
+        {
+            return (Slots, -1);
+        }
+        return (Slots.AddRange(Enumerable.Repeat(FreeTask, Slots.Length)), Slots.Length);
     }
 
-    private static void ValidateModel(byte modelIndex)
+    private static bool IsValidModel(byte modelIndex, NativeBattleGraphicsRoster? roster)
     {
-        if (modelIndex >= 7)
+        return roster is null ? modelIndex < NativeBattleGraphicsModelAddress.NativeRowCount : roster.ContainsRow(modelIndex);
+    }
+
+    private static void ValidateModel(byte modelIndex, NativeBattleGraphicsRoster? roster)
+    {
+        if (!IsValidModel(modelIndex, roster))
         {
             throw new ArgumentOutOfRangeException(nameof(modelIndex));
         }

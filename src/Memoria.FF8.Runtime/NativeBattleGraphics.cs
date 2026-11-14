@@ -172,7 +172,7 @@ public sealed partial record NativeBattleGraphicsState([property: JsonRequired] 
                 throw new InvalidDataException("Native model requires its32 status-effect timer fields.");
             }
         }
-        Effects.Validate();
+        Effects.Validate(PresentationRoster);
         Descriptors.Validate();
         Auxiliary.Validate();
         ModuleEffects.Validate();

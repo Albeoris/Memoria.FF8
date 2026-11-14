@@ -28,7 +28,7 @@ public sealed partial class BattleSession
     }
     public bool NativeEntryReady => NativeGraphics?.EntryReady ?? true;
     public bool? NativeGraphicsLoading => NativeGraphics is null ? null : NativeGraphics.ModelLoadCount != 0;
-    public byte NativeEffectTaskCount => (NativeGraphics ?? throw new NotSupportedException("Native graphics completion requires its original effect task owner.")).Effects.PublishedCount;
+    public int NativeEffectTaskCount => (NativeGraphics ?? throw new NotSupportedException("Native graphics completion requires its original effect task owner.")).Effects.PublishedCount;
 
     private void RequireNativeEntryReady()
     {
