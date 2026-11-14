@@ -23,10 +23,6 @@ public sealed class Ff7BattleMindblowTests
         using LgpArchive magic = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.MagicArchive).Path);
         SceneFormation formation = SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path))[300];
         Ff7BattleRenderer renderer = new(battle, formation.LocationId, magic);
-        SceneCameraPlacement camera = new(new(4000, -1700, -3500), new(0, -450, 0));
-        Ff7BattleRenderFrame frame = new(camera, []);
-        renderer.Render(gpu, 320, 240, frame);
-        Color[] baseline = GpuTestDevice.Read(gpu.Target);
         Vector3 anchor = new(0, -450, 0);
         uint seed = 1;
         Ff7BattlePrimaryContext context = new((_, _, _) => anchor, _ => default, _ => 180, NextCrt, JointPoint: (_, _) => anchor, WeaponPoint: (_, offset) => anchor + offset);
@@ -52,6 +48,12 @@ public sealed class Ff7BattleMindblowTests
                 {
                     impact = true;
                 }
+                SceneCameraPlacement camera = callback == 18
+                    ? new(anchor + new Vector3(100, -65, -400), anchor + new Vector3(0, 0, -180))
+                    : new(anchor + new Vector3(4000, -1250, -3500), anchor);
+                Ff7BattleRenderFrame frame = new(camera, []);
+                renderer.Render(gpu, 320, 240, frame);
+                Color[] baseline = GpuTestDevice.Read(gpu.Target);
                 renderer.Render(gpu, 320, 240, frame with { PrimaryEffects = primary with { Draws = draws } });
                 Assert.True(baseline.Zip(GpuTestDevice.Read(gpu.Target)).Count(pair => pair.First.PackedValue != pair.Second.PackedValue) > 2, $"No original Mindblow pixels at callback {callback}.");
             }

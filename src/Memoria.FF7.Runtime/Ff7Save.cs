@@ -116,9 +116,10 @@ public sealed record Ff7SessionSave
         }
         if (Battle is not null)
         {
+            int initialFormation = Battle.InitialFormationId ?? Battle.FormationId;
             bool hasOwner = World is { } world
-                ? world.BattleState?.Pending is { } occurrence && occurrence.Id == Battle.RequestId && occurrence.Formation == Battle.FormationId
-                : Process.GlobalCommand == Ff7GlobalCommand.Battle && Process.GlobalRequestId == Battle.RequestId && Process.Receipts.Any(receipt => receipt.Request.Id == Battle.RequestId && receipt.Request.Command is FieldBattleCommand command && command.Formation == Battle.FormationId && !receipt.Reply.Completed);
+                ? world.BattleState?.Pending is { } occurrence && occurrence.Id == Battle.RequestId && occurrence.Formation == initialFormation
+                : Process.GlobalCommand == Ff7GlobalCommand.Battle && Process.GlobalRequestId == Battle.RequestId && Process.Receipts.Any(receipt => receipt.Request.Id == Battle.RequestId && receipt.Request.Command is FieldBattleCommand command && command.Formation == initialFormation && !receipt.Reply.Completed);
             if (!hasOwner || Progress.CompletedBattles.Any(receipt => receipt.FieldGeneration == FieldGeneration && receipt.RequestId == Battle.RequestId))
             {
                 throw new InvalidDataException("The FFVII battle snapshot requires its matching unfinished encounter owner.");

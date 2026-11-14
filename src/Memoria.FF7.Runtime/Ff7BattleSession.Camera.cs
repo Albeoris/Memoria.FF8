@@ -62,8 +62,9 @@ public sealed partial class Ff7BattleSession
             throw new InvalidOperationException("FFVII native camera presentation requires original actor animation resources.");
         }
         SceneCameraPlacement initial = Data.Cameras[0];
-        Ff7BattleCameraScriptState scripts = Ff7NativeBattleCameraScripts.Create(fresh ? (short)-2 : (short)-1, Formation.InitialCamera, initial, counter);
-        state = state with { Camera = new(scripts, CameraView(initial), CameraView(initial)), Intro = fresh ? new() : null };
+        byte entry = state.InitialFormationId is not null ? (byte)0x54 : Formation.InitialCamera;
+        Ff7BattleCameraScriptState scripts = Ff7NativeBattleCameraScripts.Create(fresh ? (short)-2 : (short)-1, entry, initial, counter);
+        state = state with { Camera = new(scripts, CameraView(initial), CameraView(initial)), Intro = fresh ? new() { FormationSuccessor = state.InitialFormationId is not null } : null };
         if (!fresh)
         {
             PublishActorFrames(false);
@@ -99,7 +100,8 @@ public sealed partial class Ff7BattleSession
         {
             return;
         }
-        if (Outcome != Ff7BattleOutcome.Fighting && camera.TerminalOutcome != Outcome)
+        bool finalVictory = Outcome == Ff7BattleOutcome.Victory && Formation.NextBattleId == -1;
+        if ((finalVictory || Outcome is Ff7BattleOutcome.Escaped or Ff7BattleOutcome.Defeat) && camera.TerminalOutcome != Outcome)
         {
             short terminal = Outcome == Ff7BattleOutcome.Victory ? (short)-3 : (short)-1;
             camera = camera with { Scripts = Ff7NativeBattleCameraScripts.Start(camera.Scripts, terminal), TerminalOutcome = Outcome };
@@ -112,7 +114,11 @@ public sealed partial class Ff7BattleSession
             slot => CameraActor(slot),
             CameraGroupCenter, cameraScripts!.Math, CameraTargetOffset);
         Ff7BattleCameraScriptUpdate update = Ff7NativeBattleCameraScripts.Advance(camera.Scripts, true, false, cameraScripts.Script, Data.Cameras, camera.Output.ToPlacement(), cameraScripts.Math.Cosine, actors);
-        sbyte phase = Outcome == Ff7BattleOutcome.Victory ? (sbyte)100 : (sbyte)0;
+        if (update.ActionClockWrite is byte actionClock)
+        {
+            state = state with { ActionClockPaused = actionClock != 0 };
+        }
+        sbyte phase = finalVictory ? (sbyte)100 : (sbyte)0;
         Ff7BattleCameraOutput selected = Ff7NativeBattleCameraOutput.Select(update.State, new(unchecked((ushort)Formation.LocationId), camera.Options, phase, camera.MenuPhase, camera.PrimaryQueueState), Data.Cameras, camera.Output.ToPlacement());
         state = state with { Camera = camera with { Scripts = selected.State, Output = CameraView(selected.Camera), Options = selected.Options, Target = update.TargetWrite ?? camera.Target } };
     }
@@ -246,7 +252,7 @@ public sealed partial class Ff7BattleSession
 
     private void ValidateCamera(Ff7BattleSnapshot snapshot)
     {
-        if (snapshot.Intro is { Callbacks: > 63 })
+        if (snapshot.Intro is { } intro && (intro.FormationSuccessor != snapshot.InitialFormationId.HasValue || intro.Callbacks > (intro.FormationSuccessor ? 30 : 63)))
         {
             throw new InvalidDataException("FFVII battle startup cursor exceeds its resident-resource protocol.");
         }

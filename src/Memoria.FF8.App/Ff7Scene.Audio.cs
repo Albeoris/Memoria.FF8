@@ -305,6 +305,11 @@ internal sealed partial class Ff7Scene
 
     private void PlayBattleSound(Ff7BattleSoundReceipt request)
     {
+        if (request.ChannelGain is byte gain)
+        {
+            soundChannels.SetGain(request.Channel, NativeGain(gain, dialoguePreferences?.Invoke().SoundVolume ?? 100), gain);
+            return;
+        }
         if (request.Sound == 0)
         {
             soundChannels.StopNativeChannel(request.Channel);

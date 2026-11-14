@@ -171,7 +171,7 @@ public sealed partial class Ff7Session : IDisposable
                 {
                     worldBattle.ApplyWorldCountdownExpiry();
                 }
-                worldBattle.Advance(waitForBattleCommand, confirmBattleLimit, escapeBattleHeld, turnBasedBattle);
+                AdvanceBattle(waitForBattleCommand, confirmBattleLimit, escapeBattleHeld, turnBasedBattle);
                 return;
             }
             ConfigureWorldPresentation();
@@ -199,7 +199,7 @@ public sealed partial class Ff7Session : IDisposable
                 {
                     AdvanceNominalClockCallbacks();
                 }
-                Battle.Advance(waitForBattleCommand, confirmBattleLimit, escapeBattleHeld, turnBasedBattle);
+                AdvanceBattle(waitForBattleCommand, confirmBattleLimit, escapeBattleHeld, turnBasedBattle);
             }
             return;
         }

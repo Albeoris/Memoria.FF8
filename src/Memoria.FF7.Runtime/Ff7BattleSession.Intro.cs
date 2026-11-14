@@ -2,7 +2,9 @@ namespace Memoria.FF7.Runtime;
 
 public sealed record Ff7BattleIntroState(byte Callbacks = 0)
 {
-    public bool Complete => Callbacks == 63;
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool FormationSuccessor { get; init; }
+    public bool Complete => Callbacks >= (FormationSuccessor ? 30 : 63);
 }
 
 public sealed partial class Ff7BattleSession
@@ -11,7 +13,7 @@ public sealed partial class Ff7BattleSession
 
     public bool IsActorPresentationReady(int slot)
     {
-        return state.Intro is not { } intro || intro.Callbacks >= (slot >= 4 ? 6 : 7);
+        return state.Intro is not { } intro || intro.FormationSuccessor || intro.Callbacks >= (slot >= 4 ? 6 : 7);
     }
 
     private void AdvanceIntroPresentation()
@@ -25,6 +27,6 @@ public sealed partial class Ff7BattleSession
 
     private long IdlePresentationFrame(int slot)
     {
-        return state.Intro is null ? PresentationTick : Math.Max(0, PresentationTick - (slot >= 4 ? 6 : 7));
+        return state.Intro is null or { FormationSuccessor: true } ? PresentationTick : Math.Max(0, PresentationTick - (slot >= 4 ? 6 : 7));
     }
 }

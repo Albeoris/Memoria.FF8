@@ -30,11 +30,17 @@ public sealed partial class Ff7BattleSession
     private void StartExplicitActorDeath(int slot, ReadOnlySpan<byte> operands)
     {
         byte kind = operands[0];
-        if (kind is not (0 or 17 or 18) || operands[1] > 1)
+        if (kind is not (0 or 1 or 17 or 18) || operands[1] > 1)
         {
-            throw new NotSupportedException("FFVII explicit actor death requires its native callback kind and sound selector.");
+            throw new NotSupportedException($"FFVII explicit actor death kind {kind}, sound selector {operands[1]}, model {ActorModel(slot)} requires its native callback owner.");
         }
-        state = state with { PrimaryEffects = Ff7BattlePrimaryEffects.ScheduleActorDeath(EnsurePrimaryEffects(), slot, kind, playSound: operands[1] != 0) };
+        bool playSound = operands[1] != 0;
+        if (kind == 1)
+        {
+            state = state with { ActorMotion = Ff7BattleActorMotionEffects.ScheduleDeath(state.ActorMotion ?? new(), slot, playSound) };
+            return;
+        }
+        state = state with { PrimaryEffects = Ff7BattlePrimaryEffects.ScheduleActorDeath(EnsurePrimaryEffects(), slot, kind, playSound) };
     }
 
     private void AdvanceActorMotionPresentation()

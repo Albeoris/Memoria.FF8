@@ -240,6 +240,8 @@ public sealed partial class Ff7BattleSession
                     case 0xD8:
                         ScheduleActorAnimationSound(instruction.Operands.Span);
                         break;
+                    case 0xC0:
+                        break;
                     case 0x97:
                         StartExplicitActorDeath(previous.Slot, instruction.Operands.Span);
                         break;
@@ -433,7 +435,7 @@ public sealed partial class Ff7BattleSession
                 }
                 continue;
             }
-            if (state.Intro is { } intro && intro.Callbacks + 1 < (model.Slot >= 4 ? 6 : 7))
+            if (state.Intro is { FormationSuccessor: false } intro && intro.Callbacks + 1 < (model.Slot >= 4 ? 6 : 7))
             {
                 continue;
             }

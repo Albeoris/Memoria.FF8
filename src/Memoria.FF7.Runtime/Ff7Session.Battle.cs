@@ -74,9 +74,26 @@ public sealed partial class Ff7Session
         return new(false);
     }
 
-    private Ff7BattleSession CreateBattle(SceneFormation formation, long requestId, ushort flags, byte requestMode, int track, FieldVariables variables)
+    private Ff7BattleSession CreateBattle(SceneFormation formation, long requestId, ushort flags, byte requestMode, int track, FieldVariables variables, Ff7BattleSnapshot? previousFormation = null)
     {
-        return new(formation, Progress, battleKernel!, executable.NativeMateriaStatModifiers, requestId, flags, animations: battleAnimations, limits: battleLimits, beatRushSymbols: beatRushSymbols, requestMode: requestMode, musicTrack: track > 0 ? track : null, bigShotChargeRotation: battleBigShotChargeRotation, bigShotCounterRotation: battleBigShotCounterRotation, searchScopeScaleCounter: battleSearchScopeScaleCounter, cameraScripts: LoadBattleCameraScripts(Ff7NativeAtb.ResolveLayout(formation.Layout, formation.BattleFlags, (flags & 4) != 0)), cameraPresentationCounter: battleCameraPresentationCounter, silkDirection: battleSilkDirection, enemyExtensions: enemyExtensions, enemyExtensionPartyLevels: enemyExtensionPartyLevels?.Invoke(), initialSaveBank1: Ff7BattleSession.CaptureNativeSaveBank(variables));
+        return new(formation, Progress, battleKernel!, executable.NativeMateriaStatModifiers, requestId, flags, animations: battleAnimations, limits: battleLimits, beatRushSymbols: beatRushSymbols, requestMode: requestMode, musicTrack: track > 0 ? track : null, bigShotChargeRotation: previousFormation?.BigShotChargeRotation ?? battleBigShotChargeRotation, bigShotCounterRotation: previousFormation?.BigShotCounterRotation ?? battleBigShotCounterRotation, searchScopeScaleCounter: previousFormation?.SearchScopeScaleCounter ?? battleSearchScopeScaleCounter, cameraScripts: LoadBattleCameraScripts(Ff7NativeAtb.ResolveLayout(formation.Layout, formation.BattleFlags, (flags & 4) != 0)), cameraPresentationCounter: previousFormation?.Camera?.Scripts.PresentationCounter ?? battleCameraPresentationCounter, silkDirection: previousFormation?.SilkDirection ?? battleSilkDirection, enemyExtensions: enemyExtensions, enemyExtensionPartyLevels: enemyExtensionPartyLevels?.Invoke(), initialSaveBank1: Ff7BattleSession.CaptureNativeSaveBank(variables), previousFormation: previousFormation);
+    }
+
+    private void AdvanceBattle(bool waitForCommand, bool confirmLimit, bool escapeHeld, bool turnBased)
+    {
+        Ff7BattleSession battle = Battle!;
+        battle.Advance(waitForCommand, confirmLimit, escapeHeld, turnBased);
+        if (!battle.FormationTransitionReady)
+        {
+            return;
+        }
+        if (battle.GuestVitalsBindings.Count != 0)
+        {
+            throw new NotSupportedException("FFVII formation transitions with a guest battle owner are unsupported.");
+        }
+        Ff7BattleSnapshot previous = battle.Capture();
+        SceneFormation successor = GetBattleFormation(battle.Formation.NextBattleId);
+        Battle = CreateBattle(successor, battle.RequestId, previous.RequestFlags, previous.RequestMode, previous.EntryMusicTrack ?? 0, BattleVariables(), previous);
     }
 
     private bool TryBeginWorldBattle(Ff7WorldRuntime world)
@@ -118,10 +135,30 @@ public sealed partial class Ff7Session
     private void RestoreBattle(Ff7BattleSnapshot snapshot)
     {
         SceneFormation formation = GetBattleFormation(snapshot.FormationId);
+        if (snapshot.InitialFormationId is int initial)
+        {
+            HashSet<int> visited = [];
+            SceneFormation step = GetBattleFormation(initial);
+            bool reached = false;
+            while (step.NextBattleId != -1 && visited.Add(step.FormationId))
+            {
+                step = GetBattleFormation(step.NextBattleId);
+                if (step.FormationId == formation.FormationId)
+                {
+                    reached = true;
+                    break;
+                }
+            }
+            if (!reached)
+            {
+                throw new InvalidDataException("FFVII battle snapshot does not follow its original formation chain.");
+            }
+        }
         LoadBattlePresentationResources();
-        FieldVariables variables = World is { PendingBattle: { } request } world ? world.PrepareBattleVariables(request) : Machine.Variables;
-        Battle = new(formation, Progress, battleKernel!, executable.NativeMateriaStatModifiers, snapshot.RequestId, snapshot: snapshot, animations: battleAnimations, limits: battleLimits, beatRushSymbols: beatRushSymbols, cameraScripts: LoadBattleCameraScripts(snapshot.Layout), cameraPresentationCounter: battleCameraPresentationCounter, silkDirection: battleSilkDirection, initialSaveBank1: Ff7BattleSession.CaptureNativeSaveBank(variables));
+        Battle = new(formation, Progress, battleKernel!, executable.NativeMateriaStatModifiers, snapshot.RequestId, snapshot: snapshot, animations: battleAnimations, limits: battleLimits, beatRushSymbols: beatRushSymbols, cameraScripts: LoadBattleCameraScripts(snapshot.Layout), cameraPresentationCounter: battleCameraPresentationCounter, silkDirection: battleSilkDirection, initialSaveBank1: Ff7BattleSession.CaptureNativeSaveBank(BattleVariables()));
     }
+
+    private FieldVariables BattleVariables() => World is { PendingBattle: { } request } world ? world.PrepareBattleVariables(request) : Machine.Variables;
 
     private Ff7BattleCameraScriptResources LoadBattleCameraScripts(byte layout)
     {

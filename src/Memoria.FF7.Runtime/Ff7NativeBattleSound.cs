@@ -19,7 +19,11 @@ public sealed record Ff7BattleSoundState(Ff7BattleDelayedSound[] Pending, long S
     public Ff7BattleImpactPresentation[] PendingHitmarks { get; init; } = [];
 }
 
-public sealed record Ff7BattleSoundReceipt(long Sequence, ushort Sound, byte Pan, int Channel = 1, bool RawPan = false);
+public sealed record Ff7BattleSoundReceipt(long Sequence, ushort Sound, byte Pan, int Channel = 1, bool RawPan = false)
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public byte? ChannelGain { get; init; }
+}
 
 public sealed record Ff7BattleSoundUpdate(Ff7BattleSoundState State, IReadOnlyList<Ff7BattleSoundReceipt> Sounds);
 
@@ -48,6 +52,12 @@ public static class Ff7NativeBattleSound
     }
 
     public static Ff7BattleSoundUpdate EmitRawPan(Ff7BattleSoundState state, ushort sound, byte pan, int channel) => EmitCore(state, sound, pan, channel, true);
+
+    public static Ff7BattleSoundUpdate SetChannelGain(Ff7BattleSoundState state, int channel, byte gain)
+    {
+        long sequence = checked(state.Sequence + 1);
+        return new(state with { Sequence = sequence }, [new(sequence, 0, 64, channel) { ChannelGain = Math.Min(gain, (byte)127) }]);
+    }
 
     private static Ff7BattleSoundUpdate EmitCore(Ff7BattleSoundState state, ushort sound, byte pan, int channel, bool rawPan)
     {

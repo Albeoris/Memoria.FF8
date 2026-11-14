@@ -22,7 +22,10 @@ public sealed record Ff7BattleCameraScriptState(short CameraId, byte InitialCame
 }
 public sealed record Ff7BattleCameraActorInput(Ff7BattleCameraModelParameters Model, short ScaleControl, short CurrentYaw, short IdleYaw, short ActionAnimation);
 public sealed record Ff7BattleCameraActors(int Attacker, int Target, Func<int, int, int> JointSelector, Func<int, int, Ff7BattleCameraPoint> Joint, Func<int, Ff7BattleCameraActorInput> Actor, Func<Ff7BattleCameraPoint> GroupCenter, Ff7BattleCameraMath Math, Func<int, int, bool, Ff7BattleCameraPoint>? TargetOffset = null);
-public readonly record struct Ff7BattleCameraScriptUpdate(Ff7BattleCameraScriptState State, int? TargetWrite);
+public readonly record struct Ff7BattleCameraScriptUpdate(Ff7BattleCameraScriptState State, int? TargetWrite)
+{
+    public byte? ActionClockWrite { get; init; }
+}
 
 public static class Ff7NativeBattleCameraScripts
 {
@@ -108,6 +111,7 @@ public static class Ff7NativeBattleCameraScripts
         state = state with { Tracks = (Ff7BattleCameraTrack[])state.Tracks.Clone(), Callbacks = (Ff7BattleCameraCallback?[])state.Callbacks.Clone() };
         int target = actors?.Target ?? -1;
         int? targetWrite = null;
+        byte? actionClockWrite = null;
         for (int track = 0; track < 3; track++)
         {
             Execute(track + 4, Ff7BattleCameraComponent.Focus);
@@ -141,7 +145,7 @@ public static class Ff7NativeBattleCameraScripts
                 }
             }
         }
-        return new(state, targetWrite);
+        return new(state, targetWrite) { ActionClockWrite = actionClockWrite };
 
         Ff7BattleCameraActors RequireActors() => actors ?? throw new InvalidDataException("FFVII relative camera requires its native actor geometry inputs.");
 
@@ -190,6 +194,15 @@ public static class Ff7NativeBattleCameraScripts
                 byte opcode = Byte();
                 switch (opcode)
                 {
+                    case 0xD7 when component == Ff7BattleCameraComponent.Position:
+                        byte flag = Byte();
+                        byte value = Byte();
+                        if (flag != 0)
+                        {
+                            throw new NotSupportedException($"FFVII camera effect flag {flag} requires its native byte owner.");
+                        }
+                        actionClockWrite = value;
+                        break;
                     case 0xD9:
                         current = current with { Point = Point(component == Ff7BattleCameraComponent.Position ? displayed.Position : displayed.Focus) };
                         break;

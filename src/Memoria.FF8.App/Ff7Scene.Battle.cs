@@ -207,6 +207,11 @@ internal sealed partial class Ff7Scene
             battle.SetCameraMenuPhase(selectedBattleCommand is null ? (short)-1 : (short)0);
             session.AdvanceTick(advanceClock: false, waitForBattleCommand: selectedBattleCommand is not null || battleCommandPage is not null, confirmBattleLimit: pendingLimitConfirm, escapeBattleHeld: escapeHeld, turnBasedBattle: turnBased);
             pendingLimitConfirm = false;
+            if (!ReferenceEquals(session.Battle, battle))
+            {
+                ResetBattlePresentation();
+                break;
+            }
             if (battle.GuestAbilityFailure is { } failure && failure != presentedGuestAbilityFailure)
             {
                 break;
