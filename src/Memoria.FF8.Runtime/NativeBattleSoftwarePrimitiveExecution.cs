@@ -8,6 +8,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
 {
     private byte[]? image;
     private bool imageChanged;
+    private readonly Dictionary<object, byte[]> modelTextureImages = new(ReferenceEqualityComparer.Instance);
     private readonly List<NativeBattlePcTextureWindowPixels> textureSnapshots = [];
     private readonly Dictionary<NativeBattlePcTextureWindowPixels, int> textureSnapshotIndices = [];
     private readonly Dictionary<(int X, int Y, int Width, int Height), List<int>> textureSnapshotRegions = [];
@@ -41,12 +42,80 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
 
     public void FlushSoftwareImage() => PublishImage();
 
+    public void ValidateModelTextureOwner(NativeBattleLogicalCommand command)
+    {
+        if (command.ModelTextureOwner is { } owner)
+        {
+            if (command.SceneCapture is { Kind: NativeBattleSceneCaptureKind.ScreenSample })
+            {
+                throw new NotSupportedException("A model texture command cannot also sample the global screen capture.");
+            }
+            RequireModelTexture(owner);
+            RequireGlobalCache().Validate();
+        }
+    }
+
+    public NativeBattlePcTextureWindowCache? GetTextureCache(NativeBattleLogicalCommand command)
+    {
+        return command.ModelTextureOwner is { } owner ? WithCacheControls(RequireModelTexture(owner).Cache, RequireGlobalCache()) : Cache;
+    }
+
+    public void SetTextureCache(NativeBattleLogicalCommand command, NativeBattlePcTextureWindowCache? cache)
+    {
+        if (command.ModelTextureOwner is not { } owner)
+        {
+            Cache = cache;
+            return;
+        }
+        NativeBattlePresentationTextureBank bank = RequireModelTexture(owner);
+        NativeBattlePcTextureWindowCache actorCache = cache ?? throw new InvalidDataException("A model texture command requires its selected actor cache.");
+        NativeBattlePcTextureWindowCache global = WithCacheControls(RequireGlobalCache(), actorCache);
+        if (!ReferenceEquals(bank.Cache, actorCache))
+        {
+            Textures = Textures.WithPresentationTexture(owner.RequireActorId(), bank with { Cache = actorCache });
+        }
+        Cache = global;
+    }
+
     public void BeginPass(byte pass)
     {
         if (pass == 1)
         {
             PublishImage();
+            UpdateModelTextureCaches(static cache => cache.Prepare464BD0().Cache);
         }
+    }
+
+    public void EndPass(byte pass)
+    {
+        if (pass == 1)
+        {
+            UpdateModelTextureCaches(static cache => cache.Flush465930());
+        }
+    }
+
+    private void UpdateModelTextureCaches(Func<NativeBattlePcTextureWindowCache, NativeBattlePcTextureWindowCache> update)
+    {
+        if (Textures.PresentationTextures is not { } banks)
+        {
+            return;
+        }
+        foreach ((string actorId, NativeBattlePresentationTextureBank bank) in banks.OrderBy(entry => entry.Key, StringComparer.Ordinal))
+        {
+            NativeBattlePcTextureWindowCache cache = update(bank.Cache);
+            Textures = Textures.WithPresentationTexture(actorId, bank with { Cache = cache });
+        }
+    }
+
+    private NativeBattlePresentationTextureBank RequireModelTexture(NativeBattleModelTextureOwner owner) => Textures.RequirePresentationTexture(owner.RequireActorId());
+
+    private NativeBattlePcTextureWindowCache RequireGlobalCache() => Cache ?? throw new NotSupportedException("Native model texture commands require the retained global PC cache controls.");
+
+    private static NativeBattlePcTextureWindowCache WithCacheControls(NativeBattlePcTextureWindowCache rowsOwner, NativeBattlePcTextureWindowCache controlsOwner)
+    {
+        return rowsOwner.ScaleU == controlsOwner.ScaleU && rowsOwner.ScaleV == controlsOwner.ScaleV && rowsOwner.SpriteTileCacheControl1CCFD90 == controlsOwner.SpriteTileCacheControl1CCFD90
+            ? rowsOwner
+            : rowsOwner with { ScaleU = controlsOwner.ScaleU, ScaleV = controlsOwner.ScaleV, SpriteTileCacheControl1CCFD90 = controlsOwner.SpriteTileCacheControl1CCFD90 };
     }
 
     public void ApplyEnvironment45B660(int buffer)
@@ -102,7 +171,21 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
             return;
         }
         image ??= Textures.ReadVram();
-        State = State.DrawPolygon(image, command, SoftwareTable);
+        if (command.ModelTextureOwner is { } owner && (command.Opcode & 0xE4) == 0x24)
+        {
+            NativeBattleEffectTextureState textureSource = RequireModelTexture(owner).Textures;
+            object publication = textureSource.VramPublicationIdentity;
+            if (!modelTextureImages.TryGetValue(publication, out byte[]? textureImage))
+            {
+                textureImage = textureSource.ReadVram();
+                modelTextureImages.Add(publication, textureImage);
+            }
+            State = State.DrawPolygon(image, textureImage, command, SoftwareTable);
+        }
+        else
+        {
+            State = State.DrawPolygon(image, command, SoftwareTable);
+        }
         imageChanged = true;
     }
 
@@ -206,8 +289,9 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
             return normal is null ? command : command with { DrawMode = command.DrawMode with { NormalViewport = normal, ViewportInputs = inputs } };
         }
         PublishImage();
-        NativeBattlePcTextureWindowCache cache = Cache ?? throw new NotSupportedException("Native textured draw requires its current resource cache.");
-        NativeBattlePcTextureWindowPixels pixels = cache.PixelWords(selection) ?? NativeBattlePcTextureWindowPixels.Capture(selection.Row, new(selection.X, selection.Y, selection.Width, selection.Height), Textures);
+        NativeBattlePcTextureWindowCache cache = GetTextureCache(command.Command) ?? throw new NotSupportedException("Native textured draw requires its current resource cache.");
+        NativeBattleEffectTextureState textureSource = command.Command.ModelTextureOwner is { } owner ? RequireModelTexture(owner).Textures : Textures;
+        NativeBattlePcTextureWindowPixels pixels = cache.PixelWords(selection) ?? NativeBattlePcTextureWindowPixels.Capture(selection.Row, new(selection.X, selection.Y, selection.Width, selection.Height), textureSource);
         if (!textureSnapshotIndices.TryGetValue(pixels, out int index))
         {
             var region = (pixels.X, pixels.Y, pixels.Width, pixels.Height);
@@ -216,7 +300,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
                 versions = [];
                 textureSnapshotRegions.Add(region, versions);
             }
-            int existing = versions.FindIndex(candidate => pixels.Data.AsSpan().SequenceEqual(textureSnapshots[candidate].Data.AsSpan()));
+            int existing = versions.FindIndex(candidate => SameTexturePixels(pixels, textureSnapshots[candidate]));
             index = existing < 0 ? -1 : versions[existing];
             if (index < 0)
             {
@@ -233,9 +317,15 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
         }
         if (pixels.SceneCopies is not null)
         {
-            retainedMode = retainedMode with { SceneCopyPalette = RetainScenePalette(command) };
+            retainedMode = retainedMode with { SceneCopyPalette = RetainScenePalette(command, textureSource) };
         }
         return command with { DrawMode = retainedMode };
+    }
+
+    private static bool SameTexturePixels(NativeBattlePcTextureWindowPixels first, NativeBattlePcTextureWindowPixels second)
+    {
+        return first.Data.AsSpan().SequenceEqual(second.Data.AsSpan()) &&
+            (first.SceneCopies is { } copies ? second.SceneCopies is { } other && copies.SequenceEqual(other) : second.SceneCopies is null);
     }
 
     private NativeBattleSceneCaptureSample RetainSceneCapture(NativeBattleSceneCapture capture, NativeBattleLogicalResolvedCommand command)
@@ -245,7 +335,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
         PublishImage();
         if (sceneCaptureSamples.TryGetValue(capture, out var retained) && ReferenceEquals(retained.Owner, Textures))
         {
-            return retained.Sample with { Palette = RetainScenePalette(command) };
+            return retained.Sample with { Palette = RetainScenePalette(command, Textures) };
         }
         ImmutableArray<int>.Builder snapshots = ImmutableArray.CreateBuilder<int>();
         for (int left = 0; left < capture.Width; left += 256)
@@ -263,11 +353,11 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
         }
         NativeBattleSceneCaptureSample sample = new(capture, snapshots.ToImmutable());
         sceneCaptureSamples[capture] = (Textures, sample);
-        return sample with { Palette = RetainScenePalette(command) };
+        return sample with { Palette = RetainScenePalette(command, Textures) };
 
     }
 
-    private ImmutableArray<ushort> RetainScenePalette(NativeBattleLogicalResolvedCommand command)
+    private ImmutableArray<ushort> RetainScenePalette(NativeBattleLogicalResolvedCommand command, NativeBattleEffectTextureState textureSource)
     {
         ushort page = command.DrawMode.TexturePage ?? throw new InvalidDataException("Scene sampling requires its executed texture page.");
         int depth = page >> 7 & 3;
@@ -279,7 +369,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
         ushort clut = unchecked((ushort)(command.Command.Words[2] >> 16));
         int x = (clut & 63) * 16;
         int y = (clut & 0x7FFF) >> 6;
-        if (sceneCapturePalettes.TryGetValue((clut, length), out var priorPalette) && ReferenceEquals(priorPalette.Owner, Textures))
+        if (sceneCapturePalettes.TryGetValue((clut, length), out var priorPalette) && ReferenceEquals(priorPalette.Owner, textureSource))
         {
             return priorPalette.Palette;
         }
@@ -290,7 +380,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
         ImmutableArray<ushort>.Builder palette = ImmutableArray.CreateBuilder<ushort>(length);
         for (int index = 0; index < length; index++)
         {
-            palette.Add(Textures.ReadVramWord(x + index, y));
+            palette.Add(textureSource.ReadVramWord(x + index, y));
         }
         ImmutableArray<ushort> retainedPalette = palette.MoveToImmutable();
         if (scenePaletteContents.TryGetValue(retainedPalette, out ImmutableArray<ushort> canonicalPalette))
@@ -301,7 +391,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
         {
             scenePaletteContents.Add(retainedPalette, retainedPalette);
         }
-        sceneCapturePalettes[(clut, length)] = (Textures, retainedPalette);
+        sceneCapturePalettes[(clut, length)] = (textureSource, retainedPalette);
         return retainedPalette;
     }
 

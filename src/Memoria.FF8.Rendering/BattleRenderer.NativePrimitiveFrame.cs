@@ -36,7 +36,7 @@ public readonly record struct NativeBattleTextureDecodingObservation(long Render
 public sealed partial class BattleRenderer
 {
     private readonly record struct PrimitiveVertex(float X, float Y, float Z, float ReciprocalW, Vector2 Uv, Vector3 Color, float Alpha);
-    private readonly record struct NativeTextureKey(ushort Page, ushort Clut, byte? AlternateShift, int X, int Y, int Width, int Height, NativeBattlePcTextureWindowPixels? Pixels, string? TextureSourceOwner, int SampleKey, int PrefixWidth = 0, int PrefixHeight = 0);
+    private readonly record struct NativeTextureKey(ushort Page, ushort Clut, byte? AlternateShift, int X, int Y, int Width, int Height, NativeBattlePcTextureWindowPixels? Pixels, string? TextureSourceOwner, int SampleKey, int PrefixWidth = 0, int PrefixHeight = 0, string? ModelTextureActorId = null);
     private Dictionary<NativeTextureKey, PixelImage> nativeTexturePages = [];
     private Dictionary<NativeTextureKey, PixelImage> previousNativeTexturePages = [];
     private const int MaximumRawTextureCandidates = 256;
@@ -183,6 +183,10 @@ public sealed partial class BattleRenderer
                 continue;
             }
             NativeBattleLogicalCommand command = resolved.Command;
+            if (command.ModelTextureOwner is not null && (command.SceneCapture is { Kind: NativeBattleSceneCaptureKind.ScreenSample } || resolved.DrawMode.SceneCaptureSample is not null))
+            {
+                throw new NotSupportedException("A model texture command cannot also sample the global screen capture.");
+            }
             float actorOpacity = frame.ActorOpacity(command.PresentationActorId);
             if (actorOpacity == 0)
             {
@@ -430,11 +434,24 @@ public sealed partial class BattleRenderer
 
     private PixelImage ResolveNativePrimitiveTexture(NativeBattlePreparedPrimitiveFrame frame, NativeBattleLogicalResolvedCommand resolved, NativeBattleEffectTextureState? textures, NativeBattlePrimitiveCapabilities? capabilities, NativeBattlePcTextureWindowCache? textureWindowCache, IReadOnlyList<NativeBattleTextureReplacement>? replacements, NativeBattlePrimitiveColorState colorState, NativeBattleEffectTextureState? previousTextureOwner, bool sameReplacements, int prefixCorners, bool affine, out Vector2 prefixUvScale, TexturePrimitiveSample? firstSample = null)
     {
-        PixelImage image = ResolveNativePrimitiveTextureCore(frame, resolved, textures, capabilities, textureWindowCache, replacements, colorState, previousTextureOwner, sameReplacements, prefixCorners, affine, out prefixUvScale, firstSample);
+        string? modelTextureActorId = null;
+        bool sameTextureOrigins = sameNativeTextureOrigins;
+        if (resolved.Command.ModelTextureOwner is { } owner)
+        {
+            modelTextureActorId = owner.RequireActorId();
+            NativeBattlePresentationTextureBank bank = (textures ?? throw new InvalidDataException("The actor has no bound presentation texture bank.")).RequirePresentationTexture(modelTextureActorId);
+            previousTextureOwner = previousTextureOwner is not null && previousTextureOwner.PresentationTextures?.ContainsKey(modelTextureActorId) == true
+                ? previousTextureOwner.RequirePresentationTexture(modelTextureActorId).Textures
+                : null;
+            textures = bank.Textures;
+            textureWindowCache = bank.Cache;
+            sameTextureOrigins = previousTextureOwner is not null && SameTextureOrigins(previousTextureOwner, textures);
+        }
+        PixelImage image = ResolveNativePrimitiveTextureCore(frame, resolved, textures, capabilities, textureWindowCache, replacements, colorState, previousTextureOwner, sameReplacements, sameTextureOrigins, modelTextureActorId, prefixCorners, affine, out prefixUvScale, firstSample);
         return ApplySceneCopyTexture(frame, resolved, textures, capabilities, colorState, image);
     }
 
-    private PixelImage ResolveNativePrimitiveTextureCore(NativeBattlePreparedPrimitiveFrame frame, NativeBattleLogicalResolvedCommand resolved, NativeBattleEffectTextureState? textures, NativeBattlePrimitiveCapabilities? capabilities, NativeBattlePcTextureWindowCache? textureWindowCache, IReadOnlyList<NativeBattleTextureReplacement>? replacements, NativeBattlePrimitiveColorState colorState, NativeBattleEffectTextureState? previousTextureOwner, bool sameReplacements, int prefixCorners, bool affine, out Vector2 prefixUvScale, TexturePrimitiveSample? firstSample = null)
+    private PixelImage ResolveNativePrimitiveTextureCore(NativeBattlePreparedPrimitiveFrame frame, NativeBattleLogicalResolvedCommand resolved, NativeBattleEffectTextureState? textures, NativeBattlePrimitiveCapabilities? capabilities, NativeBattlePcTextureWindowCache? textureWindowCache, IReadOnlyList<NativeBattleTextureReplacement>? replacements, NativeBattlePrimitiveColorState colorState, NativeBattleEffectTextureState? previousTextureOwner, bool sameReplacements, bool sameTextureOrigins, string? modelTextureActorId, int prefixCorners, bool affine, out Vector2 prefixUvScale, TexturePrimitiveSample? firstSample = null)
     {
         prefixUvScale = Vector2.One;
         NativeBattleLogicalCommand command = resolved.Command;
@@ -470,7 +487,7 @@ public sealed partial class BattleRenderer
         }
         TexturePrimitiveSample primitiveSample = firstSample ?? new((byte)command.Words[2] * window.ScaleU, (byte)(command.Words[2] >> 8) * window.ScaleV);
         int sampleKey = nativeEffectTextureSource?.GetPrimitiveSampleKey(primitiveSample) ?? 0;
-        NativeTextureKey fullKey = new(page, clut, alternateShift, window.X, window.Y, window.Width, window.Height, retainedPixels, command.TextureSourceOwner, sampleKey);
+        NativeTextureKey fullKey = new(page, clut, alternateShift, window.X, window.Y, window.Width, window.Height, retainedPixels, command.TextureSourceOwner, sampleKey, ModelTextureActorId: modelTextureActorId);
         if (nativeTexturePages.TryGetValue(fullKey, out texture))
         {
             if (PilotDiagnosticsEnabled)
@@ -485,7 +502,7 @@ public sealed partial class BattleRenderer
         bool prefix = prefixCorners > 0 && TryPlanNativePrefix(command, prefixCorners, affine, page, clut, alternateShift, window, retainedPixels, textures, capabilities, replacements, out decodeWidth, out decodeHeight);
         if (prefix)
         {
-            NativeTextureKey candidate = new(page, clut, alternateShift, window.X, window.Y, window.Width, window.Height, retainedPixels, command.TextureSourceOwner, sampleKey, decodeWidth, decodeHeight);
+            NativeTextureKey candidate = new(page, clut, alternateShift, window.X, window.Y, window.Width, window.Height, retainedPixels, command.TextureSourceOwner, sampleKey, decodeWidth, decodeHeight, modelTextureActorId);
             if (nativeTexturePages.TryGetValue(candidate, out texture))
             {
                 prefixUvScale = new(256f / decodeWidth, 256f / decodeHeight);
@@ -513,13 +530,14 @@ public sealed partial class BattleRenderer
                 textureDiagnosticPrefixEligible++;
             }
         }
-        NativeTextureKey key = new(page, clut, alternateShift, window.X, window.Y, window.Width, window.Height, retainedPixels, command.TextureSourceOwner, sampleKey, prefix ? decodeWidth : 0, prefix ? decodeHeight : 0);
+        NativeTextureKey key = new(page, clut, alternateShift, window.X, window.Y, window.Width, window.Height, retainedPixels, command.TextureSourceOwner, sampleKey, prefix ? decodeWidth : 0, prefix ? decodeHeight : 0, modelTextureActorId);
         if (!nativeTexturePages.TryGetValue(key, out texture))
         {
             int depth = (page >> 7) & 3;
             // Raw sampling excludes blend bits; replacement selection still uses the complete key above.
             NativeRawTextureKey rawKey = new((ushort)(page & 0x19F), depth == 2 ? (ushort)0 : (ushort)(clut & 0x7FFF), depth == 2 ? null : alternateShift, window.X, window.Y, decodeWidth, decodeHeight, depth == 2 ? capabilities?.DirectTextureFormat : null);
-            bool reusable = sameReplacements && (retainedPixels is not null || sameNativeTextureOrigins) && previousNativeTexturePages.TryGetValue(key, out texture) && (ReferenceEquals(previousTextureOwner, textures) || previousTextureOwner is not null && textures is not null && NativeBattleEffectTextureReader.HasSamePcRegionSource(previousTextureOwner, textures, page, clut, window.X, window.Y, window.Width, window.Height, retainedPixels));
+            bool reusableOrigins = sameTextureOrigins || modelTextureActorId is null && retainedPixels is not null;
+            bool reusable = sameReplacements && reusableOrigins && previousNativeTexturePages.TryGetValue(key, out texture) && (ReferenceEquals(previousTextureOwner, textures) || previousTextureOwner is not null && textures is not null && NativeBattleEffectTextureReader.HasSamePcRegionSource(previousTextureOwner, textures, page, clut, window.X, window.Y, window.Width, window.Height, retainedPixels));
             if (!reusable)
             {
                 NativeBattleEffectTextureState textureState = textures ?? throw new NotSupportedException("Native polygon texture sampling requires its retained VRAM owner.");

@@ -439,17 +439,56 @@ public sealed partial class BattleSession
 
     private NativeBattleEffectMemory DrainNativeTextureUploads(NativeBattleEffectMemory memory, NativeBattleEffectTextureState textures)
     {
-        NativeBattleEffectTextureDrain drain = textures.Drain505D20(memory.Arena, NativeFileStaging, address => NativeBattleProcessTim.Resolve(memory, address), memory.ScriptedEffects);
+        return DrainNativeTextureUploads(memory, textures, NativeFileStaging);
+    }
+
+    internal static NativeBattleEffectMemory DrainNativeTextureUploads(NativeBattleEffectMemory memory, NativeBattleEffectTextureState textures, NativeBattleFileStaging? staging)
+    {
+        if (textures.PresentationTextures is { } presentationTextures)
+        {
+            textures.Validate();
+            foreach (NativeBattlePresentationTextureBank bank in presentationTextures.Values)
+            {
+                if (bank.Textures.Count != 0 && (bank.Textures.Animation is not null || bank.Textures.Slots.Take(bank.Textures.Count).Any(upload => upload?.Kind == 2)))
+                {
+                    throw new NotSupportedException("Actor texture queues cannot publish shared arena readback or effect animation.");
+                }
+            }
+        }
+        NativeBattleEffectTextureDrain drain = Drain(textures, memory.Arena);
         NativeBattlePrimitiveProcess? process = memory.PrimitiveProcess;
         if (process?.TextureWindowCache is { } cache)
         {
-            foreach (NativeBattleEffectVramUpload upload in drain.Uploads)
-            {
-                cache = cache.Invalidate464850(upload.X, upload.Y, upload.X + upload.Width - 1, upload.Y + upload.Height - 1, textures);
-            }
-            process = process with { TextureWindowCache = cache };
+            process = process with { TextureWindowCache = InvalidateTextureUploads(cache, drain.Uploads, textures) };
         }
-        return memory with { Textures = drain.State, PrimitiveProcess = process, Arena = drain.Arena ?? memory.Arena };
+        NativeBattleEffectArena? arena = drain.Arena ?? memory.Arena;
+        NativeBattleEffectTextureState published = drain.State;
+        if (published.PresentationTextures is { } banks)
+        {
+            foreach ((string actorId, NativeBattlePresentationTextureBank bank) in banks.OrderBy(entry => entry.Key, StringComparer.Ordinal))
+            {
+                if (bank.Textures.Count == 0)
+                {
+                    continue;
+                }
+                NativeBattleEffectTextureDrain actorDrain = Drain(bank.Textures, arena);
+                NativeBattlePcTextureWindowCache actorCache = InvalidateTextureUploads(bank.Cache, actorDrain.Uploads, bank.Textures);
+                published = published.WithPresentationTexture(actorId, bank with { Textures = actorDrain.State, Cache = actorCache });
+            }
+        }
+        return memory with { Textures = published, PrimitiveProcess = process, Arena = arena };
+
+        NativeBattleEffectTextureDrain Drain(NativeBattleEffectTextureState owner, NativeBattleEffectArena? currentArena) =>
+            owner.Drain505D20(currentArena, staging, address => NativeBattleProcessTim.Resolve(memory, address), memory.ScriptedEffects);
+    }
+
+    private static NativeBattlePcTextureWindowCache InvalidateTextureUploads(NativeBattlePcTextureWindowCache cache, ImmutableArray<NativeBattleEffectVramUpload> uploads, NativeBattleEffectTextureState priorTextures)
+    {
+        foreach (NativeBattleEffectVramUpload upload in uploads)
+        {
+            cache = cache.Invalidate464850(upload.X, upload.Y, upload.X + upload.Width - 1, upload.Y + upload.Height - 1, priorTextures);
+        }
+        return cache;
     }
 
     private NativeBattleGraphicsState AdvanceNativeGraphicsRequests(NativeBattleGraphicsState graphics)

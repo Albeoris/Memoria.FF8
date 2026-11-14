@@ -26,7 +26,7 @@ public sealed partial class BattleSession
             graphics = graphics with { Models = graphics.Models.SetItem(model.Index, loaded with { Alpha7 = 0 }) };
         }
         NativeBattleEffectMemory memory = NativeEffectMemory!;
-        NativeEffectMemory = memory with { Textures = memory.Textures!.Drain505D20(memory.Arena, NativeFileStaging, address => NativeBattleProcessTim.Resolve(memory, address), memory.ScriptedEffects).State };
+        NativeEffectMemory = DrainNativeTextureUploads(memory, memory.Textures!);
         return graphics;
     }
 

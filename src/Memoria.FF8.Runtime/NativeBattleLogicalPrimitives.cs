@@ -1297,11 +1297,19 @@ public interface INativeBattleLogicalExecutionContext
             throw new NotSupportedException("This battle primitive execution context does not support model texture ownership.");
         }
     }
+    NativeBattlePcTextureWindowCache? GetTextureCache(NativeBattleLogicalCommand command) => Cache;
+    void SetTextureCache(NativeBattleLogicalCommand command, NativeBattlePcTextureWindowCache? cache)
+    {
+        Cache = cache;
+    }
     void ExecuteSoftware(NativeBattleLogicalCommand command);
     void ExecuteNormal(NativeBattleLogicalCommand command, NativeBattlePrimitiveDrawMode mode, byte pass);
     NativeBattlePrimitiveDrawMode SynchronizeDrawMode(NativeBattlePrimitiveDrawMode mode);
     NativeBattleLogicalResolvedCommand RetainTexturePixels(NativeBattleLogicalResolvedCommand command) => command;
     void BeginPass(byte pass)
+    {
+    }
+    void EndPass(byte pass)
     {
     }
     void BeginOrdering()
@@ -1398,11 +1406,18 @@ public static class NativeBattleLogicalPasses
                         mode = ClearTextureSelection(context.SynchronizeDrawMode(mode));
                     }
                     NativeBattleLogicalResolvedCommand resolved = new(command, mode, pass);
-                    if (GetCache() is { } currentCache)
+                    if ((context is null ? cache : context.GetTextureCache(command)) is { } currentCache)
                     {
                         var selected = SelectTextureCommand(resolved, currentCache);
                         resolved = selected.Command;
-                        SetCache(selected.Cache);
+                        if (context is null)
+                        {
+                            cache = selected.Cache;
+                        }
+                        else
+                        {
+                            context.SetTextureCache(command, selected.Cache);
+                        }
                     }
                     executed.Add(context?.RetainTexturePixels(resolved) ?? resolved);
                 }
@@ -1419,6 +1434,7 @@ public static class NativeBattleLogicalPasses
                 }
             }
             SetCache(EndTexturePass(GetCache(), pass));
+            context?.EndPass(pass);
         }
         context?.EndBatch();
         return (mode, executed.ToImmutable(), GetCache());
@@ -1443,6 +1459,10 @@ public static class NativeBattleLogicalPasses
         if (commands.IsDefault || commands.Any(command => command.Pass > 2))
         {
             throw new InvalidDataException("Native texture selection requires the three actual executed OT passes.");
+        }
+        if (commands.Any(command => command.Command.ModelTextureOwner is not null))
+        {
+            throw new NotSupportedException("Standalone texture selection has no model texture bank.");
         }
         ImmutableArray<NativeBattleLogicalResolvedCommand>.Builder selected = ImmutableArray.CreateBuilder<NativeBattleLogicalResolvedCommand>();
         for (byte pass = 0; pass < 3; pass++)
