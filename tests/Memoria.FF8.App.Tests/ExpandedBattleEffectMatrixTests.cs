@@ -92,6 +92,12 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                     firstBlockerStage = "enemy-draw-contact";
                     (status, detail) = RunExpandedEnemyDraw(directory, field, assets, 530);
                 }
+                else if (effect.Entry == NativeBattleDrawStock15Profile.Entry)
+                {
+                    firstBlockerStage = "player-draw-stock-execution";
+                    RunInstalledDrawStock(directory, field, assets, effect.Effect);
+                    (status, detail) = ("native", "The original Draw Stock command consumed the installed effect and published one logical source contact.");
+                }
                 else if (player is not null)
                 {
                     firstBlockerStage = "player-execution";
@@ -480,6 +486,41 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
             }
         }
         throw new InvalidDataException("The installed Oilboyle AI did not complete its first Sonic Wave in the expanded host.");
+    }
+
+    private static void RunInstalledDrawStock(string directory, GameState field, BattleAssets assets, ushort effect)
+    {
+        BattleActionDefinition fire = Assert.Single(assets.ActionDefinitions, action => action.Ability == BattleAbility.Magic && action.NativeAction?.Name == "Fire");
+        using GameWorld world = StartBattle(directory, field, 87, prepareVitals: vitals =>
+        {
+            int drawAbility = vitals.MenuDefinitions.CommandAbilityCommands.IndexOf((byte)6);
+            NativeCharacterVital[] records = vitals.Records.ToArray();
+            records[10] = records[10] with { Junction = records[10].Junction with { Commands = checked((uint)(20 + drawAbility)) } };
+            return vitals with { Records = records };
+        });
+        BattleSession battle = world.Battle!;
+        BattleCombatant caster = Assert.Single(battle.Combatants, actor => actor.Id == CasterId);
+        BattleCombatant source = battle.Combatants.Last(actor => !actor.IsPlayer && actor.NativeDrawSlots.Any(slot => slot.Id == fire.Id));
+        caster.Atb = BattleSession.AtbMaximum;
+        int countBefore = caster.MagicStocks.FirstOrDefault(stock => stock.Id == fire.Id)?.Count ?? 0;
+        int before = battle.Events.Count;
+        world.ApplyBattleInput(new(BattleInputKind.Action) { ActorId = caster.Id, TargetId = source.Id, Ability = BattleAbility.Draw, ActionId = fire.Id });
+        NativeBattleEffectPresentation? presentation = null;
+        for (int frame = 0; frame < 512 && caster.IsBusy; frame++)
+        {
+            world.ApplyBattleInput(new(BattleInputKind.Tick));
+            presentation ??= battle.ExpandedEffect;
+        }
+
+        Assert.False(caster.IsBusy);
+        Assert.NotNull(presentation);
+        Assert.Equal(effect, presentation.Graphics.OriginalEffect?.RequestedEffect);
+        Assert.True(presentation.Complete);
+        BattleEvent[] events = battle.Events.Skip(before).Where(entry => entry.ActorId == caster.Id && entry.TargetId == source.Id).ToArray();
+        Assert.Single(events, entry => entry.Kind == "EffectContact" && entry.Amount == 0);
+        int amount = Assert.Single(events, entry => entry.Kind == "Draw").Amount;
+        Assert.True(amount > 0);
+        Assert.Equal(countBefore + amount, caster.MagicStocks.Single(stock => stock.Id == fire.Id).Count);
     }
 
     internal static GameState PrepareField(string directory)

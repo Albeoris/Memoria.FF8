@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.BattleEffects;
 using Memoria.FF8.Runtime;
@@ -6,9 +7,59 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed partial class ExpandedBattleEffectMatrixTests
 {
+    [Fact]
+    public void InstalledDirectGraphicsQueuesFromAnAuthoredReserveAfterTheOriginalHpTrigger()
+    {
+        string directory = TestResources.GameDirectory;
+        using BattleAssets assets = new(directory);
+        using GameWorld world = StartBattle(directory, PrepareField(directory), 164, useAreaEnemyRoster: true);
+        BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
+        Assert.True(battle.ReadDefinition().UsesOriginalEnemySlots);
+        BattleCombatant owner = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.IsActive);
+        Assert.Equal(101, owner.ModelId);
+        Assert.Equal(assets.ReadEnemyAi(owner.ModelId, owner.Level).Scripts[2], owner.NativeAi!.Scripts[2]);
+        Assert.Contains(assets.LoadEncounter(164).Slots, slot => slot is { Slot: 3, ModelId: 71, Enabled: false });
+        BattleCombatant attacker = Assert.Single(battle.Combatants, actor => actor.Id == CasterId);
+        owner.CurrentHp = owner.MaximumHp / 10 + 1;
+        attacker.Atb = BattleSession.AtbMaximum;
+        world.ApplyBattleInput(new(BattleInputKind.Action) { ActorId = attacker.Id, TargetId = owner.Id, Ability = BattleAbility.Attack });
+        BattleActionPresentation? graphic = null;
+        for (int frame = 0; frame < 480 && graphic is null; frame++)
+        {
+            world.ApplyBattleInput(new(BattleInputKind.Tick));
+            if (battle.ActiveAction is { NativeGraphic.MagicId: 248 } active)
+            {
+                graphic = active;
+            }
+        }
+        BattleActionPresentation cast = Assert.IsType<BattleActionPresentation>(graphic);
+        BattleCombatant caster = Assert.Single(battle.Combatants, actor => actor.Id == cast.ActorId);
+        Assert.Equal(71, caster.ModelId);
+        Assert.Equal(3, caster.SceneSlot);
+        Assert.Equal((byte)0, cast.NativeAiCallbackStage);
+        Assert.Equal((byte)252, cast.NativeQueuedCommand);
+        Assert.Equal(1, cast.ActionId);
+        Assert.Equal(caster.Id, Assert.Single(cast.AiRecipients!.ActorIds));
+        Assert.Contains(battle.Events, entry => entry.Kind == "Damage" && entry.ActorId == attacker.Id && entry.TargetId == owner.Id);
+        Assert.Contains(battle.Events, entry => entry.Kind == "Activated" && entry.ActorId == caster.Id);
+        int hp = caster.CurrentHp;
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
+        {
+            world.ApplyBattleInput(new(BattleInputKind.Tick));
+            restored.Tick();
+        }
+        BattleEvent contact = Assert.Single(battle.Events, entry => entry.Kind == "EffectContact" && entry.ActorId == caster.Id && entry.TargetId == caster.Id);
+        Assert.Equal(0, contact.Amount);
+        Assert.Equal(hp, caster.CurrentHp);
+        Assert.Equal((byte)3, caster.LastNativeAction!.AttackType);
+        Assert.Single(battle.Events, entry => entry.Kind == "ActionComplete" && entry.ActorId == caster.Id);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+    }
+
     private static EnemyRouteResult? ProbeOriginalSlotRoutes(string directory, GameState field, BattleAssets assets, NativeBattleEffectBinding effect, EnemyScenarioScriptedAction[] scripts)
     {
-        var candidates = scripts.Where(script => script.Callback <= 3 && script.NativeAction is not null)
+        var candidates = scripts.Where(script => script.Callback <= 3 && IsDiscoveredEnemyDispatch(script))
             .SelectMany(script => script.Formations.Where(scene => scene.Enabled).Select(scene => (Script: script, Scene: scene)))
             .GroupBy(route => route.Scene.FormationId)
             .Where(routes => routes.Any(route =>

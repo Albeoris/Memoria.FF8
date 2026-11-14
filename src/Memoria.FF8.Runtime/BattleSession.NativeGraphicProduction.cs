@@ -60,7 +60,7 @@ public sealed partial class BattleSession
     private BattleNativeAction NativeGraphicContactAction(BattleCombatant actor, byte effect)
     {
         //48FE20's first switch defaults to actorBD5; its second switch252 sets ADD1 without4922B0.
-        return new(252, 1, -1, -1) { MagicId = effect, AttackType = 0, Power = 0, HitCount = 1, TargetFlags = null, AttackFlags = 3, DamagePresentation = 0, Element = ReadNativeElementAttack(actor), ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = ImmutableArray<byte>.Empty, SupplementalRecord = ImmutableArray<byte>.Empty };
+        return new(252, 1, -1, -1) { MagicId = effect, Name = "Native graphical effect", AttackType = 0, Power = 0, HitCount = 1, TargetFlags = null, AttackFlags = UsesExpandedRoster ? (byte)(3 | NativeGraphicsTargetFlags()) : (byte)3, DamagePresentation = 0, Element = UsesExpandedRoster ? checked((byte)actor.ElementAttack) : ReadNativeElementAttack(actor), ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = ImmutableArray<byte>.Empty, SupplementalRecord = ImmutableArray<byte>.Empty };
     }
 
     private bool ResolveNativeGraphicHit(BattleCombatant actor, BattleCombatant recipient, BattleNativeAction native)

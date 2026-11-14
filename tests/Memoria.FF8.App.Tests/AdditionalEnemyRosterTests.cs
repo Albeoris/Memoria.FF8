@@ -92,38 +92,80 @@ public sealed class AdditionalEnemyRosterTests
         Assert.Empty(world.PreviewBattleRewards().Items);
     }
 
-    [Fact]
-    public void WorldRosterRestoresAgainstTheFrozenTerrainEncounterTable()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void WorldRosterRestoresAgainstTheFrozenTerrainEncounterTable(bool hasSuspendedField)
     {
         string directory = TestResources.GameDirectory;
-        string path = TestResources.FixturePath("world-profile-return-source");
         using GameAssets assets = new(directory);
-        GameSession session = new(PlayerStateLoader.Load(path, directory, sharedAssets: assets));
+        GameState source = hasSuspendedField
+            ? PlayerStateLoader.Load(TestResources.FixturePath("world-profile-return-source"), directory, sharedAssets: assets)
+            : LoadBalambWorldSave(assets);
+        GameSession session = new(source);
         using GameWorld world = new(session, directory, sharedAssets: assets, validateWorldPresentation: false);
         world.EnsureField();
+        Assert.Equal(hasSuspendedField, world.Events.HasFieldProgram);
         world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = 3, AdditionalEnemies = 1 });
         world.ApplyBattleInput(new(BattleInputKind.ConfigurePlaythrough, FullCombat: true));
         world.ApplyBattleInput(new(BattleInputKind.ConfigureEncounters, RandomEncounters: true));
-        for (int tick = 0; tick < 1200 && !world.HasPendingBattle; tick++)
+        WorldMapScene scene = Assert.IsType<WorldMapScene>(world.WorldScene);
+        if (!hasSuspendedField)
         {
-            int direction = tick / 8 % 4;
-            float horizontal = direction == 0 ? 1 : direction == 2 ? -1 : 0;
-            float vertical = direction == 1 ? 1 : direction == 3 ? -1 : 0;
-            PlayerActionResult step = world.Apply(new(PlayerActionKind.Move, Horizontal: horizontal, Vertical: vertical));
-            Assert.True(step.Accepted, step.Detail);
-            Assert.Equal(SceneKind.WorldMap, session.State.Scene);
+            NativeWorldEncounterDefinition local = Assert.IsType<NativeWorldEncounterDefinition>(scene.ReadRandomEncounterDefinition(scene.State));
+            RandomEncounterSessionState random = session.State.RandomEncounters!;
+            foreach (ushort formation in local.Formations.Distinct())
+            {
+                session.SetRandomEncounters(random with { Pending = new(SceneKind.WorldMap, session.State.FieldId, scene.State.Frame, formation, scene.AllocationProgramSha256) });
+                if (world.CreateEncounterBattle(formation).AddedEnemySources is { Count: > 0 })
+                {
+                    break;
+                }
+            }
+        }
+        else
+        {
+            for (int tick = 0; tick < 1200 && !world.HasPendingBattle; tick++)
+            {
+                int direction = tick / 8 % 4;
+                float horizontal = direction == 0 ? 1 : direction == 2 ? -1 : 0;
+                float vertical = direction == 1 ? 1 : direction == 3 ? -1 : 0;
+                PlayerActionResult step = world.Apply(new(PlayerActionKind.Move, Horizontal: horizontal, Vertical: vertical));
+                Assert.True(step.Accepted, step.Detail);
+                Assert.Equal(SceneKind.WorldMap, session.State.Scene);
+            }
         }
         Assert.NotNull(session.State.RandomEncounters?.Pending);
-        WorldMapScene scene = Assert.IsType<WorldMapScene>(world.WorldScene);
         NativeWorldEncounterDefinition terrain = Assert.IsType<NativeWorldEncounterDefinition>(scene.ReadRandomEncounterDefinition(scene.State));
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, NativeSeed: 0));
         BattleDefinition definition = world.Battle!.ReadDefinition();
-        Assert.Contains((ushort)Assert.Single(definition.AddedEnemySources!).Value.Formation, terrain.Formations);
+        Assert.True(definition.AddedEnemySources is { Count: 1 }, $"Terrain {scene.State.GroundType}, formations {string.Join(", ", terrain.Formations)}, encounter {definition.EncounterId}.");
+        Assert.Contains((ushort)Assert.Single(definition.AddedEnemySources).Value.Formation, terrain.Formations);
 
         GameState snapshot = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.PrepareSnapshot()))!;
-        Assert.NotNull(snapshot.EventState);
+        Assert.Equal(hasSuspendedField, snapshot.EventState.HasValue);
+        if (!hasSuspendedField)
+        {
+            Assert.Null(snapshot.DepartingFieldState);
+            Assert.NotNull(snapshot.WorldEventState);
+        }
         AssertRestoredRoster(snapshot, directory, definition);
         AssertNonlocalDonorRejected(snapshot, directory, world.BattleResources, terrain.Formations);
+    }
+
+    private static GameState LoadBalambWorldSave(GameAssets assets)
+    {
+        GameplaySaveComponentDocument document = GameplaySaveSessionLoaderTests.Document(assets, true);
+        using WorldAssets terrain = new(assets.GameDirectory);
+        IReadOnlyDictionary<int, int> replacements = WorldTerrainSelection.Replacements(WorldTerrainSelection.ReplacementMask(0, 0));
+        WorldSegment segment = terrain.GetSegment(WorldAssets.SegmentAt(26000, -29406), replacements);
+        var ground = segment.Triangles.Where(triangle => triangle.GroundType == 4)
+            .Select(triangle => (triangle.A + triangle.B + triangle.C) / 3)
+            .Select(point => (X: (int)point.X, Z: (int)point.Z))
+            .Select(point => (point.X, point.Z, Surface: terrain.LookupNativeGround(point.X, point.Z, replacements, [])))
+            .First(point => point.Surface?.Ground.Triangle.GroundType == 4);
+        document = document with { Resume = document.Resume with { World = document.Resume.World! with { X = ground.X, Z = ground.Z, Height = checked((short)-ground.Surface!.Ground.Height) } } };
+        return GameplaySaveSessionLoader.Restore(document, assets.GameDirectory, sharedAssets: assets);
     }
 
     private static void AssertRestoredRoster(GameState snapshot, string directory, BattleDefinition expected)

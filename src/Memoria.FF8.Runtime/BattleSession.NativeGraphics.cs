@@ -9,13 +9,18 @@ public sealed partial class BattleSession
     {
         actor.NativePreviousTargetMask = targetMask;
         //487DF0 LABEL375's non-Magic/non-Item branch reads EnemyAttack[id1] bit80 even for252.
-        if ((FindInstalledNativeAction(8, 1).AttackFlags & 0x80) != 0)
+        if ((NativeGraphicsTargetFlags() & 0x80) != 0)
         {
             targetMask |= 0x4000;
         }
         BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.EncodeNativeSlot() is >= 0 and < 16 && (targetMask & (1 << candidate.EncodeNativeSlot())) != 0) ?? actor;
         BattleAttackCommand command = new(actor.Id, target.Id, BattleAbility.EnemyAbility, 1) { NativeAiCallbackStage = nativeAiCallbackStage, NativeQueuedCommand = 252, NativeSequence = sequence, NativeTargetMask = targetMask, NativeGraphic = new(magicId) };
         EnqueueNativePacket(actor, command, $"native graphics252/1 effect{magicId}");
+    }
+
+    private byte NativeGraphicsTargetFlags()
+    {
+        return (byte)(FindInstalledNativeAction(8, 1).AttackFlags & 0x80);
     }
 
     private BattleAttackCommand PrepareNativeEventCommand(BattleCombatant actor, BattleAttackCommand command)

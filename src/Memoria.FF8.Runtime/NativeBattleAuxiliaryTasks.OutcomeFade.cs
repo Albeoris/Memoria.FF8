@@ -41,8 +41,7 @@ public sealed partial record NativeBattleAuxiliaryState
         {
             throw new NotSupportedException("Native screen fade requires its actual501E10/501CE0 start/target producer.");
         }
-        int weight = (elapsed << 12) / duration;
-        byte fade = unchecked((byte)(start + ((target - start) * weight >> 12)));
+        byte fade = NativeBattleOutcomeCallbacks.InterpolateFade501D10(elapsed, duration, start, target);
         bool complete = elapsed >= duration;
         (inputs?.ApplyScreenFade501D10 ?? throw new NotSupportedException("Native501D10 requires its screen packet and retained global BYTE owners."))(fade, complete && target == 0);
         if (target != 0 && elapsed == 5)

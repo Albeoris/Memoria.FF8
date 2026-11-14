@@ -227,13 +227,23 @@ public sealed class ExpandedBattleHostTests
                 hud.SelectParty(caster.Id);
                 Assert.Contains(BattleAbility.Draw, hud.Commands);
                 Assert.True(hud.DrawCastAvailable);
+                int beforeDraw = battle.Events.Count;
                 world.ApplyBattleInput(new(BattleInputKind.Action) { ActorId = caster.Id, TargetId = drawSource.Id, Ability = BattleAbility.Draw, ActionId = draw.Id });
+                NativeBattleEffectPresentation? stockPresentation = null;
                 for (int frame = 0; frame < 512 && caster.IsBusy; frame++)
                 {
                     world.ApplyBattleInput(new(BattleInputKind.Tick));
+                    stockPresentation ??= battle.ExpandedEffect;
                 }
                 Assert.False(caster.IsBusy);
-                Assert.Contains(battle.Events, entry => entry.Kind == "Draw" && entry.ActorId == caster.Id && entry.TargetId == drawSource.Id);
+                BattleEvent drawResult = Assert.Single(battle.Events.Skip(beforeDraw), entry => entry.Kind == "Draw" && entry.ActorId == caster.Id && entry.TargetId == drawSource.Id);
+                if (drawResult.Amount > 0)
+                {
+                    Assert.NotNull(stockPresentation);
+                    Assert.Equal((ushort)15, stockPresentation.Graphics.OriginalEffect?.RequestedEffect);
+                    Assert.True(stockPresentation.Complete);
+                    Assert.Single(battle.Events.Skip(beforeDraw), entry => entry.Kind == "EffectContact" && entry.ActorId == caster.Id && entry.TargetId == drawSource.Id);
+                }
                 if (enemyCount == 11)
                 {
                     BattleActionDefinition spell = battle.ActionDefinitions.First(action => action.Ability == BattleAbility.Magic && battle.SupportsExpandedAction(action) && drawSource.NativeDrawSlots.Any(slot => slot.Id == action.Id));

@@ -113,6 +113,47 @@ public sealed class ExpandedBattleAiTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
+    public void DirectGraphicsPreservesTheByteOperandAndCommitsOnlyReachedZeroContacts(bool selectsTargets)
+    {
+        byte[] turn = selectsTargets ? [4, 204, 5, 17, 30, 248, 0] : [5, 17, 30, 248, 0];
+        Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(Ai(turn), [Physical], 0));
+        Assert.Equal(ExpandedAiAdmission.RequiresUnsupportedService, NativeBattleExpandedAi.Evaluate(Ai([30]), [Physical], 0));
+        BattleSession battle = Start(turn, 11, 8);
+        BattleActionPresentation windup = Assert.IsType<BattleActionPresentation>(battle.ActiveAction);
+        Assert.Equal((byte)252, windup.NativeQueuedCommand);
+        Assert.Equal(1, windup.ActionId);
+        Assert.Equal((byte)17, windup.NativeSequence);
+        Assert.Equal(new BattleNativeGraphicCommand(248), windup.NativeGraphic);
+        Assert.Null(windup.NativeAction);
+        Assert.Equal(selectsTargets ? 11 : 0, windup.AiRecipients!.ActorIds.Length);
+        BattleSnapshot saved = battle.Capture();
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(saved))!);
+        for (int tick = 0; tick <= BattleSession.AttackWindupFrames; tick++)
+        {
+            battle.Tick();
+            restored.Tick();
+        }
+        BattleEvent[] contacts = battle.Events.Where(entry => entry.Kind == "EffectContact" && entry.ActorId == "enemy-4").ToArray();
+        Assert.Equal(windup.AiRecipients.ActorIds, contacts.Select(contact => contact.TargetId));
+        Assert.All(contacts, contact => Assert.Equal(0, contact.Amount));
+        Assert.All(battle.Combatants.Where(actor => actor.IsPlayer), ally =>
+        {
+            Assert.Equal(ally.MaximumHp, ally.CurrentHp);
+            if (selectsTargets)
+            {
+                Assert.Equal("enemy-4", ally.LastAttackerId);
+                Assert.Equal((byte)252, ally.LastNativeAction!.Command);
+                Assert.Equal((byte)1, ally.LastNativeAction.ActionId);
+                Assert.Equal((byte)3, ally.LastNativeAction.AttackType);
+            }
+        });
+        Assert.Single(battle.Events, entry => entry.Kind == "ActionComplete" && entry.ActorId == "enemy-4");
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
     public void EnemyAttackBit80ContactsTheSelectedKnockedOutAlly(bool ejection)
     {
         BattleNativeAction action = Physical with { Power = 0, AttackFlags = 0x83, StatusAttack = ejection ? (byte)255 : (byte)0, Statuses1 = ejection ? 0x10000u : 0u };

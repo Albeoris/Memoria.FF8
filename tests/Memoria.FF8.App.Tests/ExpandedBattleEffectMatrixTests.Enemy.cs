@@ -19,7 +19,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         bool configuredRoute = effect.Effect is 167 or 174;
         EnemyActorReferenceSetup? referenceSetup = ActorReferenceSetup(effect.Effect);
         EnemyAttackSetup? attackSetup = referenceSetup?.Attacks ?? AttackSetup(effect.Effect);
-        var candidates = scripts.Where(script => script.Callback is 0 or 1 && script.NativeAction is not null && (effect.Effect != 226 || script.LevelBand == 0))
+        var candidates = scripts.Where(script => script.Callback is 0 or 1 && IsDiscoveredEnemyDispatch(script) && (effect.Effect != 226 || script.LevelBand == 0))
             .SelectMany(script => script.Formations.Where(scene => scene.Enabled && !scene.Hidden && !scene.Suspended && !scene.Untargetable).Select(scene => (Script: script, Scene: scene)))
             .Where(route => higherBandFormation is null || route.Scene.FormationId == higherBandFormation && route.Script.LevelBand == HigherEnemyBand)
             .Where(route => attackSetup is null || route.Scene.FormationId == attackSetup.Formation && route.Script.ModelId == attackSetup.Model && route.Script.LevelBand == attackSetup.Band)
@@ -111,11 +111,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         {
             return new("blocked", string.Join("; ", attempted), firstBlocker);
         }
-        if (scripts.All(script => script.NativeAction is null))
-        {
-            return new("blocked", "Installed enemy AI references this effect through direct graphics. The expanded host requires its original graphics callback and trigger.", "enemy-direct-graphics");
-        }
-        if (scripts.All(script => script.Callback > 1 || script.NativeAction is null))
+        if (scripts.All(script => script.Callback > 1 || !IsDiscoveredEnemyDispatch(script)))
         {
             return new("blocked", "Installed enemy AI maps this effect to a reaction, death or other callback. Its original trigger and expanded execution route remain unproved.", "enemy-callback-trigger");
         }
@@ -245,10 +241,22 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             : new("blocked", $"The exact dispatch was not observed within the bounded original turns ({observedTurns}).", "enemy-turn-dispatch");
     }
 
+    private static bool IsDiscoveredEnemyDispatch(EnemyScenarioScriptedAction script)
+    {
+        return script.NativeAction is not null || script is { Command: 252, ActionId: 1, NativeEffectId: not null };
+    }
+
     private static bool MatchesEnemyDispatch(BattleActionPresentation active, EnemyScenarioScriptedAction script, NativeBattleEffectBinding effect)
     {
-        return active.NativeAction is { } native && script.NativeAction is { } mapped && script.Callback == active.NativeAiCallbackStage &&
-            script.Command == active.NativeQueuedCommand && script.ActionId == active.ActionId && script.ActionId == native.ActionId && script.Sequence == active.NativeSequence &&
+        if (script.Callback != active.NativeAiCallbackStage || script.Command != active.NativeQueuedCommand || script.ActionId != active.ActionId || script.Sequence != active.NativeSequence)
+        {
+            return false;
+        }
+        if (active.NativeGraphic is { } graphic)
+        {
+            return script is { Command: 252, ActionId: 1 } && graphic.MagicId == effect.Effect && script.NativeEffectId == graphic.MagicId;
+        }
+        return active.NativeAction is { } native && script.NativeAction is { } mapped && script.ActionId == native.ActionId &&
             mapped.KernelSection == native.KernelSection && mapped.KernelIndex == native.KernelIndex && native.MagicId == effect.Effect;
     }
 
@@ -256,8 +264,8 @@ public sealed partial class ExpandedBattleEffectMatrixTests
     {
         BattleAiRecipients selection = cast.AiRecipients!;
         string[] recipients = resolvedRecipients ?? selection.ActorIds.Where(eligible.Contains).ToArray();
-        int hitCount = cast.NativeAction!.HitCount;
-        if (selection.RandomSide is not null || (cast.NativeAction.TargetFlags.GetValueOrDefault() & 2) != 0)
+        int hitCount = cast.NativeGraphic is not null ? 1 : cast.NativeAction!.HitCount;
+        if (selection.RandomSide is not null || (cast.NativeAction?.TargetFlags.GetValueOrDefault() & 2) == 2)
         {
             BattleSide targetSide = selection.RandomSide ?? battle.Combatants.Single(actor => actor.Id == cast.TargetId).Side;
             Assert.InRange(contacts.Length, 1, hitCount);

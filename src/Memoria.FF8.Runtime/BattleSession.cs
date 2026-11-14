@@ -229,6 +229,10 @@ public sealed partial class BattleSession
             return;
         }
         DispatchTurnBasedFrame();
+        if (expandedGuardianFormSkipRequested)
+        {
+            AdvanceSkippedGuardianFormPresentation(TimeSpan.FromMilliseconds(8));
+        }
     }
 
     private bool HasPendingTurn => nativeScriptState.WaitCounters.Length != 0 || QueuedActions.Count != 0 || ActiveAction is not null || nativeTimedAction is not null || nativeActionScratch.ComponentCompletion is not null || NativeScriptAllocationPending || NativeGraphics is { Requests.IsEmpty: false } || NativeGraphics is { Descriptors.Queue.IsEmpty: false };
@@ -237,7 +241,7 @@ public sealed partial class BattleSession
 
     private bool ExpandedTimedLimitOwnsInput => nativeShotProcesses.Count != 0 || nativeRenzokukenProcesses.Count != 0 || nativeDuelProcesses.Count != 0;
 
-    private bool CanExplicitlyAdvanceTurn => Outcome == BattleOutcome.Active && !HasPendingNativeOutcome && !HasPendingExpandedEscape && NativeEntryReady && !HasGuardianForceTimeBoundary && nativeScriptState.WaitCounters.Length == 0 && !NativeScriptAllocationPaused && NativeGraphics?.UiServices?.PauseDE9 != true && (nativeBattleClock is null || NativeGraphics is null || nativeBattleClock.Active != 0) && (!UsesExpandedRoster || !ExpandedTimedLimitOwnsInput);
+    private bool CanExplicitlyAdvanceTurn => Outcome == BattleOutcome.Active && !HasPendingNativeOutcome && !HasPendingExpandedEscape && expandedGuardianFormEntry is null && NativeEntryReady && !HasGuardianForceTimeBoundary && nativeScriptState.WaitCounters.Length == 0 && !NativeScriptAllocationPaused && NativeGraphics?.UiServices?.PauseDE9 != true && (nativeBattleClock is null || NativeGraphics is null || nativeBattleClock.Active != 0) && (!UsesExpandedRoster || !ExpandedTimedLimitOwnsInput);
 
     private bool CanAdvanceTurnBasedTime => Outcome == BattleOutcome.Active && !HasPendingNativeOutcome && NativeEntryReady && !HasPendingTurn && !HasGuardianForceTimeBoundary && NativeGraphics?.UiServices?.PauseDE9 != true && (nativeBattleClock is null || NativeGraphics is null || NativeBattleClockRules.Admit(nativeBattleClock, true, false, NativeScriptAllocationPaused).AtbAdmitted != 0);
 
@@ -247,6 +251,10 @@ public sealed partial class BattleSession
 
     private void DispatchTurnBasedFrame()
     {
+        if (AdvanceExpandedGuardianFormEntry())
+        {
+            return;
+        }
         bool advancingExpandedEscape = HasPendingExpandedEscape;
         AdvanceNativeEscapeFrame();
         if (advancingExpandedEscape || HasPendingExpandedEscape)
@@ -382,7 +390,7 @@ public sealed partial class BattleSession
     public BattleSnapshot Capture()
     {
         RequireEncounterDamagePublicationBoundary();
-        if (expandedEffect is not null)
+        if (ExpandedEffect is not null)
         {
             throw new NotSupportedException("Wait until the current expanded battle effect finishes before saving.");
         }
@@ -1034,7 +1042,7 @@ public sealed partial class BattleSession
             bool nativeQueued = !UsesExpandedRoster && actor.EncodeNativeSlot() is >= 0 and < 7 && nativeCommandBanks.CountActor(checked((byte)actor.EncodeNativeSlot())) != 0;
             bool retainedSupport = ActiveAction is { } support && support.ActorId == actor.Id && IsNativeSupportInvocation(support.NativePlayerReaction) || actions.Any(command => command.ActorId == actor.Id && IsNativeSupportInvocation(command.NativePlayerReaction));
             bool retainedDeathAction = UsesExpandedRoster && HasExpandedEnemyDeathAction(actor);
-            actor.IsBusy = (NativeGraphics is not null || actor.IsAlive || retainedSupport || retainedDeathAction) && (nativeQueued || nativeTimedAction?.Command.ActorId == actor.Id || UsesExpandedRoster && (nativeShotProcesses.ContainsKey(actor.Id) || nativeDuelProcesses.ContainsKey(actor.Id)) || guardianForceCasts.ContainsKey(actor.Id) || ActiveAction?.ActorId == actor.Id || actions.Any(command => command.NativeCallback is null && command.ExpandedAiDescriptor is null && command.ActorId == actor.Id));
+            actor.IsBusy = (NativeGraphics is not null || actor.IsAlive || retainedSupport || retainedDeathAction) && (nativeQueued || nativeTimedAction?.Command.ActorId == actor.Id || UsesExpandedRoster && (nativeShotProcesses.ContainsKey(actor.Id) || nativeDuelProcesses.ContainsKey(actor.Id)) || guardianForceCasts.ContainsKey(actor.Id) || expandedGuardianFormEntry?.ActorId == actor.Id || ActiveAction?.ActorId == actor.Id || actions.Any(command => command.NativeCallback is null && command.ExpandedAiDescriptor is null && command.ActorId == actor.Id));
         }
 
         bool CanRetainTargets(string actorId, string targetId, BattleAbility ability, int actionId, BattleNativeAction? native, ushort mask, BattleNativeGraphicCommand? graphic, BattleAiRecipients? aiRecipients, NativeLimitCallback? callback)
@@ -1047,7 +1055,7 @@ public sealed partial class BattleSession
             {
                 return nativeDuelProcesses.ContainsKey(actorId);
             }
-            return UsesExpandedRoster ? ExpandedActionTargets(GetActor(actorId), targetId, ability, actionId, aiRecipients, native).Length != 0 : ActionHasValidTarget(targetId, ability, actionId, native, mask, graphic, aiRecipients);
+            return UsesExpandedRoster ? graphic is not null || ExpandedActionTargets(GetActor(actorId), targetId, ability, actionId, aiRecipients, native).Length != 0 : ActionHasValidTarget(targetId, ability, actionId, native, mask, graphic, aiRecipients);
         }
     }
 
@@ -1161,6 +1169,10 @@ public sealed partial class BattleSession
         }
         if (guardianForms is not null)
         {
+            if (expandedEffectCommand?.GuardianFormAction is not null)
+            {
+                ReleaseExpandedEffect();
+            }
             foreach (string actorId in guardianForms.Keys.ToArray())
             {
                 BattleCombatant actor = GetActor(actorId);
@@ -1678,7 +1690,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Saved compelled command lacks its player action and target selection.");
         }
-        if (aiRecipients is { } logical && (!UsesExpandedRoster || !compelled && (actor.NativeAi is null || ability != BattleAbility.EnemyAbility || nativeAction is null) || nativeTargetMask != 0 || nativeHeaderIndex is not null || logical.ActorIds.IsDefaultOrEmpty || logical.ActorIds[0] != targetId || logical.ActorIds.Distinct().Count() != logical.ActorIds.Length || logical.ActorIds.Any(id => id is null || !byId.ContainsKey(id)) ||
+        if (aiRecipients is { } logical && (!UsesExpandedRoster || !compelled && (actor.NativeAi is null || ability != BattleAbility.EnemyAbility || nativeAction is null && graphic is null) || nativeTargetMask != 0 || nativeHeaderIndex is not null || logical.ActorIds.IsDefault || (logical.ActorIds.IsEmpty ? graphic is null || actorId != targetId : logical.ActorIds[0] != targetId) || logical.ActorIds.Distinct().Count() != logical.ActorIds.Length || logical.ActorIds.Any(id => id is null || !byId.ContainsKey(id)) ||
             logical.DeathSelfTargetId is string self && (aiCallbackStage != 3 || logical.RandomSide is not null || self != actorId || !logical.ActorIds.Contains(self))))
         {
             throw new InvalidDataException("Saved expanded AI command has invalid logical recipients.");
@@ -1717,7 +1729,8 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native Renzokuken control packet contradicts its character or original command.");
         }
-        if (graphic is not null && (nativeAction is not null || ability != BattleAbility.EnemyAbility || actionId != 1))
+        if (graphic is not null && (nativeAction is not null || ability != BattleAbility.EnemyAbility || actionId != 1 ||
+            UsesExpandedRoster && (actor.IsPlayer || aiRecipients?.TargetPolicy != BattleAiTargetPolicy.Standard || nativeQueuedCommand != 252 || aiCallbackStage is null or > 4)))
         {
             throw new InvalidDataException("Native graphical packet requires executable command252/id1 without kernel action metadata.");
         }

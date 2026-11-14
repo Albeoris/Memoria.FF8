@@ -250,7 +250,11 @@ internal sealed partial class BattleScenePresentation
                     : renderer.RenderNativePilotPrimitiveFrame(prepared, pilotNext, pilotAlpha, selectedCamera, primitiveCapabilities, replacements.Count == 0 ? null : replacements, uiFrame is null ? null : assets.ReadNativePcUiIcons().Resolve, assets.EffectTextureSource);
             }
         }
-        if (selectedCamera is { } baseCamera && session.ExpandedEffect is { ViewTranslationY: not 0 } effectCamera)
+        if (session.ExpandedEffect?.CinematicCamera is { FocalLength: > 0 } cinematicCamera)
+        {
+            selectedCamera = BattleCamera.FromNative(new(new(cinematicCamera.Eye.X, cinematicCamera.Eye.Y, cinematicCamera.Eye.Z), new(cinematicCamera.Target.X, cinematicCamera.Target.Y, cinematicCamera.Target.Z), cinematicCamera.FocalLength.Value), cinematicCamera.Roll) with { FieldOfView = 2 * MathF.Atan(108f / cinematicCamera.FocalLength.Value), VerticalCenter = 0.5f };
+        }
+        else if (selectedCamera is { } baseCamera && session.ExpandedEffect is { ViewTranslationY: not 0 } effectCamera)
         {
             Vector3 forward = Vector3.Normalize(baseCamera.Target - baseCamera.Eye);
             Vector3 right = Vector3.Normalize(Vector3.Cross(forward, Vector3.UnitY));
@@ -312,7 +316,10 @@ internal sealed partial class BattleScenePresentation
                 actors.Add(drawing with { Model = weapon, ActorId = null });
             }
         }
-        byte[] pixels = renderer!.Render(stage, actors, selectedCamera ?? throw new InvalidOperationException("The original camera has not published its first pose."), effect: session.ExpandedEffect?.Overlay, effectTextures: session.ExpandedEffect?.Memory.Textures, effectTextureSource: assets.EffectTextureSource);
+        NativeBattlePreparedPrimitiveFrame? overlay = session.ExpandedEscapeScreenFade is byte fade
+            ? NativeBattleOutcomeCallbacks.PrepareFade501D10(fade, assets.ReadNativePrimitiveTables())
+            : session.ExpandedEffect?.Overlay;
+        byte[] pixels = renderer!.Render(stage, actors, selectedCamera ?? throw new InvalidOperationException("The original camera has not published its first pose."), effect: overlay, effectTextures: session.ExpandedEffect?.Memory.Textures, effectTextureSource: assets.EffectTextureSource, drawStage: session.ExpandedEffect?.HidesHostStage != true);
         return pixels;
     }
 

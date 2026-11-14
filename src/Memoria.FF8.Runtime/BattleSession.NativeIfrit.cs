@@ -6,26 +6,32 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
+    private byte? GuardianFormEntryCaster(NativeBattleGraphicsState graphics)
+    {
+        return hostedGuardianFormMode == GuardianFormInvocationMode.EntryOnly ? (byte)0 :
+            graphics.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.EntryOnly } form ? form.ActorIndex : null;
+    }
+
     private NativeBattleGraphicsState EnterNativeCinematic(NativeBattleGraphicsState graphics)
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new InvalidDataException("Native cinematic entry requires its selected effect.");
         NativeBattleCinematicProfile profile = NativeBattleCinematicProfile.ForEffect(effect.Binding.Effect);
         NativeBattleScriptedInitializationDirectories directories = effect.Binding.ScriptedInitializationDirectories ?? throw new NotSupportedException("Native cinematic requires its original initialization and owner directories.");
-        NativeBattleGuardianFormPresentation? presentation = graphics.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.EntryOnly } formPresentation ? formPresentation : null;
-        NativeBattleEffectParameters parameters = effect.Parameters ?? (presentation is null ? throw new InvalidDataException("Native cinematic requires its actual action parameters.") : GuardianFormPositioningParameters(presentation));
+        byte? entryCaster = GuardianFormEntryCaster(graphics);
+        NativeBattleEffectParameters parameters = effect.Parameters ?? (entryCaster is byte caster ? GuardianFormPositioningParameters(caster) : throw new InvalidDataException("Native cinematic requires its actual action parameters."));
         ImmutableArray<NativeBattleEffectInitializerAsset> assets = NativeBattleEffectInitializerPolicy.Assets(effect.Binding);
         if (assets.Length != 2)
         {
             throw new NotSupportedException("Native cinematic requires both complete executed initializer resources.");
         }
-        NativeBattleActionHeaderSlot? header = presentation is null ? nativeActionPackets.Headers[parameters.HeaderIndex7C] : null;
-        ImmutableArray<byte> contacts = presentation is null ? WaterContacts(header!) : [presentation.ActorIndex];
+        NativeBattleActionHeaderSlot? header = entryCaster is null ? nativeActionPackets.Headers[parameters.HeaderIndex7C] : null;
+        ImmutableArray<byte> contacts = entryCaster is byte entry ? [entry] : WaterContacts(header!);
         if (contacts.IsEmpty)
         {
             throw new NotSupportedException("Native cinematic entry requires its first actual contact actor.");
         }
         NativeBattleWaterInitializationInputs inputs = new(Resource(0, profile.File0Publication), Resource(1, profile.File1Publication), NativeBattleWater222Controller.CreateTemporaryFrame(WaterTemporaryAddress), WaterParametersAddress, WaterHeadersAddress + checked((uint)(20 * parameters.HeaderIndex7C)), profile.InitializationAddress, parameters.Actor78, parameters.HeaderIndex7C, contacts[0], contacts, header?.ReadByte(0x10) ?? 1, header?.ReadByte(0x11) ?? 1, graphics.Models);
-        NativeBattleCinematicEntryStep initialized = presentation is null ? NativeBattleCinematicEntry.Initialize(profile, RequireWaterMemory(), effect, directories, inputs) : NativeBattleCinematicEntry.InitializeIfritPresentation(RequireWaterMemory(), effect, directories, inputs);
+        NativeBattleCinematicEntryStep initialized = entryCaster is null ? NativeBattleCinematicEntry.Initialize(profile, RequireWaterMemory(), effect, directories, inputs) : NativeBattleCinematicEntry.InitializeIfritPresentation(RequireWaterMemory(), effect, directories, inputs);
         NativeEffectMemory = initialized.Memory;
         if (effect.Binding.Effect == 18)
         {
@@ -49,7 +55,7 @@ public sealed partial class BattleSession
             graphics = graphics with { OriginalEffect = effect };
         }
         NativeBattleEffectParameters? outputParameters = effect.Parameters;
-        NativeBattleGuardianFormPresentation? presentation = graphics.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.EntryOnly } formPresentation ? formPresentation : null;
+        byte? entryCaster = GuardianFormEntryCaster(graphics);
         NativeBattleCinematicResources resources = effect.Binding.CinematicResources ?? throw new NotSupportedException("Native cinematic requires its authenticated cinematic tables and resources.");
         NativeBattleCinematicProfile profile = NativeBattleCinematicProfile.ForEffect(effect.Binding.Effect);
         ImmutableArray<NativeBattleEffectInitializerAsset> assets = NativeBattleEffectInitializerPolicy.Assets(effect.Binding);
@@ -67,7 +73,7 @@ public sealed partial class BattleSession
             return linked is int row ? ActorPointer(row) : 0;
         }, (_, pointer) => ActorPointer(NativeBattleModelRings.Walk(graphics.Models, PhysicalActor(pointer)).Min()), (_, address, length) => ReadAction(address, length), (current, address) =>
         {
-            if (presentation is not null)
+            if (entryCaster is not null)
             {
                 throw new InvalidDataException("Presentation-only Ifrit entrance reached an offensive contact before its landing handoff.");
             }
@@ -87,7 +93,10 @@ public sealed partial class BattleSession
             return current;
         });
         NativeBattleScriptedCallbackServices services = new(ReadInstruction, ExecuteInstruction, UpdateSlot, DrawSlots, ClearOrderingTable, PublishFocal) { ReadCurrentFocal = _ => NativeCamera?.FocalLength ?? throw new NotSupportedException("Native cinematic requires its current scratch focal WORD after script execution.") };
-        if (effect.Binding.Effect == 201 && graphics.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 4 } continuation && ActiveAction is { GuardianFormInvocation: { Mode: GuardianFormInvocationMode.FinisherWithoutEntry } invocation } currentAction && currentAction.ActorId == continuation.ActorId && invocation.Id == continuation.InvocationId)
+        NativeBattleGuardianFormPresentation? continuation = graphics.GuardianFormPresentation;
+        bool nativeContinuation = continuation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 4 } && ActiveAction is { GuardianFormInvocation: { Mode: GuardianFormInvocationMode.FinisherWithoutEntry } invocation } currentAction && currentAction.ActorId == continuation.ActorId && invocation.Id == continuation.InvocationId;
+        bool hostedContinuation = hostedGuardianFormMode == GuardianFormInvocationMode.FinisherWithoutEntry && !hostedGuardianFormContinued;
+        if (effect.Binding.Effect == 201 && (nativeContinuation || hostedContinuation))
         {
             NativeBattleEffectMemory memory = RequireWaterMemory();
             NativeBattleWaterTemporaryFrame temporary = NativeBattleWater222Controller.CreateTemporaryFrame(WaterTemporaryAddress);
@@ -99,7 +108,11 @@ public sealed partial class BattleSession
             nativeCrtRandom = execution.Random;
             NativeCamera = NativeCamera!.PublishProjection(graphics.Flags, EncounterCameraElevation);
             input = input with { ViewMatrix = MatrixBytes(NativeCamera.Projection!.View!) };
-            graphics = graphics with { GuardianFormPresentation = continuation with { Phase = 5 } };
+            hostedGuardianFormContinued |= hostedContinuation;
+            if (nativeContinuation)
+            {
+                graphics = graphics with { GuardianFormPresentation = continuation! with { Phase = 5 } };
+            }
             NativeGraphics = graphics;
         }
         NativeBattleCinematicFrame advanced = NativeBattleCinematicController.Advance(profile, new(RequireWaterMemory(), effect, nativeCrtRandom ?? throw new NotSupportedException("Native cinematic callback requires its retained CRT state.")), input, services, WaterTemporaryAddress, RequireWaterMemory);
@@ -151,9 +164,9 @@ public sealed partial class BattleSession
 
         byte[] ReadAction(uint address, int length)
         {
-            if (presentation is not null)
+            if (entryCaster is byte caster)
             {
-                return ReadGuardianFormPositioning(presentation, address, length);
+                return ReadGuardianFormPositioning(caster, address, length);
             }
             if (address >= WaterParametersAddress && (long)address - WaterParametersAddress <= 12L - length)
             {

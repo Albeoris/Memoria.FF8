@@ -178,8 +178,7 @@ public sealed partial class BattleSession
             guardianForms![actor.Id] = form with { Phase = BattleGuardianFormPhase.Entering };
             if (UsesExpandedRoster)
             {
-                // TODO(TD-009): The expanded host switches models here until it can play entry using the logical caster.
-                CompleteGuardianFormEntry(actor.Id, invocation.Id);
+                BeginExpandedGuardianFormEntry(actor, form);
             }
             else
             {
@@ -329,6 +328,11 @@ public sealed partial class BattleSession
         {
             return;
         }
+        if (expandedGuardianFormEntry is { } entry && entry.ActorId == actor.Id)
+        {
+            EndExpandedGuardianFormEntry(entry);
+            actor.IsBusy = false;
+        }
         ReturnGuardianFormPresentation(actor, form);
         if (guardianForceCasts.TryGetValue(actor.Id, out BattleGuardianForceCast? cast))
         {
@@ -395,7 +399,7 @@ public sealed partial class BattleSession
 
     private bool HasCommittedGuardianFormAction(string actorId)
     {
-        return ActiveAction is { NativeHeaderIndex: not null } action && action.ActorId == actorId || actions.Any(command => command.ActorId == actorId && command.NativeHeaderIndex is not null) || resolvingNativeAction is { } resolving && resolving.ActorId == actorId && nativeActionCommitDepth != 0;
+        return ActiveAction is { NativeHeaderIndex: not null } action && action.ActorId == actorId || expandedEffect is not null && ActiveAction is { GuardianFormAction: not null } expanded && expanded.ActorId == actorId || actions.Any(command => command.ActorId == actorId && command.NativeHeaderIndex is not null) || resolvingNativeAction is { } resolving && resolving.ActorId == actorId && nativeActionCommitDepth != 0;
     }
 
     private void CancelUncommittedGuardianFormCommands(BattleCombatant actor)

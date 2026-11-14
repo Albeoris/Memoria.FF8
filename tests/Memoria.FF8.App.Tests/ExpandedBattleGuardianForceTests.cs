@@ -158,7 +158,8 @@ public sealed class ExpandedBattleGuardianForceTests
         records[casterRow] = records[casterRow] with
         {
             Junction = records[casterRow].Junction with { GuardianForces = (ushort)(1 << guardianId), Commands = command },
-            GuardianForceCompatibility = Enumerable.Repeat((ushort)1000, 16).ToArray()
+            GuardianForceCompatibility = Enumerable.Repeat((ushort)1000, 16).ToArray(),
+            StatBonuses = [0, 0, 0, 0, 240, 0]
         };
         vitals = vitals with { Records = records };
         for (int row = 0; row < records.Length; row++)
@@ -177,6 +178,7 @@ public sealed class ExpandedBattleGuardianForceTests
         Assert.True(battle.UsesExpandedRoster);
         Assert.Equal(11, battle.Combatants.Count(actor => actor.IsPlayer));
         string[] enemyIds = battle.Combatants.Where(actor => !actor.IsPlayer).Select(actor => actor.Id).ToArray();
+        string[] expectedSummonRecipients = enemyIds;
         Assert.Equal(11, enemyIds.Length);
         BattleCombatant caster = Assert.Single(battle.Combatants, actor => actor.Id == casterId);
         for (int turn = 0; turn < 32 && !caster.IsReady; turn++)
@@ -218,42 +220,130 @@ public sealed class ExpandedBattleGuardianForceTests
             resumedWorld.EnsureField();
             BattleSession restored = Assert.IsType<BattleSession>(resumedWorld.Battle);
             Assert.Equal(charge, Assert.Single(restored.GuardianForceCasts));
+            bool sawEntry = false;
+            HashSet<NativeBattleCameraPose> entryCameras = [];
+            BattleScenePresentation presentation = new(world.BattleResources, battle.ReadDefinition(), true);
+            bool renderedEntry = false;
             for (int turn = 0; turn < 32 && caster.IsBusy; turn++)
             {
                 world.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
                 resumedWorld.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
-                world.ApplyBattleInput(new(BattleInputKind.Tick, Frames: 60));
-                resumedWorld.ApplyBattleInput(new(BattleInputKind.Tick, Frames: 60));
+                for (int frame = 0; frame < 60 && caster.IsBusy; frame++)
+                {
+                    world.ApplyBattleInput(new(BattleInputKind.Tick));
+                    resumedWorld.ApplyBattleInput(new(BattleInputKind.Tick));
+                    if (transform && battle.ExpandedEffect is { } entrance)
+                    {
+                        sawEntry = true;
+                        if (entrance.CinematicCamera is { FocalLength: > 0 } camera)
+                        {
+                            entryCameras.Add(camera);
+                        }
+                        Assert.Equal((byte)77, entrance.Source.ModelId4);
+                        Assert.True(battle.IsExpandedEffectReplacingModel(casterId));
+                        Assert.DoesNotContain(battle.Events, entry => entry.Kind == "EffectContact" && entry.ActorId == casterId);
+                        if (!renderedEntry && entrance.Overlay is { LastCommands.IsEmpty: false })
+                        {
+                            Assert.NotEmpty(presentation.Render(battle, 640, 448));
+                            renderedEntry = true;
+                        }
+                    }
+                }
             }
             Assert.False(caster.IsBusy);
             Assert.Empty(battle.GuardianForceCasts);
             if (transform)
             {
+                Assert.True(sawEntry);
+                Assert.True(entryCameras.Count > 1);
+                Assert.True(renderedEntry);
                 Assert.Equal(BattleGuardianFormPhase.Active, battle.GetGuardianForm(casterId)!.Phase);
                 Assert.Equal(battle.GetGuardianForm(casterId), restored.GetGuardianForm(casterId));
-                BattleScenePresentation presentation = new(world.BattleResources, battle.ReadDefinition(), true);
                 Assert.NotEmpty(presentation.Render(battle, 640, 448));
                 Assert.NotNull(presentation.GetActorBounds(casterId, new(0, 0, 640, 448)));
                 _ = presentation.CollectSounds(battle);
-                for (int turn = 0; turn < 32 && !caster.IsReady; turn++)
+                const int fireId = 1;
+                int fireBefore = caster.MagicStocks.FirstOrDefault(stock => stock.Id == fireId)?.Count ?? 0;
+                foreach (BattleGuardianFormAction action in new[] { BattleGuardianFormAction.Attack, BattleGuardianFormAction.Fire, BattleGuardianFormAction.HellFire })
                 {
-                    world.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
-                    resumedWorld.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
-                    world.ApplyBattleInput(new(BattleInputKind.Tick, Frames: 30));
-                    resumedWorld.ApplyBattleInput(new(BattleInputKind.Tick, Frames: 30));
+                    for (int turn = 0; turn < 32 && !caster.IsReady; turn++)
+                    {
+                        world.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
+                        resumedWorld.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
+                        world.ApplyBattleInput(new(BattleInputKind.Tick, Frames: 30));
+                        resumedWorld.ApplyBattleInput(new(BattleInputKind.Tick, Frames: 30));
+                    }
+                    Assert.True(caster.IsReady, $"Could not select {action} at frame {battle.Frame}: {battle.GetGuardianForm(casterId)}.");
+                    string[] recipients = battle.Combatants.Where(actor => !actor.IsPlayer && actor.IsAlive && actor.IsActive && !actor.Untargetable).Select(actor => actor.Id).ToArray();
+                    Assert.True(recipients.Length > NativeBattleSlots.Count);
+                    world.ApplyBattleInput(new(BattleInputKind.GuardianFormAction, ActorId: casterId, TargetId: recipients[^1], ActionId: (int)action));
+                    resumedWorld.ApplyBattleInput(new(BattleInputKind.GuardianFormAction, ActorId: casterId, TargetId: recipients[^1], ActionId: (int)action));
+                    if (action == BattleGuardianFormAction.HellFire)
+                    {
+                        expectedSummonRecipients = recipients;
+                        break;
+                    }
+                    bool sawFire = false;
+                    for (int frame = 0; frame < 300 && caster.IsBusy; frame++)
+                    {
+                        world.ApplyBattleInput(new(BattleInputKind.Tick));
+                        if (frame == 5)
+                        {
+                            Assert.NotEmpty(presentation.Render(battle, 640, 448));
+                        }
+                        resumedWorld.ApplyBattleInput(new(BattleInputKind.Tick));
+                        if (action == BattleGuardianFormAction.Fire && battle.ExpandedEffect is { } fire)
+                        {
+                            Assert.Equal((byte)77, fire.Source.ModelId4);
+                            Assert.Equal(battle.GetGuardianFormActionDefinition(casterId, action).NativeAction!.MagicId, fire.Graphics.OriginalEffect!.RequestedEffect);
+                            sawFire = true;
+                        }
+                    }
+                    Assert.False(caster.IsBusy);
+                    Assert.Equal(action == BattleGuardianFormAction.Fire, sawFire);
+                    Assert.Equal(fireBefore, caster.MagicStocks.FirstOrDefault(stock => stock.Id == fireId)?.Count ?? 0);
                 }
-                Assert.True(caster.IsReady);
-                world.ApplyBattleInput(new(BattleInputKind.GuardianFormAction, ActorId: casterId, TargetId: enemyIds[^1], ActionId: (int)BattleGuardianFormAction.HellFire));
-                resumedWorld.ApplyBattleInput(new(BattleInputKind.GuardianFormAction, ActorId: casterId, TargetId: enemyIds[^1], ActionId: (int)BattleGuardianFormAction.HellFire));
-                world.ApplyBattleInput(new(BattleInputKind.Tick, Frames: 60));
-                resumedWorld.ApplyBattleInput(new(BattleInputKind.Tick, Frames: 60));
+                bool sawFinisher = false;
+                bool renderedFinisher = false;
+                bool skipped = false;
+                for (int frame = 0; frame < 900 && battle.GetGuardianForm(casterId) is not null; frame++)
+                {
+                    world.ApplyBattleInput(new(BattleInputKind.Tick));
+                    resumedWorld.ApplyBattleInput(new(BattleInputKind.Tick));
+                    if (battle.ExpandedEffect is { } finisher)
+                    {
+                        sawFinisher = true;
+                        Assert.Equal((byte)77, finisher.Source.ModelId4);
+                        Assert.Equal(201, finisher.Graphics.OriginalEffect!.RequestedEffect);
+                        if (!renderedFinisher && finisher.Overlay is { LastCommands.IsEmpty: false })
+                        {
+                            Assert.NotEmpty(presentation.Render(battle, 640, 448));
+                            renderedFinisher = true;
+                        }
+                        if (!skipped && renderedFinisher && battle.CanSkipGuardianFormFinisher)
+                        {
+                            // Compare the naturally advanced and skipped paths at the same callback boundary below.
+                            skipped = restored.SkipGuardianFormFinisher();
+                        }
+                    }
+                }
+                Assert.True(sawFinisher);
+                Assert.True(renderedFinisher);
+                Assert.True(skipped);
                 Assert.Null(battle.GetGuardianForm(casterId));
                 Assert.Null(restored.GetGuardianForm(casterId));
             }
             BattleEvent[] contacts = battle.Events.Where(entry => entry.Kind == "EffectContact" && entry.ActorId == casterId && entry.Ability == BattleAbility.GuardianForce).ToArray();
-            Assert.Equal(enemyIds, contacts.Select(entry => entry.TargetId));
+            Assert.Equal(expectedSummonRecipients, contacts.Select(entry => entry.TargetId));
             Assert.All(contacts, contact => Assert.True(contact.Amount > 0));
-            Assert.Equal(battle.Events, restored.Events);
+            if (transform)
+            {
+                Assert.Equal(contacts, restored.Events.Where(entry => entry.Kind == "EffectContact" && entry.ActorId == casterId && entry.Ability == BattleAbility.GuardianForce).ToArray());
+            }
+            else
+            {
+                Assert.Equal(battle.Events, restored.Events);
+            }
             Assert.Equal(battle.Combatants.Select(actor => actor.CurrentHp), restored.Combatants.Select(actor => actor.CurrentHp));
             Assert.Equal(battle.GuardianForces, restored.GuardianForces);
             Assert.Equal(caster.GuardianForceCompatibility, restored.Combatants.Single(actor => actor.Id == casterId).GuardianForceCompatibility);

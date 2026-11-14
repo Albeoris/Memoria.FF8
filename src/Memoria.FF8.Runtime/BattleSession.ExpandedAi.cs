@@ -300,7 +300,12 @@ public sealed partial class BattleSession
 
     private static bool EnemyActionTargetsKnockedOutAllies(BattleNativeAction? action)
     {
-        return action is { Command: 8 } && (action.AttackFlags & 0x80) != 0;
+        return action is { Command: 8 or 252 } && (action.AttackFlags & 0x80) != 0;
+    }
+
+    private void QueueExpandedGraphicCommand(BattleCombatant actor, byte magicId, byte sequence, BattleAiRecipients? recipients)
+    {
+        EnqueueExpandedAiAction(actor, 252, 1, sequence, recipients ?? new([]), graphic: new(magicId));
     }
 
     private void QueueExpandedAiAction(BattleCombatant actor, byte command, ushort id, byte sequence, BattleAiRecipients? recipients)
@@ -315,7 +320,12 @@ public sealed partial class BattleSession
 
     private void EnqueueExpandedAiAction(BattleCombatant actor, BattleNativeAction native, byte sequence, BattleAiRecipients? recipients)
     {
-        if (recipients is null || recipients.ActorIds.IsEmpty)
+        EnqueueExpandedAiAction(actor, native.Command, native.ActionId, sequence, recipients, native);
+    }
+
+    private void EnqueueExpandedAiAction(BattleCombatant actor, byte command, ushort actionId, byte sequence, BattleAiRecipients? recipients, BattleNativeAction? native = null, BattleNativeGraphicCommand? graphic = null)
+    {
+        if (recipients is null || recipients.ActorIds.IsEmpty && graphic is null)
         {
             return;
         }
@@ -325,11 +335,12 @@ public sealed partial class BattleSession
         }
         actor.Atb = 0;
         actor.IsBusy = true;
-        actor.ExpandedPreviousAiTargetId = recipients.ActorIds[0];
-        actions.Enqueue(new(actor.Id, recipients.ActorIds[0], BattleAbility.EnemyAbility, native.ActionId)
+        actor.ExpandedPreviousAiTargetId = recipients.ActorIds.IsEmpty ? null : recipients.ActorIds[0];
+        actions.Enqueue(new(actor.Id, actor.ExpandedPreviousAiTargetId ?? actor.Id, BattleAbility.EnemyAbility, actionId)
         {
-            NativeQueuedCommand = native.Command,
+            NativeQueuedCommand = command,
             NativeAction = native,
+            NativeGraphic = graphic,
             NativeAiCallbackStage = nativeAiCallbackStage,
             NativeSequence = sequence,
             AiRecipients = recipients

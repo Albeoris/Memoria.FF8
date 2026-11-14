@@ -39,12 +39,8 @@ public sealed partial class ExpandedBattleEffectMatrixTests
 
     private static EnemyRouteResult RunDiscoveredEnemyDeath(string directory, GameState field, BattleAssets assets, NativeBattleEffectBinding effect, EnemyScenarioScriptedAction[] scripts, bool probeEnemies)
     {
-        if (scripts.All(script => script.NativeAction is null))
-        {
-            return new("blocked", "Installed callback 3 uses a direct graphics invocation.", "enemy-death-direct-graphics");
-        }
         HashSet<string> blockers = new(StringComparer.Ordinal);
-        var candidates = scripts.Where(script => script.NativeAction is not null)
+        var candidates = scripts.Where(IsDiscoveredEnemyDispatch)
             .SelectMany(script => script.Formations.Where(scene => scene.Enabled && !scene.Hidden && !scene.Suspended && !scene.Untargetable).Select(scene => (Script: script, Scene: scene)))
             .Where(route => AdmitsEnemyScript(assets, route.Script, route.Scene, blockers))
             .GroupBy(route => route.Scene.FormationId)

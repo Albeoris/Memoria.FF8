@@ -87,13 +87,16 @@ public sealed partial class BattleRenderer
         return float.IsFinite(screen.X) && float.IsFinite(screen.Y);
     }
 
-    public byte[] Render(BattleStage stage, IReadOnlyList<BattleActorDraw> actors, BattleCamera? camera = null, TimeSpan? animationClock = null, NativeBattlePreparedPrimitiveFrame? effect = null, NativeBattleEffectTextureState? effectTextures = null, INativeBattleEffectTextureSource? effectTextureSource = null)
+    public byte[] Render(BattleStage stage, IReadOnlyList<BattleActorDraw> actors, BattleCamera? camera = null, TimeSpan? animationClock = null, NativeBattlePreparedPrimitiveFrame? effect = null, NativeBattleEffectTextureState? effectTextures = null, INativeBattleEffectTextureSource? effectTextureSource = null, bool drawStage = true)
     {
         Begin(camera ?? BattleCamera.NativeInitial);
         TriangleRenderer?.Begin(Width, Height, new Vector4(17f / 255, 20f / 255, 29f / 255, 1), 0);
-        foreach (BattleMesh mesh in stage.Meshes)
+        if (drawStage)
         {
-            Draw(mesh, mesh.Vertices.Select(vertex => vertex.Position).ToArray(), stage.Textures, 1, stagePages: stage.NativePages, animationClock: animationClock);
+            foreach (BattleMesh mesh in stage.Meshes)
+            {
+                Draw(mesh, mesh.Vertices.Select(vertex => vertex.Position).ToArray(), stage.Textures, 1, stagePages: stage.NativePages, animationClock: animationClock);
+            }
         }
         foreach (BattleActorDraw actor in actors.Where(actor => actor.Visible))
         {

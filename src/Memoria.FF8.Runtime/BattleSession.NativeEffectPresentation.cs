@@ -19,6 +19,8 @@ public sealed partial class BattleSession
     private int? presentationPartyActorCount;
     private int? presentationInitialMusicGain;
     private NativeBattleEffectCameraMode presentationCameraMode;
+    private GuardianFormInvocationMode? hostedGuardianFormMode;
+    private bool hostedGuardianFormContinued;
     private readonly List<NativeBattleContactPacket> presentationContacts = [];
     private readonly List<NativeBattleModuleSound> presentationSounds = [];
     private readonly List<NativeBattleForeignSequenceRequest> presentationSequences = [];
@@ -46,6 +48,7 @@ public sealed partial class BattleSession
         presentationModelTransformPolicy = inputs.ModelTransformPolicy;
         presentationPartyActorCount = inputs.PartyActorCount;
         presentationCameraMode = inputs.CameraMode;
+        hostedGuardianFormMode = inputs.GuardianFormMode;
         combatants = [];
         byId = new(StringComparer.Ordinal);
         handlers = [];
@@ -64,6 +67,10 @@ public sealed partial class BattleSession
         NativeEffectMemory = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(definition.NativeRetainedMemory?.EffectMemory ?? NativeBattleEffectMemory.FromColdProcess())) with { Textures = inputs.Textures };
         NativeEffectMemory = NativeBattleGraphicsInitialization.Initialize500520(NativeEffectMemory);
         NativeCamera = BindEffectPresentationHostProjection(NativeBattleCameraState.FromColdProcess(), inputs.Projection);
+        if (presentationCameraMode == NativeBattleEffectCameraMode.NativeCinematic)
+        {
+            NativeCamera = NativeCamera.WriteEffectGlobals(inputs.HostCameraPose ?? throw new InvalidDataException("The cinematic presentation requires its initial host camera pose."));
+        }
         presentationHostCamera = NativeCamera;
         NativeFileStaging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.FromColdProcess());
         NativeFileIo = NativeBattleFileIoState.FromColdProcess();
@@ -80,6 +87,11 @@ public sealed partial class BattleSession
         }
         NativeVibrationProcess = definition.NativeVibrationProcess ?? definition.NativeRetainedMemory?.VibrationProcess ?? NativeVibrationProcessState.FromColdProcess();
         NativeStage = inputs.Arena?.CreatePresentationStage() ?? NativeBattleStageState.FromColdProcess();
+        if (IsHostedGuardianFormCinematic)
+        {
+            // Opcode 0x6D controls visibility of the host stage, whose mesh data remains with the renderer.
+            NativeStage = NativeStage with { Groups = NativeStage.Groups.Select(group => group with { Flags = 2 }).ToImmutableArray() };
+        }
         presentationInitialStage = NativeStage;
         ImmutableArray<NativeBattleGraphicsModel> models = NativeBattleGraphicsModels.ClearBank().ToImmutableArray().SetItem(0, inputs.Source);
         foreach (NativeBattleEffectModelBinding target in presentationNativeTargets.Values)
@@ -125,7 +137,10 @@ public sealed partial class BattleSession
         {
             NativeGraphics = BeginNativeOriginalEffect(NativeGraphics!, inputs.Effect);
         }
-        NativeGraphics = NativeGraphics with { OriginalEffect = NativeGraphics.OriginalEffect! with { Parameters = inputs.Parameters } };
+        if (hostedGuardianFormMode != GuardianFormInvocationMode.EntryOnly)
+        {
+            NativeGraphics = NativeGraphics with { OriginalEffect = NativeGraphics.OriginalEffect! with { Parameters = inputs.Parameters } };
+        }
         if (!inputs.DeferInvocation)
         {
             InvokeEffectPresentation();
@@ -224,6 +239,10 @@ public sealed partial class BattleSession
     internal int? ReadEffectPresentationMusicGain() => presentationInitialMusicGain is null ? null : (NativeGlobalSoundProcess?.MusicPlayback ?? throw new InvalidDataException("Native presentation lost its music gain owner.")).ReadGain(0);
     internal NativeCrtRandomState ReadEffectPresentationRandom() => nativeCrtRandom ?? throw new InvalidDataException("Native presentation lost its random owner.");
     internal NativeBattleGraphicsResource ReadEffectPresentationSourceResource() => NativeGraphicsPoseResource(NativeGraphics!, 0);
+    internal NativeBattleCameraPose? ReadHostedCinematicCamera() => presentationCameraMode == NativeBattleEffectCameraMode.NativeCinematic ? NativeCamera?.PublishedPresentationPose : null;
+    internal bool IsHostedGuardianFormCinematic => hostedGuardianFormMode is GuardianFormInvocationMode.EntryOnly or GuardianFormInvocationMode.FinisherWithoutEntry;
+    internal bool ReachedHostedGuardianFormLanding() => hostedGuardianFormMode == GuardianFormInvocationMode.EntryOnly && ReachedIfritLandingBoundary();
+    internal bool CanSkipHostedGuardianFormFinisher => hostedGuardianFormContinued && !NativeBattleIfritContinuation.HasReachedFinale(RequireWaterMemory().ScriptedEffects!);
 
     internal NativeBattleEffectPresentationStep AdvanceEffectPresentation(NativeBattleGraphicsModel source, NativeCrtRandomState randomState, NativeBattleCameraProjection projection, ImmutableArray<NativeBattleForeignActor> foreignActors, NativeBattleEffectTextureState textures)
     {
@@ -235,7 +254,10 @@ public sealed partial class BattleSession
         presentationForeignActors = foreignActors.ToDictionary(actor => actor.Index);
         nativeCrtRandom = randomState;
         presentationHostCamera = BindEffectPresentationHostProjection(presentationHostCamera!, projection);
-        NativeCamera = NativeCamera! with { Projection = projection, ViewTranslationScratch = new(0, 0, 0) };
+        if (presentationCameraMode != NativeBattleEffectCameraMode.NativeCinematic)
+        {
+            NativeCamera = NativeCamera! with { Projection = projection, ViewTranslationScratch = new(0, 0, 0) };
+        }
         NativeBattleGraphicsState graphics = NativeGraphics! with { Models = BindPresentationForeignModels(NativeGraphics!.Models.SetItem(0, source), previousForeignActors), ModuleDraws = presentationFirstAdvance ? NativeGraphics.ModuleDraws : [], PrimitiveFrame = presentationFirstAdvance ? NativeGraphics.PrimitiveFrame : NativeBattlePrimitiveFrame.Clear() };
         NativeEffectMemory = NativeEffectMemory! with { PrimitiveProcess = presentationFirstAdvance ? NativeEffectMemory.PrimitiveProcess : NativeEffectMemory.PrimitiveProcess!.Reset500900(graphics.Flags), Textures = textures };
         presentationFirstAdvance = false;
@@ -272,6 +294,12 @@ public sealed partial class BattleSession
             graphics = AdvanceNativeOriginalEffect(graphics);
         }
         NativeGraphics = graphics;
+        if (presentationCameraMode == NativeBattleEffectCameraMode.NativeCinematic)
+        {
+            const uint projectionFlag = 4;
+            AdvanceNativeCamera(graphics.Flags | projectionFlag);
+            NativeCamera = NativeCamera!.PublishProjection(graphics.Flags | projectionFlag);
+        }
         graphics = ConsumeNativeGraphicsContacts(graphics);
 
         NativeBattleEffectMemory memory = NativeEffectMemory!;

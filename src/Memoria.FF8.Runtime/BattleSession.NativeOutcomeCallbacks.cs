@@ -46,7 +46,7 @@ public sealed partial class BattleSession
         NativeBattleOutcomeState outcome = graphics.NativeOutcome ?? throw new NotSupportedException("Native47DFC0 requires its established fade style BYTE.");
         byte duration = NativeBattleOutcomeCallbacks.Duration47DFC0(outcome.FadeStyleE01);
         (NativeBattleScriptTasks tasks, int slot) = nativeScriptState.Tasks.Allocate(0x47E030);
-        nativeScriptState = nativeScriptState with { Tasks = tasks with { Slots = tasks.Slots.SetItem(slot, tasks.Slots[slot].WriteWord(8, (ushort)(duration - 15))) } };
+        nativeScriptState = nativeScriptState with { Tasks = tasks with { Slots = tasks.Slots.SetItem(slot, tasks.Slots[slot].WriteWord(8, (ushort)(duration - NativeBattleOutcomeCallbacks.FadeLeadFrames47E030))) } };
         return graphics with { NativeOutcome = outcome with { FadeDurationB0C = duration } };
     }
 
@@ -87,12 +87,21 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState BeginNativeOutcomeFade501E10(NativeBattleGraphicsState graphics)
     {
-        return graphics with { Auxiliary = graphics.Auxiliary.AppendOutcomeFade501E10(13) };
+        return graphics with { Auxiliary = graphics.Auxiliary.AppendOutcomeFade501E10(NativeBattleOutcomeCallbacks.OutcomeFadeDuration501E10) };
     }
 }
 
 public static class NativeBattleOutcomeCallbacks
 {
+    internal const short OutcomeFadeDuration501E10 = 13;
+    internal const int FadeLeadFrames47E030 = 15;
+
+    internal static byte InterpolateFade501D10(short elapsed, short duration, byte start, byte target)
+    {
+        int weight = (elapsed << 12) / duration;
+        return unchecked((byte)(start + ((target - start) * weight >> 12)));
+    }
+
     public static ImmutableArray<NativeBattleGeometryPrimitive> FadePackets501D10(byte fade)
     {
         uint shade = unchecked((byte)(128 - fade));
@@ -101,6 +110,25 @@ public static class NativeBattleOutcomeCallbacks
         NativeBattleGeometryPrimitive quad = new(1, [0x05000000, color, 0, 320, 216u << 16, (216u << 16) | 320], []) { ScreenCoverage = NativeBattleScreenCoverage.Full };
         NativeBattleGeometryPrimitive mode = new(1, [0x01000000, 0xE1000040], [0, 0, 0, 0]);
         return [quad, mode];
+    }
+
+    public static NativeBattlePreparedPrimitiveFrame PrepareFade501D10(byte fade, NativeBattlePrimitiveTables tables)
+    {
+        NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear();
+        using NativeBattleLogicalOrdering.Builder packets = new(ordering);
+        int offset = 0;
+        foreach (NativeBattleGeometryPrimitive primitive in FadePackets501D10(fade))
+        {
+            packets.Prepend(primitive.Bucket, new("outcome-fade", 0, offset), primitive.Words, primitive.VertexPayload4.IsEmpty ? (ushort)1 : (ushort)0, primitive.VertexPayload4, screenCoverage: primitive.ScreenCoverage);
+            offset += primitive.Words.Length * sizeof(uint);
+        }
+        var executed = NativeBattleLogicalPasses.Execute(packets.ToImmutable(), tables, new(0) { TextureWindowBits = 0 }, 1);
+        return new(executed.Commands, [])
+        {
+            LastDescriptorPerspective = true,
+            LastDepthState = NativeBattlePrimitiveDepthState.FromColdProcess(),
+            LastColorState = NativeBattlePrimitiveColorState.FromColdProcess()
+        };
     }
 
     public static byte AdvanceCountdown47CCB0(byte remaining)

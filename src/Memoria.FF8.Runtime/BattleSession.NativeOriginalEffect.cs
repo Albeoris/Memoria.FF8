@@ -87,6 +87,11 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState InvokeNativeOriginalEffectEntry(NativeBattleGraphicsState graphics)
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Native effect invocation requires its actual loaded module entry.");
+        if (effect.Binding.Effect == 201 && hostedGuardianFormMode == GuardianFormInvocationMode.EntryOnly)
+        {
+            ObserveNativeUnknownStackCallback(effect.Binding.Entry, "original effect entry");
+            return EnterNativeCinematic(graphics);
+        }
         _ = effect.Parameters ?? throw new InvalidDataException("Native effect entry lacks its50AFC0 parameter block.");
         ObserveNativeUnknownStackCallback(effect.Binding.Entry, "original effect entry");
         if (effect.Binding.Effect is >= 292 and <= 296)

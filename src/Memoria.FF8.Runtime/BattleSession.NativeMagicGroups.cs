@@ -4,6 +4,10 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
+    private sealed record ExpandedMagicCastPresentation(BattleActionPresentation Cast, ImmutableArray<ExpandedBattleContact> Contacts, bool UsesNativeEffect, BattleActionPresentation? Reflection, ImmutableArray<ExpandedBattleContact> ReflectedContacts);
+
+    private Queue<ExpandedMagicCastPresentation>? expandedMagicPresentation;
+
     public static bool CanSelectEitherTargetSide(BattleActionDefinition action)
     {
         return action.NativeAction?.TargetFlags is byte flags ? NativeBattleLimitRules.CanSelectEitherSide(flags) : !action.AllTargets;
@@ -148,6 +152,7 @@ public sealed partial class BattleSession
         string? reservationId = command.MagicReservationId;
         int reserved = reservationId is null ? count : magicVitals!.MagicSystem.Reservations.FirstOrDefault(reservation => reservation.ActionId == reservationId)?.Count ?? 0;
         int completed = 0;
+        Queue<ExpandedMagicCastPresentation> presentations = new();
 
         // 485610 produces the whole group before 484180 post-action status work or pending reactions.
         BeginNativeReactionBatch();
@@ -192,7 +197,10 @@ public sealed partial class BattleSession
                 BattleActionPresentation cast = command with { TargetId = target.Id, ExpandedMagicTargets = null, NativeMagicCastMode = 0, NativeAction = native };
                 resolvingNativeAction = cast;
                 nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = false, EventLane = 2, Command = 2, Action = native.ActionId };
-                (ImmutableArray<ExpandedBattleContact> contacts, BattleCombatant? reflector) = ResolveExpandedHitPlan(actor, cast, action, native, hitPlan, presentsNativeEffect: false);
+                bool presentsNativeEffect = reflected is null && expandedEffectFactory is not null && ExpandedBattleActionRules.HasNativeSpellPresentation(native, hitPlan[0].Length);
+                deferringExpandedImpacts = presentsNativeEffect;
+                (ImmutableArray<ExpandedBattleContact> contacts, BattleCombatant? reflector) = ResolveExpandedHitPlan(actor, cast, action, native, hitPlan, presentsNativeEffect);
+                deferringExpandedImpacts = false;
                 (BattleActionPresentation? reflection, ImmutableArray<ExpandedBattleContact> reflectedContacts) = ResolveExpandedReflection(actor, cast, action, reflector, reflected);
                 completed++;
                 bool continueAffinity = true;
@@ -210,12 +218,7 @@ public sealed partial class BattleSession
                 {
                     CommitExpandedEnemyDraw(first.RecipientId, ref pendingEnemyDraw);
                 }
-                // TODO(TD-009): The logical host publishes repeat contacts without the native multi-header graphics playback.
-                PublishExpandedImpacts(cast, contacts);
-                if (reflection is not null)
-                {
-                    PublishExpandedImpacts(reflection, reflectedContacts);
-                }
+                presentations.Enqueue(new(cast, contacts, presentsNativeEffect && !contacts.IsEmpty, reflection, reflectedContacts));
                 if (!continueAffinity)
                 {
                     break;
@@ -233,12 +236,41 @@ public sealed partial class BattleSession
         }
         finally
         {
+            deferringExpandedImpacts = false;
             ReleaseMagicReservation(reservationId);
             resolvingNativeAction = null;
             nativeActionCommitDepth--;
         }
         FlushExpandedEnemyReactions();
-        CompleteActionPresentation(command, completed > 0 ? "Repeated magic completed." : "Expanded action cancelled.");
+        if (completed == 0)
+        {
+            CompleteActionPresentation(command, "Expanded action cancelled.");
+            return;
+        }
+
+        expandedMagicPresentation = presentations;
+        ActiveAction = command with { Phase = BattleActionPhase.Recovery, RemainingFrames = 1, MagicReservationId = null };
+        AdvanceExpandedMagicPresentation(ActiveAction);
+    }
+
+    private void AdvanceExpandedMagicPresentation(BattleActionPresentation group)
+    {
+        while (expandedMagicPresentation!.TryDequeue(out ExpandedMagicCastPresentation? presentation))
+        {
+            BattleActionPresentation cast = presentation.Cast;
+            if (presentation.UsesNativeEffect)
+            {
+                BeginExpandedEffect(GetActor(cast.ActorId), cast, cast.NativeAction!, cast.NativeSequence ?? 1, presentation.Contacts);
+                return;
+            }
+            PublishExpandedImpacts(cast, presentation.Contacts);
+            if (presentation.Reflection is { } reflection)
+            {
+                PublishExpandedImpacts(reflection, presentation.ReflectedContacts);
+            }
+        }
+        expandedMagicPresentation = null;
+        CompleteActionPresentation(group, "Repeated magic completed.");
     }
 
     private bool SpendExpandedMagicGroupStock(BattleCombatant actor, int spell, string? reservationId, int completed)

@@ -272,8 +272,15 @@ public sealed partial class BattleSession
                         actor.IsBusy = actor.ExpandedAiRemovalPending;
                         break;
                     case 30:
-                        int effect = ReadAiByte(code, ref pc);
-                        QueueNativeGraphicCommand(actor, checked((byte)effect), sequenceOverride, targetMask);
+                        byte effect = checked((byte)ReadAiByte(code, ref pc));
+                        if (UsesExpandedRoster)
+                        {
+                            QueueExpandedGraphicCommand(actor, effect, sequenceOverride, recipients);
+                        }
+                        else
+                        {
+                            QueueNativeGraphicCommand(actor, effect, sequenceOverride, targetMask);
+                        }
                         break;
                     case 28:
                         QueueNativeWait(30 * ReadAiByte(code, ref pc));

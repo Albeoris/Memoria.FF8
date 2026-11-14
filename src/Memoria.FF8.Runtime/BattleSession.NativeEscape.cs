@@ -48,6 +48,20 @@ public sealed partial class BattleSession
     public bool EscapeDisabled => nativeScriptState.EscapeDisabled ?? (EscapeFlags & 1) != 0;
     public bool IsExpandedEscapeRunning => UsesExpandedRoster && !HasPendingExpandedEscape && Outcome == BattleOutcome.Active && nativeEscape.PresentationHeld;
     public bool IsExpandedEscapeFinishing => HasPendingExpandedEscape || UsesExpandedRoster && Outcome == BattleOutcome.Escaped;
+    public byte? ExpandedEscapeScreenFade
+    {
+        get
+        {
+            byte remaining = nativeEscape.ExpandedOutcomeFrames;
+            const short duration = NativeBattleOutcomeCallbacks.OutcomeFadeDuration501E10;
+            if (!IsExpandedEscapeFinishing || remaining > duration)
+            {
+                return null;
+            }
+            // 47E030 polls before 500900 runs the first fade callback and before 47CCB0 decrements the outcome clock.
+            return NativeBattleOutcomeCallbacks.InterpolateFade501D10((short)(duration - remaining), duration, 128, 0);
+        }
+    }
 
     private bool HasPendingExpandedEscape => nativeEscape.ExpandedOutcomeFrames > 0;
 

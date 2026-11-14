@@ -21,12 +21,12 @@ public sealed partial class BattleSession
         return sources.DistinctBy(source => (source.ModelId, source.Linked, source.Selector)).ToImmutableArray();
     }
 
-    private static NativeBattleEffectParameters GuardianFormPositioningParameters(NativeBattleGuardianFormPresentation presentation)
+    private static NativeBattleEffectParameters GuardianFormPositioningParameters(byte caster)
     {
-        return new(presentation.ActorIndex, 0, checked((ushort)(1 << presentation.ActorIndex)), 0, 0, 0) { Parameter80 = 0, Parameter82 = 0 };
+        return new(caster, 0, checked((ushort)(1 << caster)), 0, 0, 0) { Parameter80 = 0, Parameter82 = 0 };
     }
 
-    private static byte[] ReadGuardianFormPositioning(NativeBattleGuardianFormPresentation presentation, uint address, int length)
+    private static byte[] ReadGuardianFormPositioning(byte caster, uint address, int length)
     {
         if (length < 0)
         {
@@ -34,10 +34,10 @@ public sealed partial class BattleSession
         }
         if (address >= WaterParametersAddress && (long)address - WaterParametersAddress <= 12L - length)
         {
-            return NativeBattleCinematicParameterBytes.Read(GuardianFormPositioningParameters(presentation), checked((int)(address - WaterParametersAddress)), length);
+            return NativeBattleCinematicParameterBytes.Read(GuardianFormPositioningParameters(caster), checked((int)(address - WaterParametersAddress)), length);
         }
         byte[] header = new byte[20];
-        header[0] = presentation.ActorIndex;
+        header[0] = caster;
         System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(8), WaterContactsAddress);
         header[0x10] = 1;
         header[0x11] = 1;
@@ -46,7 +46,7 @@ public sealed partial class BattleSession
             return header.AsSpan(checked((int)(address - WaterHeadersAddress)), length).ToArray();
         }
         byte[] positioning = new byte[24];
-        positioning[0] = presentation.ActorIndex;
+        positioning[0] = caster;
         if (address >= WaterContactsAddress && (long)address - WaterContactsAddress <= positioning.Length - length)
         {
             return positioning.AsSpan(checked((int)(address - WaterContactsAddress)), length).ToArray();
@@ -156,9 +156,11 @@ public sealed partial class BattleSession
         return models;
     }
 
-    public bool CanSkipGuardianFormFinisher => CanSkipOrdinaryGuardianAnimation || NativeGraphics?.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 5, SkipRequested: false };
+    private bool expandedGuardianFormSkipRequested;
 
-    private bool SkippingGuardianFormPresentation => SkippingOrdinaryGuardianAnimation || NativeGraphics?.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 5, SkipRequested: true } && !NativeBattleIfritContinuation.HasReachedFinale(RequireWaterMemory().ScriptedEffects!);
+    public bool CanSkipGuardianFormFinisher => CanSkipOrdinaryGuardianAnimation || !expandedGuardianFormSkipRequested && expandedEffect?.CanSkipGuardianFormFinisher == true || NativeGraphics?.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 5, SkipRequested: false };
+
+    private bool SkippingGuardianFormPresentation => SkippingOrdinaryGuardianAnimation || expandedGuardianFormSkipRequested && expandedEffect?.CanSkipGuardianFormFinisher == true || NativeGraphics?.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 5, SkipRequested: true } && !NativeBattleIfritContinuation.HasReachedFinale(RequireWaterMemory().ScriptedEffects!);
 
     public bool GuardianAnimationSkipPending => SkippingGuardianFormPresentation;
 
@@ -181,6 +183,11 @@ public sealed partial class BattleSession
     {
         if (SkipOrdinaryGuardianAnimation())
         {
+            return true;
+        }
+        if (!expandedGuardianFormSkipRequested && expandedEffect?.CanSkipGuardianFormFinisher == true)
+        {
+            expandedGuardianFormSkipRequested = true;
             return true;
         }
         if (!CanSkipGuardianFormFinisher)

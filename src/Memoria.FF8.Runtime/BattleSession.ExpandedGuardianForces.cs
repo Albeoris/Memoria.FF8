@@ -2,6 +2,76 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
+    private sealed record ExpandedGuardianFormEntry(string ActorId, long InvocationId, NativeBattleEffectPresentation Effect);
+    private ExpandedGuardianFormEntry? expandedGuardianFormEntry;
+
+    private void BeginExpandedGuardianFormEntry(BattleCombatant actor, BattleGuardianFormState form)
+    {
+        if (expandedEffectFactory is null)
+        {
+            CompleteGuardianFormEntry(actor.Id, form.InvocationId);
+            return;
+        }
+        if (expandedGuardianFormEntry is not null)
+        {
+            throw new InvalidOperationException("A GF form entrance already owns expanded battle presentation.");
+        }
+        BattleNativeAction summon = FindAction(BattleAbility.GuardianForce, form.GuardianForceId).NativeAction!;
+        NativeBattleContactPacket positioning = new(new(0, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0));
+        try
+        {
+            expandedGuardianFormEntry = new(actor.Id, form.InvocationId, expandedEffectFactory(actor, summon, 0, [new(actor.Id, positioning)], GuardianFormInvocationMode.EntryOnly));
+        }
+        catch
+        {
+            FailGuardianFormPresentation(actor.Id, form.InvocationId);
+            throw;
+        }
+    }
+
+    private bool AdvanceExpandedGuardianFormEntry()
+    {
+        if (expandedGuardianFormEntry is not { } entry)
+        {
+            return false;
+        }
+        Frame = checked(Frame + 1);
+        try
+        {
+            NativeBattleEffectPresentationStep step = entry.Effect.AdvanceCurrent();
+            foreach (NativeBattleModuleSound sound in step.Sounds)
+            {
+                PublishNativeModuleSound(sound, entry.ActorId);
+            }
+            if (!step.Contacts.IsEmpty || entry.Effect.Complete)
+            {
+                throw new InvalidDataException("GF form entrance requires the landing before any offensive contact.");
+            }
+            if (entry.Effect.ReachedGuardianFormLanding)
+            {
+                EndExpandedGuardianFormEntry(entry);
+                CompleteGuardianFormEntry(entry.ActorId, entry.InvocationId);
+            }
+        }
+        catch
+        {
+            if (expandedGuardianFormEntry is not null)
+            {
+                EndExpandedGuardianFormEntry(entry);
+            }
+            FailGuardianFormPresentation(entry.ActorId, entry.InvocationId);
+            throw;
+        }
+        return true;
+    }
+
+    private void EndExpandedGuardianFormEntry(ExpandedGuardianFormEntry entry)
+    {
+        expandedGuardianFormEntry = null;
+        entry.Effect.Dispose();
+        events.Add(new(Frame, "NativeSoundStopAll", null, null, 0, "GF presentation releases its sound voices.") { NativeStopAllSounds = true });
+    }
+
     public bool CanSelectExpandedGuardianForce(string actorId, int guardianForceId)
     {
         BattleCombatant actor = GetActor(actorId);
@@ -33,7 +103,7 @@ public sealed partial class BattleSession
             BattleActionDefinition action = FindAction(BattleAbility.GuardianForce, cast.Command.ActionId);
             if (summoning && cast.Command.GuardianFormInvocation is not null)
             {
-                if (ActiveAction is null && !ExpandedTimedLimitOwnsInput && actions.Count == 0)
+                if (ActiveAction is null && expandedGuardianFormEntry is null && !ExpandedTimedLimitOwnsInput && actions.Count == 0)
                 {
                     ReleaseGuardianForceCharge(actor);
                     BeginCompletedGuardianFormCharge(actor, cast);

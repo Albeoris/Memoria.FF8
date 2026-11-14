@@ -154,8 +154,10 @@ public static class NativeBattleExpandedAi
                         }
                         break;
                     case 8 when callback != 3 && !originalEnemySlots:
-                    case 30:
                         MarkUnsupportedService($"opcode:{opcode}");
+                        break;
+                    case 30 when !actions.Any(action => action is { Command: 8, ActionId: 1, CrisisLevel: null }):
+                        MarkUnsupportedService("graphics-target-flags:8/1");
                         break;
                     case 42:
                         if (actions.Any(action => action is { Command: 2, ActionId: > 0 } && !ExpandedBattleActionRules.SupportsDrawnEnemyMagic(action)))

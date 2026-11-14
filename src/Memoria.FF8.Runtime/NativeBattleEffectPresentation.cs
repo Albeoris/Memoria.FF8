@@ -29,6 +29,8 @@ public sealed record NativeBattleEffectPresentationInputs(BattleDefinition Resou
     public int? InitialMusicGain { get; init; }
     public NativeBattleSequenceProcessGlobals? SequenceGlobals { get; init; }
     public NativeBattleEffectCameraMode CameraMode { get; init; }
+    public NativeBattleCameraPose? HostCameraPose { get; init; }
+    public GuardianFormInvocationMode? GuardianFormMode { get; init; }
     public ImmutableArray<NativeBattleEffectModelBinding> NativeTargets { get; init; } = [];
 }
 
@@ -37,7 +39,8 @@ public sealed record NativeBattleEffectModelBinding(string ActorId, NativeBattle
 public enum NativeBattleEffectCameraMode
 {
     Hold,
-    HostPoseWithEffectTranslation
+    HostPoseWithEffectTranslation,
+    NativeCinematic
 }
 
 public enum NativeBattleForeignSequenceKind
@@ -88,6 +91,11 @@ public sealed class NativeBattleEffectPresentation : IDisposable
     public NativeBattleStageColor StageColor => owner.ReadEffectPresentationStageColor();
     public short StageColorDepth => StageColor.Depth;
     public short ViewTranslationY => owner.NativeCamera?.ViewTranslationScratch?.Y ?? 0;
+    public NativeBattleCameraPose? CinematicCamera => owner.ReadHostedCinematicCamera();
+    public bool IsGuardianFormCinematic => owner.IsHostedGuardianFormCinematic;
+    public bool HidesHostStage => IsGuardianFormCinematic && Stage.Groups.All(group => (group.Flags & 2) == 0);
+    public bool ReachedGuardianFormLanding => owner.ReachedHostedGuardianFormLanding();
+    internal bool CanSkipGuardianFormFinisher => owner.CanSkipHostedGuardianFormFinisher;
     public NativeBattleActionMatrix ForeignPlacement(int index) => owner.ReadEffectPresentationForeignPlacement(index);
     public bool ReplacesHostModel(int index) => (Graphics.Models[index].Flags0 & 4) != 0;
     public ImmutableArray<NativeBattleArenaReplacement> ArenaReplacements => owner.presentationArena?.Replacements ?? [];

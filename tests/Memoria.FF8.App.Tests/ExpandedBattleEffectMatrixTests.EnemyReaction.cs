@@ -16,12 +16,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
 
     private static EnemyRouteResult RunDiscoveredEnemyReaction(string directory, GameState field, BattleAssets assets, NativeBattleEffectBinding effect, EnemyScenarioScriptedAction[] scripts, bool probeEnemies)
     {
-        if (scripts.All(script => script.NativeAction is null))
-        {
-            return new("blocked", "The installed callback 2 references this binding through direct graphics.", "enemy-reaction-direct-graphics");
-        }
-
-        var sceneOwners = scripts.Where(script => script.NativeAction is not null)
+        var sceneOwners = scripts.Where(IsDiscoveredEnemyDispatch)
             .SelectMany(script => script.Formations.Where(scene => scene.Enabled && !scene.Hidden && !scene.Suspended && !scene.Untargetable).Select(scene => (Script: script, Scene: scene)))
             .ToArray();
         if (sceneOwners.Length == 0)

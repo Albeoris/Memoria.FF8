@@ -128,11 +128,18 @@ public sealed class NativeBattleEscapePresentationTests
         Assert.Equal(BattleOutcome.Active, battle.Outcome);
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
         restored = RoundTrip(battle);
+        List<(byte Remaining, byte Fade)> fadeFrames = [];
         for (int callback = 0; callback < 1200 && battle.Outcome == BattleOutcome.Active; callback++)
         {
             battle.Tick();
             restored.Tick();
+            if (battle.NativeGraphics is { NativeOutcome.FadeDurationB0C: byte remaining, PrimitiveFrame.LastCommands: var commands } &&
+                commands.Any(command => command.Pass == 2 && command.Command.Opcode == 0x2A && command.Command.ScreenCoverage == NativeBattleScreenCoverage.Full))
+            {
+                fadeFrames.Add((remaining, battle.NativeEffectMemory!.PrimitiveProcess!.ScreenFadeEB8!.Value));
+            }
         }
+        Assert.Equal(Enumerable.Range(0, 14).Select(elapsed => ((byte)(13 - elapsed), (byte)(128 + (-128 * ((elapsed << 12) / 13) >> 12)))), fadeFrames);
         Assert.Equal(BattleOutcome.Escaped, battle.Outcome);
         Assert.True(battle.CanReturnToField);
         Assert.Equal((byte?)0, battle.NativeGraphics!.NativeOutcome!.FadeDurationB0C);
