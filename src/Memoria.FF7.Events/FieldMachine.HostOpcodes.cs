@@ -446,6 +446,10 @@ public sealed partial class FieldMachine
                 return Host(id, new FieldMusicCommand(FieldMusicOperation.NextBattle, B(id, 1)), 2);
             case 0xFC:
                 return Host(id, new FieldMusicCommand(FieldMusicOperation.NextField, B(id, 1)), 2);
+            case 0xFD:
+                return Host(id, new FieldMusicChangeCommand(B(id, 1), B(id, 3), R16(id, 3, 4), R16(id, 4, 6)), 8);
+            case 0xFE:
+                return Host(id, new FieldMusicPlayingQuery(), 3, result: value => Variables.WriteByte(Bank(id, 2), B(id, 2), value != 0 ? (byte)1 : (byte)0));
             case 0xF1:
                 return Host(id, new FieldAudioCommand(0x20, R8(id, 2, 4), R16(id, 1, 2)), 5);
             case 0xF2:

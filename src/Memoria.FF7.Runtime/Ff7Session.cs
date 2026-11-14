@@ -325,6 +325,7 @@ public sealed partial class Ff7Session : IDisposable
             AudioRequested = Host?.AudioRequested,
             NativeSoundLoopAlreadyPlaying = Host?.NativeSoundLoopAlreadyPlaying,
             NativeSoundClockAdvanced = Host?.NativeSoundClockAdvanced,
+            NativeMusicTimeline = ReadNativeMusicTimeline,
             NativeBlinkCamera = Host?.NativeBlinkCamera ?? ReadNativeMovieCamera,
             NativeMovieCameraRecordCount = ReadNativeMovieCameraRecordCount,
             NativeBlinkRandomTable = executable.NativeFieldRandomTable,

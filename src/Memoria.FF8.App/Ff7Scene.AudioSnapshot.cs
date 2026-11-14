@@ -43,8 +43,16 @@ internal sealed partial class Ff7Scene
                 long frames = bytes / alignment;
                 if (frames >= source.LoopEndFrames)
                 {
-                    frames = source.LoopStartFrames + (frames - source.LoopStartFrames) % (source.LoopEndFrames - source.LoopStartFrames);
-                    repeating = true;
+                    if (musicRepeats)
+                    {
+                        frames = source.LoopStartFrames + (frames - source.LoopStartFrames) % (source.LoopEndFrames - source.LoopStartFrames);
+                        repeating = true;
+                    }
+                    else
+                    {
+                        frames = source.LoopEndFrames - 1;
+                        repeating = false;
+                    }
                 }
                 music = source with { PositionFrames = frames, LoopStarted = repeating };
             }
@@ -102,6 +110,15 @@ internal sealed partial class Ff7Scene
             }
         }
         soundChannels.Pause(audioPaused);
+    }
+
+    internal static long ResolveNativeMusicResumeFrames(Ff7MusicVoicePosition? saved, Ff7NativeMusicTimeline timeline, long musicTicks, int sampleRate, int frameCount, bool legacyPosition)
+    {
+        if (saved is { LoopStarted: true } && !timeline.Loops)
+        {
+            return timeline.IsPlaying(musicTicks) ? Math.Min(frameCount, checked((long)((Int128)musicTicks * sampleRate / 30))) : frameCount;
+        }
+        return saved?.PositionFrames ?? (legacyPosition ? checked((long)((Int128)musicTicks * sampleRate / 30)) : 0);
     }
 
     private Ff7MusicVoicePosition? ResumeMusicPosition(int track, string fingerprint, PcmAudio pcm, ExternalMusicLoop loop)

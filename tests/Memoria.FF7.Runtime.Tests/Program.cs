@@ -170,6 +170,12 @@ if (args.Contains("--character-names-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--native-music-status-only", StringComparer.Ordinal))
+{
+    NativeMusicStatusTests.Run();
+    return 0;
+}
+
 if (args.Contains("--color-transition-only", StringComparer.Ordinal))
 {
     NativeColorTransitionTests.Run();
@@ -413,6 +419,7 @@ var tests = new (string Name, Action Run)[]
     ("native opening flashback party storage and equipment", FlashbackPartyTests.Run),
     ("native opening request reward suppression", RewardSuppressionTests.Run),
     ("native opening character display names", CharacterDisplayNameTests.Run),
+    ("native music status, finite timing and local changes", NativeMusicStatusTests.Run),
     ("native model color transition", NativeColorTransitionTests.Run),
     ("native covered-character byte and Grasslands counters", DevilRideAiFlagsTests.Run),
     ("native opening condition costs and status immunity", NativeConditionConsumerTests.Run),

@@ -257,6 +257,14 @@ public sealed partial class Ff7FieldHost : IFieldHost
             case FieldMusicCommand music:
                 ApplyMusic(music);
                 return new(true);
+            case FieldMusicPlayingQuery:
+                return new(true, ReadNativeMusicPlaying() ? 1 : 0);
+            case FieldMusicChangeCommand change:
+                if (Process.MusicLock == 0)
+                {
+                    ApplyAudio(new(change.Operation, ResolveNativeMusicTrack(change.Track), change.Parameter0, change.Parameter1));
+                }
+                return new(true);
             case FieldFadeCommand fade:
                 if (fade.Wait)
                 {

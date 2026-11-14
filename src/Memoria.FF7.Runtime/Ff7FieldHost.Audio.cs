@@ -97,7 +97,7 @@ public sealed partial class Ff7FieldHost
     public void PlayNativeMusic(int track)
     {
         track = NormalizeNativeMusicTrack(track);
-        if (Process.NativeMusicTrack == track)
+        if (Process.NativeMusicTrack == track && (track == 0 || NativeMusicTimeline is null || ReadNativeMusicPlaying()))
         {
             return;
         }

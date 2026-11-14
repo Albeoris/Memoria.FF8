@@ -1,9 +1,23 @@
 using Memoria.FF7.Events;
+using Memoria.FF7.Resources;
 
 namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7FieldHost
 {
+    public Func<int, Ff7NativeMusicTimeline>? NativeMusicTimeline { get; set; }
+
+    public Ff7NativeMusicTimeline DescribeNativeMusic(int track)
+    {
+        return (NativeMusicTimeline ?? throw new NotSupportedException("FFVII music playback status requires its original MIDI timeline source."))(NormalizeNativeMusicTrack(track));
+    }
+
+    public bool ReadNativeMusicPlaying()
+    {
+        int track = Process.NativeMusicTrack ?? (Process.Music is null || Process.Music.Track < 0 ? 0 : ResolveNativeMusicTrack(Process.Music.Track));
+        return track != 0 && DescribeNativeMusic(track).IsPlaying(Process.MusicTicks);
+    }
+
     /// <summary>Publishes a native module audio command through the shared FFVII audio owner.</summary>
     public void SubmitNativeAudio(FieldAudioCommand command)
     {

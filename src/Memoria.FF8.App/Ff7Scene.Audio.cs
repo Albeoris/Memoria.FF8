@@ -18,6 +18,7 @@ internal sealed partial class Ff7Scene
     private Ff7FieldHost? audioHost;
     private int audioTrack = -1;
     private bool audioPaused;
+    private bool musicRepeats;
 
     private void UpdateAudio()
     {
@@ -105,20 +106,27 @@ internal sealed partial class Ff7Scene
             (PcmAudio pcm, ExternalMusicLoop loop, string fingerprint) = musicDecode.GetAwaiter().GetResult();
             musicDecode = null;
             audioOutput ??= new PcmAudioOutput();
+            bool repeats = session.Host.DescribeNativeMusic(track).Loops;
+            musicRepeats = repeats;
             byte[] primary = pcm.Bytes.AsSpan(0, loop.EndByte).ToArray();
             byte[] repeat = pcm.Bytes.AsSpan(loop.StartByte, loop.EndByte - loop.StartByte).ToArray();
             PcmAudioOutput.Buffer musicBuffer = audioOutput.Create(primary, pcm.SampleRate, pcm.Channels);
-            PcmAudioOutput.Buffer musicLoopBuffer = audioOutput.Create(repeat, pcm.SampleRate, pcm.Channels);
+            PcmAudioOutput.Buffer? musicLoopBuffer = repeats ? audioOutput.Create(repeat, pcm.SampleRate, pcm.Channels) : null;
             Ff7MusicVoicePosition? savedPosition = ResumeMusicPosition(track, fingerprint, pcm, loop);
-            long elapsed = savedPosition is not null ? savedPosition.PositionFrames * pcm.Channels * sizeof(short) : legacyMusicPosition ? checked((long)(state.MusicTicks / 30d * pcm.SampleRate)) * pcm.Channels * sizeof(short) : 0;
+            long resumeFrames = ResolveNativeMusicResumeFrames(savedPosition, session.Host.DescribeNativeMusic(track), state.MusicTicks, pcm.SampleRate, loop.EndByte / (pcm.Channels * sizeof(short)), legacyMusicPosition);
+            if (!repeats && savedPosition is { LoopStarted: true })
+            {
+                Console.Error.WriteLine("FFVII compatibility: a captured finite music loop resumes approximately from recorded native music time; recorded progress is preserved.");
+            }
+            long elapsed = checked(resumeFrames * pcm.Channels * sizeof(short));
             legacyMusicPosition = false;
-            bool musicLoopStarted = savedPosition?.LoopStarted ?? elapsed >= loop.EndByte;
+            bool musicLoopStarted = repeats && (savedPosition?.LoopStarted ?? elapsed >= loop.EndByte);
             if (musicLoopStarted)
             {
-                musicLoopBuffer.Position(checked((int)((elapsed - loop.StartByte) % repeat.Length)) / 4 * 4);
+                musicLoopBuffer!.Position(checked((int)((elapsed - loop.StartByte) % repeat.Length)) / 4 * 4);
                 musicLoopBuffer.Play(true);
             }
-            else
+            else if (elapsed < primary.Length)
             {
                 musicBuffer.Position(checked((int)elapsed) / 4 * 4);
                 musicBuffer.Play(false);

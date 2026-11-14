@@ -1,6 +1,18 @@
 using System.Text.Json;
 using Memoria.FF7.Events;
 
+if (args.Contains("--music-change-only", StringComparer.Ordinal))
+{
+    NativeMusicChangeTests.Run();
+    return 0;
+}
+
+if (args.Contains("--music-playing-query-only", StringComparer.Ordinal))
+{
+    NativeMusicPlayingQueryTests.Run();
+    return 0;
+}
+
 if (args.Contains("--item-opcodes-only", StringComparer.Ordinal))
 {
     ExtendedTests.ItemOperandsAndContinuation();
@@ -132,6 +144,8 @@ var tests = new (string Name, Action Run)[]
     ("request preemption cancels pending movement", ExtendedTests.CancelMove),
     ("external triggers and unsigned move speed", ExtendedTests.ExternalTriggersAndSpeed),
     ("canonical party bank and host projection", ExtendedTests.CanonicalParty),
+    ("native music change operands and cold continuation", NativeMusicChangeTests.Run),
+    ("native music activity query operands and cold continuation", NativeMusicPlayingQueryTests.Run),
     ("native music lock and player target operands", ExtendedTests.MusicLockAndControlTarget),
     ("reached opening host operand widths and selectors", ExtendedTests.OpeningHostOperands),
     ("native palette range multiply operands and continuation", ExtendedTests.PaletteRangeMultiplyOperandsAndContinuation),

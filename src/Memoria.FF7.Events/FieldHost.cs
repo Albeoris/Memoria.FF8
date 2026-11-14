@@ -52,6 +52,8 @@ public sealed record FieldActorPosition(short X, short Y, short Z, short Triangl
 [JsonDerivedType(typeof(FieldPartyCommand), "party")]
 [JsonDerivedType(typeof(FieldFadeCommand), "fade")]
 [JsonDerivedType(typeof(FieldMusicCommand), "music")]
+[JsonDerivedType(typeof(FieldMusicPlayingQuery), "music-playing-query")]
+[JsonDerivedType(typeof(FieldMusicChangeCommand), "music-change")]
 [JsonDerivedType(typeof(FieldActorTurn), "turn")]
 [JsonDerivedType(typeof(FieldActorFace), "face-actor")]
 [JsonDerivedType(typeof(FieldActorFaceParty), "face-party")]
@@ -185,6 +187,8 @@ public enum FieldMusicOperation
     Lock
 }
 public sealed record FieldMusicCommand(FieldMusicOperation Operation, int Track) : FieldCommand;
+public sealed record FieldMusicPlayingQuery : FieldCommand;
+public sealed record FieldMusicChangeCommand(int Track, int Operation, int Parameter0 = 0, int Parameter1 = 0) : FieldCommand;
 public sealed record FieldActorTurn(short Direction, byte DirectionPolicy, byte Steps, byte Mode, bool SignedTarget = false) : FieldCommand;
 public enum FieldActorQueryKind
 {
